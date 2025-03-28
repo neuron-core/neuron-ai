@@ -46,7 +46,7 @@ class OpenAI implements AIProviderInterface
     public function __construct(
         protected string $key,
         protected string $model,
-        protected int $max_tokens = 1024,
+        protected array $additional_params = [],
     ) {
         $this->client = new Client([
             'base_uri' => $this->baseUri,
