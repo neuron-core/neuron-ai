@@ -27,6 +27,7 @@ trait HandleChat
         $json = [
             'model' => $this->model,
             'messages' => $mapper->map(),
+            ... $this->additional_params,
         ];
 
         // Attach tools
@@ -41,7 +42,9 @@ trait HandleChat
 
         if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
             $response = $this->createToolMessage($result['choices'][0]['message']);
-        } else {
+        } elseif (isset($result['choices'][0]['message']['parsed'])) {
+            $response = new AssistantMessage($result['choices'][0]['message']['parsed']);
+        }else {
             $response = new AssistantMessage($result['choices'][0]['message']['content']);
         }
 
