@@ -103,9 +103,10 @@ class Anthropic implements AIProviderInterface
             ->setInputs($content['input']??[])
             ->setCallId($content['id']);
 
+        $content['input'] ??= (object)[];
+
         return new ToolCallMessage(
             [$content],
-            [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
         );
     }
 }
