@@ -2,7 +2,7 @@
 
 namespace NeuronAI\Tests\PostProcessor;
 
-use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
 use PHPUnit\Framework\TestCase;
@@ -37,7 +37,7 @@ class JinaRerankerPostProcessorTest extends TestCase
 
         $postProcessor = (new JinaRerankerPostProcessor(''))->setClient($client);
 
-        $question = new Message("What is the capital of Italy?");
+        $question = new UserMessage("What is the capital of Italy?");
         $documents = [
             new Document("Paris is the capital of France"),
             new Document("Rome is the capital of Italy"),
@@ -75,7 +75,7 @@ class JinaRerankerPostProcessorTest extends TestCase
 
         $postProcessor = (new JinaRerankerPostProcessor('', 'jina-reranker-v2-base-multilingual', 2))->setClient($client);
 
-        $question = new Message("What is the capital of Italy?");
+        $question = new UserMessage("What is the capital of Italy?");
         $documents = [
             new Document("Paris is the capital of France"),
             new Document("Rome is the capital of Italy"),

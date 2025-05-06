@@ -2,11 +2,12 @@
 
 namespace NeuronAI\Tests;
 
+use NeuronAI\StructuredOutput\ArrayOf;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
-use NeuronAI\Tests\Utils\Person;
 use NeuronAI\Tests\Utils\PersonWithAddress;
 use NeuronAI\Tests\Utils\PersonWithTags;
+use NeuronAI\Tests\Utils\Tag;
 use PHPUnit\Framework\TestCase;
 
 class JsonSchemaTest extends TestCase
@@ -204,6 +205,43 @@ class JsonSchemaTest extends TestCase
                 ]
             ],
             'required' => ['firstName', 'lastName', 'tags'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
+    public function test_array_of_objects_with_attribute()
+    {
+        $class = new class {
+            #[ArrayOf(Tag::class)]
+            public array $tags;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'tags' => [
+                    'type' => 'array',
+                    'items' => [
+                        '$ref' => '#/definitions/Tag'
+                    ]
+                ]
+            ],
+            'definitions' => [
+                'Tag' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'name' => [
+                            'description' => 'The name of the tag',
+                            'type' => 'string',
+                        ]
+                    ],
+                    'required' => ['name'],
+                    'additionalProperties' => false,
+                ]
+            ],
+            'required' => ['tags'],
             'additionalProperties' => false,
         ], $schema);
     }
