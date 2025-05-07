@@ -161,10 +161,14 @@ class JsonSchema
         if ($typeName === 'array') {
             $schema['type'] = 'array';
 
+            // Check for ArrayOf attribute
+            $attributes = $property->getAttributes(ArrayOf::class);
             // Parse PHPDoc for the array item type
             $docComment = $property->getDocComment();
-            $attributes = $property->getAttributes(ArrayOf::class);
-            if ($docComment) {
+            if ($attributes) {
+                $itemClass = $attributes[0]->getArguments()[0];
+                $schema['items'] = $this->generateClassSchema($itemClass, false);
+            } elseif ($docComment) {
                 // Extract type from @var array<Type>
                 preg_match('/@var\s+array<([^>]*)>/', $docComment, $matches);
 
@@ -180,14 +184,6 @@ class JsonSchema
                     }
                 } else {
                     // Default to string if no specific type found
-                    $schema['items'] = ['type' => 'string'];
-                }
-            } elseif($attributes) {
-                $itemClass = $attributes[0]->getArguments()[0];
-                if (class_exists($itemClass) || enum_exists($itemClass)) {
-                    $schema['items'] = $this->generateClassSchema($itemClass, false);
-                } else {
-                    // Fallback if class in ArrayOf does not exist (should ideally not happen if used correctly)
                     $schema['items'] = ['type' => 'string'];
                 }
             } else {
