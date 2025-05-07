@@ -4,6 +4,8 @@ namespace NeuronAI\Chat\Messages;
 
 class Message implements \JsonSerializable
 {
+    use CallStatic;
+
     const ROLE_USER = 'user';
     const ROLE_ASSISTANT = 'assistant';
     const ROLE_MODEL = 'model';
