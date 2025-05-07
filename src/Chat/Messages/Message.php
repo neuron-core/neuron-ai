@@ -42,6 +42,9 @@ class Message implements \JsonSerializable
         return $this;
     }
 
+    /**
+     * @return array<Image>
+     */
     public function getImages(): array
     {
         return $this->images;
@@ -72,9 +75,19 @@ class Message implements \JsonSerializable
 
     public function jsonSerialize(): array
     {
-        return \array_merge($this->meta, [
+        $data = [
             'role' => $this->getRole(),
             'content' => $this->getContent()
-        ], \array_filter(['usage' => $this->getUsage()?->jsonSerialize()]));
+        ];
+
+        if ($this->getUsage()) {
+            $data['usage'] = $this->getUsage()->jsonSerialize();
+        }
+
+        if (!empty($this->getImages())) {
+            $data['images'] = \array_map(fn (Image $image) => $image->jsonSerialize(), $this->getImages());
+        }
+
+        return \array_merge($this->meta, $data);
     }
 }

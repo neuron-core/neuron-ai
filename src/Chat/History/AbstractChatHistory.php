@@ -3,6 +3,7 @@
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Image;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -123,7 +124,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             default => new Message($message['role'], $message['content']??'')
         };
 
-        $this->extractUsage($message, $item);
+        $this->unserializeMeta($message, $item);
 
         return $item;
     }
@@ -138,7 +139,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         $item = new ToolCallMessage($message['content'], $tools);
 
-        $this->extractUsage($message, $item);
+        $this->unserializeMeta($message, $item);
 
         return $item;
     }
@@ -160,7 +161,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      * @param ToolCallMessage $item
      * @return void
      */
-    protected function extractUsage(array $message, Message $item): void
+    protected function unserializeMeta(array $message, Message $item): void
     {
         foreach ($message as $key => $value) {
             if ($key === 'role' || $key === 'content') {
@@ -170,6 +171,12 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 $item->setUsage(
                     new Usage($message['usage']['input_tokens'], $message['usage']['output_tokens'])
                 );
+                continue;
+            }
+            if ($key === 'images') {
+                foreach ($message['images'] as $image) {
+                    $item->addImage(new Image($image['image'], $image['type'], $image['media_type'] ?? null));
+                }
                 continue;
             }
             $item->addMetadata($key, $value);

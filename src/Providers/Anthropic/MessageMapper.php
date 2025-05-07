@@ -9,6 +9,7 @@ use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\Image;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
@@ -25,7 +26,7 @@ class MessageMapper implements MessageMapperInterface
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 ToolCallResultMessage::class => $this->mapToolsResult($message),
-                default => throw new AgentException('Could not map message type '.$message::class),
+                default => throw new ProviderException('Could not map message type '.$message::class),
             };
         }
 
@@ -34,41 +35,41 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): void
     {
-        $serializedMessage = $message->jsonSerialize();
+        $payload = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $serializedMessage)) {
-            unset($serializedMessage['usage']);
+        if (\array_key_exists('usage', $payload)) {
+            unset($payload['usage']);
         }
 
-        $images = $message->getImages();
-
-        if (count($images)) {
-            $serializedMessage['content'] = [
+        if ($images = $message->getImages()) {
+            $payload['content'] = [
                 [
                     'type' => 'text',
-                    'text' => $serializedMessage['content'],
+                    'text' => $payload['content'],
                 ],
             ];
 
             foreach ($images as $image) {
-                $serializedMessage['content'][] = $this->mapImage($image);
+                $payload['content'][] = $this->mapImage($image);
             }
+
+            unset($payload['images']);
         }
 
-        $this->mapping[] = $serializedMessage;
+        $this->mapping[] = $payload;
     }
 
     protected function mapImage(Image $image): array
     {
         return match($image->type) {
-            'url' => [
+            Image::TYPE_URL => [
                 'type' => 'image',
                 'source' => [
                     'type' => 'url',
                     'url' => $image->image,
                 ],
             ],
-            'base64' => [
+            Image::TYPE_BASE64 => [
                 'type' => 'image',
                 'source' => [
                     'type' => 'base64',
@@ -76,7 +77,7 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $image->image,
                 ],
             ],
-            default => throw new AgentException('Invalid image type '.$image->type),
+            default => throw new ProviderException('Invalid image type '.$image->type),
         };
     }
 
