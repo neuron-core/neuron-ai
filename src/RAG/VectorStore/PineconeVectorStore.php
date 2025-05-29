@@ -5,72 +5,82 @@ namespace NeuronAI\RAG\VectorStore;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
+use function trim;
 
 class PineconeVectorStore implements VectorStoreInterface
 {
-    protected Client $client;
+	protected Client $client;
 
-    public function __construct(
-        string $key,
-        protected string $indexUrl,
-        protected int $topK = 4,
-        string $version = '2025-01'
-    ) {
-        $this->client = new Client([
-            'base_uri' => trim($this->indexUrl, '/').'/',
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Api-Key' => $key,
-                'X-Pinecone-API-Version' => $version,
-            ]
-        ]);
-    }
+	public function __construct(
+		string $key,
+		protected string $indexUrl,
+		protected int $topK = 4,
+		string $version = '2025-01'
+	) {
+		$this->client = new Client([
+			'base_uri' => trim($this->indexUrl, '/').'/',
+			'headers' => [
+				'Accept' => 'application/json',
+				'Content-Type' => 'application/json',
+				'Api-Key' => $key,
+				'X-Pinecone-API-Version' => $version,
+			]
+		]);
+	}
 
-    public function addDocument(Document $document): void
-    {
-        $this->addDocuments([$document]);
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	public function addDocument(Document $document): void
+	{
+		$this->addDocuments([$document]);
+	}
 
-    public function addDocuments(array $documents): void
-    {
-        $this->client->post("vectors/upsert", [
-            RequestOptions::JSON => [
-                'vectors' => \array_map(fn (Document $document) => [
-                    'id' => $document->id ?? \uniqid(),
-                    'values' => $document->embedding,
-                    'metadata' => [
-                        'content' => $document->content,
-                        'sourceType' => $document->sourceType,
-                        'sourceName' => $document->sourceName,
-                    ],
-                ], $documents)
-            ]
-        ]);
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	public function addDocuments(array $documents): void
+	{
+		$this->client->post("vectors/upsert", [
+			RequestOptions::JSON => [
+				'vectors' => \array_map(fn (Document $document) => [
+					'id' => $document->id ?? \uniqid(),
+					'values' => $document->embedding,
+					'metadata' => [
+						'content' => $document->content,
+						'sourceType' => $document->sourceType,
+						'sourceName' => $document->sourceName,
+					],
+				], $documents)
+			]
+		]);
+	}
 
-    public function similaritySearch(array $embedding): iterable
-    {
-        $result = $this->client->post("query", [
-            RequestOptions::JSON => [
-                'namespace' => '',
-                'includeMetadata' => true,
-                'vector' => $embedding,
-                'topK' => $this->topK,
-            ]
-        ])->getBody()->getContents();
+	/**
+	 * {@inheritDoc}
+	 */
+	public function similaritySearch(array $embedding): iterable
+	{
+		$result = $this->client->post("query", [
+			RequestOptions::JSON => [
+				'namespace' => '',
+				'includeMetadata' => true,
+				'vector' => $embedding,
+				'topK' => $this->topK,
+			]
+		])->getBody()->getContents();
 
-        $result = \json_decode($result, true);
+		$result = \json_decode($result, true);
 
-        return \array_map(function (array $item) {
-            $document = new Document();
-            $document->id = $item['id'];
-            $document->embedding = $item['values'];
-            $document->content = $item['metadata']['content'];
-            $document->sourceType = $item['metadata']['sourceType'];
-            $document->sourceName = $item['metadata']['sourceName'];
-            $document->score = $item['score'];
-            return $document;
-        }, $result['matches']);
-    }
+		return \array_map(function (array $item) {
+			$document = new Document();
+			$document->id = $item['id'];
+			$document->embedding = $item['values'];
+			$document->content = $item['metadata']['content'];
+			$document->sourceType = $item['metadata']['sourceType'];
+			$document->sourceName = $item['metadata']['sourceName'];
+			$document->score = $item['score'];
+			return $document;
+		}, $result['matches']);
+	}
 }
