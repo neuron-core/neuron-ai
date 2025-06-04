@@ -79,11 +79,6 @@ class OpenAI implements AIProviderInterface
                 'function' => [
                     'name' => $tool->getName(),
                     'description' => $tool->getDescription(),
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => new \stdClass(),
-                        'required' => [],
-                    ],
                 ]
             ];
 
