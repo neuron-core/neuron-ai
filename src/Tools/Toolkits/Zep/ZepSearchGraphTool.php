@@ -41,12 +41,12 @@ class ZepSearchGraphTool extends Tool
             )
         )->setCallable($this);
 
-        $this->initClient()->createUser();
+        $this->createUser();
     }
 
     public function __invoke(string $query, string $search_scope = 'facts', int $limit = 5): array
     {
-        $response = $this->client->post('graph/search', [
+        $response = $this->getClient()->post('graph/search', [
             RequestOptions::JSON => [
                 'user_id' => $this->user_id,
                 'query' => $query,

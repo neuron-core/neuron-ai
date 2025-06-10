@@ -13,7 +13,7 @@ class JinaWebSearch extends Tool
     protected Client $client;
 
     public function __construct(
-        string $key,
+        protected string $key,
         array $topics = [],
     ) {
         parent::__construct(
@@ -31,22 +31,26 @@ class JinaWebSearch extends Tool
                 true
             )
         )->setCallable($this);
+    }
 
-        $this->client = new Client([
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'headers' => [
-                'Authorization' => 'Bearer '.$key,
+                'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'X-Respond-With' => 'no-content',
-
-                // Uncomment this line to return a JSON response.
-                //'Accept' => 'application/json',
             ]
         ]);
     }
 
     public function __invoke(string $search_query): string
     {
-        return $this->client->post('https://s.jina.ai/', [
+        return $this->getClient()->post('https://s.jina.ai/', [
             RequestOptions::JSON => [
                 'q' => $search_query,
             ]

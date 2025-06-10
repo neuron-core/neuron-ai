@@ -2,14 +2,11 @@
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
-use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
-class TavilyToolkit implements ToolkitInterface
+class TavilyToolkit extends AbstractToolkit
 {
-    use StaticConstructor;
-
     public function __construct(protected string $key)
     {
     }
@@ -17,7 +14,7 @@ class TavilyToolkit implements ToolkitInterface
     /**
      * @return array<Tool>
      */
-    public function tools(): array
+    public function provide(): array
     {
         return [
             new TavilyExtractTool($this->key),

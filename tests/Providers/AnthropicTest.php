@@ -470,7 +470,8 @@ class AnthropicTest extends TestCase
                                         'description' => 'The BLUE',
                                     ]
                                 ],
-                                'required' => ["r", "g", "b"],]
+                                'required' => ["r", "g", "b"],
+                            ]
                         ],
                         'required' => ["color"],
                     ]

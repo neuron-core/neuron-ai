@@ -4,9 +4,9 @@ namespace NeuronAI\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
+use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 
 class Tool implements ToolInterface
 {
@@ -132,12 +132,14 @@ class Tool implements ToolInterface
      * Execute the client side function.
      *
      * @throws MissingCallbackParameter
-     * @throws ToolCallableNotSet|ToolException
+     * @throws ToolCallableNotSet
+     * @throws DeserializerException
+     * @throws \ReflectionException
      */
     public function execute(): void
     {
         if (!is_callable($this->callback)) {
-            throw new ToolCallableNotSet('No callback defined for execution.');
+            throw new ToolCallableNotSet('No function defined for tool execution.');
         }
 
         // Validate required parameters
@@ -147,31 +149,28 @@ class Tool implements ToolInterface
             }
         }
 
-        // Deserialize arrays and objects parameters
+        // If there is an object property with class definition, deserialize the tool input into class instances
         $parameters = array_map(function (ToolPropertyInterface $property) {
             // Find the corresponding input
-            $input = $this->getInputs()[$property->getName()];
+            $inputs = $this->getInputs()[$property->getName()];
 
-            if ($property->getType() === PropertyType::ARRAY && $property instanceof ArrayProperty) {
+            if ($property instanceof ObjectProperty && $property->getClass()) {
+                return Deserializer::fromJson(\json_encode($inputs), $property->getClass());
+            }
+
+            if ($property instanceof ArrayProperty) {
                 $items = $property->getItems();
-                if ($items->getType() === PropertyType::OBJECT && $items instanceof ObjectProperty) {
+                if ($items instanceof ObjectProperty && $items->getClass()) {
                     $class = $items->getClass();
 
-                    return array_map(function ($item) use ($class) {
-                        $strObject = json_encode($item);
-                        return Deserializer::fromJson($strObject, $class);
-                    }, $input);
+                    return array_map(function ($input) use ($class) {
+                        return Deserializer::fromJson(\json_encode($input), $class);
+                    }, $inputs);
                 }
             }
 
-            if ($property->getType() === PropertyType::OBJECT && $property instanceof ObjectProperty) {
-                $strObject = json_encode($input);
-
-                return Deserializer::fromJson($strObject, $property->getClass());
-            }
-
-            // No extra traitements for basic types
-            return $input;
+            // No extra treatments for basic property types
+            return $inputs;
         }, $this->properties);
 
         $this->setResult(

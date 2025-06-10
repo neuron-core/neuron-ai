@@ -40,6 +40,8 @@ trait HandleStructured
 
         $this->fillChatHistory($messages);
 
+        $tools = $this->bootstrapTools();
+
         // Get the JSON schema from the response model
         $class ??= $this->getOutputClass();
         $schema = (new JsonSchema())->generate($class);
@@ -66,7 +68,7 @@ trait HandleStructured
                 );
                 $response = $this->resolveProvider()
                     ->systemPrompt($this->instructions())
-                    ->setTools($this->tools())
+                    ->setTools($tools)
                     ->structured($messages, $class, $schema);
                 $this->notify(
                     'inference-stop',

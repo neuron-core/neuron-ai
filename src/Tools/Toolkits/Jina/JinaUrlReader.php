@@ -13,7 +13,7 @@ class JinaUrlReader extends Tool
 {
     protected Client $client;
 
-    public function __construct(string $key)
+    public function __construct(protected string $key)
     {
         parent::__construct(
             'url_reader',
@@ -28,16 +28,20 @@ class JinaUrlReader extends Tool
                 true
             ),
         )->setCallable($this);
+    }
 
-        $this->client = new Client([
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'headers' => [
-                'Authorization' => 'Bearer '.$key,
+                'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'X-Return-Format' => 'Markdown',
-
-                // Uncomment this line to return a JSON response.
-                //'Accept' => 'application/json',
             ]
         ]);
     }
@@ -48,7 +52,7 @@ class JinaUrlReader extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        return $this->client->post('https://r.jina.ai/', [
+        return $this->getClient()->post('https://r.jina.ai/', [
             RequestOptions::JSON => [
                 'url' => $url,
             ]

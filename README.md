@@ -33,7 +33,7 @@ You can post questions and feedback on the [Inspector Forum](https://github.com/
 - [MCP server connector](#mcp)
 - [Implement RAG systems](#rag)
 - [Structured Output](#structured)
-- [Observability](#observability)
+- [Monitoring](#monitoring)
 - [Official Documentation](#documentation)
 
 <a name="install">
@@ -56,12 +56,16 @@ tools and function calls, up to the RAG systems. You can go deeper into these as
 In the meantime, let's create the first agent, extending the `NeuronAI\Agent` class:
 
 ```php
+<?php
+
+namespace App\Neuron;
+
 use NeuronAI\Agent;
 use NeuronAI\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
-class YouTubeAgent extends Agent
+class DataAnalystAgent extends Agent
 {
     public function provider(): AIProviderInterface
     {
@@ -74,15 +78,8 @@ class YouTubeAgent extends Agent
     public function instructions(): string
     {
         return new SystemPrompt(
-            background: ["You are an AI Agent specialized in writing YouTube video summaries."],
-            steps: [
-                "Get the url of a YouTube video, or ask the user to provide one.",
-                "Use the tools you have available to retrieve the transcription of the video.",
-                "Write the summary.",
-            ],
-            output: [
-                "Write a summary in a paragraph without using lists. Use just fluent text.",
-                "After the summary add a list of three sentences as the three most important take away from the video.",
+            background: [
+                "You are a data analyst expert expert in creating reports from SQL databases."
             ]
         );
     }
@@ -106,14 +103,14 @@ $inspector = new \Inspector\Inspector(
     new \Inspector\Configuration('INSPECTOR_INGESTION_KEY')
 );
 
-$agent = YouTubeAgent::make()->observe(new AgentMonitoring($inspector));
+$agent = DataAnalystAgent::make()->observe(new AgentMonitoring($inspector));
 
 
 $response = $agent->chat(
     new UserMessage("Hi, I'm Valerio. Who are you?")
 );
 echo $response->getContent();
-// I'm a friendly YouTube assistant to help you summarize videos.
+// I'm a math passionate. How can I help you today?
 
 
 $response = $agent->chat(
@@ -129,7 +126,7 @@ As you can see in the example above, the Agent automatically has memory of the o
 
 ## Supported LLM Providers
 
-With Neuron you can switch between LLM providers with just one line of code, without any impact on your agent implementation.
+With NeuronAI, you can switch between LLM providers with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
 - Anthropic
@@ -139,19 +136,24 @@ Supported providers:
 
 <a name="tools">
 
-## Tools & Function Calls
+## Tools & Toolkits
 
-You can add the ability to perform concrete tasks to your Agent with an array of `Tool`:
+You can add abilities to your agent to perform concrete tasks:
 
 ```php
+<?php
+
+namespace App\Neuron;
+
 use NeuronAI\Agent;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\SystemPrompt;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\Toolkits\MySQL\MySQLToolkit;
 
-class YouTubeAgent extends Agent
+class DataAnalystAgent extends Agent
 {
     public function provider(): AIProviderInterface
     {
@@ -164,15 +166,8 @@ class YouTubeAgent extends Agent
     public function instructions(): string
     {
         return new SystemPrompt(
-            background: ["You are an AI Agent specialized in writing YouTube video summaries."],
-            steps: [
-                "Get the url of a YouTube video, or ask the user to provide one.",
-                "Use the tools you have available to retrieve the transcription of the video.",
-                "Write the summary.",
-            ],
-            output: [
-                "Write a summary in a paragraph without using lists. Use just fluent text.",
-                "After the summary add a list of three sentences as the three most important take away from the video.",
+            background: [
+                "You are a data analyst expert expert in creating reports from SQL databases."
             ]
         );
     }
@@ -180,19 +175,9 @@ class YouTubeAgent extends Agent
     public function tools(): array
     {
         return [
-            Tool::make(
-                'get_transcription',
-                'Retrieve the transcription of a youtube video.',
-            )->addProperty(
-                new ToolProperty(
-                    name: 'video_url',
-                    type: 'string',
-                    description: 'The URL of the YouTube video.',
-                    required: true
-                )
-            )->setCallable(function (string $video_url) {
-                // ... retrieve the video transcription
-            })
+            MySQLToolkit:make(
+                \DB::connection()->getPdo()
+            ),
         ];
     }
 }
@@ -207,6 +192,10 @@ Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/tools-a
 Instead of implementing tools manually, you can connect tools exposed by an MCP server with the `McpConnector` component:
 
 ```php
+<?php
+
+namespace App\Neuron;
+
 use NeuronAI\Agent;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\Providers\AIProviderInterface;
@@ -214,51 +203,26 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
-class YouTubeAgent extends Agent
+class DataAnalystAgent extends Agent
 {
     public function provider(): AIProviderInterface
     {
-        return new Anthropic(
-            key: 'ANTHROPIC_API_KEY',
-            model: 'ANTHROPIC_MODEL',
-        );
+        ...
     }
 
     public function instructions(): string
     {
-        return new SystemPrompt(
-            background: ["Act as an expert of SEO (Search Engine Optimization)."]
-            steps: [
-                "Analyze a text of an article.",
-                "Provide suggestions on how the content can be improved to get a better rank on Google search."
-            ],
-            output: ["Structure your analysis in sections. One for each suggestion."]
-        );
+        ...
     }
 
     public function tools(): array
     {
         return [
-            // Connect an MCP server
+            // Connect to an MCP server
             ...McpConnector::make([
                 'command' => 'npx',
                 'args' => ['-y', '@modelcontextprotocol/server-everything'],
             ])->tools(),
-
-            // Implement your custom tools
-            Tool::make(
-                'get_transcription',
-                'Retrieve the transcription of a youtube video.',
-            )->addProperty(
-                new ToolProperty(
-                    name: 'video_url',
-                    type: 'string',
-                    description: 'The URL of the YouTube video.',
-                    required: true
-                )
-            )->setCallable(function (string $video_url) {
-                // ... retrieve the video transcription
-            })
         ];
     }
 }
@@ -278,6 +242,10 @@ and an `embeddings provider`.
 Here is an example of a RAG implementation:
 
 ```php
+<?php
+
+namespace App\Neuron;
+
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
@@ -326,10 +294,14 @@ One common use-case is extracting data from text to insert into a database or us
 This guide covers a few strategies for getting structured outputs from the agent.
 
 ```php
+use App\Neuron\MyAgent;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Observability\AgentMonitoring;
 
-// Define the output structure with a PHP class, including validation constraints.
+/*
+ * Define the output structure as a PHP class.
+ */
 class Person
 {
     #[SchemaProperty(description: 'The user name')]
@@ -358,12 +330,24 @@ echo $person->name ' like '.$person->preference;
 
 Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/advanced/structured-output).
 
-<a name="observability">
+<a name="monitoring">
 
-## Observability
+## Monitoring
 
-Neuron offers a built-in integration with [Inspector.dev](https://inspector.dev) to monitor the performance of your agents
-and detect unexpected errors in real time.
+Integrating AI Agents into your application you’re not working only with functions and deterministic code,
+you program your agent also influencing probability distributions. Same input ≠ output.
+That means reproducibility, versioning, and debugging become real problems.
+
+Many of the Agents you build with NeuronAI will contain multiple steps with multiple invocations of LLM calls,
+tool usage, access to external memories, etc. As these applications get more and more complex, it becomes crucial
+to be able to inspect what exactly your agent is doing and why.
+
+Why is the model taking certain decisions? What data is the model reacting to? Prompting is not programming
+in the common sense. No static types, small changes break output, long prompts cost latency,
+and no two models behave exactly the same with the same prompt.
+
+The Inspector team designed NeuronAI with built-in observability features, so you can monitor AI agents were running,
+helping you maintain production-grade implementations with confidence.
 
 You have to install the Inspector package based on your development environment. We provide integration packages
 for [PHP](https://github.com/inspector-apm/inspector-php), [Laravel](https://github.com/inspector-apm/inspector-laravel),
@@ -393,7 +377,7 @@ $response = MyAgent::make()
 > If you use a framework like Laravel, Symfony, or CodeIgniter, the connection is even easier,
 > since you already have the Inspector instance in the container.
 
-Learn more about Observability in the [documentation](https://docs.neuron-ai.dev/advanced/observability).
+Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/advanced/observability).
 
 <a name="documentation">
 

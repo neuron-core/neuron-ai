@@ -2,20 +2,17 @@
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use NeuronAI\StaticConstructor;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
-class ZepLongTermMemoryToolkit implements ToolkitInterface
+class ZepLongTermMemoryToolkit extends AbstractToolkit
 {
-    use StaticConstructor;
-
     public function __construct(
         protected string $key,
         protected string $user_id,
     ) {
     }
 
-    public function tools(): array
+    public function provide(): array
     {
         return [
             ZepSearchGraphTool::make($this->key, $this->user_id),

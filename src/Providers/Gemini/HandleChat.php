@@ -2,20 +2,20 @@
 
 namespace NeuronAI\Providers\Gemini;
 
-use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
+use Psr\Http\Message\ResponseInterface;
 
 trait HandleChat
 {
-    /**
-     * Send a message to the LLM.
-     *
-     * @param array<Message> $messages
-     * @throws GuzzleException
-     */
     public function chat(array $messages): Message
+    {
+        return $this->chatAsync($messages)->wait();
+    }
+
+    public function chatAsync(array $messages): PromiseInterface
     {
         $json = [
             'contents' => $this->messageMapper()->map($messages),
@@ -34,29 +34,29 @@ trait HandleChat
             $json['tools'] = $this->generateToolsPayload();
         }
 
-        $result = $this->client->post(trim($this->baseUri, '/')."/{$this->model}:generateContent", compact('json'))
-            ->getBody()->getContents();
+        return $this->client->postAsync(trim($this->baseUri, '/')."/{$this->model}:generateContent", compact('json'))
+            ->then(function (ResponseInterface $response) {
+                $result = \json_decode($response->getBody()->getContents(), true);
 
-        $result = \json_decode($result, true);
+                $content = $result['candidates'][0]['content'];
 
-        $content = $result['candidates'][0]['content'];
+                if (\array_key_exists('functionCall', $content['parts'][0]) && !empty($content['parts'][0]['functionCall'])) {
+                    $response = $this->createToolCallMessage($content);
+                } else {
+                    $response = new Message(MessageRole::from($content['role']), $content['parts'][0]['text'] ?? '');
+                }
 
-        if (\array_key_exists('functionCall', $content['parts'][0]) && !empty($content['parts'][0]['functionCall'])) {
-            $response = $this->createToolCallMessage($content);
-        } else {
-            $response = new Message(MessageRole::from($content['role']), $content['parts'][0]['text'] ?? '');
-        }
+                // Attach the usage for the current interaction
+                if (\array_key_exists('usageMetadata', $result)) {
+                    $response->setUsage(
+                        new Usage(
+                            $result['usageMetadata']['promptTokenCount'],
+                            $result['usageMetadata']['candidatesTokenCount'] ?? $result['usageMetadata']['promptTokensDetails'][0]['tokenCount'] ?? 0
+                        )
+                    );
+                }
 
-        // Attach the usage for the current interaction
-        if (\array_key_exists('usageMetadata', $result)) {
-            $response->setUsage(
-                new Usage(
-                    $result['usageMetadata']['promptTokenCount'],
-                    $result['usageMetadata']['candidatesTokenCount'] ?? $result['usageMetadata']['promptTokensDetails'][0]['tokenCount'] ?? 0
-                )
-            );
-        }
-
-        return $response;
+                return $response;
+            });
     }
 }

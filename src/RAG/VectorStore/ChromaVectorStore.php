@@ -11,12 +11,19 @@ class ChromaVectorStore implements VectorStoreInterface
     protected Client $client;
 
     public function __construct(
-        string $collection,
-        string $host = 'http://localhost:8000',
+        protected string $collection,
+        protected string $host = 'http://localhost:8000',
         protected int $topK = 5,
     ) {
-        $this->client = new Client([
-            'base_uri' => trim($host, '/')."/api/v1/collections/{$collection}/",
+    }
+
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+        return $this->client = new Client([
+            'base_uri' => trim($this->host, '/')."/api/v1/collections/{$this->collection}/",
             'headers' => [
                 'Content-Type' => 'application/json',
             ]
@@ -30,14 +37,14 @@ class ChromaVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): void
     {
-        $this->client->post('upsert', [
+        $this->getClient()->post('upsert', [
             RequestOptions::JSON => $this->mapDocuments($documents),
         ])->getBody()->getContents();
     }
 
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client->post('query', [
+        $response = $this->getClient()->post('query', [
             RequestOptions::JSON => [
                 'queryEmbeddings' => $embedding,
                 'nResults' => $this->topK,

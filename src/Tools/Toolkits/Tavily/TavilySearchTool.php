@@ -25,7 +25,7 @@ class TavilySearchTool extends Tool
      * @param array $topics Explicit the topics you want to force the Agent to perform web search.
      */
     public function __construct(
-        string $key,
+        protected string $key,
         protected array $topics = [],
     ) {
         parent::__construct(
@@ -35,20 +35,6 @@ class TavilySearchTool extends Tool
             'if the question is outside the scope of the context you have.'
         );
 
-        $this->initTool();
-
-        $this->client = new Client([
-            'base_uri' => trim($this->url, '/').'/',
-            'headers' => [
-                'Authorization' => 'Bearer '.$key,
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ]
-        ]);
-    }
-
-    protected function initTool()
-    {
         $this->addProperty(
             new ToolProperty(
                 'search_query',
@@ -79,9 +65,23 @@ class TavilySearchTool extends Tool
                 'Filter search results for a certain range of days up to today.',
                 false,
             )
-        );
+        )->setCallable($this);
+    }
 
-        $this->setCallable($this);
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
+            'base_uri' => trim($this->url, '/').'/',
+            'headers' => [
+                'Authorization' => 'Bearer '.$this->key,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ]
+        ]);
     }
 
     public function __invoke(
@@ -90,7 +90,7 @@ class TavilySearchTool extends Tool
         string $time_range = 'day',
         int $days = 7,
     ) {
-        $result = $this->client->post('search', [
+        $result = $this->getClient()->post('search', [
             RequestOptions::JSON => \array_merge(
                 compact('topic', 'time_range', 'days'),
                 $this->options,

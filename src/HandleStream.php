@@ -20,9 +20,11 @@ trait HandleStream
 
             $this->fillChatHistory($messages);
 
+            $tools = $this->bootstrapTools();
+
             $stream = $this->resolveProvider()
                 ->systemPrompt($this->instructions())
-                ->setTools($this->tools())
+                ->setTools($tools)
                 ->stream(
                     $this->resolveChatHistory()->getMessages(),
                     function (ToolCallMessage $toolCallMessage) {

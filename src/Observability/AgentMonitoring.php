@@ -46,6 +46,8 @@ class AgentMonitoring implements \SplObserver
         'structured-stop' => 'stop',
         'message-saving' => 'messageSaving',
         'message-saved' => 'messageSaved',
+        'tools-bootstrapping' => 'toolsBootstrapping',
+        'tools-bootstrapped' => 'toolsBootstrapped',
         'inference-start' => 'inferenceStart',
         'inference-stop' => 'inferenceStop',
         'tool-calling' => 'toolCalling',

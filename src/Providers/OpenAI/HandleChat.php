@@ -2,21 +2,21 @@
 
 namespace NeuronAI\Providers\OpenAI;
 
-use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
+use Psr\Http\Message\ResponseInterface;
 
 trait HandleChat
 {
-    /**
-     * Send a message to the LLM.
-     *
-     * @param array<Message> $messages
-     * @throws GuzzleException
-     */
     public function chat(array $messages): Message
+    {
+        return $this->chatAsync($messages)->wait();
+    }
+
+    public function chatAsync(array $messages): PromiseInterface
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -34,23 +34,23 @@ trait HandleChat
             $json['tools'] = $this->generateToolsPayload();
         }
 
-        $result = $this->client->post('chat/completions', compact('json'))
-            ->getBody()->getContents();
+        return $this->client->postAsync('chat/completions', compact('json'))
+            ->then(function (ResponseInterface $response) {
+                $result = \json_decode($response->getBody()->getContents(), true);
 
-        $result = \json_decode($result, true);
+                if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
+                    $response = $this->createToolCallMessage($result['choices'][0]['message']);
+                } else {
+                    $response = new AssistantMessage($result['choices'][0]['message']['content']);
+                }
 
-        if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
-            $response = $this->createToolCallMessage($result['choices'][0]['message']);
-        } else {
-            $response = new AssistantMessage($result['choices'][0]['message']['content']);
-        }
+                if (\array_key_exists('usage', $result)) {
+                    $response->setUsage(
+                        new Usage($result['usage']['prompt_tokens'], $result['usage']['completion_tokens'])
+                    );
+                }
 
-        if (\array_key_exists('usage', $result)) {
-            $response->setUsage(
-                new Usage($result['usage']['prompt_tokens'], $result['usage']['completion_tokens'])
-            );
-        }
-
-        return $response;
+                return $response;
+            });
     }
 }

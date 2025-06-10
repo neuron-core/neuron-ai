@@ -11,9 +11,13 @@ trait HandleZepClient
 
     protected string $url = 'https://api.getzep.com/api/v2';
 
-    protected function initClient(): self
+    protected function getClient(): Client
     {
-        $this->client = new Client([
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'base_uri' => \trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => "Api-Key {$this->key}",
@@ -21,17 +25,15 @@ trait HandleZepClient
                 'Accept' => 'application/json',
             ]
         ]);
-
-        return $this;
     }
 
     protected function createUser(): self
     {
         // Create the user if it doesn't exist
         try {
-            $this->client->get('users/'.$this->user_id);
+            $this->getClient()->get('users/'.$this->user_id);
         } catch (\Exception $exception) {
-            $this->client->post('users', [
+            $this->getClient()->post('users', [
                 RequestOptions::JSON => ['user_id' => $this->user_id]
             ]);
         }

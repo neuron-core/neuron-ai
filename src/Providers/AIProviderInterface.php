@@ -3,6 +3,7 @@
 namespace NeuronAI\Providers;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Tools\ToolInterface;
 
@@ -38,6 +39,8 @@ interface AIProviderInterface
      * @return Message
      */
     public function chat(array $messages): Message;
+
+    public function chatAsync(array $message): PromiseInterface;
 
     public function stream(array|string $messages, callable $executeToolsCallback): \Generator;
 

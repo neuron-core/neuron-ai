@@ -15,7 +15,7 @@ class RizaCodeInterpreter extends Tool
     protected string $url = 'https://api.riza.io/v1/';
 
     public function __construct(
-        string $key,
+        protected string $key,
         protected string $language = 'PHP',
     ) {
         parent::__construct(
@@ -45,11 +45,18 @@ class RizaCodeInterpreter extends Tool
                 false,
             )
         )->setCallable($this);
+    }
 
-        $this->client = new Client([
+    public function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'base_uri' => trim($this->url, '/').'/',
             'headers' => [
-                'Authorization' => 'Bearer '.$key,
+                'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json; charset=utf-8',
                 'Accept' => 'application/json',
             ]
@@ -61,7 +68,7 @@ class RizaCodeInterpreter extends Tool
         array $args = [],
         array $env = [],
     ) {
-        $result = $this->client->post('execute', [
+        $result = $this->getClient()->post('execute', [
             RequestOptions::JSON => [
                 'language' => $this->language,
                 'code' => $code,

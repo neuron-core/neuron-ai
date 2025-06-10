@@ -2,14 +2,11 @@
 
 namespace NeuronAI\Tools\Toolkits\Riza;
 
-use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
-class RizaToolkit implements ToolkitInterface
+class RizaToolkit extends AbstractToolkit
 {
-    use StaticConstructor;
-
     public function __construct(protected string $key)
     {
     }
@@ -17,7 +14,7 @@ class RizaToolkit implements ToolkitInterface
     /**
      * @return array<Tool>
      */
-    public function tools(): array
+    public function provide(): array
     {
         return [
             new RizaCodeInterpreter($this->key),

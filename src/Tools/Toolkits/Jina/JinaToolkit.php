@@ -2,14 +2,11 @@
 
 namespace NeuronAI\Tools\Toolkits\Jina;
 
-use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
-class JinaToolkit implements ToolkitInterface
+class JinaToolkit extends AbstractToolkit
 {
-    use StaticConstructor;
-
     public function __construct(protected string $key)
     {
     }
@@ -17,7 +14,7 @@ class JinaToolkit implements ToolkitInterface
     /**
      * @return array<Tool>
      */
-    public function tools(): array
+    public function provide(): array
     {
         return [
             new JinaWebSearch($this->key),

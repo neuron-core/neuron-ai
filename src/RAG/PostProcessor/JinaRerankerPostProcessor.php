@@ -12,23 +12,31 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
     protected Client $client;
 
     public function __construct(
-        string $key,
+        protected string $key,
         protected string $model = 'jina-reranker-v2-base-multilingual',
         protected int $topN = 3
     ) {
-        $this->client = new Client([
+    }
+
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'base_uri' => 'https://api.jina.ai/v1/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer '.$key,
+                'Authorization' => 'Bearer '.$this->key,
             ],
         ]);
     }
 
     public function process(Message $question, array $documents): array
     {
-        $response = $this->client->post('rerank', [
+        $response = $this->getClient()->post('rerank', [
             RequestOptions::JSON => [
                 'model' => $this->model,
                 'query' => $question->getContent(),

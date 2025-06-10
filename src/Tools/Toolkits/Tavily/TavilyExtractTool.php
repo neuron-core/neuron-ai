@@ -20,7 +20,7 @@ class TavilyExtractTool extends Tool
     /**
      * @param string $key Tavily API key.
      */
-    public function __construct(string $key)
+    public function __construct(protected string $key)
     {
         parent::__construct(
             'url_reader',
@@ -34,11 +34,18 @@ class TavilyExtractTool extends Tool
                 true
             ),
         )->setCallable($this);
+    }
 
-        $this->client = new Client([
+    protected function getClient(): Client
+    {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
+        return $this->client = new Client([
             'base_uri' => trim($this->url, '/').'/',
             'headers' => [
-                'Authorization' => 'Bearer '.$key,
+                'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
             ]
@@ -51,7 +58,7 @@ class TavilyExtractTool extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        $result = $this->client->post('extract', [
+        $result = $this->getClient()->post('extract', [
             RequestOptions::JSON => \array_merge(
                 $this->options,
                 ['urls' => [$url]]

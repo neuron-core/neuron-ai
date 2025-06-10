@@ -77,7 +77,7 @@ class RAG extends Agent
         $this->notify('rag-instructions-changing', new InstructionsChanging($originalInstructions));
 
         // Remove the old context to avoid infinite grow
-        $newInstructions = $this->removeDelimitedContent($originalInstructions);
+        $newInstructions = $this->removeDelimitedContent($originalInstructions, '<EXTRA-CONTEXT>', '</EXTRA-CONTEXT>');
 
         $newInstructions .= '<EXTRA-CONTEXT>';
         foreach ($documents as $document) {
@@ -89,19 +89,6 @@ class RAG extends Agent
         $this->notify('rag-instructions-changed', new InstructionsChanged($originalInstructions, $this->instructions()));
 
         return $this;
-    }
-
-    protected function removeDelimitedContent(string $text, string $openTag = '<EXTRA-CONTEXT>', string $closeTag = '</EXTRA-CONTEXT>'): string
-    {
-        // Escape special regex characters in the tags
-        $escapedOpenTag = \preg_quote($openTag, '/');
-        $escapedCloseTag = \preg_quote($closeTag, '/');
-
-        // Create the regex pattern to match content between tags
-        $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
-
-        // Remove all occurrences of the delimited content
-        return \preg_replace($pattern, '', $text);
     }
 
     /**
