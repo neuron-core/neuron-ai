@@ -2,8 +2,6 @@
 
 namespace NeuronAI\Tools;
 
-use NeuronAI\StructuredOutput\JsonSchema;
-
 class ObjectProperty implements ToolPropertyInterface
 {
     protected PropertyType $type = PropertyType::OBJECT;
@@ -17,32 +15,18 @@ class ObjectProperty implements ToolPropertyInterface
      * @throws \ReflectionException
      */
     public function __construct(
-        protected string  $name,
-        protected string  $description,
-        protected bool    $required = false,
-        protected ?string $class = null,
-        protected array   $properties = [],
+        protected string      $name,
+        protected string      $description,
+        protected bool        $required = false,
+        protected ?string     $class = null,
+        protected array       $properties = [],
+        private readonly bool $asArrayItem = false,
     ) {
+        // If both are provided, explicitly set properties take precedence over the given class.
         if (empty($this->properties) && class_exists($this->class)) {
-            $schema = (new JsonSchema())->generate($this->getClass());
-            $required = [];
-
-            // Identify required properties
-            foreach ($schema['required'] as $r) {
-                if (!in_array($r, $required)) {
-                    $required[] = $r;
-                }
-            }
 
             // Load the object properties from the given class
-            foreach ($schema['properties'] as $propertyName => $propertyData) {
-                $this->properties[] = new ToolProperty(
-                    $propertyName,
-                    PropertyType::from($propertyData['type']),
-                    $propertyData['description'],
-                    \in_array($propertyName, $required),
-                );
-            }
+            $this->properties = (new PropertyLoader($this->class))->load();
         }
     }
 
@@ -57,7 +41,7 @@ class ObjectProperty implements ToolPropertyInterface
         ];
     }
 
-    // The mapped class required properties and required properties are merged
+    // Required properties from the mapped class or the explicitly specified required properties
     public function getRequiredProperties(): array
     {
         return  array_values(\array_filter(\array_map(function (ToolPropertyInterface $property) {
@@ -69,8 +53,12 @@ class ObjectProperty implements ToolPropertyInterface
     {
         $schema = [
             'type' => $this->type->value,
-            'description' => $this->description,
         ];
+
+        // This field is irrelevant in the context of an array items definition
+        if (!$this->asArrayItem) {
+            $schema['description'] = $this->description;
+        }
 
         $properties = \array_reduce($this->properties, function (array $carry, ToolPropertyInterface $property) {
             $carry[$property->getName()] = $property->getJsonSchema();
@@ -113,5 +101,29 @@ class ObjectProperty implements ToolPropertyInterface
     public function getClass(): ?string
     {
         return $this->class;
+    }
+
+    /**
+     * Creates a ToolPropertyInterface instance representing an item within an array.
+     *
+     * This method initializes an ObjectProperty configured for use as an array item,
+     * where the `name` and `description` fields are intentionally left empty,
+     * since they are not serialized in the context of array items.
+     *
+     * @param string $class The fully qualified class name that this item represents.
+     *
+     * @return ToolPropertyInterface An instance representing the array item property.
+     *
+     * @throws \ReflectionException If there is an error during reflection operations inside ObjectProperty.
+     */
+    public static function asItem(string $class): ToolPropertyInterface
+    {
+        // Fields name and description are not serialized in the context of an array items definition
+        return new ObjectProperty(
+            name: '',
+            description: '',
+            class: $class,
+            asArrayItem: true,
+        );
     }
 }
