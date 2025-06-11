@@ -1,0 +1,50 @@
+
+/* AI Features Section */
+.ai-features {
+    background-color: var(--color-background-alt);
+}
+
+.ai-features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+}
+
+.ai-feature-card {
+    background-color: white;
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+    text-align: center;
+}
+
+.ai-feature-card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lg);
+}
+
+.ai-feature-icon {
+    width: 8rem;
+    height: 8rem;
+    margin: 0 auto var(--space-md);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 3.2rem;
+}
+
+.ai-feature-card h3 {
+    font-size: 2.4rem;
+    margin-bottom: var(--space-sm);
+    color: var(--color-text);
+}
+
+.ai-feature-card p {
+    font-size: 1.6rem;
+    color: var(--color-text-light);
+    line-height: 1.6;
+}

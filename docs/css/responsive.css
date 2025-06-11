@@ -2,201 +2,197 @@
 
 /* Tablet */
 @media (max-width: 992px) {
-  html {
-    font-size: 56.25%; /* 9px = 1rem */
-  }
-  
-  .hero .container {
-    flex-direction: column;
-  }
+    html {
+        font-size: 56.25%; /* 9px = 1rem */
+    }
 
-  .hero-newsletter {
-    width: 100%;
-    max-width: 60rem;
-    margin-top: var(--space-lg);
-  }
-  
-  .hero p {
-    margin: 0 auto var(--space-md);
-  }
-  
-  .hero-buttons {
-    justify-content: flex-start;
-  }
-  
-  .observability-content {
-    flex-direction: column;
-  }
-  
-  .observability-text {
-    order: 1;
-  }
-  
-  .observability-image {
-    order: 0;
-    margin-bottom: var(--space-lg);
-    width: 100%;
-  }
-  
-  .ebook-container {
-    flex-direction: column;
-  }
-  
-  .ebook-image {
-    width: 100%;
-    margin-bottom: var(--space-lg);
-  }
-  
-  .footer-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-lg);
-  }
+    .hero .container {
+        flex-direction: column;
+    }
 
-  .blog-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+    .hero-newsletter {
+        width: 100%;
+        max-width: 60rem;
+        margin-top: var(--space-lg);
+    }
 
-  .use-cases-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+    .hero p {
+        margin: 0 auto var(--space-md);
+    }
 
-  .features-content {
-    flex-direction: column;
-    text-align: center;
-  }
+    .hero-buttons {
+        justify-content: flex-start;
+    }
 
-  .features-text {
-    order: 1;
-  }
+    .observability-content {
+        flex-direction: column;
+    }
 
-  .features-image {
-    order: 0;
-    margin-bottom: var(--space-lg);
-  }
+    .observability-text {
+        order: 1;
+    }
 
-  .hero-buttons {
-    justify-content: center;
-  }
+    .observability-image {
+        order: 0;
+        margin-bottom: var(--space-lg);
+        width: 100%;
+    }
+
+    .ebook-container {
+        flex-direction: column;
+    }
+
+    .ebook-image {
+        width: 100%;
+        margin-bottom: var(--space-lg);
+    }
+
+    .neuron-features-content {
+        flex-direction: column;
+    }
+
+    .neuron-features-text {
+        order: 1;
+    }
+
+    .neuron-features-image {
+        order: 0;
+        margin-bottom: var(--space-lg);
+        width: 100%;
+    }
+
+    .footer-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-lg);
+    }
+
+    .blog-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .use-cases-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ai-features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 /* Mobile */
 @media (max-width: 768px) {
-  html {
-    font-size: 50%; /* 8px = 1rem */
-  }
-  
-  .section-padding {
-    padding: var(--space-lg) 0;
-  }
-  
-  .mobile-menu-toggle {
-    display: flex;
-  }
-  
-  .nav-list {
-    position: fixed;
-    top: 0;
-    right: -100%;
-    height: 100vh;
-    width: 70%;
-    max-width: 30rem;
-    background-color: white;
-    flex-direction: column;
-    justify-content: center;
-    gap: var(--space-lg);
-    transition: right var(--transition-normal);
-    box-shadow: var(--shadow-lg);
-    z-index: 100;
-  }
-  
-  .nav-list.active {
-    right: 0;
-  }
-  
-  .nav-list a {
-    font-size: 2rem;
-  }
-  
-  .hero {
-    padding-top: 12rem;
-  }
-  
-  .hero h1 {
-    font-size: 3.6rem;
-  }
-  
-  .hero-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-  
-  .hero-buttons .btn {
-    width: 100%;
-  }
-  
-  .use-cases-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .ebook-info {
-    align-items: center;
-    text-align: center;
-  }
-  
-  .ebook-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-  
-  .ebook-buttons .btn {
-    width: 100%;
-  }
-  
-  .footer-grid {
-    grid-template-columns: 1fr;
-    text-align: center;
-  }
-  
-  .feature-list li {
-    padding-left: 0;
-    padding-top: 3rem;
-    text-align: center;
-  }
-  
-  .feature-list li::before {
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+    html {
+        font-size: 50%; /* 8px = 1rem */
+    }
 
-  .blog-grid {
-    grid-template-columns: 1fr;
-  }
+    .section-padding {
+        padding: var(--space-lg) 0;
+    }
 
-  .features-content {
-    text-align: center;
-  }
+    .mobile-menu-toggle {
+        display: flex;
+    }
 
-  .features-text h2 {
-    font-size: 3rem;
-  }
+    .nav-list {
+        position: fixed;
+        top: 0;
+        right: -100%;
+        height: 100vh;
+        width: 70%;
+        max-width: 30rem;
+        background-color: white;
+        flex-direction: column;
+        justify-content: center;
+        gap: var(--space-lg);
+        transition: right var(--transition-normal);
+        box-shadow: var(--shadow-lg);
+        z-index: 100;
+    }
+
+    .nav-list.active {
+        right: 0;
+    }
+
+    .nav-list a {
+        font-size: 2rem;
+    }
+
+    .hero {
+        padding-top: 12rem;
+    }
+
+    .hero h1 {
+        font-size: 3.6rem;
+    }
+
+    .hero-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .hero-buttons .btn {
+        width: 100%;
+    }
+
+    .use-cases-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-features-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ebook-info {
+        align-items: center;
+        text-align: center;
+    }
+
+    .ebook-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .ebook-buttons .btn {
+        width: 100%;
+    }
+
+    .footer-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    .feature-list li {
+        padding-left: 0;
+        padding-top: 3rem;
+        text-align: center;
+    }
+
+    .feature-list li::before {
+        top: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .blog-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Small Mobile */
 @media (max-width: 480px) {
-  .container {
-    padding: 0 var(--space-sm);
-  }
-  
-  .section-header h2 {
-    font-size: 2.8rem;
-  }
-  
-  .newsletter-container {
-    padding: var(--space-md);
-  }
-  
-  .ebook-container {
-    padding: var(--space-md);
-  }
+    .container {
+        padding: 0 var(--space-sm);
+    }
+
+    .section-header h2 {
+        font-size: 2.8rem;
+    }
+
+    .newsletter-container {
+        padding: var(--space-md);
+    }
+
+    .ebook-container {
+        padding: var(--space-md);
+    }
 }

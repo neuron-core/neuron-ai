@@ -39,7 +39,7 @@ class NeuronAITest extends TestCase
     public function test_system_instructions()
     {
         $system = new SystemPrompt(["Agent"]);
-        $this->assertEquals("# IDENTITY and PURPOSE".PHP_EOL."Agent", $system);
+        $this->assertEquals("# IDENTITY AND PURPOSE".PHP_EOL."Agent", $system);
     }
 
     public function test_message_instance()
