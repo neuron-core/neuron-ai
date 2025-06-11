@@ -10,4 +10,14 @@ enum PropertyType: string
     case BOOLEAN = 'boolean';
     case ARRAY = 'array';
     case OBJECT = 'object';
+
+    public static function primitives(): array
+    {
+        return [
+            self::INTEGER,
+            self::STRING,
+            self::NUMBER,
+            self::BOOLEAN,
+        ];
+    }
 }
