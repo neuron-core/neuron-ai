@@ -51,7 +51,6 @@ class Deserializer
 
             // Check if data contains this property (case-sensitive and snake_case/camelCase variants)
             $value = self::findPropertyValue($data, $propertyName);
-            $tmp = $value;
 
             if ($value !== null) {
                 // Get property type information
@@ -59,13 +58,6 @@ class Deserializer
 
                 if ($type) {
                     $value = self::castValue($value, $type, $property);
-                }
-
-                if ($type instanceof \ReflectionNamedType) {
-                    $typeName = $type->getName();
-                    if (enum_exists($type->getName()) && is_subclass_of($type->getName(), \BackedEnum::class)) {
-                        $value = $typeName::tryFrom($tmp);
-                    }
                 }
 
                 $property->setValue($instance, $value);
@@ -169,6 +161,11 @@ class Deserializer
     {
         if (is_array($value) && class_exists($typeName)) {
             return self::deserializeObject($value, $typeName);
+        }
+
+        if (enum_exists($typeName) && is_subclass_of($typeName, \BackedEnum::class)) {
+            /** @var class-string<\BackedEnum> $typeName */
+            return $typeName::from($value);
         }
 
         // If it's already the correct type, return as-is
