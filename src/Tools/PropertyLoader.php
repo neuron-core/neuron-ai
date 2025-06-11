@@ -44,8 +44,8 @@ class PropertyLoader
     {
         $schema = (new JsonSchema())->generate($class);
 
-        $this->properties = $schema['properties'];
-        $this->definitions = $schema['definitions'];
+        $this->properties = $schema['properties'] ?? [];
+        $this->definitions = $schema['definitions'] ?? [];
 
         // Identify required properties
         foreach ($schema['required'] as $r) {
