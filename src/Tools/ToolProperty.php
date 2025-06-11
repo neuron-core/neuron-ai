@@ -130,7 +130,7 @@ class ToolProperty implements ToolPropertyInterface
     public static function asItem(PropertyType $type): ToolPropertyInterface
     {
         if (!in_array($type, PropertyType::primitives())) {
-            throw new \Exception("Invalid property type '{$type}': only primitive types are allowed.");
+            throw new \Exception(sprintf('Invalid property type: %s', $type->value));
         }
 
         return new self(

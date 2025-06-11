@@ -187,7 +187,7 @@ class PropertyLoader
      */
     private function resolveDefinition(string $ref): array
     {
-        if (null === $ref) {
+        if (!$ref) {
             throw new \InvalidArgumentException("Cannot resolve a definition from a null reference. A non-null JSON Schema \$ref is required.");
         }
 
