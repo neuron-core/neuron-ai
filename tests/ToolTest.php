@@ -3,7 +3,11 @@
 namespace NeuronAI\Tests;
 
 use NeuronAI\Tests\stubs\models\Color;
+use NeuronAI\Tests\stubs\models\Company;
+use NeuronAI\Tests\stubs\models\Person;
+use NeuronAI\Tests\stubs\models\User;
 use NeuronAI\Tests\stubs\tools\ColorMapperToolStub;
+use NeuronAI\Tests\stubs\tools\ComplexNumberSumToolStub;
 use NeuronAI\Tests\stubs\tools\DivideToolStub;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
@@ -103,7 +107,7 @@ class ToolTest extends TestCase
         $this->assertEquals(1, $divideTool->getResult());
     }
 
-    public function test_tool_with_invoke_and_object_params()
+    public function test_tool_with_invoke_and_simple_object_property()
     {
         $colorTool = new ColorMapperToolStub();
 
@@ -166,8 +170,116 @@ class ToolTest extends TestCase
         })->execute();
     }
 
-    public function test_tool_with_invoke_and_nested_properties()
+    public function test_tool_with_invoke_and_object_with_primitive_property()
     {
 
+        $tool = new ComplexNumberSumToolStub();
+
+        $raw = '[{ "re": 5, "im": -2 },{ "re": 3, "im": 4 },{ "re": -1, "im": 0 },{ "re": 0, "im": -7 },{ "re": 2.5, "im": 1.2 }]';
+
+        $inputs = json_decode($raw, true);
+
+        $tool->setInputs([
+            'complex_numbers' => $inputs
+        ]);
+
+        $tool->execute();
+
+        $this->assertEquals("ComplexNumber[re=9.5, im=-3.8]", $tool->getResult());
+    }
+
+    public function test_tool_with_variadic_invoke_simple()
+    {
+        $tool = Tool::make(
+            'user_manager',
+            "Update user information"
+        )->addProperty(new ToolProperty(
+            name: 'lastname',
+            type: PropertyType::STRING,
+            description: "The user lastname, if not provided set empty instead.",
+            required: false,
+        ))->addProperty(new ToolProperty(
+            name: 'firstname',
+            type: PropertyType::STRING,
+            description: "The user firstname, if not provided set empty instead.",
+            required: false,
+        ))->addProperty(new ToolProperty(
+            name: 'email',
+            type: PropertyType::STRING,
+            description: "The user email, if not provided set empty instead.",
+            required: false,
+        ))->addProperty(new ToolProperty(
+            name: 'language',
+            type: PropertyType::STRING,
+            description: "The user's language (e.g. 'en', 'fr'), if not provided set empty instead.",
+            required: true,
+        ))->setCallable(new class () {
+            public function __invoke(...$data): array|string
+            {
+                return $data['email'];
+            }
+        });
+
+        $tool->setInputs([
+            "firstname" => "Smith",
+            "email" => "smith@example.com",
+            "language" => "fr",
+        ]);
+
+        $tool->execute();
+
+        $this->assertEquals("smith@example.com", $tool->getResult());
+    }
+
+    public function test_tool_with_variadic_invoke_complex()
+    {
+        $tool = Tool::make(
+            'user_manager',
+            "Update user information"
+        )->addProperty(
+            new ObjectProperty(
+                name: 'user',
+                description: 'The user',
+                required: true,
+                class: User::class
+            )
+        )->addProperty(
+            new ObjectProperty(
+                name: 'company',
+                description: 'The company',
+                required: true,
+                class: Company::class
+            )
+        )->addProperty(
+            new ToolProperty(
+                name: 'urgent',
+                type: PropertyType::BOOLEAN,
+                description: "True if this person should be processed urgently"
+            )
+        )->setCallable(new class () {
+            public function __invoke(...$data): array
+            {
+                return [
+                    $data['user'],
+                    $data['company'],
+                    $data['urgent']
+                ];
+            }
+        });
+
+        $personRaw = '{"firstname": "Smith", "email": "smith@example.com", "language": "fr"}';
+        $companyRaw = '{"name": "Acme CORP", "location": "La Rochelle, FRANCE"}';
+
+        $tool->setInputs([
+            'user' => json_decode($personRaw, true),
+            'company' => json_decode($companyRaw, true),
+            'urgent' => false,
+        ]);
+
+        $tool->execute();
+
+        $expected = '[{"firstname":"Smith","email":"smith@example.com","language":"fr"},{"name":"Acme CORP","location":"La Rochelle, FRANCE"},false]';
+
+        $this->assertEquals($expected, $tool->getResult());
     }
 }
