@@ -170,8 +170,10 @@ class Tool implements ToolInterface
             }
 
             // No extra treatments for basic property types
-            return $inputs;
+            return [$property->getName() => $inputs];
         }, $this->properties);
+
+        $parameters = collect($parameters)->collapse()->all();
 
         $this->setResult(
             \call_user_func($this->callback, ...$parameters)
