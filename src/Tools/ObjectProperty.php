@@ -2,6 +2,8 @@
 
 namespace NeuronAI\Tools;
 
+use NeuronAI\StructuredOutput\JsonSchema;
+
 class ObjectProperty implements ToolPropertyInterface
 {
     protected PropertyType $type = PropertyType::OBJECT;
@@ -24,9 +26,25 @@ class ObjectProperty implements ToolPropertyInterface
     ) {
         // If both are provided, explicitly set properties take precedence over the given class.
         if (empty($this->properties) && class_exists($this->class)) {
+            $schema = (new JsonSchema())->generate($this->getClass());
+            $required = [];
+
+            // Identify required properties
+            foreach ($schema['required'] as $r) {
+                if (!in_array($r, $required)) {
+                    $required[] = $r;
+                }
+            }
 
             // Load the object properties from the given class
-            $this->properties = (new PropertyLoader($this->class))->load();
+            foreach ($schema['properties'] as $propertyName => $propertyData) {
+                $this->properties[] = new ToolProperty(
+                    $propertyName,
+                    PropertyType::from($propertyData['type']),
+                    $propertyData['description'],
+                    \in_array($propertyName, $required),
+                );
+            }
         }
     }
 
