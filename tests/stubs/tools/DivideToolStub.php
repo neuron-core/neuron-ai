@@ -1,6 +1,6 @@
 <?php
 
-namespace NeuronAI\Tests\stubs;
+namespace NeuronAI\Tests\stubs\tools;
 
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;

@@ -1,7 +1,8 @@
 <?php
 
-namespace NeuronAI\Tests\stubs;
+namespace NeuronAI\Tests\stubs\tools;
 
+use NeuronAI\Tests\stubs\models\Color;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\Tool;
 

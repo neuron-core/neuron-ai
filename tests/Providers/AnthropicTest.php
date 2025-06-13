@@ -12,7 +12,7 @@ use NeuronAI\Chat\Attachments\Image;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Tests\stubs\Color;
+use NeuronAI\Tests\stubs\models\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;

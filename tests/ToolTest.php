@@ -2,9 +2,9 @@
 
 namespace NeuronAI\Tests;
 
-use NeuronAI\Tests\stubs\Color;
-use NeuronAI\Tests\stubs\ColorMapperToolStub;
-use NeuronAI\Tests\stubs\DivideToolStub;
+use NeuronAI\Tests\stubs\models\Color;
+use NeuronAI\Tests\stubs\tools\ColorMapperToolStub;
+use NeuronAI\Tests\stubs\tools\DivideToolStub;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
@@ -164,5 +164,10 @@ class ToolTest extends TestCase
 
         $tool->setCallable(fn () => new class () {
         })->execute();
+    }
+
+    public function test_tool_with_invoke_and_nested_properties()
+    {
+
     }
 }

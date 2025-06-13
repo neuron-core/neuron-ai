@@ -158,13 +158,13 @@ class Tool implements ToolInterface
             $inputs = $this->getInputs()[$property->getName()];
 
             if ($property instanceof ObjectProperty && $property->getClass()) {
-                $instance = Deserializer::fromJson(\json_encode($inputs), $property->getClass());
+                $obj = Deserializer::fromJson(\json_encode($inputs), $property->getClass());
 
-                if ($v = Validator::validate($instance)) {
+                if ($v = Validator::validate($obj)) {
                     $violations[$property->getName()][] = $v;
                 }
 
-                return $instance;
+                return $obj;
             }
 
             if ($property instanceof ArrayProperty) {

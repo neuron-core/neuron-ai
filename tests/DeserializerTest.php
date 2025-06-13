@@ -3,8 +3,8 @@
 namespace NeuronAI\Tests;
 
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
-use NeuronAI\Tests\stubs\Person;
-use NeuronAI\Tests\stubs\Tag;
+use NeuronAI\Tests\stubs\models\Person;
+use NeuronAI\Tests\stubs\models\Tag;
 use PHPUnit\Framework\TestCase;
 
 class DeserializerTest extends TestCase

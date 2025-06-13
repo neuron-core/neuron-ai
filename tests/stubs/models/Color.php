@@ -1,6 +1,6 @@
 <?php
 
-namespace NeuronAI\Tests\stubs;
+namespace NeuronAI\Tests\stubs\models;
 
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNotNull;
