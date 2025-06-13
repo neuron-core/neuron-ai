@@ -152,35 +152,42 @@ class Tool implements ToolInterface
 
         $violations = [];
 
-        // If there is an object property with class definition, deserialize the tool input into class instances
-        $parameters = array_map(function (ToolPropertyInterface $property) use (&$violations) {
-            // Find the corresponding input
-            $inputs = $this->getInputs()[$property->getName()];
+        $parameters = array_reduce($this->properties, function ($carry, $property) use (&$violations) {
+            $propertyName = $property->getName();
+            $inputs = $this->getInputs();
+
+            if (!array_key_exists($propertyName, $inputs)) {
+                return $carry;
+            }
+
+            $inputValue = $inputs[$propertyName];
 
             if ($property instanceof ObjectProperty && $property->getClass()) {
-                $obj = Deserializer::fromJson(\json_encode($inputs), $property->getClass());
+                $obj = Deserializer::fromJson(json_encode($inputValue), $property->getClass());
 
                 if ($v = Validator::validate($obj)) {
-                    $violations[$property->getName()][] = $v;
+                    $violations[$propertyName][] = $v;
                 }
 
-                return $obj;
+                $carry[$propertyName] = $obj;
+                return $carry;
             }
 
             if ($property instanceof ArrayProperty) {
                 $items = $property->getItems();
                 if ($items instanceof ObjectProperty && $items->getClass()) {
                     $class = $items->getClass();
-
-                    return array_map(function ($input) use ($class) {
-                        return Deserializer::fromJson(\json_encode($input), $class);
-                    }, $inputs);
+                    $carry[$propertyName] = array_map(function ($input) use ($class) {
+                        return Deserializer::fromJson(json_encode($input), $class);
+                    }, $inputValue);
+                    return $carry;
                 }
             }
 
-            // No extra treatments for primitives property types
-            return $inputs;
-        }, $this->properties);
+            $carry[$propertyName] = $inputValue;
+            return $carry;
+
+        }, []);
 
         if (!empty($violations)) {
             $this->setViolations($violations);
