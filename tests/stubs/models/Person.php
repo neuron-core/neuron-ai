@@ -4,8 +4,6 @@ namespace NeuronAI\Tests\stubs\models;
 
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
-use NeuronAI\Tests\stubs\models\Address;
-use NeuronAI\Tests\stubs\models\Tag;
 
 class Person
 {
