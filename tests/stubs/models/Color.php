@@ -11,11 +11,9 @@ class Color
         #[IsNotNull]
         #[SchemaProperty(description: "The RED", required: true)]
         public float $r,
-
         #[IsNotNull]
         #[SchemaProperty(description: "The GREEN", required: true)]
         public float $g,
-
         #[IsNotNull]
         #[SchemaProperty(description: "The BLUE", required: true)]
         public float $b,

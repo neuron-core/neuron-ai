@@ -9,7 +9,6 @@ use NeuronAI\Tools\Tool;
 
 class ComplexNumberSumToolStub extends Tool
 {
-
     public function __construct()
     {
         parent::__construct(
