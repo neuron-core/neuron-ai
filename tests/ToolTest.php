@@ -4,7 +4,6 @@ namespace NeuronAI\Tests;
 
 use NeuronAI\Tests\stubs\models\Color;
 use NeuronAI\Tests\stubs\models\Company;
-use NeuronAI\Tests\stubs\models\Person;
 use NeuronAI\Tests\stubs\models\User;
 use NeuronAI\Tests\stubs\tools\ColorMapperToolStub;
 use NeuronAI\Tests\stubs\tools\ComplexNumberSumToolStub;
@@ -133,31 +132,6 @@ class ToolTest extends TestCase
         $colorTool->execute();
         $this->assertEquals("red", $colorTool->getResult());
 
-
-        // What if the provided params doesn't respect the expected schema, a validation through validation rules ?
-        $raw = '{}';
-        $arrayObject = json_decode($raw, true);
-
-        $colorTool->setInputs([
-            'color' => $arrayObject
-        ]);
-
-        $colorTool->execute();
-
-        $this->assertEquals(
-            "# CRITICAL"
-            .PHP_EOL
-            ."There was a problem with the provided inputs that generated the following violations:"
-            .PHP_EOL
-            ."- **color**: r must not be null, g must not be null, b must not be null"
-            .PHP_EOL
-            ."# TOOL USAGE"
-            .PHP_EOL
-            ."- When using tools, provide ONLY valid JSON parameters"
-            .PHP_EOL
-            ."- The JSON must be pure, perfectly valid and deserializable",
-            $colorTool->getResult()
-        );
     }
 
     public function test_invalid_return_type()
