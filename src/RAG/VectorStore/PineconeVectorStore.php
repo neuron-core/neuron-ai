@@ -23,7 +23,7 @@ class PineconeVectorStore implements VectorStoreInterface
         string $key,
         protected string $indexUrl,
         protected int $topK = 4,
-        string $version = '2025-01',
+        string $version = '2025-04',
         protected string $namespace = '__default__'
     ) {
         $this->client = new Client([
