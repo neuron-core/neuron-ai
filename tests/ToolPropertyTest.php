@@ -156,4 +156,28 @@ class ToolPropertyTest extends TestCase
 
         $fail = ToolProperty::asItem(PropertyType::tryFrom('array'));
     }
+
+    public function test_array_property_minmax_items()
+    {
+        $arrayProp = new ArrayProperty(
+            name :"array prop",
+            description: "array prop description",
+            required: true,
+            items: ToolProperty::asNumberItem(),
+            minItems: 1,
+            maxItems: 10
+        );
+
+        $expectedJsonSchema = [
+            'type' => 'array',
+            'items' => [
+                'type' => 'number',
+            ],
+            'minItems' => 1,
+            'maxItems' => 10,
+            'description' => "array prop description",
+        ];
+
+        $this->assertEquals($expectedJsonSchema, $arrayProp->getJsonSchema());
+    }
 }
