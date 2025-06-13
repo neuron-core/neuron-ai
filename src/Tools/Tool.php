@@ -7,6 +7,7 @@ use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
+use NeuronAI\StructuredOutput\Validation\Validator;
 
 class Tool implements ToolInterface
 {
@@ -149,13 +150,21 @@ class Tool implements ToolInterface
             }
         }
 
+        $violations = [];
+
         // If there is an object property with class definition, deserialize the tool input into class instances
-        $parameters = array_map(function (ToolPropertyInterface $property) {
+        $parameters = array_map(function (ToolPropertyInterface $property) use (&$violations) {
             // Find the corresponding input
             $inputs = $this->getInputs()[$property->getName()];
 
             if ($property instanceof ObjectProperty && $property->getClass()) {
-                return Deserializer::fromJson(\json_encode($inputs), $property->getClass());
+                $instance = Deserializer::fromJson(\json_encode($inputs), $property->getClass());
+
+                if ($v = Validator::validate($instance)) {
+                    $violations[$property->getName()][] = $v;
+                }
+
+                return $instance;
             }
 
             if ($property instanceof ArrayProperty) {
@@ -169,13 +178,17 @@ class Tool implements ToolInterface
                 }
             }
 
-            // No extra treatments for basic property types
+            // No extra treatments for primitives property types
             return $inputs;
         }, $this->properties);
 
-        $this->setResult(
-            \call_user_func($this->callback, ...$parameters)
-        );
+        if (!empty($violations)) {
+            $this->setViolations($violations);
+        } else {
+            $this->setResult(
+                \call_user_func($this->callback, ...$parameters)
+            );
+        }
     }
 
     public function jsonSerialize(): array
@@ -187,5 +200,28 @@ class Tool implements ToolInterface
             'callId' => $this->callId,
             'result' => $this->result,
         ];
+    }
+
+    protected function setViolations(array $violations): void
+    {
+        $violationsList = [];
+
+        foreach ($violations as $property => $violation) {
+            $violationsList[] = "**".$property."**".": ".implode(", ", ...$violation);
+        }
+
+        $feedback = "# CRITICAL"
+            .PHP_EOL
+            ."There was a problem with the provided inputs that generated the following violations:"
+            .PHP_EOL
+            ."- ".implode("- ", $violationsList)
+            .PHP_EOL
+            ."# TOOL USAGE"
+            .PHP_EOL
+            ."- When using tools, provide ONLY valid JSON parameters"
+            .PHP_EOL
+            ."- The JSON must be pure, perfectly valid and deserializable";
+
+        $this->setResult($feedback);
     }
 }

@@ -3,6 +3,8 @@
 namespace NeuronAI\Tests;
 
 use NeuronAI\Tests\stubs\Color;
+use NeuronAI\Tests\stubs\ColorMapperToolStub;
+use NeuronAI\Tests\stubs\DivideToolStub;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
@@ -85,6 +87,73 @@ class ToolTest extends TestCase
             }
         })->execute();
         $this->assertEquals('test', $tool->getResult());
+    }
+
+    public function test_tool_with_invoke_and_primitives_params()
+    {
+        $divideTool = new DivideToolStub();
+
+        $divideTool->setInputs([
+            'a' => 5,
+            'b' => 5
+        ]);
+
+        $divideTool->execute();
+
+        $this->assertEquals(1, $divideTool->getResult());
+    }
+
+    public function test_tool_with_invoke_and_object_params()
+    {
+        $colorTool = new ColorMapperToolStub();
+
+        // Object param already as an object. In reality, this case should never happen..
+        $colorTool->setInputs([
+            'color' => new Color(1, 0, 0)
+        ]);
+
+        $colorTool->execute();
+
+        $this->assertEquals("red", $colorTool->getResult());
+
+        // Object param as an associative array
+        $raw = '{"r": 1, "g": 0, "b": 0}';
+
+        // In fact, json string is decoded by the provider during chat handling
+        $arrayObject = json_decode($raw, true);
+
+        $colorTool->setInputs([
+            'color' => $arrayObject
+        ]);
+
+        $colorTool->execute();
+        $this->assertEquals("red", $colorTool->getResult());
+
+
+        // What if the provided params doesn't respect the expected schema, a validation through validation rules ?
+        $raw = '{}';
+        $arrayObject = json_decode($raw, true);
+
+        $colorTool->setInputs([
+            'color' => $arrayObject
+        ]);
+
+        $colorTool->execute();
+
+        $this->assertEquals(
+            "# CRITICAL"
+            .PHP_EOL
+            ."There was a problem with the provided inputs that generated the following violations:"
+            .PHP_EOL
+            ."- **color**: r must not be null, g must not be null, b must not be null"
+            .PHP_EOL
+            ."# TOOL USAGE"
+            .PHP_EOL
+            ."- When using tools, provide ONLY valid JSON parameters"
+            .PHP_EOL
+            ."- The JSON must be pure, perfectly valid and deserializable",
+            $colorTool->getResult()
+        );
     }
 
     public function test_invalid_return_type()
