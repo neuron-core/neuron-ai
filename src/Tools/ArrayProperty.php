@@ -11,6 +11,9 @@ class ArrayProperty implements ToolPropertyInterface
         protected string $description,
         protected bool $required = false,
         protected ?ToolPropertyInterface $items = null,
+        protected ?int $minItems = null,
+        protected ?int $maxItems = null,
+        private readonly bool $asArrayItem = false,
     ) {
     }
 
@@ -29,11 +32,22 @@ class ArrayProperty implements ToolPropertyInterface
     {
         $schema = [
             'type' => $this->type->value,
-            'description' => $this->description,
         ];
+
+        if (!$this->asArrayItem) {
+            $schema['description'] = $this->description;
+        }
 
         if (!empty($this->items)) {
             $schema['items'] = $this->items->getJsonSchema();
+        }
+
+        if (isset($this->minItems)) {
+            $schema['minItems'] = $this->minItems;
+        }
+
+        if (isset($this->maxItems)) {
+            $schema['maxItems'] = $this->maxItems;
         }
 
         return $schema;

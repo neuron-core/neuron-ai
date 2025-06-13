@@ -13,7 +13,7 @@ use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\Tests\stubs\Color;
+use NeuronAI\Tests\stubs\models\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;

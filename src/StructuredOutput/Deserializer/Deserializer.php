@@ -163,6 +163,11 @@ class Deserializer
             return self::deserializeObject($value, $typeName);
         }
 
+        if (enum_exists($typeName) && is_subclass_of($typeName, \BackedEnum::class)) {
+            /** @var class-string<\BackedEnum> $typeName */
+            return $typeName::from($value);
+        }
+
         // If it's already the correct type, return as-is
         if (is_object($value) && get_class($value) === $typeName) {
             return $value;

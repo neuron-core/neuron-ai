@@ -149,14 +149,15 @@ class Tool implements ToolInterface
             }
         }
 
-        // If there is an object property with class definition, deserialize the tool input into class instances
-        $parameters = array_map(function (ToolPropertyInterface $property) {
-            if (!\array_key_exists($property->getName(), $this->getInputs())) {
-                return null;
+        $parameters = array_reduce($this->properties, function ($carry, $property) {
+            $propertyName = $property->getName();
+            $inputs = $this->getInputs();
+
+            if (!array_key_exists($propertyName, $inputs)) {
+                return $carry;
             }
 
-            // Find the corresponding input
-            $inputs = $this->getInputs()[$property->getName()];
+            $inputValue = $inputs[$propertyName];
 
             if ($property instanceof ObjectProperty && $property->getClass()) {
                 return Deserializer::fromJson(\json_encode($inputs), $property->getClass());
@@ -166,16 +167,17 @@ class Tool implements ToolInterface
                 $items = $property->getItems();
                 if ($items instanceof ObjectProperty && $items->getClass()) {
                     $class = $items->getClass();
-
-                    return array_map(function ($input) use ($class) {
-                        return Deserializer::fromJson(\json_encode($input), $class);
-                    }, $inputs);
+                    $carry[$propertyName] = array_map(function ($input) use ($class) {
+                        return Deserializer::fromJson(json_encode($input), $class);
+                    }, $inputValue);
+                    return $carry;
                 }
             }
 
-            // No extra treatments for basic property types
-            return $inputs;
-        }, $this->properties);
+            $carry[$propertyName] = $inputValue;
+            return $carry;
+
+        }, []);
 
         $this->setResult(
             \call_user_func($this->callback, ...$parameters)
