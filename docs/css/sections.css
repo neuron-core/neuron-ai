@@ -241,53 +241,53 @@
 
 /* Features Section */
 .features {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  color: white;
-  position: relative;
-  overflow: hidden;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    color: white;
+    position: relative;
+    overflow: hidden;
 }
 
 .features .section-header h2 {
-  color: white;
-  -webkit-text-fill-color: white;
+    color: white;
+    -webkit-text-fill-color: white;
 }
 
 .features .section-header p {
-  color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .features-content {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--space-xl);
 }
 
 .features-text {
-  flex: 1;
+    flex: 1;
 }
 
 .features-text h2 {
-  font-size: 3.6rem;
-  margin-bottom: var(--space-sm);
-  color: white;
+    font-size: 3.6rem;
+    margin-bottom: var(--space-sm);
+    color: white;
 }
 
 .features-text p {
-  font-size: 1.8rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: var(--space-md);
+    font-size: 1.8rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: var(--space-md);
 }
 
 .features-image {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .features-image img {
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
 }

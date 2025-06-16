@@ -11,12 +11,13 @@
 }
 
 .ai-feature-card {
-    background-color: white;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
     padding: var(--space-lg);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
     transition: transform var(--transition-normal), box-shadow var(--transition-normal);
     text-align: center;
+    color: white;
 }
 
 .ai-feature-card:hover {
@@ -29,22 +30,31 @@
     height: 8rem;
     margin: 0 auto var(--space-md);
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    background: rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-size: 3.2rem;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .ai-feature-card h3 {
     font-size: 2.4rem;
     margin-bottom: var(--space-sm);
-    color: var(--color-text);
+    color: white;
 }
 
 .ai-feature-card p {
     font-size: 1.6rem;
-    color: var(--color-text-light);
+    color: rgba(255, 255, 255, 0.9);
     line-height: 1.6;
+}
+
+.ai-feature-card a {
+    font-size: 1.6rem;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.6;
+    text-decoration: underline;
 }
