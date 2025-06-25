@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DummyNamespace;
+
+use NeuronAI\Agent;
+use NeuronAI\Providers\AIProviderInterface;
+DummyProviderImport
+DummyToolsImports
+
+class DummyClass extends Agent
+{
+    /**
+     * Configure the AI provider for this agent.
+     */
+    public function provider(): AIProviderInterface
+    {
+        DummyProviderImplementation
+    }
+
+    /**
+     * Define the agent's instructions.
+     */
+    public function instructions(): string
+    {
+        DummyInstructions
+    }DummyToolsConfiguration
+} 
