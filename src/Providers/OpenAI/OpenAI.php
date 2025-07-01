@@ -45,8 +45,8 @@ class OpenAI implements AIProviderInterface
     protected MessageMapperInterface $messageMapper;
 
     public function __construct(
-        protected string $key,
         protected string $model,
+        protected string|null $key = null,
         protected array $parameters = [],
     ) {
         $this->client = new Client([
@@ -54,7 +54,7 @@ class OpenAI implements AIProviderInterface
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
+                ...[ $this->key === null ? [] : 'Authorization' => 'Bearer ' . $this->key],
             ]
         ]);
     }
