@@ -125,6 +125,20 @@ class Tool implements ToolInterface
         }, []);
     }
 
+    protected function callback(): ?callable
+    {
+        return null;
+    }
+
+    protected function getCallback(): ?callable
+    {
+        if (!\is_callable($this->callback) && \is_callable($this->callback())) {
+            $this->callback = $this->callback();
+        }
+
+        return $this->callback;
+    }
+
     public function setCallable(callable $callback): self
     {
         $this->callback = $callback;
@@ -181,7 +195,7 @@ class Tool implements ToolInterface
      */
     public function execute(): void
     {
-        if (!\is_callable($this->callback) && !\method_exists($this, '__invoke')) {
+        if (!\is_callable($this->getCallback()) && !\method_exists($this, '__invoke')) {
             throw new ToolCallableNotSet('No function defined for tool execution.');
         }
 
@@ -232,7 +246,7 @@ class Tool implements ToolInterface
 
         $this->setResult(
             \method_exists($this, '__invoke') ? $this->__invoke(...$parameters)
-                : \call_user_func($this->callback, ...$parameters)
+                : \call_user_func($this->getCallback(), ...$parameters)
         );
     }
 
