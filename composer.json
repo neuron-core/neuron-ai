@@ -1,5 +1,5 @@
 {
-    "name": "inspector-apm/neuron-ai",
+    "name": "katalysis/neuron-ai",
     "description": "PHP AI Framework with built-in observability.",
     "minimum-stability": "stable",
     "authors": [
