@@ -77,6 +77,14 @@ class Message implements \JsonSerializable
         return $this;
     }
 
+    public function getMetadata(): array {
+        return $this->meta;
+    }
+
+    public function getMetadataByKey(string $key): string|array|null {
+        return $this->meta[$key] ?? null;
+    }
+
     public function addMetadata(string $key, string|array|null $value): Message
     {
         $this->meta[$key] = $value;
