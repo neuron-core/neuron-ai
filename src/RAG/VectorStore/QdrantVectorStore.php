@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
+use Ramsey\Uuid\Uuid;
 
 class QdrantVectorStore implements VectorStoreInterface
 {
@@ -60,6 +61,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
+        $document->id = Uuid::uuid4()->toString(); 
         return $this->addDocuments([$document]);
     }
 
