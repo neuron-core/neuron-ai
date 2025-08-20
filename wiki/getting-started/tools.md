@@ -623,19 +623,34 @@ class MyAgent extends Agent
 }
 ```
 
-| sum                | SumTool::make()               |
-| ------------------ | ----------------------------- |
-| subtract           | SubtractTool::make()          |
-| multiply           | MultiplyTool::make()          |
-| divide             | DivideTool::make()            |
-| exponential        | ExponentialTool::make()       |
-| square root        | SquareRootTool::make()        |
-| nth root           | NthRootTool::make()           |
-| mean               | MeanTool::make()              |
-| median             | MedianTool::make()            |
-| mode               | ModeTool::make()              |
-| standard deviation | StandardDeviationTool::make() |
-| variance           | VarianceTool::make()          |
+<table data-header-hidden><thead><tr><th width="253"></th><th></th></tr></thead><tbody><tr><td>sum</td><td>NeuronAI\Tools\Toolkits\Calculator\SumTool</td></tr><tr><td>subtract</td><td>NeuronAI\Tools\Toolkits\Calculator\SubtractTool</td></tr><tr><td>multiply</td><td>NeuronAI\Tools\Toolkits\Calculator\MultiplyTool</td></tr><tr><td>divide</td><td>NeuronAI\Tools\Toolkits\Calculator\DivideTool</td></tr><tr><td>exponential</td><td>NeuronAI\Tools\Toolkits\Calculator\ExponentialTool</td></tr><tr><td>square root</td><td>NeuronAI\Tools\Toolkits\Calculator\SquareRootTool</td></tr><tr><td>nth root</td><td>NeuronAI\Tools\Toolkits\Calculator\NthRootTool</td></tr><tr><td>mean</td><td>NeuronAI\Tools\Toolkits\Calculator\MeanTool</td></tr><tr><td>median</td><td>NeuronAI\Tools\Toolkits\Calculator\MedianTool</td></tr><tr><td>mode</td><td>NeuronAI\Tools\Toolkits\Calculator\ModeTool</td></tr><tr><td>standard deviation</td><td>NeuronAI\Tools\Toolkits\Calculator\StandardDeviationTool</td></tr><tr><td>variance</td><td>NeuronAI\Tools\Toolkits\Calculator\VarianceTool</td></tr></tbody></table>
+
+### Calendar
+
+This toolkit provides comprehensive date and time operations. Use these tools to work with dates, times, formatting, calculations, and timezone conversions.
+
+```php
+<?php
+
+namespace App\Neuron;
+
+use NeuronAI\Agent;
+use NeuronAI\Tools\Toolkits\CalendarToolkit\CalendarToolkit;
+
+class MyAgent extends Agent
+{
+    ...
+    
+    protected function tools(): array
+    {
+        return [
+            CalendarToolkit::make(),
+        ];
+    }
+}
+```
+
+<table><thead><tr><th width="205"></th><th></th></tr></thead><tbody><tr><td>current_datetime</td><td>NeuronAI\Tools\Toolkits\Calendar\CurrentDateTimeTool</td></tr><tr><td>get_timestamp</td><td>NeuronAI\Tools\Toolkits\Calendar\GetTimestampTool</td></tr><tr><td>format_date</td><td>NeuronAI\Tools\Toolkits\Calendar\FormatDateTool</td></tr><tr><td>date_difference</td><td>NeuronAI\Tools\Toolkits\Calendar\DateDifferenceTool</td></tr><tr><td>add_time</td><td>NeuronAI\Tools\Toolkits\Calendar\AddTimeTool</td></tr><tr><td>subtract_time</td><td>NeuronAI\Tools\Toolkits\Calendar\SubtractTimeTool</td></tr><tr><td>calculate_age</td><td>NeuronAI\Tools\Toolkits\Calendar\CalculateAgeTool</td></tr><tr><td>convert_timezone</td><td>NeuronAI\Tools\Toolkits\Calendar\ConvertTimezoneTool</td></tr><tr><td>get_timezone_info</td><td>NeuronAI\Tools\Toolkits\Calendar\GetTimezoneInfoTool</td></tr><tr><td>get_weekday</td><td>NeuronAI\Tools\Toolkits\Calendar\GetWeekdayTool</td></tr><tr><td>is_weekend</td><td>NeuronAI\Tools\Toolkits\Calendar\IsWeekendTool</td></tr><tr><td>is_leap_year</td><td>NeuronAI\Tools\Toolkits\Calendar\IsLeapYearTool</td></tr><tr><td>get_days_in_month</td><td>NeuronAI\Tools\Toolkits\Calendar\GetDaysInMonthTool</td></tr><tr><td>start_of_period</td><td>NeuronAI\Tools\Toolkits\Calendar\StartOfPeriodTool</td></tr><tr><td>end_of_period</td><td>NeuronAI\Tools\Toolkits\Calendar\EndOfPeriodTool</td></tr><tr><td>get_week_number</td><td>NeuronAI\Tools\Toolkits\Calendar\GetWeekNumberTool</td></tr><tr><td>compare_dates</td><td>NeuronAI\Tools\Toolkits\Calendar\CompareDatesTool</td></tr><tr><td>is_date_in_range</td><td>NeuronAI\Tools\Toolkits\Calendar\IsDateInRangeTool</td></tr></tbody></table>
 
 ### MySQL & PostgreSQL
 
