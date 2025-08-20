@@ -30,7 +30,7 @@ class StdioTransport implements McpTransportInterface
      */
     public function connect(): void
     {
-        \register_shutdown_function(function () {
+        \register_shutdown_function(function (): void {
             $this->disconnect();
         });
 
