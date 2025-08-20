@@ -627,7 +627,7 @@ class MyAgent extends Agent
 
 ### Calendar
 
-This toolkit provides comprehensive date and time operations. Use these tools to work with dates, times, formatting, calculations, and timezone conversions.
+​This toolkit provides comprehensive date and time operations. Use these tools to make your agent able to work with dates, times, formatting, calculations, and timezone conversions.
 
 ```php
 <?php
