@@ -30,6 +30,10 @@ class StdioTransport implements McpTransportInterface
      */
     public function connect(): void
     {
+        \register_shutdown_function(function () {
+            $this->disconnect();
+        });
+
         $descriptorSpec = [
             0 => ["pipe", "r"],  // stdin
             1 => ["pipe", "w"],  // stdout
