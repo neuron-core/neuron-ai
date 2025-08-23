@@ -37,9 +37,7 @@ class UniqueIdGenerator
         self::$lastTimestamp = $timestamp;
 
         // Combine: timestamp (41 bits) + machine ID (10 bits) + sequence (12 bits)
-        $id = ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
-
-        return $id;
+        return ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
     }
 
     private static function getCurrentTimestamp(): int
