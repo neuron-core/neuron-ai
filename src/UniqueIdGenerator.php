@@ -9,9 +9,9 @@ namespace NeuronAI;
  */
 class UniqueIdGenerator
 {
-    private static int $machineId;
-    private static int $sequence = 0;
-    private static int $lastTimestamp = 0;
+    protected static int $machineId;
+    protected static int $sequence = 0;
+    protected static int $lastTimestamp = 0;
 
     public static function generateId(): int
     {
@@ -40,12 +40,12 @@ class UniqueIdGenerator
         return ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
     }
 
-    private static function getCurrentTimestamp(): int
+    protected static function getCurrentTimestamp(): int
     {
         return (int)(\microtime(true) * 1000);
     }
 
-    private static function waitForNextTimestamp(int $lastTimestamp): int
+    protected static function waitForNextTimestamp(int $lastTimestamp): int
     {
         $timestamp = self::getCurrentTimestamp();
         while ($timestamp <= $lastTimestamp) {
