@@ -161,6 +161,7 @@ Supported providers:
 - HuggingFace
 - Mistral
 - Grok
+- AWS BedrockRuntime (`aws/aws-sdk-php` package is required)
 
 <a name="tools">
 
