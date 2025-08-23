@@ -9,14 +9,14 @@ namespace NeuronAI;
  */
 class UniqueIdGenerator
 {
-    protected static int $machineId;
+    protected static ?int $machineId = null;
     protected static int $sequence = 0;
     protected static int $lastTimestamp = 0;
 
     public static function generateId(): int
     {
         // Initialize machine ID once (you can set this based on server/process)
-        if (!isset(self::$machineId)) {
+        if (self::$machineId === null) {
             self::$machineId = \mt_rand(1, 1023); // 10 bits
         }
 
