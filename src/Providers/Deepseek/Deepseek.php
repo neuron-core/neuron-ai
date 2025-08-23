@@ -11,10 +11,14 @@ class Deepseek extends OpenAI
 {
     protected string $baseUri = "https://api.deepseek.com/v1";
 
+    /**
+     * @param array<string, mixed> $response_format
+     */
     public function structured(
         array $messages,
         string $class,
-        array $response_format
+        array $response_format,
+        bool $strict = false,
     ): Message {
         $this->parameters = \array_merge($this->parameters, [
             'response_format' => [

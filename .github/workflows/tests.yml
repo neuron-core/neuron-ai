@@ -2,9 +2,10 @@ name: Tests
 
 on:
     push:
-        branches: ["main"]
+        branches:
+            - main
+            - '*.x'
     pull_request:
-        branches: ["main" ]
 
 jobs:
     ci:

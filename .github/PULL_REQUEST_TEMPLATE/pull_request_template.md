@@ -1,10 +1,5 @@
 # Pull Request Template
 
-## ⚠️ Branch Requirement
-**This PR MUST target the `develop` branch. PRs targeting `main` will be automatically closed.**
-
-- [ ] I confirm this PR targets the `develop` branch
-
 ## Type of Change
 **Select ONE type only. Multi-purpose PRs will be rejected.**
 
@@ -31,7 +26,7 @@
 ## Related Issues
 **Link any related issues using GitHub keywords (e.g., "Fixes #123", "Closes #456")**
 
-- 
+-
 
 ## Testing
 **Describe how you tested your changes**

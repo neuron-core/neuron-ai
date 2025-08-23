@@ -8,9 +8,11 @@ use GuzzleHttp\Client;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
@@ -33,12 +35,16 @@ class Gemini implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    /**
+     * @param array<string, mixed> $parameters
+     */
     public function __construct(
         protected string $key,
         protected string $model,
         protected array $parameters = [],
+        protected ?HttpClientOptions $httpOptions = null,
     ) {
-        $this->client = new Client([
+        $config = [
             // Since Gemini use colon ":" into the URL guzzle fire an exception using base_uri configuration.
             //'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
@@ -46,7 +52,13 @@ class Gemini implements AIProviderInterface
                 'Content-Type' => 'application/json',
                 'x-goog-api-key' => $this->key,
             ]
-        ]);
+        ];
+
+        if ($this->httpOptions instanceof HttpClientOptions) {
+            $config = $this->mergeHttpOptions($config, $this->httpOptions);
+        }
+
+        $this->client = new Client($config);
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface
@@ -60,6 +72,9 @@ class Gemini implements AIProviderInterface
         return new MessageMapper();
     }
 
+    /**
+     * @return array<string, array<int, mixed>>
+     */
     protected function generateToolsPayload(): array
     {
         $tools = \array_map(function (ToolInterface $tool): array {
@@ -94,6 +109,10 @@ class Gemini implements AIProviderInterface
         ];
     }
 
+    /**
+     * @param array<string, mixed> $message
+     * @throws ProviderException
+     */
     protected function createToolCallMessage(array $message): Message
     {
         $tools = \array_map(function (array $item): ?\NeuronAI\Tools\ToolInterface {

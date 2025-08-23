@@ -44,7 +44,7 @@ class PGSQLSelectTool extends Tool
         parent::__construct(
             'execute_select_query',
             'Use this tool only to run SELECT query against the PostgreSQL database.
-This the tool to use only to gather information from the MySQL database.'
+This the tool to use only to gather information from the PostgreSQL database.'
         );
     }
 

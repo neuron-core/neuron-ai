@@ -15,7 +15,7 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 
 /**
- * @method static static make(array $config)
+ * @method static static make(array<string, mixed> $config)
  */
 class McpConnector
 {
@@ -33,6 +33,10 @@ class McpConnector
      */
     protected array $only = [];
 
+    /**
+     * @param array<string, mixed> $config
+     * @throws McpException
+     */
     public function __construct(array $config)
     {
         $this->client = new McpClient($config);
@@ -77,6 +81,8 @@ class McpConnector
 
     /**
      * Convert the list of tools from the MCP server to Neuron compatible entities.
+     *
+     * @param array<string, mixed> $item
      * @throws ArrayPropertyException
      * @throws \ReflectionException
      * @throws ToolException
@@ -109,7 +115,7 @@ class McpConnector
         foreach ($item['inputSchema']['properties'] as $name => $prop) {
             $required = \in_array($name, $item['inputSchema']['required'] ?? []);
 
-            $type = PropertyType::fromSchema($prop['type']);
+            $type = PropertyType::fromSchema($prop['type'] ?? PropertyType::STRING->value);
 
             $property = match ($type) {
                 PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop),
@@ -123,6 +129,9 @@ class McpConnector
         return $tool;
     }
 
+    /**
+     * @param array<string, mixed> $prop
+     */
     protected function createToolProperty(string $name, PropertyType $type, bool $required, array $prop): ToolProperty
     {
         return new ToolProperty(
@@ -135,6 +144,7 @@ class McpConnector
     }
 
     /**
+     * @param array<string, mixed> $prop
      * @throws ArrayPropertyException
      */
     protected function createArrayProperty(string $name, bool $required, array $prop): ArrayProperty
@@ -151,6 +161,9 @@ class McpConnector
     }
 
     /**
+     * @param array<string, mixed> $prop
+     * @throws ArrayPropertyException
+     * @throws ToolException
      * @throws \ReflectionException
      */
     protected function createObjectProperty(string $name, bool $required, array $prop): ObjectProperty

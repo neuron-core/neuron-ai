@@ -9,17 +9,27 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
 
 /**
- * @method static static make(MessageRole $role, array|string|int|float|null $content = null)
+ * @method static static make(MessageRole $role, array<int, mixed>|string|int|float|null $content = null)
  */
 class Message implements \JsonSerializable
 {
     use StaticConstructor;
 
     protected ?Usage $usage = null;
+
+    /**
+     * @var Attachment[]
+     */
     protected array $attachments = [];
 
+    /**
+     * @var array<string, mixed>
+     */
     protected array $meta = [];
 
+    /**
+     * @param array<int, mixed>|string|int|float|null $content
+     */
     public function __construct(
         protected MessageRole $role,
         protected array|string|int|float|null $content = null
@@ -77,12 +87,18 @@ class Message implements \JsonSerializable
         return $this;
     }
 
+    /**
+     * @param string|array<int, mixed>|null $value
+     */
     public function addMetadata(string $key, string|array|null $value): Message
     {
         $this->meta[$key] = $value;
         return $this;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
         $data = [

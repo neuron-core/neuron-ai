@@ -59,10 +59,15 @@ class MessageMapper implements MessageMapperInterface
 
         foreach ($attachments as $attachment) {
             if ($attachment->type === AttachmentType::DOCUMENT) {
-                throw new ProviderException('This provider does not support document attachments.');
-            }
+                if ($attachment->contentType === AttachmentContentType::URL) {
+                    // OpenAI does not support URL type
+                    throw new ProviderException('This provider does not support URL document attachments.');
+                }
 
-            $payload['content'][] = $this->mapAttachment($attachment);
+                $payload['content'][] = $this->mapDocumentAttachment($attachment);
+            } elseif ($attachment->type === AttachmentType::IMAGE) {
+                $payload['content'][] = $this->mapImageAttachment($attachment);
+            }
         }
 
         unset($payload['attachments']);
@@ -70,7 +75,19 @@ class MessageMapper implements MessageMapperInterface
         $this->mapping[] = $payload;
     }
 
-    protected function mapAttachment(Attachment $attachment): array
+    public function mapDocumentAttachment(Attachment $attachment): array
+    {
+        return [
+            'type' => 'file',
+            'file' => [
+                // The filename is required, but the Document class does not have a filename property.
+                'filename' => "attachment-".\uniqid().".pdf",
+                'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
+            ]
+        ];
+    }
+
+    protected function mapImageAttachment(Attachment $attachment): array
     {
         return match($attachment->contentType) {
             AttachmentContentType::URL => [

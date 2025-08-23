@@ -19,7 +19,11 @@ parameters:
     # The level 9 is the highest level
     level: 5
 
+    treatPhpDocTypesAsCertain: false
+
     ignoreErrors:
+            - message: '#Method SplObserver::update\(\) invoked with 3 parameters, 1 required\.#'
+              path: src/Observability/Observable.php
 
     excludePaths:
 

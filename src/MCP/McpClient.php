@@ -12,6 +12,8 @@ class McpClient
 
     /**
      * Create a new MCP client with the given transport
+     *
+     * @param array<string, mixed> $config
      */
     public function __construct(array $config)
     {
@@ -59,6 +61,7 @@ class McpClient
     /**
      * List all available tools from the MCP server
      *
+     * @return array<string, mixed>
      * @throws \Exception
      */
     public function listTools(): array
@@ -93,17 +96,21 @@ class McpClient
     /**
      * Call a tool on the MCP server
      *
+     * @param array<string, mixed> $arguments
+     * @return array<string, mixed>
      * @throws \Exception
      */
     public function callTool(string $toolName, array $arguments = []): array
     {
+        $arguments = \array_filter($arguments, fn (mixed $value): bool => ! \is_null($value));
+
         $request = [
             "jsonrpc" => "2.0",
             "id" => ++$this->requestId,
             "method" => "tools/call",
             "params" => [
                 "name" => $toolName,
-                "arguments" => $arguments
+                ...($arguments !== [] ? ['arguments' => $arguments] : [])
             ]
         ];
 

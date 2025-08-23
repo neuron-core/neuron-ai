@@ -11,12 +11,15 @@ interface ChatHistoryInterface extends \JsonSerializable
     public function addMessage(Message $message): ChatHistoryInterface;
 
     /**
-     * @return array<Message>
+     * @return Message[]
      */
     public function getMessages(): array;
 
     public function getLastMessage(): Message|false;
 
+    /**
+     * @param Message[] $messages
+     */
     public function setMessages(array $messages): ChatHistoryInterface;
 
     public function flushAll(): ChatHistoryInterface;

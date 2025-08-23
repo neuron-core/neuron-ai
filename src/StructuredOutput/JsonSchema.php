@@ -68,6 +68,7 @@ class JsonSchema
         $schema = [
             'type' => 'object',
             'properties' => [],
+            'additionalProperties' => false,
         ];
 
         $requiredProperties = [];

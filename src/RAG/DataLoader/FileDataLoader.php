@@ -19,9 +19,17 @@ class FileDataLoader extends AbstractDataLoader
         $this->setReaders($readers);
     }
 
-    public function addReader(string $fileExtension, ReaderInterface $reader): self
+    /**
+     * @param string|string[] $fileExtension
+     */
+    public function addReader(string|array $fileExtension, ReaderInterface $reader): self
     {
-        $this->readers[$fileExtension] = $reader;
+        $extensions = \is_array($fileExtension) ? $fileExtension : [$fileExtension];
+
+        foreach ($extensions as $extension) {
+            $this->readers[$extension] = $reader;
+        }
+
         return $this;
     }
 

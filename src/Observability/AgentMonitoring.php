@@ -193,6 +193,9 @@ class AgentMonitoring implements \SplObserver
         return \explode('-', $event)[0];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function getContext(Agent $agent): array
     {
         $mapTool = fn (ToolInterface $tool) => [

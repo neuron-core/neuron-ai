@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\WorkflowInterrupt;
-use NeuronAI\Workflow\WorkflowState;
 
 class FilePersistence implements PersistenceInterface
 {
@@ -22,7 +21,7 @@ class FilePersistence implements PersistenceInterface
 
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
-        \file_put_contents($this->getFilePath($workflowId), \json_encode($interrupt));
+        \file_put_contents($this->getFilePath($workflowId), \serialize($interrupt));
     }
 
     public function load(string $workflowId): WorkflowInterrupt
@@ -31,13 +30,7 @@ class FilePersistence implements PersistenceInterface
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        $interrupt = \json_decode(\file_get_contents($this->getFilePath($workflowId)), true) ?? [];
-
-        return new WorkflowInterrupt(
-            $interrupt['data'],
-            $interrupt['currentNode'],
-            new WorkflowState($interrupt['state'])
-        );
+        return \unserialize(\file_get_contents($this->getFilePath($workflowId)));
     }
 
     public function delete(string $workflowId): void

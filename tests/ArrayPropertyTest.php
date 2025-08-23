@@ -40,7 +40,6 @@ class ArrayPropertyTest extends TestCase
         ];
 
         $this->assertEquals($expectedJsonSchema, $arrayProp->getJsonSchema());
-
     }
 
     public function test_min_items_equals_max_items_is_valid(): void

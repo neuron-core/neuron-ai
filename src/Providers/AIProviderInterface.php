@@ -49,6 +49,7 @@ interface AIProviderInterface
 
     /**
      * @param Message[] $messages
+     * @param array<string, mixed> $response_schema
      */
     public function structured(array $messages, string $class, array $response_schema): Message;
 

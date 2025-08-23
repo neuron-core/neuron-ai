@@ -30,6 +30,9 @@ trait Observable
         }
     }
 
+    /**
+     * @return array<SplObserver>
+     */
     private function getEventObservers(string $event = "*"): array
     {
         $this->initEventGroup($event);

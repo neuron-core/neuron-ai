@@ -166,7 +166,7 @@ and performance optimization. If you already know the database structure, you ca
             $stmt = $this->pdo->prepare("
                 SELECT n_tup_ins - n_tup_del as estimate
                 FROM pg_stat_user_tables
-                WHERE relname = $1
+                WHERE relname = ?
             ");
             $stmt->execute([$tableName]);
             $result = $stmt->fetchColumn();
@@ -435,7 +435,7 @@ and performance optimization. If you already know the database structure, you ca
         $output .= "3. Use appropriate JOINs based on the foreign key relationships listed above\n";
         $output .= "4. Use double quotes (\") for identifiers if they contain special characters or are case-sensitive\n";
         $output .= "5. PostgreSQL is case-sensitive for identifiers - use exact casing as shown above\n";
-        $output .= "6. Use \$1, \$2, etc. for parameterized queries in prepared statements\n";
+        $output .= "6. Use \? for parameterized queries in prepared statements\n";
         $output .= "7. LIMIT clause syntax: `SELECT ... LIMIT n OFFSET m`\n";
         $output .= "8. String comparisons are case-sensitive by default (use ILIKE for case-insensitive)\n";
         $output .= "9. Use single quotes (') for string literals, not double quotes\n";

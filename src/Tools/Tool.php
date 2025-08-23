@@ -214,10 +214,10 @@ class Tool implements ToolInterface
     public function jsonSerialize(): array
     {
         return [
+            'callId' => $this->callId,
             'name' => $this->name,
             'description' => $this->description,
             'inputs' => $this->inputs === [] ? new \stdClass() : $this->inputs,
-            'callId' => $this->callId,
             'result' => $this->result,
         ];
     }

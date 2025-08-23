@@ -7,11 +7,12 @@ namespace NeuronAI\Chat\Messages;
 use NeuronAI\Tools\ToolInterface;
 
 /**
- * @method static static make(array|string|int|float|null $content = null, ToolInterface[] $tools)
+ * @method static static make(array<int, mixed>|string|int|float|null $content, ToolInterface[] $tools)
  */
 class ToolCallMessage extends AssistantMessage
 {
     /**
+     * @param array<int, mixed>|string|int|float|null $content
      * @param array<ToolInterface> $tools
      */
     public function __construct(

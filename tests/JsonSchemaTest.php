@@ -158,6 +158,7 @@ class JsonSchemaTest extends TestCase
                         ]
                     ],
                     'required' => ['street', 'city', 'zip'],
+                    'additionalProperties' => false,
                 ],
                 'tags' => [
                     'type' => 'array',
@@ -170,6 +171,7 @@ class JsonSchemaTest extends TestCase
                             ]
                         ],
                         'required' => ['name'],
+                        'additionalProperties' => false,
                     ]
                 ]
             ],
@@ -207,6 +209,7 @@ class JsonSchemaTest extends TestCase
                         ]
                     ],
                     'required' => ['street', 'city', 'zip'],
+                    'additionalProperties' => false,
                 ],
                 'tags' => [
                     'type' => 'array',
@@ -219,6 +222,7 @@ class JsonSchemaTest extends TestCase
                             ]
                         ],
                         'required' => ['name'],
+                        'additionalProperties' => false,
                     ]
                 ]
             ],

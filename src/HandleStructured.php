@@ -21,6 +21,7 @@ use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
+use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
@@ -87,24 +88,28 @@ trait HandleStructured
                 $output = $this->processResponse($response, $schema, $class);
                 $this->notify('structured-stop');
                 return $output;
-            } catch (RequestException $exception) {
-                $error = $exception->getResponse()?->getBody()->getContents() ?? $exception->getMessage();
-                $this->notify('error', new AgentError($exception, false));
-            } catch (\Exception $exception) {
-                $error = $exception->getMessage();
-                $this->notify('error', new AgentError($exception, false));
+            } catch (RequestException $ex) {
+                $exception = $ex;
+                $error = $ex->getResponse()?->getBody()->getContents() ?? $ex->getMessage();
+                $this->notify('error', new AgentError($ex, false));
+            } catch (\Exception $ex) {
+                $exception = $ex;
+                $error = $ex->getMessage();
+                $this->notify('error', new AgentError($ex, false));
             }
 
             $maxRetries--;
         } while ($maxRetries >= 0);
 
-        $exception = new AgentException(
-            "Impossible to generate a structured response for the class {$class}: {$error}"
-        );
-        $this->notify('error', new AgentError($exception));
         throw $exception;
     }
 
+    /**
+     * @param array<string, mixed> $schema
+     * @throws AgentException
+     * @throws DeserializerException
+     * @throws \ReflectionException
+     */
     protected function processResponse(
         Message $response,
         array $schema,

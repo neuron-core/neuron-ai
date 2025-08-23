@@ -17,6 +17,9 @@ class Usage implements \JsonSerializable
         return $this->inputTokens + $this->outputTokens;
     }
 
+    /**
+     * @return array<string, int>
+     */
     public function jsonSerialize(): array
     {
         return [

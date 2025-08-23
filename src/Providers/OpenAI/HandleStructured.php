@@ -11,7 +11,8 @@ trait HandleStructured
     public function structured(
         array $messages,
         string $class,
-        array $response_format
+        array $response_format,
+        bool $strict = false,
     ): Message {
         $tk = \explode('\\', $class);
         $className = \end($tk);
@@ -20,8 +21,8 @@ trait HandleStructured
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
+                    'strict' => $strict,
                     "name" => $this->sanitizeClassName($className),
-                    "strict" => false,
                     "schema" => $response_format,
                 ],
             ]

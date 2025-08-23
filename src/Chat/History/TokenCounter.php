@@ -6,7 +6,6 @@ namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
-use NeuronAI\Tools\ToolInterface;
 
 class TokenCounter implements TokenCounterInterface
 {
@@ -32,25 +31,24 @@ class TokenCounter implements TokenCounterInterface
                 $messageChars += \strlen(\json_encode($content));
             }
 
-            // Handle tool calls for AssistantMessage (excluding array content format)
-            if ($message instanceof ToolCallMessage && !\is_array($content)) {
-                $tools = $message->getTools();
-                if ($tools !== []) {
-                    // Convert tools to their JSON representation for counting
-                    $toolsContent = \json_encode(\array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $tools));
-                    $messageChars += \strlen($toolsContent);
+            // Handle tool calls
+            if ($message instanceof ToolCallMessage) {
+                foreach ($message->getTools() as $tool) {
+                    $messageChars += \strlen(\json_encode($tool->getInputs()));
+
+                    if ($tool->getCallId() !== null) {
+                        $messageChars += \strlen($tool->getCallId());
+                    }
                 }
             }
 
             // Handle tool call results
             if ($message instanceof ToolCallResultMessage) {
-                $tools = $message->getTools();
-                // Add tool IDs to the count
-                foreach ($tools as $tool) {
-                    $serialized = $tool->jsonSerialize();
-                    // Assuming tool IDs are in the serialized data
-                    if (isset($serialized['id'])) {
-                        $messageChars += \strlen($serialized['id']);
+                foreach ($message->getTools() as $tool) {
+                    $messageChars += \strlen($tool->getResult());
+
+                    if ($tool->getCallId() !== null) {
+                        $messageChars += \strlen($tool->getCallId());
                     }
                 }
             }

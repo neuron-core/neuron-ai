@@ -21,6 +21,9 @@ class Attachment implements \JsonSerializable
         //
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
         return \array_filter([

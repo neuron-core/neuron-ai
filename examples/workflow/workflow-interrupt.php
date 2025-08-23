@@ -29,6 +29,7 @@ $workflow->addNodes([
     ->setStart(BeforeInterruptNode::class)
     ->setEnd(AfterInterruptNode::class);
 
+// Run the workflow and catch the interruption
 try {
     $workflow->run(new WorkflowState(['value' => 8]));
 } catch (WorkflowInterrupt $interrupt) {
@@ -37,6 +38,8 @@ try {
     echo "Workflow interrupted at {$savedInterrupt->getCurrentNode()}.".\PHP_EOL;
 }
 
+// Resume the workflow providing the human feedback
 $result = $workflow->resume(['status' => 'approved']);
 
+// Print the final value
 echo $result->get('final_value').\PHP_EOL; // It should print 28

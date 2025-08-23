@@ -19,6 +19,9 @@ use NeuronAI\Tools\Tool;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
+    /**
+     * @var Message[]
+     */
     protected array $history = [];
 
     public function __construct(
@@ -27,6 +30,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     ) {
     }
 
+    /**
+     * @param Message[] $messages
+     */
     abstract public function setMessages(array $messages): ChatHistoryInterface;
 
     abstract protected function clear(): ChatHistoryInterface;
@@ -195,11 +201,18 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $this->history = $result;
     }
 
+    /**
+     * @return array<int, mixed>
+     */
     public function jsonSerialize(): array
     {
         return $this->getMessages();
     }
 
+    /**
+     * @param array<string, mixed> $messages
+     * @return  Message[]
+     */
     protected function deserializeMessages(array $messages): array
     {
         return \array_map(fn (array $message): Message => match ($message['type'] ?? null) {
@@ -209,6 +222,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         }, $messages);
     }
 
+    /**
+     * @param array<string, mixed> $message
+     */
     protected function deserializeMessage(array $message): Message
     {
         $messageRole = MessageRole::from($message['role']);
@@ -225,6 +241,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $item;
     }
 
+    /**
+     * @param array<string, mixed> $message
+     */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
         $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
@@ -238,6 +257,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $item;
     }
 
+    /**
+     * @param array<string, mixed> $message
+     */
     protected function deserializeToolCallResult(array $message): ToolCallResultMessage
     {
         $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
@@ -248,6 +270,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return new ToolCallResultMessage($tools);
     }
 
+    /**
+     * @param array<string, mixed> $message
+     */
     protected function deserializeMeta(array $message, Message $item): void
     {
         foreach ($message as $key => $value) {

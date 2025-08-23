@@ -29,6 +29,9 @@ class LogObserver implements \SplObserver
         }
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function serializeData(mixed $data): array
     {
         if ($data === null) {
