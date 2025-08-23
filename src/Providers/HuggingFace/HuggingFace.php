@@ -15,14 +15,15 @@ class HuggingFace extends OpenAI
      * @param array<string, mixed> $parameters
      */
     public function __construct(
-        protected string            $key,
-        protected string            $model,
+        protected string $key,
+        protected string $model,
         protected ?InferenceProvider $inferenceProvider = InferenceProvider::HF_INFERENCE,
-        protected array             $parameters = [],
+        protected bool $strict_response = false,
+        protected array $parameters = [],
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $this->buildBaseUri();
-        parent::__construct($key, $model, $parameters, $httpOptions);
+        parent::__construct($key, $model, $this->strict_response, $parameters, $httpOptions);
     }
 
     private function buildBaseUri(): void
