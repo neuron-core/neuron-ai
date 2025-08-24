@@ -27,6 +27,7 @@ trait HandleStream
                 ->stream(
                     $this->resolveChatHistory()->getMessages(),
                     function (ToolCallMessage $toolCallMessage) {
+                        yield new StreamChunk(toolCall: $toolCallMessage);
                         $toolCallResult = $this->executeTools($toolCallMessage);
                         yield from self::stream([$toolCallMessage, $toolCallResult]);
                     }
@@ -44,7 +45,7 @@ trait HandleStream
                 }
 
                 $content .= $text;
-                yield $text;
+                yield new StreamChunk(delta: $text);
             }
 
             $response = new AssistantMessage($content);
