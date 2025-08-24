@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
@@ -53,9 +54,18 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $this->history;
     }
 
-    public function getLastMessage(): Message|false
+    /**
+     * @throws ChatHistoryException
+     */
+    public function getLastMessage(): Message
     {
-        return \end($this->history);
+        $message = \end($this->history);
+
+        if ($message === false) {
+            throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large a message.');
+        }
+
+        return $message;
     }
 
     public function flushAll(): ChatHistoryInterface
