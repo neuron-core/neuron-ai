@@ -20,7 +20,7 @@ trait HandleToolEvents
 
         $this->segments[$agent::class.'_tools_bootstrap'] = $this->inspector
             ->startSegment(
-                self::SEGMENT_TYPE.'-tools',
+                self::SEGMENT_TYPE.'.tool',
                 "tools_bootstrap()"
             )
             ->setColor(self::SEGMENT_COLOR);
@@ -46,7 +46,7 @@ trait HandleToolEvents
 
         $this->segments[$data->tool->getName()] = $this->inspector
             ->startSegment(
-                self::SEGMENT_TYPE.'-tools',
+                self::SEGMENT_TYPE.'.tool',
                 "tool_call( {$data->tool->getName()} )"
             )
             ->setColor(self::SEGMENT_COLOR);

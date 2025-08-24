@@ -22,7 +22,7 @@ trait HandleInferenceEvents
         $label = $this->getBaseClassName($data->message::class);
 
         $this->segments[$this->getMessageId($data->message).'-save'] = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'-chathistory', "save_message( {$label} )")
+            ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 
@@ -56,7 +56,7 @@ trait HandleInferenceEvents
         $label = $this->getBaseClassName($data->message::class);
 
         $this->segments[$this->getMessageId($data->message).'-inference'] = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'-inference', "inference( {$label} )")
+            ->startSegment(self::SEGMENT_TYPE.'.inference', "inference( {$label} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 

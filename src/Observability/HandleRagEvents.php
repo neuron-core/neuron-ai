@@ -23,7 +23,7 @@ trait HandleRagEvents
         $id = \md5($data->question->getContent().$data->question->getRole());
 
         $this->segments[$id] = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'-retrieval', "vector_retrieval( {$data->question->getContent()} )")
+            ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$data->question->getContent()} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 
@@ -48,7 +48,7 @@ trait HandleRagEvents
         }
 
         $segment = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'-preprocessing', $data->processor)
+            ->startSegment(self::SEGMENT_TYPE.'.preprocessing', $data->processor)
             ->setColor(self::SEGMENT_COLOR);
 
         $segment->addContext('Original', $data->original->jsonSerialize());
@@ -72,7 +72,7 @@ trait HandleRagEvents
         }
 
         $segment = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'-postprocessing', $data->processor)
+            ->startSegment(self::SEGMENT_TYPE.'.postprocessing', $data->processor)
             ->setColor(self::SEGMENT_COLOR);
 
         $segment->addContext('Question', $data->question->jsonSerialize())
