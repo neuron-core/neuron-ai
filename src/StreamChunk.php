@@ -3,8 +3,9 @@
 namespace NeuronAI;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use Stringable;
 
-class StreamChunk implements \Stringable
+class StreamChunk implements Stringable
 {
     public function __construct(
         public readonly ?string $delta = null,

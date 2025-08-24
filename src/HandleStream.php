@@ -45,6 +45,7 @@ trait HandleStream
                 }
 
                 $content .= $text;
+
                 yield new StreamChunk(delta: $text);
             }
 
