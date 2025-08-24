@@ -50,6 +50,7 @@ trait HandleStream
                 }
 
                 $content .= $chunk;
+
                 yield $chunk;
             }
 
