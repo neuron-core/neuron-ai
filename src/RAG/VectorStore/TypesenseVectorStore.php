@@ -78,7 +78,7 @@ class TypesenseVectorStore implements VectorStoreInterface
         $this->checkIndexStatus($document);
 
         $this->client->collections[$this->collection]->documents->create([
-            'id' => $document->getId(), // Unique ID is required
+            'id' => (string) $document->getId(), // Unique ID is required
             'content' => $document->getContent(),
             'embedding' => $document->getEmbedding(),
             'sourceType' => $document->getSourceType(),
