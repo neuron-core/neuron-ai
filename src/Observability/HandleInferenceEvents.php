@@ -49,7 +49,7 @@ trait HandleInferenceEvents
 
     public function inferenceStart(Agent $agent, string $event, InferenceStart $data): void
     {
-        if (!$this->inspector->canAddSegments() || $data->message === false) {
+        if (!$this->inspector->canAddSegments()) {
             return;
         }
 
