@@ -44,7 +44,6 @@ class QdrantVectorStoreTest extends TestCase
         $document = new Document('Hello World!');
         $document->addMetadata('customProperty', 'customValue');
         $document->embedding = [1, 2, 3];
-        $document->id = 1;
 
         $this->store->addDocument($document);
 
@@ -59,11 +58,9 @@ class QdrantVectorStoreTest extends TestCase
         $document = new Document('Hello!');
         $document->addMetadata('customProperty', 'customValue');
         $document->embedding = [1, 2, 3];
-        $document->id = 1;
 
         $document2 = new Document('Hello 2!');
         $document2->embedding = [3, 4, 5];
-        $document2->id = 2;
 
         $this->store->addDocuments([$document, $document2]);
 
@@ -79,13 +76,11 @@ class QdrantVectorStoreTest extends TestCase
         $document->sourceType = self::SOURCE_TYPE;
         $document->sourceName = self::SOURCE_NAME;
         $document->embedding = [1, 2, 3];
-        $document->id = 1;
 
         $document2 = new Document('Hello 2!');
         $document2->sourceType = self::SOURCE_TYPE;
         $document2->sourceName = self::SOURCE_NAME;
         $document2->embedding = [3, 4, 5];
-        $document2->id = 2;
 
         $this->store->addDocuments([$document, $document2]);
         $this->store->deleteBySource(self::SOURCE_TYPE, self::SOURCE_NAME);
