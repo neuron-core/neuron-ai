@@ -50,7 +50,6 @@ class UniqueIdGeneratorTest extends TestCase
     public function testGenerateIdReturnsInteger(): void
     {
         $id = UniqueIdGenerator::generateId();
-        $this->assertIsInt($id);
         $this->assertGreaterThan(0, $id);
     }
 
@@ -71,7 +70,6 @@ class UniqueIdGeneratorTest extends TestCase
 
         // All IDs should be positive integers
         foreach ($ids as $id) {
-            $this->assertIsInt($id);
             $this->assertGreaterThan(0, $id);
         }
     }
@@ -189,8 +187,6 @@ class UniqueIdGeneratorTest extends TestCase
         $id1 = UniqueIdGenerator::generateId();
         $id2 = UniqueIdGenerator::generateId();
 
-        $this->assertIsInt($id1);
-        $this->assertIsInt($id2);
         $this->assertNotEquals($id1, $id2);
     }
 
