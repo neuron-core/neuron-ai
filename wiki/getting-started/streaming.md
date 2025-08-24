@@ -48,12 +48,22 @@ $stream = MyAgent::make()
         new UserMessage("What's the IP address of the server?")
     );
 
-// Print the response chunk-by-chunk in real-time
-foreach ($stream as $text) {
-    echo $text;
+// Iterate chunks
+foreach ($stream as $chunk) {
+    if ($chunk instanceof ToolCallMessage) {
+        // Output the ongoing tool call
+        echo PHP_EOL.\array_reduce(
+            $chunk->getTools(), 
+            fn(string $carry, ToolInterface $tool) 
+                => $carry .= '- Calling tool: '.$tool->getName().PHP_EOL, 
+            '');
+    } else {
+        echo $chunk;
+    }
 }
 
 // Let me retrieve the server configuration. 
+// - Calling tool: get_server_configuration
 // The IP address of the server is: 192.168.0.10
 ```
 

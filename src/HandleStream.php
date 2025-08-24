@@ -27,6 +27,7 @@ trait HandleStream
                 ->stream(
                     $this->resolveChatHistory()->getMessages(),
                     function (ToolCallMessage $toolCallMessage) {
+                        yield $toolCallMessage;
                         $toolCallResult = $this->executeTools($toolCallMessage);
                         yield from self::stream([$toolCallMessage, $toolCallResult]);
                     }
@@ -34,17 +35,23 @@ trait HandleStream
 
             $content = '';
             $usage = new Usage(0, 0);
-            foreach ($stream as $text) {
+            foreach ($stream as $chunk) {
+                if ($chunk instanceof ToolCallMessage) {
+                    yield $chunk;
+                    continue;
+                }
+
                 // Catch usage when streaming
-                $decoded = \json_decode((string) $text, true);
+                $decoded = \json_decode((string) $chunk, true);
                 if (\is_array($decoded) && \array_key_exists('usage', $decoded)) {
                     $usage->inputTokens += $decoded['usage']['input_tokens'] ?? 0;
                     $usage->outputTokens += $decoded['usage']['output_tokens'] ?? 0;
                     continue;
                 }
 
-                $content .= $text;
-                yield $text;
+                $content .= $chunk;
+
+                yield $chunk;
             }
 
             $response = new AssistantMessage($content);

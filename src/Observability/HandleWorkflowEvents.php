@@ -30,7 +30,7 @@ trait HandleWorkflowEvents
                     ], $data->edges)
                 ]);
         } elseif ($this->inspector->canAddSegments()) {
-            $this->segments[$workflow::class] = $this->inspector->startSegment('neuron-workflow', $workflow::class)
+            $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $workflow::class)
                 ->setColor(self::SEGMENT_COLOR);
         }
     }
@@ -55,7 +55,7 @@ trait HandleWorkflowEvents
         }
 
         $segment = $this->inspector
-            ->startSegment('workflow-node', $data->node)
+            ->startSegment(self::SEGMENT_TYPE.'.workflow', $data->node)
             ->setColor(self::SEGMENT_COLOR);
         $segment->addContext('Before', $data->state->all());
         $this->segments[$data->node] = $segment;
