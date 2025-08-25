@@ -511,12 +511,12 @@ The `provide()` method returns the array of tools included in the toolkit by def
 ```php
 <?php
 
-namesoace App\Neuron;
+namespace App\Neuron;
 
 use NeuronAI\Agent;
 use NeuronAI\Tools\Calculator\CalculatorToolkit;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -542,7 +542,7 @@ use NeuronAI\Tools\Toolkits\Calculator\DivideTool;
 use NeuronAI\Tools\Toolkits\Calculator\ExponentiateTool;
 use NeuronAI\Tools\Toolkits\Calculator\MultiplyTool;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -554,7 +554,7 @@ class MyAgent extens Agent
                 ExponentiateTool::class,
                 MultiplyTool::class,
             ]),
-	];
+        ];
     }
 }
 ```
@@ -571,7 +571,7 @@ use NeuronAI\Tools\Calculator\CalculatorToolkit;
 use NeuronAI\Tools\Toolkits\Calculator\MedianTool;
 use NeuronAI\Tools\Toolkits\Calculator\StandardDeviationTool;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -582,7 +582,7 @@ class MyAgent extens Agent
                 StandardDeviationTool::class,
                 MedianTool::class,
             ]),
-	];
+        ];
     }
 }
 ```
