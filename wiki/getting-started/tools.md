@@ -124,7 +124,7 @@ class GetTranscriptionTool extends Tool
     }
     
     /**
-     * Return the list of the properties.
+     * Return the list of properties.
      */
     protected function properties(): array
     {
@@ -139,28 +139,23 @@ class GetTranscriptionTool extends Tool
     }
     
     /**
-     * Implementing the tool logic in the __invoke magic method.
+     * Implementing the tool logic
      */
     public function __invoke(string $video_url)
     {
-        $response = $this->getClient()->get('transcript?url=' . $video_url.'&text=true');
+        $response = $this->getClient()
+            ->get('transcript?url=' . $video_url.'&text=true')
+            ->getBody()
+            ->getContents();
 
-        if ($response->getStatusCode() !== 200) {
-            return "Transcription APIs error: {$response->getBody()->getContents()}";
-        }
-
-        $response = json_decode($response->getBody()->getContents(), true);
+        $response = json_decode($response, true);
 
         return $response['content'];
     }
     
     protected function getClient(): Client
     {
-        if (isset($this->client)) {
-            return $this->client;
-        }
-        
-        return $this->client = new Client([
+        return $this->client ?? $this->client = new Client([
             'base_uri' => 'https://api.supadata.ai/v1/youtube/',
             'headers' => [
                 'x-api-key' => $this->key,
