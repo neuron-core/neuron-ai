@@ -149,11 +149,11 @@ Each of these parameters has an impact on the performance and accuracy of your R
 
 #### Max Length
 
-Each chunk will not be longer than this value, and it will be divided into smaller documents eventually. The length can impact the accuracy of embeddings representations. More length your units of text are, the less accurate the embeddings representation will be.
+Each chunk will not be longer than this value, and it will be divided into smaller documents eventually. The length can impact the accuracy of embeddings representations. The longer your units of text are, the less accurate the embeddings representation will be.
 
 #### Separator
 
-The text is first split into chunks based on a separator. By default the component use the period character. You can eventually customize this separator by using any delimiter for your text.
+The text is first split into chunks based on a separator. By default the component uses the period character. You can eventually customize this separator by using any delimiter for your text.
 
 #### Overlap
 
