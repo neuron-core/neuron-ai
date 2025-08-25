@@ -141,7 +141,7 @@ class GetTranscriptionTool extends Tool
     /**
      * Implementing the tool logic
      */
-    public function __invoke(string $video_url)
+    public function __invoke(string $video_url): string
     {
         $response = $this->getClient()
             ->get('transcript?url=' . $video_url.'&text=true')
