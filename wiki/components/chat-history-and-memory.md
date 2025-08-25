@@ -148,7 +148,7 @@ class MyAgent extends Agent
     {
         return new FileChatHistory(
             directory: '/home/app/storage/neuron',
-            key: '[user-id]',
+            key: 'THREAD_ID',
             contextWindow: 50000
         );
     }
@@ -193,7 +193,7 @@ class MyAgent extends Agent
     protected function chatHistory(): ChatHistoryInterface
     {
         return new SQLChatHistory(
-            thread_id: 'CHAT_THREAD_ID',
+            thread_id: 'THREAD_ID',
             pdo: new \PDO("mysql:host=localhost;dbname=DB_NAME;charset=utf8mb4", "DB_USER", "DB_PASS"),
             table: 'chat_hisotry',
             contextWindow: 50000
