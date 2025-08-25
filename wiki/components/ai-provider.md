@@ -192,6 +192,37 @@ echo MyAgent::make()->chat(new UserMessage("Hi!"));
 // Hi, how can I help you today?
 ```
 
+### AWS Badrock
+
+```php
+namespace App\Neuron;
+
+use NeuronAI\Agent;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\AWS\BadrockRuntime;
+
+class MyAgent extends Agent
+{
+    public function provider(): AIProviderInterface
+    {
+        return new BadrockRuntime(
+            key: 'HF_ACCESS_TOKEN',
+            model: 'mistralai/Mistral-7B-Instruct-v0.3',
+            // https://huggingface.co/docs/inference-providers/en/index
+            inferenceProvider: InferenceProvider::HF_INFERENCE,
+            parameters: [
+                'max_tokens' => 500,
+                'temperature' => 0.5
+            ]
+        );
+    }
+}
+
+echo MyAgent::make()->chat(new UserMessage("Hi!"));
+// Hi, how can I help you today?
+```
+
 ### Deepseek
 
 ```php
