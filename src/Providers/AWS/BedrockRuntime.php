@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\AWSBedrock;
+namespace NeuronAI\Providers\AWS;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use GuzzleHttp\Client;

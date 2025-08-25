@@ -10,7 +10,7 @@ use GuzzleHttp\Promise\FulfilledPromise;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\AWSBedrock\BedrockRuntime;
+use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;

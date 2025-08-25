@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\AWSBedrock;
+namespace NeuronAI\Providers\AWS;
 
 use Aws\Api\Parser\EventParsingIterator;
 use NeuronAI\Chat\Messages\ToolCallMessage;
