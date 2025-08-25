@@ -26,14 +26,14 @@ class BedrockRuntimeAIProvider implements AIProviderInterface
 
     protected ?string $system = null;
 
+    protected MessageMapperInterface $messageMapper;
+
     public function __construct(
         protected BedrockRuntimeClient $bedrockRuntimeClient,
-        protected MessageMapperInterface $messageMapper,
         protected string $model,
-        protected ?int $maxTokens = null,
-        protected ?float $temperature = null,
-        protected ?float $topP = null,
+        protected array $inferenceConfig = [],
     ) {
+        $this->messageMapper = new BedrockRuntimeMessageMapper();
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface
@@ -157,16 +157,8 @@ class BedrockRuntimeAIProvider implements AIProviderInterface
             ]],
         ];
 
-        if ($this->maxTokens !== null) {
-            $payload['inferenceConfig']['maxTokens'] = $this->maxTokens;
-        }
-
-        if ($this->temperature !== null) {
-            $payload['inferenceConfig']['temperature'] = $this->temperature;
-        }
-
-        if ($this->topP !== null) {
-            $payload['inferenceConfig']['topP'] = $this->topP;
+        if (\count($this->inferenceConfig) > 0) {
+            $payload['inferenceConfig'] = $this->inferenceConfig;
         }
 
         $toolSpecs = $this->generateToolsPayload();

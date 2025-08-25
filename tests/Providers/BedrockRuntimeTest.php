@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWSBedrock\BedrockRuntimeAIProvider;
-use NeuronAI\Providers\AWSBedrock\BedrockRuntimeMessageMapper;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -53,11 +52,12 @@ class BedrockRuntimeTest extends TestCase
 
         $provider = new BedrockRuntimeAIProvider(
             $bedrockClient,
-            new BedrockRuntimeMessageMapper(),
             'model-x',
-            100,
-            0.5,
-            0.9
+            [
+                'maxTokens' => 100,
+                'temperature' => 0.5,
+                'topP' => 0.9
+            ],
         );
 
         $provider->systemPrompt('System prompt');
@@ -125,7 +125,6 @@ class BedrockRuntimeTest extends TestCase
 
         $provider = (new BedrockRuntimeAIProvider(
             $bedrockClient,
-            new BedrockRuntimeMessageMapper(),
             'model-y'
         ))->setTools([$tool]);
 
@@ -199,7 +198,6 @@ class BedrockRuntimeTest extends TestCase
 
         $provider = (new BedrockRuntimeAIProvider(
             $bedrockClient,
-            new BedrockRuntimeMessageMapper(),
             'model-z'
         ))->setTools([$tool]);
 
