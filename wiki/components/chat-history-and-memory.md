@@ -59,13 +59,14 @@ Sometimes you already have a representation of user to assistant conversation an
 You just need to pass an array of messages to the \`chat()\` method. This conversation will be automatically loaded into the agent memory and you can continue to iterate on it.
 
 ```php
+use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 
 $response = MyAgent::make()
     ->chat([
-        new Message("user", "Hi, I work for a company called Inspector.dev"),
-        new Message("assistant", "Hi Valerio, how can I assist you today?"),
-        new Message("user", "What's the name of the company I work for?"),
+        new Message(MessageRole::USER, "Hi, my company is called Inspector.dev"),
+        new Message(MessageRole::ASSISTANT, "Hi, how can I assist you today?"),
+        new Message(MessageRole::USER, "What's the name of the company I work for?"),
     ]);
     
 echo $response->getContent();
