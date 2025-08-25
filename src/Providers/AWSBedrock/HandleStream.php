@@ -6,9 +6,13 @@ namespace NeuronAI\Providers\AWSBedrock;
 
 use Aws\Api\Parser\EventParsingIterator;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\ProviderException;
 
 trait HandleStream
 {
+    /**
+     * @throws ProviderException
+     */
     public function stream(array|string $messages, callable $executeToolsCallback): \Generator
     {
         $payload = $this->createPayLoad($messages);

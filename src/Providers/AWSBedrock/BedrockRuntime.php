@@ -29,7 +29,6 @@ class BedrockRuntime implements AIProviderInterface
         protected string $model,
         protected array $inferenceConfig = [],
     ) {
-        $this->messageMapper = new MessageMapper();
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface
@@ -41,7 +40,7 @@ class BedrockRuntime implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper;
+        return new MessageMapper();
     }
 
     protected function createPayLoad(array $messages): array
@@ -118,7 +117,7 @@ class BedrockRuntime implements AIProviderInterface
 
     public function setClient(Client $client): AIProviderInterface
     {
-        // no need to set client for AWSBedrockAIProvider since it uses its own BedrockRuntimeClient
+        // no need to set the client since it uses its own BedrockRuntimeClient
         return $this;
     }
 }
