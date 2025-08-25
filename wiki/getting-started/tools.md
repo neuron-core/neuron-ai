@@ -90,7 +90,7 @@ Neuron provides you with these clear and simple APIs and automates all the under
 
 ## Implement Custom Tools
 
-Thanks to the NeuronAI modular architecture, Tools are just a component of the toolkit that rely on the `ToolInterface` interface. You are free to create pre-packaged tool classes that implements common functionalities, and release them as external composer packages or submit a PR to our repository to have them integrated into the core framework.
+Thanks to the NeuronAI modular architecture, Tools are just a component of the toolkit that rely on the `ToolInterface` interface. You are free to create pre-packaged tool classes that implement common functionalities, and release them as external composer packages or submit a PR to our repository to have them integrated into the core framework.
 
 To create a new Tool you can extend the `NeuronAI\Tools\Tool` class. The most important elements of a tool are:
 
