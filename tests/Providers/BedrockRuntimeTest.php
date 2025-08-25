@@ -10,7 +10,7 @@ use GuzzleHttp\Promise\FulfilledPromise;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\AWSBedrock\BedrockRuntimeAIProvider;
+use NeuronAI\Providers\AWSBedrock\BedrockRuntime;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -44,13 +44,13 @@ class BedrockRuntimeTest extends TestCase
         $capturedPayload = null;
         $bedrockClient->expects($this->once())
             ->method('converseAsync')
-            ->with($this->callback(function (array $payload) use (&$capturedPayload) {
+            ->with($this->callback(function (array $payload) use (&$capturedPayload): bool {
                 $capturedPayload = $payload;
                 return true;
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $provider = new BedrockRuntimeAIProvider(
+        $provider = new BedrockRuntime(
             $bedrockClient,
             'model-x',
             [
@@ -114,7 +114,7 @@ class BedrockRuntimeTest extends TestCase
         $capturedPayload = null;
         $bedrockClient->expects($this->once())
             ->method('converseAsync')
-            ->with($this->callback(function (array $payload) use (&$capturedPayload) {
+            ->with($this->callback(function (array $payload) use (&$capturedPayload): bool {
                 $capturedPayload = $payload;
                 return true;
             }))
@@ -123,7 +123,7 @@ class BedrockRuntimeTest extends TestCase
         $tool = Tool::make('my_tool', 'Tool description')
             ->addProperty(new ToolProperty('param', PropertyType::STRING, 'Param description', true));
 
-        $provider = (new BedrockRuntimeAIProvider(
+        $provider = (new BedrockRuntime(
             $bedrockClient,
             'model-y'
         ))->setTools([$tool]);
@@ -188,7 +188,7 @@ class BedrockRuntimeTest extends TestCase
         $capturedPayload = null;
         $bedrockClient->expects($this->once())
             ->method('converseAsync')
-            ->with($this->callback(function (array $payload) use (&$capturedPayload) {
+            ->with($this->callback(function (array $payload) use (&$capturedPayload): bool {
                 $capturedPayload = $payload;
                 return true;
             }))
@@ -196,7 +196,7 @@ class BedrockRuntimeTest extends TestCase
 
         $tool = Tool::make('empty_tool', 'No props'); // no properties added
 
-        $provider = (new BedrockRuntimeAIProvider(
+        $provider = (new BedrockRuntime(
             $bedrockClient,
             'model-z'
         ))->setTools([$tool]);
