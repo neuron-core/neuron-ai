@@ -191,7 +191,7 @@ class YouTubeAgent extends Agent
         );
     }
     
-    public function instructions() 
+    public function instructions(): string
     {
         return (string) new SystemPrompt(...);
     }
@@ -199,7 +199,7 @@ class YouTubeAgent extends Agent
     public function tools(): array
     {
         return [
-            GetTranscriptionTool::make(key: 'API_KEY'),
+            GetTranscriptionTool::make('API_KEY'),
         ];
     }
 }
