@@ -96,7 +96,7 @@ To create a new Tool you can extend the `NeuronAI\Tools\Tool` class. The most im
 
 **Tool name and description**: Define name and description of the tool in the tool constructor. Invest in prompt engineering to help the model take better decisions.
 
-**The properties method**: Implement this method to return the list of properties the tool expect.
+**The properties method**: Implement this method to return the list of properties the tool expects.
 
 **The \_\_invoke method**: Here you need to implement the logic of the tool, and return a result that will be returned back to the model. The PHP `__invoke` magic method is used by default.
 
