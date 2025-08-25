@@ -472,7 +472,7 @@ Rather than forcing developers to manually assemble collections of tools for com
 
 The traditional approach requires instantiating each tool individually. Imagine you want to build agents that need mathematical reasoning – addition, subtraction, multiplication, division, and exponentiation tools must all be declared separately in the agent's tool configuration. This granular approach quickly becomes unwieldy when agents require comprehensive functionality sets.&#x20;
 
-Toolkits represents Neuron's solution to this complexity, packaging tools created aroud the same scope into a single, coherent interface that can be attached to any agent with a single line of code.
+Toolkits represent Neuron's solution to this complexity, packaging tools created around the same scope into a single, coherent interface that can be attached to any agent with a single line of code.
 
 Here is an example of the `CalculatorToolkit`:
 
