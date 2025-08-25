@@ -21,30 +21,24 @@ Once you have one or more MCP server on your machine, you can make their tools a
 namespace App\Neuron;
 
 use NeuronAI\Agent;
-use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\MCP\McpConnector;
 
 class MyAgent extends Agent 
 {
-    protected function provider()
+    protected function provider(): AIProviderInterface
     {
-        return new Anthropic(...);
+        ...
     }
     
     public function instructions(): string
     {
-        return (string) new SystemPrompt(["<SYSTEM PROMPT>"]);
+        ...
     }
     
-    protected function tools()
+    protected function tools(): array
     {
         return [
-            ...McpConnector::make([
-                'command' => 'npx',
-                'args' => ['-y', '@modelcontextprotocol/server-everything'],
-            ])->tools(),
-            
-            
             ...McpConnector::make([
                 'command' => 'php',
                 'args' => ['/home/code/mcp_server.php'],
