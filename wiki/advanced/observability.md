@@ -14,7 +14,7 @@ Many of the Agents you build with NeuronAI will contain multiple steps with mult
 
 Why is the model making certain decisions? What data is the model reacting to? Prompting is not programming in the common sense. No static types, small changes break output, long prompts cost latency, and no two models behave exactly the same with the same prompt.
 
-The [Inspector](https://inspector.dev/) team designed NeuronAI with built-in observability features, so you can monitor AI agents were running, helping you maintain production-grade implementations with confidence.
+The [Inspector](https://inspector.dev/) team designed NeuronAI with built-in observability features, so you can monitor AI agents running, helping you maintain production-grade implementations with confidence.
 
 ## Get Started With Inspector
 
