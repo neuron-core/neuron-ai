@@ -16,7 +16,7 @@ The [Inspector](https://inspector.dev/) team designed NeuronAI with built-in obs
 
 ## Get Started With Inspector
 
-To start monitoring your Agents you just have the `INSPECTOR_INGESTION_KEY` variable in your application environment file.&#x20;
+To start monitoring your Agents you need to add the `INSPECTOR_INGESTION_KEY` variable in your application environment file. Authenticate on [app.inspector.dev](https://app.inspector.dev/register) to create a new one.
 
 {% code title=".env" %}
 ```
