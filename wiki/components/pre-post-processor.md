@@ -21,9 +21,9 @@ Rather than treating the user's original query as the final word, the pre-proces
 
 Consider the complexity hidden within seemingly simple queries. When someone asks "Why did our sales drop last quarter?", they're actually expressing a multi-faceted information need that might require understanding seasonal trends, competitor activities, marketing campaign effectiveness, product performance metrics, and economic indicators. A naive RAG system might retrieve general information about sales analysis, missing the opportunity to provide comprehensive, contextually relevant insights that address the full scope of the underlying question.
 
-### QueryTransformation
+### Query Transformation
 
-The core of this pattern is to use an LLM to transform the original question into a more structured prompts that the main RAG agent can use to perform a more accurate and effective documents retrieval from the vector store.&#x20;
+The core of this pattern is to use an LLM to transform the original question into a more structured prompt that the main RAG agent can use to perform a more accurate and effective document retrieval from the vector store.&#x20;
 
 Working with NeuronAI you can pass the instance of the AI provider already attached to your agent:
 

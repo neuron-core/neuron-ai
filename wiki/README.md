@@ -164,32 +164,6 @@ echo MyAgent::make()->chat(new UserMessage("Hi!"));
 // Hi, how can I help you today?
 ```
 {% endtab %}
-
-{% tab title="HuggingFace" %}
-```php
-namespace App\Neuron;
-
-use NeuronAI\Agent;
-use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\HuggingFace\HuggingFace;
-use NeuronAI\Providers\HuggingFace\InferenceProvider;
-
-class MyAgent extends Agent
-{
-    public function provider(): AIProviderInterface
-    {
-        return new HuggingFace(
-            key: 'HF_ACCESS_TOKEN',
-            model: 'mistralai/Mistral-7B-Instruct-v0.3',
-        );
-    }
-}
-
-echo MyAgent::make()->chat(new UserMessage("Hi!"));
-// Hi, how can I help you today?
-```
-{% endtab %}
 {% endtabs %}
 
 Check out all the supported providers in the [AI Provider](components/ai-provider.md) section.
@@ -254,7 +228,7 @@ Trace and evaluate your agents execution flow to help you maintain production gr
 ## Core components
 
 * [**AI Provider**](components/ai-provider.md)
-* [**Toolkits**](getting-started/tools.md#toolkits-composable-agent-capabilities)
+* [**Toolkit**](getting-started/tools.md#toolkits-composable-agent-capabilities)
 * [**Embeddings Provider**](components/embeddings-provider.md)
 * [**Data Loader**](components/data-loader.md)
 * [**Vector Store**](components/vector-store.md)

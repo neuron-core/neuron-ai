@@ -12,9 +12,9 @@ Integrating AI Agents into your application you’re not working only with funct
 
 Many of the Agents you build with NeuronAI will contain multiple steps with multiple invocations of LLM calls, tool usage, access to external memories, etc. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly your agent is doing and why.&#x20;
 
-Why is the model taking certain decisions? What data is the model reacting to? Prompting is not programming in the common sense. No static types, small changes break output, long prompts cost latency, and no two models behave exactly the same with the same prompt.
+Why is the model making certain decisions? What data is the model reacting to? Prompting is not programming in the common sense. No static types, small changes break output, long prompts cost latency, and no two models behave exactly the same with the same prompt.
 
-The [Inspector](https://inspector.dev/) team designed NeuronAI with built-in observability features, so you can monitor AI agents were running, helping you maintain production-grade implementations with confidence.
+The [Inspector](https://inspector.dev/) team designed NeuronAI with built-in observability features, so you can monitor AI agents running, helping you maintain production-grade implementations with confidence.
 
 ## Get Started With Inspector
 

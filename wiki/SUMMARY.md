@@ -21,7 +21,7 @@
 
 ## Components
 
-* [AI provider](components/ai-provider.md)
+* [AI Provider](components/ai-provider.md)
 * [Chat History & Memory](components/chat-history-and-memory.md)
 * [Embeddings Provider](components/embeddings-provider.md)
 * [Vector Store](components/vector-store.md)

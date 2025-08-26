@@ -59,13 +59,14 @@ Sometimes you already have a representation of user to assistant conversation an
 You just need to pass an array of messages to the \`chat()\` method. This conversation will be automatically loaded into the agent memory and you can continue to iterate on it.
 
 ```php
+use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 
 $response = MyAgent::make()
     ->chat([
-        new Message("user", "Hi, I work for a company called Inspector.dev"),
-        new Message("assistant", "Hi Valerio, how can I assist you today?"),
-        new Message("user", "What's the name of the company I work for?"),
+        new Message(MessageRole::USER, "Hi, my company is called Inspector.dev"),
+        new Message(MessageRole::ASSISTANT, "Hi, how can I assist you today?"),
+        new Message(MessageRole::USER, "What's the name of the company I work for?"),
     ]);
     
 echo $response->getContent();
@@ -148,7 +149,7 @@ class MyAgent extends Agent
     {
         return new FileChatHistory(
             directory: '/home/app/storage/neuron',
-            key: '[user-id]',
+            key: 'THREAD_ID',
             contextWindow: 50000
         );
     }
@@ -193,7 +194,7 @@ class MyAgent extends Agent
     protected function chatHistory(): ChatHistoryInterface
     {
         return new SQLChatHistory(
-            thread_id: 'CHAT_THREAD_ID',
+            thread_id: 'THREAD_ID',
             pdo: new \PDO("mysql:host=localhost;dbname=DB_NAME;charset=utf8mb4", "DB_USER", "DB_PASS"),
             table: 'chat_hisotry',
             contextWindow: 50000

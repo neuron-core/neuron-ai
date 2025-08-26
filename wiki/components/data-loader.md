@@ -42,7 +42,7 @@ $documents = FileDataLoader::for(__DIR__.'/my-article.md')->getDocuments();
 $documents = FileDataLoader::for(__DIR__)->getDocuments();
 ```
 
-By default FileDataLoader read the content of a file as it is in the file system, but not all file type are ready to be treated as simple text. Neuron provides you with the ReaderInterface and several pre-defined reader components for the most common file formats.
+By default `FileDataLoader` read the content of a file as it is in the file system, but not all file type are ready to be treated as simple text. Neuron provides you with the ReaderInterface and several pre-defined reader components for the most common file formats.
 
 Notice that each file reader is associated to a file extension. So based on the input file extension the data loader will automatically use the appropriate reader.
 
@@ -117,7 +117,7 @@ Hybrid search allows you to narrow the scope of a semantic search query against 
 
 ## Text Splitter
 
-Neuron data loaders get files or text in input and generates an array of `\NeuronAI\RAG\Document` objects. These documents are embeddable units. The original text is split into smaller pieces of text to be converted into embeddings and saved in the vector store.
+Neuron data loaders get files or text in input and generate an array of `\NeuronAI\RAG\Document` objects. These documents are embeddable units. The original text is split into smaller pieces of text to be converted into embeddings and saved in the vector store.
 
 The logic data loaders use to split a long text into chunks can be customized using different strategies. Neuron has a dedicated component for this purpose called "Splitter", and it can be attached to the data loader based on the strategy you prefer or need:
 
@@ -149,11 +149,11 @@ Each of these parameters has an impact on the performance and accuracy of your R
 
 #### Max Length
 
-Each chunk will not be longer than this value, and it will be divided into smaller documents eventually. The length can impact the accuracy of embeddings representations. More length your units of text are, the less accurate the embeddings representation will be.
+Each chunk will not be longer than this value, and it will be divided into smaller documents eventually. The length can impact the accuracy of embeddings representations. The longer your units of text are, the less accurate the embeddings representation will be.
 
 #### Separator
 
-The text is first split into chunks based on a separator. By default the component use the period character. You can eventually customize this separator by using any delimiter for your text.
+The text is first split into chunks based on a separator. By default the component uses the period character. You can eventually customize this separator by using any delimiter for your text.
 
 #### Overlap
 

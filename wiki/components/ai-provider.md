@@ -2,7 +2,7 @@
 description: Interact with LLM providers or extend the framework to implement new ones.
 ---
 
-# AI provider
+# AI Provider
 
 With Neuron you can switch between LLM providers with just one line of code, without any impact on your agent implementation.
 
@@ -238,6 +238,41 @@ class MyAgent extends Agent
         return new Grok(
             key: 'GROK_API_KEY',
             model: 'grok-4',
+        );
+    }
+}
+
+echo MyAgent::make()->chat(new UserMessage("Hi!"));
+// Hi, how can I help you today?
+```
+
+### AWS Bedrock Runtime
+
+```php
+namespace App\Neuron;
+
+use Aws\BedrockRuntime\BedrockRuntimeClient;
+use NeuronAI\Agent;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\AWS\BedrockRuntime;
+
+class MyAgent extends Agent
+{
+    public function provider(): AIProviderInterface
+    {
+        $client = new BedrockAgentRuntimeClient([
+            'version' => 'latest',
+            'region' => 'us-east-1',
+            'credentials' => [
+                'key' => 'AWS_BEDROCK_KEY',
+                'secret' => 'AWS_BEDROCK_SECRET',
+            ],
+        ]);
+        
+        return new BedrockRuntime(
+            client: $client,
+            model: 'AWS_BEDROCK_MODEL',
         );
     }
 }

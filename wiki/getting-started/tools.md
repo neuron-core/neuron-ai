@@ -90,13 +90,13 @@ Neuron provides you with these clear and simple APIs and automates all the under
 
 ## Implement Custom Tools
 
-Thanks to the NeuronAI modular architecture, Tools are just a component of the toolkit that rely on the `ToolInterface` interface. You are free to create pre-packaged tool classes that implements common functionalities, and release them as external composer packages or submit a PR to our repository to have them integrated into the core framework.
+Thanks to the NeuronAI modular architecture, Tools are just a component of the toolkit that rely on the `ToolInterface` interface. You are free to create pre-packaged tool classes that implement common functionalities, and release them as external composer packages or submit a PR to our repository to have them integrated into the core framework.
 
 To create a new Tool you can extend the `NeuronAI\Tools\Tool` class. The most important elements of a tool are:
 
 **Tool name and description**: Define name and description of the tool in the tool constructor. Invest in prompt engineering to help the model take better decisions.
 
-**The properties method**: Implement this method to return the list of properties the tool expect.
+**The properties method**: Implement this method to return the list of properties the tool expects.
 
 **The \_\_invoke method**: Here you need to implement the logic of the tool, and return a result that will be returned back to the model. The PHP `__invoke` magic method is used by default.
 
@@ -124,7 +124,7 @@ class GetTranscriptionTool extends Tool
     }
     
     /**
-     * Return the list of the properties.
+     * Return the list of properties.
      */
     protected function properties(): array
     {
@@ -139,28 +139,23 @@ class GetTranscriptionTool extends Tool
     }
     
     /**
-     * Implementing the tool logic in the __invoke magic method.
+     * Implementing the tool logic
      */
-    public function __invoke(string $video_url)
+    public function __invoke(string $video_url): string
     {
-        $response = $this->getClient()->get('transcript?url=' . $video_url.'&text=true');
+        $response = $this->getClient()
+            ->get('transcript?url=' . $video_url.'&text=true')
+            ->getBody()
+            ->getContents();
 
-        if ($response->getStatusCode() !== 200) {
-            return "Transcription APIs error: {$response->getBody()->getContents()}";
-        }
-
-        $response = json_decode($response->getBody()->getContents(), true);
+        $response = json_decode($response, true);
 
         return $response['content'];
     }
     
     protected function getClient(): Client
     {
-        if (isset($this->client)) {
-            return $this->client;
-        }
-        
-        return $this->client = new Client([
+        return $this->client ?? $this->client = new Client([
             'base_uri' => 'https://api.supadata.ai/v1/youtube/',
             'headers' => [
                 'x-api-key' => $this->key,
@@ -196,7 +191,7 @@ class YouTubeAgent extends Agent
         );
     }
     
-    public function instructions() 
+    public function instructions(): string
     {
         return (string) new SystemPrompt(...);
     }
@@ -204,7 +199,7 @@ class YouTubeAgent extends Agent
     public function tools(): array
     {
         return [
-            GetTranscriptionTool::make(key: 'API_KEY'),
+            GetTranscriptionTool::make('API_KEY'),
         ];
     }
 }
@@ -477,7 +472,7 @@ Rather than forcing developers to manually assemble collections of tools for com
 
 The traditional approach requires instantiating each tool individually. Imagine you want to build agents that need mathematical reasoning – addition, subtraction, multiplication, division, and exponentiation tools must all be declared separately in the agent's tool configuration. This granular approach quickly becomes unwieldy when agents require comprehensive functionality sets.&#x20;
 
-Toolkits represents Neuron's solution to this complexity, packaging tools created aroud the same scope into a single, coherent interface that can be attached to any agent with a single line of code.
+Toolkits represent Neuron's solution to this complexity, packaging tools created around the same scope into a single, coherent interface that can be attached to any agent with a single line of code.
 
 Here is an example of the `CalculatorToolkit`:
 
@@ -516,12 +511,12 @@ The `provide()` method returns the array of tools included in the toolkit by def
 ```php
 <?php
 
-namesoace App\Neuron;
+namespace App\Neuron;
 
 use NeuronAI\Agent;
 use NeuronAI\Tools\Calculator\CalculatorToolkit;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -547,7 +542,7 @@ use NeuronAI\Tools\Toolkits\Calculator\DivideTool;
 use NeuronAI\Tools\Toolkits\Calculator\ExponentiateTool;
 use NeuronAI\Tools\Toolkits\Calculator\MultiplyTool;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -559,7 +554,7 @@ class MyAgent extens Agent
                 ExponentiateTool::class,
                 MultiplyTool::class,
             ]),
-	];
+        ];
     }
 }
 ```
@@ -576,7 +571,7 @@ use NeuronAI\Tools\Calculator\CalculatorToolkit;
 use NeuronAI\Tools\Toolkits\Calculator\MedianTool;
 use NeuronAI\Tools\Toolkits\Calculator\StandardDeviationTool;
 
-class MyAgent extens Agent
+class MyAgent extends Agent
 {
     ...
 	
@@ -587,7 +582,7 @@ class MyAgent extens Agent
                 StandardDeviationTool::class,
                 MedianTool::class,
             ]),
-	];
+        ];
     }
 }
 ```
