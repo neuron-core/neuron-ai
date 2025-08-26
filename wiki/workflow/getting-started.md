@@ -4,6 +4,10 @@ description: Guide, moderate, and control your agentic system with human-in-the-
 
 # Getting Started
 
+{% hint style="warning" %}
+This component is in Beta stage. Its design and public APIs can change in future versions. If you want to give us your feedback post your message on the [GitHub Discussion](https://github.com/inspector-apm/neuron-ai/discussions) section
+{% endhint %}
+
 Think of a Workflow as a smart flowchart for your AI applications. The idea behind Workflow is to allow developers to use all the NeuronAI components like AI providers, embeddings, data loaders, chat history, vector store, etc, as standalone components to create totally customized agentic entities.
 
 Agent and RAG classes represent a ready to use implementation of the most common patterns when it comes to retrieval use cases, or tool calls, structured output, etc. Workflow allows you to program your agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks as any other component if you need their built-in capabilities.
