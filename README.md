@@ -31,8 +31,8 @@ https://docs.neuron-ai.dev/resources/guides-and-tutorials.
 - [Talk to the Agent](#talk)
 - [Monitoring](#monitoring)
 - [Supported LLM Providers](#providers)
-- [Tools & Function Calls](#tools)
-- [MCP server connector](#mcp)
+- [Tools & Toolkits](#tools)
+- [MCP Connector](#mcp)
 - [Structured Output](#structured)
 - [RAG](#rag)
 - [Workflow](#workflow)
@@ -217,7 +217,7 @@ Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/tools-a
 
 <a name="mcp">
 
-## MCP server connector
+## MCP Connector
 
 Instead of implementing tools manually, you can connect tools exposed by an MCP server with the `McpConnector` component:
 
