@@ -498,24 +498,67 @@ class MyAgent extends Agent
 We strongly recommend you to submit new provider implementations via PR on the official repository or using other [Inspector.dev](https://inspector.dev/developer-support/) support channels. The new implementation can receives an important boost in its advancement by the community.
 {% endhint %}
 
-### OpenAI compatible providers
+### Implement custom providers
 
-If you want to interact to an LLM provider that support the same API format of OpenAI you can easily create e dedicated class in a few lines of code, just extending our OpenAI provider:
+If you want to implement the component for a new inference provider you need to implement the `AIProviderInterface`:
 
 ```php
-namespace App\Neuron\Providers;
+namespace NeuronAI\Providers;
 
-use NeuronAI\Providers\OpenAI\OpenAI;
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise\PromiseInterface;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Tools\ToolInterface;
 
-class OpenRouter extends OpenAI
+interface AIProviderInterface
 {
-    protected string $baseUri = "https://openrouter.ai/api/v1";
+    /**
+     * Send predefined instruction to the LLM.
+     */
+    public function systemPrompt(?string $prompt): AIProviderInterface;
+
+    /**
+     * Set the tools to be exposed to the LLM.
+     *
+     * @param ToolInterface[] $tools
+     */
+    public function setTools(array $tools): AIProviderInterface;
+
+    /**
+     * The component responsible for mapping the NeuronAI Message to the AI provider format.
+     */
+    public function messageMapper(): MessageMapperInterface;
+
+    /**
+     * Send a prompt to the AI agent.
+     *
+     * @param Message[] $messages
+     */
+    public function chat(array $messages): Message;
+
+    /**
+     * Send a prompt to the AI agent.
+     *
+     * @param Message[] $messages
+     */
+    public function chatAsync(array $messages): PromiseInterface;
+
+    /**
+     * @param Message[]|string $messages
+     */
+    public function stream(array|string $messages, callable $executeToolsCallback): \Generator;
+
+    /**
+     * @param Message[] $messages
+     * @param array<string, mixed> $response_schema
+     */
+    public function structured(array $messages, string $class, array $response_schema): Message;
+
+    public function setClient(Client $client): AIProviderInterface;
 }
 ```
 
-That's it.
-
-You can now use the new provider into your Agent:
+We strongly suggest to take inspiration from other providers implementation to better understand the common code organization and how to implement specific features. Once you have the concrete implementation of the interface you can use the new provider into the Agent:
 
 ```php
 use App\Neuron\Providers\TogetherAI;
@@ -526,12 +569,9 @@ class MyAgent extends Agent
 {
     public function provider(): AIProviderInterface
     {
-        return new OpenRouter(
-            key: 'OPENROUTER_API_KEY',
-            model: 'OPENROUTER_MODEL',
-            parameters: [
-                'models' => [...]
-            ]
+        return new CustomProvider(
+            key: 'API_KEY',
+            model: 'MODEL',
         );
     }
 }
