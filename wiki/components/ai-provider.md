@@ -85,6 +85,34 @@ echo MyAgent::make()->chat(new UserMessage("Hi!"));
 // Hi, how can I help you today?
 ```
 
+### OpenAILike
+
+This class simplify the connection with providers offering the same data format of the official OpenAI API.
+
+```php
+namespace App\Neuron;
+
+use NeuronAI\Agent;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\OpenAILike;
+
+class MyAgent extends Agent
+{
+    public function provider(): AIProviderInterface
+    {
+        return new OpenAILike(
+            baseUri: 'https://api.together.xyz/v1',
+            key: 'API_KEY',
+            model: 'MODEL',
+        );
+    }
+}
+
+echo MyAgent::make()->chat(new UserMessage("Hi!"));
+// Hi, how can I help you today?
+```
+
 ### Ollama
 
 ```php
