@@ -23,7 +23,7 @@ class HuggingFace extends OpenAI
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $this->buildBaseUri();
-        parent::__construct($key, $model, $this->strict_response, $parameters, $httpOptions);
+        parent::__construct($key, $model, $parameters, $this->strict_response, $httpOptions);
     }
 
     private function buildBaseUri(): void

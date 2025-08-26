@@ -43,8 +43,8 @@ class OpenAI implements AIProviderInterface
     public function __construct(
         protected string $key,
         protected string $model,
-        protected bool $strict_response = false,
         protected array $parameters = [],
+        protected bool $strict_response = false,
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
