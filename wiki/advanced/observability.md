@@ -1,10 +1,8 @@
 ---
-description: >-
-  Trace your AI agent implementations to detect errors and performance
-  bottlenecks in real-time.
+description: Monitor your AI Agents, RAGs, and Workflows in real-time.
 ---
 
-# Logging & Monitoring
+# Monitoring & Debugging
 
 ### The Problem With AI Systems
 

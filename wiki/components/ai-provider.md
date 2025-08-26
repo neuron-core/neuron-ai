@@ -15,6 +15,7 @@ use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Providers\HttpClientOptions;
 
 class MyAgent extends Agent
 {
@@ -23,6 +24,8 @@ class MyAgent extends Agent
         return new Anthropic(
             key: 'ANTHROPIC_API_KEY',
             model: 'ANTHROPIC_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -39,6 +42,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 class MyAgent extends Agent
@@ -48,6 +52,9 @@ class MyAgent extends Agent
         return new OpenAI(
             key: 'OPENAI_API_KEY',
             model: 'OPENAI_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            strict_response: false, // Strict structured output
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -95,6 +102,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\OpenAILike;
 
 class MyAgent extends Agent
@@ -105,6 +113,9 @@ class MyAgent extends Agent
             baseUri: 'https://api.together.xyz/v1',
             key: 'API_KEY',
             model: 'MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            strict_response: false, // Strict structured output
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -121,6 +132,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\Ollama\Ollama;
 
 class MyAgent extends Agent
@@ -130,6 +142,8 @@ class MyAgent extends Agent
         return new Ollama(
             url: 'OLLAMA_URL',
             model: 'OLLAMA_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -147,6 +161,7 @@ use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Gemini\Gemini;
+use NeuronAI\Providers\HttpClientOptions;
 
 class MyAgent extends Agent
 {
@@ -155,6 +170,8 @@ class MyAgent extends Agent
         return new Gemini(
             key: 'GEMINI_API_KEY',
             model: 'GEMINI_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -171,6 +188,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\Mistral\Mistral;
 
 class MyAgent extends Agent
@@ -180,6 +198,9 @@ class MyAgent extends Agent
         return new Mistral(
             key: 'MISTRAL_API_KEY',
             model: 'MISTRAL_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            strict_response: false, // Strict structured output
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -229,6 +250,7 @@ use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Deepseek\Deepseek;
+use NeuronAI\Providers\HttpClientOptions;
 
 class MyAgent extends Agent
 {
@@ -237,6 +259,9 @@ class MyAgent extends Agent
         return new Deepseek(
             key: 'DEEPSEEK_API_KEY',
             model: 'DEEPSEEK_MODEL',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            strict_response: false, // Strict structured output
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -257,6 +282,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\XAI\Grok;
 
 class MyAgent extends Agent
@@ -266,6 +292,9 @@ class MyAgent extends Agent
         return new Grok(
             key: 'GROK_API_KEY',
             model: 'grok-4',
+            parameters: [], // Add custom params (temperature, logprobs, etc)
+            strict_response: false, // Strict structured output
+            httpOptions: new HttpClientOptions(timeout: 30),
         );
     }
 }
@@ -305,6 +334,7 @@ class MyAgent extends Agent
         return new BedrockRuntime(
             client: $client,
             model: 'AWS_BEDROCK_MODEL',
+            inferenceConfig: []
         );
     }
 }

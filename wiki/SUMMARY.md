@@ -15,7 +15,7 @@
 
 * [RAG](advanced/rag.md)
 * [MCP Connector](advanced/mcp-connector.md)
-* [Logging & Monitoring](advanced/observability.md)
+* [Monitoring & Debugging](advanced/observability.md)
 * [Error Handling](advanced/error-handling.md)
 * [Asynchronous Processing](advanced/asynchronous-processing.md)
 
