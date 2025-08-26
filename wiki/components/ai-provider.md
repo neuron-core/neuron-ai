@@ -246,7 +246,7 @@ echo MyAgent::make()->chat(new UserMessage("Hi!"));
 // Hi, how can I help you today?
 ```
 
-### AWS Badrock Runtime
+### AWS Bedrock Runtime
 
 ```php
 namespace App\Neuron;
@@ -255,7 +255,7 @@ use Aws\BedrockRuntime\BedrockRuntimeClient;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\AWS\BadrockRuntime;
+use NeuronAI\Providers\AWS\BedrockRuntime;
 
 class MyAgent extends Agent
 {
@@ -265,14 +265,14 @@ class MyAgent extends Agent
             'version' => 'latest',
             'region' => 'us-east-1',
             'credentials' => [
-                'key' => 'AWS_BADROCK_KEY',
-                'secret' => 'AWS_BADROCK_SECRET',
+                'key' => 'AWS_BEDROCK_KEY',
+                'secret' => 'AWS_BEDROCK_SECRET',
             ],
         ]);
         
-        return new BadrockRuntime(
+        return new BedrockRuntime(
             client: $client,
-            model: 'AWS_BADROCK_MODEL',
+            model: 'AWS_BEDROCK_MODEL',
         );
     }
 }
