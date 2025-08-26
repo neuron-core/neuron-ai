@@ -35,6 +35,8 @@ class Gemini implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    protected MessageMapperInterface $messageMapper;
+
     /**
      * @param array<string, mixed> $parameters
      */
@@ -45,7 +47,7 @@ class Gemini implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            // Since Gemini use colon ":" into the URL guzzle fire an exception using base_uri configuration.
+            // Since Gemini use colon ":" into the URL, guzzle fires an exception using base_uri configuration.
             //'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
@@ -69,7 +71,7 @@ class Gemini implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return new MessageMapper();
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
     /**

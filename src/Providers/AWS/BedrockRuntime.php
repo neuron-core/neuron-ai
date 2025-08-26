@@ -40,7 +40,7 @@ class BedrockRuntime implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return new MessageMapper();
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
     protected function createPayLoad(array $messages): array

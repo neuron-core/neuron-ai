@@ -26,6 +26,8 @@ class Ollama implements AIProviderInterface
 
     protected ?string $system = null;
 
+    protected MessageMapperInterface $messageMapper;
+
     /**
      * @param array<string, mixed> $parameters
      */
@@ -55,7 +57,7 @@ class Ollama implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return new MessageMapper();
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
     /**
