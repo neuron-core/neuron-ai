@@ -265,11 +265,8 @@ Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev
 <a name="structured">
 
 ## Structured Output
-For many applications, such as chatbots, Agents need to respond to users directly in natural language.
-However, there are scenarios where we need Agents to understand natural language, but output in a structured format.
-
-One common use-case is extracting data from text to insert into a database or use with some other downstream system.
-This guide covers a few strategies for getting structured outputs from the agent.
+There are scenarios where you need Agents to understand natural language, but output in a structured format, like
+business processes automation, data extraction, etc. to use the output with some other downstream system.
 
 ```php
 use App\Neuron\MyAgent;
