@@ -154,15 +154,17 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ad
 With NeuronAI, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
-- Anthropic
-- Ollama (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
-- OpenAI (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
-- OpenAI on Azure
-- Gemini (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
-- HuggingFace
-- Mistral
-- Grok
-- AWS BedrockRuntime (`aws/aws-sdk-php` package is required)
+- [Anthropic](https://docs.neuron-ai.dev/components/ai-provider#anthropic)
+- [OpenAI](https://docs.neuron-ai.dev/components/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
+- [OpenAI on Azure](https://docs.neuron-ai.dev/components/ai-provider#azureopenai)
+- [Ollama](https://docs.neuron-ai.dev/components/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
+- [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike)
+- [Gemini](https://docs.neuron-ai.dev/components/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
+- [Mistral](https://docs.neuron-ai.dev/components/ai-provider#mistral)
+- [HuggingFace](https://docs.neuron-ai.dev/components/ai-provider#huggingface)
+- [Deepseek](https://docs.neuron-ai.dev/components/ai-provider#deepseek)
+- [Grok](https://docs.neuron-ai.dev/components/ai-provider#grok-x-ai)
+- [AWS BedrockRuntime](https://docs.neuron-ai.dev/components/ai-provider#aws-bedrock-runtime)
 
 <a name="tools">
 
