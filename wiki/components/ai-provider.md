@@ -248,6 +248,10 @@ echo MyAgent::make()->chat(new UserMessage("Hi!"));
 
 ### AWS Bedrock Runtime
 
+{% hint style="warning" %}
+To use The BedrockRuntime provider you need to install the [`aws/aws-sdk-php`](https://github.com/aws/aws-sdk-php) package.
+{% endhint %}
+
 ```php
 namespace App\Neuron;
 
