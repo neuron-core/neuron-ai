@@ -13,7 +13,7 @@ class UniqueIdGenerator
     protected static int $sequence = 0;
     protected static int $lastTimestamp = 0;
 
-    public static function generateId(string $prefix = ''): int
+    public static function generateId(): int
     {
         // Initialize machine ID once (you can set this based on server/process)
         if (self::$machineId === null) {
