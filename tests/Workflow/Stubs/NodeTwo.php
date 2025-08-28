@@ -19,6 +19,10 @@ class NodeTwo extends Node
         $state->set('node_two_executed', true);
         $state->set('first_message', $event->message);
 
+        if ($state->get('interruptable_node_executed', false)) {
+            return new StopEvent('Workflow complete');
+        }
+
         return new SecondEvent('Second complete');
     }
 }

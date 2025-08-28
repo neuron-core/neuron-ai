@@ -9,31 +9,31 @@ use ReflectionClass;
 
 class MermaidExporter implements ExporterInterface
 {
-    public function export(Workflow $graph): string
+    public function export(Workflow $workflow): string
     {
         $output = "graph TD\n";
-        $eventNodeMap = $graph->getEventNodeMap();
+        $eventNodeMap = $workflow->getEventNodeMap();
         $processedConnections = [];
 
         foreach ($eventNodeMap as $eventClass => $node) {
             $eventName = $this->getShortClassName($eventClass);
             $nodeName = $this->getShortClassName(get_class($node));
-            
+
             // Add connection from event to node
             $connection = "{$eventName} --> {$nodeName}";
             if (!in_array($connection, $processedConnections)) {
                 $output .= "    {$connection}\n";
                 $processedConnections[] = $connection;
             }
-            
+
             // Try to determine what event this node produces by looking at return type
             $reflection = new ReflectionClass($node);
             $runMethod = $reflection->getMethod('run');
             $returnType = $runMethod->getReturnType();
-            
+
             if ($returnType) {
                 $returnEventClasses = [];
-                
+
                 if ($returnType instanceof \ReflectionNamedType && !$returnType->isBuiltin()) {
                     $returnEventClasses[] = $returnType->getName();
                 } elseif ($returnType instanceof \ReflectionUnionType) {
@@ -43,10 +43,10 @@ class MermaidExporter implements ExporterInterface
                         }
                     }
                 }
-                
+
                 foreach ($returnEventClasses as $returnEventClass) {
                     $returnEventName = $this->getShortClassName($returnEventClass);
-                    
+
                     // Add connection from node to produced event
                     $connection = "{$nodeName} --> {$returnEventName}";
                     if (!in_array($connection, $processedConnections)) {

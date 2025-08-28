@@ -8,5 +8,5 @@ use NeuronAI\Workflow\Workflow;
 
 interface ExporterInterface
 {
-    public function export(Workflow $graph): string;
+    public function export(Workflow $workflow): string;
 }

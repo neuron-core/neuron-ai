@@ -13,17 +13,17 @@ class WorkflowContext
 
     public function __construct(
         protected string $workflowId,
-        protected string $currentNode,
+        protected NodeInterface $currentNode,
         protected PersistenceInterface $persistence,
         protected WorkflowState $currentState,
-        protected ?Event $currentEvent = null
+        protected Event $currentEvent
     ) {
     }
 
     public function interrupt(array $data): mixed
     {
-        if ($this->isResuming && isset($this->feedback[$this->currentNode])) {
-            return $this->feedback[$this->currentNode];
+        if ($this->isResuming && isset($this->feedback[$this->currentNode::class])) {
+            return $this->feedback[$this->currentNode::class];
         }
 
         throw new WorkflowInterrupt($data, $this->currentNode, $this->currentState, $this->currentEvent);
@@ -41,7 +41,7 @@ class WorkflowContext
         return $this;
     }
 
-    public function setCurrentNode(string $node): WorkflowContext
+    public function setCurrentNode(NodeInterface $node): WorkflowContext
     {
         $this->currentNode = $node;
         return $this;
