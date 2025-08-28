@@ -186,25 +186,6 @@ class WorkflowTest extends TestCase
         $this->assertEquals('human input received', $finalState->get('received_feedback'));
     }
 
-    public function testWorkflowExport(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
-                SecondEvent::class => new NodeThree(),
-            ]);
-
-        $mermaidOutput = $workflow->export();
-
-        $this->assertStringContainsString('StartEvent --> NodeOne', $mermaidOutput);
-        $this->assertStringContainsString('NodeOne --> FirstEvent', $mermaidOutput);
-        $this->assertStringContainsString('FirstEvent --> NodeTwo', $mermaidOutput);
-        $this->assertStringContainsString('NodeTwo --> SecondEvent', $mermaidOutput);
-        $this->assertStringContainsString('SecondEvent --> NodeThree', $mermaidOutput);
-        $this->assertStringContainsString('NodeThree --> StopEvent', $mermaidOutput);
-    }
-
     public function testWorkflowWithObservableEvents(): void
     {
         $events = [];

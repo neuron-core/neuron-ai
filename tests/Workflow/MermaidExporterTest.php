@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Tests\Workflow\Stubs\ThirdEvent;
+use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -26,7 +27,8 @@ class MermaidExporterTest extends TestCase
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => new NodeTwo(),
                 SecondEvent::class => new NodeThree(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
 
@@ -52,7 +54,8 @@ class MermaidExporterTest extends TestCase
                 FirstEvent::class => new ConditionalNode(),
                 SecondEvent::class => new NodeForSecond(),
                 ThirdEvent::class => new NodeForThird(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
 
@@ -78,7 +81,8 @@ class MermaidExporterTest extends TestCase
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => new NodeTwo(),
                 SecondEvent::class => new NodeThree(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
         $lines = \explode("\n", $mermaidOutput);
@@ -97,7 +101,8 @@ class MermaidExporterTest extends TestCase
             ->addNodes([
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => new NodeTwo(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
 
@@ -114,7 +119,8 @@ class MermaidExporterTest extends TestCase
 
     public function testMermaidExportEmptyWorkflow(): void
     {
-        $workflow = Workflow::make();
+        $workflow = Workflow::make()
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
 
@@ -131,7 +137,8 @@ class MermaidExporterTest extends TestCase
                 FirstEvent::class => new ConditionalNode(),
                 SecondEvent::class => new NodeForSecond(),
                 ThirdEvent::class => new NodeForThird(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
         $lines = \explode("\n", \trim($mermaidOutput));
@@ -154,7 +161,8 @@ class MermaidExporterTest extends TestCase
             ->addNodes([
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => new NodeTwo(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
 
@@ -173,7 +181,8 @@ class MermaidExporterTest extends TestCase
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => new NodeTwo(),
                 SecondEvent::class => new NodeThree(),
-            ]);
+            ])
+            ->setExporter(new MermaidExporter());
 
         $mermaidOutput = $workflow->export();
         $lines = \explode("\n", $mermaidOutput);
