@@ -15,7 +15,8 @@ class WorkflowContext
         protected string $workflowId,
         protected string $currentNode,
         protected PersistenceInterface $persistence,
-        protected WorkflowState $currentState
+        protected WorkflowState $currentState,
+        protected ?Event $currentEvent = null
     ) {
     }
 
@@ -25,7 +26,7 @@ class WorkflowContext
             return $this->feedback[$this->currentNode];
         }
 
-        throw new WorkflowInterrupt($data, $this->currentNode, $this->currentState);
+        throw new WorkflowInterrupt($data, $this->currentNode, $this->currentState, $this->currentEvent);
     }
 
     public function setResuming(bool $resuming, array $feedback = []): void

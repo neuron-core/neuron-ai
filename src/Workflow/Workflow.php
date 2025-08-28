@@ -11,10 +11,14 @@ use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\Observable;
+use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionUnionType;
 use SplSubject;
 
 /**
@@ -23,6 +27,7 @@ use SplSubject;
 class Workflow implements SplSubject
 {
     use Observable;
+    use StaticConstructor;
 
     /**
      * @var NodeInterface[]
@@ -30,13 +35,9 @@ class Workflow implements SplSubject
     protected array $nodes = [];
 
     /**
-     * @var Edge[]
+     * @var array<string, array<string, NodeInterface>>
      */
-    protected array $edges = [];
-
-    protected ?string $startNode = null;
-
-    protected ?array $endNodes = null;
+    protected array $eventNodeMap = [];
 
     protected ExporterInterface $exporter;
 
@@ -59,34 +60,19 @@ class Workflow implements SplSubject
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function validate(): void
     {
-        /*if ($this->getStartNode() === null) {
-            throw new WorkflowException('Start node must be defined');
+        $this->buildEventNodeMap();
+
+        if (!isset($this->eventNodeMap[StartEvent::class])) {
+            throw new WorkflowException('No nodes found that accept StartEvent');
         }
 
-        if ($this->getEndNode() === null) {
-            throw new WorkflowException('End node must be defined');
-        }*/
-
-        if (!isset($this->getNodes()[$this->getStartNode()])) {
-            throw new WorkflowException("Start node {$this->getStartNode()} does not exist");
-        }
-
-        foreach ($this->getEndNodes() as $endNode) {
-            if (!isset($this->getNodes()[$endNode])) {
-                throw new WorkflowException("End node {$endNode} does not exist");
-            }
-        }
-
-        foreach ($this->getEdges() as $edge) {
-            if (!isset($this->getNodes()[$edge->getFrom()])) {
-                throw new WorkflowException("Edge from node {$edge->getFrom()} does not exist");
-            }
-
-            if (!isset($this->getNodes()[$edge->getTo()])) {
-                throw new WorkflowException("Edge to node {$edge->getTo()} does not exist");
-            }
+        if (count($this->eventNodeMap[StartEvent::class]) > 1) {
+            throw new WorkflowException('Multiple nodes found that accept StartEvent. Only one start node is allowed.');
         }
     }
 
@@ -94,60 +80,63 @@ class Workflow implements SplSubject
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
     protected function execute(
-        string $currentNode,
+        Event $currentEvent,
+        string $currentNodeClass,
         WorkflowState $state,
         bool $resuming = false,
         array|string|int $humanFeedback = []
     ): WorkflowState {
         $context = new WorkflowContext(
             $this->workflowId,
-            $currentNode,
+            $currentNodeClass,
             $this->persistence,
-            $state
+            $state,
+            $currentEvent
         );
 
         if ($resuming) {
-            $context->setResuming(true, [$currentNode => $humanFeedback]);
+            $context->setResuming(true, [$currentNodeClass => $humanFeedback]);
         }
 
         try {
-            while (!\in_array($currentNode, $this->getEndNodes())) {
-                $node = $this->nodes[$currentNode];
+            while (!($currentEvent instanceof StopEvent)) {
+                $node = $this->nodes[$currentNodeClass];
                 $node->setContext($context);
 
-                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode, $state));
+                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNodeClass, $state));
                 try {
-                    $state = $node->run($state);
+                    $currentEvent = $node->run($currentEvent, $state);
                 } catch (WorkflowInterrupt $interrupt) {
                     throw $interrupt;
                 } catch (\Throwable $exception) {
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
                 }
-                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode, $state));
+                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNodeClass, $state));
 
-                $nextNode = $this->findNextNode($currentNode, $state);
-
-                if ($nextNode === null) {
-                    throw new WorkflowException("No valid edge found from node {$currentNode}");
+                if ($currentEvent instanceof StopEvent) {
+                    break;
                 }
 
-                $currentNode = $nextNode;
+                $nextNodeClass = $this->findNextNode($currentEvent);
+                if ($nextNodeClass === null) {
+                    throw new WorkflowException("No node found that accepts event: " . get_class($currentEvent));
+                }
 
-                // Update the context before the next iteration or end node
+                $currentNodeClass = $nextNodeClass;
+
+                // Update the context before the next iteration
                 $context = new WorkflowContext(
                     $this->workflowId,
-                    $currentNode,
+                    $currentNodeClass,
                     $this->persistence,
-                    $state
+                    $state,
+                    $currentEvent
                 );
             }
 
-            $endNode = $this->nodes[$currentNode];
-            $endNode->setContext($context);
-            $result = $endNode->run($state);
             $this->persistence->delete($this->workflowId);
-            return $result;
+            return $state;
 
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);
@@ -161,7 +150,7 @@ class Workflow implements SplSubject
      */
     public function run(?WorkflowState $initialState = null): WorkflowState
     {
-        $this->notify('workflow-start', new WorkflowStart($this->getNodes(), $this->getEdges()));
+        $this->notify('workflow-start', new WorkflowStart($this->getNodes(), []));
         try {
             $this->validate();
         } catch (WorkflowException $exception) {
@@ -170,12 +159,12 @@ class Workflow implements SplSubject
         }
 
         $state = $initialState ?? new WorkflowState();
-        $currentNode = $this->getStartNode();
+        $startNodeClass = array_keys($this->eventNodeMap[StartEvent::class])[0];
 
-        $result = $this->execute($currentNode, $state);
-        $this->notify('workflow-end', new WorkflowEnd($result));
+        $state = $this->execute(new StartEvent(), $startNodeClass, $state);
+        $this->notify('workflow-end', new WorkflowEnd($state));
 
-        return $result;
+        return $state;
     }
 
     /**
@@ -183,13 +172,15 @@ class Workflow implements SplSubject
      */
     public function resume(array|string|int $humanFeedback): WorkflowState
     {
-        $this->notify('workflow-resume', new WorkflowStart($this->getNodes(), $this->getEdges()));
+        $this->notify('workflow-resume', new WorkflowStart($this->getNodes(), []));
         $interrupt = $this->persistence->load($this->workflowId);
 
         $state = $interrupt->getState();
         $currentNode = $interrupt->getCurrentNode();
+        $currentEvent = $interrupt->getCurrentEvent() ?? new StartEvent();
 
         $result = $this->execute(
+            $currentEvent,
             $currentNode,
             $state,
             true,
@@ -201,17 +192,9 @@ class Workflow implements SplSubject
     }
 
     /**
-     * @return Node[]
+     * @return NodeInterface[]
      */
     protected function nodes(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return Edge[]
-     */
-    protected function edges(): array
     {
         return [];
     }
@@ -219,15 +202,19 @@ class Workflow implements SplSubject
     public function addNode(NodeInterface $node): self
     {
         $this->nodes[$node::class] = $node;
+        $this->eventNodeMap = []; // Reset cache
         return $this;
     }
 
     /**
-     * @param NodeInterface[] $nodes
+     * @param NodeInterface[]|string[] $nodes
      */
     public function addNodes(array $nodes): Workflow
     {
         foreach ($nodes as $node) {
+            if (is_string($node)) {
+                $node = new $node();
+            }
             $this->addNode($node);
         }
         return $this;
@@ -247,72 +234,29 @@ class Workflow implements SplSubject
         return $this->nodes;
     }
 
-    public function addEdge(Edge $edge): self
+    private function findNextNode(Event $event): ?string
     {
-        $this->edges[] = $edge;
-        return $this;
-    }
+        $eventClass = get_class($event);
 
-    /**
-     * @param Edge[] $edges
-     */
-    public function addEdges(array $edges): Workflow
-    {
-        foreach ($edges as $edge) {
-            $this->addEdge($edge);
-        }
-        return $this;
-    }
+        // First try the exact match
+        if (isset($this->eventNodeMap[$eventClass])) {
+            $possibleNodes = $this->eventNodeMap[$eventClass];
 
-    /**
-     * @return Edge[]
-     */
-    public function getEdges(): array
-    {
-        if ($this->edges === []) {
-            $this->edges = $this->edges();
+            if (count($possibleNodes) > 1) {
+                throw new WorkflowException("Multiple nodes found that accept event: {$eventClass}. Each event type should only be handled by one node.");
+            }
+
+            return array_keys($possibleNodes)[0];
         }
 
-        return $this->edges;
-    }
+        // If no exact match, try to find nodes that accept parent classes/interfaces
+        foreach ($this->eventNodeMap as $acceptedEventClass => $nodes) {
+            if (is_a($event, $acceptedEventClass)) {
+                if (count($nodes) > 1) {
+                    throw new WorkflowException("Multiple nodes found that accept event: {$eventClass}. Each event type should only be handled by one node.");
+                }
 
-    public function setStart(string $nodeClass): Workflow
-    {
-        $this->startNode = $nodeClass;
-        return $this;
-    }
-
-    public function setEnd(string $nodeClass): Workflow
-    {
-        $this->endNodes[] = $nodeClass;
-        return $this;
-    }
-
-    protected function getStartNode(): string
-    {
-        return $this->startNode ?? $this->start();
-    }
-
-    protected function getEndNodes(): array
-    {
-        return $this->endNodes ?? $this->end();
-    }
-
-    protected function start(): ?string
-    {
-        throw new WorkflowException('Start node must be defined');
-    }
-
-    protected function end(): array
-    {
-        throw new WorkflowException('End node must be defined');
-    }
-
-    private function findNextNode(string $currentNode, WorkflowState $state): ?string
-    {
-        foreach ($this->getEdges() as $edge) {
-            if ($edge->getFrom() === $currentNode && $edge->shouldExecute($state)) {
-                return $edge->getTo();
+                return array_keys($nodes)[0];
             }
         }
 
@@ -324,8 +268,12 @@ class Workflow implements SplSubject
         return $this->workflowId;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function export(): string
     {
+        $this->buildEventNodeMap();
         return $this->exporter->export($this);
     }
 
@@ -333,5 +281,48 @@ class Workflow implements SplSubject
     {
         $this->exporter = $exporter;
         return $this;
+    }
+
+    private function buildEventNodeMap(): void
+    {
+        if (!empty($this->eventNodeMap)) {
+            return;
+        }
+
+        foreach ($this->getNodes() as $nodeClass => $node) {
+            $reflection = new ReflectionClass($node);
+            $runMethod = $reflection->getMethod('run');
+            $parameters = $runMethod->getParameters();
+            $eventParameter = $parameters[0];
+            $eventType = $eventParameter->getType();
+
+            var_dump($nodeClass);
+
+            if (!$eventType) {
+                throw new WorkflowException("Node {$nodeClass} first parameter must be an ".Event::class." type");
+            }
+
+            if ($eventType->isBuiltin()) {
+                throw new WorkflowException("Node {$nodeClass} first parameter must be an ".Event::class." type");
+            }
+
+            $eventClass = $eventType->getName();
+
+            if (!isset($this->eventNodeMap[$eventClass])) {
+                $this->eventNodeMap[$eventClass] = [];
+            }
+
+            $this->eventNodeMap[$eventClass][$nodeClass] = $node;
+        }
+    }
+
+    /**
+     * @return array<string, array<string, NodeInterface>>
+     * @throws WorkflowException
+     */
+    public function getEventNodeMap(): array
+    {
+        $this->buildEventNodeMap();
+        return $this->eventNodeMap;
     }
 }

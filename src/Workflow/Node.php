@@ -15,6 +15,10 @@ abstract class Node implements NodeInterface
         $this->context = $context;
     }
 
+    /**
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
+     */
     protected function interrupt(array $data): mixed
     {
         if (!isset($this->context)) {
