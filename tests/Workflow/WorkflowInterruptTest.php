@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
+use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -169,26 +170,10 @@ class WorkflowInterruptTest extends TestCase
 
     public function testMultipleInterruptsAndResumes(): void
     {
-        // Create a node that interrupts multiple times
-        $multiInterruptNode = new class () extends \NeuronAI\Workflow\Node {
-            public function run(Event $event, WorkflowState $state): SecondEvent
-            {
-                $interruptCount = $state->get('interrupt_count', 0);
-                $state->set('interrupt_count', ++$interruptCount);
-
-                if ($state->get('interrupt_count') < 3) {
-                    $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
-                }
-
-                $state->set('all_interrupts_complete', true);
-                return new SecondEvent('All interrupts complete');
-            }
-        };
-
         $workflow = Workflow::make(new InMemoryPersistence(), 'multi-interrupt-workflow')
             ->addNodes([
                 StartEvent::class => new NodeOne(),
-                FirstEvent::class => $multiInterruptNode,
+                FirstEvent::class => new MultipleInterruptionsNode(),
                 SecondEvent::class => new NodeThree(),
             ]);
 
