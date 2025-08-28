@@ -14,8 +14,6 @@ class NodeOne extends Node
     {
         $state->set('node_one_executed', true);
 
-        $state->set('start_message', $event->message);
-
         return new FirstEvent('First complete');
     }
 }

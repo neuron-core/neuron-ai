@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +34,7 @@ class NodeTest extends TestCase
 
     public function testNodeStateModification(): void
     {
-        $node = new NodeOne();
+        $node = new NodeTwo();
         $state = new WorkflowState(['existing' => 'data']);
         $event = new FirstEvent('test start');
 
@@ -42,10 +43,10 @@ class NodeTest extends TestCase
         $result = $node->run($event, $state);
 
         // Verify the state was modified
-        $this->assertTrue($state->get('node_one_executed'));
+        $this->assertTrue($state->get('node_two_executed'));
         $this->assertEquals('test start', $state->get('start_message'));
         $this->assertEquals('data', $state->get('existing')); // Original data preserved
 
-        $this->assertEquals('First complete', $result->message);
+        $this->assertEquals('Second complete', $result->message);
     }
 }

@@ -121,7 +121,7 @@ class WorkflowTest extends TestCase
     public function testWorkflowValidationFailsWithNoStartNode(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No nodes found that handle StartEvent');
+        $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
 
         $workflow = Workflow::make()
             ->addNodes([
