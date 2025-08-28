@@ -9,7 +9,7 @@ use NeuronAI\Tools\ToolInterface;
 /**
  * @method static static make(ToolInterface[] $tools)
  */
-class ToolCallResultMessage extends UserMessage
+class ToolCallResultMessage extends UserMessage implements \Stringable
 {
     /**
      * @param array<ToolInterface> $tools
@@ -36,5 +36,10 @@ class ToolCallResultMessage extends UserMessage
                 'tools' => \array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools)
             ]
         );
+    }
+
+    public function __toString(): string
+    {
+        return (string) \json_encode($this->getTools());
     }
 }

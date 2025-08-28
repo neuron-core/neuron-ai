@@ -28,6 +28,19 @@ trait ResolveTools
      */
     protected array $toolsBootstrapCache = [];
 
+    protected int $tollMaxTries = 5;
+
+    /**
+     * @var array<string, int>
+     */
+    protected array $toolAttempts = [];
+
+    public function toolMaxTries(int $tries): Agent
+    {
+        $this->tollMaxTries = $tries;
+        return $this;
+    }
+
     /**
      * Get the list of tools.
      *
@@ -133,6 +146,12 @@ trait ResolveTools
         foreach ($toolCallResult->getTools() as $tool) {
             $this->notify('tool-calling', new ToolCalling($tool));
             try {
+                $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
+
+                if ($this->toolAttempts[$tool->getName()] > $this->tollMaxTries) {
+                    throw new AgentException("Tool {$tool->getName()} has been attempted too many times: {$this->tollMaxTries} attempts.");
+                }
+
                 $tool->execute();
             } catch (\Throwable $exception) {
                 $this->notify('error', new AgentError($exception));
