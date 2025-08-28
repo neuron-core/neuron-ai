@@ -22,11 +22,9 @@ class InterruptableNode extends Node
         $state->set('interruptable_node_executed', true);
 
         if (!$state->has('human_feedback')) {
-            $this->interrupt(['message' => 'Need human input']);
+            $feedback = $this->interrupt(['message' => 'Need human input']);
+            $state->set('received_feedback', $feedback);
         }
-
-        $feedback = $state->get('human_feedback', 'default');
-        $state->set('received_feedback', $feedback);
 
         return new SecondEvent('Continued after interrupt');
     }

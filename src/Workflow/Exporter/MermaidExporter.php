@@ -15,26 +15,36 @@ class MermaidExporter implements ExporterInterface
         $eventNodeMap = $graph->getEventNodeMap();
         $processedConnections = [];
 
-        foreach ($eventNodeMap as $eventClass => $nodes) {
+        foreach ($eventNodeMap as $eventClass => $node) {
             $eventName = $this->getShortClassName($eventClass);
+            $nodeName = $this->getShortClassName(get_class($node));
             
-            foreach ($nodes as $nodeClass => $node) {
-                $nodeName = $this->getShortClassName($nodeClass);
+            // Add connection from event to node
+            $connection = "{$eventName} --> {$nodeName}";
+            if (!in_array($connection, $processedConnections)) {
+                $output .= "    {$connection}\n";
+                $processedConnections[] = $connection;
+            }
+            
+            // Try to determine what event this node produces by looking at return type
+            $reflection = new ReflectionClass($node);
+            $runMethod = $reflection->getMethod('run');
+            $returnType = $runMethod->getReturnType();
+            
+            if ($returnType) {
+                $returnEventClasses = [];
                 
-                // Add connection from event to node
-                $connection = "{$eventName} --> {$nodeName}";
-                if (!in_array($connection, $processedConnections)) {
-                    $output .= "    {$connection}\n";
-                    $processedConnections[] = $connection;
+                if ($returnType instanceof \ReflectionNamedType && !$returnType->isBuiltin()) {
+                    $returnEventClasses[] = $returnType->getName();
+                } elseif ($returnType instanceof \ReflectionUnionType) {
+                    foreach ($returnType->getTypes() as $type) {
+                        if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                            $returnEventClasses[] = $type->getName();
+                        }
+                    }
                 }
                 
-                // Try to determine what event this node produces by looking at return type
-                $reflection = new ReflectionClass($node);
-                $runMethod = $reflection->getMethod('run');
-                $returnType = $runMethod->getReturnType();
-                
-                if ($returnType && !$returnType->isBuiltin()) {
-                    $returnEventClass = $returnType->getName();
+                foreach ($returnEventClasses as $returnEventClass) {
                     $returnEventName = $this->getShortClassName($returnEventClass);
                     
                     // Add connection from node to produced event

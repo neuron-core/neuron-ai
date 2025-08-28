@@ -180,7 +180,7 @@ class WorkflowTest extends TestCase
         }
 
         // Resume with human feedback
-        $finalState = $workflow->resume(['human_feedback' => 'human input received']);
+        $finalState = $workflow->resume('human input received');
 
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertEquals('human input received', $finalState->get('received_feedback'));
@@ -190,9 +190,9 @@ class WorkflowTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -211,9 +211,9 @@ class WorkflowTest extends TestCase
 
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $workflow->attach(new class($events) implements \SplObserver {

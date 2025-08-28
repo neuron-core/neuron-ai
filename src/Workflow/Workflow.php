@@ -246,9 +246,6 @@ class Workflow implements SplSubject
         return $this->workflowId;
     }
 
-    /**
-     * @throws WorkflowException
-     */
     public function export(): string
     {
         return $this->exporter->export($this);
