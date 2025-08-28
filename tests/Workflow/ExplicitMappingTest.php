@@ -23,7 +23,7 @@ class ExplicitMappingTest extends TestCase
             {
             }
         };
-        $secondEvent = new class () implements Event {
+        new class () implements Event {
             public function __construct(public string $param = '')
             {
             }
@@ -51,18 +51,18 @@ class ExplicitMappingTest extends TestCase
         $workflow = Workflow::make()
             ->addNodes([
                 StartEvent::class => $nodeOne,
-                \get_class($firstEvent) => $nodeTwo,
+                $firstEvent::class => $nodeTwo,
             ]);
 
         $eventNodeMap = $workflow->getEventNodeMap();
 
         // Verify correct event-to-node mappings
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
-        $this->assertArrayHasKey(\get_class($firstEvent), $eventNodeMap);
+        $this->assertArrayHasKey($firstEvent::class, $eventNodeMap);
 
         // Verify correct node instances
         $this->assertSame($nodeOne, $eventNodeMap[StartEvent::class]);
-        $this->assertSame($nodeTwo, $eventNodeMap[\get_class($firstEvent)]);
+        $this->assertSame($nodeTwo, $eventNodeMap[$firstEvent::class]);
     }
 
     public function testExplicitMappingWithStringNodes(): void
@@ -76,12 +76,12 @@ class ExplicitMappingTest extends TestCase
 
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => \get_class($testNode),
+                StartEvent::class => $testNode::class,
             ]);
 
         $eventNodeMap = $workflow->getEventNodeMap();
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
-        $this->assertInstanceOf(\get_class($testNode), $eventNodeMap[StartEvent::class]);
+        $this->assertInstanceOf($testNode::class, $eventNodeMap[StartEvent::class]);
     }
 
     public function testInvalidEventClassThrowsException(): void

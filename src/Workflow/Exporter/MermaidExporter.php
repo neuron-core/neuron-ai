@@ -17,7 +17,7 @@ class MermaidExporter implements ExporterInterface
 
         foreach ($eventNodeMap as $eventClass => $node) {
             $eventName = $this->getShortClassName($eventClass);
-            $nodeName = $this->getShortClassName(\get_class($node));
+            $nodeName = $this->getShortClassName($node::class);
 
             // Add connection from event to node
             $connection = "{$eventName} --> {$nodeName}";

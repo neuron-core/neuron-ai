@@ -73,7 +73,7 @@ class MermaidExporterTest extends TestCase
         $customExporter = new class () extends MermaidExporter {
             public function export(\NeuronAI\Workflow\Workflow $workflow): string
             {
-                return "custom TD\n" . parent::export($workflow);
+                return "custom TD\n" . new parent($workflow);
             }
         };
 
@@ -101,7 +101,7 @@ class MermaidExporterTest extends TestCase
         $lines = \explode("\n", $mermaidOutput);
 
         // Remove empty lines and header
-        $connections = \array_filter($lines, fn ($line) => \trim($line) !== '' && !\str_contains($line, 'graph TD'));
+        $connections = \array_filter($lines, fn (string $line): bool => \trim($line) !== '' && !\str_contains($line, 'graph TD'));
 
         // Check for duplicate connections
         $uniqueConnections = \array_unique($connections);
@@ -154,7 +154,7 @@ class MermaidExporterTest extends TestCase
         $lines = \explode("\n", \trim($mermaidOutput));
 
         // Remove header
-        $connections = \array_filter($lines, fn ($line) => !\str_contains($line, 'graph TD') && \trim($line) !== '');
+        $connections = \array_filter($lines, fn (string $line): bool => !\str_contains($line, 'graph TD') && \trim($line) !== '');
 
         // Should have multiple connections representing the branching flow
         $this->assertGreaterThan(3, \count($connections), 'Complex workflow should have multiple connections');
@@ -222,9 +222,11 @@ class MermaidExporterTest extends TestCase
 
         // Verify Mermaid syntax is valid
         $this->assertEquals('graph TD', \trim($lines[0]));
+        // Each connection line should follow the pattern "    NodeA --> NodeB"
+        $counter = \count($lines);
 
         // Each connection line should follow the pattern "    NodeA --> NodeB"
-        for ($i = 1; $i < \count($lines); $i++) {
+        for ($i = 1; $i < $counter; $i++) {
             $line = $lines[$i];
             if (\trim($line) !== '') {
                 $this->assertMatchesRegularExpression('/^\s+\w+ --> \w+$/', $line, "Invalid Mermaid syntax in line: {$line}");

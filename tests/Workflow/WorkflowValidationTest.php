@@ -104,7 +104,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessage('must have at least 2 parameters');
 
         $invalidNode = new class () extends Node {
-            public function run(StartEvent $event): Event // Missing WorkflowState parameter
+            public function run(StartEvent $event, \NeuronAI\Workflow\WorkflowState $state): Event // Missing WorkflowState parameter
             {
                 return $event;
             }
@@ -168,7 +168,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessageMatches('/class@anonymous.*must have at least 2 parameters/');
 
         $invalidNode = new class () extends Node {
-            public function run(StartEvent $event): Event
+            public function run(StartEvent $event, \NeuronAI\Workflow\WorkflowState $state): Event
             {
                 return $event;
             }
@@ -184,7 +184,7 @@ class WorkflowValidationTest extends TestCase
         $customEvent = new class () implements Event {};
 
         $nodeA = new class ($customEvent) extends Node {
-            public function __construct(private Event $customEventClass)
+            public function __construct(private readonly Event $customEventClass)
             {
             }
 
@@ -195,7 +195,7 @@ class WorkflowValidationTest extends TestCase
         };
 
         $nodeB = new class ($customEvent) extends Node {
-            public function __construct(private Event $customEventClass)
+            public function __construct()
             {
             }
 
@@ -222,7 +222,7 @@ class WorkflowValidationTest extends TestCase
         try {
             $workflow->run();
             $this->fail('Expected WorkflowException');
-        } catch (WorkflowException $e) {
+        } catch (WorkflowException) {
             // Should not fail during validation, but during execution when FirstEvent has no handler
         }
 

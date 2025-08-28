@@ -101,7 +101,7 @@ class Workflow implements SplSubject
                     break;
                 }
 
-                $nextEventClass = \get_class($currentEvent);
+                $nextEventClass = $currentEvent::class;
                 if (!isset($this->eventNodeMap[$nextEventClass])) {
                     throw new WorkflowException("No node found that handle event: " . $nextEventClass);
                 }
