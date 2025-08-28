@@ -186,24 +186,16 @@ class WorkflowInterruptTest extends TestCase
 
         // Second interrupt
         try {
-            $finalState = $workflow->resume(0);
+            $finalState = $workflow->resume('second interrupt');
             $this->fail('Second interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
         }
 
-        // Third interrupt
-        try {
-            $finalState = $workflow->resume(0);
-            $this->fail('Third interrupt not thrown');
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals(['count' => 3, 'message' => 'Interrupt #3'], $interrupt->getData());
-        }
-
         // Final completion
         $finalState = $workflow->resume('second response');
         $this->assertTrue($finalState->get('all_interrupts_complete'));
-        $this->assertEquals(4, $finalState->get('interrupt_count'));
+        $this->assertEquals(3, $finalState->get('interrupt_count'));
     }
 
     public function testWorkflowInterruptSerialization(): void

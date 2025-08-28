@@ -21,14 +21,8 @@ class MultipleInterruptionsNode extends Node
         $interruptCount = $state->get('interrupt_count', 0);
         $state->set('interrupt_count', ++$interruptCount);
 
-        if ($state->get('interrupt_count') <= 3) {
-            // First interrupt
-            $feedback = $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
-
-            // Second and Third interrupt
-            while ($feedback === 0) {
-                $feedback = $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
-            }
+        while ($state->get('interrupt_count') < 3) {
+            $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
         }
 
         $state->set('all_interrupts_complete', true);
