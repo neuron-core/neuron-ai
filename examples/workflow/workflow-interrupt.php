@@ -20,10 +20,10 @@ $persistence = new FilePersistence(__DIR__);
 $workflow = new Workflow($persistence, 'test_workflow');
 
 $workflow->addNodes([
-        StartEvent::class => new NodeOne(),
-        FirstEvent::class => new InterruptableNode(),
-        SecondEvent::class => new NodeTwo(),
-    ]);
+    StartEvent::class => new NodeOne(),
+    FirstEvent::class => new InterruptableNode(),
+    SecondEvent::class => new NodeTwo(),
+]);
 
 // Run the workflow and catch the interruption
 try {
