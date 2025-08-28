@@ -38,4 +38,7 @@ try {
 $state = $workflow->resume('approved');
 
 // Print the final value
-echo $state->get('received_feedback').\PHP_EOL; // It should print "approved"
+echo $state->get('received_feedback').\PHP_EOL.\PHP_EOL.\PHP_EOL; // It should print "approved"
+
+
+echo $workflow->export();
