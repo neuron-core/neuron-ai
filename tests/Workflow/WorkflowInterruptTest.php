@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
-use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
@@ -225,7 +224,7 @@ class WorkflowInterruptTest extends TestCase
             $decoded = \json_decode($json, true);
             $this->assertEquals('Workflow interrupted for human input', $decoded['message']);
             $this->assertEquals(['message' => 'Need human input'], $decoded['data']);
-            $this->assertInstanceOf(InterruptableNode::class, unserialize($decoded['currentNode']));
+            $this->assertInstanceOf(InterruptableNode::class, \unserialize($decoded['currentNode']));
 
             // Test PHP serialization
             $serialized = \serialize($interrupt);

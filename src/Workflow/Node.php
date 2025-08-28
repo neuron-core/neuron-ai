@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 abstract class Node implements NodeInterface
 {

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
-
 interface NodeInterface
 {
     public function run(Event $event, WorkflowState $state): Event;

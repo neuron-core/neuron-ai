@@ -58,7 +58,7 @@ class Workflow implements SplSubject
     public function validate(): void
     {
         if (!isset($this->eventNodeMap[StartEvent::class])) {
-            throw new WorkflowException('No nodes found that handle StartEvent');
+            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
         }
     }
 
@@ -165,6 +165,10 @@ class Workflow implements SplSubject
     {
         if (!\class_exists($eventClass) || !\is_a($eventClass, Event::class, true)) {
             throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
+        }
+
+        if (isset($this->eventNodeMap[$eventClass])) {
+            throw new WorkflowException("Node for event {$eventClass} already exists");
         }
 
         $this->eventNodeMap[$eventClass] = $node;

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Workflow\Exporter\MermaidExporter;
+use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
+use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
+use NeuronAI\Tests\Workflow\Stubs\ThirdEvent;
+use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\ConditionalNode;
@@ -20,9 +23,9 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -45,10 +48,10 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new ConditionalNode(),
-                new NodeForSecond(),
-                new NodeForThird(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new ConditionalNode(),
+                SecondEvent::class => new NodeForSecond(),
+                ThirdEvent::class => new NodeForThird(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -68,33 +71,13 @@ class MermaidExporterTest extends TestCase
         );
     }
 
-    public function testMermaidExportWithCustomExporter(): void
-    {
-        $customExporter = new class () extends MermaidExporter {
-            public function export(\NeuronAI\Workflow\Workflow $workflow): string
-            {
-                return "custom TD\n" . new parent($workflow);
-            }
-        };
-
-        $workflow = Workflow::make()
-            ->setExporter($customExporter)
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-            ]);
-
-        $output = $workflow->export();
-        $this->assertStringStartsWith('custom TD', $output);
-    }
-
     public function testMermaidExportNoDuplicateConnections(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -112,8 +95,8 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -135,7 +118,7 @@ class MermaidExporterTest extends TestCase
 
         $mermaidOutput = $workflow->export();
 
-        // Should still have header but no connections
+        // Should still have the header but no connections
         $this->assertEquals("graph TD\n", $mermaidOutput);
     }
 
@@ -144,10 +127,10 @@ class MermaidExporterTest extends TestCase
         // Create a more complex workflow with multiple paths
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new ConditionalNode(),
-                new NodeForSecond(),
-                new NodeForThird(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new ConditionalNode(),
+                SecondEvent::class => new NodeForSecond(),
+                ThirdEvent::class => new NodeForThird(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -165,37 +148,12 @@ class MermaidExporterTest extends TestCase
         $this->assertStringContainsString('StopEvent', $connectionsStr);
     }
 
-    public function testMermaidExportEventNodeMapping(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
-
-        // Build event node map first to ensure it's populated
-        $eventNodeMap = $workflow->getEventNodeMap();
-
-        $mermaidOutput = $workflow->export();
-
-        // Verify that the export reflects the event node mappings
-        foreach ($eventNodeMap as $eventClass => $nodes) {
-            $eventName = (new \ReflectionClass($eventClass))->getShortName();
-
-            foreach ($nodes as $nodeClass => $node) {
-                $nodeName = (new \ReflectionClass($nodeClass))->getShortName();
-                $this->assertStringContainsString("{$eventName} --> {$nodeName}", $mermaidOutput);
-            }
-        }
-    }
-
     public function testMermaidExportWithReturnTypeAnalysis(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
             ]);
 
         $mermaidOutput = $workflow->export();
@@ -212,9 +170,9 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $mermaidOutput = $workflow->export();
