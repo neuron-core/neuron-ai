@@ -5,6 +5,7 @@ declare(strict_types=1);
 use NeuronAI\Tests\Workflow\AfterInterruptNode;
 use NeuronAI\Tests\Workflow\BeforeInterruptNode;
 use NeuronAI\Tests\Workflow\InterruptNode;
+use NeuronAI\Workflow\Edge;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -20,7 +21,13 @@ $workflow->addNodes([
         new BeforeInterruptNode(),
         new InterruptNode(),
         new AfterInterruptNode()
-    ]);
+    ])
+    ->addEdges([
+        new Edge(BeforeInterruptNode::class, InterruptNode::class),
+        new Edge(InterruptNode::class, AfterInterruptNode::class)
+    ])
+    ->setStart(BeforeInterruptNode::class)
+    ->setEnd(AfterInterruptNode::class);
 
 // Run the workflow and catch the interruption
 try {
