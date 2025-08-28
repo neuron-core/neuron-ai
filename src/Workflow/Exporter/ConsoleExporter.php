@@ -12,14 +12,12 @@ class ConsoleExporter implements ExporterInterface
     public function export(Workflow $workflow): string
     {
         $output = "Workflow Structure:\n";
-        $output .= str_repeat("=", 50) . "\n\n";
+        $output .= \str_repeat("=", 50) . "\n\n";
 
         $eventNodeMap = $workflow->getEventNodeMap();
         $connections = $this->buildConnections($eventNodeMap);
 
-        $output .= $this->renderFlow($connections);
-
-        return $output;
+        return $output . $this->renderFlow($connections);
     }
 
     private function buildConnections(array $eventNodeMap): array
@@ -67,7 +65,7 @@ class ConsoleExporter implements ExporterInterface
             }
         }
 
-        return array_map(fn($class) => $this->getShortClassName($class), $returnEventClasses);
+        return \array_map(fn (string $class): string => $this->getShortClassName($class), $returnEventClasses);
     }
 
     private function renderFlow(array $connections): string
@@ -99,8 +97,8 @@ class ConsoleExporter implements ExporterInterface
 
         // Render any unvisited connections (orphaned nodes)
         foreach ($connections as $connection) {
-            if (!in_array($connection['event'], $visited)) {
-                $output .= "\n" . str_repeat("─", 30) . "\n";
+            if (!\in_array($connection['event'], $visited)) {
+                $output .= "\n" . \str_repeat("─", 30) . "\n";
                 $output .= "Orphaned Node:\n";
                 $output .= $this->renderConnection($connection, $eventToConnection, [], 0);
             }
@@ -111,12 +109,12 @@ class ConsoleExporter implements ExporterInterface
 
     private function renderConnection(array $connection, array $eventToConnection, array &$visited, int $depth): string
     {
-        if (in_array($connection['event'], $visited)) {
-            return str_repeat("  ", $depth) . "↻ [Cycle detected]\n";
+        if (\in_array($connection['event'], $visited)) {
+            return \str_repeat("  ", $depth) . "↻ [Cycle detected]\n";
         }
 
         $visited[] = $connection['event'];
-        $indent = str_repeat("  ", $depth);
+        $indent = \str_repeat("  ", $depth);
         $output = "";
 
         // Render current step
