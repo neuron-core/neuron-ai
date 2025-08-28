@@ -100,8 +100,6 @@ class Workflow implements SplSubject
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNodeClass, $state));
                 try {
                     $currentEvent = $node->run($currentEvent, $state);
-                } catch (WorkflowInterrupt $interrupt) {
-                    throw $interrupt;
                 } catch (\Throwable $exception) {
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
