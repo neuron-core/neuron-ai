@@ -173,18 +173,9 @@ class Workflow implements SplSubject
         return  $result;
     }
 
-    /**
-     * @return NodeInterface[]
-     */
-    protected function nodes(): array
+    public function addNode(string $eventClass, NodeInterface $node): self
     {
-        return [];
-    }
-
-    public function addNode(NodeInterface $node): self
-    {
-        $this->nodes[$node::class] = $node;
-        $this->eventNodeMap = []; // Reset cache
+        $this->eventNodeMap[$eventClass] = $node;
         return $this;
     }
 
