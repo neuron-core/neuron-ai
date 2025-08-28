@@ -24,7 +24,7 @@ $workflow->addNodes([
     ])
     ->addEdges([
         new Edge(BeforeInterruptNode::class, InterruptNode::class),
-        new Edge(InterruptNode::class, AfterInterruptNode::class)
+        new Edge(InterruptNode::class, AfterInterruptNode::class, function (WorkflowState $state) {})
     ])
     ->setStart(BeforeInterruptNode::class)
     ->setEnd(AfterInterruptNode::class);

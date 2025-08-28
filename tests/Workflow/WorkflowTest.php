@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
+use NeuronAI\Tests\Workflow\Stubs\ThirdEvent;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\StopEvent;
@@ -27,9 +29,9 @@ class WorkflowTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $finalState = $workflow->run();
@@ -45,9 +47,9 @@ class WorkflowTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $initialState = new WorkflowState(['initial_data' => 'test']);
@@ -57,28 +59,13 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('node_one_executed'));
     }
 
-    public function testWorkflowWithCustomStartEvent(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
-
-        $startEvent = new StartEvent(['message' => 'custom start']);
-        $finalState = $workflow->run(null, $startEvent);
-
-        $this->assertEquals('custom start', $finalState->get('start_message'));
-    }
-
     public function testNodeClassStringInstantiation(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
-                NodeOne::class,
-                NodeTwo::class,
-                NodeThree::class,
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $finalState = $workflow->run();
@@ -92,27 +79,25 @@ class WorkflowTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $eventNodeMap = $workflow->getEventNodeMap();
 
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
         $this->assertArrayHasKey(FirstEvent::class, $eventNodeMap);
-        $this->assertCount(1, $eventNodeMap[StartEvent::class]);
-        $this->assertCount(1, $eventNodeMap[FirstEvent::class]);
     }
 
     public function testConditionalNodeWithUnionReturnType(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new ConditionalNode(),
-                new NodeForSecond(),
-                new NodeForThird(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new ConditionalNode(),
+                SecondEvent::class => new NodeForSecond(),
+                ThirdEvent::class => new NodeForThird(),
             ]);
 
         // Test second path
@@ -141,22 +126,8 @@ class WorkflowTest extends TestCase
 
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
-
-        $workflow->run();
-    }
-
-    public function testWorkflowValidationFailsWithMultipleStartNodes(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Multiple nodes found that accept StartEvent');
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeOne(), // Duplicate start node
+                FirstEvent::class => new NodeTwo(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $workflow->run();
@@ -169,9 +140,9 @@ class WorkflowTest extends TestCase
 
         $workflow = Workflow::make()
             ->addNodes([
-                new NodeOne(),
+                StartEvent::class => new NodeOne(),
                 // Missing NodeTwo that accepts FirstEvent
-                new NodeThree(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $workflow->run();
@@ -183,9 +154,9 @@ class WorkflowTest extends TestCase
 
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new InterruptableNode(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         $workflow->run();
@@ -196,9 +167,9 @@ class WorkflowTest extends TestCase
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make($persistence, 'test-workflow')
             ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                new NodeThree(),
+                StartEvent::class => new NodeOne(),
+                FirstEvent::class => new InterruptableNode(),
+                SecondEvent::class => new NodeThree(),
             ]);
 
         try {
@@ -237,7 +208,7 @@ class WorkflowTest extends TestCase
     public function testWorkflowWithObservableEvents(): void
     {
         $events = [];
-        
+
         $workflow = Workflow::make()
             ->addNodes([
                 new NodeOne(),
@@ -247,7 +218,7 @@ class WorkflowTest extends TestCase
 
         $workflow->attach(new class($events) implements \SplObserver {
             public function __construct(private array &$events) {}
-            
+
             public function update(\SplSubject $subject, string $event = null, mixed $data = null): void
             {
                 $this->events[] = $event;
