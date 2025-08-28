@@ -121,7 +121,7 @@ class TypesenseVectorStore implements VectorStoreInterface
         $lines = [];
         foreach ($documents as $document) {
             $lines[] = \json_encode([
-                'id' => $document->getId(), // Unique ID is required
+                'id' => (string) $document->getId(), // Unique ID is required
                 'embedding' => $document->getEmbedding(),
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),
