@@ -103,7 +103,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('must have at least 2 parameters');
 
-        $invalidNode = new class extends Node {
+        $invalidNode = new class () extends Node {
             public function run(StartEvent $event): Event // Missing WorkflowState parameter
             {
                 return $event;
@@ -119,7 +119,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('first parameter must be an Event type');
 
-        $invalidNode = new class extends Node {
+        $invalidNode = new class () extends Node {
             public function run($event, WorkflowState $state): Event // No type hint
             {
                 return new StartEvent();
@@ -135,7 +135,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('first parameter must be an Event type');
 
-        $invalidNode = new class extends Node {
+        $invalidNode = new class () extends Node {
             public function run(string $event, WorkflowState $state): Event // Builtin type
             {
                 return new StartEvent();
@@ -151,7 +151,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('first parameter must be an Event type');
 
-        $invalidNode = new class extends Node {
+        $invalidNode = new class () extends Node {
             public function run(\stdClass $event, WorkflowState $state): Event // Not an Event
             {
                 return new StartEvent();
@@ -167,7 +167,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessageMatches('/class@anonymous.*must have at least 2 parameters/');
 
-        $invalidNode = new class extends Node {
+        $invalidNode = new class () extends Node {
             public function run(StartEvent $event): Event
             {
                 return $event;
@@ -181,20 +181,24 @@ class WorkflowValidationTest extends TestCase
     public function testValidationWithCircularDependency(): void
     {
         // Create a custom event for circular dependency test
-        $customEvent = new class implements Event {};
+        $customEvent = new class () implements Event {};
 
-        $nodeA = new class($customEvent) extends Node {
-            public function __construct(private Event $customEventClass) {}
-            
+        $nodeA = new class ($customEvent) extends Node {
+            public function __construct(private Event $customEventClass)
+            {
+            }
+
             public function run(StartEvent $event, WorkflowState $state): Event
             {
                 return new ($this->customEventClass::class)();
             }
         };
 
-        $nodeB = new class($customEvent) extends Node {
-            public function __construct(private Event $customEventClass) {}
-            
+        $nodeB = new class ($customEvent) extends Node {
+            public function __construct(private Event $customEventClass)
+            {
+            }
+
             public function run(Event $event, WorkflowState $state): StartEvent // Creates circular dependency
             {
                 return new StartEvent();

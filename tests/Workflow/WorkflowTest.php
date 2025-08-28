@@ -9,7 +9,6 @@ use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Tests\Workflow\Stubs\ThirdEvent;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\StartEvent;
-use NeuronAI\Workflow\StopEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
@@ -217,10 +216,12 @@ class WorkflowTest extends TestCase
                 SecondEvent::class => new NodeThree(),
             ]);
 
-        $workflow->attach(new class($events) implements \SplObserver {
-            public function __construct(private array &$events) {}
+        $workflow->attach(new class ($events) implements \SplObserver {
+            public function __construct(private array &$events)
+            {
+            }
 
-            public function update(\SplSubject $subject, string $event = null, mixed $data = null): void
+            public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
             {
                 $this->events[] = $event;
             }

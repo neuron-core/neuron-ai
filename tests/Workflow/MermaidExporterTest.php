@@ -63,14 +63,14 @@ class MermaidExporterTest extends TestCase
         // the actual return type from reflection, but union types are complex to detect
         // The exporter will show one of the union types or handle it differently
         $this->assertTrue(
-            str_contains($mermaidOutput, 'SecondEvent --> NodeForSecond') ||
-            str_contains($mermaidOutput, 'ThirdEvent --> NodeForThird')
+            \str_contains($mermaidOutput, 'SecondEvent --> NodeForSecond') ||
+            \str_contains($mermaidOutput, 'ThirdEvent --> NodeForThird')
         );
     }
 
     public function testMermaidExportWithCustomExporter(): void
     {
-        $customExporter = new class extends MermaidExporter {
+        $customExporter = new class () extends MermaidExporter {
             public function export(\NeuronAI\Workflow\Workflow $workflow): string
             {
                 return "custom TD\n" . parent::export($workflow);
@@ -98,14 +98,14 @@ class MermaidExporterTest extends TestCase
             ]);
 
         $mermaidOutput = $workflow->export();
-        $lines = explode("\n", $mermaidOutput);
+        $lines = \explode("\n", $mermaidOutput);
 
         // Remove empty lines and header
-        $connections = array_filter($lines, fn($line) => trim($line) !== '' && !str_contains($line, 'graph TD'));
+        $connections = \array_filter($lines, fn ($line) => \trim($line) !== '' && !\str_contains($line, 'graph TD'));
 
         // Check for duplicate connections
-        $uniqueConnections = array_unique($connections);
-        $this->assertCount(count($connections), $uniqueConnections, 'Found duplicate connections in Mermaid output');
+        $uniqueConnections = \array_unique($connections);
+        $this->assertCount(\count($connections), $uniqueConnections, 'Found duplicate connections in Mermaid output');
     }
 
     public function testMermaidExportShortClassNames(): void
@@ -151,16 +151,16 @@ class MermaidExporterTest extends TestCase
             ]);
 
         $mermaidOutput = $workflow->export();
-        $lines = explode("\n", trim($mermaidOutput));
+        $lines = \explode("\n", \trim($mermaidOutput));
 
         // Remove header
-        $connections = array_filter($lines, fn($line) => !str_contains($line, 'graph TD') && trim($line) !== '');
+        $connections = \array_filter($lines, fn ($line) => !\str_contains($line, 'graph TD') && \trim($line) !== '');
 
         // Should have multiple connections representing the branching flow
-        $this->assertGreaterThan(3, count($connections), 'Complex workflow should have multiple connections');
+        $this->assertGreaterThan(3, \count($connections), 'Complex workflow should have multiple connections');
 
         // Verify structure
-        $connectionsStr = implode(' ', $connections);
+        $connectionsStr = \implode(' ', $connections);
         $this->assertStringContainsString('StartEvent', $connectionsStr);
         $this->assertStringContainsString('StopEvent', $connectionsStr);
     }
@@ -218,15 +218,15 @@ class MermaidExporterTest extends TestCase
             ]);
 
         $mermaidOutput = $workflow->export();
-        $lines = explode("\n", $mermaidOutput);
+        $lines = \explode("\n", $mermaidOutput);
 
         // Verify Mermaid syntax is valid
-        $this->assertEquals('graph TD', trim($lines[0]));
+        $this->assertEquals('graph TD', \trim($lines[0]));
 
         // Each connection line should follow the pattern "    NodeA --> NodeB"
-        for ($i = 1; $i < count($lines); $i++) {
+        for ($i = 1; $i < \count($lines); $i++) {
             $line = $lines[$i];
-            if (trim($line) !== '') {
+            if (\trim($line) !== '') {
                 $this->assertMatchesRegularExpression('/^\s+\w+ --> \w+$/', $line, "Invalid Mermaid syntax in line: {$line}");
             }
         }

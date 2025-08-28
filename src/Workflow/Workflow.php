@@ -101,7 +101,7 @@ class Workflow implements SplSubject
                     break;
                 }
 
-                $nextEventClass = get_class($currentEvent);
+                $nextEventClass = \get_class($currentEvent);
                 if (!isset($this->eventNodeMap[$nextEventClass])) {
                     throw new WorkflowException("No node found that handle event: " . $nextEventClass);
                 }
@@ -173,32 +173,25 @@ class Workflow implements SplSubject
         return  $result;
     }
 
-    public function addNode(string $eventClass, NodeInterface $node): self
+    public function addNode(string $eventClass, NodeInterface $node): Workflow
     {
+        if (!\class_exists($eventClass) || !\is_a($eventClass, Event::class, true)) {
+            throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
+        }
+
         $this->eventNodeMap[$eventClass] = $node;
+
         return $this;
     }
 
     /**
-     * @param array<string, string|NodeInterface> $eventToNodeMap Array where keys are Event class names and values are Node class names or instances
+     * @param array<string, string|NodeInterface> $eventToNodeMap Array where keys are Event class names and values are Node instances
      * @throws WorkflowException
      */
     public function addNodes(array $eventToNodeMap): Workflow
     {
         foreach ($eventToNodeMap as $eventClass => $node) {
-            if (!is_string($eventClass) || !class_exists($eventClass) || !is_a($eventClass, Event::class, true)) {
-                throw new WorkflowException("Event class {$eventClass} must implement Event interface");
-            }
-
-            if (is_string($node)) {
-                $node = new $node();
-            }
-
-            if (!$node instanceof NodeInterface) {
-                throw new WorkflowException("Node must implement NodeInterface");
-            }
-
-            $this->eventNodeMap[$eventClass] = $node;
+            $this->addNode($eventClass, $node);
         }
 
         return $this;

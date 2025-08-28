@@ -15,7 +15,7 @@ class EventTest extends TestCase
     public function testEventInterface(): void
     {
         $event = new FirstEvent('test message');
-        
+
         $this->assertInstanceOf(Event::class, $event);
         $this->assertEquals('test message', $event->message);
     }
@@ -23,7 +23,7 @@ class EventTest extends TestCase
     public function testStartEventDefaultConstruction(): void
     {
         $event = new StartEvent();
-        
+
         $this->assertInstanceOf(Event::class, $event);
         $this->assertEmpty($event->getData());
     }
@@ -32,7 +32,7 @@ class EventTest extends TestCase
     {
         $data = ['key1' => 'value1', 'key2' => 'value2'];
         $event = new StartEvent($data);
-        
+
         $this->assertEquals($data, $event->getData());
         $this->assertEquals('value1', $event->get('key1'));
         $this->assertEquals('default', $event->get('nonexistent', 'default'));
@@ -42,7 +42,7 @@ class EventTest extends TestCase
     {
         $event = new StartEvent();
         $event->set('new_key', 'new_value');
-        
+
         $this->assertEquals('new_value', $event->get('new_key'));
         $this->assertArrayHasKey('new_key', $event->getData());
     }
@@ -50,7 +50,7 @@ class EventTest extends TestCase
     public function testStopEventDefaultConstruction(): void
     {
         $event = new StopEvent();
-        
+
         $this->assertInstanceOf(Event::class, $event);
         $this->assertNull($event->getResult());
     }
@@ -59,7 +59,7 @@ class EventTest extends TestCase
     {
         $result = 'workflow completed successfully';
         $event = new StopEvent($result);
-        
+
         $this->assertEquals($result, $event->getResult());
     }
 
@@ -67,7 +67,7 @@ class EventTest extends TestCase
     {
         $result = ['status' => 'success', 'data' => ['id' => 123]];
         $event = new StopEvent($result);
-        
+
         $this->assertEquals($result, $event->getResult());
         $this->assertEquals('success', $event->getResult()['status']);
     }

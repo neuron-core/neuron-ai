@@ -17,11 +17,11 @@ class MermaidExporter implements ExporterInterface
 
         foreach ($eventNodeMap as $eventClass => $node) {
             $eventName = $this->getShortClassName($eventClass);
-            $nodeName = $this->getShortClassName(get_class($node));
+            $nodeName = $this->getShortClassName(\get_class($node));
 
             // Add connection from event to node
             $connection = "{$eventName} --> {$nodeName}";
-            if (!in_array($connection, $processedConnections)) {
+            if (!\in_array($connection, $processedConnections)) {
                 $output .= "    {$connection}\n";
                 $processedConnections[] = $connection;
             }
@@ -49,7 +49,7 @@ class MermaidExporter implements ExporterInterface
 
                     // Add connection from node to produced event
                     $connection = "{$nodeName} --> {$returnEventName}";
-                    if (!in_array($connection, $processedConnections)) {
+                    if (!\in_array($connection, $processedConnections)) {
                         $output .= "    {$connection}\n";
                         $processedConnections[] = $connection;
                     }

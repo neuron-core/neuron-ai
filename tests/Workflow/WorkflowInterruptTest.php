@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
@@ -53,7 +52,7 @@ class WorkflowInterruptTest extends TestCase
     public function testWorkflowInterruptPreservesState(): void
     {
         $initialState = new WorkflowState(['initial_data' => 'preserved']);
-        
+
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
                 new NodeOne(),
@@ -66,14 +65,14 @@ class WorkflowInterruptTest extends TestCase
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $state = $interrupt->getState();
-            
+
             // Verify initial data is preserved
             $this->assertEquals('preserved', $state->get('initial_data'));
-            
+
             // Verify nodes up to interrupt point were executed
             $this->assertTrue($state->get('node_one_executed'));
             $this->assertTrue($state->get('interruptable_node_executed'));
-            
+
             // Verify node after interrupt was not executed
             $this->assertFalse($state->has('node_three_executed'));
         }
@@ -93,7 +92,7 @@ class WorkflowInterruptTest extends TestCase
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $currentEvent = $interrupt->getCurrentEvent();
-            
+
             $this->assertNotNull($currentEvent);
             $this->assertInstanceOf(\NeuronAI\Tests\Workflow\Stubs\FirstEvent::class, $currentEvent);
             $this->assertEquals('First complete', $currentEvent->message);
@@ -126,7 +125,7 @@ class WorkflowInterruptTest extends TestCase
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertTrue($finalState->get('node_three_executed'));
-        
+
         // Verify human feedback was processed
         $this->assertEquals('human feedback provided', $finalState->get('received_feedback'));
     }
@@ -167,17 +166,17 @@ class WorkflowInterruptTest extends TestCase
     public function testMultipleInterruptsAndResumes(): void
     {
         // Create a node that interrupts multiple times
-        $multiInterruptNode = new class extends \NeuronAI\Workflow\Node {
+        $multiInterruptNode = new class () extends \NeuronAI\Workflow\Node {
             public function run(\Tests\Workflow\Stubs\FirstEvent $event, WorkflowState $state): \Tests\Workflow\Stubs\SecondEvent
             {
                 $interruptCount = $state->get('interrupt_count', 0);
                 $interruptCount++;
                 $state->set('interrupt_count', $interruptCount);
-                
+
                 if ($interruptCount < 3) {
                     $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
                 }
-                
+
                 $state->set('all_interrupts_complete', true);
                 return new \Tests\Workflow\Stubs\SecondEvent('All interrupts complete');
             }
@@ -225,18 +224,18 @@ class WorkflowInterruptTest extends TestCase
             $workflow->run();
         } catch (WorkflowInterrupt $interrupt) {
             // Test JSON serialization
-            $json = json_encode($interrupt);
+            $json = \json_encode($interrupt);
             $this->assertIsString($json);
-            
-            $decoded = json_decode($json, true);
+
+            $decoded = \json_decode($json, true);
             $this->assertEquals('Workflow interrupted for human input', $decoded['message']);
             $this->assertEquals(['message' => 'Need human input'], $decoded['data']);
             $this->assertEquals(InterruptableNode::class, $decoded['currentNode']);
-            
+
             // Test PHP serialization
-            $serialized = serialize($interrupt);
-            $unserialized = unserialize($serialized);
-            
+            $serialized = \serialize($interrupt);
+            $unserialized = \unserialize($serialized);
+
             $this->assertInstanceOf(WorkflowInterrupt::class, $unserialized);
             $this->assertEquals($interrupt->getData(), $unserialized->getData());
             $this->assertEquals($interrupt->getCurrentNode(), $unserialized->getCurrentNode());

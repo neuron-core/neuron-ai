@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\WorkflowState;
 
 class NodeOne extends Node

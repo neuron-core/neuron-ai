@@ -18,24 +18,30 @@ class ExplicitMappingTest extends TestCase
     public function testExplicitEventNodeMapping(): void
     {
         // Create test events
-        $firstEvent = new class implements Event {
-            public function __construct(public string $param = '') {}
+        $firstEvent = new class () implements Event {
+            public function __construct(public string $param = '')
+            {
+            }
         };
-        $secondEvent = new class implements Event {
-            public function __construct(public string $param = '') {}
+        $secondEvent = new class () implements Event {
+            public function __construct(public string $param = '')
+            {
+            }
         };
 
         // Create test nodes
-        $nodeOne = new class extends Node {
+        $nodeOne = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
-                return new class('First complete') implements Event {
-                    public function __construct(public string $param) {}
+                return new class ('First complete') implements Event {
+                    public function __construct(public string $param)
+                    {
+                    }
                 };
             }
         };
 
-        $nodeTwo = new class extends Node {
+        $nodeTwo = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
                 return new StopEvent();
@@ -45,23 +51,23 @@ class ExplicitMappingTest extends TestCase
         $workflow = Workflow::make()
             ->addNodes([
                 StartEvent::class => $nodeOne,
-                get_class($firstEvent) => $nodeTwo,
+                \get_class($firstEvent) => $nodeTwo,
             ]);
 
         $eventNodeMap = $workflow->getEventNodeMap();
 
         // Verify correct event-to-node mappings
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
-        $this->assertArrayHasKey(get_class($firstEvent), $eventNodeMap);
-        
+        $this->assertArrayHasKey(\get_class($firstEvent), $eventNodeMap);
+
         // Verify correct node instances
         $this->assertSame($nodeOne, $eventNodeMap[StartEvent::class]);
-        $this->assertSame($nodeTwo, $eventNodeMap[get_class($firstEvent)]);
+        $this->assertSame($nodeTwo, $eventNodeMap[\get_class($firstEvent)]);
     }
 
     public function testExplicitMappingWithStringNodes(): void
     {
-        $testNode = new class extends Node {
+        $testNode = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
                 return new StopEvent();
@@ -70,12 +76,12 @@ class ExplicitMappingTest extends TestCase
 
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => get_class($testNode),
+                StartEvent::class => \get_class($testNode),
             ]);
 
         $eventNodeMap = $workflow->getEventNodeMap();
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
-        $this->assertInstanceOf(get_class($testNode), $eventNodeMap[StartEvent::class]);
+        $this->assertInstanceOf(\get_class($testNode), $eventNodeMap[StartEvent::class]);
     }
 
     public function testInvalidEventClassThrowsException(): void
@@ -83,7 +89,7 @@ class ExplicitMappingTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('must implement Event interface');
 
-        $testNode = new class extends Node {
+        $testNode = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
                 return new StopEvent();
@@ -107,14 +113,14 @@ class ExplicitMappingTest extends TestCase
 
     public function testEventNodeMapReset(): void
     {
-        $nodeOne = new class extends Node {
+        $nodeOne = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
                 return new StopEvent();
             }
         };
 
-        $nodeTwo = new class extends Node {
+        $nodeTwo = new class () extends Node {
             public function run(Event $event, WorkflowState $state): Event
             {
                 return new StopEvent();
