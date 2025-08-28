@@ -33,7 +33,11 @@ abstract class Node implements NodeInterface
     protected function interrupt(array $data): mixed
     {
         if ($this->isResuming && isset($this->feedback[static::class])) {
-            return $this->feedback[static::class];
+            $feedback = $this->feedback[static::class];
+            // Clear both feedback and resuming state after use to allow subsequent interrupts
+            unset($this->feedback[static::class]);
+            $this->isResuming = false;
+            return $feedback;
         }
 
         throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);

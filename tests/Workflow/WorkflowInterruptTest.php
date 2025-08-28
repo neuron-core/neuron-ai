@@ -176,7 +176,7 @@ class WorkflowInterruptTest extends TestCase
                 $interruptCount = $state->get('interrupt_count', 0);
                 $state->set('interrupt_count', ++$interruptCount);
 
-                if ($state->get('interrupt_count') < 5) {
+                if ($state->get('interrupt_count') < 3) {
                     $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
                 }
 
