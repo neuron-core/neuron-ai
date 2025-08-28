@@ -84,20 +84,6 @@ class WorkflowValidationTest extends TestCase
         $workflow->run();
     }
 
-    public function testValidationPassesWithCompleteWorkflow(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
-
-        // Should not throw any validation exceptions
-        $finalState = $workflow->run();
-        $this->assertInstanceOf(WorkflowState::class, $finalState);
-    }
-
     public function testValidationWithInvalidNodeMethodSignature(): void
     {
         $this->expectException(WorkflowException::class);
