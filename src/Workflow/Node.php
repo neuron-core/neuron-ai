@@ -32,9 +32,6 @@ abstract class Node implements NodeInterface
      */
     protected function interrupt(array $data): mixed
     {
-        var_dump($this->feedback);
-        var_dump($this->isResuming);
-
         if ($this->isResuming && isset($this->feedback[static::class])) {
             $feedback = $this->feedback[static::class];
             // Clear both feedback and resuming state after use to allow subsequent interrupts
