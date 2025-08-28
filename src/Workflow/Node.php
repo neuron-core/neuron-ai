@@ -5,14 +5,25 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 abstract class Node implements NodeInterface
 {
-    protected WorkflowContext $context;
+    protected WorkflowState $currentState;
+    protected Event $currentEvent;
+    protected bool $isResuming = false;
+    protected array $feedback = [];
 
-    public function setContext(WorkflowContext $context): void
-    {
-        $this->context = $context;
+    public function setWorkflowContext(
+        WorkflowState $currentState,
+        Event $currentEvent,
+        bool $isResuming = false,
+        array $feedback = []
+    ): void {
+        $this->currentState = $currentState;
+        $this->currentEvent = $currentEvent;
+        $this->isResuming = $isResuming;
+        $this->feedback = $feedback;
     }
 
     /**
@@ -21,10 +32,10 @@ abstract class Node implements NodeInterface
      */
     protected function interrupt(array $data): mixed
     {
-        if (!isset($this->context)) {
-            throw new WorkflowException('WorkflowContext not set on node');
+        if ($this->isResuming && isset($this->feedback[static::class])) {
+            return $this->feedback[static::class];
         }
 
-        return $this->context->interrupt($data);
+        throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);
     }
 }

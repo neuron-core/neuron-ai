@@ -72,21 +72,16 @@ class Workflow implements SplSubject
         bool             $resuming = false,
         array|string|int $humanFeedback = []
     ): WorkflowState {
-        $context = new WorkflowContext(
-            $this->workflowId,
-            $currentNode,
-            $this->persistence,
-            $state,
-            $currentEvent
-        );
-
-        if ($resuming) {
-            $context->setResuming(true, [$currentNode::class => $humanFeedback]);
-        }
+        $feedback = $resuming ? [$currentNode::class => $humanFeedback] : [];
 
         try {
             while (!($currentEvent instanceof StopEvent)) {
-                $currentNode->setContext($context);
+                $currentNode->setWorkflowContext(
+                    $state,
+                    $currentEvent,
+                    $resuming,
+                    $feedback
+                );
 
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $state));
                 try {
@@ -107,15 +102,8 @@ class Workflow implements SplSubject
                 }
 
                 $currentNode = $this->eventNodeMap[$nextEventClass];
-
-                // Update the context before the next iteration
-                $context = new WorkflowContext(
-                    $this->workflowId,
-                    $currentNode,
-                    $this->persistence,
-                    $state,
-                    $currentEvent
-                );
+                $resuming = false; // Only the first node should be in resuming mode
+                $feedback = [];
             }
 
             $this->persistence->delete($this->workflowId);

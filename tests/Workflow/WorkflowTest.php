@@ -121,7 +121,7 @@ class WorkflowTest extends TestCase
     public function testWorkflowValidationFailsWithNoStartNode(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No nodes found that accept StartEvent');
+        $this->expectExceptionMessage('No nodes found that handle StartEvent');
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -132,15 +132,15 @@ class WorkflowTest extends TestCase
         $workflow->run();
     }
 
-    public function testWorkflowFailsWhenNoNodeAcceptsEvent(): void
+    public function testWorkflowFailsWhenNoNodeHandlesEvent(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No node found that accepts event');
+        $this->expectExceptionMessage('No node found that handle event');
 
         $workflow = Workflow::make()
             ->addNodes([
                 StartEvent::class => new NodeOne(),
-                // Missing NodeTwo that accepts FirstEvent
+                // Missing NodeTwo that handles FirstEvent
                 SecondEvent::class => new NodeThree(),
             ]);
 

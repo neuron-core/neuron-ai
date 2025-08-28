@@ -176,7 +176,7 @@ class WorkflowInterruptTest extends TestCase
                 $interruptCount = $state->get('interrupt_count', 0);
                 $state->set('interrupt_count', ++$interruptCount);
 
-                if ($interruptCount < 3) {
+                if ($state->get('interrupt_count') < 5) {
                     $this->interrupt(['count' => $interruptCount, 'message' => "Interrupt #{$interruptCount}"]);
                 }
 
@@ -185,8 +185,7 @@ class WorkflowInterruptTest extends TestCase
             }
         };
 
-        $persistence = new InMemoryPersistence();
-        $workflow = Workflow::make($persistence, 'multi-interrupt-workflow')
+        $workflow = Workflow::make(new InMemoryPersistence(), 'multi-interrupt-workflow')
             ->addNodes([
                 StartEvent::class => new NodeOne(),
                 FirstEvent::class => $multiInterruptNode,
@@ -196,7 +195,7 @@ class WorkflowInterruptTest extends TestCase
         // First interrupt
         try {
             $workflow->run();
-            $this->fail('Expected first interrupt');
+            $this->fail('First interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 1, 'message' => 'Interrupt #1'], $interrupt->getData());
         }
@@ -204,7 +203,7 @@ class WorkflowInterruptTest extends TestCase
         // Second interrupt
         try {
             $finalState = $workflow->resume('first response');
-            $this->fail('Expected second interrupt');
+            $this->fail('Second interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
         }
@@ -233,7 +232,7 @@ class WorkflowInterruptTest extends TestCase
             $decoded = \json_decode($json, true);
             $this->assertEquals('Workflow interrupted for human input', $decoded['message']);
             $this->assertEquals(['message' => 'Need human input'], $decoded['data']);
-            $this->assertEquals(InterruptableNode::class, $decoded['currentNode']);
+            $this->assertInstanceOf(InterruptableNode::class, unserialize($decoded['currentNode']));
 
             // Test PHP serialization
             $serialized = \serialize($interrupt);
