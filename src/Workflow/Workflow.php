@@ -12,6 +12,7 @@ use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\Observable;
 use NeuronAI\StaticConstructor;
+use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -39,7 +40,7 @@ class Workflow implements SplSubject
 
     public function __construct(?PersistenceInterface $persistence = null, ?string $workflowId = null)
     {
-        $this->exporter = new MermaidExporter();
+        $this->exporter = new ConsoleExporter();
 
         if (\is_null($persistence) && !\is_null($workflowId)) {
             throw new WorkflowException('Persistence must be defined when workflowId is defined');

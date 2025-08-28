@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/mnt/c/GitHub/neuron-ai/tests/**)",
+      "Read(/mnt/c/GitHub/neuron-ai/tests/Workflow/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
