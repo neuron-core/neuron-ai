@@ -6,20 +6,22 @@ namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class IsValidJsonRule extends AbstractRule
+class StringStartsWith extends AbstractRule
 {
+    public function __construct(protected string $prefix)
+    {
+    }
+
     public function evaluate(mixed $actual): EvaluationRuleResult
     {
         if (!\is_string($actual)) {
             return EvaluationRuleResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
-                ['actual' => $actual]
             );
         }
 
-        \json_decode($actual);
-        $result = \json_last_error() === \JSON_ERROR_NONE;
+        $result = \str_starts_with($actual, $this->prefix);
 
         if ($result) {
             return EvaluationRuleResult::pass(1.0);
@@ -27,7 +29,7 @@ class IsValidJsonRule extends AbstractRule
 
         return EvaluationRuleResult::fail(
             0.0,
-            'Expected valid JSON response: ' . \json_last_error_msg(),
+            "Expected response to start with '{$this->prefix}'",
         );
     }
 }

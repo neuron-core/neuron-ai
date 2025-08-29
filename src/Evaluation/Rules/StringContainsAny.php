@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringContainsAnyRule extends AbstractRule
+class StringContainsAny extends AbstractRule
 {
     public function __construct(protected array $keywords)
     {

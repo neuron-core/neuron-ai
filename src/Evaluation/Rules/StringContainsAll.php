@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringContainsAllRule extends AbstractRule
+class StringContainsAll extends AbstractRule
 {
     /**
      * @param string[] $keywords

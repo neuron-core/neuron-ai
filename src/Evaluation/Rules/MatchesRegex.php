@@ -6,9 +6,9 @@ namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringStartsWithRule extends AbstractRule
+class MatchesRegex extends AbstractRule
 {
-    public function __construct(protected string $prefix)
+    public function __construct(protected string $regex)
     {
     }
 
@@ -21,7 +21,7 @@ class StringStartsWithRule extends AbstractRule
             );
         }
 
-        $result = \str_starts_with($actual, $this->prefix);
+        $result = \preg_match($this->regex, $actual) === 1;
 
         if ($result) {
             return EvaluationRuleResult::pass(1.0);
@@ -29,7 +29,7 @@ class StringStartsWithRule extends AbstractRule
 
         return EvaluationRuleResult::fail(
             0.0,
-            "Expected response to start with '{$this->prefix}'",
+            "Expected '$actual' to match pattern '{$this->regex}'",
         );
     }
 }
