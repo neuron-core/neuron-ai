@@ -33,7 +33,7 @@ class StringSimilarity extends AbstractAssertion
         $actualEmbeddings = $this->embeddingsProvider->embedText($actual);
         $referenceEmbeddings = $this->embeddingsProvider->embedText($this->reference);
 
-        $score = VectorSimilarity::cosineDistance($actualEmbeddings, $referenceEmbeddings);
+        $score = VectorSimilarity::cosineSimilarity($actualEmbeddings, $referenceEmbeddings);
 
         if ($score >= $this->threshold) {
             return AssertionResult::pass($score);
