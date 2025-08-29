@@ -254,6 +254,10 @@ class Workflow implements SplSubject
             $firstParamType = $firstParam->getType();
             $secondParamType = $secondParam->getType();
 
+            if ($firstParamType instanceof \ReflectionUnionType) {
+                throw new WorkflowException('Failed to validate '.$node::class.': Nodes can handle only one event type.');
+            }
+
             if (!($firstParamType instanceof \ReflectionNamedType) || !\is_a($firstParamType->getName(), Event::class, true)) {
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must be a type that implements ' . Event::class);
             }
