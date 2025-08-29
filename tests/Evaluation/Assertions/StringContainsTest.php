@@ -13,7 +13,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('hello');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
         $this->assertEquals('', $result->message);
@@ -23,7 +23,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('HELLO');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -32,7 +32,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('hello');
         $result = $assertion->evaluate('HELLO WORLD');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -41,7 +41,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('missing');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals("Expected 'hello world' to contain 'missing'", $result->message);
@@ -51,7 +51,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('test');
         $result = $assertion->evaluate(123);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
@@ -61,7 +61,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('test');
         $result = $assertion->evaluate(['hello', 'world']);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got array', $result->message);
@@ -71,7 +71,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('test');
         $result = $assertion->evaluate(null);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
@@ -81,7 +81,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -90,7 +90,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('');
         $result = $assertion->evaluate('');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -99,7 +99,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('!@#$');
         $result = $assertion->evaluate('Test !@#$ special chars');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -108,7 +108,7 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('café');
         $result = $assertion->evaluate('Welcome to café');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }

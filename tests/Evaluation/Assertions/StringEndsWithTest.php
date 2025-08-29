@@ -13,7 +13,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('world');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
         $this->assertEquals('', $result->message);
@@ -23,7 +23,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -32,7 +32,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals("Expected response to end with 'hello'", $result->message);
@@ -42,7 +42,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('World');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals("Expected response to end with 'World'", $result->message);
@@ -52,7 +52,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('test');
         $result = $assertion->evaluate(123);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
@@ -62,7 +62,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('world');
         $result = $assertion->evaluate(['hello', 'world']);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got array', $result->message);
@@ -72,7 +72,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('test');
         $result = $assertion->evaluate(null);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
@@ -82,7 +82,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('test');
         $result = $assertion->evaluate(new \stdClass());
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got object', $result->message);
@@ -92,7 +92,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -101,7 +101,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('');
         $result = $assertion->evaluate('');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -110,7 +110,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('world');
         $result = $assertion->evaluate('');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals("Expected response to end with 'world'", $result->message);
@@ -120,7 +120,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('!@#$');
         $result = $assertion->evaluate('special end !@#$');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -129,7 +129,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('café');
         $result = $assertion->evaluate('Welcome to café');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -138,7 +138,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('world  ');
         $result = $assertion->evaluate('hello world  ');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -147,7 +147,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals("Expected response to end with 'hello'", $result->message);
@@ -157,7 +157,7 @@ class StringEndsWithTest extends TestCase
     {
         $assertion = new StringEndsWith('.');
         $result = $assertion->evaluate('This is a sentence.');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
