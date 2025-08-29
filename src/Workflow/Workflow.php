@@ -168,6 +168,10 @@ class Workflow implements SplSubject
             throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
         }
 
+        if (!\is_callable($node)) {
+            throw new WorkflowException('Node must be callable implementing "__invoke($event, $state): CustomEvent"');
+        }
+
         if (isset($this->eventNodeMap[$eventClass])) {
             throw new WorkflowException("Node for event {$eventClass} already exists");
         }

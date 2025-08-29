@@ -13,6 +13,11 @@ abstract class Node implements NodeInterface
     protected bool $isResuming = false;
     protected array $feedback = [];
 
+    public function run(Event $event, WorkflowState $state): Event
+    {
+        return $this->__invoke($event, $state);
+    }
+
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,

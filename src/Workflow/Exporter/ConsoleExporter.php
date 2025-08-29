@@ -46,7 +46,7 @@ class ConsoleExporter implements ExporterInterface
     private function getProducedEvents(object $node): array
     {
         $reflection = new ReflectionClass($node);
-        $runMethod = $reflection->getMethod('run');
+        $runMethod = $reflection->getMethod('__invoke');
         $returnType = $runMethod->getReturnType();
 
         if (!$returnType) {
@@ -100,7 +100,7 @@ class ConsoleExporter implements ExporterInterface
             if (!\in_array($connection['event'], $visited)) {
                 $output .= "\n" . \str_repeat("─", 30) . "\n";
                 $output .= "Orphaned Node:\n";
-                $output .= $this->renderConnection($connection, $eventToConnection, [], 0);
+                $output .= $this->renderConnection($connection, $eventToConnection, $visited, 0);
             }
         }
 

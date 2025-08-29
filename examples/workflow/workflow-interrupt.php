@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
@@ -22,7 +23,7 @@ $workflow = new Workflow($persistence, 'test_workflow');
 $workflow->addNodes([
     StartEvent::class => new NodeOne(),
     FirstEvent::class => new InterruptableNode(),
-    SecondEvent::class => new NodeTwo(),
+    SecondEvent::class => new NodeForSecond(),
 ]);
 
 // Run the workflow and catch the interruption

@@ -11,7 +11,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 class NodeForThird extends Node
 {
-    public function run(Event $event, WorkflowState $state): StopEvent
+    public function __invoke(ThirdEvent $event, WorkflowState $state): StopEvent
     {
         $state->set('third_path_executed', true);
         $state->set('final_third_message', $event->message);

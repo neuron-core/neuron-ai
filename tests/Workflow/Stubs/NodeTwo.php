@@ -11,10 +11,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 class NodeTwo extends Node
 {
-    /**
-     * @param FirstEvent $event
-     */
-    public function run(Event $event, WorkflowState $state): SecondEvent|StopEvent
+    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent|StopEvent
     {
         $state->set('node_two_executed', true);
         $state->set('first_message', $event->message);

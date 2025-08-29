@@ -11,10 +11,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 class NodeOne extends Node
 {
-    /**
-     * @param StartEvent $event
-     */
-    public function run(Event $event, WorkflowState $state): FirstEvent
+    public function __invoke(StartEvent $event, WorkflowState $state): FirstEvent
     {
         $state->set('node_one_executed', true);
 

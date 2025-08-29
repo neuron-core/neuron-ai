@@ -11,7 +11,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 class NodeForSecond extends Node
 {
-    public function run(Event $event, WorkflowState $state): StopEvent
+    public function __invoke(SecondEvent $event, WorkflowState $state): SecondEvent|StopEvent
     {
         $state->set('second_path_executed', true);
         $state->set('final_second_message', $event->message);

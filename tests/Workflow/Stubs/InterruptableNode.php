@@ -13,11 +13,10 @@ use NeuronAI\Workflow\WorkflowState;
 class InterruptableNode extends Node
 {
     /**
-     * @param FirstEvent $event
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function run(Event $event, WorkflowState $state): SecondEvent
+    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent
     {
         $state->set('interruptable_node_executed', true);
 
