@@ -18,14 +18,14 @@ class NeuronCli
     public function run(array $args): int
     {
         // Skip script name
-        array_shift($args);
+        \array_shift($args);
 
-        if (empty($args)) {
+        if ($args === []) {
             $this->printUsage();
             return 1;
         }
 
-        $commandName = array_shift($args);
+        $commandName = \array_shift($args);
 
         if ($commandName === '--help' || $commandName === '-h') {
             $this->printUsage();
@@ -76,11 +76,11 @@ For command-specific help, use:
 
 USAGE;
 
-        echo $usage . PHP_EOL;
+        echo $usage . \PHP_EOL;
     }
 
     private function printError(string $message): void
     {
-        fwrite(STDERR, "Error: {$message}" . PHP_EOL);
+        \fwrite(\STDERR, "Error: {$message}" . \PHP_EOL);
     }
 }
