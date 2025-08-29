@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Rules;
 
-use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
 class StringLengthBetweenRule extends AbstractRule
