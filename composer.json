@@ -42,9 +42,7 @@
         "tomasvotruba/type-coverage": "^2.0"
     },
     "bin": [
-        "bin/evaluation",
-        "bin/evaluation.bat",
-        "bin/evaluation.ps1"
+        "bin/neuron"
     ],
     "scripts": {
         "analyse": [
