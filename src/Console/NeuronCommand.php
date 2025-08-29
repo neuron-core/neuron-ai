@@ -18,14 +18,14 @@ class NeuronCommand
     public function run(array $args): int
     {
         // Skip script name
-        array_shift($args);
+        \array_shift($args);
 
         if (empty($args)) {
             $this->printUsage();
             return 1;
         }
 
-        $commandName = array_shift($args);
+        $commandName = \array_shift($args);
 
         if ($commandName === '--help' || $commandName === '-h') {
             $this->printUsage();
@@ -39,13 +39,13 @@ class NeuronCommand
         }
 
         $commandClass = self::AVAILABLE_COMMANDS[$commandName];
-        
+
         try {
             $command = new $commandClass();
-            
+
             // Prepare arguments for the sub-command (restore script name simulation)
             $subCommandArgs = ['neuron', ...$args];
-            
+
             return $command->run($subCommandArgs);
         } catch (\Throwable $e) {
             $this->printError("Error executing command '{$commandName}': " . $e->getMessage());
@@ -76,11 +76,11 @@ For command-specific help, use:
 
 USAGE;
 
-        echo $usage . PHP_EOL;
+        echo $usage . \PHP_EOL;
     }
 
     private function printError(string $message): void
     {
-        fwrite(STDERR, "Error: {$message}" . PHP_EOL);
+        \fwrite(\STDERR, "Error: {$message}" . \PHP_EOL);
     }
 }
