@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Rules;
 
-use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class IsValidJsonRule implements EvaluationRuleInterface
+class IsValidJsonRule extends AbstractRule
 {
-    public function evaluate(mixed $actual, mixed $expected = null, array $context = []): EvaluationRuleResult
+    public function evaluate(mixed $actual): EvaluationRuleResult
     {
         if (!\is_string($actual)) {
             return EvaluationRuleResult::fail(
@@ -23,18 +22,12 @@ class IsValidJsonRule implements EvaluationRuleInterface
         $result = \json_last_error() === \JSON_ERROR_NONE;
 
         if ($result) {
-            return EvaluationRuleResult::pass(1.0, '', ['response' => $actual]);
+            return EvaluationRuleResult::pass(1.0);
         }
 
         return EvaluationRuleResult::fail(
             0.0,
             'Expected valid JSON response: ' . \json_last_error_msg(),
-            ['response' => $actual, 'json_error' => \json_last_error_msg()]
         );
-    }
-
-    public function getName(): string
-    {
-        return 'assertIsValidJson';
     }
 }

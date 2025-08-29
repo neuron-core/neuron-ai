@@ -7,9 +7,9 @@ namespace NeuronAI\Evaluation\Rules;
 use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringStartsWithRule extends AbstractRule
+class StringEndsWith extends AbstractRule
 {
-    public function __construct(protected string $prefix)
+    public function __construct(protected string $suffix)
     {
     }
 
@@ -22,7 +22,7 @@ class StringStartsWithRule extends AbstractRule
             );
         }
 
-        $result = \str_starts_with($actual, $this->prefix);
+        $result = \str_ends_with($actual, $this->suffix);
 
         if ($result) {
             return EvaluationRuleResult::pass(1.0);
@@ -30,7 +30,7 @@ class StringStartsWithRule extends AbstractRule
 
         return EvaluationRuleResult::fail(
             0.0,
-            "Expected response to start with '{$this->prefix}'",
+            "Expected response to end with '{$this->suffix}'",
         );
     }
 }

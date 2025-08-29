@@ -7,51 +7,36 @@ namespace NeuronAI\Evaluation\Rules;
 use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringContainsAnyRule implements EvaluationRuleInterface
+class StringContainsAnyRule extends AbstractRule
 {
-    public function evaluate(mixed $actual, mixed $expected = null, array $context = []): EvaluationRuleResult
+    public function __construct(protected array $keywords)
+    {
+    }
+
+    public function evaluate(mixed $actual): EvaluationRuleResult
     {
         if (!\is_string($actual)) {
             return EvaluationRuleResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
-                ['actual' => $actual, 'expected' => $expected]
-            );
-        }
-
-        if (!\is_array($expected)) {
-            return EvaluationRuleResult::fail(
-                0.0,
-                'Expected keywords to be an array, got ' . \gettype($expected),
-                ['actual' => $actual, 'expected' => $expected]
             );
         }
 
         $lowerHaystack = \strtolower($actual);
 
-        foreach ($expected as $keyword) {
+        foreach ($this->keywords as $keyword) {
             if (!\is_string($keyword)) {
                 continue;
             }
 
             if (\str_contains($lowerHaystack, \strtolower($keyword))) {
-                return EvaluationRuleResult::pass(
-                    1.0,
-                    '',
-                    ['keywords' => $expected, 'haystack' => $actual, 'matched' => $keyword]
-                );
+                return EvaluationRuleResult::pass(1.0);
             }
         }
 
         return EvaluationRuleResult::fail(
             0.0,
-            "Expected '$actual' to contain any of: " . \implode(', ', $expected),
-            ['keywords' => $expected, 'haystack' => $actual]
+            "Expected '$actual' to contain any of: " . \implode(', ', $this->keywords),
         );
-    }
-
-    public function getName(): string
-    {
-        return 'assertStringContainsAny';
     }
 }
