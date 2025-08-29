@@ -10,7 +10,7 @@ use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
 {
     /**
-     * Set up method called before evaluation starts
+     * Set up the method called before evaluation starts.
      * Override this to initialize judge agents and other resources
      */
     public function setUp(): void
@@ -25,6 +25,7 @@ abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
 
     /**
      * Run the application logic being tested
+     *
      * @param array<string, mixed> $datasetItem Current item from the dataset
      * @return mixed Output from the application logic
      */
@@ -32,6 +33,7 @@ abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
 
     /**
      * Evaluate the output against expected results
+     *
      * @param mixed $output Output from the run () method
      * @param array<string, mixed> $datasetItem Reference dataset item for comparison
      * @return bool Whether the test passed
