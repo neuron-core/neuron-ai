@@ -22,6 +22,8 @@ $workflow->addNodes([
     new NodeForSecond(),
 ]);
 
+echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
+
 // Run the workflow and catch the interruption
 try {
     $workflow->run();
@@ -36,5 +38,3 @@ $state = $workflow->resume('approved');
 
 // It should print "approved"
 echo $state->get('received_feedback');
-
-echo \PHP_EOL.\PHP_EOL.\PHP_EOL.$workflow->export();
