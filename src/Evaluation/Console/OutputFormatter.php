@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Console;
 
 use NeuronAI\Evaluation\AssertionFailure;
-use NeuronAI\Evaluation\Results\EvaluationSummary;
+use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 
 class OutputFormatter
 {
@@ -32,7 +32,7 @@ class OutputFormatter
         }
     }
 
-    public function printSummary(EvaluationSummary $summary): void
+    public function printSummary(EvaluatorSummary $summary): void
     {
         if (!$this->verbose) {
             echo "\n\n";
@@ -64,9 +64,9 @@ class OutputFormatter
         }
 
         $totalAssertions = $summary->getTotalAssertions();
-        $passedAssertions = $summary->getTotalAssertionsPassed();
-        $failedAssertions = $summary->getTotalAssertionsFailed();
-        $assertionSuccessRate = \round($summary->getAssertionSuccessRate() * 100, 1);
+        $passedAssertions = $summary->getTotalRulesPassed();
+        $failedAssertions = $summary->getTotalRulesFailed();
+        $assertionSuccessRate = \round($summary->getRuleSuccessRate() * 100, 1);
 
         echo \sprintf(
             "Tests: %d, Passed: %d, Failed: %d, Success Rate: %s%%\n",
@@ -85,7 +85,7 @@ class OutputFormatter
         );
     }
 
-    private function printFailures(EvaluationSummary $summary): void
+    private function printFailures(EvaluatorSummary $summary): void
     {
         echo "There were " . $summary->getFailedCount() . " failure(s):\n\n";
 
@@ -106,8 +106,8 @@ class OutputFormatter
             if ($result->getTotalAssertions() > 0) {
                 echo \sprintf(
                     "   Assertions: %d passed, %d failed\n",
-                    $result->getAssertionsPassed(),
-                    $result->getAssertionsFailed()
+                    $result->getRulesPassed(),
+                    $result->getRulesFailed()
                 );
             }
 
@@ -142,9 +142,9 @@ class OutputFormatter
         echo "Error: {$message}\n";
     }
 
-    private function printAssertionFailureSummary(EvaluationSummary $summary): void
+    private function printAssertionFailureSummary(EvaluatorSummary $summary): void
     {
-        $failuresByLocation = $summary->getAssertionFailuresByLocation();
+        $failuresByLocation = $summary->getRuleFailuresByLocation();
 
         if ($failuresByLocation === []) {
             return;

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Results;
+namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 
-class EvaluationSummary
+class EvaluatorSummary
 {
     /**
      * @param array<EvaluatorResult> $results
@@ -76,51 +76,52 @@ class EvaluationSummary
         return $this->getFailedCount() > 0;
     }
 
-    public function getTotalAssertionsPassed(): int
+    public function getTotalRulesPassed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsPassed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getRulesPassed(), $this->results));
     }
 
-    public function getTotalAssertionsFailed(): int
+    public function getTotalRulesFailed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsFailed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getRulesFailed(), $this->results));
     }
 
     public function getTotalAssertions(): int
     {
-        return $this->getTotalAssertionsPassed() + $this->getTotalAssertionsFailed();
+        return $this->getTotalRulesPassed() + $this->getTotalRulesFailed();
     }
 
-    public function getAssertionSuccessRate(): float
+    public function getRuleSuccessRate(): float
     {
         $total = $this->getTotalAssertions();
         if ($total === 0) {
             return 0.0;
         }
 
-        return $this->getTotalAssertionsPassed() / $total;
+        return $this->getTotalRulesPassed() / $total;
     }
 
     /**
      * @return array<AssertionFailure>
      */
-    public function getAllAssertionFailures(): array
+    public function getAllRuleFailures(): array
     {
         $failures = [];
         foreach ($this->results as $result) {
-            $failures = \array_merge($failures, $result->getAssertionFailures());
+            $failures = \array_merge($failures, $result->getRuleFailures());
         }
         return $failures;
     }
 
     /**
      * Get assertion failures grouped by evaluator class
-     * @return array<string, array<AssertionFailure>>
+     *
+     * @return array<string, AssertionFailure[]>
      */
-    public function getAssertionFailuresByClass(): array
+    public function getRuleFailuresByClass(): array
     {
         $groupedFailures = [];
-        foreach ($this->getAllAssertionFailures() as $failure) {
+        foreach ($this->getAllRuleFailures() as $failure) {
             $class = $failure->getEvaluatorClass();
             if (!isset($groupedFailures[$class])) {
                 $groupedFailures[$class] = [];
@@ -132,12 +133,13 @@ class EvaluationSummary
 
     /**
      * Get assertion failures grouped by evaluator class and line
-     * @return array<string, array<AssertionFailure>>
+     *
+     * @return array<string, AssertionFailure[]>
      */
-    public function getAssertionFailuresByLocation(): array
+    public function getRuleFailuresByLocation(): array
     {
         $groupedFailures = [];
-        foreach ($this->getAllAssertionFailures() as $failure) {
+        foreach ($this->getAllRuleFailures() as $failure) {
             $key = $failure->getShortEvaluatorClass() . ':' . $failure->getLineNumber();
             if (!isset($groupedFailures[$key])) {
                 $groupedFailures[$key] = [];

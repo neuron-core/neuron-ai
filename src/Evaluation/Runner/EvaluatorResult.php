@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Results;
+namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 
@@ -63,12 +63,12 @@ class EvaluatorResult
         return $this->error !== null;
     }
 
-    public function getAssertionsPassed(): int
+    public function getRulesPassed(): int
     {
         return $this->assertionsPassed;
     }
 
-    public function getAssertionsFailed(): int
+    public function getRulesFailed(): int
     {
         return $this->assertionsFailed;
     }
@@ -81,12 +81,12 @@ class EvaluatorResult
     /**
      * @return array<AssertionFailure>
      */
-    public function getAssertionFailures(): array
+    public function getRuleFailures(): array
     {
         return $this->assertionFailures;
     }
 
-    public function hasAssertionFailures(): bool
+    public function hasRuleFailures(): bool
     {
         return $this->assertionFailures !== [];
     }

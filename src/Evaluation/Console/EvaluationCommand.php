@@ -6,8 +6,8 @@ namespace NeuronAI\Evaluation\Console;
 
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
-use NeuronAI\Evaluation\Results\EvaluationSummary;
-use NeuronAI\Evaluation\Runner\EvaluationRunner;
+use NeuronAI\Evaluation\Runner\EvaluatorSummary;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
 use ReflectionException;
 use Throwable;
@@ -16,12 +16,12 @@ class EvaluationCommand
 {
     private OutputFormatter $formatter;
     private readonly EvaluatorDiscovery $discovery;
-    private readonly EvaluationRunner $runner;
+    private readonly EvaluatorRunner $runner;
 
     public function __construct()
     {
         $this->discovery = new EvaluatorDiscovery();
-        $this->runner = new EvaluationRunner();
+        $this->runner = new EvaluatorRunner();
     }
 
     /**
@@ -158,7 +158,7 @@ class EvaluationCommand
         return \end($parts);
     }
 
-    private function createOverallSummary(array $evaluatorClasses): EvaluationSummary
+    private function createOverallSummary(array $evaluatorClasses): EvaluatorSummary
     {
         // This is a simplified overall summary - in a real implementation,
         // you'd want to collect all individual results
@@ -177,6 +177,6 @@ class EvaluationCommand
             }
         }
 
-        return new EvaluationSummary($results, $totalTime);
+        return new EvaluatorSummary($results, $totalTime);
     }
 }

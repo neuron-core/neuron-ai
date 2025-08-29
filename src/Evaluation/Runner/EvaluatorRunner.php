@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\BaseEvaluator;
-use NeuronAI\Evaluation\Results\EvaluatorResult;
-use NeuronAI\Evaluation\Results\EvaluationSummary;
 use Throwable;
 
-class EvaluationRunner
+class EvaluatorRunner
 {
-    public function run(BaseEvaluator $evaluator): EvaluationSummary
+    public function run(BaseEvaluator $evaluator): EvaluatorSummary
     {
         $evaluator->setUp();
 
@@ -54,6 +52,6 @@ class EvaluationRunner
             );
         }
 
-        return new EvaluationSummary($results, $totalTime);
+        return new EvaluatorSummary($results, $totalTime);
     }
 }
