@@ -11,7 +11,6 @@ use NeuronAI\Workflow\WorkflowInterrupt;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-
 $persistence = new FilePersistence(__DIR__);
 
 $workflow = new Workflow($persistence, 'test_workflow');
