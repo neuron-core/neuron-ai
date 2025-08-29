@@ -28,7 +28,7 @@ class MermaidExporter implements ExporterInterface
 
             // Try to determine what event this node produces by looking at return type
             $reflection = new ReflectionClass($node);
-            $runMethod = $reflection->getMethod('run');
+            $runMethod = $reflection->getMethod('__invoke');
             $returnType = $runMethod->getReturnType();
 
             if ($returnType) {

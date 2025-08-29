@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
@@ -23,7 +24,7 @@ class NodeTest extends TestCase
     public function testNodeRunMethodSignature(): void
     {
         $node = new NodeOne();
-        $event = new FirstEvent('message');
+        $event = new StartEvent();
         $state = new WorkflowState();
 
         $result = $node->run($event, $state);

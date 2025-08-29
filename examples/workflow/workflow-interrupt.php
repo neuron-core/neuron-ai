@@ -6,7 +6,6 @@ use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\StartEvent;
@@ -38,7 +37,7 @@ try {
 // Resume the workflow providing external data
 $state = $workflow->resume('approved');
 
-// Print the final value
-echo $state->get('received_feedback').\PHP_EOL.\PHP_EOL.\PHP_EOL; // It should print "approved"
+// It should print "approved"
+echo $state->get('received_feedback');
 
-echo $workflow->export();
+echo \PHP_EOL.\PHP_EOL.\PHP_EOL.$workflow->export();

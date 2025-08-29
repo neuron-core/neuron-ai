@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
-use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
@@ -47,7 +46,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessage('No node found that handle event: '.FirstEvent::class);
 
         $invalidNode = new class () extends Node {
-            public function run(Event $event, WorkflowState $state): FirstEvent
+            public function __invoke(StartEvent $event, WorkflowState $state): FirstEvent
             {
                 return new FirstEvent('');
             }

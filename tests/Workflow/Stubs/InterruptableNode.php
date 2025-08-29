@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;

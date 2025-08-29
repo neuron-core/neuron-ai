@@ -125,7 +125,7 @@ class WorkflowInterruptTest extends TestCase
         // Resume with human feedback
         $finalState = $workflow->resume('human feedback provided');
 
-        // Verify workflow completed successfully
+        // Verify the workflow completed successfully
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertTrue($finalState->get('node_three_executed'));
