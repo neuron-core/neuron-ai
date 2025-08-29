@@ -13,7 +13,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"name": "John", "age": 30}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
         $this->assertEquals('', $result->message);
@@ -23,7 +23,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('[1, 2, 3, "hello"]');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -32,7 +32,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('"hello world"');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -41,7 +41,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('42');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -50,7 +50,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('true');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -59,7 +59,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('null');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -68,7 +68,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"users": [{"name": "John", "active": true}, {"name": "Jane", "active": false}]}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -77,7 +77,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -86,7 +86,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('[]');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -95,7 +95,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"name": "John", "age": 30,}');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -105,7 +105,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{name: "John", age: 30}');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -115,7 +115,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate("{'name': 'John', 'age': 30}");
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -125,7 +125,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{name: John, age: 30}');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -135,7 +135,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('hello world');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -145,7 +145,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -155,7 +155,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate(123);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
@@ -166,7 +166,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate(['hello', 'world']);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got array', $result->message);
@@ -177,7 +177,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate(null);
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
@@ -188,7 +188,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate(new \stdClass());
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertEquals('Expected actual value to be a string, got object', $result->message);
@@ -198,7 +198,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"name": "John"');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -208,7 +208,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('[1, 2, 3');
-        
+
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
         $this->assertStringContainsString('Expected valid JSON response:', $result->message);
@@ -218,7 +218,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"café": "délicieux", "naïve": true}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -227,7 +227,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"quote": "He said \"hello\"", "newline": "Line 1\\nLine 2"}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }
@@ -236,7 +236,7 @@ class IsValidJsonTest extends TestCase
     {
         $assertion = new IsValidJson();
         $result = $assertion->evaluate('{"big": 9223372036854775807, "decimal": 3.14159}');
-        
+
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
     }

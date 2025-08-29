@@ -12,7 +12,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 
 class StringSimilarityTest extends TestCase
 {
-    private EmbeddingsProviderInterface|MockObject $embeddingsProvider;
+    /** @var MockObject&EmbeddingsProviderInterface */
+    private MockObject $embeddingsProvider;
 
     protected function setUp(): void
     {
@@ -181,10 +182,10 @@ class StringSimilarityTest extends TestCase
 
     public function testPassesWithHighDimensionalVectors(): void
     {
-        $highDimVector1 = array_fill(0, 384, 0.1);
+        $highDimVector1 = \array_fill(0, 384, 0.1);
         $highDimVector1[0] = 1.0;
 
-        $highDimVector2 = array_fill(0, 384, 0.1);
+        $highDimVector2 = \array_fill(0, 384, 0.1);
         $highDimVector2[0] = 0.9;
 
         $this->embeddingsProvider
