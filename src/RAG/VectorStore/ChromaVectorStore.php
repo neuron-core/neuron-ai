@@ -7,6 +7,7 @@ namespace NeuronAI\RAG\VectorStore;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorSimilarity;
 
 class ChromaVectorStore implements VectorStoreInterface
 {

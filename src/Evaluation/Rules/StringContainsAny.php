@@ -35,7 +35,7 @@ class StringContainsAny extends AbstractRule
 
         return EvaluationRuleResult::fail(
             0.0,
-            "Expected '$actual' to contain any of: " . \implode(', ', $this->keywords),
+            "Expected '{$actual}' to contain any of: " . \implode(', ', $this->keywords),
         );
     }
 }

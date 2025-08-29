@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorSimilarity;
 
 class FileVectorStore implements VectorStoreInterface
 {

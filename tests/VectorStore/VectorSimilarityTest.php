@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\VectorStore;
 
 use NeuronAI\Exceptions\VectorStoreException;
-use NeuronAI\RAG\VectorStore\VectorSimilarity;
+use NeuronAI\RAG\VectorSimilarity;
 use PHPUnit\Framework\TestCase;
 
 class VectorSimilarityTest extends TestCase

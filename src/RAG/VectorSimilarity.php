@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\RAG\VectorStore;
+namespace NeuronAI\RAG;
 
 use NeuronAI\Exceptions\VectorStoreException;
 
@@ -36,6 +36,9 @@ class VectorSimilarity
         return $dotProduct / (\sqrt($magnitude1) * \sqrt($magnitude2));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function cosineDistance(array $vector1, array $vector2): float|int
     {
         return 1 - self::cosineSimilarity($vector1, $vector2);

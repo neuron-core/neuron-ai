@@ -22,7 +22,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new MemoryVectorStore();
@@ -48,7 +48,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new FileVectorStore(
@@ -75,7 +75,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new PineconeVectorStore(
@@ -102,17 +102,17 @@ class MyChatBot extends RAG
     protected array $vectorStoreFilters = [];
 
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         $store = new PineconeVectorStore(
             key: 'PINECONE_API_KEY',
             indexUrl: 'PINECONE_INDEX_URL'
         );
-        
+
         return $store->withFilters($this->vectorStoreFilters);
     }
-    
+
     public function addVectorStoreFilters(array $filters): self
     {
         $this->vectorStoreFilters = $filters;
@@ -155,7 +155,7 @@ class MyChatBot extends RAG
     public function __construct(protected Client $elasticClient) {}
 
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new ElasticsearchVectorStore(
@@ -178,7 +178,7 @@ $elasticClient = ClientBuilder::create()
    ->setHosts(['<elasticsearch-endpoint>'])
    ->setApiKey('<api-key>')
    ->build();
-   
+
 $response = MyChatBot::make($elasticClient)
     ->observe(new AgentMonitoring($inspector))
     ->chat(new UserMessage('Hello!'));
@@ -200,21 +200,21 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     protected array $vectorStoreFilters = [];
-    
+
     public function __construct(protected Client $elasticClient) {}
 
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         $store = new ElasticsearchVectorStore(
             client: $this->elasticClient,
             index: 'neuron-ai'
         );
-    
+
         return $store->withFilter($this->vectorStoreFilters);
     }
-    
+
     public function addVectorStoreFilters(array $filters): self
     {
         $this->vectorStoreFilters = $filters;
@@ -255,7 +255,7 @@ class MyChatBot extends RAG
     public function __construct(protected Client $typesenseClient) {}
 
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new TypesenseVectorStore(
@@ -309,7 +309,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new QdrantVectorStore(
@@ -336,7 +336,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new ChromaVectorStore(
@@ -366,7 +366,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class MyChatBot extends RAG
 {
     ...
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         return new MeilisearchVectorStore(
@@ -397,7 +397,7 @@ interface VectorStoreInterface
      * @param  Document[]  $documents
      */
     public function addDocuments(array $documents): void;
-    
+
     public function deleteBySource(string $sourceName, string $sourceType): void;
 
     /**
@@ -418,21 +418,21 @@ The similaritySearch should return documents with a similarity score not a simil
 namespace App\Neuron\VectorStore;
 
 use NeuronAI\RAG\Document;
-use NeuronAI\RAG\VectorStore\VectorSimilarity;
+use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class MyVectorStore implements VectorStoreInterface
 {
     ...
-    
-    
+
+
     /**
      * @param float[] $embeddings
      */
     public function similaritySearch(array $embedding): iterable
     {
         $documents = // get documents from the vector store
-        
+
         return \array_map(function (Document $document) {
             return $document->setScore(
                 VectorSimilarity::similarityFromDistance($similarity)
