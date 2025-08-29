@@ -28,7 +28,7 @@ class EvaluationRunner
 
             try {
                 $output = $evaluator->run($item);
-                $passed = $evaluator->evaluate($output, $item);
+                $evaluator->evaluate($output, $item);
             } catch (Throwable $e) {
                 $error = $e->getMessage();
             }
@@ -43,7 +43,7 @@ class EvaluationRunner
 
             $results[] = new EvaluatorResult(
                 $index,
-                $passed,
+                $rulesFailed === 0,
                 $item,
                 $output,
                 $executionTime,

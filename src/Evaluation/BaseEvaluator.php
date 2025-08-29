@@ -43,9 +43,8 @@ abstract class BaseEvaluator implements EvaluatorInterface
      *
      * @param mixed $output Output from the run () method
      * @param array<string, mixed> $datasetItem Reference dataset item for comparison
-     * @return bool Whether the test passed
      */
-    abstract public function evaluate(mixed $output, array $datasetItem): bool;
+    abstract public function evaluate(mixed $output, array $datasetItem): void;
 
     /**
      * Execute an evaluation rule
