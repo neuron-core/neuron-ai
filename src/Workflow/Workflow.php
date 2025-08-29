@@ -264,7 +264,20 @@ class Workflow implements SplSubject
             }
 
             $returnType = $method->getReturnType();
-            if (!$returnType instanceof \ReflectionNamedType || !is_a($returnType->getName(), Event::class, true)) {
+
+            if ($returnType instanceof \ReflectionNamedType) {
+                // Handle single return types
+                if (!is_a($returnType->getName(), Event::class, true)) {
+                    throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
+                }
+            } elseif ($returnType instanceof \ReflectionUnionType) {
+                // Handle union return type - all types must implement Event interface
+                foreach ($returnType->getTypes() as $type) {
+                    if (!($type instanceof \ReflectionNamedType) || !is_a($type->getName(), Event::class, true)) {
+                        throw new WorkflowException('Failed to validate '.$node::class.': All return types in union must implement ' . Event::class);
+                    }
+                }
+            } else {
                 throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
             }
 
