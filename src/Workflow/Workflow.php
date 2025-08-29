@@ -44,7 +44,8 @@ class Workflow implements SplSubject
         if (\is_null($persistence) && !\is_null($workflowId)) {
             throw new WorkflowException('Persistence must be defined when workflowId is defined');
         }
-        if (\is_null($workflowId) && !\is_null($persistence)) {
+
+        if (!\is_null($persistence) && \is_null($workflowId)) {
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
 
@@ -60,6 +61,51 @@ class Workflow implements SplSubject
         if (!isset($this->eventNodeMap[StartEvent::class])) {
             throw new WorkflowException('No nodes found that handle '.StartEvent::class);
         }
+    }
+
+    /**
+     * @throws WorkflowInterrupt|WorkflowException|\Throwable
+     */
+    public function run(?WorkflowState $initialState = null): WorkflowState
+    {
+        $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
+        try {
+            $this->validate();
+        } catch (WorkflowException $exception) {
+            $this->notify('error', new AgentError($exception));
+            throw $exception;
+        }
+
+        $state = $initialState ?? new WorkflowState();
+
+        $state = $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $state);
+        $this->notify('workflow-end', new WorkflowEnd($state));
+
+        return $state;
+    }
+
+    /**
+     * @throws WorkflowInterrupt|WorkflowException|\Throwable
+     */
+    public function resume(array|string|int $humanFeedback): WorkflowState
+    {
+        $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
+        $interrupt = $this->persistence->load($this->workflowId);
+
+        $state = $interrupt->getState();
+        $currentNode = $interrupt->getCurrentNode();
+        $currentEvent = $interrupt->getCurrentEvent();
+
+        $result = $this->execute(
+            $currentEvent,
+            $currentNode,
+            $state,
+            true,
+            $humanFeedback
+        );
+        $this->notify('workflow-end', new WorkflowEnd($result));
+
+        return  $result;
     }
 
     /**
@@ -114,51 +160,6 @@ class Workflow implements SplSubject
             $this->notify('workflow-interrupt', $interrupt);
             throw $interrupt;
         }
-    }
-
-    /**
-     * @throws WorkflowInterrupt|WorkflowException|\Throwable
-     */
-    public function run(?WorkflowState $initialState = null): WorkflowState
-    {
-        $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
-        try {
-            $this->validate();
-        } catch (WorkflowException $exception) {
-            $this->notify('error', new AgentError($exception));
-            throw $exception;
-        }
-
-        $state = $initialState ?? new WorkflowState();
-
-        $state = $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $state);
-        $this->notify('workflow-end', new WorkflowEnd($state));
-
-        return $state;
-    }
-
-    /**
-     * @throws WorkflowInterrupt|WorkflowException|\Throwable
-     */
-    public function resume(array|string|int $humanFeedback): WorkflowState
-    {
-        $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
-        $interrupt = $this->persistence->load($this->workflowId);
-
-        $state = $interrupt->getState();
-        $currentNode = $interrupt->getCurrentNode();
-        $currentEvent = $interrupt->getCurrentEvent();
-
-        $result = $this->execute(
-            $currentEvent,
-            $currentNode,
-            $state,
-            true,
-            $humanFeedback
-        );
-        $this->notify('workflow-end', new WorkflowEnd($result));
-
-        return  $result;
     }
 
     public function addNode(string $eventClass, string|NodeInterface $node): Workflow
