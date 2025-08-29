@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Results;
 
 use NeuronAI\Evaluation\AssertionFailure;
 
-class EvaluationResult
+class AggregatedResult
 {
     /**
      * @param array<string, mixed> $input

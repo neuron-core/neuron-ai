@@ -6,9 +6,16 @@ namespace NeuronAI\Evaluation;
 
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 
-abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
+abstract class BaseEvaluator implements EvaluatorInterface
 {
+    private RuleExecutor $ruleExecutor;
+
+    public function __construct()
+    {
+        $this->ruleExecutor = new RuleExecutor();
+    }
     /**
      * Set up the method called before evaluation starts.
      * Override this to initialize judge agents and other resources
@@ -39,4 +46,46 @@ abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
      * @return bool Whether the test passed
      */
     abstract public function evaluate(mixed $output, array $datasetItem): bool;
+
+    /**
+     * Execute an evaluation rule
+     */
+    protected function executeRule(EvaluationRuleInterface $rule, mixed $actual, mixed $expected = null, array $context = []): bool
+    {
+        return $this->ruleExecutor->execute($rule, $actual, $expected, $context);
+    }
+
+    /**
+     * Get the number of passed assertions
+     */
+    public function getAssertionsPassed(): int
+    {
+        return $this->ruleExecutor->getPassedCount();
+    }
+
+    /**
+     * Get the number of failed assertions
+     */
+    public function getAssertionsFailed(): int
+    {
+        return $this->ruleExecutor->getFailedCount();
+    }
+
+    /**
+     * Get the total number of assertions
+     */
+    public function getTotalAssertions(): int
+    {
+        return $this->ruleExecutor->getTotalCount();
+    }
+
+    /**
+     * Get all assertion failures
+     *
+     * @return array<AssertionFailure>
+     */
+    public function getAssertionFailures(): array
+    {
+        return $this->ruleExecutor->getFailures();
+    }
 }

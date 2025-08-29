@@ -6,7 +6,7 @@ namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\StructuredOutputException;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY | \Attribute::IS_REPEATABLE)]
+#[\Attribute(\Attribute::TARGET_PROPERTY)]
 class Enum extends AbstractValidationRule
 {
     protected string $message = '{name} must be one of the following allowed values: {choices}.';

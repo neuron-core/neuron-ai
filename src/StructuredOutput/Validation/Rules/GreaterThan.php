@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY | \Attribute::IS_REPEATABLE)]
+#[\Attribute(\Attribute::TARGET_PROPERTY)]
 class GreaterThan extends AbstractValidationRule
 {
     public function __construct(protected mixed $reference)

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
-use NeuronAI\Evaluation\Results\EvaluationResult;
+use NeuronAI\Evaluation\Results\AggregatedResult;
 use NeuronAI\Evaluation\Results\EvaluationSummary;
 use Throwable;
 
@@ -29,11 +29,6 @@ class EvaluationRunner
             $error = null;
             $output = null;
 
-            // Reset assertion counts before running evaluator
-            if (\method_exists($evaluator, 'resetAssertionCounts')) {
-                $evaluator->resetAssertionCounts();
-            }
-
             try {
                 $output = $evaluator->run($item);
                 $passed = $evaluator->evaluate($output, $item);
@@ -49,7 +44,7 @@ class EvaluationRunner
             $assertionsFailed = \method_exists($evaluator, 'getAssertionsFailed') ? $evaluator->getAssertionsFailed() : 0;
             $assertionFailures = \method_exists($evaluator, 'getAssertionFailures') ? $evaluator->getAssertionFailures() : [];
 
-            $results[] = new EvaluationResult(
+            $results[] = new AggregatedResult(
                 $index,
                 $passed,
                 $item,

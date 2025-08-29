@@ -6,7 +6,7 @@ namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\Validation\Validator;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY | \Attribute::IS_REPEATABLE)]
+#[\Attribute(\Attribute::TARGET_PROPERTY)]
 class ArrayOf extends AbstractValidationRule
 {
     protected string $message = '{name} must be an array of {type}';

@@ -71,7 +71,7 @@ class AssertionFailure
     /**
      * Get AI Judge score instance if available
      */
-    public function getAIJudgeScore(): ?JudgeScore
+    public function getAIJudgeScore(): ?JudgeScoreOutput
     {
         if (!$this->isAIJudgeFailure()) {
             return null;
