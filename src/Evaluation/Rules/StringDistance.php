@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
@@ -19,7 +21,7 @@ class StringDistance extends AbstractRule
             );
         }
 
-        $distance = levenshtein($actual, $this->reference);
+        $distance = \levenshtein($actual, $this->reference);
 
         if ($distance <= $this->maxDistance) {
             $score = 1.0 - ($distance / $this->maxDistance);
