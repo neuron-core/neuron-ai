@@ -18,7 +18,6 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
 use ReflectionException;
-use ReflectionMethod;
 use SplSubject;
 
 /**
@@ -237,25 +236,25 @@ class Workflow implements SplSubject
             $method = $reflection->getMethod('__invoke');
             $parameters = $method->getParameters();
 
-            if (count($parameters) !== 2) {
+            if (\count($parameters) !== 2) {
                 throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must have exactly 2 parameters');
             }
 
             $firstParam = $parameters[0];
             $secondParam = $parameters[1];
 
-            if (!$firstParam->hasType() || $firstParam->getType() === null) {
+            if (!$firstParam->hasType() || !$firstParam->getType() instanceof \ReflectionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must have a type declaration');
             }
 
-            if (!$secondParam->hasType() || $secondParam->getType() === null) {
+            if (!$secondParam->hasType() || !$secondParam->getType() instanceof \ReflectionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must have a type declaration');
             }
 
             $firstParamType = $firstParam->getType();
             $secondParamType = $secondParam->getType();
 
-            if (!($firstParamType instanceof \ReflectionNamedType) || !is_a($firstParamType->getName(), Event::class, true)) {
+            if (!($firstParamType instanceof \ReflectionNamedType) || !\is_a($firstParamType->getName(), Event::class, true)) {
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must be a type that implements ' . Event::class);
             }
 
@@ -267,13 +266,13 @@ class Workflow implements SplSubject
 
             if ($returnType instanceof \ReflectionNamedType) {
                 // Handle single return types
-                if (!is_a($returnType->getName(), Event::class, true)) {
+                if (!\is_a($returnType->getName(), Event::class, true)) {
                     throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
                 }
             } elseif ($returnType instanceof \ReflectionUnionType) {
                 // Handle union return type - all types must implement Event interface
                 foreach ($returnType->getTypes() as $type) {
-                    if (!($type instanceof \ReflectionNamedType) || !is_a($type->getName(), Event::class, true)) {
+                    if (!($type instanceof \ReflectionNamedType) || !\is_a($type->getName(), Event::class, true)) {
                         throw new WorkflowException('Failed to validate '.$node::class.': All return types in union must implement ' . Event::class);
                     }
                 }
