@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
-use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
+use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
 class RuleExecutor
 {
@@ -18,7 +18,7 @@ class RuleExecutor
     /**
      * Execute an evaluation rule and track the result
      */
-    public function execute(EvaluationRuleInterface $rule, mixed $actual): bool
+    public function execute(AssertionInterface $rule, mixed $actual): bool
     {
         $result = $rule->evaluate($actual);
 
@@ -79,7 +79,7 @@ class RuleExecutor
     /**
      * Record a failure with proper backtrace information
      */
-    private function recordFailure(EvaluationRuleInterface $rule, EvaluationRuleResult $result): void
+    private function recordFailure(AssertionInterface $rule, AssertionResult $result): void
     {
         // Get the calling line from backtrace (skip execute() and recordFailure())
         $backtrace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS, 4);

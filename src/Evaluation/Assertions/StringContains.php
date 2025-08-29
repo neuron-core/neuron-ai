@@ -2,30 +2,30 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 
-class StringContains extends AbstractRule
+class StringContains extends AbstractAssertion
 {
     public function __construct(protected string $keyword)
     {
     }
 
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
         }
 
         if (\str_contains(\strtolower($actual), \strtolower($this->keyword))) {
-            return EvaluationRuleResult::pass(1.0);
+            return AssertionResult::pass(1.0);
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             0.0,
             "Expected '{$actual}' to contain '{$this->keyword}'",
         );

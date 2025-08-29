@@ -64,9 +64,9 @@ class OutputFormatter
         }
 
         $totalAssertions = $summary->getTotalAssertions();
-        $passedAssertions = $summary->getTotalRulesPassed();
-        $failedAssertions = $summary->getTotalRulesFailed();
-        $assertionSuccessRate = \round($summary->getRuleSuccessRate() * 100, 1);
+        $passedAssertions = $summary->getTotalAssertionsPassed();
+        $failedAssertions = $summary->getTotalAssertionsFailed();
+        $assertionSuccessRate = \round($summary->getAssertionSuccessRate() * 100, 1);
 
         echo \sprintf(
             "Tests: %d, Passed: %d, Failed: %d, Success Rate: %s%%\n",
@@ -106,8 +106,8 @@ class OutputFormatter
             if ($result->getTotalAssertions() > 0) {
                 echo \sprintf(
                     "   Assertions: %d passed, %d failed\n",
-                    $result->getRulesPassed(),
-                    $result->getRulesFailed()
+                    $result->getAssertionsPassed(),
+                    $result->getAssertionsFailed()
                 );
             }
 
@@ -144,7 +144,7 @@ class OutputFormatter
 
     private function printAssertionFailureSummary(EvaluatorSummary $summary): void
     {
-        $failuresByLocation = $summary->getRuleFailuresByLocation();
+        $failuresByLocation = $summary->getAssertionFailuresByLocation();
 
         if ($failuresByLocation === []) {
             return;

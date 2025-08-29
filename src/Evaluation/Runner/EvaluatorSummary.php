@@ -76,39 +76,39 @@ class EvaluatorSummary
         return $this->getFailedCount() > 0;
     }
 
-    public function getTotalRulesPassed(): int
+    public function getTotalAssertionsPassed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getRulesPassed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsPassed(), $this->results));
     }
 
-    public function getTotalRulesFailed(): int
+    public function getTotalAssertionsFailed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getRulesFailed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsFailed(), $this->results));
     }
 
     public function getTotalAssertions(): int
     {
-        return $this->getTotalRulesPassed() + $this->getTotalRulesFailed();
+        return $this->getTotalAssertionsPassed() + $this->getTotalAssertionsFailed();
     }
 
-    public function getRuleSuccessRate(): float
+    public function getAssertionSuccessRate(): float
     {
         $total = $this->getTotalAssertions();
         if ($total === 0) {
             return 0.0;
         }
 
-        return $this->getTotalRulesPassed() / $total;
+        return $this->getTotalAssertionsPassed() / $total;
     }
 
     /**
      * @return array<AssertionFailure>
      */
-    public function getAllRuleFailures(): array
+    public function getAllAssertionFailures(): array
     {
         $failures = [];
         foreach ($this->results as $result) {
-            $failures = \array_merge($failures, $result->getRuleFailures());
+            $failures = \array_merge($failures, $result->getAssertionFailures());
         }
         return $failures;
     }
@@ -118,10 +118,10 @@ class EvaluatorSummary
      *
      * @return array<string, AssertionFailure[]>
      */
-    public function getRuleFailuresByClass(): array
+    public function getAssertionFailuresByClass(): array
     {
         $groupedFailures = [];
-        foreach ($this->getAllRuleFailures() as $failure) {
+        foreach ($this->getAllAssertionFailures() as $failure) {
             $class = $failure->getEvaluatorClass();
             if (!isset($groupedFailures[$class])) {
                 $groupedFailures[$class] = [];
@@ -136,10 +136,10 @@ class EvaluatorSummary
      *
      * @return array<string, AssertionFailure[]>
      */
-    public function getRuleFailuresByLocation(): array
+    public function getAssertionFailuresByLocation(): array
     {
         $groupedFailures = [];
-        foreach ($this->getAllRuleFailures() as $failure) {
+        foreach ($this->getAllAssertionFailures() as $failure) {
             $key = $failure->getShortEvaluatorClass() . ':' . $failure->getLineNumber();
             if (!isset($groupedFailures[$key])) {
                 $groupedFailures[$key] = [];

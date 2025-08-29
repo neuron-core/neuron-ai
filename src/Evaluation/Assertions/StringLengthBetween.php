@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 
-class StringLengthBetween extends AbstractRule
+class StringLengthBetween extends AbstractAssertion
 {
     public function __construct(protected int $min, protected int $max)
     {
     }
 
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
@@ -25,10 +25,10 @@ class StringLengthBetween extends AbstractRule
         $result = $length >= $this->min && $length <= $this->max;
 
         if ($result) {
-            return EvaluationRuleResult::pass(1.0);
+            return AssertionResult::pass(1.0);
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             0.0,
             "Expected string length to be between {$this->min} and {$this->max}, got {$length}",
         );

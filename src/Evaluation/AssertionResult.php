@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
-class EvaluationRuleResult
+class AssertionResult
 {
     public function __construct(
         public readonly bool $passed,

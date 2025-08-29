@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorSimilarity;
 
-class StringSimilarity extends AbstractRule
+class StringSimilarity extends AbstractAssertion
 {
     public function __construct(
         protected string $reference,
@@ -21,10 +21,10 @@ class StringSimilarity extends AbstractRule
     /**
      * @throws VectorStoreException
      */
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
@@ -36,10 +36,10 @@ class StringSimilarity extends AbstractRule
         $score = VectorSimilarity::cosineDistance($actualEmbeddings, $referenceEmbeddings);
 
         if ($score >= $this->threshold) {
-            return EvaluationRuleResult::pass($score);
+            return AssertionResult::pass($score);
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             $score,
             "Expected '{$actual}' to be similar to '{$this->reference}' (threshold: '{$this->threshold}')",
         );

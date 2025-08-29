@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 
-class StringDistance extends AbstractRule
+class StringDistance extends AbstractAssertion
 {
     public function __construct(
         protected string $reference,
@@ -15,10 +15,10 @@ class StringDistance extends AbstractRule
     ) {
     }
 
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
@@ -30,16 +30,16 @@ class StringDistance extends AbstractRule
             $score = 1.0 - ($distance / $this->maxDistance);
 
             if ($score < $this->threshold) {
-                return EvaluationRuleResult::fail(
+                return AssertionResult::fail(
                     $score,
                     "Expected '{$actual}' to be similar to '{$this->reference}' (distance: {$distance}, threshold: {$this->threshold}, max_accepted: {$this->maxDistance})"
                 );
             }
 
-            return EvaluationRuleResult::pass($score);
+            return AssertionResult::pass($score);
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             0.0,
             "Expected '{$actual}' to be similar to '{$this->reference}' (distance: {$distance}, max_accepted: {$this->maxDistance})",
         );

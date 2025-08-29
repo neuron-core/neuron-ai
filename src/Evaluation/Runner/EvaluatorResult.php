@@ -63,12 +63,12 @@ class EvaluatorResult
         return $this->error !== null;
     }
 
-    public function getRulesPassed(): int
+    public function getAssertionsPassed(): int
     {
         return $this->assertionsPassed;
     }
 
-    public function getRulesFailed(): int
+    public function getAssertionsFailed(): int
     {
         return $this->assertionsFailed;
     }
@@ -81,12 +81,12 @@ class EvaluatorResult
     /**
      * @return array<AssertionFailure>
      */
-    public function getRuleFailures(): array
+    public function getAssertionFailures(): array
     {
         return $this->assertionFailures;
     }
 
-    public function hasRuleFailures(): bool
+    public function hasAssertionFailures(): bool
     {
         return $this->assertionFailures !== [];
     }

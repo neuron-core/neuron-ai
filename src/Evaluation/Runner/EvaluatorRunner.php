@@ -20,7 +20,6 @@ class EvaluatorRunner
 
         foreach ($data as $index => $item) {
             $startTime = \microtime(true);
-            $passed = false;
             $error = null;
             $output = null;
 
@@ -35,19 +34,19 @@ class EvaluatorRunner
             $totalTime += $executionTime;
 
             // Capture assertion counts and failures
-            $rulesPassed = $evaluator->getRulesPassed();
-            $rulesFailed = $evaluator->getRulesFailed();
-            $ruleFailures = $evaluator->getRuleFailures();
+            $assertionsPassed = $evaluator->getAssertionsPassed();
+            $assertionsFailed = $evaluator->getAssertionsFailed();
+            $assertionFailures = $evaluator->getAssertionFailures();
 
             $results[] = new EvaluatorResult(
                 $index,
-                $rulesFailed === 0,
+                $assertionsFailed === 0,
                 $item,
                 $output,
                 $executionTime,
-                $rulesPassed,
-                $rulesFailed,
-                $ruleFailures,
+                $assertionsPassed,
+                $assertionsFailed,
+                $assertionFailures,
                 $error
             );
         }

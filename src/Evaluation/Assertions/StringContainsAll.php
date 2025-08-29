@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 
-class StringContainsAll extends AbstractRule
+class StringContainsAll extends AbstractAssertion
 {
     /**
      * @param string[] $keywords
@@ -15,10 +15,10 @@ class StringContainsAll extends AbstractRule
     {
     }
 
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
@@ -38,10 +38,10 @@ class StringContainsAll extends AbstractRule
         }
 
         if ($missing === []) {
-            return EvaluationRuleResult::pass(1.0, );
+            return AssertionResult::pass(1.0, );
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             0.0,
             "Expected '{$actual}' to contain all keywords. Missing: " . \implode(', ', $missing),
         );

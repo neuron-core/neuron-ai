@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Rules;
+namespace NeuronAI\Evaluation\Assertions;
 
-use NeuronAI\Evaluation\EvaluationRuleResult;
+use NeuronAI\Evaluation\AssertionResult;
 
-class MatchesRegex extends AbstractRule
+class MatchesRegex extends AbstractAssertion
 {
     public function __construct(protected string $regex)
     {
     }
 
-    public function evaluate(mixed $actual): EvaluationRuleResult
+    public function evaluate(mixed $actual): AssertionResult
     {
         if (!\is_string($actual)) {
-            return EvaluationRuleResult::fail(
+            return AssertionResult::fail(
                 0.0,
                 'Expected actual value to be a string, got ' . \gettype($actual),
             );
@@ -24,10 +24,10 @@ class MatchesRegex extends AbstractRule
         $result = \preg_match($this->regex, $actual) === 1;
 
         if ($result) {
-            return EvaluationRuleResult::pass(1.0);
+            return AssertionResult::pass(1.0);
         }
 
-        return EvaluationRuleResult::fail(
+        return AssertionResult::fail(
             0.0,
             "Expected '$actual' to match pattern '{$this->regex}'",
         );
