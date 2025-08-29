@@ -8,8 +8,11 @@ use NeuronAI\Evaluation\EvaluationRuleResult;
 
 class StringDistance extends AbstractRule
 {
-    public function __construct(protected string $reference, protected int $maxDistance = 50)
-    {
+    public function __construct(
+        protected string $reference,
+        protected float $threshold = 0.5,
+        protected int $maxDistance = 50
+    ) {
     }
 
     public function evaluate(mixed $actual): EvaluationRuleResult
@@ -25,6 +28,14 @@ class StringDistance extends AbstractRule
 
         if ($distance <= $this->maxDistance) {
             $score = 1.0 - ($distance / $this->maxDistance);
+
+            if ($score < $this->threshold) {
+                return EvaluationRuleResult::fail(
+                    $score,
+                    "Expected '{$actual}' to be similar to '{$this->reference}' (distance: {$distance}, threshold: {$this->threshold}, max_accepted: {$this->maxDistance})"
+                );
+            }
+
             return EvaluationRuleResult::pass($score);
         }
 

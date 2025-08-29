@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
 
-class StringLengthBetweenRule extends AbstractRule
+class StringLengthBetween extends AbstractRule
 {
     public function __construct(protected int $min, protected int $max)
     {
