@@ -37,7 +37,7 @@ class StringContainsAllRule extends AbstractRule
             }
         }
 
-        if (empty($missing)) {
+        if ($missing === []) {
             return EvaluationRuleResult::pass(1.0, );
         }
 

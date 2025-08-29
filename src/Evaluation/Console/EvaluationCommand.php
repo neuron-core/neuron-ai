@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Console;
 
-use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
+use NeuronAI\Evaluation\Results\EvaluationSummary;
 use NeuronAI\Evaluation\Runner\EvaluationRunner;
 use ReflectionClass;
 use ReflectionException;
@@ -128,7 +129,7 @@ class EvaluationCommand
         return $totalFailures > 0 ? 1 : 0;
     }
 
-    private function createEvaluator(string $className): EvaluatorInterface
+    private function createEvaluator(string $className): BaseEvaluator
     {
         try {
             $reflection = new ReflectionClass($className);
@@ -155,7 +156,7 @@ class EvaluationCommand
         return \end($parts);
     }
 
-    private function createOverallSummary(array $evaluatorClasses): \NeuronAI\Evaluation\Results\EvaluationSummary
+    private function createOverallSummary(array $evaluatorClasses): EvaluationSummary
     {
         // This is a simplified overall summary - in a real implementation,
         // you'd want to collect all individual results
@@ -174,6 +175,6 @@ class EvaluationCommand
             }
         }
 
-        return new \NeuronAI\Evaluation\Results\EvaluationSummary($results, $totalTime);
+        return new EvaluationSummary($results, $totalTime);
     }
 }

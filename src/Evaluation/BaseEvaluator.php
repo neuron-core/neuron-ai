@@ -10,7 +10,7 @@ use NeuronAI\Evaluation\Contracts\EvaluationRuleInterface;
 
 abstract class BaseEvaluator implements EvaluatorInterface
 {
-    private RuleExecutor $ruleExecutor;
+    private readonly RuleExecutor $ruleExecutor;
 
     public function __construct()
     {
