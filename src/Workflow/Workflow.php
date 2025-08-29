@@ -16,6 +16,9 @@ use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use ReflectionClass;
+use ReflectionException;
+use ReflectionMethod;
 use SplSubject;
 
 /**
@@ -162,15 +165,16 @@ class Workflow implements SplSubject
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function addNode(string $eventClass, NodeInterface $node): Workflow
     {
         if (!\class_exists($eventClass) || !\is_a($eventClass, Event::class, true)) {
             throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
         }
 
-        if (!\is_callable($node)) {
-            throw new WorkflowException('Node must be callable implementing "__invoke($event, $state): CustomEvent"');
-        }
+        $this->validateInvokeMethodSignature($node);
 
         if (isset($this->eventNodeMap[$eventClass])) {
             throw new WorkflowException("Node for event {$eventClass} already exists");
@@ -194,7 +198,6 @@ class Workflow implements SplSubject
         return $this;
     }
 
-
     public function getWorkflowId(): string
     {
         return $this->workflowId;
@@ -217,6 +220,57 @@ class Workflow implements SplSubject
     public function getEventNodeMap(): array
     {
         return $this->eventNodeMap;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    private function validateInvokeMethodSignature(NodeInterface $node): void
+    {
+        try {
+            $reflection = new ReflectionClass($node);
+
+            if (!$reflection->hasMethod('__invoke')) {
+                throw new WorkflowException('Failed to validate '.$node::class.': Missing __invoke method');
+            }
+
+            $method = $reflection->getMethod('__invoke');
+            $parameters = $method->getParameters();
+
+            if (count($parameters) !== 2) {
+                throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must have exactly 2 parameters');
+            }
+
+            $firstParam = $parameters[0];
+            $secondParam = $parameters[1];
+
+            if (!$firstParam->hasType() || $firstParam->getType() === null) {
+                throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must have a type declaration');
+            }
+
+            if (!$secondParam->hasType() || $secondParam->getType() === null) {
+                throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must have a type declaration');
+            }
+
+            $firstParamType = $firstParam->getType();
+            $secondParamType = $secondParam->getType();
+
+            if (!($firstParamType instanceof \ReflectionNamedType) || !is_a($firstParamType->getName(), Event::class, true)) {
+                throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must be a type that implements ' . Event::class);
+            }
+
+            if (!($secondParamType instanceof \ReflectionNamedType) || $secondParamType->getName() !== WorkflowState::class) {
+                throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must be ' . WorkflowState::class);
+            }
+
+            $returnType = $method->getReturnType();
+            if (!$returnType instanceof \ReflectionNamedType || !is_a($returnType->getName(), Event::class, true)) {
+                throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
+            }
+
+        } catch (ReflectionException $e) {
+            throw new WorkflowException('Failed to validate '.$node::class.': ' . $e->getMessage());
+        }
     }
 
 }
