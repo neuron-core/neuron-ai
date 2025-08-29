@@ -10,7 +10,7 @@ class Agent implements AgentInterface
 {
     use StaticConstructor;
     use ResolveProvider;
-    use ResolveTools;
+    use HandleTools;
     use ResolveChatHistory;
     use HandleChat;
     use HandleStream;

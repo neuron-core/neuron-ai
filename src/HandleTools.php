@@ -14,7 +14,7 @@ use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 
-trait ResolveTools
+trait HandleTools
 {
     /**
      * Registered tools.
