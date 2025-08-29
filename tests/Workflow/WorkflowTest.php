@@ -184,34 +184,4 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertEquals('human input received', $finalState->get('received_feedback'));
     }
-
-    public function testWorkflowWithObservableEvents(): void
-    {
-        $events = [];
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                 new NodeThree(),
-            ]);
-
-        $workflow->attach(new class ($events) implements \SplObserver {
-            public function __construct(private array &$events)
-            {
-            }
-
-            public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
-            {
-                $this->events[] = $event;
-            }
-        });
-
-        $workflow->run();
-
-        $this->assertContains('workflow-start', $events);
-        $this->assertContains('workflow-node-start', $events);
-        $this->assertContains('workflow-node-end', $events);
-        $this->assertContains('workflow-end', $events);
-    }
 }

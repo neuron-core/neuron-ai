@@ -64,7 +64,7 @@ class Workflow implements WorkflowInterface
      */
     public function run(?WorkflowState $initialState = null): WorkflowState
     {
-        $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
+        $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap));
 
         try {
             $this->bootstrap();
@@ -87,7 +87,7 @@ class Workflow implements WorkflowInterface
      */
     public function resume(mixed $externalFeedback): WorkflowState
     {
-        $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
+        $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
         try {
             $this->bootstrap();

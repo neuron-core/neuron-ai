@@ -94,7 +94,6 @@ class WorkflowInterruptTest extends TestCase
         } catch (WorkflowInterrupt $interrupt) {
             $currentEvent = $interrupt->getCurrentEvent();
 
-            $this->assertNotNull($currentEvent);
             $this->assertInstanceOf(\NeuronAI\Tests\Workflow\Stubs\FirstEvent::class, $currentEvent);
             $this->assertEquals('First complete', $currentEvent->message);
         }

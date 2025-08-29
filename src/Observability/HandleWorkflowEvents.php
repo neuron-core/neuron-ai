@@ -8,7 +8,7 @@ use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
-use NeuronAI\Workflow\Edge;
+use NeuronAI\Workflow\NodeInterface;
 
 trait HandleWorkflowEvents
 {
@@ -21,14 +21,9 @@ trait HandleWorkflowEvents
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
                 ->setType('neuron-workflow')
-                ->addContext('List', [
-                    'nodes' => \array_keys($data->nodes),
-                    'edges' => \array_map(fn (Edge $edge): array => [
-                        'from' => $edge->getFrom(),
-                        'to' => $edge->getTo(),
-                        'has_condition' => $edge->hasCondition(),
-                    ], $data->edges)
-                ]);
+                ->addContext('Mapping', \array_map(fn (string $eventClass, NodeInterface $node): array => [
+                    $eventClass => $node::class,
+                ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)));
         } elseif ($this->inspector->canAddSegments()) {
             $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $workflow::class)
                 ->setColor(self::SEGMENT_COLOR);

@@ -41,6 +41,9 @@ class NodeTest extends TestCase
 
         $node->setWorkflowContext($state, $event);
 
+        /**
+         * @var FirstEvent $result
+         */
         $result = $node->run($event, $state);
 
         // Verify the state was modified

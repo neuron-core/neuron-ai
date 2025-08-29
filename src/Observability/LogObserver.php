@@ -8,7 +8,7 @@ use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
-use NeuronAI\Workflow\Edge;
+use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
@@ -113,14 +113,9 @@ class LogObserver implements \SplObserver
                 'question' => $data->question->jsonSerialize(),
                 'documents' => $data->documents,
             ],
-            Events\WorkflowStart::class => [
-                'nodes' => \array_keys($data->nodes),
-                'edges' => \array_map(fn (Edge $edge): array => [
-                    'from' => $edge->getFrom(),
-                    'to' => $edge->getTo(),
-                    'has_condition' => $edge->hasCondition(),
-                ], $data->edges),
-            ],
+            Events\WorkflowStart::class => \array_map(fn (string $eventClass, NodeInterface $node): array => [
+                $eventClass => $node::class,
+            ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)),
             Events\WorkflowNodeStart::class => [
                 'node' => $data->node,
             ],

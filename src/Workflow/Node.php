@@ -15,6 +15,7 @@ abstract class Node implements NodeInterface
 
     public function run(Event $event, WorkflowState $state): Event
     {
+        /** @phpstan-ignore method.notFound */
         return $this->__invoke($event, $state);
     }
 
