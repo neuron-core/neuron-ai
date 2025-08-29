@@ -9,7 +9,7 @@ use NeuronAI\Evaluation\AssertionFailure;
 class EvaluationSummary
 {
     /**
-     * @param array<AggregatedResult> $results
+     * @param array<EvaluatorResult> $results
      */
     public function __construct(
         private readonly array $results,
@@ -18,7 +18,7 @@ class EvaluationSummary
     }
 
     /**
-     * @return array<AggregatedResult>
+     * @return array<EvaluatorResult>
      */
     public function getResults(): array
     {
@@ -32,7 +32,7 @@ class EvaluationSummary
 
     public function getPassedCount(): int
     {
-        return \count(\array_filter($this->results, fn (AggregatedResult $result): bool => $result->isPassed()));
+        return \count(\array_filter($this->results, fn (EvaluatorResult $result): bool => $result->isPassed()));
     }
 
     public function getFailedCount(): int
@@ -64,11 +64,11 @@ class EvaluationSummary
     }
 
     /**
-     * @return array<AggregatedResult>
+     * @return array<EvaluatorResult>
      */
     public function getFailedResults(): array
     {
-        return \array_filter($this->results, fn (AggregatedResult $result): bool => !$result->isPassed());
+        return \array_filter($this->results, fn (EvaluatorResult $result): bool => !$result->isPassed());
     }
 
     public function hasFailures(): bool
@@ -78,12 +78,12 @@ class EvaluationSummary
 
     public function getTotalAssertionsPassed(): int
     {
-        return \array_sum(\array_map(fn (AggregatedResult $result): int => $result->getAssertionsPassed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsPassed(), $this->results));
     }
 
     public function getTotalAssertionsFailed(): int
     {
-        return \array_sum(\array_map(fn (AggregatedResult $result): int => $result->getAssertionsFailed(), $this->results));
+        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsFailed(), $this->results));
     }
 
     public function getTotalAssertions(): int

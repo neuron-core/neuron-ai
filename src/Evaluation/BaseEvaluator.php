@@ -50,15 +50,15 @@ abstract class BaseEvaluator implements EvaluatorInterface
     /**
      * Execute an evaluation rule
      */
-    protected function executeRule(EvaluationRuleInterface $rule, mixed $actual, mixed $expected = null, array $context = []): bool
+    protected function executeRule(EvaluationRuleInterface $rule, mixed $actual): bool
     {
-        return $this->ruleExecutor->execute($rule, $actual, $expected, $context);
+        return $this->ruleExecutor->execute($rule, $actual);
     }
 
     /**
      * Get the number of passed assertions
      */
-    public function getAssertionsPassed(): int
+    public function getRulesPassed(): int
     {
         return $this->ruleExecutor->getPassedCount();
     }
@@ -66,7 +66,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
     /**
      * Get the number of failed assertions
      */
-    public function getAssertionsFailed(): int
+    public function getRulesFailed(): int
     {
         return $this->ruleExecutor->getFailedCount();
     }
@@ -74,7 +74,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
     /**
      * Get the total number of assertions
      */
-    public function getTotalAssertions(): int
+    public function getTotalRules(): int
     {
         return $this->ruleExecutor->getTotalCount();
     }
@@ -84,7 +84,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
      *
      * @return array<AssertionFailure>
      */
-    public function getAssertionFailures(): array
+    public function getRuleFailures(): array
     {
         return $this->ruleExecutor->getFailures();
     }

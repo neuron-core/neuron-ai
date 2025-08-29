@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
-use NeuronAI\Evaluation\Results\AggregatedResult;
+use NeuronAI\Evaluation\Results\EvaluatorResult;
 use NeuronAI\Evaluation\Results\EvaluationSummary;
 use Throwable;
 
@@ -40,19 +40,19 @@ class EvaluationRunner
             $totalTime += $executionTime;
 
             // Capture assertion counts and failures
-            $assertionsPassed = \method_exists($evaluator, 'getAssertionsPassed') ? $evaluator->getAssertionsPassed() : 0;
-            $assertionsFailed = \method_exists($evaluator, 'getAssertionsFailed') ? $evaluator->getAssertionsFailed() : 0;
-            $assertionFailures = \method_exists($evaluator, 'getAssertionFailures') ? $evaluator->getAssertionFailures() : [];
+            $rulesPassed = \method_exists($evaluator, 'getRulesPassed') ? $evaluator->getRulesPassed() : 0;
+            $rulesFailed = \method_exists($evaluator, 'getRulesFailed') ? $evaluator->getRulesFailed() : 0;
+            $ruleFailures = \method_exists($evaluator, 'getRulesFailures') ? $evaluator->getRuleFailures() : [];
 
-            $results[] = new AggregatedResult(
+            $results[] = new EvaluatorResult(
                 $index,
                 $passed,
                 $item,
                 $output,
                 $executionTime,
-                $assertionsPassed,
-                $assertionsFailed,
-                $assertionFailures,
+                $rulesPassed,
+                $rulesFailed,
+                $ruleFailures,
                 $error
             );
         }

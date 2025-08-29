@@ -18,9 +18,9 @@ class RuleExecutor
     /**
      * Execute an evaluation rule and track the result
      */
-    public function execute(EvaluationRuleInterface $rule, mixed $actual, mixed $expected = null, array $context = []): bool
+    public function execute(EvaluationRuleInterface $rule, mixed $actual): bool
     {
-        $result = $rule->evaluate($actual, $expected, $context);
+        $result = $rule->evaluate($actual);
 
         if ($result->passed) {
             $this->passedCount++;
