@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Exporter;
 
-use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\NodeInterface;
 use ReflectionClass;
 
 class ConsoleExporter implements ExporterInterface
 {
-    public function export(Workflow $workflow): string
+    /**
+     * @param array<string, NodeInterface> $eventNodeMap
+     */
+    public function export(array $eventNodeMap): string
     {
         $output = "Workflow Structure:\n";
         $output .= \str_repeat("=", 50) . "\n\n";
 
-        $eventNodeMap = $workflow->getEventNodeMap();
         $connections = $this->buildConnections($eventNodeMap);
 
         return $output . $this->renderFlow($connections);

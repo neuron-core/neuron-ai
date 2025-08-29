@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
-use NeuronAI\Tests\Workflow\Stubs\ThirdEvent;
 use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
@@ -50,10 +49,10 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new ConditionalNode(),
-                SecondEvent::class => new NodeForSecond(),
-                ThirdEvent::class => new NodeForThird(),
+                new NodeOne(),
+                new ConditionalNode(),
+                new NodeForSecond(),
+                new NodeForThird(),
             ])
             ->setExporter(new MermaidExporter());
 
@@ -78,9 +77,9 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new NodeTwo(),
+                 new NodeThree(),
             ])
             ->setExporter(new MermaidExporter());
 
@@ -99,8 +98,8 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
+                new NodeOne(),
+                new NodeTwo(),
             ])
             ->setExporter(new MermaidExporter());
 
@@ -117,26 +116,15 @@ class MermaidExporterTest extends TestCase
         $this->assertStringNotContainsString('NeuronAI\\Workflow\\', $mermaidOutput);
     }
 
-    public function testMermaidExportEmptyWorkflow(): void
-    {
-        $workflow = Workflow::make()
-            ->setExporter(new MermaidExporter());
-
-        $mermaidOutput = $workflow->export();
-
-        // Should still have the header but no connections
-        $this->assertEquals("graph TD\n", $mermaidOutput);
-    }
-
     public function testMermaidExportComplexFlow(): void
     {
         // Create a more complex workflow with multiple paths
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new ConditionalNode(),
-                SecondEvent::class => new NodeForSecond(),
-                ThirdEvent::class => new NodeForThird(),
+                new NodeOne(),
+                new ConditionalNode(),
+                 new NodeForSecond(),
+                new NodeForThird(),
             ])
             ->setExporter(new MermaidExporter());
 
@@ -159,8 +147,8 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
+                new NodeOne(),
+                new NodeTwo(),
             ])
             ->setExporter(new MermaidExporter());
 
@@ -178,9 +166,9 @@ class MermaidExporterTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new NodeTwo(),
+                 new NodeThree(),
             ])
             ->setExporter(new MermaidExporter());
 

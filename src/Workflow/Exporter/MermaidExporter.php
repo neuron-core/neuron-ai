@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Exporter;
 
-use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\NodeInterface;
 use ReflectionClass;
 
 class MermaidExporter implements ExporterInterface
 {
-    public function export(Workflow $workflow): string
+    /**
+     * @param array<string, NodeInterface> $eventNodeMap
+     * @throws \ReflectionException
+     */
+    public function export(array $eventNodeMap): string
     {
         $output = "graph TD\n";
-        $eventNodeMap = $workflow->getEventNodeMap();
         $processedConnections = [];
 
         foreach ($eventNodeMap as $eventClass => $node) {

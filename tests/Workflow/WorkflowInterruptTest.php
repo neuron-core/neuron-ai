@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
-use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
@@ -26,9 +23,9 @@ class WorkflowInterruptTest extends TestCase
 
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         $workflow->run();
@@ -38,9 +35,9 @@ class WorkflowInterruptTest extends TestCase
     {
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         try {
@@ -59,9 +56,9 @@ class WorkflowInterruptTest extends TestCase
 
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         try {
@@ -86,9 +83,9 @@ class WorkflowInterruptTest extends TestCase
     {
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         try {
@@ -108,9 +105,9 @@ class WorkflowInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make($persistence, 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         // First run - should interrupt
@@ -139,9 +136,9 @@ class WorkflowInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make($persistence, 'test-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new InterruptableNode(),
+                 new NodeThree(),
             ]);
 
         try {
@@ -171,9 +168,9 @@ class WorkflowInterruptTest extends TestCase
     {
         $workflow = Workflow::make(new InMemoryPersistence(), 'multi-interrupt-workflow')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new MultipleInterruptionsNode(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new MultipleInterruptionsNode(),
+                 new NodeThree(),
             ]);
 
         // First interrupt
@@ -202,8 +199,8 @@ class WorkflowInterruptTest extends TestCase
     {
         $workflow = Workflow::make(new InMemoryPersistence(), 'serialization-test')
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new InterruptableNode(),
+                new NodeOne(),
+                new InterruptableNode(),
             ]);
 
         try {

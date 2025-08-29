@@ -6,13 +6,13 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
-use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
+use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 
 class WorkflowValidationTest extends TestCase
 {
@@ -30,12 +30,12 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
 
-        $node1 = new NodeOne();
-        $node2 = new NodeOne();
+        $node1 = new NodeTwo();
+        $node2 = new NodeThree();
 
         $workflow = Workflow::make()
-            ->addNode(FirstEvent::class, $node1)
-            ->addNode(SecondEvent::class, $node2);
+            ->addNode($node1)
+            ->addNode($node2);
 
         $workflow->run();
     }
@@ -52,7 +52,7 @@ class WorkflowValidationTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make()->addNode(StartEvent::class, $invalidNode);
+        $workflow = Workflow::make()->addNode($invalidNode);
         $workflow->run();
     }
 }

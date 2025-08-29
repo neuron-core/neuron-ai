@@ -68,7 +68,7 @@ class Workflow implements SplSubject
         $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
 
         try {
-            $this->validate();
+            $this->loadEventNodeMap();
         } catch (WorkflowException $exception) {
             $this->notify('error', new AgentError($exception));
             throw $exception;
@@ -91,7 +91,7 @@ class Workflow implements SplSubject
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
 
         try {
-            $this->validate();
+            $this->loadEventNodeMap();
         } catch (WorkflowException $exception) {
             $this->notify('error', new AgentError($exception));
             throw $exception;
@@ -204,29 +204,9 @@ class Workflow implements SplSubject
     }
 
     /**
-     * @return array<string, NodeInterface>
-     */
-    public function getEventNodeMap(): array
-    {
-        return $this->eventNodeMap;
-    }
-
-    /**
      * @throws WorkflowException
      */
-    public function validate(): void
-    {
-        $this->loadEventNodeMap();
-
-        if (!isset($this->eventNodeMap[StartEvent::class])) {
-            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
-        }
-    }
-
-    /**
-     * @throws WorkflowException
-     */
-    protected function loadEventNodeMap(): Workflow
+    protected function loadEventNodeMap(): void
     {
         $this->eventNodeMap = [];
 
@@ -258,13 +238,23 @@ class Workflow implements SplSubject
             }
         }
 
-        return $this;
+        $this->validate();
     }
 
     /**
      * @throws WorkflowException
      */
-    private function validateInvokeMethodSignature(NodeInterface $node): void
+    protected function validate(): void
+    {
+        if (!isset($this->eventNodeMap[StartEvent::class])) {
+            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
+        }
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function validateInvokeMethodSignature(NodeInterface $node): void
     {
         try {
             $reflection = new ReflectionClass($node);
@@ -329,14 +319,26 @@ class Workflow implements SplSubject
         }
     }
 
+    public function getEventNodeMap(): array
+    {
+        return $this->eventNodeMap;
+    }
+
     public function getWorkflowId(): string
     {
         return $this->workflowId;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function export(): string
     {
-        return $this->exporter->export($this);
+        if ($this->eventNodeMap === []) {
+            $this->loadEventNodeMap();
+        }
+
+        return $this->exporter->export($this->eventNodeMap);
     }
 
     public function setExporter(ExporterInterface $exporter): Workflow
