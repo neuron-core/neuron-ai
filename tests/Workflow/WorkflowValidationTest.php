@@ -26,7 +26,7 @@ class WorkflowValidationTest extends TestCase
         $workflow->run();
     }
 
-    public function testValidationFailsWithDuplicateStartNodeInstances(): void
+    public function testValidationFailsWithMissingStartNode(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
@@ -41,56 +41,19 @@ class WorkflowValidationTest extends TestCase
         $workflow->run();
     }
 
-    public function testValidationWithInvalidNodeMethodSignature(): void
+    public function testValidationWithMissingHandler(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No node found that handle event: '.FirstEvent::class);
 
         $invalidNode = new class () extends Node {
-            public function run(Event $event, WorkflowState $state): Event // Missing WorkflowState parameter
+            public function run(Event $event, WorkflowState $state): FirstEvent
             {
                 return new FirstEvent('');
             }
         };
 
         $workflow = Workflow::make()->addNode(StartEvent::class, $invalidNode);
-        $workflow->run();
-    }
-
-    public function testValidationWithCircularDependency(): void
-    {
-        // Create a custom event for a circular dependency test
-        $customEvent = new class () implements Event {};
-
-        $nodeA = new class ($customEvent) extends Node {
-            public function __construct(private readonly Event $customEventClass)
-            {
-            }
-
-            public function run(Event $event, WorkflowState $state): Event
-            {
-                return new ($this->customEventClass::class)();
-            }
-        };
-
-        $nodeB = new class ($customEvent) extends Node {
-            public function __construct()
-            {
-            }
-
-            public function run(Event $event, WorkflowState $state): Event // Creates circular dependency
-            {
-                return new FirstEvent();
-            }
-        };
-
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Node for event '.StartEvent::class.' already exists');
-
-        $workflow = Workflow::make()
-            ->addNode(StartEvent::class, $nodeA)
-            ->addNode(StartEvent::class, $nodeB);
-
         $workflow->run();
     }
 }

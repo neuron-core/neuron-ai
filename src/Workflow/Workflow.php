@@ -161,10 +161,17 @@ class Workflow implements SplSubject
         return  $result;
     }
 
-    public function addNode(string $eventClass, NodeInterface $node): Workflow
+    public function addNode(string $eventClass, string|NodeInterface $node): Workflow
     {
         if (!\class_exists($eventClass) || !\is_a($eventClass, Event::class, true)) {
             throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
+        }
+
+        if (\is_string($node) && !\class_exists($node) || !\is_a($node, NodeInterface::class, true)) {
+            throw new WorkflowException("Node class {$node} must implement ".NodeInterface::class);
+        } else {
+            // Always store an instance
+            $node = new $node();
         }
 
         if (isset($this->eventNodeMap[$eventClass])) {
