@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Evaluation\Rules;
 
 use NeuronAI\Evaluation\EvaluationRuleResult;
@@ -13,7 +15,7 @@ class StringSimilarity extends AbstractRule
         protected string $reference,
         protected EmbeddingsProviderInterface $embeddingsProvider,
         protected float $threshold = 0.6
-    ){
+    ) {
     }
 
     /**
