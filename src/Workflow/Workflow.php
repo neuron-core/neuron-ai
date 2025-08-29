@@ -29,6 +29,11 @@ class Workflow implements SplSubject
     use StaticConstructor;
 
     /**
+     * @var NodeInterface[]
+     */
+    protected array $nodes = [];
+
+    /**
      * @var array<string, NodeInterface>
      */
     protected array $eventNodeMap = [];
@@ -56,21 +61,12 @@ class Workflow implements SplSubject
     }
 
     /**
-     * @throws WorkflowException
-     */
-    public function validate(): void
-    {
-        if (!isset($this->eventNodeMap[StartEvent::class])) {
-            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
-        }
-    }
-
-    /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
     public function run(?WorkflowState $initialState = null): WorkflowState
     {
         $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
+
         try {
             $this->validate();
         } catch (WorkflowException $exception) {
@@ -81,6 +77,7 @@ class Workflow implements SplSubject
         $state = $initialState ?? new WorkflowState();
 
         $state = $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $state);
+
         $this->notify('workflow-end', new WorkflowEnd($state));
 
         return $state;
@@ -92,6 +89,14 @@ class Workflow implements SplSubject
     public function resume(array|string|int $humanFeedback): WorkflowState
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
+
+        try {
+            $this->validate();
+        } catch (WorkflowException $exception) {
+            $this->notify('error', new AgentError($exception));
+            throw $exception;
+        }
+
         $interrupt = $this->persistence->load($this->workflowId);
 
         $state = $interrupt->getState();
@@ -165,52 +170,37 @@ class Workflow implements SplSubject
     }
 
     /**
-     * @throws WorkflowException
+     * @return NodeInterface[]
      */
-    public function addNode(string $eventClass, NodeInterface $node): Workflow
+    protected function nodes(): array
     {
-        if (!\class_exists($eventClass) || !\is_a($eventClass, Event::class, true)) {
-            throw new WorkflowException("Event class {$eventClass} must implement ".Event::class);
+        return [];
+    }
+
+    public function addNode(NodeInterface $node): Workflow
+    {
+        $this->nodes[] = $node;
+        return $this;
+    }
+
+    /**
+     * @param NodeInterface[] $nodes
+     */
+    public function addNodes(array $nodes): Workflow
+    {
+        foreach ($nodes as $node) {
+            $this->addNode($node);
         }
-
-        $this->validateInvokeMethodSignature($node);
-
-        if (isset($this->eventNodeMap[$eventClass])) {
-            throw new WorkflowException("Node for event {$eventClass} already exists");
-        }
-
-        $this->eventNodeMap[$eventClass] = $node;
 
         return $this;
     }
 
     /**
-     * @param array<string, string|NodeInterface> $eventToNodeMap Array where keys are Event class names and values are Node instances
-     * @throws WorkflowException
+     * @return NodeInterface[]
      */
-    public function addNodes(array $eventToNodeMap): Workflow
+    protected function getNodes(): array
     {
-        foreach ($eventToNodeMap as $eventClass => $node) {
-            $this->addNode($eventClass, $node);
-        }
-
-        return $this;
-    }
-
-    public function getWorkflowId(): string
-    {
-        return $this->workflowId;
-    }
-
-    public function export(): string
-    {
-        return $this->exporter->export($this);
-    }
-
-    public function setExporter(ExporterInterface $exporter): Workflow
-    {
-        $this->exporter = $exporter;
-        return $this;
+        return \array_merge($this->nodes(), $this->nodes);
     }
 
     /**
@@ -219,6 +209,56 @@ class Workflow implements SplSubject
     public function getEventNodeMap(): array
     {
         return $this->eventNodeMap;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    public function validate(): void
+    {
+        $this->loadEventNodeMap();
+
+        if (!isset($this->eventNodeMap[StartEvent::class])) {
+            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
+        }
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function loadEventNodeMap(): Workflow
+    {
+        $this->eventNodeMap = [];
+
+        foreach ($this->getNodes() as $node) {
+            if (!$node instanceof NodeInterface) {
+                throw new WorkflowException('All nodes must implement ' . NodeInterface::class);
+            }
+
+            $this->validateInvokeMethodSignature($node);
+
+            try {
+                $reflection = new ReflectionClass($node);
+                $method = $reflection->getMethod('__invoke');
+                $parameters = $method->getParameters();
+                $firstParam = $parameters[0];
+                $firstParamType = $firstParam->getType();
+
+                if ($firstParamType instanceof \ReflectionNamedType) {
+                    $eventClass = $firstParamType->getName();
+
+                    if (isset($this->eventNodeMap[$eventClass])) {
+                        throw new WorkflowException("Node for event {$eventClass} already exists");
+                    }
+
+                    $this->eventNodeMap[$eventClass] = $node;
+                }
+            } catch (ReflectionException $e) {
+                throw new WorkflowException('Failed to load event-node map for '.$node::class.': ' . $e->getMessage());
+            }
+        }
+
+        return $this;
     }
 
     /**
@@ -289,4 +329,19 @@ class Workflow implements SplSubject
         }
     }
 
+    public function getWorkflowId(): string
+    {
+        return $this->workflowId;
+    }
+
+    public function export(): string
+    {
+        return $this->exporter->export($this);
+    }
+
+    public function setExporter(ExporterInterface $exporter): Workflow
+    {
+        $this->exporter = $exporter;
+        return $this;
+    }
 }
