@@ -18,12 +18,11 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
 use ReflectionException;
-use SplSubject;
 
 /**
  * @method static static make(?PersistenceInterface $persistence = null, ?string $workflowId = null)
  */
-class Workflow implements SplSubject
+class Workflow implements WorkflowInterface
 {
     use Observable;
     use StaticConstructor;
@@ -86,7 +85,7 @@ class Workflow implements SplSubject
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function resume(array|string|int $humanFeedback): WorkflowState
+    public function resume(mixed $externalFeedback): WorkflowState
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
 
@@ -108,7 +107,7 @@ class Workflow implements SplSubject
             $currentNode,
             $state,
             true,
-            $humanFeedback
+            $externalFeedback
         );
         $this->notify('workflow-end', new WorkflowEnd($result));
 
@@ -119,13 +118,13 @@ class Workflow implements SplSubject
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
     protected function execute(
-        Event            $currentEvent,
-        NodeInterface    $currentNode,
-        WorkflowState    $state,
-        bool             $resuming = false,
-        array|string|int $humanFeedback = []
+        Event $currentEvent,
+        NodeInterface $currentNode,
+        WorkflowState $state,
+        bool $resuming = false,
+        mixed $externalFeedback = null
     ): WorkflowState {
-        $feedback = $resuming ? [$currentNode::class => $humanFeedback] : [];
+        $feedback = $resuming ? [$currentNode::class => $externalFeedback] : [];
 
         try {
             while (!($currentEvent instanceof StopEvent)) {
@@ -215,7 +214,7 @@ class Workflow implements SplSubject
     /**
      * @throws WorkflowException
      */
-    public function loadEventNodeMap(): void
+    protected function loadEventNodeMap(): void
     {
         $this->eventNodeMap = [];
 
