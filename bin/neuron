@@ -25,10 +25,10 @@ if (!$autoloaderFound) {
     exit(1);
 }
 
-use NeuronAI\Console\NeuronCommand;
+use NeuronAI\Console\NeuronCli;
 
 try {
-    $command = new NeuronCommand();
+    $command = new NeuronCli();
     $exitCode = $command->run($argv);
     exit($exitCode);
 } catch (Throwable $e) {

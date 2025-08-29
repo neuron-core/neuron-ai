@@ -6,7 +6,7 @@ namespace NeuronAI\Console;
 
 use NeuronAI\Evaluation\Console\EvaluationCommand;
 
-class NeuronCommand
+class NeuronCli
 {
     private const AVAILABLE_COMMANDS = [
         'evaluation' => EvaluationCommand::class,
@@ -39,13 +39,13 @@ class NeuronCommand
         }
 
         $commandClass = self::AVAILABLE_COMMANDS[$commandName];
-        
+
         try {
             $command = new $commandClass();
-            
+
             // Prepare arguments for the sub-command (restore script name simulation)
             $subCommandArgs = ['neuron', ...$args];
-            
+
             return $command->run($subCommandArgs);
         } catch (\Throwable $e) {
             $this->printError("Error executing command '{$commandName}': " . $e->getMessage());
