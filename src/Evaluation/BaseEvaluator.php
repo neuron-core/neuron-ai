@@ -13,7 +13,7 @@ abstract class BaseEvaluator extends Assertions implements EvaluatorInterface
      * Set up method called before evaluation starts
      * Override this to initialize judge agents and other resources
      */
-    protected function setUp(): void
+    public function setUp(): void
     {
         // Default empty implementation - developers override as needed
     }
