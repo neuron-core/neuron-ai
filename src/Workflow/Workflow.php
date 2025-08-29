@@ -68,7 +68,7 @@ class Workflow implements SplSubject
         $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap, []));
 
         try {
-            $this->loadEventNodeMap();
+            $this->bootstrap();
         } catch (WorkflowException $exception) {
             $this->notify('error', new AgentError($exception));
             throw $exception;
@@ -91,7 +91,7 @@ class Workflow implements SplSubject
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap, []));
 
         try {
-            $this->loadEventNodeMap();
+            $this->bootstrap();
         } catch (WorkflowException $exception) {
             $this->notify('error', new AgentError($exception));
             throw $exception;
@@ -206,7 +206,16 @@ class Workflow implements SplSubject
     /**
      * @throws WorkflowException
      */
-    protected function loadEventNodeMap(): void
+    protected function bootstrap(): void
+    {
+        $this->loadEventNodeMap();
+        $this->validate();
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    public function loadEventNodeMap(): void
     {
         $this->eventNodeMap = [];
 
@@ -237,8 +246,6 @@ class Workflow implements SplSubject
                 throw new WorkflowException('Failed to load event-node map for '.$node::class.': ' . $e->getMessage());
             }
         }
-
-        $this->validate();
     }
 
     /**
@@ -335,7 +342,7 @@ class Workflow implements SplSubject
     public function export(): string
     {
         if ($this->eventNodeMap === []) {
-            $this->loadEventNodeMap();
+            $this->bootstrap();
         }
 
         return $this->exporter->export($this->eventNodeMap);
