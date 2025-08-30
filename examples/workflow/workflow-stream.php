@@ -14,11 +14,11 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 $persistence = new FilePersistence(__DIR__);
 
-$workflow = new Workflow(new WorkflowState(), $persistence, 'test_workflow');
+$workflow = new Workflow();
 
 $workflow->addNodes([
     new NodeOne(),
-    new NodeTwo(),
+    new NodeTwo(), // <-- This node streams the SecondEvent
     new NodeForSecond(),
 ]);
 
