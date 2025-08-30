@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
