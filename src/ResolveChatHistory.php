@@ -47,10 +47,6 @@ trait ResolveChatHistory
      */
     public function resolveChatHistory(): ChatHistoryInterface
     {
-        if (!isset($this->chatHistory)) {
-            $this->chatHistory = $this->chatHistory();
-        }
-
-        return $this->chatHistory;
+        return $this->chatHistory ?? $this->chatHistory = $this->chatHistory();
     }
 }

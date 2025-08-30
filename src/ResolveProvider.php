@@ -38,10 +38,6 @@ trait ResolveProvider
      */
     public function resolveProvider(): AIProviderInterface
     {
-        if (!isset($this->provider)) {
-            $this->provider = $this->provider();
-        }
-
-        return $this->provider;
+        return $this->provider ?? $this->provider = $this->provider();
     }
 }
