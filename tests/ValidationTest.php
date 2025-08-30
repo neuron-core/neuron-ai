@@ -24,6 +24,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
 use NeuronAI\StructuredOutput\Validation\Rules\NotEqualTo;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNotNull;
 use NeuronAI\StructuredOutput\Validation\Rules\Url;
+use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
@@ -556,5 +557,51 @@ class ValidationTest extends TestCase
         $this->expectException(StructuredOutputException::class);
 
         Validator::validate($obj);
+    }
+
+    public function test_words_count_validation(): void
+    {
+        $class = new class () {
+            #[WordsCount(exactly: 3)]
+            public string $text = 'hello world test';
+        };
+        $class = new $class();
+
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->text = 'hello world';
+        $violations = Validator::validate($class);
+        $this->assertCount(1, $violations);
+
+        $class->text = 'hello world test extra';
+        $violations = Validator::validate($class);
+        $this->assertCount(1, $violations);
+
+        $class = new class () {
+            #[WordsCount(min: 2)]
+            public string $text = 'hello world';
+        };
+        $class = new $class();
+
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->text = 'hello';
+        $violations = Validator::validate($class);
+        $this->assertCount(1, $violations);
+
+        $class = new class () {
+            #[WordsCount(max: 2)]
+            public string $text = 'hello world';
+        };
+        $class = new $class();
+
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->text = 'hello world test';
+        $violations = Validator::validate($class);
+        $this->assertCount(1, $violations);
     }
 }
