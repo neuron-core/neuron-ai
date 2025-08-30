@@ -229,8 +229,8 @@ class Workflow implements SplSubject
     public function addNodes(array $nodes): Workflow
     {
         // Check if it's an associative array
-        $isAssociative = count(array_filter(array_keys($nodes), 'is_string')) > 0;
-        
+        $isAssociative = \count(\array_filter(\array_keys($nodes), 'is_string')) > 0;
+
         if ($isAssociative) {
             // If associative, use the keys
             foreach ($nodes as $key => $node) {
@@ -252,11 +252,11 @@ class Workflow implements SplSubject
     {
         if ($this->nodes === []) {
             $nodeDefinitions = $this->nodes();
-            
+
             // Check if it's an associative array (has string keys)
             // An associative array has string keys or non-sequential numeric keys
-            $isAssociative = count(array_filter(array_keys($nodeDefinitions), 'is_string')) > 0;
-            
+            $isAssociative = \count(\array_filter(\array_keys($nodeDefinitions), 'is_string')) > 0;
+
             if ($isAssociative) {
                 // New behavior: use provided keys directly
                 $this->nodes = $nodeDefinitions;
