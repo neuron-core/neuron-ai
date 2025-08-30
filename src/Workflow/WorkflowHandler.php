@@ -27,12 +27,7 @@ class WorkflowHandler
         $generator = $this->resume ? $this->workflow->resume($this->externalFeedback) : $this->workflow->run();
 
         while ($generator->valid()) {
-            $current = $generator->current();
-
-            if ($current instanceof Event) {
-                yield $current;
-            }
-
+            yield $generator->current();
             $generator->next();
         }
 
@@ -50,11 +45,7 @@ class WorkflowHandler
         // If streaming hasn't been consumed, consume it silently to get the final result
         if (!isset($this->result)) {
             foreach ($this->streamEvents() as $event) {
-                continue;
             }
-            /*$generator = $this->streamEvents();
-            \iterator_to_array($generator, false);
-            $this->result = $generator->getReturn();*/
         }
 
         return $this->result;

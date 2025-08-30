@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 
 require_once __DIR__ . '/../../vendor/autoload.php';

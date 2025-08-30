@@ -21,6 +21,8 @@ return RectorConfig::configure()
     ->withRules([
         AddReturnTypeDeclarationRector::class
     ])
-    /*->withSkip([
-        __DIR__ . '/src/Workflow/WorkflowHandler.php',
-    ])*/;
+    ->withSkip([
+        \Rector\DeadCode\Rector\For_\RemoveDeadIfForeachForRector::class => [
+            __DIR__ . '/src/Workflow/WorkflowHandler.php'
+        ],
+    ]);
