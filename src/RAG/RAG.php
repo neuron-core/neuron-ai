@@ -27,6 +27,7 @@ class RAG extends Agent
 {
     use ResolveVectorStore;
     use ResolveEmbeddingProvider;
+    use ResolveRetrieval;
 
     /**
      * @var PreProcessorInterface[]
@@ -39,22 +40,6 @@ class RAG extends Agent
     protected array $postProcessors = [];
 
     /**
-     * @deprecated TUse "chat" instead
-     */
-    public function answer(Message $question): Message
-    {
-        return $this->chat($question);
-    }
-
-    /**
-     * @deprecated Use "stream" instead
-     */
-    public function answerStream(Message $question): \Generator
-    {
-        return $this->stream($question);
-    }
-
-    /**
      * @throws MissingCallbackParameter
      * @throws ToolCallableNotSet
      * @throws \Throwable
@@ -65,7 +50,9 @@ class RAG extends Agent
 
         $this->notify('chat-rag-start');
 
-        $this->retrieval($question);
+        $this->withDocumentsContext(
+            $this->retrieveDocuments($question)
+        );
 
         $response = parent::chat($messages);
 
@@ -73,13 +60,18 @@ class RAG extends Agent
         return $response;
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function stream(Message|array $messages): \Generator
     {
         $question = \is_array($messages) ? \end($messages) : $messages;
 
         $this->notify('stream-rag-start');
 
-        $this->retrieval($question);
+        $this->withDocumentsContext(
+            $this->retrieveDocuments($question)
+        );
 
         yield from parent::stream($messages);
 
@@ -92,20 +84,15 @@ class RAG extends Agent
 
         $this->notify('structured-rag-start');
 
-        $this->retrieval($question);
+        $this->withDocumentsContext(
+            $this->retrieveDocuments($question)
+        );
 
         $structured = parent::structured($messages, $class, $maxRetries);
 
         $this->notify('structured-rag-stop');
 
         return $structured;
-    }
-
-    protected function retrieval(Message $question): void
-    {
-        $this->withDocumentsContext(
-            $this->retrieveDocuments($question)
-        );
     }
 
     /**
@@ -134,7 +121,7 @@ class RAG extends Agent
     }
 
     /**
-     * Retrieve relevant documents from the vector store.
+     * Retrieve relevant documents using the configured retrieval strategy.
      *
      * @return Document[]
      */
@@ -144,9 +131,7 @@ class RAG extends Agent
 
         $this->notify('rag-retrieving', new Retrieving($question));
 
-        $documents = $this->resolveVectorStore()->similaritySearch(
-            $this->resolveEmbeddingsProvider()->embedText($question->getContent()),
-        );
+        $documents = $this->resolveRetrieval()->retrieve($question);
 
         $retrievedDocs = [];
 

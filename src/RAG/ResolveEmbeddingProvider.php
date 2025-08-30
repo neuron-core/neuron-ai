@@ -8,9 +8,6 @@ use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 
 trait ResolveEmbeddingProvider
 {
-    /**
-     * The embeddings provider of the RAG system.
-     */
     protected EmbeddingsProviderInterface $embeddingsProvider;
 
     public function setEmbeddingsProvider(EmbeddingsProviderInterface $provider): RAG
