@@ -216,19 +216,31 @@ class Workflow implements SplSubject
         return [];
     }
 
-    public function addNode(NodeInterface $node): self
+    public function addNode(NodeInterface $node, ?string $key = null): self
     {
-        $this->nodes[$node::class] = $node;
+        $nodeKey = $key ?? $node::class;
+        $this->nodes[$nodeKey] = $node;
         return $this;
     }
 
     /**
-     * @param NodeInterface[] $nodes
+     * @param NodeInterface[]|array<string, NodeInterface> $nodes
      */
     public function addNodes(array $nodes): Workflow
     {
-        foreach ($nodes as $node) {
-            $this->addNode($node);
+        // Check if it's an associative array
+        $isAssociative = count(array_filter(array_keys($nodes), 'is_string')) > 0;
+        
+        if ($isAssociative) {
+            // If associative, use the keys
+            foreach ($nodes as $key => $node) {
+                $this->addNode($node, $key);
+            }
+        } else {
+            // If indexed, use class names as keys
+            foreach ($nodes as $node) {
+                $this->addNode($node);
+            }
         }
         return $this;
     }
@@ -239,8 +251,20 @@ class Workflow implements SplSubject
     public function getNodes(): array
     {
         if ($this->nodes === []) {
-            foreach ($this->nodes() as $node) {
-                $this->addNode($node);
+            $nodeDefinitions = $this->nodes();
+            
+            // Check if it's an associative array (has string keys)
+            // An associative array has string keys or non-sequential numeric keys
+            $isAssociative = count(array_filter(array_keys($nodeDefinitions), 'is_string')) > 0;
+            
+            if ($isAssociative) {
+                // New behavior: use provided keys directly
+                $this->nodes = $nodeDefinitions;
+            } else {
+                // Old behavior: use class names as keys
+                foreach ($nodeDefinitions as $node) {
+                    $this->addNode($node);
+                }
             }
         }
 
