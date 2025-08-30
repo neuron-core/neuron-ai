@@ -8,7 +8,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowState;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
