@@ -88,7 +88,7 @@ class TavilySearchTool extends Tool
     }
 
     /**
-     * @return array<int, array<string, string|array<string, string>>
+     * @return array<string, mixed>
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function __invoke(
