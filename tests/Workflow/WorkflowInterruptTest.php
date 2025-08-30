@@ -52,7 +52,7 @@ class WorkflowInterruptTest extends TestCase
 
     public function testWorkflowInterruptPreservesState(): void
     {
-        $initialState = new WorkflowState(['initial_data' => 'preserved']);
+        new WorkflowState(['initial_data' => 'preserved']);
 
         $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
             ->addNodes([
@@ -62,7 +62,7 @@ class WorkflowInterruptTest extends TestCase
             ]);
 
         try {
-            $workflow->run($initialState);
+            $workflow->run();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $state = $interrupt->getState();

@@ -20,4 +20,7 @@ return RectorConfig::configure()
     )
     ->withRules([
         AddReturnTypeDeclarationRector::class
-    ]);
+    ])
+    /*->withSkip([
+        __DIR__ . '/src/Workflow/WorkflowHandler.php',
+    ])*/;

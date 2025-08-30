@@ -50,9 +50,12 @@ class WorkflowHandler
     {
         // If streaming hasn't been consumed, consume it silently to get the final result
         if ($this->result === null) {
-            foreach ($this->streamEvents() as $event) {
+            /*foreach ($this->streamEvents() as $event) {
                 continue;
-            }
+            }*/
+            $generator = $this->streamEvents();
+            \iterator_to_array($generator, false); // Consume all yielded values
+            $this->result = $generator->getReturn(); // Gets the returned value
         }
 
         return $this->result;

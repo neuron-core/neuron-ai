@@ -49,8 +49,8 @@ class WorkflowTest extends TestCase
                  new NodeThree(),
             ]);
 
-        $initialState = new WorkflowState(['initial_data' => 'test']);
-        $finalState = $workflow->run($initialState);
+        new WorkflowState(['initial_data' => 'test']);
+        $finalState = $workflow->run();
 
         $this->assertEquals('test', $finalState->get('initial_data'));
         $this->assertTrue($finalState->get('node_one_executed'));
@@ -99,8 +99,8 @@ class WorkflowTest extends TestCase
             ]);
 
         // Test the second path
-        $state = new WorkflowState(['condition' => 'second']);
-        $finalState = $workflow->run($state);
+        new WorkflowState(['condition' => 'second']);
+        $finalState = $workflow->run();
 
         $this->assertTrue($finalState->get('conditional_node_executed'));
         $this->assertTrue($finalState->get('second_path_executed'));
@@ -108,8 +108,8 @@ class WorkflowTest extends TestCase
         $this->assertEquals('Conditional chose second', $finalState->get('final_second_message'));
 
         // Test the third path
-        $state = new WorkflowState(['condition' => 'third']);
-        $finalState = $workflow->run($state);
+        new WorkflowState(['condition' => 'third']);
+        $finalState = $workflow->run();
 
         $this->assertTrue($finalState->get('conditional_node_executed'));
         $this->assertTrue($finalState->get('third_path_executed'));
