@@ -23,9 +23,6 @@ trait ResolveEmbeddingProvider
 
     public function resolveEmbeddingsProvider(): EmbeddingsProviderInterface
     {
-        if (!isset($this->embeddingsProvider)) {
-            $this->embeddingsProvider = $this->embeddings();
-        }
-        return $this->embeddingsProvider;
+        return $this->embeddingsProvider ?? $this->embeddingsProvider = $this->embeddings();
     }
 }
