@@ -6,6 +6,11 @@ namespace NeuronAI\Workflow;
 
 class WorkflowState
 {
+    /**
+     * @var Event[]
+     */
+    protected array $streamBuffer = [];
+
     public function __construct(protected array $data = [])
     {
     }
@@ -38,5 +43,20 @@ class WorkflowState
     public function all(): array
     {
         return $this->data;
+    }
+
+    public function writeEventToStream(Event $event): void
+    {
+        $this->streamBuffer[] = $event;
+    }
+
+    /**
+     * @return Event[]
+     */
+    public function getStreamBuffer(): array
+    {
+        $buffer = $this->streamBuffer;
+        $this->streamBuffer = [];
+        return $buffer;
     }
 }

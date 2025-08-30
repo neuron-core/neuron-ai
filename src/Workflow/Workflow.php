@@ -41,10 +41,15 @@ class Workflow implements WorkflowInterface
 
     protected PersistenceInterface $persistence;
 
+    protected WorkflowState $state;
+
     protected string $workflowId;
 
-    public function __construct(?PersistenceInterface $persistence = null, ?string $workflowId = null)
-    {
+    public function __construct(
+        ?WorkflowState $state = null,
+        ?PersistenceInterface $persistence = null,
+        ?string $workflowId = null
+    ) {
         $this->exporter = new ConsoleExporter();
 
         if (\is_null($persistence) && !\is_null($workflowId)) {
@@ -55,14 +60,31 @@ class Workflow implements WorkflowInterface
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
 
+        $this->state = $state ?? new WorkflowState();
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
+
+    }
+
+    protected function yieldStreamBuffer(WorkflowState $state): \Generator
+    {
+        $buffer = $state->getStreamBuffer();
+        foreach ($buffer as $event) {
+            yield $event;
+        }
+    }
+
+    public function start(
+        bool $resume = false,
+        mixed $externalFeedback = null
+    ): WorkflowHandler {
+        return new WorkflowHandler($this, $this->state, $resume, $externalFeedback);
     }
 
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function run(?WorkflowState $initialState = null): WorkflowState
+    public function run(): \Generator
     {
         $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap));
 
@@ -73,19 +95,17 @@ class Workflow implements WorkflowInterface
             throw $exception;
         }
 
-        $state = $initialState ?? new WorkflowState();
+        yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $this->state);
 
-        $state = $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $state);
+        $this->notify('workflow-end', new WorkflowEnd($this->state));
 
-        $this->notify('workflow-end', new WorkflowEnd($state));
-
-        return $state;
+        return $this->state;
     }
 
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function resume(mixed $externalFeedback): WorkflowState
+    public function resume(mixed $externalFeedback): \Generator
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
@@ -102,16 +122,17 @@ class Workflow implements WorkflowInterface
         $currentNode = $interrupt->getCurrentNode();
         $currentEvent = $interrupt->getCurrentEvent();
 
-        $result = $this->execute(
+        yield from $this->execute(
             $currentEvent,
             $currentNode,
             $state,
             true,
             $externalFeedback
         );
-        $this->notify('workflow-end', new WorkflowEnd($result));
 
-        return  $result;
+        $this->notify('workflow-end', new WorkflowEnd($this->state));
+
+        return $this->state;
     }
 
     /**
@@ -123,7 +144,7 @@ class Workflow implements WorkflowInterface
         WorkflowState $state,
         bool $resuming = false,
         mixed $externalFeedback = null
-    ): WorkflowState {
+    ): \Generator {
         $feedback = $resuming ? [$currentNode::class => $externalFeedback] : [];
 
         try {
@@ -138,6 +159,7 @@ class Workflow implements WorkflowInterface
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $state));
                 try {
                     $currentEvent = $currentNode->run($currentEvent, $state);
+                    yield from $this->yieldStreamBuffer($state);
                 } catch (\Throwable $exception) {
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
