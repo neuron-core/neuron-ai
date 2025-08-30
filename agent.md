@@ -127,7 +127,12 @@ $handler = Workflow::make()
     ->start($initialState);
 
 foreach ($handler->streamEvents() as $event) {
-    // do something with the event
+    // flush the event stream
+    echo match (get_class($event)) {
+        ValidationEvent::class => $event->validationResult,
+        ProgressEvent::class => $event->message,,
+        // ...
+    }
 }
 
 $finalState = $handler->getResult();
