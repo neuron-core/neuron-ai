@@ -22,7 +22,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
 
         $workflow = Workflow::make();
-        $workflow->run();
+        $workflow->start()->getResult();
     }
 
     public function testValidationFailsWithMissingStartNode(): void
@@ -37,7 +37,7 @@ class WorkflowValidationTest extends TestCase
             ->addNode($node1)
             ->addNode($node2);
 
-        $workflow->run();
+        $workflow->start()->getResult();
     }
 
     public function testValidationWithMissingHandler(): void
@@ -53,6 +53,6 @@ class WorkflowValidationTest extends TestCase
         };
 
         $workflow = Workflow::make()->addNode($invalidNode);
-        $workflow->run();
+        $workflow->start()->getResult();
     }
 }

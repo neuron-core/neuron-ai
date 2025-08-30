@@ -20,7 +20,7 @@ use ReflectionClass;
 use ReflectionException;
 
 /**
- * @method static static make(?PersistenceInterface $persistence = null, ?string $workflowId = null)
+ * @method static static make(?WorkflowState $state = null, ?PersistenceInterface $persistence = null, ?string $workflowId = null)
  */
 class Workflow implements WorkflowInterface
 {

@@ -21,27 +21,31 @@ class WorkflowInterruptTest extends TestCase
         $this->expectException(WorkflowInterrupt::class);
         $this->expectExceptionMessage('Workflow interrupted for human input');
 
-        $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+             new NodeThree(),
+        ]);
 
-        $workflow->run();
+        $workflow->start()->getResult();
     }
 
     public function testWorkflowInterruptContainsData(): void
     {
-        $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+             new NodeThree(),
+        ]);
 
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['message' => 'Need human input'], $interrupt->getData());
@@ -52,17 +56,18 @@ class WorkflowInterruptTest extends TestCase
 
     public function testWorkflowInterruptPreservesState(): void
     {
-        new WorkflowState(['initial_data' => 'preserved']);
-
-        $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            new WorkflowState(['initial_data' => 'preserved']),
+            new InMemoryPersistence(),
+            'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
+        ]);
 
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $state = $interrupt->getState();
@@ -81,15 +86,17 @@ class WorkflowInterruptTest extends TestCase
 
     public function testWorkflowInterruptContainsCurrentEvent(): void
     {
-        $workflow = Workflow::make(new InMemoryPersistence(), 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
+        ]);
 
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $currentEvent = $interrupt->getCurrentEvent();
@@ -101,17 +108,18 @@ class WorkflowInterruptTest extends TestCase
 
     public function testWorkflowResume(): void
     {
-        $persistence = new InMemoryPersistence();
-        $workflow = Workflow::make($persistence, 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
+        ]);
 
         // First run - should interrupt
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             // Verify interrupt occurred at correct node
@@ -119,7 +127,7 @@ class WorkflowInterruptTest extends TestCase
         }
 
         // Resume with human feedback
-        $finalState = $workflow->resume('human feedback provided');
+        $finalState = $workflow->start(true, 'human feedback provided')->getResult();
 
         // Verify the workflow completed successfully
         $this->assertTrue($finalState->get('node_one_executed'));
@@ -132,49 +140,54 @@ class WorkflowInterruptTest extends TestCase
 
     public function testWorkflowResumeWithComplexFeedback(): void
     {
-        $persistence = new InMemoryPersistence();
-        $workflow = Workflow::make($persistence, 'test-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'test-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
+        ]);
 
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
         } catch (WorkflowInterrupt) {
             // Expected
         }
 
         // Resume with array feedback
         $complexFeedback = ['decision' => 'approve', 'priority' => 'high'];
-        $finalState = $workflow->resume($complexFeedback);
+        $finalState = $workflow->start(true, $complexFeedback)->getResult();
 
         $this->assertEquals($complexFeedback, $finalState->get('received_feedback'));
     }
 
     public function testWorkflowResumeWithoutPriorInterrupt(): void
     {
-        $persistence = new InMemoryPersistence();
-        $workflow = Workflow::make($persistence, 'empty-workflow');
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'empty-workflow'
+        );
 
         $this->expectException(\Exception::class); // Should fail when trying to load non-existent interrupt
 
-        $workflow->resume('feedback');
+        $workflow->start(true, 'feedback')->getResult();
     }
 
     public function testMultipleInterruptsAndResumes(): void
     {
-        $workflow = Workflow::make(new InMemoryPersistence(), 'multi-interrupt-workflow')
-            ->addNodes([
-                new NodeOne(),
-                new MultipleInterruptionsNode(),
-                 new NodeThree(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'multi-interrupt-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new MultipleInterruptionsNode(),
+            new NodeThree(),
+        ]);
 
         // First interrupt
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
             $this->fail('First interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 1, 'message' => 'Interrupt #1'], $interrupt->getData());
@@ -182,28 +195,30 @@ class WorkflowInterruptTest extends TestCase
 
         // Second interrupt
         try {
-            $finalState = $workflow->resume('second interrupt');
+            $finalState = $workflow->start(true, 'second interrupt')->getResult();
             $this->fail('Second interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
         }
 
         // Final completion
-        $finalState = $workflow->resume('second response');
+        $finalState = $workflow->start(true, 'second response')->getResult();
         $this->assertTrue($finalState->get('all_interrupts_complete'));
         $this->assertEquals(3, $finalState->get('interrupt_count'));
     }
 
     public function testWorkflowInterruptSerialization(): void
     {
-        $workflow = Workflow::make(new InMemoryPersistence(), 'serialization-test')
-            ->addNodes([
-                new NodeOne(),
-                new InterruptableNode(),
-            ]);
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+            workflowId: 'serialize-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+        ]);
 
         try {
-            $workflow->run();
+            $workflow->start()->getResult();
         } catch (WorkflowInterrupt $interrupt) {
             // Test JSON serialization
             $json = \json_encode($interrupt);
