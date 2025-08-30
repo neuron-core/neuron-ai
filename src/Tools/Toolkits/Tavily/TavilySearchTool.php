@@ -22,7 +22,7 @@ class TavilySearchTool extends Tool
     protected array $options = [
         'search_depth' => 'basic',
         'chunks_per_source' => 3,
-        'max_results' => 1,
+        'max_results' => 3,
     ];
 
     /**
@@ -87,6 +87,10 @@ class TavilySearchTool extends Tool
         ]);
     }
 
+    /**
+     * @return array<int, array<string, string|array<string, string>>
+     * @throws \GuzzleHttp\Exception\GuzzleException
+     */
     public function __invoke(
         string $search_query,
         ?string $topic = null,
@@ -101,9 +105,7 @@ class TavilySearchTool extends Tool
             RequestOptions::JSON => \array_merge(
                 ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
                 $this->options,
-                [
-                    'query' => $search_query,
-                ]
+                ['query' => $search_query]
             )
         ])->getBody()->getContents();
 
@@ -111,6 +113,7 @@ class TavilySearchTool extends Tool
 
         return [
             'answer' => $result['answer'],
+            'images' => $result['images']??[],
             'results' => \array_map(fn (array $item): array => [
                 'title' => $item['title'],
                 'url' => $item['url'],
