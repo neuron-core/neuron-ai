@@ -5,6 +5,8 @@ declare(strict_types=1);
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
+use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -18,26 +20,22 @@ $workflow = new Workflow(new WorkflowState(), $persistence, 'test_workflow');
 
 $workflow->addNodes([
     new NodeOne(),
-    new InterruptableNode(),
+    new NodeTwo(),
     new NodeForSecond(),
 ]);
 
 // Draw the workflow graph
 echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
 
-// Run the workflow and catch the interruption
-try {
-    $handler = $workflow->start();
-    $finalState = $handler->getResult();
-} catch (WorkflowInterrupt $interrupt) {
-    // Verify interrupt was saved
-    $savedInterrupt = $persistence->load('test_workflow');
-    echo "Workflow interrupted at ".$savedInterrupt->getCurrentNode()::class.\PHP_EOL;
+$handler = $workflow->start();
+
+foreach ($handler->streamEvents() as $event) {
+    if ($event instanceof SecondEvent) {
+        echo \PHP_EOL.'- ' . $event->message.\PHP_EOL;
+    }
 }
 
-// Resume the workflow providing external data
-$handler = $workflow->start(true, 'approved');
 $finalState = $handler->getResult();
 
-// It should print "approved"
-echo $finalState->get('received_feedback').\PHP_EOL;
+// It should print "Second complete"
+echo $finalState->get('final_second_message').\PHP_EOL;

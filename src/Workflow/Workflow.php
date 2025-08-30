@@ -66,9 +66,9 @@ class Workflow implements WorkflowInterface
 
     }
 
-    protected function yieldStreamBuffer(WorkflowState $state): \Generator
+    protected function yieldStreamBuffer(): \Generator
     {
-        $buffer = $state->getStreamBuffer();
+        $buffer = $this->state->getStreamBuffer();
         foreach ($buffer as $event) {
             yield $event;
         }
@@ -78,7 +78,7 @@ class Workflow implements WorkflowInterface
         bool $resume = false,
         mixed $externalFeedback = null
     ): WorkflowHandler {
-        return new WorkflowHandler($this, $this->state, $resume, $externalFeedback);
+        return new WorkflowHandler($this, $resume, $externalFeedback);
     }
 
     /**
@@ -95,7 +95,7 @@ class Workflow implements WorkflowInterface
             throw $exception;
         }
 
-        yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class], $this->state);
+        yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class]);
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
 
@@ -118,14 +118,13 @@ class Workflow implements WorkflowInterface
 
         $interrupt = $this->persistence->load($this->workflowId);
 
-        $state = $interrupt->getState();
+        $this->state = $interrupt->getState();
         $currentNode = $interrupt->getCurrentNode();
         $currentEvent = $interrupt->getCurrentEvent();
 
         yield from $this->execute(
             $currentEvent,
             $currentNode,
-            $state,
             true,
             $externalFeedback
         );
@@ -141,7 +140,6 @@ class Workflow implements WorkflowInterface
     protected function execute(
         Event $currentEvent,
         NodeInterface $currentNode,
-        WorkflowState $state,
         bool $resuming = false,
         mixed $externalFeedback = null
     ): \Generator {
@@ -150,21 +148,21 @@ class Workflow implements WorkflowInterface
         try {
             while (!($currentEvent instanceof StopEvent)) {
                 $currentNode->setWorkflowContext(
-                    $state,
+                    $this->state,
                     $currentEvent,
                     $resuming,
                     $feedback
                 );
 
-                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $state));
+                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
                 try {
-                    $currentEvent = $currentNode->run($currentEvent, $state);
-                    yield from $this->yieldStreamBuffer($state);
+                    $currentEvent = $currentNode->run($currentEvent, $this->state);
+                    yield from $this->yieldStreamBuffer();
                 } catch (\Throwable $exception) {
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
                 }
-                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $state));
+                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->state));
 
                 if ($currentEvent instanceof StopEvent) {
                     break;
@@ -181,7 +179,6 @@ class Workflow implements WorkflowInterface
             }
 
             $this->persistence->delete($this->workflowId);
-            return $state;
 
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);

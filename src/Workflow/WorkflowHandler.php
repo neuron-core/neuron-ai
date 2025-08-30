@@ -8,11 +8,10 @@ use NeuronAI\Exceptions\WorkflowException;
 
 class WorkflowHandler
 {
-    private mixed $result = null;
+    protected WorkflowState $result;
 
     public function __construct(
         protected Workflow $workflow,
-        protected WorkflowState $state,
         protected bool $resume = false,
         protected mixed $externalFeedback = null
     ) {
@@ -25,7 +24,7 @@ class WorkflowHandler
      */
     public function streamEvents(): \Generator
     {
-        $generator = $this->resume ? $this->workflow->run() : $this->workflow->resume($this->externalFeedback);
+        $generator = $this->resume ? $this->workflow->resume($this->externalFeedback) : $this->workflow->run();
 
         while ($generator->valid()) {
             $current = $generator->current();
@@ -49,13 +48,13 @@ class WorkflowHandler
     public function getResult(): WorkflowState
     {
         // If streaming hasn't been consumed, consume it silently to get the final result
-        if ($this->result === null) {
-            /*foreach ($this->streamEvents() as $event) {
+        if (!isset($this->result)) {
+            foreach ($this->streamEvents() as $event) {
                 continue;
-            }*/
-            $generator = $this->streamEvents();
-            \iterator_to_array($generator, false); // Consume all yielded values
-            $this->result = $generator->getReturn(); // Gets the returned value
+            }
+            /*$generator = $this->streamEvents();
+            \iterator_to_array($generator, false);
+            $this->result = $generator->getReturn();*/
         }
 
         return $this->result;

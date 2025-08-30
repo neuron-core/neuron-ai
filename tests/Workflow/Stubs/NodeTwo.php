@@ -16,6 +16,8 @@ class NodeTwo extends Node
         $state->set('first_message', $event->message);
         $state->set('start_message', $event->message);
 
+        $state->writeEventToStream(new SecondEvent('Stream second event'));
+
         if ($state->get('interruptable_node_executed', false)) {
             return new StopEvent('Workflow complete');
         }
