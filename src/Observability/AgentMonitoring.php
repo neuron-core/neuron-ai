@@ -101,6 +101,7 @@ class AgentMonitoring implements \SplObserver
         $configuration = new Configuration($_ENV['INSPECTOR_INGESTION_KEY']);
         $configuration->setTransport($_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
         $configuration->setVersion($_ENV['INSPECTOR_VERSION'] ?? $configuration->getVersion());
+        $configuration->setMaxItems($_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems());
 
         // Split monitoring between agents and workflows.
         if (isset($_ENV['NEURON_SPLIT_MONITORING'])) {
