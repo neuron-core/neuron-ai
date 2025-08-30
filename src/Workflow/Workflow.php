@@ -63,15 +63,6 @@ class Workflow implements WorkflowInterface
         $this->state = $state ?? new WorkflowState();
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
-
-    }
-
-    protected function yieldStreamBuffer(): \Generator
-    {
-        $buffer = $this->state->getStreamBuffer();
-        foreach ($buffer as $event) {
-            yield $event;
-        }
     }
 
     public function start(
@@ -156,8 +147,17 @@ class Workflow implements WorkflowInterface
 
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
                 try {
-                    $currentEvent = $currentNode->run($currentEvent, $this->state);
-                    yield from $this->yieldStreamBuffer();
+                    $result = $currentNode->run($currentEvent, $this->state);
+
+                    if ($result instanceof \Generator) {
+                        foreach ($result as $event) {
+                            yield $event;
+                        }
+
+                        $currentEvent = $result->getReturn();
+                    } else {
+                        $currentEvent = $result;
+                    }
                 } catch (\Throwable $exception) {
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
@@ -325,13 +325,16 @@ class Workflow implements WorkflowInterface
 
             if ($returnType instanceof \ReflectionNamedType) {
                 // Handle single return types
-                if (!\is_a($returnType->getName(), Event::class, true)) {
+                if (!\is_a($returnType->getName(), Event::class, true) && !\is_a($returnType->getName(), \Generator::class, true)) {
                     throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
                 }
             } elseif ($returnType instanceof \ReflectionUnionType) {
-                // Handle union return type - all types must implement Event interface
+                // Handle union return type - all types must implement Event interface or be a Generator
                 foreach ($returnType->getTypes() as $type) {
-                    if (!($type instanceof \ReflectionNamedType) || !\is_a($type->getName(), Event::class, true)) {
+                    if (
+                        !($type instanceof \ReflectionNamedType) ||
+                        (!\is_a($type->getName(), Event::class, true) && !\is_a($type->getName(), \Generator::class, true))
+                    ) {
                         throw new WorkflowException('Failed to validate '.$node::class.': All return types in union must implement ' . Event::class);
                     }
                 }

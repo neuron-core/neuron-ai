@@ -13,7 +13,7 @@ abstract class Node implements NodeInterface
     protected bool $isResuming = false;
     protected array $feedback = [];
 
-    public function run(Event $event, WorkflowState $state): Event
+    public function run(Event $event, WorkflowState $state): \Generator|Event
     {
         /** @phpstan-ignore method.notFound */
         return $this->__invoke($event, $state);

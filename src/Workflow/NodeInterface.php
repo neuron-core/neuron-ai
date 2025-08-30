@@ -6,7 +6,7 @@ namespace NeuronAI\Workflow;
 
 interface NodeInterface
 {
-    public function run(Event $event, WorkflowState $state): Event;
+    public function run(Event $event, WorkflowState $state): \Generator|Event;
 
     public function setWorkflowContext(
         WorkflowState $currentState,

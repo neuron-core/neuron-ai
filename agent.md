@@ -1,6 +1,6 @@
-# AGENT.md
+# CLAUDE.md
 
-This file provides guidance to AI Coding Agents when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -51,7 +51,7 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 **Agent System**: The framework revolves around three main entity types:
 - `Agent` (src/Agent.php) - Base agent class with chat, streaming, and structured output capabilities
 - `RAG` (src/RAG/RAG.php) - Extends Agent with vector search and document retrieval
-- `Workflow` (src/Workflow/Workflow.php) - Node-based execution graphs for complex agentic processes
+- `Workflow` (src/Workflow/Workflow.php) - Event-driven node execution system for complex agentic processes with persistence and interruption support
 
 **Provider Architecture**: Abstracted AI provider system supporting multiple LLM services:
 - All providers implement `AIProviderInterface` (src/Providers/AIProviderInterface.php)
@@ -74,6 +74,64 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 **Structured Output**: JSON schema-based extraction with PHP class mapping using attributes
 
 **MCP Integration**: Model Context Protocol server connector for external tool integration
+
+### Workflow System Details
+
+**Core Components**:
+- `Workflow` - Main orchestrator that manages event-to-node mappings and execution flow
+- `Node` - Abstract base class for workflow nodes that process events and return new events
+- `Event` - Marker interface for workflow events that trigger node execution
+- `WorkflowState` - Shared state container that persists data across node executions
+- `WorkflowInterrupt` - Exception-based mechanism for human-in-the-loop interactions
+
+**Key Features**:
+- **Event-Driven Architecture**: Nodes are triggered by events, promoting loose coupling
+- **Persistence Support**: Multiple persistence backends (InMemory, File-based) for workflow state
+- **Human-in-the-Loop**: Built-in interruption mechanism for human feedback integration
+- **Workflow Export**: Pluggable export system with MermaidExporter for diagram generation
+- **State Management**: Centralized state that flows through all workflow nodes
+- **Validation**: Automatic validation ensures workflows have required StartEvent handlers
+- **Observability**: Full integration with observable pattern for monitoring and debugging
+
+**File Structure**:
+- `Workflow.php` - Main workflow orchestrator class
+- `Node.php` - Abstract base class for workflow nodes
+- `NodeInterface.php` - Interface defining node contract
+- `Event.php` - Marker interface for workflow events
+- `StartEvent.php/StopEvent.php` - Built-in workflow lifecycle events
+- `WorkflowState.php` - State container for cross-node data sharing
+- `WorkflowInterrupt.php` - Exception for workflow interruption handling
+- `Exporter/` - Export system with MermaidExporter implementation
+- `Persistence/` - Persistence layer with InMemory and File implementations
+
+**Usage Pattern**:
+```php
+// Normal execution
+$handler = Workflow::make()
+    ->addNodes([
+        new ValidationNode(),
+        new ProcessingNode(),
+        new CompletionNode(),
+    ])
+    ->start($initialState);
+
+$finalState = $handler->getResult();
+
+// Streaming events
+$handler = Workflow::make()
+    ->addNodes([
+        new ValidationNode(),
+        new ProcessingNode(),
+        new CompletionNode(),
+    ])
+    ->start($initialState);
+
+foreach ($handler->streamEvents() as $event) {
+    // do something with the event
+}
+
+$finalState = $handler->getResult();
+```
 
 ### Key Traits and Patterns
 
