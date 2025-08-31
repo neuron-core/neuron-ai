@@ -7,6 +7,7 @@ namespace NeuronAI;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -149,7 +150,7 @@ trait HandleTools
                 $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
 
                 if ($this->toolAttempts[$tool->getName()] > $this->tollMaxTries) {
-                    throw new AgentException("Tool {$tool->getName()} has been attempted too many times: {$this->tollMaxTries} attempts.");
+                    throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$this->tollMaxTries} attempts.");
                 }
 
                 $tool->execute();
