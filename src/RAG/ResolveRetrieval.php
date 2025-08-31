@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
-use NeuronAI\RAG\Retrieval\SimilarityRetrievalStrategy;
+use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
 
 trait ResolveRetrieval
 {
@@ -22,7 +22,7 @@ trait ResolveRetrieval
      */
     protected function retrieval(): RetrievalInterface
     {
-        return new SimilarityRetrievalStrategy(
+        return new SimilarityRetrieval(
             $this->resolveVectorStore(),
             $this->resolveEmbeddingsProvider()
         );

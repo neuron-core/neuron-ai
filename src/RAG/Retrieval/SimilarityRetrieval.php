@@ -8,7 +8,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
-class SimilarityRetrievalStrategy implements RetrievalInterface
+class SimilarityRetrieval implements RetrievalInterface
 {
     /**
      * @param array<string, mixed> $config
