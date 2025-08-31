@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Console;
+namespace NeuronAI\Console\Evaluation;
 
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;

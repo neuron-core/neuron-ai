@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console;
 
-use NeuronAI\Evaluation\Console\EvaluationCommand;
+use NeuronAI\Console\Evaluation\EvaluationCommand;
 
 class NeuronCli
 {
