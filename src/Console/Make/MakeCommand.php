@@ -157,7 +157,7 @@ abstract class MakeCommand
     {
         $psr4Config = $this->loadPsr4Config();
 
-        foreach (array_keys($psr4Config) as $namespacePrefix) {
+        foreach (\array_keys($psr4Config) as $namespacePrefix) {
             if (\str_starts_with($namespace . '\\', $namespacePrefix)) {
                 return true;
             }
