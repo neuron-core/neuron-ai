@@ -6,11 +6,8 @@ namespace NeuronAI\Console\Make;
 
 abstract class MakeCommand
 {
-    protected string $resourceType;
-
-    public function __construct(string $resourceType)
+    public function __construct(protected string $resourceType)
     {
-        $this->resourceType = $resourceType;
     }
 
     /**
@@ -75,16 +72,14 @@ abstract class MakeCommand
         }
 
         $directory = \dirname($filePath);
-        if (!\is_dir($directory)) {
-            if (!\mkdir($directory, 0755, true)) {
-                $this->printError("Failed to create directory: {$directory}");
-                return 1;
-            }
+        if (!\is_dir($directory) && !\mkdir($directory, 0755, true)) {
+            $this->printError("Failed to create directory: {$directory}");
+            return 1;
         }
 
         $content = $this->getStubContent($namespace, $className);
 
-        if (!\file_put_contents($filePath, $content)) {
+        if (in_array(\file_put_contents($filePath, $content), [0, false], true)) {
             $this->printError("Failed to create file: {$filePath}");
             return 1;
         }
@@ -101,11 +96,7 @@ abstract class MakeCommand
         $parts = \explode('\\', $name);
         $className = \array_pop($parts);
 
-        if ($parts === []) {
-            $namespace = 'App\\Neuron';
-        } else {
-            $namespace = \implode('\\', $parts);
-        }
+        $namespace = $parts === [] ? 'App\\Neuron' : \implode('\\', $parts);
 
         return [$namespace, $className];
     }
