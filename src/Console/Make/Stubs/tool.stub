@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace [namespace];
+
+use NeuronAI\Tools\Tool;
+
+class [classname] extends Tool
+{
+    public function __construct()
+    {
+        // Define Tool name and description
+        parent::__construct(
+            'class_name',
+            'describe the purpose of the tool',
+        );
+    }
+    
+    /**
+     * Return the list of properties.
+     */
+    protected function properties(): array
+    {
+        return [
+            // ...
+        ];
+    }
+    
+    /**
+     * Implementing the tool logic
+     */
+    public function __invoke(): string
+    {
+        // ...
+    }
+}

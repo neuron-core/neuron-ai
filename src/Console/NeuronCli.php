@@ -5,11 +5,19 @@ declare(strict_types=1);
 namespace NeuronAI\Console;
 
 use NeuronAI\Console\Evaluation\EvaluationCommand;
+use NeuronAI\Console\Make\MakeAgentCommand;
+use NeuronAI\Console\Make\MakeRagCommand;
+use NeuronAI\Console\Make\MakeToolCommand;
+use NeuronAI\Console\Make\MakeWorkflowCommand;
 
 class NeuronCli
 {
     private const AVAILABLE_COMMANDS = [
         'evaluation' => EvaluationCommand::class,
+        'make:agent' => MakeAgentCommand::class,
+        'make:tool' => MakeToolCommand::class,
+        'make:rag' => MakeRagCommand::class,
+        'make:workflow' => MakeWorkflowCommand::class,
     ];
 
     /**
@@ -62,6 +70,10 @@ Usage: neuron <command> [options]
 
 Available Commands:
   evaluation   Run AI evaluation tests on a directory of evaluators
+  make:agent   Create a new Agent class
+  make:tool    Create a new Tool class
+  make:rag     Create a new RAG class
+  make:workflow Create a new Workflow class
 
 Options:
   --help, -h   Show this help message
@@ -69,6 +81,8 @@ Options:
 Examples:
   neuron evaluation --path=/path/to/evaluators
   neuron evaluation /path/to/evaluators --verbose
+  neuron make:agent MyAgent
+  neuron make:tool MyApp\Tools\MyTool
   neuron --help
 
 For command-specific help, use:

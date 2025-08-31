@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace [namespace];
+
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
+use NeuronAI\RAG\RAG;
+use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+
+class [classname] extends RAG
+{
+    protected function provider(): AIProviderInterface
+    {
+        /*return new Anthropic(
+            $_ENV['ANTHROPIC_API_KEY'],
+            'claude-3-7-sonnet-latest'
+        );*/
+    }
+    
+    protected function embeddings(): EmbeddingsProviderInterface
+    {
+        /*return new OpenAIEmbeddingsProvider(
+            key: 'OPENAI_API_KEY',
+            model: 'OPENAI_MODEL'
+        );*/
+    }
+    
+    protected function vectorStore(): VectorStoreInterface
+    {
+        /*return new FileVectorStore(
+            directory: __DIR__,
+            key: 'demo'
+        );*/
+    }
+}

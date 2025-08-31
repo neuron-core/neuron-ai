@@ -1,0 +1,17 @@
+<?php
+
+declare(strict_types=1);
+
+namespace [namespace];
+
+use NeuronAI\Workflow\Workflow;
+
+class [classname] extends Workflow
+{
+    protected function nodes(): array
+    {
+        return [
+            // new InitialNode(),
+        ];
+    }
+}
