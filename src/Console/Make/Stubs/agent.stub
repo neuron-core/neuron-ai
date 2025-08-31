@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace [namespace];
 
 use NeuronAI\Agent;
+use NeuronAI\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
 
 class [classname] extends Agent
