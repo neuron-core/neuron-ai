@@ -79,7 +79,7 @@ abstract class MakeCommand
 
         $content = $this->getStubContent($namespace, $className);
 
-        if (in_array(\file_put_contents($filePath, $content), [0, false], true)) {
+        if (\in_array(\file_put_contents($filePath, $content), [0, false], true)) {
             $this->printError("Failed to create file: {$filePath}");
             return 1;
         }
