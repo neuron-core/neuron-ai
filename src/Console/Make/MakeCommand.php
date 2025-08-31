@@ -103,9 +103,22 @@ abstract class MakeCommand
         $parts = \explode('\\', $name);
         $className = \array_pop($parts);
 
-        $namespace = $parts === [] ? 'NeuronAI' : \implode('\\', $parts);
+        $namespace = $parts === [] ? $this->getDefaultNamespace() : \implode('\\', $parts);
 
         return [$namespace, $className];
+    }
+
+    private function getDefaultNamespace(): string
+    {
+        $psr4Config = $this->loadPsr4Config();
+
+        if ($psr4Config === []) {
+            return 'App'; // Fallback if no PSR-4 config found
+        }
+
+        // Get the first PSR-4 namespace and remove trailing backslash
+        $firstNamespace = \array_key_first($psr4Config);
+        return \rtrim($firstNamespace, '\\');
     }
 
     private function getFilePath(string $namespace, string $className): string
@@ -157,7 +170,7 @@ abstract class MakeCommand
     {
         $psr4Config = $this->loadPsr4Config();
 
-        foreach (array_keys($psr4Config) as $namespacePrefix) {
+        foreach (\array_keys($psr4Config) as $namespacePrefix) {
             if (\str_starts_with($namespace . '\\', $namespacePrefix)) {
                 return true;
             }
@@ -200,7 +213,7 @@ Examples:
   neuron make:{$this->resourceType} MyClass
   neuron make:{$this->resourceType} MyApp\\Services\\MyClass
 
-If no namespace is provided, the default namespace 'NeuronAI' will be used.
+If no namespace is provided, the default PSR-4 namespace from composer.json will be used.
 
 USAGE;
 
