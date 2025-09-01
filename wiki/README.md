@@ -200,7 +200,9 @@ Neuron changes all that.
 
 This book serves as both an introduction to AI Agents concepts for developers and a comprehensive guide to Neuron framework.
 
-[https://www.amazon.it/dp/B0F1YX8KJB](https://www.amazon.it/dp/B0F1YX8KJB)
+<a href="https://www.amazon.com/dp/B0F1YX8KJB" class="button secondary" data-icon="amazon">Get on Amazon</a>&#x20;
+
+<a href="https://play.google.com/store/books/details?pcampaignid=books_read_action&#x26;id=agJPEQAAQBAJ&#x26;pli=1" class="button secondary" data-icon="google">Get on GooglePlay</a>
 
 ### [Newsletter](https://neuron-ai.dev)
 
