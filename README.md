@@ -131,7 +131,7 @@ Integrating AI Agents into your application you’re not working only with funct
 you program your agent also influencing probability distributions. Same input ≠ output.
 That means reproducibility, versioning, and debugging become real problems.
 
-Many of the Agents you build with NeuronAI will contain multiple steps with multiple invocations of LLM calls,
+Many of the Agents you build with Neuron will contain multiple steps with multiple invocations of LLM calls,
 tool usage, access to external memories, etc. As these applications get more and more complex, it becomes crucial
 to be able to inspect what exactly your agent is doing and why.
 
@@ -156,7 +156,7 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ad
 
 ## Supported LLM Providers
 
-With NeuronAI, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
+With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
 - [Anthropic](https://docs.neuron-ai.dev/components/ai-provider#anthropic)
@@ -364,7 +364,7 @@ Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/rag).
 
 ## Workflow
 Think of a Workflow as a smart flowchart for your AI applications. The idea behind Workflow is to allow developers
-to use all the NeuronAI components like AI providers, embeddings, data loaders, chat history, vector store, etc,
+to use all the Neuron components like AI providers, embeddings, data loaders, chat history, vector store, etc,
 as standalone components to create totally customized agentic entities.
 
 Agent and RAG classes represent a ready to use implementation of the most common patterns when it comes
@@ -372,7 +372,7 @@ to retrieval use cases, or tool calls, structured output, etc. Workflow allows y
 agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks
 as any other component if you need their built-in capabilities.
 
-[![NeuronAI Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
+[![Neuron Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
 
 Neuron Workflow supports a robust [**human-in-the-loop**](https://docs.neuron-ai.dev/workflow/human-in-the-loop)
 pattern, enabling human intervention at any point in an automated process. This is especially useful in
