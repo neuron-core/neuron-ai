@@ -36,15 +36,13 @@ The strongly-typed approach means your IDE can provide accurate autocompletion f
 
 This foundation translates to faster debugging cycles, easy integration patterns with frameworks like Symfony or Laravel, and the ability to confidently refactor AI logic as requirements evolve. We assume you're building systems that need to be maintained, extended, and understood by teams rather than individual experiments.
 
-### Agnostic Architecture
+### Carefully Crafted Architecture
 
-One of Neuron's fundamental design principles is complete framework independence. Unlike many PHP libraries that tie themselves to specific frameworks like Laravel or Symfony, Neuron operates as a standalone component that integrates seamlessly with any PHP stack.
+Whether you're working within a Laravel application, a Symfony project, a WordPress plugin, or a custom MVC framework, Neuron integrates seamlessly with your existing codebase without refactoring or disrupting established environments.
 
-Whether you're working within a Laravel application, a Symfony project, a WordPress plugin, or a custom MVC framework, Neuron integrates seamlessly with your existing codebase without refactoring or disrupting established workflows.
+Neuron uses standard PSR interfaces where appropriate and maintains minimal external dependencies, avoiding conflits across different PHP environments and framework versions. This design choice prevents the common problem where introducing a new library requires adopting an entire framework's ecosystem or waiting for dependencies update before moving to a new version.
 
-The framework-agnostic approach extends to dependency management as well. Neuron uses standard PSR interfaces where appropriate and maintains minimal external dependencies, avoiding dependencies conflit across different PHP environments and framework versions. This design choice prevents the common problem where introducing a new library requires adopting an entire framework's ecosystem or waiting for dependencies update before moving to a new version.
-
-For teams working across multiple projects, this approach provides consistency. The same Neuron patterns and implementations work regardless of whether you're building a new microservice in Slim, extending a WordPress site, or adding features to an enterprise Symfony and Laravel application. Knowledge transfer between projects becomes seamless, and developers can leverage their Neuron expertise across their entire PHP portfolio.
+For teams working across multiple projects, this approach provides consistency. The same Neuron patterns and implementations work regardless of whether you're building a new microservice in pure PHP, extending a WordPress site, or adding features to an enterprise Symfony and Laravel application. Knowledge transfer between projects becomes seamless, and developers can leverage their Neuron expertise across their entire PHP portfolio.
 
 ### Community Driven
 
@@ -202,7 +200,9 @@ Neuron changes all that.
 
 This book serves as both an introduction to AI Agents concepts for developers and a comprehensive guide to Neuron framework.
 
-[https://www.amazon.it/dp/B0F1YX8KJB](https://www.amazon.it/dp/B0F1YX8KJB)
+<a href="https://www.amazon.com/dp/B0F1YX8KJB" class="button secondary" data-icon="amazon">Get on Amazon</a>&#x20;
+
+<a href="https://play.google.com/store/books/details?pcampaignid=books_read_action&#x26;id=agJPEQAAQBAJ&#x26;pli=1" class="button secondary" data-icon="google">Get on GooglePlay</a>
 
 ### [Newsletter](https://neuron-ai.dev)
 
@@ -223,7 +223,7 @@ We’re using [Discussions](https://github.com/inspector-apm/neuron-ai/discussio
 
 Neuron is part of the Inspector ecosystem as a trustable platform to create reliable and scalable AI driven solutions.&#x20;
 
-Trace and evaluate your agents execution flow to help you maintain production grade implementations with confidence. Check out the [**observability integrations**](advanced/observability.md).
+Trace and evaluate your agents execution flow to help you maintain production grade implementations with confidence. Check out the [**monitoring integrations**](advanced/observability.md).
 
 ## Core components
 
@@ -234,8 +234,8 @@ Trace and evaluate your agents execution flow to help you maintain production gr
 * [**Vector Store**](components/vector-store.md)
 * [**Chat History**](components/chat-history-and-memory.md)
 * [**MCP connector**](advanced/mcp-connector.md)
-* [**Observability**](advanced/observability.md)
-* [**Post Processors**](components/pre-post-processor.md)
+* [**Monitoring & Deugging**](advanced/observability.md)
+* [**Pre/Post Processors**](components/pre-post-processor.md)
 * [**Workflow**](workflow/getting-started.md)
 
 ## Additional Resources
