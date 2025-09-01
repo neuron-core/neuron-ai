@@ -36,15 +36,13 @@ The strongly-typed approach means your IDE can provide accurate autocompletion f
 
 This foundation translates to faster debugging cycles, easy integration patterns with frameworks like Symfony or Laravel, and the ability to confidently refactor AI logic as requirements evolve. We assume you're building systems that need to be maintained, extended, and understood by teams rather than individual experiments.
 
-### Agnostic Architecture
+### Carefully Crafted Architecture
 
-One of Neuron's fundamental design principles is complete framework independence. Unlike many PHP libraries that tie themselves to specific frameworks like Laravel or Symfony, Neuron operates as a standalone component that integrates seamlessly with any PHP stack.
+Whether you're working within a Laravel application, a Symfony project, a WordPress plugin, or a custom MVC framework, Neuron integrates seamlessly with your existing codebase without refactoring or disrupting established environments.
 
-Whether you're working within a Laravel application, a Symfony project, a WordPress plugin, or a custom MVC framework, Neuron integrates seamlessly with your existing codebase without refactoring or disrupting established workflows.
+Neuron uses standard PSR interfaces where appropriate and maintains minimal external dependencies, avoiding conflits across different PHP environments and framework versions. This design choice prevents the common problem where introducing a new library requires adopting an entire framework's ecosystem or waiting for dependencies update before moving to a new version.
 
-The framework-agnostic approach extends to dependency management as well. Neuron uses standard PSR interfaces where appropriate and maintains minimal external dependencies, avoiding dependencies conflit across different PHP environments and framework versions. This design choice prevents the common problem where introducing a new library requires adopting an entire framework's ecosystem or waiting for dependencies update before moving to a new version.
-
-For teams working across multiple projects, this approach provides consistency. The same Neuron patterns and implementations work regardless of whether you're building a new microservice in Slim, extending a WordPress site, or adding features to an enterprise Symfony and Laravel application. Knowledge transfer between projects becomes seamless, and developers can leverage their Neuron expertise across their entire PHP portfolio.
+For teams working across multiple projects, this approach provides consistency. The same Neuron patterns and implementations work regardless of whether you're building a new microservice in pure PHP, extending a WordPress site, or adding features to an enterprise Symfony and Laravel application. Knowledge transfer between projects becomes seamless, and developers can leverage their Neuron expertise across their entire PHP portfolio.
 
 ### Community Driven
 
