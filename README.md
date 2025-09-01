@@ -1,4 +1,4 @@
-# Create Full-Featured AI Agents As Standalone Components In Any PHP Application
+# Create Full-Featured Agentic Application iIn PHP
 
 [![Latest Stable Version](https://poser.pugx.org/inspector-apm/neuron-ai/v/stable)](https://packagist.org/packages/inspector-apm/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
