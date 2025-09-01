@@ -232,8 +232,8 @@ Trace and evaluate your agents execution flow to help you maintain production gr
 * [**Vector Store**](components/vector-store.md)
 * [**Chat History**](components/chat-history-and-memory.md)
 * [**MCP connector**](advanced/mcp-connector.md)
-* [**Observability**](advanced/observability.md)
-* [**Post Processors**](components/pre-post-processor.md)
+* [**Monitoring & Deugging**](advanced/observability.md)
+* [**Pre/Post Processors**](components/pre-post-processor.md)
 * [**Workflow**](workflow/getting-started.md)
 
 ## Additional Resources
