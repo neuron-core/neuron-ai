@@ -14,13 +14,12 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 $persistence = new FilePersistence(__DIR__);
 
-$workflow = new Workflow(new WorkflowState(), $persistence, 'test_workflow');
-
-$workflow->addNodes([
-    new NodeOne(),
-    new InterruptableNode(),
-    new NodeForSecond(),
-]);
+$workflow = Workflow::make(new WorkflowState(), $persistence, 'test_workflow')
+    ->addNodes([
+        new NodeOne(),
+        new InterruptableNode(),
+        new NodeForSecond(),
+    ]);
 
 // Draw the workflow graph
 echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
