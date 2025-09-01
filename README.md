@@ -55,7 +55,12 @@ composer require inspector-apm/neuron-ai
 Neuron provides you with the Agent class you can extend to inherit the main features of the framework
 and create fully functional agents. This class automatically manages some advanced mechanisms for you, such as memory,
 tools and function calls, up to the RAG systems. You can go deeper into these aspects in the [documentation](https://docs.neuron-ai.dev).
-In the meantime, let's create the first agent, extending the `NeuronAI\Agent` class:
+
+Let's create an Agent with the command below:
+
+```
+php vendor/bin/neuron make:agent DataAnalystAgent
+```
 
 ```php
 <?php
@@ -120,7 +125,7 @@ As you can see in the example above, the Agent automatically has memory of the o
 
 <a name="monitoring">
 
-## Monitoring
+## Monitoring & Debugging
 
 Integrating AI Agents into your application you’re not working only with functions and deterministic code,
 you program your agent also influencing probability distributions. Same input ≠ output.
@@ -301,10 +306,14 @@ Learn more about Structured Output on the [documentation](https://docs.neuron-ai
 
 ## RAG
 
-For RAG use case, you must extend the `NeuronAI\RAG\RAG` class instead of the default Agent class.
-
 To create a RAG you need to attach some additional components other than the AI provider, such as a `vector store`,
 and an `embeddings provider`.
+
+Let's create a RAG with the command below:
+
+```
+php vendor/bin/neuron make:rag MyChatBot
+```
 
 Here is an example of a RAG implementation:
 
@@ -363,57 +372,7 @@ to retrieval use cases, or tool calls, structured output, etc. Workflow allows y
 agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks
 as any other component if you need their built-in capabilities.
 
-As an illustrative example, let's consider a simple workflow with two nodes.
-The connection (Edge) tells the workflow to go from A to B to C.
-
-```php
-<?php
-
-namespace App\Neuron\Workflow;
-
-use App\Neuron\Workflow\InitialNode;
-use App\Neuron\Workflow\MiddleNode;
-use App\Neuron\Workflow\FinishNode;
-use NeuronAI\Workflow\Edge;
-use NeuronAI\Workflow\Workflow;
-
-class SimpleWorkflow extends Workflow
-{
-    public function nodes(): array
-    {
-        return [
-            new InitialNode(),
-            new MiddleNode(),
-            new FinishNode(),
-        ];
-    }
-
-    public function edges(): array
-    {
-        return [
-            // Tell the workflow to go to MiddleNode after InitialNode
-            new Edge(InitialNode::class, MiddleNode::class),
-
-            // Tell the workflow to go to FinishNode after MiddleNode
-            new Edge(MiddleNode::class, FinishNode::class),
-        ];
-    }
-
-    protected function start(): string
-    {
-        return InitialNode::class;
-    }
-
-    protected function end(): array
-    {
-        return [
-            FinishNode::class,
-        ];
-    }
-}
-```
-
-[![NeuronAI Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/workflow/getting-started)
+[![NeuronAI Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
 
 Neuron Workflow supports a robust [**human-in-the-loop**](https://docs.neuron-ai.dev/workflow/human-in-the-loop)
 pattern, enabling human intervention at any point in an automated process. This is especially useful in
