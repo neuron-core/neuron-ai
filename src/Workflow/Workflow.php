@@ -134,15 +134,13 @@ class Workflow implements WorkflowInterface
         bool $resuming = false,
         mixed $externalFeedback = null
     ): \Generator {
-        $feedback = $resuming ? [$currentNode::class => $externalFeedback] : [];
-
         try {
             while (!($currentEvent instanceof StopEvent)) {
                 $currentNode->setWorkflowContext(
                     $this->state,
                     $currentEvent,
                     $resuming,
-                    $feedback
+                    $externalFeedback
                 );
 
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));

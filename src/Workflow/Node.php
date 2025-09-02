@@ -11,7 +11,7 @@ abstract class Node implements NodeInterface
     protected WorkflowState $currentState;
     protected Event $currentEvent;
     protected bool $isResuming = false;
-    protected array $feedback = [];
+    protected mixed $feedback = null;
 
     public function run(Event $event, WorkflowState $state): \Generator|Event
     {
@@ -23,7 +23,7 @@ abstract class Node implements NodeInterface
         WorkflowState $currentState,
         Event $currentEvent,
         bool $isResuming = false,
-        array $feedback = []
+        mixed $feedback = null
     ): void {
         $this->currentState = $currentState;
         $this->currentEvent = $currentEvent;
@@ -37,10 +37,10 @@ abstract class Node implements NodeInterface
      */
     protected function interrupt(array $data): mixed
     {
-        if ($this->isResuming && isset($this->feedback[static::class])) {
-            $feedback = $this->feedback[static::class];
+        if ($this->isResuming && !is_null($this->feedback)) {
+            $feedback = $this->feedback;
             // Clear both feedback and resuming state after use to allow subsequent interrupts
-            unset($this->feedback[static::class]);
+            $this->feedback = null;
             $this->isResuming = false;
             return $feedback;
         }
