@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\RAG\Embeddings;
 
 class OpenAILikeEmbeddings extends OpenAIEmbeddingsProvider
@@ -9,7 +11,7 @@ class OpenAILikeEmbeddings extends OpenAIEmbeddingsProvider
         protected string $key,
         protected string $model,
         protected int $dimensions = 1024
-    ){
+    ) {
         parent::__construct($key, $model, $dimensions);
     }
 }
