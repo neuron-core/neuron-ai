@@ -34,7 +34,7 @@ try {
 }
 
 // Resume the workflow providing external data
-$finalState = $workflow->start(true, 'approved')->getResult();
+$finalState = $workflow->wakeup('approved')->getResult();
 
 // It should print "approved"
 echo $finalState->get('received_feedback').\PHP_EOL;

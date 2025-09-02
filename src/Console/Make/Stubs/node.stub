@@ -11,8 +11,13 @@ use NeuronAI\Workflow\WorkflowState;
 
 class [classname] extends Node
 {
+    /**
+     * Implement the Node's logic
+     */
     public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
     {
+        // ...
+
         return new StopEvent();
     }
 }

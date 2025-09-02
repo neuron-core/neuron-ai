@@ -15,8 +15,11 @@ class AzureOpenAI extends OpenAI
         protected string $endpoint,
         protected string $model,
         protected string $version,
+        protected bool $strict_response = false,
         protected array $parameters = [],
     ) {
+        parent::__construct($key, $model, $parameters, $strict_response);
+
         $this->setBaseUrl();
 
         $this->client = new Client([

@@ -8,6 +8,8 @@ interface WorkflowInterface extends \SplSubject
 {
     public function start(bool $resume = false, mixed $externalFeedback = null): WorkflowHandler;
 
+    public function wakeup(mixed $feedback = null): WorkflowHandler;
+
     public function addNode(NodeInterface $node): Workflow;
 
     /**
