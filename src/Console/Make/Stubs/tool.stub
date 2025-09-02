@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace [namespace];
 
+use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
 
 class [classname] extends Tool
 {
@@ -18,20 +20,27 @@ class [classname] extends Tool
     }
 
     /**
-     * Return the list of properties.
+     * Properties are the input arguments of the __invoke method.
      */
     protected function properties(): array
     {
         return [
-            // ...
+            new ToolProperty(
+                name: 'input',
+                type: PropertyType::STRING,
+                description: 'The input to the tool',
+                required: true,
+            ),
         ];
     }
 
     /**
      * Implementing the tool logic
      */
-    public function __invoke(): string
+    public function __invoke(string $input): string
     {
         // ...
+
+        return $input;
     }
 }
