@@ -1,4 +1,4 @@
-# Create Full-Featured Agentic Applications in PHP
+2# Create Full-Featured Agentic Applications in PHP
 
 [![Latest Stable Version](https://poser.pugx.org/inspector-apm/neuron-ai/v/stable)](https://packagist.org/packages/inspector-apm/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
@@ -379,7 +379,7 @@ pattern, enabling human intervention at any point in an automated process. This 
 large language model (LLM)-driven applications where model output may require validation, correction,
 or additional context to complete the task.
 
-Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/workflow/getting-started).
+Learn more about Workflow on the [documentation](https://docs.neuron-ai.dev/workflow/getting-started).
 
 <a name="documentation">
 
