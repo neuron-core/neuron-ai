@@ -31,11 +31,7 @@ abstract class Node implements NodeInterface
         $this->feedback = $feedback;
     }
 
-    /**
-     * @throws WorkflowException
-     * @throws WorkflowInterrupt
-     */
-    protected function interrupt(array $data): mixed
+    protected function consumeInterruptFeedback(): mixed
     {
         if ($this->isResuming && !\is_null($this->feedback)) {
             $feedback = $this->feedback;
@@ -45,6 +41,35 @@ abstract class Node implements NodeInterface
             return $feedback;
         }
 
-        throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);
+        return null;
+    }
+
+    /**
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
+     */
+    protected function interrupt(array $data): mixed
+    {
+        return $this->interruptIf(true, $data);
+    }
+
+    /**
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
+     */
+    protected function interruptIf(callable|bool $condition, array $data): mixed
+    {
+        if ($feedback = $this->consumeInterruptFeedback()) {
+            return $feedback;
+        }
+
+        $shouldInterrupt = \is_callable($condition) ? $condition() : $condition;
+
+        if ($shouldInterrupt) {
+            throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);
+        }
+
+        // Condition didn't meet, continue execution
+        return null;
     }
 }
