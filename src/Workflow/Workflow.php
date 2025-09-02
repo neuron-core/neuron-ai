@@ -72,7 +72,7 @@ class Workflow implements WorkflowInterface
         return new WorkflowHandler($this, $resume, $externalFeedback);
     }
 
-    public function awake(mixed $feedback = null): WorkflowHandler
+    public function wakeup(mixed $feedback = null): WorkflowHandler
     {
         return new WorkflowHandler($this, true, $feedback);
     }
