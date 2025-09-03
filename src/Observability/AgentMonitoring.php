@@ -78,6 +78,7 @@ class AgentMonitoring implements \SplObserver
         'rag-preprocessed' => 'preProcessed',
         'rag-postprocessing' => 'postProcessing',
         'rag-postprocessed' => 'postProcessed',
+
         'workflow-start' => 'workflowStart',
         'workflow-end' => 'workflowEnd',
         'workflow-node-start' => 'workflowNodeStart',
