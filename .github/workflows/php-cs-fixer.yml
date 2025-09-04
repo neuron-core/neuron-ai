@@ -3,7 +3,6 @@ name: PHP CS Fixer
 on:
     push:
         branches:
-            - main
             - '*.x'
         paths:
             - '**.php'

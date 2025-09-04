@@ -149,7 +149,7 @@ trait HandleTools
             try {
                 $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
 
-                if ($this->toolAttempts[$tool->getName()] > $this->tollMaxTries ?? $tool->getMaxTries()) {
+                if ($this->toolAttempts[$tool->getName()] > ($this->tollMaxTries ?? $tool->getMaxTries())) {
                     throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$this->tollMaxTries} attempts.");
                 }
 
