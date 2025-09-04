@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests;
+namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Tests\Stubs\Color;

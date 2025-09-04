@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests;
+namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 use NeuronAI\Tools\Toolkits\Calculator\DivideTool;
@@ -66,7 +66,7 @@ class ToolkitTest extends TestCase
 
     public function test_tools_combine_exclude_only(): void
     {
-        $toolkit = (new CalculatorToolkit());
+        $toolkit = new CalculatorToolkit();
 
         $toolkit = $toolkit->only([SumTool::class,DivideTool::class])->exclude([SumTool::class]);
 
@@ -81,5 +81,18 @@ class ToolkitTest extends TestCase
             ->exclude([SumTool::class,DivideTool::class]);
 
         $this->assertEquals(0, \count($toolkit->tools()));
+    }
+
+    public function test_toolkit_with(): void
+    {
+        $toolkit = new CalculatorToolkit();
+
+        $toolkit = $toolkit->only([SumTool::class]);
+
+        $this->assertEquals(null, $toolkit->tools()[0]->getMaxTries());
+
+        $toolkit = $toolkit->with(SumTool::class, fn (ToolInterface $tool): \NeuronAI\Tools\ToolInterface => $tool->setMaxTries(10));
+
+        $this->assertEquals(10, $toolkit->tools()[0]->getMaxTries());
     }
 }

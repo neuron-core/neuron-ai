@@ -13,6 +13,7 @@ abstract class AbstractToolkit implements ToolkitInterface
 
     protected array $exclude = [];
     protected array $only = [];
+    protected array $with = [];
 
     public function guidelines(): ?string
     {
@@ -37,6 +38,12 @@ abstract class AbstractToolkit implements ToolkitInterface
         return $this;
     }
 
+    public function with(string $class, \Closure $callback): ToolkitInterface
+    {
+        $this->with[$class] = $callback;
+        return $this;
+    }
+
     /**
      * @return ToolInterface[]
      */
@@ -44,14 +51,24 @@ abstract class AbstractToolkit implements ToolkitInterface
 
     public function tools(): array
     {
-        if ($this->exclude === [] && $this->only === []) {
+        if ($this->exclude === [] && $this->only === [] && $this->with === []) {
             return $this->provide();
         }
 
-        return \array_filter(
-            $this->provide(),
-            fn (ToolInterface $tool): bool => !\in_array($tool::class, $this->exclude)
-                && ($this->only === [] || \in_array($tool::class, $this->only))
-        );
+        $tools = $this->provide();
+
+        if ($this->exclude !== [] || $this->only !== []) {
+            $tools = \array_filter(
+                $tools,
+                fn (ToolInterface $tool): bool => !\in_array($tool::class, $this->exclude)
+                    && ($this->only === [] || \in_array($tool::class, $this->only))
+            );
+        }
+
+        if ($this->with !== []) {
+            return \array_map(fn (ToolInterface $tool): ToolInterface => $this->with[$tool::class]($tool) ?? $tool, $tools);
+        }
+
+        return $tools;
     }
 }

@@ -64,6 +64,8 @@ interface ToolInterface extends \JsonSerializable
      */
     public function getMaxTries(): ?int;
 
+    public function setMaxTries(int $tries): ToolInterface;
+
     /**
      * Execute the tool's logic with input parameters.
      */
