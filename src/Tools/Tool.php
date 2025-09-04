@@ -146,6 +146,11 @@ class Tool implements ToolInterface
         return $this;
     }
 
+    public function getMaxTries(): int
+    {
+        return 5;
+    }
+
     /**
      * Execute the client side function.
      *

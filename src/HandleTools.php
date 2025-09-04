@@ -29,7 +29,7 @@ trait HandleTools
      */
     protected array $toolsBootstrapCache = [];
 
-    protected int $tollMaxTries = 5;
+    protected ?int $tollMaxTries = null;
 
     /**
      * @var array<string, int>
@@ -149,7 +149,7 @@ trait HandleTools
             try {
                 $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
 
-                if ($this->toolAttempts[$tool->getName()] > $this->tollMaxTries) {
+                if ($this->toolAttempts[$tool->getName()] > $this->tollMaxTries ?? $tool->getMaxTries()) {
                     throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$this->tollMaxTries} attempts.");
                 }
 
