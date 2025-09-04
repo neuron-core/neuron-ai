@@ -15,5 +15,3 @@ examples export-ignore
 examples/** export-ignore
 tests export-ignore
 tests/** export-ignore
-wiki export-ignore
-wiki/** export-ignore
