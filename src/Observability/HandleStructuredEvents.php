@@ -22,7 +22,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->segments[$data->class.'-schema'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.schema', "schema_generate( {$data->class} )")
+        $this->segments[$data->class.'-schema'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( {$data->class} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 
@@ -42,7 +42,7 @@ trait HandleStructuredEvents
 
         $id = $this->getMessageId($data->message).'-extract';
 
-        $this->segments[$id] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.output-extract', 'extract_output')
+        $this->segments[$id] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
             ->setColor(self::SEGMENT_COLOR);
     }
 
@@ -72,7 +72,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->segments[$data->class.'-deserialize'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.output-deserialize', "deserialize( {$data->class} )")
+        $this->segments[$data->class.'-deserialize'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( {$data->class} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 
@@ -91,7 +91,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->segments[$data->class.'-validate'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.output-validate', "validate( {$data->class} )")
+        $this->segments[$data->class.'-validate'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( {$data->class} )")
             ->setColor(self::SEGMENT_COLOR);
     }
 
