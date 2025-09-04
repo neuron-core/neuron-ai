@@ -43,6 +43,11 @@ class Tool implements ToolInterface
     protected string|null $result = null;
 
     /**
+     * Define the maximum number of calls for the tool in a single agent session.
+     */
+    protected ?int $maxTries = null;
+
+    /**
      * Tool constructor.
      *
      * @param ToolPropertyInterface[] $properties
@@ -148,7 +153,13 @@ class Tool implements ToolInterface
 
     public function getMaxTries(): ?int
     {
-        return null;
+        return $this->maxTries;
+    }
+
+    public function setMaxTries(int $tries): self
+    {
+        $this->maxTries = $tries;
+        return $this;
     }
 
     /**
