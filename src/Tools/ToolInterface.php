@@ -62,7 +62,7 @@ interface ToolInterface extends \JsonSerializable
     /**
      * Define the maximum number of calls for the tool in a single agent session.
      */
-    public function getMaxTries(): int;
+    public function getMaxTries(): ?int;
 
     /**
      * Execute the tool's logic with input parameters.

@@ -146,9 +146,9 @@ class Tool implements ToolInterface
         return $this;
     }
 
-    public function getMaxTries(): int
+    public function getMaxTries(): ?int
     {
-        return 5;
+        return null;
     }
 
     /**
