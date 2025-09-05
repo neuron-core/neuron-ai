@@ -10,11 +10,11 @@ class OpenAILike extends OpenAI
 {
     public function __construct(
         protected string $baseUri,
-        string $key,
-        string $model,
-        array $parameters = [],
-        bool $strict_response = false,
-        ?HttpClientOptions $httpOptions = null
+        protected string $key,
+        protected string $model,
+        protected array $parameters = [],
+        protected bool $strict_response = false,
+        protected ?HttpClientOptions $httpOptions = null
     ) {
         parent::__construct($key, $model, $parameters, $strict_response, $httpOptions);
     }
