@@ -84,7 +84,7 @@ class DataAnalystAgent extends Agent
 
     public function instructions(): string
     {
-        return new SystemPrompt(
+        return (string) new SystemPrompt(
             background: [
                 "You are a data analyst expert in creating reports from SQL databases."
             ]
@@ -202,7 +202,7 @@ class DataAnalystAgent extends Agent
 
     public function instructions(): string
     {
-        return new SystemPrompt(
+        return (string) new SystemPrompt(
             background: [
                 "You are a data analyst expert in creating reports from SQL databases."
             ]
