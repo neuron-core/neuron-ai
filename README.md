@@ -1,4 +1,4 @@
-2# Create Full-Featured Agentic Applications in PHP
+# Create Full-Featured Agentic Applications in PHP
 
 [![Latest Stable Version](https://poser.pugx.org/inspector-apm/neuron-ai/v/stable)](https://packagist.org/packages/inspector-apm/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
