@@ -139,7 +139,7 @@ Why is the model taking certain decisions? What data is the model reacting to? P
 in the common sense. No static types, small changes break output, long prompts cost latency,
 and no two models behave exactly the same with the same prompt.
 
-The best way to do this is with [Inspector](https://inspector.dev). After you sign up,
+The best way to take your AI application under control is with [Inspector](https://inspector.dev). After you sign up,
 make sure to set the `INSPECTOR_INGESTION_KEY` variable in the application environment file to start monitoring:
 
 ```dotenv
