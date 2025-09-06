@@ -24,7 +24,7 @@
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
 https://docs.neuron-ai.dev/resources/guides-and-tutorials.
 
-## Neuron AI Examples
+## How To
 
 - [Install](#install)
 - [Create an Agent](#create)
