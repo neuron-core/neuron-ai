@@ -36,15 +36,13 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
     {
         $payload = [
             'type' => 'function',
-            'function' => [
-                'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => new \stdClass(),
-                    'required' => [],
-                ],
-            ]
+            'name' => $tool->getName(),
+            'description' => $tool->getDescription(),
+            'parameters' => [
+                'type' => 'object',
+                'properties' => new \stdClass(),
+                'required' => [],
+            ],
         ];
 
         $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
@@ -53,7 +51,7 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
         }, []);
 
         if (!empty($properties)) {
-            $payload['function']['parameters'] = [
+            $payload['parameters'] = [
                 'type' => 'object',
                 'properties' => $properties,
                 'required' => $tool->getRequiredProperties(),
