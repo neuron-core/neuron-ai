@@ -15,9 +15,9 @@ trait HandleResponsesStructured
         $className = \end($tk);
 
         $this->parameters = \array_merge($this->parameters, [
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
+            'text' => [
+                'format' => [
+                    'type' => 'json_schema',
                     'strict' => $this->strict_response,
                     "name" => $this->sanitizeClassName($className),
                     "schema" => $response_format,

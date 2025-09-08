@@ -1,28 +1,26 @@
 <?php
 
-declare(strict_types=1);
-
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
+use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
-class OpenAI implements AIProviderInterface
+class OpenAIResponses implements AIProviderInterface
 {
     use HasGuzzleClient;
     use HandleWithTools;
-    use HandleChat;
-    use HandleStream;
-    use HandleStructured;
+    use HandleResponses;
+    use HandleResponsesStream;
+    use HandleResponsesStructured;
 
     /**
      * The main URL of the provider API.
@@ -76,7 +74,7 @@ class OpenAI implements AIProviderInterface
 
     public function toolPayloadMapper(): ToolPayloadMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapperResponses();
     }
 
     /**
