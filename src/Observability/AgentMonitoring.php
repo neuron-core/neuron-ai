@@ -97,11 +97,10 @@ class AgentMonitoring implements \SplObserver
     }
 
 
-    public static function instance(): AgentMonitoring
+    public static function instance(?string $key = null): AgentMonitoring
     {
-        $configuration = new Configuration($_ENV['INSPECTOR_INGESTION_KEY']);
+        $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY']);
         $configuration->setTransport($_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
-        $configuration->setVersion($_ENV['INSPECTOR_VERSION'] ?? $configuration->getVersion());
         $configuration->setMaxItems((int) ($_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems()));
 
         // Split monitoring between agents and workflows.

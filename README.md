@@ -176,7 +176,7 @@ Supported providers:
 - [HuggingFace](https://docs.neuron-ai.dev/components/ai-provider#huggingface)
 - [Deepseek](https://docs.neuron-ai.dev/components/ai-provider#deepseek)
 - [Grok](https://docs.neuron-ai.dev/components/ai-provider#grok-x-ai)
-- [AWS BedrockRuntime](https://docs.neuron-ai.dev/components/ai-provider#aws-bedrock-runtime)
+- [AWS Bedrock Runtime](https://docs.neuron-ai.dev/components/ai-provider#aws-bedrock-runtime)
 
 <a name="tools">
 
