@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
@@ -36,7 +37,7 @@ trait HandleChat
             $json['tools'] = $this->generateToolsPayload();
         }
 
-        return $this->client->postAsync('chat/completions', ['json' => $json])
+        return $this->client->postAsync('chat/completions', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response) {
                 $result = \json_decode($response->getBody()->getContents(), true);
 

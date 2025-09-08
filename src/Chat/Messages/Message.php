@@ -106,7 +106,7 @@ class Message implements \JsonSerializable
             'content' => $this->getContent()
         ];
 
-        if ($this->getUsage() instanceof \NeuronAI\Chat\Messages\Usage) {
+        if ($this->getUsage() instanceof Usage) {
             $data['usage'] = $this->getUsage()->jsonSerialize();
         }
 

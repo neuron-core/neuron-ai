@@ -25,16 +25,30 @@ trait HandleTools
     protected array $tools = [];
 
     /**
+     * @var string[]|array<string, array>
+     */
+    protected array $providerTools = [];
+
+    /**
      * @var ToolInterface[]
      */
     protected array $toolsBootstrapCache = [];
 
+    /**
+     * Global max tries for all tools.
+     */
     protected int $tollMaxTries = 5;
 
     /**
      * @var array<string, int>
      */
     protected array $toolAttempts = [];
+
+    public function withProviderTools(array $tools): Agent
+    {
+        $this->providerTools = $tools;
+        return $this;
+    }
 
     public function toolMaxTries(int $tries): Agent
     {

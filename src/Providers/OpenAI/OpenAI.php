@@ -20,9 +20,11 @@ class OpenAI implements AIProviderInterface
 {
     use HasGuzzleClient;
     use HandleWithTools;
-    use HandleChat;
-    use HandleStream;
+    //use HandleChat;
+    //use HandleStream;
     use HandleStructured;
+    use HandleResponses;
+    use HandleResponsesStream;
 
     /**
      * The main URL of the provider API.

@@ -41,7 +41,7 @@ trait HandleStructured
 
         $this->fillChatHistory($messages);
 
-        $tools = $this->bootstrapTools();
+        $tools = \array_merge($this->bootstrapTools(), $this->providerTools);
 
         // Get the JSON schema from the response model
         $class ??= $this->getOutputClass();
