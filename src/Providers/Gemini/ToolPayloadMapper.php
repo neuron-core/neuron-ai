@@ -63,12 +63,11 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
     protected function mapProviderTool(ProviderToolInterface $tool): array
     {
         $payload = [
-            'type' => $tool->getType(),
-            ...$tool->getOptions()
+            $tool->getType() => new \stdClass(),
         ];
 
-        if (\is_string($tool->getName())) {
-            $payload['name'] = $tool->getName();
+        if ($tool->getOptions() !== []) {
+            $payload[$tool->getType()] = $tool->getOptions();
         }
 
         return $payload;
