@@ -12,9 +12,6 @@ use NeuronAI\Tools\ToolPropertyInterface;
 
 class ToolPayloadMapper implements ToolPayloadMapperInterface
 {
-    /**
-     * @throws ProviderException
-     */
     public function map(array $tools): array
     {
         $providerTools = \array_filter($tools, fn (ProviderToolInterface|ToolInterface $tool): bool => $tool instanceof ProviderToolInterface);
