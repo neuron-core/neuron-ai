@@ -12,6 +12,7 @@ use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 
@@ -23,11 +24,6 @@ trait HandleTools
      * @var ToolInterface[]|ToolkitInterface[]
      */
     protected array $tools = [];
-
-    /**
-     * @var string[]|array<string, array>
-     */
-    protected array $providerTools = [];
 
     /**
      * @var ToolInterface[]
@@ -44,12 +40,6 @@ trait HandleTools
      */
     protected array $toolAttempts = [];
 
-    public function withProviderTools(array $tools): Agent
-    {
-        $this->providerTools = $tools;
-        return $this;
-    }
-
     public function toolMaxTries(int $tries): Agent
     {
         $this->tollMaxTries = $tries;
@@ -57,9 +47,9 @@ trait HandleTools
     }
 
     /**
-     * Get the list of tools.
+     * Override to provide tools to the agent.
      *
-     * @return ToolInterface[]|ToolkitInterface[]
+     * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
     protected function tools(): array
     {
@@ -67,7 +57,7 @@ trait HandleTools
     }
 
     /**
-     * @return ToolInterface[]|ToolkitInterface[]
+     * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
     public function getTools(): array
     {
@@ -135,15 +125,16 @@ trait HandleTools
     /**
      * Add tools.
      *
+     * @param  ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface>  $tools
      * @throws AgentException
      */
-    public function addTool(ToolInterface|ToolkitInterface|array $tools): AgentInterface
+    public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): AgentInterface
     {
         $tools = \is_array($tools) ? $tools : [$tools];
 
         foreach ($tools as $t) {
-            if (! $t instanceof ToolInterface && ! $t instanceof ToolkitInterface) {
-                throw new AgentException('Tools must be an instance of ToolInterface or ToolkitInterface');
+            if (! $t instanceof ToolInterface && ! $t instanceof ToolkitInterface && ! $t instanceof ProviderToolInterface) {
+                throw new AgentException('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface');
             }
             $this->tools[] = $t;
         }

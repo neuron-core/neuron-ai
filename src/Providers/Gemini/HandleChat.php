@@ -34,7 +34,9 @@ trait HandleChat
         }
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = [
+                'functionDeclarations' => $this->toolPayloadMapper()->map($this->tools)
+            ];
         }
 
         return $this->client->postAsync(\trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])

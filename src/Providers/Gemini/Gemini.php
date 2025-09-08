@@ -14,6 +14,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
 
@@ -36,6 +37,7 @@ class Gemini implements AIProviderInterface
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
+    protected ToolPayloadMapperInterface $toolPayloadMapper;
 
     /**
      * @param array<string, mixed> $parameters
@@ -74,41 +76,9 @@ class Gemini implements AIProviderInterface
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
-    /**
-     * @return array<string, array<int, mixed>>
-     */
-    protected function generateToolsPayload(): array
+    public function toolPayloadMapper(): ToolPayloadMapperInterface
     {
-        $tools = \array_map(function (ToolInterface $tool): array {
-            $payload = [
-                'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => new \stdClass(),
-                    'required' => [],
-                ],
-            ];
-
-            $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property) {
-                $carry[$property->getName()] = $property->getJsonSchema();
-                return $carry;
-            }, []);
-
-            if (!empty($properties)) {
-                $payload['parameters'] = [
-                    'type' => 'object',
-                    'properties' => $properties,
-                    'required' => $tool->getRequiredProperties(),
-                ];
-            }
-
-            return $payload;
-        }, $this->tools);
-
-        return [
-            'functionDeclarations' => $tools
-        ];
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
     }
 
     /**

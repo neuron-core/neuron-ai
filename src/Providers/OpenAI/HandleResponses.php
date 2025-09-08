@@ -37,7 +37,7 @@ trait HandleResponses
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         return $this->client->postAsync('responses', [RequestOptions::JSON => $json])

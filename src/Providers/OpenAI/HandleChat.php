@@ -34,7 +34,7 @@ trait HandleChat
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         return $this->client->postAsync('chat/completions', [RequestOptions::JSON => $json])

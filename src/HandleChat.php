@@ -29,7 +29,7 @@ trait HandleChat
 
         $this->fillChatHistory($messages);
 
-        $tools = \array_merge($this->bootstrapTools(), $this->providerTools);
+        $tools = $this->bootstrapTools();
 
         $this->notify(
             'inference-start',

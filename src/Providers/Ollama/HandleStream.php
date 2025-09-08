@@ -25,7 +25,7 @@ trait HandleStream
         ];
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->client->post('chat', [

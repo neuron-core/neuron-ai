@@ -20,6 +20,9 @@ class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
 
+    /**
+     * @throws ProviderException
+     */
     public function map(array $messages): array
     {
         $this->mapping = [];
@@ -38,6 +41,9 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapMessage(Message $message): void
     {
         $payload = $message->jsonSerialize();

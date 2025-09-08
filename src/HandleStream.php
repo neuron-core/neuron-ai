@@ -19,7 +19,7 @@ trait HandleStream
 
             $this->fillChatHistory($messages);
 
-            $tools = \array_merge($this->bootstrapTools(), $this->providerTools);
+            $tools = $this->bootstrapTools();
 
             $stream = $this->resolveProvider()
                 ->systemPrompt($this->resolveInstructions())

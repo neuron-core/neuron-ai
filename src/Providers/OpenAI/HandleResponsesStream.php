@@ -37,12 +37,7 @@ trait HandleResponsesStream
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
-        }
-
-        // Attach tool choice
-        if (!empty($this->toolChoice)) {
-            $json['tool_choice'] = $this->toolChoice;
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->client->post('responses', [
@@ -53,7 +48,7 @@ trait HandleResponsesStream
         $toolCalls = [];
 
         while (! $stream->eof()) {
-            if (!$event = $this->parseNextResponseDataLine($stream)) {
+            if (!$event = $this->parseNextDataLine($stream)) {
                 continue;
             }
 
@@ -72,7 +67,7 @@ trait HandleResponsesStream
                     break;*/
 
                 case 'response.function_call_arguments.done':
-                    $toolCall = $this->composeResponseToolCalls($event, $toolCalls);
+                    $toolCall = $this->composeToolCalls($event, $toolCalls);
                     yield from $executeToolsCallback($toolCall);
                     break;
 
@@ -102,7 +97,7 @@ trait HandleResponsesStream
      * @param  array<int, array<string, mixed>>  $toolCalls
      * @return array<int, array<string, mixed>>
      */
-    protected function composeResponseToolCalls(array $event, array $toolCalls): array
+    protected function composeToolCalls(array $event, array $toolCalls): array
     {
         $index = $event['item_id'];
 
@@ -125,9 +120,9 @@ trait HandleResponsesStream
         return $toolCalls;
     }
 
-    protected function parseNextResponseDataLine(StreamInterface $stream): ?array
+    protected function parseNextDataLine(StreamInterface $stream): ?array
     {
-        $line = $this->readResponseLine($stream);
+        $line = $this->readLine($stream);
 
         if (! \str_starts_with((string) $line, 'data:')) {
             return null;
@@ -152,7 +147,7 @@ trait HandleResponsesStream
         return $event;
     }
 
-    protected function readResponseLine(StreamInterface $stream): string
+    protected function readLine(StreamInterface $stream): string
     {
         $buffer = '';
 

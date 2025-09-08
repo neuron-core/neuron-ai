@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
@@ -28,13 +29,13 @@ trait HandleStream
         ];
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         // https://docs.anthropic.com/claude/reference/messages_post
         $stream = $this->client->post('messages', [
             'stream' => true,
-            ...['json' => $json]
+            RequestOptions::JSON => $json
         ])->getBody();
 
         $toolCalls = [];

@@ -34,7 +34,7 @@ trait HandleChat
         ];
 
         if (! empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         return $this->client->postAsync('chat', ['json' => $json])
