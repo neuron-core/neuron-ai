@@ -96,6 +96,11 @@ class Message implements \JsonSerializable
         return $this;
     }
 
+    public function getMetadata(string $key): mixed
+    {
+        return $this->meta[$key] ?? null;
+    }
+
     /**
      * @return array<string, mixed>
      */
