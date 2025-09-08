@@ -55,6 +55,10 @@ trait HandleChat
                     $response = new Message(MessageRole::from($content['role']), $parts[0]['text'] ?? '');
                 }
 
+                if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
+                    $response->addMetadata('groundingMetadata', $result['candidates'][0]['groundingMetadata']);
+                }
+
                 // Attach the usage for the current interaction
                 if (\array_key_exists('usageMetadata', $result)) {
                     $response->setUsage(
