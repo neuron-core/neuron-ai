@@ -40,4 +40,13 @@ class ProviderTool implements ProviderToolInterface
         $this->options = $options;
         return $this;
     }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'type' => $this->type,
+            'name' => $this->name,
+            'options' => $this->options,
+        ];
+    }
 }
