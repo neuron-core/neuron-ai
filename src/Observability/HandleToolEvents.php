@@ -8,6 +8,7 @@ use NeuronAI\AgentInterface;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 
 trait HandleToolEvents
@@ -30,8 +31,12 @@ trait HandleToolEvents
     {
         if (\array_key_exists($agent::class.'_tools_bootstrap', $this->segments) && $data->tools !== []) {
             $segment = $this->segments[$agent::class.'_tools_bootstrap']->end();
-            $segment->addContext('Tools', \array_reduce($data->tools, function (array $carry, ToolInterface $tool): array {
-                $carry[$tool->getName()] = $tool->getDescription();
+            $segment->addContext('Tools', \array_reduce($data->tools, function (array $carry, ToolInterface|ProviderToolInterface $tool): array {
+                if ($tool instanceof ProviderToolInterface) {
+                    $carry[$tool->getType()] = $tool->getOptions();
+                } else {
+                    $carry[$tool->getName()] = $tool->getDescription();
+                }
                 return $carry;
             }, []));
             $segment->addContext('Guidelines', $data->guidelines);
