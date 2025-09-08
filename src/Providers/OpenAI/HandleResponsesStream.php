@@ -183,8 +183,6 @@ trait HandleResponsesStream
             content: $content['text'],
         );
 
-        $message->addMetadata('id', $output[0]['id']);
-
         // todo: refactor after implementing citations abstraction
         if (isset($content['annotations'])) {
             $message->addMetadata('annotations', $content['annotations']);

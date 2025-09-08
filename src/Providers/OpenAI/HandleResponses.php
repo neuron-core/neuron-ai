@@ -61,8 +61,6 @@ trait HandleResponses
 
                     $response = new AssistantMessage($content['text']);
 
-                    $response->addMetadata('id', $messages[0]['id']);
-
                     // todo: refactor after implementing citations abstraction
                     if (isset($content['annotations'])) {
                         $response->addMetadata('annotations', $content['annotations']);
