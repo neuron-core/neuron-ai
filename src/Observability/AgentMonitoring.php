@@ -218,8 +218,7 @@ class AgentMonitoring implements \SplObserver
             'Tools' => \array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
                 $tool instanceof ToolInterface => $mapTool($tool),
                 $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
-                $tool instanceof ProviderToolInterface => $tool->jsonSerialize(),
-                default => []
+                default => $tool->jsonSerialize(),
             }, $agent->getTools()),
             //'Messages' => $agent->resolveChatHistory()->getMessages(),
         ];
