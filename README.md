@@ -1,4 +1,4 @@
-2# Create Full-Featured Agentic Applications in PHP
+# Create Full-Featured Agentic Applications in PHP
 
 [![Latest Stable Version](https://poser.pugx.org/inspector-apm/neuron-ai/v/stable)](https://packagist.org/packages/inspector-apm/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
@@ -24,7 +24,7 @@
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
 https://docs.neuron-ai.dev/resources/guides-and-tutorials.
 
-## Neuron AI Examples
+## How To
 
 - [Install](#install)
 - [Create an Agent](#create)
@@ -84,7 +84,7 @@ class DataAnalystAgent extends Agent
 
     public function instructions(): string
     {
-        return new SystemPrompt(
+        return (string) new SystemPrompt(
             background: [
                 "You are a data analyst expert in creating reports from SQL databases."
             ]
@@ -139,7 +139,7 @@ Why is the model taking certain decisions? What data is the model reacting to? P
 in the common sense. No static types, small changes break output, long prompts cost latency,
 and no two models behave exactly the same with the same prompt.
 
-The best way to do this is with [Inspector](https://inspector.dev). After you sign up,
+The best way to take your AI application under control is with [Inspector](https://inspector.dev). After you sign up,
 make sure to set the `INSPECTOR_INGESTION_KEY` variable in the application environment file to start monitoring:
 
 ```dotenv
@@ -202,7 +202,7 @@ class DataAnalystAgent extends Agent
 
     public function instructions(): string
     {
-        return new SystemPrompt(
+        return (string) new SystemPrompt(
             background: [
                 "You are a data analyst expert in creating reports from SQL databases."
             ]
