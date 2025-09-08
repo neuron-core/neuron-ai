@@ -49,6 +49,7 @@ trait HandleResponses
                 if ($functions !== []) {
                     $response = $this->createToolCallMessage($functions);
                 } else {
+                    // Keep only the assistant response part
                     $messages = \array_values(
                         \array_filter(
                             $result['output'],
