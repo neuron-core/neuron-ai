@@ -58,7 +58,8 @@ trait HandleResponsesStream
             }
 
             switch ($event['type']) {
-                case 'response.web_search_call.searching':
+                // Comment for now to maintain backward compatibility. They can be added later.
+                /*case 'response.web_search_call.searching':
                     yield ['status' => 'web_search_call.searching'];
                     break;
 
@@ -68,12 +69,12 @@ trait HandleResponsesStream
 
                 case 'response.queued':
                     yield ['status' => 'queued'];
-                    break;
+                    break;*/
 
                 case 'response.function_call_arguments.done':
                     $toolCall = $this->composeResponseToolCalls($event, $toolCalls);
                     yield from $executeToolsCallback($toolCall);
-                    return;
+                    break;
 
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
@@ -82,8 +83,7 @@ trait HandleResponsesStream
 
                 case 'response.completed':
                     $result = $event['response'];
-                    yield $this->composeMessage($result);
-                    break;
+                    return $this->composeMessage($result);
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
