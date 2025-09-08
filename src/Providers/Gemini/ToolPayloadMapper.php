@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
