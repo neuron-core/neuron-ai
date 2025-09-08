@@ -22,7 +22,7 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
         foreach ($tools as $tool) {
             $mapping[] = match (true) {
                 $tool instanceof ToolInterface => $this->mapTool($tool),
-                $tool instanceof ProviderToolInterface => throw new ProviderException('OpenAI completion API does not support built-in Tools'),
+                $tool instanceof ProviderToolInterface => throw new ProviderException('OpenAI completions API does not support built-in Tools'),
                 default => throw new ProviderException('Could not map tool type '.$tool::class),
             };
         }

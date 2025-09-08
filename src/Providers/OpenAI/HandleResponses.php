@@ -49,7 +49,12 @@ trait HandleResponses
                 if ($functions !== []) {
                     $response = $this->createToolCallMessage($functions);
                 } else {
-                    $messages = \array_values(\array_filter($result['output'], fn (array $message): bool => $message['type'] == 'message' && $message['role'] == MessageRole::ASSISTANT->value));
+                    $messages = \array_values(
+                        \array_filter(
+                            $result['output'],
+                            fn (array $message): bool => $message['type'] == 'message' && $message['role'] == MessageRole::ASSISTANT->value
+                        )
+                    );
 
                     $content = $messages[0]['content'][0];
 
