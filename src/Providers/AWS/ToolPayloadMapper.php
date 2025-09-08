@@ -12,21 +12,19 @@ use NeuronAI\Tools\ToolPropertyInterface;
 
 class ToolPayloadMapper implements ToolPayloadMapperInterface
 {
-    protected array $mapping = [];
-
     public function map(array $tools): array
     {
-        $this->mapping = [];
+        $mapping = [];
 
         foreach ($tools as $tool) {
-            $this->mapping[] = match (true) {
+            $mapping[] = match (true) {
                 $tool instanceof ToolInterface => $this->mapTool($tool),
                 $tool instanceof ProviderToolInterface => throw new ProviderException('Bedrock Runtime does not support Provider Tools'),
                 default => throw new ProviderException('Could not map tool type '.$tool::class),
             };
         }
 
-        return $this->mapping;
+        return $mapping;
     }
 
     protected function mapTool(ToolInterface $tool): array
