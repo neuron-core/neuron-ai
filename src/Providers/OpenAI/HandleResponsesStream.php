@@ -185,22 +185,10 @@ trait HandleResponsesStream
 
         $message->addMetadata('id', $output[0]['id']);
 
+        // todo: refactor after implementing citations abstraction
         if (isset($content['annotations'])) {
             $message->addMetadata('annotations', $content['annotations']);
         }
-
-        /*foreach ($content['annotations'] ?? [] as $annotation) {
-            if ($annotation['type'] === 'url_citation') {
-                $message->addAnnotation(
-                    new Annotation(
-                        url: $annotation['url'],
-                        title: $annotation['title'],
-                        startIndex: $annotation['start_index'],
-                        endIndex: $annotation['end_index'],
-                    )
-                );
-            }
-        }*/
 
         if (\array_key_exists('usage', $result)) {
             $message->setUsage(

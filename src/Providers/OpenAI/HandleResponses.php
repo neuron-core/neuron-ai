@@ -63,22 +63,10 @@ trait HandleResponses
 
                     $response->addMetadata('id', $messages[0]['id']);
 
+                    // todo: refactor after implementing citations abstraction
                     if (isset($content['annotations'])) {
                         $response->addMetadata('annotations', $content['annotations']);
                     }
-
-                    /*foreach ($content['annotations'] ?? [] as $annotation) {
-                        if ($annotation['type'] === 'url_citation') {
-                            $response->addAnnotation(
-                                new Annotation(
-                                    url: $annotation['url'],
-                                    title: $annotation['title'],
-                                    startIndex: $annotation['start_index'],
-                                    endIndex: $annotation['end_index'],
-                                )
-                            );
-                        }
-                    }*/
                 }
 
                 if (\array_key_exists('usage', $result)) {
