@@ -31,9 +31,7 @@ trait HandleStream
         }
 
         if (!empty($this->tools)) {
-            $json['tools'] = [
-                'functionDeclarations' => $this->toolPayloadMapper()->map($this->tools)
-            ];
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->client->post(\trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [

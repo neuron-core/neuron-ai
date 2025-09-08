@@ -17,14 +17,19 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
      */
     public function map(array $tools): array
     {
+        $providerTools = \array_filter($tools, fn (ProviderToolInterface|ToolInterface $tool): bool => $tool instanceof ProviderToolInterface);
+        $functionTools = \array_filter($tools, fn (ProviderToolInterface|ToolInterface $tool): bool => $tool instanceof ToolInterface);
+
         $mapping = [];
 
-        foreach ($tools as $tool) {
-            $mapping[] = match (true) {
-                $tool instanceof ToolInterface => $this->mapTool($tool),
-                $tool instanceof ProviderToolInterface => $this->mapProviderTool($tool),
-                default => throw new ProviderException('Could not map tool type '.$tool::class),
-            };
+        if ($functionTools !== []) {
+            $mapping[] = [
+                'functionDeclarations' => \array_map(fn (ToolInterface $tool): array => $this->mapTool($tool), $functionTools),
+            ];
+        }
+
+        foreach ($providerTools as $tool) {
+            $mapping[] = $this->mapProviderTool($tool);
         }
 
         return $mapping;
