@@ -48,7 +48,7 @@ class PineconeVectorStore implements VectorStoreInterface
             RequestOptions::JSON => [
                 'namespace' => $this->namespace,
                 'vectors' => \array_map(fn (Document $document): array => [
-                    'id' => $document->getId(),
+                    'id' => (string) $document->getId(),
                     'values' => $document->getEmbedding(),
                     'metadata' => [
                         'content' => $document->getContent(),
