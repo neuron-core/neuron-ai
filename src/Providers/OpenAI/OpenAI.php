@@ -22,9 +22,10 @@ class OpenAI implements AIProviderInterface
     use HandleWithTools;
     //use HandleChat;
     //use HandleStream;
-    use HandleStructured;
+    //use HandleStructured;
     use HandleResponses;
     use HandleResponsesStream;
+    use HandleResponsesStructured;
 
     /**
      * The main URL of the provider API.
