@@ -227,6 +227,16 @@ class DataAnalystAgent extends Agent
 }
 ```
 
+Ask the agent something about your database:
+
+```php
+$response = DataAnalystAgent::make()->chat(
+    new UserMessage("How many orders we received today?")
+);
+
+echo $response->getContent();
+```
+
 Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/tools-and-function-calls).
 
 <a name="mcp">
