@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\MCP;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\MCP\McpException;
 use NeuronAI\MCP\StreamableHttpTransport;
