@@ -86,10 +86,6 @@ class StreamableHttpTransport implements McpTransportInterface
                 throw new McpException('Authorization failed: Insufficient permissions');
             }
 
-            if ($response->getStatusCode() !== 200) {
-                throw new McpException('HTTP request failed with status: ' . $response->getStatusCode());
-            }
-
             // Extract session ID from response headers if present
             if ($response->hasHeader('X-Session-ID')) {
                 $this->sessionId = $response->getHeader('X-Session-ID')[0];
