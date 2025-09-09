@@ -14,19 +14,25 @@ class McpClient
      * Create a new MCP client with the given transport
      *
      * @param array<string, mixed> $config
+     * @throws McpException
      */
     public function __construct(array $config)
     {
         if (\array_key_exists('command', $config)) {
             $this->transport = new StdioTransport($config);
-            $this->transport->connect();
-            $this->initialize();
+        } elseif (\array_key_exists('url', $config)) {
+            $this->transport = new StreamableHttpTransport($config);
         } else {
-            // todo: implement support for SSE with URL config property
-            throw new McpException('Transport not supported!');
+            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for StreamableHttpTransport.');
         }
+
+        $this->transport->connect();
+        $this->initialize();
     }
 
+    /**
+     * @throws McpException
+     */
     protected function initialize(): void
     {
         $request = [
