@@ -7,6 +7,7 @@ namespace NeuronAI\MCP;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Request;
+use Psr\Http\Message\StreamInterface;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
@@ -239,7 +240,7 @@ class StreamableHttpTransport implements McpTransportInterface
     /**
      * Read a line from the stream
      */
-    private function readLine(\Psr\Http\Message\StreamInterface $stream): ?string
+    private function readLine(StreamInterface $stream): ?string
     {
         $line = '';
         while (!$stream->eof()) {
