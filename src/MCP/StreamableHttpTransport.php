@@ -14,6 +14,7 @@ class StreamableHttpTransport implements McpTransportInterface
     private readonly Client $httpClient;
     private ?string $sessionId = null;
     private ?string $lastEventId = null;
+    private mixed $lastResponse = null;
 
     /**
      * Create a new StreamableHttpTransport with the given configuration
@@ -96,6 +97,9 @@ class StreamableHttpTransport implements McpTransportInterface
                 $this->sessionId = $response->getHeader('X-Session-ID')[0];
             }
 
+            // Store the response for the receive() method
+            $this->lastResponse = $response;
+
         } catch (GuzzleException $e) {
             throw new McpException('HTTP request failed: ' . $e->getMessage());
         } catch (\JsonException $e) {
@@ -104,94 +108,29 @@ class StreamableHttpTransport implements McpTransportInterface
     }
 
     /**
-     * Receive a response from the MCP HTTP server using Server-Sent Events
+     * Receive a response from the MCP HTTP server
      *
      * @return array<string, mixed>
      * @throws McpException
      */
     public function receive(): array
     {
-        if (!isset($this->config['url'])) {
-            throw new McpException('URL is required for HTTP transport');
+        if ($this->lastResponse === null) {
+            throw new McpException('No response available. Call send() first.');
         }
 
         try {
-            $headers = \array_merge($this->getAuthHeaders(), [
-                'Accept' => 'text/event-stream',
-            ]);
+            $responseBody = $this->lastResponse->getBody()->getContents();
+            $this->lastResponse = null; // Clear the stored response
 
-            // Add session ID if available
-            if ($this->sessionId !== null) {
-                $headers['X-Session-ID'] = $this->sessionId;
+            if ($responseBody === '') {
+                throw new McpException('Empty response body');
             }
 
-            // Add Last-Event-ID for resumability
-            if ($this->lastEventId !== null) {
-                $headers['Last-Event-ID'] = $this->lastEventId;
-            }
-
-            $response = $this->httpClient->get($this->config['url'], [
-                'headers' => $headers,
-                'stream' => true,
-            ]);
-
-            if ($response->getStatusCode() !== 200) {
-                throw new McpException('SSE connection failed with status: ' . $response->getStatusCode());
-            }
-
-            $body = $response->getBody();
-            $timeout = \time() + ($this->config['timeout'] ?? 30);
-
-            $eventData = '';
-            $eventId = null;
-
-            while (!$body->eof() && \time() < $timeout) {
-                $line = $this->readLine($body);
-                if ($line === null) {
-                    continue;
-                }
-
-                $line = \trim($line);
-
-                // Empty line indicates end of event
-                if ($line === '') {
-                    if ($eventData !== '') {
-                        // Update last event ID for resumability
-                        if ($eventId !== null) {
-                            $this->lastEventId = $eventId;
-                        }
-
-                        // Parse and return the JSON-RPC message
-                        try {
-                            return \json_decode($eventData, true, 512, \JSON_THROW_ON_ERROR);
-                        } catch (\JsonException $e) {
-                            throw new McpException('Invalid JSON in SSE data: ' . $e->getMessage());
-                        }
-                    }
-                    continue;
-                }
-
-                // Parse SSE field
-                if (\str_starts_with($line, 'data: ')) {
-                    $eventData = \substr($line, 6);
-                } elseif (\str_starts_with($line, 'id: ')) {
-                    $eventId = \substr($line, 4);
-                } elseif (\str_starts_with($line, 'event: ')) {
-                    // Event type - we can ignore for JSON-RPC
-                    continue;
-                } elseif (\str_starts_with($line, 'retry: ')) {
-                    // Retry timeout - we can ignore
-                    continue;
-                } elseif (\str_starts_with($line, ':')) {
-                    // Comment - ignore
-                    continue;
-                }
-            }
-
-            throw new McpException('Timeout waiting for SSE response');
-
-        } catch (GuzzleException $e) {
-            throw new McpException('SSE request failed: ' . $e->getMessage());
+            return \json_decode($responseBody, true, 512, \JSON_THROW_ON_ERROR);
+            
+        } catch (\JsonException $e) {
+            throw new McpException('Invalid JSON response: ' . $e->getMessage());
         }
     }
 
@@ -203,6 +142,7 @@ class StreamableHttpTransport implements McpTransportInterface
         // HTTP connections are stateless, no explicit disconnect needed
         $this->sessionId = null;
         $this->lastEventId = null;
+        $this->lastResponse = null;
     }
 
     /**
@@ -225,28 +165,5 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         return $headers;
-    }
-
-    /**
-     * Read a line from the stream
-     */
-    private function readLine(StreamInterface $stream): ?string
-    {
-        $line = '';
-        while (!$stream->eof()) {
-            $char = $stream->read(1);
-            if ($char === '') {
-                \usleep(10000); // 10ms delay to prevent CPU spinning
-                continue;
-            }
-            if ($char === "\n") {
-                return $line;
-            }
-            if ($char !== "\r") {
-                $line .= $char;
-            }
-        }
-
-        return $line !== '' ? $line : null;
     }
 }
