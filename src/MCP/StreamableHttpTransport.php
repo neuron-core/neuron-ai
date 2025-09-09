@@ -48,18 +48,8 @@ class StreamableHttpTransport implements McpTransportInterface
             throw new McpException('Invalid URL format');
         }
 
-        // Test connection by making a basic request
-        try {
-            $response = $this->httpClient->get($this->config['url'], [
-                'headers' => $this->getAuthHeaders(),
-            ]);
-
-            if ($response->getStatusCode() !== 200) {
-                throw new McpException('HTTP connection failed with status: ' . $response->getStatusCode());
-            }
-        } catch (GuzzleException $e) {
-            throw new McpException('Failed to connect to HTTP server: ' . $e->getMessage());
-        }
+        // For HTTP transport, no explicit connection test is needed
+        // The connection will be validated during the first request
     }
 
     /**
