@@ -24,7 +24,7 @@ trait HandleToolEvents
                 self::SEGMENT_TYPE.'.tool',
                 "tools_bootstrap()"
             )
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     public function toolsBootstrapped(AgentInterface $agent, string $event, ToolsBootstrapped $data): void
@@ -54,7 +54,7 @@ trait HandleToolEvents
                 self::SEGMENT_TYPE.'.tool',
                 "tool_call( {$data->tool->getName()} )"
             )
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     public function toolCalled(AgentInterface $agent, string $event, ToolCalled $data): void

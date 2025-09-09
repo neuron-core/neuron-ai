@@ -23,7 +23,7 @@ trait HandleStructuredEvents
         }
 
         $this->segments[$data->class.'-schema'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( {$data->class} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     protected function schemaGenerated(AgentInterface $agent, string $event, SchemaGenerated $data): void
@@ -43,7 +43,7 @@ trait HandleStructuredEvents
         $id = $this->getMessageId($data->message).'-extract';
 
         $this->segments[$id] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     protected function extracted(AgentInterface $agent, string $event, Extracted $data): void
@@ -73,7 +73,7 @@ trait HandleStructuredEvents
         }
 
         $this->segments[$data->class.'-deserialize'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( {$data->class} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     protected function deserialized(AgentInterface $agent, string $event, Deserialized $data): void
@@ -92,7 +92,7 @@ trait HandleStructuredEvents
         }
 
         $this->segments[$data->class.'-validate'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( {$data->class} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     protected function validated(AgentInterface $agent, string $event, Validated $data): void

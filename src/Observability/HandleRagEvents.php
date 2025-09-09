@@ -24,7 +24,7 @@ trait HandleRagEvents
 
         $this->segments[$id] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$data->question->getContent()} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     public function ragRetrieved(AgentInterface $agent, string $event, Retrieved $data): void
@@ -49,7 +49,7 @@ trait HandleRagEvents
 
         $segment = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.preprocessing', $data->processor)
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
 
         $segment->addContext('Original', $data->original->jsonSerialize());
 
@@ -73,7 +73,7 @@ trait HandleRagEvents
 
         $segment = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.postprocessing', $data->processor)
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
 
         $segment->addContext('Question', $data->question->jsonSerialize())
             ->addContext('Documents', $data->documents);
