@@ -127,7 +127,10 @@ class StreamableHttpTransport implements McpTransportInterface
                 throw new McpException('Empty response body');
             }
 
-            return \json_decode($responseBody, true, 512, \JSON_THROW_ON_ERROR);
+            // Parse SSE format to extract JSON data
+            $jsonData = $this->parseSSEResponse($responseBody);
+            
+            return \json_decode($jsonData, true, 512, \JSON_THROW_ON_ERROR);
             
         } catch (\JsonException $e) {
             throw new McpException('Invalid JSON response: ' . $e->getMessage());
@@ -165,5 +168,39 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         return $headers;
+    }
+
+    /**
+     * Parse Server-Sent Events response to extract JSON data
+     *
+     * @param string $sseResponse
+     * @return string
+     * @throws McpException
+     */
+    private function parseSSEResponse(string $sseResponse): string
+    {
+        $lines = \explode("\n", $sseResponse);
+        $jsonData = '';
+        
+        foreach ($lines as $line) {
+            $line = \trim($line);
+            
+            // Skip empty lines and comments
+            if ($line === '' || \str_starts_with($line, ':')) {
+                continue;
+            }
+            
+            // Extract data from SSE format
+            if (\str_starts_with($line, 'data: ')) {
+                $jsonData = \substr($line, 6);
+                break; // We found the JSON data, we can stop
+            }
+        }
+        
+        if ($jsonData === '') {
+            throw new McpException('No JSON data found in SSE response');
+        }
+        
+        return $jsonData;
     }
 }
