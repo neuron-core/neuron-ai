@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use Inspector\Configuration;
+use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
@@ -19,7 +20,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
  *
  * Getting started with observability:
- * https://docs.neuron-ai.dev/advanced/observability
+ * https://docs.neuron-ai.dev/components/observability
  */
 class AgentMonitoring implements \SplObserver
 {
@@ -30,7 +31,7 @@ class AgentMonitoring implements \SplObserver
     use HandleWorkflowEvents;
 
     public const SEGMENT_TYPE = 'neuron';
-    public const SEGMENT_COLOR = '#FF800C';
+    public const STANDARD_COLOR = '#FF800C';
 
     /**
      * @var array<string, Segment>
@@ -80,6 +81,7 @@ class AgentMonitoring implements \SplObserver
         'rag-postprocessed' => 'postProcessed',
 
         'workflow-start' => 'workflowStart',
+        'workflow-resume' => 'workflowStart',
         'workflow-end' => 'workflowEnd',
         'workflow-node-start' => 'workflowNodeStart',
         'workflow-node-end' => 'workflowNodeEnd',
@@ -97,6 +99,9 @@ class AgentMonitoring implements \SplObserver
     }
 
 
+    /**
+     * @throws InspectorException
+     */
     public static function instance(?string $key = null): AgentMonitoring
     {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY']);
@@ -122,6 +127,9 @@ class AgentMonitoring implements \SplObserver
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     public function start(Agent $agent, string $event, mixed $data = null): void
     {
         if (!$this->inspector->isRecording()) {
@@ -143,7 +151,7 @@ class AgentMonitoring implements \SplObserver
             }
 
             $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'-'.$method, "{$class}::{$method}")
-                ->setColor(self::SEGMENT_COLOR);
+                ->setColor(self::STANDARD_COLOR);
             $segment->setContext($this->getContext($agent));
             $this->segments[$key] = $segment;
         }
@@ -177,6 +185,9 @@ class AgentMonitoring implements \SplObserver
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     public function reportError(\SplSubject $subject, string $event, AgentError $data): void
     {
         $this->inspector->reportException($data->exception, !$data->unhandled);

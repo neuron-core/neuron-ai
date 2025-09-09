@@ -23,7 +23,7 @@ trait HandleInferenceEvents
 
         $this->segments[$this->getMessageId($data->message).'-save'] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     public function messageSaved(Agent $agent, string $event, MessageSaved $data): void
@@ -57,7 +57,7 @@ trait HandleInferenceEvents
 
         $this->segments[$this->getMessageId($data->message).'-inference'] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.inference', "inference( {$label} )")
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
     }
 
     public function inferenceStop(Agent $agent, string $event, InferenceStop $data): void

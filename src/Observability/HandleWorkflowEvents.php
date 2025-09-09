@@ -12,6 +12,9 @@ use NeuronAI\Workflow\NodeInterface;
 
 trait HandleWorkflowEvents
 {
+    /**
+     * @throws \Exception
+     */
     public function workflowStart(\SplSubject $workflow, string $event, WorkflowStart $data): void
     {
         if (!$this->inspector->isRecording()) {
@@ -26,7 +29,7 @@ trait HandleWorkflowEvents
                 ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)));
         } elseif ($this->inspector->canAddSegments()) {
             $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $workflow::class)
-                ->setColor(self::SEGMENT_COLOR);
+                ->setColor(self::STANDARD_COLOR);
         }
     }
 
@@ -51,7 +54,7 @@ trait HandleWorkflowEvents
 
         $segment = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.workflow', $data->node)
-            ->setColor(self::SEGMENT_COLOR);
+            ->setColor(self::STANDARD_COLOR);
         $segment->addContext('Before', $data->state->all());
         $this->segments[$data->node] = $segment;
     }
