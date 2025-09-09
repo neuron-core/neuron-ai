@@ -7,14 +7,12 @@ namespace NeuronAI\MCP;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Request;
-use Psr\Http\Message\StreamInterface;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
-    private readonly Client $httpClient;
-    private ?string $sessionId = null;
-    private ?string $lastEventId = null;
-    private mixed $lastResponse = null;
+    protected readonly Client $httpClient;
+    protected ?string $sessionId = null;
+    protected mixed $lastResponse = null;
 
     /**
      * Create a new StreamableHttpTransport with the given configuration
@@ -129,9 +127,9 @@ class StreamableHttpTransport implements McpTransportInterface
 
             // Parse SSE format to extract JSON data
             $jsonData = $this->parseSSEResponse($responseBody);
-            
+
             return \json_decode($jsonData, true, 512, \JSON_THROW_ON_ERROR);
-            
+
         } catch (\JsonException $e) {
             throw new McpException('Invalid JSON response: ' . $e->getMessage());
         }
@@ -144,7 +142,6 @@ class StreamableHttpTransport implements McpTransportInterface
     {
         // HTTP connections are stateless, no explicit disconnect needed
         $this->sessionId = null;
-        $this->lastEventId = null;
         $this->lastResponse = null;
     }
 
@@ -153,7 +150,7 @@ class StreamableHttpTransport implements McpTransportInterface
      *
      * @return array<string, string>
      */
-    private function getAuthHeaders(): array
+    protected function getAuthHeaders(): array
     {
         $headers = [];
 
@@ -173,34 +170,28 @@ class StreamableHttpTransport implements McpTransportInterface
     /**
      * Parse Server-Sent Events response to extract JSON data
      *
-     * @param string $sseResponse
-     * @return string
      * @throws McpException
      */
-    private function parseSSEResponse(string $sseResponse): string
+    protected function parseSSEResponse(string $sseResponse): string
     {
         $lines = \explode("\n", $sseResponse);
-        $jsonData = '';
-        
+
         foreach ($lines as $line) {
             $line = \trim($line);
-            
             // Skip empty lines and comments
-            if ($line === '' || \str_starts_with($line, ':')) {
+            if ($line === '') {
                 continue;
             }
-            
+            if (\str_starts_with($line, ':')) {
+                continue;
+            }
+
             // Extract data from SSE format
             if (\str_starts_with($line, 'data: ')) {
-                $jsonData = \substr($line, 6);
-                break; // We found the JSON data, we can stop
+                return \substr($line, 6);
             }
         }
-        
-        if ($jsonData === '') {
-            throw new McpException('No JSON data found in SSE response');
-        }
-        
-        return $jsonData;
+
+        throw new McpException('No JSON data found in SSE response');
     }
 }
