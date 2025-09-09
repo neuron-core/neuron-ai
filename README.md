@@ -81,7 +81,7 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 class DataAnalystAgent extends Agent
 {
-    public function provider(): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new Anthropic(
             key: 'ANTHROPIC_API_KEY',
@@ -89,7 +89,7 @@ class DataAnalystAgent extends Agent
         );
     }
 
-    public function instructions(): string
+    protected function instructions(): string
     {
         return (string) new SystemPrompt(
             background: [
@@ -199,7 +199,7 @@ use NeuronAI\Tools\Toolkits\MySQL\MySQLToolkit;
 
 class DataAnalystAgent extends Agent
 {
-    public function provider(): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new Anthropic(
             key: 'ANTHROPIC_API_KEY',
@@ -207,7 +207,7 @@ class DataAnalystAgent extends Agent
         );
     }
 
-    public function instructions(): string
+    protected function instructions(): string
     {
         return (string) new SystemPrompt(
             background: [
@@ -216,7 +216,7 @@ class DataAnalystAgent extends Agent
         );
     }
 
-    public function tools(): array
+    protected function tools(): array
     {
         return [
             MySQLToolkit:make(
@@ -259,17 +259,17 @@ use NeuronAI\Tools\Tool;
 
 class DataAnalystAgent extends Agent
 {
-    public function provider(): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         ...
     }
 
-    public function instructions(): string
+    protected function instructions(): string
     {
         ...
     }
 
-    public function tools(): array
+    protected function tools(): array
     {
         return [
             // Connect to an MCP server
@@ -349,7 +349,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class MyChatBot extends RAG
 {
-    public function provider(): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new Anthropic(
             key: 'ANTHROPIC_API_KEY',
@@ -357,7 +357,7 @@ class MyChatBot extends RAG
         );
     }
 
-    public function embeddings(): EmbeddingsProviderInterface
+    protected function embeddings(): EmbeddingsProviderInterface
     {
         return new VoyageEmbeddingProvider(
             key: 'VOYAGE_API_KEY',
@@ -365,7 +365,7 @@ class MyChatBot extends RAG
         );
     }
 
-    public function vectorStore(): VectorStoreInterface
+    protected function vectorStore(): VectorStoreInterface
     {
         return new PineconeVectorStore(
             key: 'PINECONE_API_KEY',
