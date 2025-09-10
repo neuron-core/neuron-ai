@@ -6,6 +6,9 @@ namespace NeuronAI\Tools\Toolkits\Calendar;
 
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
+/**
+ * @method static static make()
+ */
 class CalendarToolkit extends AbstractToolkit
 {
     public function guidelines(): ?string

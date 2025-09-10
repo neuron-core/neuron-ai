@@ -6,6 +6,9 @@ namespace NeuronAI\Tools\Toolkits\Calculator;
 
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
+/**
+ * @method static static make()
+ */
 class CalculatorToolkit extends AbstractToolkit
 {
     public function guidelines(): ?string

@@ -31,7 +31,7 @@ trait ResolveChatHistory
         return new InMemoryChatHistory();
     }
 
-    public function fillChatHistory(Message|array $messages): void
+    public function addToChatHistory(Message|array $messages): void
     {
         $messages = \is_array($messages) ? $messages : [$messages];
 

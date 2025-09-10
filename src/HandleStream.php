@@ -17,7 +17,7 @@ trait HandleStream
         try {
             $this->notify('stream-start');
 
-            $this->fillChatHistory($messages);
+            $this->addToChatHistory($messages);
 
             $tools = $this->bootstrapTools();
 
@@ -60,7 +60,7 @@ trait HandleStream
             // Avoid double saving due to the recursive call.
             $last = $this->resolveChatHistory()->getLastMessage();
             if ($response->getRole() !== $last->getRole()) {
-                $this->fillChatHistory($response);
+                $this->addToChatHistory($response);
             }
 
             $this->notify('stream-stop');

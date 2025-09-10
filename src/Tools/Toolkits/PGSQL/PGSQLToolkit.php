@@ -8,7 +8,7 @@ use NeuronAI\Tools\Toolkits\AbstractToolkit;
 use PDO;
 
 /**
- * @method static make(Pdo $pdo)
+ * @method static static make(Pdo $pdo)
  */
 class PGSQLToolkit extends AbstractToolkit
 {
