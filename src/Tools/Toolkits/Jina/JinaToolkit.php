@@ -8,7 +8,7 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 /**
- * @method static make(string $key)
+ * @method static static make(string $key)
  */
 class JinaToolkit extends AbstractToolkit
 {

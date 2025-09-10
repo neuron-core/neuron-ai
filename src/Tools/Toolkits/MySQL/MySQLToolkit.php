@@ -8,7 +8,7 @@ use NeuronAI\Tools\Toolkits\AbstractToolkit;
 use PDO;
 
 /**
- * @method static make(PDO $pdo)
+ * @method static static make(PDO $pdo)
  */
 class MySQLToolkit extends AbstractToolkit
 {

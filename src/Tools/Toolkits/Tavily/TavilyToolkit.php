@@ -7,7 +7,7 @@ namespace NeuronAI\Tools\Toolkits\Tavily;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 /**
- * @method static make(string $key)
+ * @method static static make(string $key)
  */
 class TavilyToolkit extends AbstractToolkit
 {
