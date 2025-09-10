@@ -39,7 +39,7 @@ trait HandleStructured
     {
         $this->notify('structured-start');
 
-        $this->fillChatHistory($messages);
+        $this->addToChatHistory($messages);
 
         $tools = $this->bootstrapTools();
 
@@ -59,7 +59,7 @@ trait HandleStructured
                         \PHP_EOL.\PHP_EOL.'- '.$error.\PHP_EOL.\PHP_EOL.
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $this->fillChatHistory($correctionMessage);
+                    $this->addToChatHistory($correctionMessage);
                 }
 
                 $messages = $this->resolveChatHistory()->getMessages();
@@ -78,14 +78,14 @@ trait HandleStructured
                     new InferenceStop($last, $response)
                 );
 
-                $this->fillChatHistory($response);
+                $this->addToChatHistory($response);
 
                 if ($response instanceof ToolCallMessage) {
                     $toolCallResult = $this->executeTools($response);
                     return self::structured($toolCallResult, $class, $maxRetries);
                 }
 
-                $this->fillChatHistory($response);
+                $this->addToChatHistory($response);
 
                 $output = $this->processResponse($response, $schema, $class);
                 $this->notify('structured-stop');

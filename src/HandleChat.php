@@ -27,7 +27,7 @@ trait HandleChat
     {
         $this->notify('chat-start');
 
-        $this->fillChatHistory($messages);
+        $this->addToChatHistory($messages);
 
         $tools = $this->bootstrapTools();
 
@@ -47,7 +47,7 @@ trait HandleChat
                     new InferenceStop($this->resolveChatHistory()->getLastMessage(), $response)
                 );
 
-                $this->fillChatHistory($response);
+                $this->addToChatHistory($response);
 
                 if ($response instanceof ToolCallMessage) {
                     $toolCallResult = $this->executeTools($response);
