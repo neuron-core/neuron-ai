@@ -116,7 +116,7 @@ trait HandleStructured
         Message $response,
         array $schema,
         string $class,
-    ): mixed {
+    ): object {
         // Try to extract a valid JSON object from the LLM response
         $this->notify('structured-extracting', new Extracting($response));
         $json = (new JsonExtractor())->getJson($response->getContent());
@@ -131,11 +131,8 @@ trait HandleStructured
         $this->notify('structured-deserialized', new Deserialized($class));
 
         // Validate if the object fields respect the validation attributes
-        // https://symfony.com/doc/current/validation.html#constraints
         $this->notify('structured-validating', new Validating($class, $json));
-
         $violations = Validator::validate($obj);
-
         if (\count($violations) > 0) {
             $this->notify('structured-validated', new Validated($class, $json, $violations));
             throw new AgentException(\PHP_EOL.'- '.\implode(\PHP_EOL.'- ', $violations));
@@ -145,6 +142,9 @@ trait HandleStructured
         return $obj;
     }
 
+    /**
+     * @throws AgentException
+     */
     protected function getOutputClass(): string
     {
         throw new AgentException('You need to specify an output class.');
