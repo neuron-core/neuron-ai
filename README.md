@@ -136,7 +136,7 @@ echo $response->getContent();
 // Your name is Valerio, as you said in your introduction.
 ```
 
-As you can see in the example above, the Agent automatically has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/chat-history-and-memory).
+As you can see in the example above, the Agent automatically has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/components/chat-history-and-memory).
 
 <a name="monitoring">
 
@@ -245,7 +245,7 @@ $response = DataAnalystAgent::make()->chat(
 echo $response->getContent();
 ```
 
-Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/tools-and-function-calls).
+Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/getting-started/tools).
 
 <a name="mcp">
 
@@ -290,7 +290,7 @@ class DataAnalystAgent extends Agent
 }
 ```
 
-Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev/advanced/mcp-servers-connection).
+Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev/getting-started/mcp-connector).
 
 <a name="structured">
 
@@ -325,7 +325,7 @@ echo $person->name ' like '.$person->preference;
 // John like pizza
 ```
 
-Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/advanced/structured-output).
+Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/getting-started/structured-output).
 
 <a name="rag">
 
@@ -383,7 +383,7 @@ class MyChatBot extends RAG
 }
 ```
 
-Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/rag).
+Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/getting-started/rag).
 
 <a name="workflow">
 
