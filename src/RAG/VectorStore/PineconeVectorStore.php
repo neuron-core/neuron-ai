@@ -87,7 +87,7 @@ class PineconeVectorStore implements VectorStoreInterface
                 'includeValues' => true,
                 'vector' => $embedding,
                 'topK' => $this->topK,
-                'filters' => $this->filters, // Hybrid search
+                'filter' => $this->filters, // Hybrid search
             ]
         ])->getBody()->getContents();
 
