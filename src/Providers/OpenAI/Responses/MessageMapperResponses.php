@@ -50,7 +50,7 @@ class MessageMapperResponses implements MessageMapperInterface
         } else {
             $payload['content'] = [
                 [
-                    'type' => 'input_text',
+                    'type' => $message instanceof UserMessage ? 'input_text' : 'output_text',
                     'text' => (string) $message->getContent(),
                 ],
             ];

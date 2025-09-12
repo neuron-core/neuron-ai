@@ -53,7 +53,7 @@ trait HandleResponses
                     $messages = \array_values(
                         \array_filter(
                             $result['output'],
-                            fn (array $message): bool => $message['type'] == 'message' && $message['role'] == MessageRole::ASSISTANT->value
+                            fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
                         )
                     );
 

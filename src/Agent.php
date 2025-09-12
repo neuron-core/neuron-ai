@@ -30,7 +30,7 @@ class Agent implements AgentInterface
 
     public function instructions(): string
     {
-        return 'Your are a helpful and friendly AI agent built with NeuronAI PHP framework.';
+        return 'Your are a helpful and friendly AI agent built with Neuron PHP framework.';
     }
 
     public function resolveInstructions(): string
