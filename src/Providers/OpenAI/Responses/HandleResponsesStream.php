@@ -88,8 +88,7 @@ trait HandleResponsesStream
                     break;
 
                 case 'response.completed':
-                    $result = $event['response'];
-                    return $this->composeMessage($result);
+                    return $this->composeMessage($event['response']);
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
@@ -101,35 +100,33 @@ trait HandleResponsesStream
         }
     }
 
-    /**
-     * Recreate the tool_calls format from streaming OpenAI API.
-     *
-     * @param  array<string, mixed>  $event
-     * @param  array<int, array<string, mixed>>  $toolCalls
-     * @return array<int, array<string, mixed>>
-     */
-    /*protected function composeToolCalls(array $event, array $toolCalls): array
+    protected function composeMessage(array $response): AssistantMessage
     {
-        $index = $event['item_id'];
+        $messages = \array_values(
+            \array_filter(
+                $response['output'],
+                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
+            )
+        );
 
-        if (!\array_key_exists($index, $toolCalls)) {
-            if ($name = $event['item_id'] ?? null) {
-                $toolCalls[$index]['function'] = [
-                    'name' => $name,
-                    'arguments' => $event['arguments'] ?? null
-                ];
-                $toolCalls[$index]['id'] = $event['item_id'];
-                $toolCalls[$index]['type'] = 'function';
-            }
-        } else {
-            $arguments = $event['arguments'] ?? null;
-            if ($arguments !== null) {
-                $toolCalls[$index]['function']['arguments'] .= $arguments;
-            }
+        $content = $messages[0]['content'][0];
+
+        $message = new AssistantMessage(
+            content: $content['text'],
+        );
+
+        if (isset($content['annotations'])) {
+            $message->addMetadata('annotations', $content['annotations']);
         }
 
-        return $toolCalls;
-    }*/
+        if (\array_key_exists('usage', $response)) {
+            $message->setUsage(
+                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
+            );
+        }
+
+        return $message;
+    }
 
     protected function parseNextDataLine(StreamInterface $stream): ?array
     {
@@ -177,33 +174,5 @@ trait HandleResponsesStream
         }
 
         return $buffer;
-    }
-
-    protected function composeMessage(array $result): AssistantMessage
-    {
-        $output = \array_values(
-            \array_filter(
-                $result['output'],
-                fn (array $message): bool => $message['type'] == 'message' && $message['role'] == MessageRole::ASSISTANT->value
-            )
-        );
-
-        $content = $output[0]['content'][0];
-
-        $message = new AssistantMessage(
-            content: $content['text'],
-        );
-
-        if (isset($content['annotations'])) {
-            $message->addMetadata('annotations', $content['annotations']);
-        }
-
-        if (\array_key_exists('usage', $result)) {
-            $message->setUsage(
-                new Usage($result['usage']['input_tokens'], $result['usage']['output_tokens'])
-            );
-        }
-
-        return $message;
     }
 }
