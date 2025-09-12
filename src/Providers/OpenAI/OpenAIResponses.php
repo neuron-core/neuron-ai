@@ -80,25 +80,25 @@ class OpenAIResponses implements AIProviderInterface
     }
 
     /**
-     * @param array<string, mixed> $message
+     * @param array<string, mixed> $functions
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $message): Message
+    protected function createToolCallMessage(array $functions): Message
     {
         $tools = \array_map(
-            fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
+            fn (array $item): ToolInterface => $this->findTool($item['name'])
                 ->setInputs(
-                    \json_decode((string) $item['function']['arguments'], true)
+                    \json_decode((string) $item['arguments'], true)
                 )
-                ->setCallId($item['id']),
-            $message['tool_calls']
+                ->setCallId($item['call_id']),
+            $functions
         );
 
         $result = new ToolCallMessage(
-            $message['content'],
+            null,
             $tools
         );
 
-        return $result->addMetadata('tool_calls', $message['tool_calls']);
+        return $result->addMetadata('tool_calls', $functions);
     }
 }

@@ -66,19 +66,23 @@ trait HandleResponsesStream
                     yield ['status' => 'queued'];
                     break;*/
 
+                case 'response.output_item.added':
+                    $toolCalls[$event['name']] = [
+                        'name' => $event['name'],
+                        'arguments' => $event['arguments'] ?? null,
+                        'call_id' => $event['call_id'],
+                    ];
+                    break;
+
                 case 'response.function_call_arguments.done':
-                    $toolCalls = $this->composeToolCalls($event, $toolCalls);
+                    $toolCalls[$event['name']]['arguments'] = $event['arguments'];
                     yield from $executeToolsCallback(
-                        $this->createToolCallMessage([
-                            'content' => null,
-                            'tool_calls' => $toolCalls
-                        ])
+                        $this->createToolCallMessage($toolCalls)
                     );
                     break;
 
                 case 'response.output_text.delta':
-                    $content = $event['delta'] ?? '';
-                    yield $content;
+                    yield $event['delta'] ?? '';
                     break;
 
                 case 'response.completed':
@@ -102,7 +106,7 @@ trait HandleResponsesStream
      * @param  array<int, array<string, mixed>>  $toolCalls
      * @return array<int, array<string, mixed>>
      */
-    protected function composeToolCalls(array $event, array $toolCalls): array
+    /*protected function composeToolCalls(array $event, array $toolCalls): array
     {
         $index = $event['item_id'];
 
@@ -123,7 +127,7 @@ trait HandleResponsesStream
         }
 
         return $toolCalls;
-    }
+    }*/
 
     protected function parseNextDataLine(StreamInterface $stream): ?array
     {
@@ -188,7 +192,6 @@ trait HandleResponsesStream
             content: $content['text'],
         );
 
-        // todo: refactor after implementing citations abstraction
         if (isset($content['annotations'])) {
             $message->addMetadata('annotations', $content['annotations']);
         }
