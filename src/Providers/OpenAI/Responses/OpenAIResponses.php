@@ -13,7 +13,6 @@ use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
-use NeuronAI\Providers\OpenAI\MessageMapper;
 use NeuronAI\Providers\OpenAI\ToolPayloadMapperResponses;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -73,7 +72,7 @@ class OpenAIResponses implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapperResponses();
     }
 
     public function toolPayloadMapper(): ToolPayloadMapperInterface
