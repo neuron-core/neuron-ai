@@ -15,11 +15,4 @@ interface RetrievalInterface
      * @return Document[]
      */
     public function retrieve(Message $query): array;
-
-    /**
-     * Set configuration parameters for the retrieval strategy.
-     *
-     * @param array<string, mixed> $config
-     */
-    public function setConfiguration(array $config): RetrievalInterface;
 }

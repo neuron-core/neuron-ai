@@ -61,6 +61,7 @@
     "scripts-descriptions": {
         "analyse": "Run PHPStan static analysis against your application.",
         "format": "Run PHP CS Fixer against your application.",
+        "refactor": "Run rector for code refactoring.",
         "test": "Run PHPUnit to test"
     },
     "autoload": {
