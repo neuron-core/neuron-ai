@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
@@ -87,8 +88,9 @@ trait HandleResponsesStream
                     yield $event['delta'] ?? '';
                     break;
 
-                case 'response.completed':
-                    return $this->composeMessage($event['response']);
+                // Called at the end of every type
+                /*case 'response.completed':
+                    return $event['response'];*/
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
@@ -100,34 +102,9 @@ trait HandleResponsesStream
         }
     }
 
-    protected function composeMessage(array $response): AssistantMessage
-    {
-        $messages = \array_values(
-            \array_filter(
-                $response['output'],
-                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
-            )
-        );
-
-        $content = $messages[0]['content'][0];
-
-        $message = new AssistantMessage(
-            content: $content['text'],
-        );
-
-        if (isset($content['annotations'])) {
-            $message->addMetadata('annotations', $content['annotations']);
-        }
-
-        if (\array_key_exists('usage', $response)) {
-            $message->setUsage(
-                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
-            );
-        }
-
-        return $message;
-    }
-
+    /**
+     * @throws ProviderException
+     */
     protected function parseNextDataLine(StreamInterface $stream): ?array
     {
         $line = $this->readLine($stream);
