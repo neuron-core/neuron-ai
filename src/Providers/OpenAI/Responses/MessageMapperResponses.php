@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Attachments\Attachment;
@@ -46,7 +48,7 @@ class MessageMapperResponses implements MessageMapperInterface
         $payload['role'] = $message->getRole();
 
         if (\is_array($message->getContent())) {
-            $payload['content'] = (array) $message->getContent();
+            $payload['content'] = $message->getContent();
         } else {
             $payload['content'] = [
                 [

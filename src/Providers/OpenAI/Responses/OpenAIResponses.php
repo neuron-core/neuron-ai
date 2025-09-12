@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Client;
-use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
@@ -80,11 +82,37 @@ class OpenAIResponses implements AIProviderInterface
         return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapperResponses();
     }
 
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        $messages = \array_values(
+            \array_filter(
+                $response['output'],
+                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
+            )
+        );
+
+        $content = $messages[0]['content'][0];
+
+        $message = new AssistantMessage($content['text']);
+
+        if (isset($content['annotations'])) {
+            $message->addMetadata('annotations', $content['annotations']);
+        }
+
+        if (\array_key_exists('usage', $response)) {
+            $message->setUsage(
+                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
+            );
+        }
+
+        return $message;
+    }
+
     /**
-     * @param array<string, mixed> $functions
+     * @param array<string, mixed> $toolCalls
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $functions): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, ?array $usage): ToolCallMessage
     {
         $tools = \array_map(
             fn (array $item): ToolInterface => $this->findTool($item['name'])
@@ -92,12 +120,17 @@ class OpenAIResponses implements AIProviderInterface
                     \json_decode((string) $item['arguments'], true)
                 )
                 ->setCallId($item['call_id']),
-            $functions
+            $toolCalls
         );
 
-        return new ToolCallMessage(
-            '',
-            $tools
-        );
+        $message = new ToolCallMessage('', $tools);
+
+        if (!\is_null($usage)) {
+            $message->setUsage(
+                new Usage($usage['input_tokens'], $usage['output_tokens'])
+            );
+        }
+
+        return $message;
     }
 }

@@ -6,10 +6,6 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
-use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
@@ -67,6 +63,7 @@ trait HandleResponsesStream
                     yield ['status' => 'queued'];
                     break;*/
 
+                // Initialize the tool call
                 case 'response.output_item.added':
                     if ($event['item']['type'] == 'function_call') {
                         $toolCalls[$event['item']['id']] = [
@@ -77,18 +74,21 @@ trait HandleResponsesStream
                     }
                     break;
 
+                    // Update the tool call arguments
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     break;
 
+                    // Stream delta text
                 case 'response.output_text.delta':
                     yield $event['delta'] ?? '';
                     break;
 
+                    // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
                         yield from $executeToolsCallback(
-                            $this->createToolCallMessage($toolCalls)
+                            $this->createToolCallMessage($toolCalls, $event['response']['usage'] ?? null)
                         );
                     } else {
                         return $this->createAssistantMessage($event['response']);
@@ -103,32 +103,6 @@ trait HandleResponsesStream
                     break;
             }
         }
-    }
-
-    protected function createAssistantMessage(array $response): AssistantMessage
-    {
-        $messages = \array_values(
-            \array_filter(
-                $response['output'],
-                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
-            )
-        );
-
-        $content = $messages[0]['content'][0];
-
-        $message = new AssistantMessage($content['text']);
-
-        if (isset($content['annotations'])) {
-            $message->addMetadata('annotations', $content['annotations']);
-        }
-
-        if (\array_key_exists('usage', $response)) {
-            $message->setUsage(
-                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
-            );
-        }
-
-        return $message;
     }
 
     /**
