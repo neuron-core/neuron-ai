@@ -11,24 +11,22 @@ use NeuronAI\Providers\MessageMapperInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
-    protected array $mapping = [];
-
     public function map(array $messages): array
     {
-        $this->mapping = [];
+        $mapping = [];
 
         foreach ($messages as $message) {
-            match ($message::class) {
+            $mapping[] = match ($message::class) {
                 ToolCallResultMessage::class => $this->mapToolCallResult($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 default => $this->mapMessage($message),
             };
         }
 
-        return $this->mapping;
+        return $mapping;
     }
 
-    protected function mapToolCallResult(ToolCallResultMessage $message): void
+    protected function mapToolCallResult(ToolCallResultMessage $message): array
     {
         $toolContents = [];
         foreach ($message->getTools() as $tool) {
@@ -46,13 +44,13 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        $this->mapping[] = [
+        return [
             'role' => $message->getRole(),
             'content' => $toolContents,
         ];
     }
 
-    protected function mapToolCall(ToolCallMessage $message): void
+    protected function mapToolCall(ToolCallMessage $message): array
     {
         $toolCallContents = [];
 
@@ -66,15 +64,15 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        $this->mapping[] = [
+        return [
             'role' => $message->getRole(),
             'content' => $toolCallContents,
         ];
     }
 
-    protected function mapMessage(Message $message): void
+    protected function mapMessage(Message $message): array
     {
-        $this->mapping[] = [
+        return [
             'role' => $message->getRole(),
             'content' => [['text' => $message->getContent()]],
         ];

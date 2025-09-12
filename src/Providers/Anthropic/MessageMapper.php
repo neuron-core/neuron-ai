@@ -18,14 +18,12 @@ use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
-    protected array $mapping = [];
-
     public function map(array $messages): array
     {
-        $this->mapping = [];
+        $mapping = [];
 
         foreach ($messages as $message) {
-            match ($message::class) {
+            $mapping[] = match ($message::class) {
                 Message::class,
                 UserMessage::class,
                 AssistantMessage::class => $this->mapMessage($message),
@@ -35,10 +33,10 @@ class MessageMapper implements MessageMapperInterface
             };
         }
 
-        return $this->mapping;
+        return $mapping;
     }
 
-    protected function mapMessage(Message $message): void
+    protected function mapMessage(Message $message): array
     {
         $payload = $message->jsonSerialize();
 
@@ -63,7 +61,7 @@ class MessageMapper implements MessageMapperInterface
 
         unset($payload['attachments']);
 
-        $this->mapping[] = $payload;
+        return $payload;
     }
 
     protected function mapAttachment(Attachment $attachment): array
@@ -87,7 +85,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapToolCall(ToolCallMessage $message): void
+    protected function mapToolCall(ToolCallMessage $message): array
     {
         $message = $message->jsonSerialize();
 
@@ -98,12 +96,12 @@ class MessageMapper implements MessageMapperInterface
         unset($message['type']);
         unset($message['tools']);
 
-        $this->mapping[] = $message;
+        return $message;
     }
 
-    protected function mapToolsResult(ToolCallResultMessage $message): void
+    protected function mapToolsResult(ToolCallResultMessage $message): array
     {
-        $this->mapping[] = [
+        return [
             'role' => MessageRole::USER,
             'content' => \array_map(fn (ToolInterface $tool): array => [
                 'type' => 'tool_result',

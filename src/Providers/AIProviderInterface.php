@@ -29,6 +29,11 @@ interface AIProviderInterface
     public function messageMapper(): MessageMapperInterface;
 
     /**
+     * The component responsible for mapping the NeuronAI Tools to the AI provider format.
+     */
+    public function toolPayloadMapper(): ToolPayloadMapperInterface;
+
+    /**
      * Send a prompt to the AI agent.
      *
      * @param Message[] $messages

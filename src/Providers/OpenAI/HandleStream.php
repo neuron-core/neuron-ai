@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ProviderException;
@@ -33,12 +34,12 @@ trait HandleStream
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->client->post('chat/completions', [
             'stream' => true,
-            ...['json' => $json]
+            RequestOptions::JSON => $json
         ])->getBody();
 
         $text = '';

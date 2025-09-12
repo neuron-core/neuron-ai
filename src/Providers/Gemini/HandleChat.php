@@ -34,7 +34,7 @@ trait HandleChat
         }
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         return $this->client->postAsync(\trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
@@ -53,6 +53,10 @@ trait HandleChat
                     $response = $this->createToolCallMessage($content);
                 } else {
                     $response = new Message(MessageRole::from($content['role']), $parts[0]['text'] ?? '');
+                }
+
+                if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
+                    $response->addMetadata('groundingMetadata', $result['candidates'][0]['groundingMetadata']);
                 }
 
                 // Attach the usage for the current interaction

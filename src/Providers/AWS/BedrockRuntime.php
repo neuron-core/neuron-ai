@@ -10,8 +10,8 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolPropertyInterface;
 
 class BedrockRuntime implements AIProviderInterface
 {
@@ -23,6 +23,7 @@ class BedrockRuntime implements AIProviderInterface
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
+    protected ToolPayloadMapperInterface $toolPayloadMapper;
 
     public function __construct(
         protected BedrockRuntimeClient $bedrockRuntimeClient,
@@ -34,13 +35,17 @@ class BedrockRuntime implements AIProviderInterface
     public function systemPrompt(?string $prompt): AIProviderInterface
     {
         $this->system = $prompt;
-
         return $this;
     }
 
     public function messageMapper(): MessageMapperInterface
     {
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+    }
+
+    public function toolPayloadMapper(): ToolPayloadMapperInterface
+    {
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
     }
 
     protected function createPayLoad(array $messages): array
@@ -57,47 +62,13 @@ class BedrockRuntime implements AIProviderInterface
             $payload['inferenceConfig'] = $this->inferenceConfig;
         }
 
-        $toolSpecs = $this->generateToolsPayload();
+        $tools = $this->toolPayloadMapper()->map($this->tools);
 
-        if (\count($toolSpecs) > 0) {
-            $payload['toolConfig']['tools'] = $toolSpecs;
+        if ($tools !== []) {
+            $payload['toolConfig']['tools'] = $tools;
         }
 
         return $payload;
-    }
-
-    protected function generateToolsPayload(): array
-    {
-        return \array_map(function (ToolInterface $tool): array {
-            $payload = [
-                'toolSpec' => [
-                    'name' => $tool->getName(),
-                    'description' => $tool->getDescription(),
-                    'inputSchema' => [
-                        'json' => [
-                            'type' => 'object',
-                            'properties' => new \stdClass(),
-                            'required' => [],
-                        ]
-                    ],
-                ],
-            ];
-
-            $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-                $carry[$property->getName()] = $property->getJsonSchema();
-                return $carry;
-            }, []);
-
-            if (!empty($properties)) {
-                $payload['toolSpec']['inputSchema']['json'] = [
-                    'type' => 'object',
-                    'properties' => $properties,
-                    'required' => $tool->getRequiredProperties(),
-                ];
-            }
-
-            return $payload;
-        }, $this->tools);
     }
 
     /**

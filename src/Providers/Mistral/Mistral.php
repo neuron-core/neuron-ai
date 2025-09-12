@@ -34,7 +34,7 @@ class Mistral extends OpenAI
 
         // Attach tools
         if ($this->tools !== []) {
-            $json['tools'] = $this->generateToolsPayload();
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->client->post('chat/completions', [

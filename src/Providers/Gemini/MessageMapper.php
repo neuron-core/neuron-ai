@@ -18,14 +18,12 @@ use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
-    protected array $mapping = [];
-
     public function map(array $messages): array
     {
-        $this->mapping = [];
+        $mapping = [];
 
         foreach ($messages as $message) {
-            match ($message::class) {
+            $mapping[] = match ($message::class) {
                 Message::class,
                 UserMessage::class,
                 AssistantMessage::class => $this->mapMessage($message),
@@ -35,10 +33,10 @@ class MessageMapper implements MessageMapperInterface
             };
         }
 
-        return $this->mapping;
+        return $mapping;
     }
 
-    protected function mapMessage(Message $message): void
+    protected function mapMessage(Message $message): array
     {
         $payload = [
             'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL->value : $message->getRole(),
@@ -53,7 +51,7 @@ class MessageMapper implements MessageMapperInterface
             $payload['parts'][] = $this->mapAttachment($attachment);
         }
 
-        $this->mapping[] = $payload;
+        return $payload;
     }
 
     protected function mapAttachment(Attachment $attachment): array
@@ -74,9 +72,9 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapToolCall(ToolCallMessage $message): void
+    protected function mapToolCall(ToolCallMessage $message): array
     {
-        $this->mapping[] = [
+        return [
             'role' => MessageRole::MODEL->value,
             'parts' => [
                 ...\array_map(fn (ToolInterface $tool): array => [
@@ -89,9 +87,9 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapToolsResult(ToolCallResultMessage $message): void
+    protected function mapToolsResult(ToolCallResultMessage $message): array
     {
-        $this->mapping[] = [
+        return [
             'role' => MessageRole::USER->value,
             'parts' => \array_map(fn (ToolInterface $tool): array => [
                 'functionResponse' => [

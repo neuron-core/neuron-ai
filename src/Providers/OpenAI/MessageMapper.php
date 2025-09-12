@@ -41,6 +41,9 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapMessage(Message $message): void
     {
         $payload = $message->jsonSerialize();

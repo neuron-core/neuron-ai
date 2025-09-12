@@ -12,6 +12,7 @@ use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\RAG\RAG;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
@@ -225,12 +226,11 @@ class AgentMonitoring implements \SplObserver
                 'provider' => $agent->resolveProvider()::class,
                 'instructions' => $agent->resolveInstructions(),
             ],
-            'Tools' => \array_map(
-                fn (ToolInterface|ToolkitInterface $tool) => $tool instanceof ToolInterface
-                    ? $mapTool($tool)
-                    : [$tool::class => \array_map($mapTool, $tool->tools())],
-                $agent->getTools()
-            ),
+            'Tools' => \array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
+                $tool instanceof ToolInterface => $mapTool($tool),
+                $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
+                default => $tool->jsonSerialize(),
+            }, $agent->getTools()),
             //'Messages' => $agent->resolveChatHistory()->getMessages(),
         ];
     }

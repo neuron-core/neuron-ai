@@ -2,32 +2,32 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\Gemini;
+namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
-use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
+use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Tools\ToolInterface;
 
-class Gemini implements AIProviderInterface
+class OpenAIResponses implements AIProviderInterface
 {
     use HasGuzzleClient;
     use HandleWithTools;
-    use HandleChat;
-    use HandleStream;
-    use HandleStructured;
+    use HandleResponses;
+    use HandleResponsesStream;
+    use HandleResponsesStructured;
 
     /**
      * The main URL of the provider API.
      */
-    protected string $baseUri = 'https://generativelanguage.googleapis.com/v1beta/models';
+    protected string $baseUri = 'https://api.openai.com/v1';
 
     /**
      * System instructions.
@@ -44,15 +44,15 @@ class Gemini implements AIProviderInterface
         protected string $key,
         protected string $model,
         protected array $parameters = [],
+        protected bool $strict_response = false,
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            // Since Gemini use colon ":" into the URL, guzzle fires an exception using base_uri configuration.
-            //'base_uri' => trim($this->baseUri, '/').'/',
+            'base_uri' => \trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'x-goog-api-key' => $this->key,
+                'Authorization' => 'Bearer ' . $this->key,
             ]
         ];
 
@@ -76,7 +76,7 @@ class Gemini implements AIProviderInterface
 
     public function toolPayloadMapper(): ToolPayloadMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapperResponses();
     }
 
     /**
@@ -85,23 +85,20 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $message): Message
     {
-        $tools = \array_map(function (array $item): ?\NeuronAI\Tools\ToolInterface {
-            if (!isset($item['functionCall'])) {
-                return null;
-            }
-
-            // Gemini does not use ID. It uses the tool's name as a unique identifier.
-            return $this->findTool($item['functionCall']['name'])
-                ->setInputs($item['functionCall']['args'])
-                ->setCallId($item['functionCall']['name']);
-        }, $message['parts']);
+        $tools = \array_map(
+            fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
+                ->setInputs(
+                    \json_decode((string) $item['function']['arguments'], true)
+                )
+                ->setCallId($item['id']),
+            $message['tool_calls']
+        );
 
         $result = new ToolCallMessage(
-            $message['content'] ?? null,
-            \array_filter($tools)
+            $message['content'],
+            $tools
         );
-        $result->setRole(MessageRole::MODEL);
 
-        return $result;
+        return $result->addMetadata('tool_calls', $message['tool_calls']);
     }
 }

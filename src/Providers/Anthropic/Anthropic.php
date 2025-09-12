@@ -13,8 +13,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
-use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolPropertyInterface;
+use NeuronAI\Providers\ToolPayloadMapperInterface;
 
 class Anthropic implements AIProviderInterface
 {
@@ -36,6 +35,7 @@ class Anthropic implements AIProviderInterface
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
+    protected ToolPayloadMapperInterface $toolPayloadMapper;
 
     /**
      * @param array<string, mixed> $parameters
@@ -75,27 +75,9 @@ class Anthropic implements AIProviderInterface
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function generateToolsPayload(): array
+    public function toolPayloadMapper(): ToolPayloadMapperInterface
     {
-        return \array_map(function (ToolInterface $tool): array {
-            $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-                $carry[$property->getName()] = $property->getJsonSchema();
-                return $carry;
-            }, []);
-
-            return [
-                'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
-                'input_schema' => [
-                    'type' => 'object',
-                    'properties' => empty($properties) ? null : $properties,
-                    'required' => $tool->getRequiredProperties(),
-                ],
-            ];
-        }, $this->tools);
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
     }
 
     /**
