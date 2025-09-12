@@ -95,7 +95,7 @@ class OpenAI implements AIProviderInterface
         );
 
         $result = new ToolCallMessage(
-            $message['content'],
+            '',
             $tools
         );
 
