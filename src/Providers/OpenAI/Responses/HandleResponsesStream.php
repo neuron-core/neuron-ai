@@ -79,18 +79,21 @@ trait HandleResponsesStream
 
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
-                    yield from $executeToolsCallback(
-                        $this->createToolCallMessage($toolCalls)
-                    );
                     break;
 
                 case 'response.output_text.delta':
                     yield $event['delta'] ?? '';
                     break;
 
-                // Called at the end of every type
-                /*case 'response.completed':
-                    return $event['response'];*/
+                case 'response.completed':
+                    if ($toolCalls !== []) {
+                        yield from $executeToolsCallback(
+                            $this->createToolCallMessage($toolCalls)
+                        );
+                    } else {
+                        return $this->createAssistantMessage($event['response']);
+                    }
+                    break;
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
@@ -100,6 +103,32 @@ trait HandleResponsesStream
                     break;
             }
         }
+    }
+
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        $messages = \array_values(
+            \array_filter(
+                $response['output'],
+                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
+            )
+        );
+
+        $content = $messages[0]['content'][0];
+
+        $message = new AssistantMessage($content['text']);
+
+        if (isset($content['annotations'])) {
+            $message->addMetadata('annotations', $content['annotations']);
+        }
+
+        if (\array_key_exists('usage', $response)) {
+            $message->setUsage(
+                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
+            );
+        }
+
+        return $message;
     }
 
     /**
