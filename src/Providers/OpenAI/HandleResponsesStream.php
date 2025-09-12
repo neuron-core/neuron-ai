@@ -67,8 +67,13 @@ trait HandleResponsesStream
                     break;*/
 
                 case 'response.function_call_arguments.done':
-                    $toolCall = $this->composeToolCalls($event, $toolCalls);
-                    yield from $executeToolsCallback($toolCall);
+                    $toolCalls = $this->composeToolCalls($event, $toolCalls);
+                    yield from $executeToolsCallback(
+                        $this->createToolCallMessage([
+                            'content' => null,
+                            'tool_calls' => $toolCalls
+                        ])
+                    );
                     break;
 
                 case 'response.output_text.delta':
