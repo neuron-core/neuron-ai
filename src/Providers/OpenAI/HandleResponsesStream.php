@@ -67,11 +67,13 @@ trait HandleResponsesStream
                     break;*/
 
                 case 'response.output_item.added':
-                    $toolCalls[$event['name']] = [
-                        'name' => $event['name'],
-                        'arguments' => $event['arguments'] ?? null,
-                        'call_id' => $event['call_id'],
-                    ];
+                    if ($event['item']['type'] !== 'function_call') {
+                        $toolCalls[$event['name']] = [
+                            'name' => $event['name'],
+                            'arguments' => $event['arguments'] ?? null,
+                            'call_id' => $event['call_id'],
+                        ];
+                    }
                     break;
 
                 case 'response.function_call_arguments.done':
