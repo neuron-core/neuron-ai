@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\OpenAI;
+namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
 /**

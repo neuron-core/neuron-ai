@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\OpenAI;
+namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Message;
@@ -13,6 +13,8 @@ use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\OpenAI\MessageMapper;
+use NeuronAI\Providers\OpenAI\ToolPayloadMapperResponses;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
@@ -94,11 +96,9 @@ class OpenAIResponses implements AIProviderInterface
             $functions
         );
 
-        $result = new ToolCallMessage(
-            null,
+        return new ToolCallMessage(
+            '',
             $tools
         );
-
-        return $result->addMetadata('tool_calls', $functions);
     }
 }

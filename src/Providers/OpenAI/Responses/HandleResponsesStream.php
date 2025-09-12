@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\OpenAI;
+namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
@@ -67,17 +67,17 @@ trait HandleResponsesStream
                     break;*/
 
                 case 'response.output_item.added':
-                    if ($event['item']['type'] !== 'function_call') {
-                        $toolCalls[$event['name']] = [
-                            'name' => $event['name'],
-                            'arguments' => $event['arguments'] ?? null,
-                            'call_id' => $event['call_id'],
+                    if ($event['item']['type'] == 'function_call') {
+                        $toolCalls[$event['item']['id']] = [
+                            'name' => $event['item']['name'],
+                            'arguments' => $event['item']['arguments'] ?? null,
+                            'call_id' => $event['item']['call_id'],
                         ];
                     }
                     break;
 
                 case 'response.function_call_arguments.done':
-                    $toolCalls[$event['name']]['arguments'] = $event['arguments'];
+                    $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     yield from $executeToolsCallback(
                         $this->createToolCallMessage($toolCalls)
                     );

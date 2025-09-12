@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\OpenAI;
+namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Messages\Message;
 
