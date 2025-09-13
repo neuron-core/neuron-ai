@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\RequestException;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
@@ -94,6 +95,9 @@ trait HandleStructured
                 $exception = $ex;
                 $error = $ex->getResponse()?->getBody()->getContents() ?? $ex->getMessage();
                 $this->notify('error', new AgentError($ex, false));
+            } catch (ToolMaxTriesException $ex) {
+                // If the problem is a tool max tries exception, we don't want to retry
+                throw $ex;
             } catch (\Exception $ex) {
                 $exception = $ex;
                 $error = $ex->getMessage();
