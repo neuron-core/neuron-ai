@@ -9,7 +9,6 @@ use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\RAG\RAG;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -211,7 +210,7 @@ class AgentMonitoring implements \SplObserver
      */
     protected function getContext(Agent $agent): array
     {
-        $mapTool = fn (ToolInterface $tool) => [
+        $mapTool = fn (ToolInterface $tool): array => [
             $tool->getName() => [
                 'description' => $tool->getDescription(),
                 'properties' => \array_map(

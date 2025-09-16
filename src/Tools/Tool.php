@@ -183,7 +183,7 @@ class Tool implements ToolInterface
             }
         }
 
-        $parameters = \array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property) {
+        $parameters = \array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
             $propertyName = $property->getName();
             $inputs = $this->getInputs();
 
