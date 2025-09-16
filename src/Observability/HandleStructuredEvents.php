@@ -28,7 +28,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->schema = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( {$data->class} )")
+        $this->schema = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
@@ -75,7 +75,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->deserialize = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( {$data->class} )")
+        $this->deserialize = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
@@ -92,7 +92,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->validate = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( {$data->class} )")
+        $this->validate = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
