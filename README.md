@@ -227,7 +227,7 @@ class DataAnalystAgent extends Agent
     protected function tools(): array
     {
         return [
-            MySQLToolkit:make(
+            MySQLToolkit::make(
                 \DB::connection()->getPdo()
             ),
         ];
