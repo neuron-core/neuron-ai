@@ -9,7 +9,6 @@ use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\RAG\RAG;
 use NeuronAI\Tools\ProviderToolInterface;
