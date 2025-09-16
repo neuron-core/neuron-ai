@@ -40,7 +40,7 @@ trait HandleStructuredEvents
             return;
         }
 
-        $id = $this->getMessageId($data->message).'-extract';
+        $id = $this->getMessageId($data->message, 'extract');
 
         $this->segments[$id] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
             ->setColor(self::STANDARD_COLOR);
@@ -48,22 +48,24 @@ trait HandleStructuredEvents
 
     protected function extracted(AgentInterface $agent, string $event, Extracted $data): void
     {
-        $id = $this->getMessageId($data->message).'-extract';
+        $id = $this->getMessageId($data->message, 'extract');
 
-        if (\array_key_exists($id, $this->segments)) {
-            $segment = $this->segments[$id]->end();
-            $segment->addContext(
-                'Data',
-                [
-                    'response' => $data->message->jsonSerialize(),
-                    'json' => $data->json,
-                ]
-            )->addContext(
-                'Schema',
-                $data->schema
-            );
-            unset($this->segments[$id]);
+        if (!\array_key_exists($id, $this->segments)) {
+            return;
         }
+
+        $segment = $this->segments[$id]->end();
+        $segment->addContext(
+            'Data',
+            [
+                'response' => $data->message->jsonSerialize(),
+                'json' => $data->json,
+            ]
+        )->addContext(
+            'Schema',
+            $data->schema
+        );
+        unset($this->segments[$id]);
     }
 
     protected function deserializing(AgentInterface $agent, string $event, Deserializing $data): void

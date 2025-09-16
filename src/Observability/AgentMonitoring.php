@@ -235,15 +235,15 @@ class AgentMonitoring implements \SplObserver
         ];
     }
 
-    public function getMessageId(Message $message): string
+    public function getMessageId(Message $message, string $prefix = ''): string
     {
         $content = $message->getContent();
 
-        if (!\is_string($content)) {
-            $content = \json_encode($content, \JSON_UNESCAPED_UNICODE);
+        if (\is_array($content)) {
+            $content = \json_encode($content);
         }
 
-        return \md5($content.$message->getRole());
+        return $prefix.\md5($content.$message->getRole());
     }
 
     protected function getBaseClassName(string $class): string

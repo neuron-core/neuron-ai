@@ -21,14 +21,14 @@ trait HandleInferenceEvents
 
         $label = $this->getBaseClassName($data->message::class);
 
-        $this->segments[$this->getMessageId($data->message).'-save'] = $this->inspector
+        $this->segments[$this->getMessageId($data->message, 'save')] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     public function messageSaved(Agent $agent, string $event, MessageSaved $data): void
     {
-        $id = $this->getMessageId($data->message).'-save';
+        $id = $this->getMessageId($data->message, 'save');
 
         if (!\array_key_exists($id, $this->segments)) {
             return;
@@ -45,6 +45,7 @@ trait HandleInferenceEvents
             ] : []
         ));
         $segment->end();
+        unset($this->segments[$id]);
     }
 
     public function inferenceStart(Agent $agent, string $event, InferenceStart $data): void
@@ -55,19 +56,22 @@ trait HandleInferenceEvents
 
         $label = $this->getBaseClassName($data->message::class);
 
-        $this->segments[$this->getMessageId($data->message).'-inference'] = $this->inspector
+        $this->segments[$this->getMessageId($data->message, 'inference')] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.inference', "inference( {$label} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     public function inferenceStop(Agent $agent, string $event, InferenceStop $data): void
     {
-        $id = $this->getMessageId($data->message).'-inference';
+        $id = $this->getMessageId($data->message, 'inference');
 
-        if (\array_key_exists($id, $this->segments)) {
-            $segment = $this->segments[$id]->end();
-            $segment->addContext('Message', $data->message)
-                ->addContext('Response', $data->response);
+        if (!\array_key_exists($id, $this->segments)) {
+            return;
         }
+
+        $segment = $this->segments[$id]->end();
+        $segment->addContext('Message', $data->message)
+            ->addContext('Response', $data->response);
+        unset($this->segments[$id]);
     }
 }
