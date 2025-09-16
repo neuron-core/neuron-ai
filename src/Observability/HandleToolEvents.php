@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Models\Segment;
 use NeuronAI\AgentInterface;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -13,13 +14,20 @@ use NeuronAI\Tools\ToolInterface;
 
 trait HandleToolEvents
 {
+    protected Segment $toolBootstrap;
+
+    /**
+     * @var array<Segment>
+     */
+    protected array $toolCalls;
+
     public function toolsBootstrapping(AgentInterface $agent, string $event, mixed $data): void
     {
-        if (!$this->inspector->canAddSegments()) {
+        if (!$this->inspector->canAddSegments() || $agent->getTools() === []) {
             return;
         }
 
-        $this->segments[$agent::class.'_tools_bootstrap'] = $this->inspector
+        $this->toolBootstrap = $this->inspector
             ->startSegment(
                 self::SEGMENT_TYPE.'.tool',
                 "tools_bootstrap()"
@@ -29,9 +37,9 @@ trait HandleToolEvents
 
     public function toolsBootstrapped(AgentInterface $agent, string $event, ToolsBootstrapped $data): void
     {
-        if (\array_key_exists($agent::class.'_tools_bootstrap', $this->segments) && $data->tools !== []) {
-            $segment = $this->segments[$agent::class.'_tools_bootstrap']->end();
-            $segment->addContext('Tools', \array_reduce($data->tools, function (array $carry, ToolInterface|ProviderToolInterface $tool): array {
+        if (isset($this->toolBootstrap)) {
+            $this->toolBootstrap->end();
+            $this->toolBootstrap->addContext('Tools', \array_reduce($data->tools, function (array $carry, ToolInterface|ProviderToolInterface $tool): array {
                 if ($tool instanceof ProviderToolInterface) {
                     $carry[$tool->getType()] = $tool->getOptions();
                 } else {
@@ -39,7 +47,7 @@ trait HandleToolEvents
                 }
                 return $carry;
             }, []));
-            $segment->addContext('Guidelines', $data->guidelines);
+            $this->toolBootstrap->addContext('Guidelines', $data->guidelines);
         }
     }
 
@@ -49,7 +57,7 @@ trait HandleToolEvents
             return;
         }
 
-        $this->segments[$data->tool->getName()] = $this->inspector
+        $this->toolCalls[$data->tool::class] = $this->inspector
             ->startSegment(
                 self::SEGMENT_TYPE.'.tool',
                 "tool_call( {$data->tool->getName()} )"
@@ -59,12 +67,13 @@ trait HandleToolEvents
 
     public function toolCalled(AgentInterface $agent, string $event, ToolCalled $data): void
     {
-        if (\array_key_exists($data->tool->getName(), $this->segments)) {
-            $this->segments[$data->tool->getName()]
-                ->end()
-                ->addContext('Properties', $data->tool->getProperties())
-                ->addContext('Inputs', $data->tool->getInputs())
-                ->addContext('Output', $data->tool->getResult());
+        if (!\array_key_exists($data->tool::class, $this->toolCalls)) {
+            return;
         }
+
+        $this->toolCalls[$data->tool::class]->end()
+            ->addContext('Properties', $data->tool->getProperties())
+            ->addContext('Inputs', $data->tool->getInputs())
+            ->addContext('Output', $data->tool->getResult());
     }
 }

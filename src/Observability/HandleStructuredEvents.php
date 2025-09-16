@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Models\Segment;
 use NeuronAI\AgentInterface;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
@@ -16,21 +17,26 @@ use NeuronAI\Observability\Events\Validating;
 
 trait HandleStructuredEvents
 {
+    protected Segment $schema;
+    protected Segment $extract;
+    protected Segment $deserialize;
+    protected Segment $validate;
+
     protected function schemaGeneration(AgentInterface $agent, string $event, SchemaGeneration $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $this->segments[$data->class.'-schema'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( {$data->class} )")
+        $this->schema = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( {$data->class} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     protected function schemaGenerated(AgentInterface $agent, string $event, SchemaGenerated $data): void
     {
-        if (\array_key_exists($data->class.'-schema', $this->segments)) {
-            $segment = $this->segments[$data->class.'-schema']->end();
-            $segment->addContext('Schema', $data->schema);
+        if (isset($this->schema)) {
+            $this->schema->end();
+            $this->schema->addContext('Schema', $data->schema);
         }
     }
 
@@ -40,22 +46,18 @@ trait HandleStructuredEvents
             return;
         }
 
-        $id = $this->getMessageId($data->message, 'extract');
-
-        $this->segments[$id] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
+        $this->extract = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
             ->setColor(self::STANDARD_COLOR);
     }
 
     protected function extracted(AgentInterface $agent, string $event, Extracted $data): void
     {
-        $id = $this->getMessageId($data->message, 'extract');
-
-        if (!\array_key_exists($id, $this->segments)) {
+        if (!isset($this->extract)) {
             return;
         }
 
-        $segment = $this->segments[$id]->end();
-        $segment->addContext(
+        $this->extract->end();
+        $this->extract->addContext(
             'Data',
             [
                 'response' => $data->message->jsonSerialize(),
@@ -65,7 +67,6 @@ trait HandleStructuredEvents
             'Schema',
             $data->schema
         );
-        unset($this->segments[$id]);
     }
 
     protected function deserializing(AgentInterface $agent, string $event, Deserializing $data): void
@@ -74,16 +75,14 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->segments[$data->class.'-deserialize'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( {$data->class} )")
+        $this->deserialize = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( {$data->class} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     protected function deserialized(AgentInterface $agent, string $event, Deserialized $data): void
     {
-        $id = $data->class.'-deserialize';
-
-        if (\array_key_exists($id, $this->segments)) {
-            $this->segments[$id]->end();
+        if (isset($this->deserialize)) {
+            $this->deserialize->end();
         }
     }
 
@@ -93,19 +92,17 @@ trait HandleStructuredEvents
             return;
         }
 
-        $this->segments[$data->class.'-validate'] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( {$data->class} )")
+        $this->validate = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( {$data->class} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     protected function validated(AgentInterface $agent, string $event, Validated $data): void
     {
-        $id = $data->class.'-validate';
-
-        if (\array_key_exists($id, $this->segments)) {
-            $segment = $this->segments[$id]->end();
-            $segment->addContext('Json', \json_decode($data->json));
+        if (isset($this->validate)) {
+            $this->validate->end();
+            $this->validate->addContext('Json', \json_decode($data->json));
             if ($data->violations !== []) {
-                $segment->addContext('Violations', $data->violations);
+                $this->validate->addContext('Violations', $data->violations);
             }
         }
     }

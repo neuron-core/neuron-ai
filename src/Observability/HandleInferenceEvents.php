@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Models\Segment;
 use NeuronAI\Agent;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -13,6 +14,9 @@ use NeuronAI\Observability\Events\MessageSaving;
 
 trait HandleInferenceEvents
 {
+    protected Segment $message;
+    protected Segment $inference;
+
     public function messageSaving(Agent $agent, string $event, MessageSaving $data): void
     {
         if (!$this->inspector->canAddSegments()) {
@@ -21,21 +25,19 @@ trait HandleInferenceEvents
 
         $label = $this->getBaseClassName($data->message::class);
 
-        $this->segments[$this->getMessageId($data->message, 'save')] = $this->inspector
+        $this->message = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     public function messageSaved(Agent $agent, string $event, MessageSaved $data): void
     {
-        $id = $this->getMessageId($data->message, 'save');
-
-        if (!\array_key_exists($id, $this->segments)) {
+        if (!isset($this->message)) {
             return;
         }
 
-        $segment = $this->segments[$id];
-        $segment->addContext('Message', \array_merge(
+        $this->message->end();
+        $this->message->addContext('Message', \array_merge(
             $data->message->jsonSerialize(),
             $data->message->getUsage() instanceof Usage ? [
                 'usage' => [
@@ -44,8 +46,6 @@ trait HandleInferenceEvents
                 ]
             ] : []
         ));
-        $segment->end();
-        unset($this->segments[$id]);
     }
 
     public function inferenceStart(Agent $agent, string $event, InferenceStart $data): void
@@ -56,22 +56,17 @@ trait HandleInferenceEvents
 
         $label = $this->getBaseClassName($data->message::class);
 
-        $this->segments[$this->getMessageId($data->message, 'inference')] = $this->inspector
+        $this->inference = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.inference', "inference( {$label} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     public function inferenceStop(Agent $agent, string $event, InferenceStop $data): void
     {
-        $id = $this->getMessageId($data->message, 'inference');
-
-        if (!\array_key_exists($id, $this->segments)) {
-            return;
+        if (isset($this->inference)) {
+            $this->inference->end();
+            $this->inference->addContext('Message', $data->message)
+                ->addContext('Response', $data->response);
         }
-
-        $segment = $this->segments[$id]->end();
-        $segment->addContext('Message', $data->message)
-            ->addContext('Response', $data->response);
-        unset($this->segments[$id]);
     }
 }
