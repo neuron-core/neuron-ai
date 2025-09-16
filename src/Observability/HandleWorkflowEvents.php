@@ -28,7 +28,7 @@ trait HandleWorkflowEvents
                     $eventClass => $node::class,
                 ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)));
         } elseif ($this->inspector->canAddSegments()) {
-            $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $workflow::class)
+            $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($workflow::class))
                 ->setColor(self::STANDARD_COLOR);
         }
     }
@@ -53,7 +53,7 @@ trait HandleWorkflowEvents
         }
 
         $segment = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'.workflow', $data->node)
+            ->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($data->node))
             ->setColor(self::STANDARD_COLOR);
         $segment->addContext('Before', $data->state->all());
         $this->segments[$data->node] = $segment;
