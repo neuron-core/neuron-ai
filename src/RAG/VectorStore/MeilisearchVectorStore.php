@@ -43,7 +43,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->client->put('documents', [
-            RequestOptions::JSON => \array_map(fn (Document $document) => [
+            RequestOptions::JSON => \array_map(fn (Document $document): array => [
                 'id' => $document->getId(),
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),

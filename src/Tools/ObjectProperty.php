@@ -199,7 +199,7 @@ class ObjectProperty implements ToolPropertyInterface
             $schema['description'] = $this->description;
         }
 
-        $properties = \array_reduce($this->properties, function (array $carry, ToolPropertyInterface $property) {
+        $properties = \array_reduce($this->properties, function (array $carry, ToolPropertyInterface $property): array {
             $carry[$property->getName()] = $property->getJsonSchema();
             return $carry;
         }, []);

@@ -81,7 +81,7 @@ class MessageMapper implements MessageMapperInterface
         }
 
         if (\array_key_exists('tool_calls', $message)) {
-            $message['tool_calls'] = \array_map(function (array $toolCall) {
+            $message['tool_calls'] = \array_map(function (array $toolCall): array {
                 if (empty($toolCall['function']['arguments'])) {
                     $toolCall['function']['arguments'] = new \stdClass();
                 }
