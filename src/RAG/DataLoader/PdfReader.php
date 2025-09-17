@@ -127,6 +127,49 @@ class PdfReader implements ReaderInterface
     }
 
     /**
+     * Get the number of pages in the PDF.
+     *
+     * @param string $pdfPath
+     * @return int
+     * @throws DataReaderException
+     */
+    public function getPageCount(string $pdfPath): int
+    {
+        $pdfinfoPaths = [
+            '/usr/bin/pdfinfo',
+            '/usr/local/bin/pdfinfo',
+            '/opt/homebrew/bin/pdfinfo',
+            '/opt/local/bin/pdfinfo',
+        ];
+
+        $pdfinfo = null;
+        foreach ($pdfinfoPaths as $path) {
+            if (\is_executable($path)) {
+                $pdfinfo = $path;
+                break;
+            }
+        }
+
+        if (!$pdfinfo) {
+            throw new DataReaderException('pdfinfo binary not found or not executable.');
+        }
+
+        $process = new \Symfony\Component\Process\Process([$pdfinfo, $pdfPath]);
+        $process->setTimeout($this->timeout);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new \Symfony\Component\Process\Exception\ProcessFailedException($process);
+        }
+
+        if (preg_match('/Pages:\s+(\d+)/', $process->getOutput(), $matches)) {
+            return (int) $matches[1];
+        }
+
+        throw new DataReaderException('Could not determine page count from pdfinfo output.');
+    }
+
+    /**
      * @throws \Exception
      */
     public static function getText(
