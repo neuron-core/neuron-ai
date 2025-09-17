@@ -320,7 +320,7 @@ class Workflow implements WorkflowInterface
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must be a type that implements ' . Event::class);
             }
 
-            if (!($secondParamType instanceof \ReflectionNamedType) || $secondParamType->getName() !== WorkflowState::class) {
+            if (!($secondParamType instanceof \ReflectionNamedType) || !\is_a($secondParamType->getName(), WorkflowState::class, true)) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must be ' . WorkflowState::class);
             }
 
