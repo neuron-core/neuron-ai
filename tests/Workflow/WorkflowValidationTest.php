@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Stubs\CustomState;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\StopEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -54,5 +56,18 @@ class WorkflowValidationTest extends TestCase
 
         $workflow = Workflow::make()->addNode($invalidNode);
         $workflow->start()->getResult();
+    }
+
+    public function testValidationCustomState(): void
+    {
+        $node = new class () extends Node {
+            public function __invoke(StartEvent $event, CustomState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+
+        $workflow = Workflow::make(new CustomState())->addNode($node);
+        $this->assertInstanceOf(CustomState::class, $workflow->start()->getResult());
     }
 }
