@@ -188,6 +188,6 @@ class StreamableHttpTransport implements McpTransportInterface
             }
         }
 
-        throw new McpException('No JSON data found in the response');
+        throw new McpException('No JSON data found in SSE response');
     }
 }
