@@ -125,7 +125,7 @@ class StreamableHttpTransport implements McpTransportInterface
 
             if (!\is_array($json)) {
                 // If the response from the server is not a valid json
-                // Parse the SSE format to extract JSON data
+                // try tp parse the SSE format to extract JSON data
                 $json = $this->parseSSEResponse($response);
             }
 
