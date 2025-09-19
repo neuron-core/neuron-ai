@@ -71,7 +71,7 @@ class StreamableHttpTransport implements McpTransportInterface
 
             // Add session ID if available
             if ($this->sessionId !== null) {
-                $headers['X-Session-ID'] = $this->sessionId;
+                $headers['Mcp-Session-Id'] = $this->sessionId;
             }
 
             $jsonData = \json_encode($data, \JSON_THROW_ON_ERROR);
@@ -88,8 +88,8 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
             // Extract session ID from response headers if present
-            if ($response->hasHeader('X-Session-ID')) {
-                $this->sessionId = $response->getHeader('X-Session-ID')[0];
+            if ($response->hasHeader('Mcp-Session-Id')) {
+                $this->sessionId = $response->getHeader('Mcp-Session-Id')[0];
             }
 
             // Store the response for the receive() method
@@ -126,7 +126,7 @@ class StreamableHttpTransport implements McpTransportInterface
                 return \json_decode($response, true, 512, \JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
                 // If the response from the server is not a valid JSON
-                // try tp parse the SSE format to extract JSON data
+                // try to parse the SSE format to extract JSON data
                 $json = $this->parseSSEResponse($response);
                 return \json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
             }
@@ -153,16 +153,11 @@ class StreamableHttpTransport implements McpTransportInterface
      */
     protected function getAuthHeaders(): array
     {
-        $headers = [];
+        $headers = $this->config['headers'] ?? [];
 
         // Add Bearer token if provided
         if (isset($this->config['token'])) {
             $headers['Authorization'] = 'Bearer ' . $this->config['token'];
-        }
-
-        // Add Origin header for security
-        if (isset($this->config['origin'])) {
-            $headers['Origin'] = $this->config['origin'];
         }
 
         return $headers;
