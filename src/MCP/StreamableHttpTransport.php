@@ -7,12 +7,13 @@ namespace NeuronAI\MCP;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Request;
+use Psr\Http\Message\ResponseInterface;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
     protected readonly Client $httpClient;
     protected ?string $sessionId = null;
-    protected mixed $lastResponse = null;
+    protected ?ResponseInterface $lastResponse = null;
 
     /**
      * Create a new StreamableHttpTransport with the given configuration
@@ -122,7 +123,7 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
             try {
-                return \json_decode((string) $response, true, 512, \JSON_THROW_ON_ERROR);
+                return \json_decode($response, true, 512, \JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
                 // If the response from the server is not a valid JSON
                 // try tp parse the SSE format to extract JSON data
