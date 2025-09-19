@@ -110,7 +110,7 @@ class StreamableHttpTransport implements McpTransportInterface
      */
     public function receive(): array
     {
-        if ($this->lastResponse === null) {
+        if (!$this->lastResponse instanceof ResponseInterface) {
             throw new McpException('No response available. Call send() first.');
         }
 
