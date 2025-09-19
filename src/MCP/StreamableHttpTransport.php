@@ -121,15 +121,14 @@ class StreamableHttpTransport implements McpTransportInterface
                 throw new McpException('Empty response body');
             }
 
-            $json = \json_decode($response, true);
-
-            if (!\is_array($json)) {
-                // If the response from the server is not a valid json
+            try {
+                return \json_decode($response, true, 512, \JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                // If the response from the server is not a valid JSON
                 // try tp parse the SSE format to extract JSON data
                 $json = $this->parseSSEResponse($response);
+                return \json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
             }
-
-            return \json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
 
         } catch (\JsonException $e) {
             throw new McpException('Invalid JSON response: ' . $e->getMessage());
