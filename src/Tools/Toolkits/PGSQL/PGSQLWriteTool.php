@@ -18,7 +18,7 @@ class PGSQLWriteTool extends Tool
     public function __construct(protected PDO $pdo)
     {
         parent::__construct(
-            'execute_write_query',
+            'pgsql_write_query',
             'Use this tool to perform write operations against the PostgreSQL database (e.g. INSERT, UPDATE, DELETE).'
         );
     }

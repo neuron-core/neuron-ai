@@ -17,7 +17,7 @@ class PGSQLSchemaTool extends Tool
         protected ?array $tables = null,
     ) {
         parent::__construct(
-            'analyze_postgresql_database_schema',
+            'analyze_pgsql_database_schema',
             'Retrieves PostgreSQL database schema information including tables, columns, relationships, and indexes.
 Use this tool first to understand the database structure before writing any SQL queries.
 Essential for generating accurate queries with proper table/column names, JOIN conditions,

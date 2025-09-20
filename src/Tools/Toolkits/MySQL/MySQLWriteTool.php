@@ -18,7 +18,7 @@ class MySQLWriteTool extends Tool
     public function __construct(protected PDO $pdo)
     {
         parent::__construct(
-            'execute_write_query',
+            'mysql_write_query',
             'Use this tool to perform write operations against the MySQL database (e.g. INSERT, UPDATE, DELETE).'
         );
     }
