@@ -46,7 +46,9 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
         ];
 
         $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $carry[$property->getName()] = $property->getJsonSchema();
+            $p = $property->getJsonSchema();
+            $p['items'] = $p['items'] ?? ['type' => 'string'];
+            $carry[$property->getName()] = $p;
             return $carry;
         }, []);
 
