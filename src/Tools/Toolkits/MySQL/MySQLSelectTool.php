@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\MySQL;
 
+use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -36,22 +37,34 @@ This the tool to use only to gather information from the MySQL database.'
             new ToolProperty(
                 'query',
                 PropertyType::STRING,
-                'The SELECT query you want to run against the database.',
+                'The parameterized SELECT query with named placeholders (e.g., "SELECT name, email FROM users WHERE name = :name. Use named parameters (:parameter_name) for all dynamic values.',
                 true
-            )
+            ),
+            new ArrayProperty(
+                'parameters',
+                'Key-value pairs for parameter binding where keys match the named placeholders in the query (without the colon). Example: {"name": "John Doe", "email": "%john%", "id": 123}. Leave empty if no parameters are needed.',
+                false,
+            ),
         ];
     }
 
-    public function __invoke(string $query): string|array
+    public function __invoke(string $query, array $parameters = []): string|array
     {
         if (!$this->validateReadOnly($query)) {
             return "The query was rejected for security reasons.
             It looks like you are trying to run a write query using the read-only query tool.";
         }
 
-        $stmt = $this->pdo->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $statement = $this->pdo->prepare($query);
+
+        // Bind parameters if provided
+        foreach ($parameters as $key => $value) {
+            $paramName = \str_starts_with((string) $key, ':') ? $key : ':' . $key;
+            $statement->bindValue($paramName, $value);
+        }
+
+        $statement->execute();
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
     protected function validateReadOnly(string $query): bool
