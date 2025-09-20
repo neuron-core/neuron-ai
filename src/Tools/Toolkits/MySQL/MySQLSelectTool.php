@@ -58,7 +58,7 @@ This the tool to use only to gather information from the MySQL database.'
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
-        foreach ($parameters??[] as $key => $value) {
+        foreach ($parameters ?? [] as $key => $value) {
             $paramName = \str_starts_with((string) $key, ':') ? $key : ':' . $key;
             $statement->bindValue($paramName, $value);
         }

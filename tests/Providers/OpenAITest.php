@@ -344,6 +344,74 @@ class OpenAITest extends TestCase
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
+    public function test_tools_payload_with_array_properties_no_items(): void
+    {
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $this->body),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new OpenAI('', 'gpt-4o'))
+            ->setTools([
+                Tool::make('tool', 'description')
+                    ->addProperty(
+                        new ArrayProperty(
+                            'array_prop',
+                            'description',
+                            false
+                        )
+                    )
+            ])
+            ->setClient($client);
+
+        $provider->chat([new UserMessage('Hi')]);
+
+        // Ensure we sent one request
+        $this->assertCount(1, $sentRequests);
+        $request = $sentRequests[0];
+
+        // Ensure we have sent the expected request payload.
+        $expectedRequest = [
+            'model' => 'gpt-4o',
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => 'Hi',
+                ],
+            ],
+            'tools' => [
+                [
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'tool',
+                        'description' => 'description',
+                        'parameters' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'array_prop' => [
+                                    'type' => 'array',
+                                    'description' => 'description',
+                                    'items' => [
+                                        'type' => 'string',
+                                    ]
+                                ]
+                            ],
+                            'required' => [],
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+
     public function test_tools_payload_with_array_object_mapped(): void
     {
         $sentRequests = [];

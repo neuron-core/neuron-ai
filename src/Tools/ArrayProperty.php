@@ -34,9 +34,7 @@ class ArrayProperty implements ToolPropertyInterface
     {
         return [
             'name' => $this->name,
-            'description' => $this->description,
-            'type' => $this->type->value,
-            'items' => $this->getJsonSchema(),
+            ...$this->getJsonSchema(),
             'required' => $this->required,
         ];
     }
@@ -53,6 +51,8 @@ class ArrayProperty implements ToolPropertyInterface
 
         if ($this->items instanceof ToolPropertyInterface) {
             $schema['items'] = $this->items->getJsonSchema();
+        } else {
+            $schema['items'] = ['type' => 'string'];
         }
 
         if ($this->minItems !== null && $this->minItems !== 0) {
