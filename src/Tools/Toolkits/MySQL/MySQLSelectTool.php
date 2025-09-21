@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\MySQL;
 
+use NeuronAI\Exceptions\ArrayPropertyException;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tools\ArrayProperty;
+use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -31,6 +34,11 @@ This the tool to use only to gather information from the MySQL database.'
         );
     }
 
+    /**
+     * @throws \ReflectionException
+     * @throws ArrayPropertyException
+     * @throws ToolException
+     */
     protected function properties(): array
     {
         return [
@@ -44,6 +52,13 @@ This the tool to use only to gather information from the MySQL database.'
                 name: 'parameters',
                 description: 'Key-value pairs for parameter binding where keys match the named placeholders in the query (without the colon). Example: {"name": "John Doe", "email": "%john%", "id": 123}. Ignore if no parameters are needed.',
                 required: false,
+                items: new ObjectProperty(
+                    name: 'parameter',
+                    properties: [
+                        new ToolProperty('name', PropertyType::STRING, 'Parameter name', true),
+                        new ToolProperty('value', PropertyType::STRING, 'Parameter value', true),
+                    ]
+                )
             ),
         ];
     }
