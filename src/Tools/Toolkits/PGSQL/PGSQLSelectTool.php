@@ -93,9 +93,9 @@ It looks like you are trying to run a write query using the read-only query tool
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
-        foreach ($parameters as $key => $value) {
-            $paramName = \str_starts_with((string) $key, ':') ? $key : ':' . $key;
-            $statement->bindValue($paramName, $value);
+        foreach ($parameters ?? [] as $parameter) {
+            $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
+            $statement->bindValue($paramName, $parameter['value']);
         }
 
         $statement->execute();
