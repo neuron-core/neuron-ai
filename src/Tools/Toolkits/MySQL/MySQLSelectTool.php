@@ -65,7 +65,6 @@ This the tool to use only to gather information from the MySQL database.'
 
     /**
      * @param array<array{name: string, value: string}> $parameters
-     * @return string|array
      */
     public function __invoke(string $query, array $parameters = []): string|array
     {
