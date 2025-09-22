@@ -32,7 +32,7 @@ class ObjectProperty implements ToolPropertyInterface
         protected ?string $class = null,
         protected array $properties = [],
     ) {
-        if ($this->properties === [] && \class_exists($this->class)) {
+        if ($this->properties === [] && !\is_null($this->class) && \class_exists($this->class)) {
             $schema = (new JsonSchema())->generate($this->class);
             $this->properties = $this->buildPropertiesFromClass($schema);
         }
