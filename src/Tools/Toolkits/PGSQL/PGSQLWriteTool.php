@@ -60,7 +60,7 @@ class PGSQLWriteTool extends Tool
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
-        foreach ($parameters ?? [] as $parameter) {
+        foreach ($parameters as $parameter) {
             $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
         }
