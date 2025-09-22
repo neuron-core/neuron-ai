@@ -81,6 +81,10 @@ This the tool to use only to gather information from the PostgreSQL database.'
         ];
     }
 
+    /**
+     * @param array<array{name: mixed, value: mixed}> $parameters
+     * @return array<mixed>
+     */
     public function __invoke(string $query, array $parameters = []): array
     {
         if (!$this->validateReadOnlyQuery($query)) {
