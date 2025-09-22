@@ -34,7 +34,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
                 'content' => [
                     'parts' => [['text' => $text]]
                 ],
-                ...($this->config !== [] ? ['embedding_config' => $this->config] : []),
+                ...$this->config,
             ]
         ])->getBody()->getContents();
 
