@@ -63,7 +63,11 @@ This the tool to use only to gather information from the MySQL database.'
         ];
     }
 
-    public function __invoke(string $query, ?array $parameters = null): string|array
+    /**
+     * @param array<array{name: string, value: string}> $parameters
+     * @return string|array
+     */
+    public function __invoke(string $query, array $parameters = []): string|array
     {
         if (!$this->validateReadOnly($query)) {
             return "The query was rejected for security reasons.

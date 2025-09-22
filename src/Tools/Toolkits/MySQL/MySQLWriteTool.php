@@ -55,6 +55,9 @@ class MySQLWriteTool extends Tool
         ];
     }
 
+    /**
+     * @param array<array{name: string, value: string}> $parameters
+     */
     public function __invoke(string $query, array $parameters = []): string
     {
         $statement = $this->pdo->prepare($query);

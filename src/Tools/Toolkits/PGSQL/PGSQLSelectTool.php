@@ -82,8 +82,8 @@ This the tool to use only to gather information from the PostgreSQL database.'
     }
 
     /**
-     * @param array<array{name: mixed, value: mixed}> $parameters
-     * @return array<mixed>
+     * @param array<array{name: string, value: string}> $parameters
+     * @return array
      */
     public function __invoke(string $query, array $parameters = []): array
     {
