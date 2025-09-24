@@ -114,7 +114,7 @@ class McpConnector
 
         // Only process properties if they exist in the input schema
         // Some MCP tools don't require any input parameters
-        if (isset($item['inputSchema']['properties']) && is_array($item['inputSchema']['properties'])) {
+        if (isset($item['inputSchema']['properties']) && \is_array($item['inputSchema']['properties'])) {
             foreach ($item['inputSchema']['properties'] as $name => $prop) {
                 $required = \in_array($name, $item['inputSchema']['required'] ?? []);
 
