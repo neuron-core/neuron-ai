@@ -112,6 +112,11 @@ class McpConnector
             throw new McpException("Tool response format not supported: {$response['type']}");
         });
 
+        // If the tool has no properties, return early
+        if (!isset($item['inputSchema']['properties']) || !\is_array($item['inputSchema']['properties'])) {
+            return $tool;
+        }
+
         foreach ($item['inputSchema']['properties'] as $name => $prop) {
             $required = \in_array($name, $item['inputSchema']['required'] ?? []);
 
