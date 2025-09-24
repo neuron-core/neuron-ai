@@ -32,12 +32,12 @@ In addition, we provide tutorials and other educational content to help you get 
 
 ## Official documentation
 
-**[Go to the official documentation](https://neuron.inspector.dev/)**
+**[Go to the official documentation](https://docs.neuron-ai.dev/)**
 
 ## Guides & Tutorials
 
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
-https://docs.neuron-ai.dev/resources/guides-and-tutorials.
+https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 
 ## How To
 
