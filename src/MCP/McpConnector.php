@@ -112,22 +112,23 @@ class McpConnector
             throw new McpException("Tool response format not supported: {$response['type']}");
         });
 
-        // Only process properties if they exist in the input schema
-        // Some MCP tools don't require any input parameters
-        if (isset($item['inputSchema']['properties']) && \is_array($item['inputSchema']['properties'])) {
-            foreach ($item['inputSchema']['properties'] as $name => $prop) {
-                $required = \in_array($name, $item['inputSchema']['required'] ?? []);
+        // If the tool has no properties, return early
+        if (!isset($item['inputSchema']['properties']) || !\is_array($item['inputSchema']['properties'])) {
+            return $tool;
+        }
 
-                $type = PropertyType::fromSchema($prop['type'] ?? PropertyType::STRING->value);
+        foreach ($item['inputSchema']['properties'] as $name => $prop) {
+            $required = \in_array($name, $item['inputSchema']['required'] ?? []);
 
-                $property = match ($type) {
-                    PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop),
-                    PropertyType::OBJECT => $this->createObjectProperty($name, $required, $prop),
-                    default => $this->createToolProperty($name, $type, $required, $prop),
-                };
+            $type = PropertyType::fromSchema($prop['type'] ?? PropertyType::STRING->value);
 
-                $tool->addProperty($property);
-            }
+            $property = match ($type) {
+                PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop),
+                PropertyType::OBJECT => $this->createObjectProperty($name, $required, $prop),
+                default => $this->createToolProperty($name, $type, $required, $prop),
+            };
+
+            $tool->addProperty($property);
         }
 
         return $tool;
