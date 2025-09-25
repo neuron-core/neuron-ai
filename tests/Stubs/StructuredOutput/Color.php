@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Stubs;
+namespace NeuronAI\Tests\Stubs\StructuredOutput;
 
 use NeuronAI\StructuredOutput\SchemaProperty;
 
@@ -17,6 +17,4 @@ class Color
         public float $b,
     ) {
     }
-
-
 }

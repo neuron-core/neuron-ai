@@ -9,9 +9,10 @@ use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
-use NeuronAI\Tests\Stubs\Person;
-use NeuronAI\Tests\Stubs\Tag;
+use NeuronAI\Tests\Stubs\StructuredOutput\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
 use NeuronAI\Tests\Stubs\StringEnum;
+use NeuronAI\Tests\Stubs\StructuredOutput\TagProperties;
 use PHPUnit\Framework\TestCase;
 
 class DeserializerTest extends TestCase
@@ -52,10 +53,10 @@ class DeserializerTest extends TestCase
     {
         $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent"}]}';
 
-        $obj = Deserializer::fromJson($json, \NeuronAI\Tests\Stubs\Output123\Person::class);
+        $obj = Deserializer::fromJson($json, Person::class);
 
-        $this->assertInstanceOf(\NeuronAI\Tests\Stubs\Output123\Person::class, $obj);
-        $this->assertInstanceOf(\NeuronAI\Tests\Stubs\Output123\Tag::class, $obj->tags[0]);
+        $this->assertInstanceOf(Person::class, $obj);
+        $this->assertInstanceOf(Tag::class, $obj->tags[0]);
         $this->assertEquals('agent', $obj->tags[0]->name);
     }
 
@@ -144,5 +145,17 @@ class DeserializerTest extends TestCase
         $obj = Deserializer::fromJson($json, $class::class);
         $this->assertInstanceOf($class::class, $obj);
         $this->assertTrue(! isset($obj->number));
+    }
+
+    public function test_nested_object_array(): void
+    {
+        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
+
+        $obj = Deserializer::fromJson($json, Person::class);
+        $this->assertInstanceOf(Person::class, $obj);
+        $this->assertInstanceOf(Tag::class, $obj->tags[0]);
+        $this->assertCount(1, $obj->tags[0]->properties);
+        $this->assertInstanceOf(TagProperties::class, $obj->tags[0]->properties[0]);
+        $this->assertEquals('prop', $obj->tags[0]->properties[0]->value);
     }
 }

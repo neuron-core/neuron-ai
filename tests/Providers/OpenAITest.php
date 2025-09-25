@@ -15,7 +15,7 @@ use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\Tests\Stubs\Color;
+use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
