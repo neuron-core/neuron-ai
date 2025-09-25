@@ -6,7 +6,7 @@ namespace NeuronAI\Tests;
 
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
-use NeuronAI\Tests\Stubs\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use PHPUnit\Framework\TestCase;
 
 class JsonSchemaTest extends TestCase
@@ -168,6 +168,21 @@ class JsonSchemaTest extends TestCase
                             'name' => [
                                 'description' => 'The name of the tag',
                                 'type' => 'string',
+                            ],
+                            'properties' => [
+                                'description' => 'Properties can contains additional values',
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'value' => [
+                                            'description' => 'The property value',
+                                            'type' => 'string',
+                                        ]
+                                    ],
+                                    'additionalProperties' => false,
+                                    'required' => ['value']
+                                ]
                             ]
                         ],
                         'required' => ['name'],
@@ -182,7 +197,7 @@ class JsonSchemaTest extends TestCase
 
     public function test_nested_object_with_alternative_syntax(): void
     {
-        $schema = (new JsonSchema())->generate(\NeuronAI\Tests\Stubs\Output123\Person::class);
+        $schema = (new JsonSchema())->generate(Person::class);
 
         $this->assertEquals([
             'type' => 'object',
@@ -219,6 +234,21 @@ class JsonSchemaTest extends TestCase
                             'name' => [
                                 'description' => 'The name of the tag',
                                 'type' => 'string',
+                            ],
+                            'properties' => [
+                                'description' => 'Properties can contains additional values',
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'value' => [
+                                            'description' => 'The property value',
+                                            'type' => 'string',
+                                        ]
+                                    ],
+                                    'additionalProperties' => false,
+                                    'required' => ['value']
+                                ]
                             ]
                         ],
                         'required' => ['name'],

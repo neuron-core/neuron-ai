@@ -28,7 +28,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
-use NeuronAI\Tests\Stubs\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tests\Stubs\StringEnum;
 use PHPUnit\Framework\TestCase;
 
