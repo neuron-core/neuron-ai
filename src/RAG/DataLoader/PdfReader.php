@@ -142,24 +142,24 @@ class PdfReader implements ReaderInterface
             '/opt/local/bin/pdfinfo',
         ];
 
-        $pdfinfo = null;
+        $info = null;
         foreach ($pdfinfoPaths as $path) {
             if (\is_executable($path)) {
-                $pdfinfo = $path;
+                $info = $path;
                 break;
             }
         }
 
-        if (!$pdfinfo) {
+        if (!$info) {
             throw new DataReaderException('pdfinfo binary not found or not executable.');
         }
 
-        $process = new \Symfony\Component\Process\Process([$pdfinfo, $pdfPath]);
+        $process = new Process([$info, $pdfPath]);
         $process->setTimeout($this->timeout);
         $process->run();
 
         if (!$process->isSuccessful()) {
-            throw new \Symfony\Component\Process\Exception\ProcessFailedException($process);
+            throw new ProcessFailedException($process);
         }
 
         if (preg_match('/Pages:\s+(\d+)/', $process->getOutput(), $matches)) {
