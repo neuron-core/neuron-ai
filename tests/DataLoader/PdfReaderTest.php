@@ -80,4 +80,17 @@ class PdfReaderTest extends TestCase
         $this->expectException(DataReaderException::class);
         $instance->getText(__DIR__.'/test.pdf', ['binPath' => 'path/to/bin']);
     }
+
+    public function test_get_page_count(): void
+    {
+        $this->skipIfPdfToTextNotFound();
+        $instance = new PdfReader();
+        $pdfPath = __DIR__ . '/test.pdf';
+
+        $expectedPageCount = 1; // Matches the test.pdf file
+
+        $pageCount = $instance->getPageCount($pdfPath);
+        $this->assertSame($expectedPageCount, $pageCount);
+    }
+    
 }
