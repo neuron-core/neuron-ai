@@ -25,14 +25,16 @@ class PdfReader implements ReaderInterface
 
     protected array $env = [];
 
-    protected array $commonPaths = [
-        '/usr/bin/pdftotext',          // Common on Linux
-        '/usr/local/bin/pdftotext',    // Common on Linux
-        '/opt/homebrew/bin/pdftotext', // Homebrew on macOS (Apple Silicon)
-        '/opt/local/bin/pdftotext',    // MacPorts on macOS
-        '/usr/local/bin/pdftotext',    // Homebrew on macOS (Intel)
+    protected array $commonBasePaths = [
+        '/usr/bin',          // Common on Linux
+        '/usr/local/bin',    // Common on Linux
+        '/opt/homebrew/bin', // Homebrew on macOS (Apple Silicon)
+        '/opt/local/bin',    // MacPorts on macOS
     ];
 
+    /**
+     * @throws DataReaderException
+     */
     public function __construct(?string $binPath = null)
     {
         if (!\is_null($binPath)) {
@@ -49,19 +51,40 @@ class PdfReader implements ReaderInterface
         return $this;
     }
 
-    protected function findPdfToText(): string
+    protected function findBinary(string $binaryName): string
     {
         if (isset($this->binPath)) {
-            return $this->binPath;
-        }
-
-        foreach ($this->commonPaths as $path) {
-            if (\is_executable($path)) {
-                return $path;
+            $basePath = \dirname($this->binPath);
+            $candidatePath = $basePath . \DIRECTORY_SEPARATOR . $binaryName;
+            if (\is_executable($candidatePath)) {
+                return $candidatePath;
             }
         }
 
-        throw new DataReaderException("The pdftotext binary was not found or is not executable.");
+        foreach ($this->commonBasePaths as $basePath) {
+            $candidatePath = $basePath . \DIRECTORY_SEPARATOR . $binaryName;
+            if (\is_executable($candidatePath)) {
+                return $candidatePath;
+            }
+        }
+
+        throw new DataReaderException("The {$binaryName} binary was not found or is not executable.");
+    }
+
+    /**
+     * @throws DataReaderException
+     */
+    protected function findPdfToText(): string
+    {
+        return $this->findBinary('pdftotext');
+    }
+
+    /**
+     * @throws DataReaderException
+     */
+    protected function findPdfInfo(): string
+    {
+        return $this->findBinary('pdfinfo');
     }
 
     public function setPdf(string $pdf): self
@@ -114,55 +137,38 @@ class PdfReader implements ReaderInterface
         return $this;
     }
 
-    public function text(): string
+    protected function executeProcess(array $command): string
     {
-        $process = new Process(\array_merge([$this->findPdfToText()], $this->options, [$this->pdf, '-']));
+        $process = new Process($command);
         $process->setTimeout($this->timeout);
         $process->run();
+
         if (!$process->isSuccessful()) {
             throw new ProcessFailedException($process);
         }
 
-        return \trim($process->getOutput(), " \t\n\r\0\x0B\x0C");
+        return $process->getOutput();
+    }
+
+    public function text(): string
+    {
+        $command = \array_merge([$this->findPdfToText()], $this->options, [$this->pdf, '-']);
+        $output = $this->executeProcess($command);
+
+        return \trim($output, " \t\n\r\0\x0B\x0C");
     }
 
     /**
      * Get the number of pages in the PDF.
      *
-     * @param string $pdfPath
-     * @return int
      * @throws DataReaderException
      */
     public function getPageCount(string $pdfPath): int
     {
-        $pdfinfoPaths = [
-            '/usr/bin/pdfinfo',
-            '/usr/local/bin/pdfinfo',
-            '/opt/homebrew/bin/pdfinfo',
-            '/opt/local/bin/pdfinfo',
-        ];
+        $pdfinfoPath = $this->findPdfInfo();
+        $output = $this->executeProcess([$pdfinfoPath, $pdfPath]);
 
-        $info = null;
-        foreach ($pdfinfoPaths as $path) {
-            if (\is_executable($path)) {
-                $info = $path;
-                break;
-            }
-        }
-
-        if (!$info) {
-            throw new DataReaderException('pdfinfo binary not found or not executable.');
-        }
-
-        $process = new Process([$info, $pdfPath]);
-        $process->setTimeout($this->timeout);
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            throw new ProcessFailedException($process);
-        }
-
-        if (preg_match('/Pages:\s+(\d+)/', $process->getOutput(), $matches)) {
+        if (\preg_match('/Pages:\s+(\d+)/', $output, $matches)) {
             return (int) $matches[1];
         }
 
