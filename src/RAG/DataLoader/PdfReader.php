@@ -162,7 +162,7 @@ class PdfReader implements ReaderInterface
             throw new \Symfony\Component\Process\Exception\ProcessFailedException($process);
         }
 
-        if (preg_match('/Pages:\s+(\d+)/', $process->getOutput(), $matches)) {
+        if (\preg_match('/Pages:\s+(\d+)/', $process->getOutput(), $matches)) {
             return (int) $matches[1];
         }
 

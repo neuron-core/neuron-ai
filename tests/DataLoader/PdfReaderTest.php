@@ -92,5 +92,5 @@ class PdfReaderTest extends TestCase
         $pageCount = $instance->getPageCount($pdfPath);
         $this->assertSame($expectedPageCount, $pageCount);
     }
-    
+
 }
