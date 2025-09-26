@@ -86,8 +86,6 @@ trait HandleStructured
                     return self::structured($toolCallResult, $class, $maxRetries);
                 }
 
-                $this->addToChatHistory($response);
-
                 $output = $this->processResponse($response, $schema, $class);
                 $this->notify('structured-stop');
                 return $output;

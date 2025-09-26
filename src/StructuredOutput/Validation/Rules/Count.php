@@ -39,7 +39,7 @@ class Count extends AbstractValidationRule
         $count = \count($value);
 
         if (null !== $this->max && $count > $this->max) {
-            $shouldExact = $this->min == $this->max;
+            $shouldExact = $this->min === $this->max;
 
             if ($shouldExact) {
                 $violations[] = $this->buildMessage($name, '{name} must be exactly {exact} items long', ['exact' => $this->min]);

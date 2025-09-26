@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests;
 
+use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\StructuredOutputException;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\Validation\Rules\Enum;
@@ -28,8 +29,10 @@ use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
-use NeuronAI\Tests\Stubs\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tests\Stubs\StringEnum;
+use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
+use NeuronAI\Tests\Stubs\StructuredOutput\TagProperties;
 use PHPUnit\Framework\TestCase;
 
 class ValidationTest extends TestCase
@@ -134,6 +137,30 @@ class ValidationTest extends TestCase
         $this->assertCount(1, $violations);
 
         $class->tags = ['test'];
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+    }
+
+    public function test_nested_array_of(): void
+    {
+        $class = new Person();
+        $tag = new Tag();
+        $tag->name = 'test';
+        $tagProp = new TagProperties();
+        $tagProp->value = 'test';
+        $tag->properties = [$tagProp];
+        $class->firstName = 'test';
+        $class->tags = [$tag];
+
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+    }
+
+    public function test_nested_array_with_deserialize(): void
+    {
+        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
+
+        $class = Deserializer::fromJson($json, Person::class);
         $violations = Validator::validate($class);
         $this->assertCount(0, $violations);
     }

@@ -9,6 +9,9 @@
 /phpstan.neon export-ignore
 /phpunit.xml.dist export-ignore
 /rector.php export-ignore
+/peck.json export-ignore
+/rector.php export-ignore
+/agent.md export-ignore
 docs export-ignore
 docs/** export-ignore
 examples export-ignore

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Stubs;
+namespace NeuronAI\Tests\Stubs\StructuredOutput;
 
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
