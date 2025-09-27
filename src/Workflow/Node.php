@@ -52,7 +52,9 @@ abstract class Node implements NodeInterface
     protected function checkpoint(string $name, \Closure $closure): mixed
     {
         if (\array_key_exists($name, $this->checkpoints)) {
-            return $this->checkpoints[$name];
+            $result = $this->checkpoints[$name];
+            unset($this->checkpoints[$name]);
+            return $result;
         }
 
         $result = \call_user_func($closure);
