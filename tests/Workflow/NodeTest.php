@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
@@ -37,5 +40,20 @@ class NodeTest extends TestCase
         // Verify the state was modified
         $this->assertTrue($state->get('node_one_executed'));
         $this->assertEquals('data', $state->get('existing')); // Original data preserved
+    }
+
+    public function testNodeCheckpoint(): void
+    {
+        $workflow = Workflow::make()->addNode(new NodeCheckpoint());
+
+        try {
+            $state = $workflow->start()->getResult();
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->assertEquals('test', $interrupt->getState()->get('checkpoint'));
+            $state = $workflow->wakeup('approved')->getResult();
+        }
+
+        $this->assertEquals('test', $state->get('checkpoint'));
+        $this->assertEquals('approved', $state->get('feedback'));
     }
 }
