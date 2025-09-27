@@ -13,6 +13,11 @@ abstract class Node implements NodeInterface
     protected bool $isResuming = false;
     protected mixed $feedback = null;
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $checkpoints = [];
+
     public function run(Event $event, WorkflowState $state): \Generator|Event
     {
         /** @phpstan-ignore method.notFound */
@@ -42,6 +47,17 @@ abstract class Node implements NodeInterface
         }
 
         return null;
+    }
+
+    protected function checkpoint(string $name, \Closure $closure): mixed
+    {
+        if (\array_key_exists($name, $this->checkpoints)) {
+            return $this->checkpoints[$name];
+        }
+
+        $result = \call_user_func($closure);
+        $this->checkpoints[$name] = $result;
+        return $result;
     }
 
     /**
