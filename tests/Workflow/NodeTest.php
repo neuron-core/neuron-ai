@@ -50,7 +50,7 @@ class NodeTest extends TestCase
             $state = $workflow->start()->getResult();
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals('test', $interrupt->getState()->get('checkpoint'));
-            $state = $workflow->start(true, 'approved')->getResult();
+            $state = $workflow->wakeup('approved')->getResult();
         }
 
         $this->assertEquals('test', $state->get('checkpoint'));
