@@ -200,7 +200,7 @@ class Tool implements ToolInterface
             // If there is an object property with a class definition,
             // deserialize the tool input into an instance of that class
             if ($property instanceof ObjectProperty && $property->getClass()) {
-                $carry[$propertyName] = Deserializer::fromJson(\json_encode($inputValue), $property->getClass());
+                $carry[$propertyName] = Deserializer::make()->fromJson(\json_encode($inputValue), $property->getClass());
                 return $carry;
             }
 
@@ -210,7 +210,7 @@ class Tool implements ToolInterface
                 $items = $property->getItems();
                 if ($items instanceof ObjectProperty && $items->getClass()) {
                     $class = $items->getClass();
-                    $carry[$propertyName] = \array_map(fn (array|object $input): object => Deserializer::fromJson(\json_encode($input), $class), $inputValue);
+                    $carry[$propertyName] = \array_map(fn (array|object $input): object => Deserializer::make()->fromJson(\json_encode($input), $class), $inputValue);
                     return $carry;
                 }
             }
