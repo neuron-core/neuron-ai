@@ -67,12 +67,12 @@ class ArrayOf extends AbstractValidationRule
         $error = false;
         foreach ($value as $item) {
             foreach ($this->types as $type) {
-                // Check scalar types
+                // Check scalar types.
                 if (isset(self::VALIDATION_FUNCTIONS[\strtolower((string) $type)]) && self::VALIDATION_FUNCTIONS[\strtolower((string) $type)]($item)) {
                     continue 2;
                 }
 
-                // Check object types
+                // Check object types.
                 // It's like a recursive call.
                 if (\is_object($item) && \in_array($item::class, $this->types) && Validator::validate($item) === []) {
                     continue 2;
