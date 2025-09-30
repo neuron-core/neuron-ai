@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput;
 
+use NeuronAI\StaticConstructor;
 use ReflectionClass;
 use ReflectionEnum;
 use ReflectionEnumBackedCase;
@@ -11,12 +12,21 @@ use ReflectionException;
 use ReflectionNamedType;
 use ReflectionProperty;
 
+/**
+ * @method static static make(string $discriminator = '__classname__')
+ */
 class JsonSchema
 {
+    use StaticConstructor;
+
     /**
      * Track classes being processed to prevent infinite recursion
      */
-    private array $processedClasses = [];
+    protected array $processedClasses = [];
+
+    public function __construct(protected string $discriminator = '__classname__')
+    {
+    }
 
     /**
      * Generate JSON schema from a PHP class
@@ -44,7 +54,7 @@ class JsonSchema
      * @return array The schema
      * @throws ReflectionException
      */
-    private function generateClassSchema(string $class): array
+    protected function generateClassSchema(string $class): array
     {
         $reflection = new ReflectionClass($class);
 
@@ -117,7 +127,7 @@ class JsonSchema
      * @return array Property schema
      * @throws ReflectionException
      */
-    private function processProperty(ReflectionProperty $property): array
+    protected function processProperty(ReflectionProperty $property): array
     {
         $schema = [];
 
@@ -217,7 +227,7 @@ class JsonSchema
     /**
      * Process an enum to generate its schema
      */
-    private function processEnum(ReflectionEnum $enum): array
+    protected function processEnum(ReflectionEnum $enum): array
     {
         // Create enum schema
         $schema = [
@@ -243,7 +253,7 @@ class JsonSchema
     /**
      * Get the Property attribute if it exists on a property
      */
-    private function getPropertyAttribute(ReflectionProperty $property): ?SchemaProperty
+    protected function getPropertyAttribute(ReflectionProperty $property): ?SchemaProperty
     {
         $attributes = $property->getAttributes(SchemaProperty::class);
         if ($attributes !== []) {
@@ -259,7 +269,7 @@ class JsonSchema
      * @return array Schema for the type
      * @throws ReflectionException
      */
-    private function getBasicTypeSchema(string $type): array
+    protected function getBasicTypeSchema(string $type): array
     {
         switch ($type) {
             case 'string':
@@ -307,17 +317,16 @@ class JsonSchema
      * - @var \App\TypeOne[]|\App\TypeTwo[]
      * - @var array<\App\TypeOne|\App\TypeTwo>
      *
-     * @param string $docComment The PHPDoc comment
-     * @return array Array of type strings (empty if no types found)
+     * @return array<class-string> Array of type strings (empty if no types found)
      */
-    private function extractArrayItemTypes(string $docComment): array
+    protected function extractArrayItemTypes(string $docComment): array
     {
         // Try to match array<Type1|Type2|...> format
         if (\preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
             $typesString = $matches[1];
             // Split by pipe and trim whitespace
             $types = \array_map('trim', \explode('|', $typesString));
-            return \array_filter($types, fn (string $type): bool => !empty($type));
+            return \array_filter($types, fn (string $type): bool => $type !== '' && $type !== '0');
         }
 
         // Try to match Type1[]|Type2[]|... format
@@ -325,7 +334,7 @@ class JsonSchema
             // Extract all types from the first match group
             $fullMatch = $matches[0][0] ?? '';
             \preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
-            return \array_filter($typeMatches[1], fn (string $type): bool => !empty($type));
+            return \array_filter($typeMatches[1], fn (string $type): bool => $type !== '' && $type !== '0');
         }
 
         return [];
@@ -337,9 +346,9 @@ class JsonSchema
      * @param array $types Array of type strings
      * @return array Array of class/enum type strings
      */
-    private function filterClassTypes(array $types): array
+    protected function filterClassTypes(array $types): array
     {
-        return \array_filter($types, fn(string $type): bool => \class_exists($type) || \enum_exists($type));
+        return \array_filter($types, fn (string $type): bool => \class_exists($type) || \enum_exists($type));
     }
 
     /**
@@ -349,17 +358,65 @@ class JsonSchema
      * @return array Schema with anyOf structure
      * @throws ReflectionException
      */
-    private function generateAnyOfSchema(array $types): array
+    protected function generateAnyOfSchema(array $types): array
     {
         $schemas = [];
+        $mapping = [];
+
         foreach ($types as $type) {
+            $schema = null;
+
             if (\class_exists($type)) {
-                $schemas[] = $this->generateClassSchema($type);
+                $schema = $this->generateClassSchema($type);
             } elseif (\enum_exists($type)) {
-                $schemas[] = $this->processEnum(new ReflectionEnum($type));
+                $schema = $this->processEnum(new ReflectionEnum($type));
+            }
+
+            if ($schema !== null) {
+                // Extract short class name (lowercase) for discriminator
+                $shortName = \strtolower(\basename(\str_replace('\\', '/', $type)));
+                $mapping[$shortName] = $type;
+
+                // Inject __classname__ discriminator into schema
+                $schema = $this->injectDiscriminator($schema, $shortName);
+                $schemas[] = $schema;
             }
         }
 
-        return ['anyOf' => $schemas];
+        return [
+            'anyOf' => $schemas,
+            'mapping' => $mapping, // Store mapping for deserializer
+        ];
+    }
+
+    /**
+     * Inject __classname__ discriminator field into schema
+     *
+     * @param array $schema The schema to inject into
+     * @param string $discriminatorValue The discriminator value (lowercase class name)
+     * @return array Modified schema
+     */
+    protected function injectDiscriminator(array $schema, string $discriminatorValue): array
+    {
+        // Only inject for object schemas
+        if (isset($schema['type']) && $schema['type'] === 'object') {
+            // Add __classname__ property at the beginning
+            $schema['properties'] = [
+                $this->discriminator => [
+                    'type' => 'string',
+                    'enum' => [$discriminatorValue],
+                    'description' => 'Internal discriminator for class type resolution',
+                ],
+                ...($schema['properties'] ?? []),
+            ];
+
+            // Make __classname__ required
+            $schema['required'] = \array_unique([
+                $this->discriminator,
+                ...($schema['required'] ?? []),
+            ]);
+        }
+
+        return $schema;
     }
 }

@@ -280,20 +280,31 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('anyOf', $schema['properties']['modes']['items']);
         $this->assertCount(2, $schema['properties']['modes']['items']['anyOf']);
 
+        // Verify mapping exists
+        $this->assertArrayHasKey('mapping', $schema['properties']['modes']['items']);
+        $this->assertArrayHasKey('ftpmode', $schema['properties']['modes']['items']['mapping']);
+        $this->assertArrayHasKey('emailmode', $schema['properties']['modes']['items']['mapping']);
+
         // Verify each anyOf schema is an object with expected properties
         $schemas = $schema['properties']['modes']['items']['anyOf'];
 
-        // First schema should be FtpMode
+        // First schema should be FtpMode with __classname__ discriminator
         $this->assertEquals('object', $schemas[0]['type']);
         $this->assertArrayHasKey('properties', $schemas[0]);
+        $this->assertArrayHasKey('__classname__', $schemas[0]['properties']);
+        $this->assertEquals(['ftpmode'], $schemas[0]['properties']['__classname__']['enum']);
         $this->assertArrayHasKey('mode', $schemas[0]['properties']);
         $this->assertArrayHasKey('account', $schemas[0]['properties']);
+        $this->assertContains('__classname__', $schemas[0]['required']);
 
-        // Second schema should be EmailMode
+        // Second schema should be EmailMode with __classname__ discriminator
         $this->assertEquals('object', $schemas[1]['type']);
         $this->assertArrayHasKey('properties', $schemas[1]);
+        $this->assertArrayHasKey('__classname__', $schemas[1]['properties']);
+        $this->assertEquals(['emailmode'], $schemas[1]['properties']['__classname__']['enum']);
         $this->assertArrayHasKey('mode', $schemas[1]['properties']);
         $this->assertArrayHasKey('mailingList', $schemas[1]['properties']);
+        $this->assertContains('__classname__', $schemas[1]['required']);
     }
 
     public function test_array_with_multiple_types_using_array_syntax(): void
@@ -315,19 +326,30 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('anyOf', $schema['properties']['blocks']['items']);
         $this->assertCount(2, $schema['properties']['blocks']['items']['anyOf']);
 
+        // Verify mapping exists
+        $this->assertArrayHasKey('mapping', $schema['properties']['blocks']['items']);
+        $this->assertArrayHasKey('imageblock', $schema['properties']['blocks']['items']['mapping']);
+        $this->assertArrayHasKey('textblock', $schema['properties']['blocks']['items']['mapping']);
+
         // Verify each anyOf schema is an object with expected properties
         $schemas = $schema['properties']['blocks']['items']['anyOf'];
 
-        // First schema should be ImageBlock
+        // First schema should be ImageBlock with __classname__ discriminator
         $this->assertEquals('object', $schemas[0]['type']);
         $this->assertArrayHasKey('properties', $schemas[0]);
+        $this->assertArrayHasKey('__classname__', $schemas[0]['properties']);
+        $this->assertEquals(['imageblock'], $schemas[0]['properties']['__classname__']['enum']);
         $this->assertArrayHasKey('type', $schemas[0]['properties']);
         $this->assertArrayHasKey('url', $schemas[0]['properties']);
+        $this->assertContains('__classname__', $schemas[0]['required']);
 
-        // Second schema should be TextBlock
+        // Second schema should be TextBlock with __classname__ discriminator
         $this->assertEquals('object', $schemas[1]['type']);
         $this->assertArrayHasKey('properties', $schemas[1]);
+        $this->assertArrayHasKey('__classname__', $schemas[1]['properties']);
+        $this->assertEquals(['textblock'], $schemas[1]['properties']['__classname__']['enum']);
         $this->assertArrayHasKey('type', $schemas[1]['properties']);
         $this->assertArrayHasKey('content', $schemas[1]['properties']);
+        $this->assertContains('__classname__', $schemas[1]['required']);
     }
 }

@@ -5,18 +5,26 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Deserializer;
 
 use BackedEnum;
+use NeuronAI\StaticConstructor;
 
+/**
+ * @method static static make(string $discriminator = '__classname__')
+ */
 class Deserializer
 {
+    use StaticConstructor;
+
+    public function __construct(protected string $discriminator = '__classname__')
+    {
+    }
+
     /**
      * Deserialize JSON data into a specified class instance
      *
-     * @param  string  $jsonData  The JSON string to deserialize
-     * @param  string  $className  The fully qualified class name to instantiate
      * @return object Instance of the specified class
      * @throws DeserializerException|\ReflectionException
      */
-    public static function fromJson(string $jsonData, string $className): object
+    public function fromJson(string $jsonData, string $className): object
     {
         // Decode JSON data
         $data = \json_decode($jsonData, true);
@@ -25,7 +33,7 @@ class Deserializer
             throw new DeserializerException('Invalid JSON: '.\json_last_error_msg());
         }
 
-        return self::deserializeObject($data, $className);
+        return $this->deserializeObject($data, $className);
     }
 
     /**
@@ -35,7 +43,7 @@ class Deserializer
      * @param  string  $className  The target class name
      * @throws DeserializerException|\ReflectionException
      */
-    private static function deserializeObject(array $data, string $className): object
+    protected function deserializeObject(array $data, string $className): object
     {
         if (!\class_exists($className)) {
             throw new DeserializerException("Class {$className} does not exist");
@@ -53,14 +61,14 @@ class Deserializer
             $propertyName = $property->getName();
 
             // Check if data contains this property (case-sensitive and snake_case/camelCase variants)
-            $value = self::findPropertyValue($data, $propertyName);
+            $value = $this->findPropertyValue($data, $propertyName);
 
             if ($value !== null) {
                 // Get property type information
                 $type = $property->getType();
 
                 if ($type) {
-                    $value = self::castValue($value, $type, $property);
+                    $value = $this->castValue($value, $type, $property);
                 }
 
                 $property->setValue($instance, $value);
@@ -79,7 +87,7 @@ class Deserializer
     /**
      * Find property value in data, supporting different naming conventions
      */
-    private static function findPropertyValue(array $data, string $propertyName): mixed
+    protected function findPropertyValue(array $data, string $propertyName): mixed
     {
         // Direct match
         if (\array_key_exists($propertyName, $data)) {
@@ -106,13 +114,13 @@ class Deserializer
      *
      * @throws DeserializerException|\ReflectionException
      */
-    private static function castValue(mixed $value, \ReflectionType $type, \ReflectionProperty $property): mixed
+    protected function castValue(mixed $value, \ReflectionType $type, \ReflectionProperty $property): mixed
     {
         if ($type instanceof \ReflectionUnionType) {
             // Handle union types
             foreach ($type->getTypes() as $unionType) {
                 try {
-                    return self::castToSingleType($value, $unionType, $property);
+                    return $this->castToSingleType($value, $unionType, $property);
                 } catch (\Exception) {
                     continue;
                 }
@@ -121,7 +129,7 @@ class Deserializer
         }
 
         // @phpstan-ignore-next-line
-        return self::castToSingleType($value, $type, $property);
+        return $this->castToSingleType($value, $type, $property);
     }
 
     /**
@@ -129,7 +137,7 @@ class Deserializer
      *
      * @throws DeserializerException|\ReflectionException
      */
-    private static function castToSingleType(
+    protected function castToSingleType(
         mixed $value,
         \ReflectionNamedType $type,
         \ReflectionProperty $property
@@ -149,24 +157,24 @@ class Deserializer
             'int' => (int) $value,
             'float' => (float) $value,
             'bool' => (bool) $value,
-            'array' => self::handleArray($value, $property),
-            'DateTime' => self::createDateTime($value),
-            'DateTimeImmutable' => self::createDateTimeImmutable($value),
-            default => self::handleSingleObject($value, $typeName)
+            'array' => $this->handleArray($value, $property),
+            'DateTime' => $this->createDateTime($value),
+            'DateTimeImmutable' => $this->createDateTimeImmutable($value),
+            default => $this->handleSingleObject($value, $typeName)
         };
     }
 
     /**
      * @throws DeserializerException|\ReflectionException
      */
-    private static function handleSingleObject(mixed $value, string $typeName): mixed
+    protected function handleSingleObject(mixed $value, string $typeName): mixed
     {
         if (\is_array($value) && \class_exists($typeName)) {
-            return self::deserializeObject($value, $typeName);
+            return $this->deserializeObject($value, $typeName);
         }
 
         if (\enum_exists($typeName)) {
-            return self::handleEnum($typeName, $value);
+            return $this->handleEnum($typeName, $value);
         }
 
         // Fallback: return the value as-is
@@ -178,13 +186,21 @@ class Deserializer
      *
      * @throws DeserializerException|\ReflectionException
      */
-    private static function handleArray(mixed $value, \ReflectionProperty $property): mixed
+    protected function handleArray(mixed $value, \ReflectionProperty $property): mixed
     {
         // Handle arrays of objects using docblock annotations
-        if (self::isArrayOfObjects($property)) {
-            $elementType = self::getArrayElementType($property);
-            if ($elementType && \class_exists($elementType)) {
-                return \array_map(fn (array $item): object => self::deserializeObject($item, $elementType), $value);
+        if ($this->isArrayOfObjects($property)) {
+            $elementTypes = $this->getArrayElementTypes($property);
+
+            if (\count($elementTypes) === 1) {
+                // Single type - use existing logic
+                $elementType = $elementTypes[0];
+                if (\class_exists($elementType)) {
+                    return \array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
+                }
+            } elseif (\count($elementTypes) > 1) {
+                // Multiple types - use discriminator-based deserialization
+                return \array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $elementTypes), $value);
             }
         }
 
@@ -195,32 +211,80 @@ class Deserializer
     /**
      * Check if a property represents an array of objects based on docblock
      */
-    private static function isArrayOfObjects(\ReflectionProperty $property): bool
+    protected function isArrayOfObjects(\ReflectionProperty $property): bool
     {
-        $docComment = $property->getDocComment();
-        if (!$docComment) {
-            return false;
-        }
-
-        return \preg_match('/@var\s+(?:([a-zA-Z0-9_\\\\]+)\[\]|array<([a-zA-Z0-9_\\\\]+)>)/', $docComment) === 1;
+        $types = $this->getArrayElementTypes($property);
+        return $types !== [];
     }
 
     /**
-     * Extract an element type from array docblock annotation
+     * Extract element types from array docblock annotation
+     * Supports single and multiple types
+     *
+     * @return array<string> Array of fully qualified class names
      */
-    private static function getArrayElementType(\ReflectionProperty $property): ?string
+    protected function getArrayElementTypes(\ReflectionProperty $property): array
     {
         $docComment = $property->getDocComment();
         if (!$docComment) {
-            return null;
+            return [];
         }
 
-        // Extract type from both "@var \App\Type[]" and "@var array<\App\Type>"
-        if (\preg_match('/@var\s+(?:([a-zA-Z0-9_\\\\]+)\[\]|array<([a-zA-Z0-9_\\\\]+)>)/', $docComment, $matches) === 1) {
-            return empty($matches[1]) ? ((isset($matches[2]) && $matches[2] !== '0') ? $matches[2] : null) : ($matches[1]);
+        // Try to match array<Type1|Type2|...> format
+        if (\preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
+            $typesString = $matches[1];
+            // Split by pipe and trim whitespace
+            $types = \array_map('trim', \explode('|', $typesString));
+            return \array_filter($types, fn (string $type): bool => $type !== '' && $type !== '0' && (\class_exists($type) || \enum_exists($type)));
         }
 
-        return null;
+        // Try to match Type1[]|Type2[]|... format
+        if (\preg_match_all('/@var\s+([a-zA-Z0-9_\\\\]+)\[\](?:\|([a-zA-Z0-9_\\\\]+)\[\])*/', $docComment, $matches)) {
+            // Extract all types from the first match group
+            $fullMatch = $matches[0][0] ?? '';
+            \preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
+            if (isset($typeMatches[1])) {
+                return \array_filter($typeMatches[1], fn (string $type): bool => $type !== '' && $type !== '0' && (\class_exists($type) || \enum_exists($type)));
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Deserialize an object using a discriminator field to determine the class
+     *
+     * @return object Deserialized object instance
+     * @throws DeserializerException|\ReflectionException
+     */
+    protected function deserializeObjectWithDiscriminator(array $data, array $possibleTypes): object
+    {
+        // Check for the discriminator field
+        if (!isset($data[$this->discriminator])) {
+            throw new DeserializerException("Missing {$this->discriminator} discriminator field in data for multi-type array deserialization");
+        }
+
+        $discriminatorValue = \strtolower((string) $data[$this->discriminator]);
+
+        // Build mapping: lowercase classname => fully qualified class name
+        $mapping = [];
+        foreach ($possibleTypes as $type) {
+            $shortName = \strtolower(\basename(\str_replace('\\', '/', $type)));
+            $mapping[$shortName] = $type;
+        }
+
+        // Find a matching class
+        if (!isset($mapping[$discriminatorValue])) {
+            throw new DeserializerException("Unknown discriminator value '{$discriminatorValue}'. Expected one of: " . \implode(', ', \array_keys($mapping)));
+        }
+
+        $className = $mapping[$discriminatorValue];
+
+        // Remove discriminator field from data before deserialization
+        unset($data[$this->discriminator]);
+
+        // Deserialize into the correct class
+        return $this->deserializeObject($data, $className);
     }
 
     /**
@@ -228,7 +292,7 @@ class Deserializer
      *
      * @throws DeserializerException
      */
-    private static function createDateTime(mixed $value): \DateTime
+    protected function createDateTime(mixed $value): \DateTime
     {
         if ($value instanceof \DateTime) {
             return $value;
@@ -254,7 +318,7 @@ class Deserializer
      *
      * @throws DeserializerException
      */
-    private static function createDateTimeImmutable(mixed $value): \DateTimeImmutable
+    protected function createDateTimeImmutable(mixed $value): \DateTimeImmutable
     {
         if ($value instanceof \DateTimeImmutable) {
             return $value;
@@ -275,7 +339,7 @@ class Deserializer
         throw new DeserializerException("Cannot create DateTimeImmutable from value type: ".\gettype($value));
     }
 
-    private static function handleEnum(BackedEnum|string $typeName, mixed $value): BackedEnum
+    protected function handleEnum(BackedEnum|string $typeName, mixed $value): BackedEnum
     {
         if (!\is_subclass_of($typeName, BackedEnum::class)) {
             throw new DeserializerException("Cannot create BackedEnum from: {$typeName}");

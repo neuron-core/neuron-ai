@@ -160,7 +160,7 @@ class ValidationTest extends TestCase
     {
         $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
 
-        $class = Deserializer::fromJson($json, Person::class);
+        $class = Deserializer::make()->fromJson($json, Person::class);
         $violations = Validator::validate($class);
         $this->assertCount(0, $violations);
     }

@@ -47,7 +47,7 @@ trait HandleStructured
         // Get the JSON schema from the response model
         $class ??= $this->getOutputClass();
         $this->notify('schema-generation', new SchemaGeneration($class));
-        $schema = (new JsonSchema())->generate($class);
+        $schema = JsonSchema::make()->generate($class);
         $this->notify('schema-generated', new SchemaGenerated($class, $schema));
 
         $error = '';
@@ -129,7 +129,7 @@ trait HandleStructured
 
         // Deserialize the JSON response from the LLM into an instance of the response model
         $this->notify('structured-deserializing', new Deserializing($class));
-        $obj = Deserializer::fromJson($json, $class);
+        $obj = Deserializer::make()->fromJson($json, $class);
         $this->notify('structured-deserialized', new Deserialized($class));
 
         // Validate if the object fields respect the validation attributes
