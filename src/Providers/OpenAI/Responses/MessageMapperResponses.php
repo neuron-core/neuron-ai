@@ -76,14 +76,17 @@ class MessageMapperResponses implements MessageMapperInterface
 
     public function mapDocumentAttachment(Attachment $attachment): array
     {
-        return [
-            'type' => 'file',
-            'file' => [
-                // The filename is required, but the Document class does not have a filename property.
+        return match ($attachment->contentType) {
+            AttachmentContentType::URL => [
+                'type' => 'input_file',
+                'file_url' => $attachment->content,
+            ],
+            AttachmentContentType::BASE64 => [
+                'type' => 'input_file',
                 'filename' => "attachment-".\uniqid().".pdf",
                 'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
             ]
-        ];
+        };
     }
 
     protected function mapImageAttachment(Attachment $attachment): array
