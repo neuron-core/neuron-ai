@@ -235,7 +235,7 @@ class Deserializer
             $typesString = $matches[1];
             // Split by pipe and trim whitespace
             $types = \array_map('trim', \explode('|', $typesString));
-            return \array_filter($types, fn (string $type): bool => $type !== '' && $type !== '0' && (\class_exists($type) || \enum_exists($type)));
+            return \array_filter($types, fn (string $type): bool => \class_exists($type) || \enum_exists($type));
         }
 
         // Try to match Type1[]|Type2[]|... format
@@ -243,9 +243,7 @@ class Deserializer
             // Extract all types from the first match group
             $fullMatch = $matches[0][0] ?? '';
             \preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
-            if (isset($typeMatches[1])) {
-                return \array_filter($typeMatches[1], fn (string $type): bool => $type !== '' && $type !== '0' && (\class_exists($type) || \enum_exists($type)));
-            }
+            return \array_filter($typeMatches[1], fn (string $type): bool => \class_exists($type) || \enum_exists($type));
         }
 
         return [];

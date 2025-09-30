@@ -162,29 +162,12 @@ class JsonSchema
                 // Extract all types from PHPDoc
                 $types = $this->extractArrayItemTypes($docComment);
 
-                if ($types !== []) {
-                    // Filter to keep only class/enum types
-                    $classTypes = $this->filterClassTypes($types);
-
-                    if ($classTypes === []) {
-                        // No class types found, fall back to first type (might be scalar)
-                        $itemType = $types[0];
-                        if (\class_exists($itemType) || \enum_exists($itemType)) {
-                            $schema['items'] = $this->generateClassSchema($itemType);
-                        } else {
-                            $schema['items'] = $this->getBasicTypeSchema($itemType);
-                        }
-                    } elseif (\count($classTypes) === 1) {
-                        // Single class type - use existing logic
-                        $itemType = $classTypes[0];
-                        $schema['items'] = $this->generateClassSchema($itemType);
-                    } else {
-                        // Multiple class types - use anyOf
-                        $schema['items'] = $this->generateAnyOfSchema($classTypes);
-                    }
+                if (\count($types) === 1) {
+                    // Single class type - use existing logic
+                    $schema['items'] = $this->generateClassSchema($types[0]);
                 } else {
-                    // Default to string if no specific type found
-                    $schema['items'] = ['type' => 'string'];
+                    // Multiple class types - use anyOf
+                    $schema['items'] = $this->generateAnyOfSchema($types);
                 }
             } else {
                 // Default to string if no doc comment
@@ -325,8 +308,9 @@ class JsonSchema
         if (\preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
             $typesString = $matches[1];
             // Split by pipe and trim whitespace
-            $types = \array_map('trim', \explode('|', $typesString));
-            return \array_filter($types, fn (string $type): bool => $type !== '' && $type !== '0');
+            return $this->filterClassTypes(
+                \array_map('trim', \explode('|', $typesString))
+            );
         }
 
         // Try to match Type1[]|Type2[]|... format
@@ -334,7 +318,7 @@ class JsonSchema
             // Extract all types from the first match group
             $fullMatch = $matches[0][0] ?? '';
             \preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
-            return \array_filter($typeMatches[1], fn (string $type): bool => $type !== '' && $type !== '0');
+            return $this->filterClassTypes($typeMatches[1]);
         }
 
         return [];
