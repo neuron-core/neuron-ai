@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Neuron AI is a PHP framework for creating AI agents with features like chat history, tool integration, RAG (Retrieval Augmented Generation), structured output, and workflow orchestration. The codebase follows PSR-12 standards with strict typing and modern PHP 8.1+ features.
+Neuron is a PHP Agentic framework for creating AI agents with features like chat history, tool integration, RAG (Retrieval Augmented Generation), structured output, and workflow orchestration. The codebase follows PSR-12 standards with strict typing and modern PHP 8.1+ features.
 
 ## Common Development Commands
 
