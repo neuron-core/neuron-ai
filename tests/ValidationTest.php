@@ -29,6 +29,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
+use NeuronAI\Tests\Stubs\StructuredOutput\Address;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tests\Stubs\StringEnum;
 use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
@@ -180,6 +181,27 @@ class ValidationTest extends TestCase
         $person = new Person();
         $person->firstName = 'test';
         $class->people = [$person];
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+    }
+
+    public function test_array_of_multiple_types(): void
+    {
+        $class = new class () {
+            #[ArrayOf(type: [Person::class, Address::class])]
+            public array $people;
+        };
+        $class = new $class();
+
+        $person = new Person();
+        $person->firstName = 'test';
+
+        $address = new Address();
+        $address->street = 'test';
+        $address->zip = '80100';
+
+        $class->people = [$person, $address];
+
         $violations = Validator::validate($class);
         $this->assertCount(0, $violations);
     }

@@ -9,6 +9,7 @@ class Validator
     /**
      * Validate an object
      *
+     * @return array<int, string>
      * @throws \ReflectionException
      */
     public static function validate(mixed $obj): array
