@@ -146,21 +146,31 @@ class JsonSchema
         if ($typeName === 'array') {
             $schema['type'] = 'array';
 
-            // Parse PHPDoc for the array item type
+            // Parse PHPDoc for the array item type(s)
             $docComment = $property->getDocComment();
             if ($docComment) {
-                // Extract type from both "@var \App\Type[]" and "@var array<\App\Type>"
-                \preg_match('/@var\s+(?:([a-zA-Z0-9_\\\\]+)\[\]|array<([a-zA-Z0-9_\\\\]+)>)/', $docComment, $matches);
+                // Extract all types from PHPDoc
+                $types = $this->extractArrayItemTypes($docComment);
 
-                if (isset($matches[1]) || isset($matches[2])) {
-                    $itemType = empty($matches[1]) ? ((isset($matches[2]) && $matches[2] !== '0') ? $matches[2] : null) : ($matches[1]);
+                if ($types !== []) {
+                    // Filter to keep only class/enum types
+                    $classTypes = $this->filterClassTypes($types);
 
-                    // Handle class type for array items
-                    if (\class_exists($itemType) || \enum_exists($itemType)) {
+                    if ($classTypes === []) {
+                        // No class types found, fall back to first type (might be scalar)
+                        $itemType = $types[0];
+                        if (\class_exists($itemType) || \enum_exists($itemType)) {
+                            $schema['items'] = $this->generateClassSchema($itemType);
+                        } else {
+                            $schema['items'] = $this->getBasicTypeSchema($itemType);
+                        }
+                    } elseif (\count($classTypes) === 1) {
+                        // Single class type - use existing logic
+                        $itemType = $classTypes[0];
                         $schema['items'] = $this->generateClassSchema($itemType);
                     } else {
-                        // Basic type
-                        $schema['items'] = $this->getBasicTypeSchema($itemType);
+                        // Multiple class types - use anyOf
+                        $schema['items'] = $this->generateAnyOfSchema($classTypes);
                     }
                 } else {
                     // Default to string if no specific type found
@@ -286,5 +296,70 @@ class JsonSchema
                 // Default to string for unknown types
                 return ['type' => 'string'];
         }
+    }
+
+    /**
+     * Extract array item types from PHPDoc comment
+     *
+     * Supports formats:
+     * - @var \App\Type[]
+     * - @var array<\App\Type>
+     * - @var \App\TypeOne[]|\App\TypeTwo[]
+     * - @var array<\App\TypeOne|\App\TypeTwo>
+     *
+     * @param string $docComment The PHPDoc comment
+     * @return array Array of type strings (empty if no types found)
+     */
+    private function extractArrayItemTypes(string $docComment): array
+    {
+        // Try to match array<Type1|Type2|...> format
+        if (\preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
+            $typesString = $matches[1];
+            // Split by pipe and trim whitespace
+            $types = \array_map('trim', \explode('|', $typesString));
+            return \array_filter($types, fn (string $type): bool => !empty($type));
+        }
+
+        // Try to match Type1[]|Type2[]|... format
+        if (\preg_match_all('/@var\s+([a-zA-Z0-9_\\\\]+)\[\](?:\|([a-zA-Z0-9_\\\\]+)\[\])*/', $docComment, $matches)) {
+            // Extract all types from the first match group
+            $fullMatch = $matches[0][0] ?? '';
+            \preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
+            return \array_filter($typeMatches[1], fn (string $type): bool => !empty($type));
+        }
+
+        return [];
+    }
+
+    /**
+     * Filter array of types to keep only class and enum types
+     *
+     * @param array $types Array of type strings
+     * @return array Array of class/enum type strings
+     */
+    private function filterClassTypes(array $types): array
+    {
+        return \array_filter($types, fn(string $type): bool => \class_exists($type) || \enum_exists($type));
+    }
+
+    /**
+     * Generate anyOf schema for multiple class/enum types
+     *
+     * @param array $types Array of class/enum type strings
+     * @return array Schema with anyOf structure
+     * @throws ReflectionException
+     */
+    private function generateAnyOfSchema(array $types): array
+    {
+        $schemas = [];
+        foreach ($types as $type) {
+            if (\class_exists($type)) {
+                $schemas[] = $this->generateClassSchema($type);
+            } elseif (\enum_exists($type)) {
+                $schemas[] = $this->processEnum(new ReflectionEnum($type));
+            }
+        }
+
+        return ['anyOf' => $schemas];
     }
 }

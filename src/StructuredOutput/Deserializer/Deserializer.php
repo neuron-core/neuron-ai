@@ -109,7 +109,7 @@ class Deserializer
     private static function castValue(mixed $value, \ReflectionType $type, \ReflectionProperty $property): mixed
     {
         if ($type instanceof \ReflectionUnionType) {
-            // Handle union types (PHP 8+)
+            // Handle union types
             foreach ($type->getTypes() as $unionType) {
                 try {
                     return self::castToSingleType($value, $unionType, $property);
