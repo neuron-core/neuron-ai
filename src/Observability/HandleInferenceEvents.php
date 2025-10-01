@@ -6,6 +6,8 @@ namespace NeuronAI\Observability;
 
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
+use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
@@ -36,16 +38,8 @@ trait HandleInferenceEvents
             return;
         }
 
+        $this->message->addContext('Message', $this->prepareMessageItem($data->message));
         $this->message->end();
-        $this->message->addContext('Message', \array_merge(
-            $data->message->jsonSerialize(),
-            $data->message->getUsage() instanceof Usage ? [
-                'usage' => [
-                    'input_tokens' => $data->message->getUsage()->inputTokens,
-                    'output_tokens' => $data->message->getUsage()->outputTokens,
-                ]
-            ] : []
-        ));
     }
 
     public function inferenceStart(Agent $agent, string $event, InferenceStart $data): void
@@ -65,7 +59,7 @@ trait HandleInferenceEvents
     {
         if (isset($this->inference)) {
             $this->inference->end();
-            $this->inference->addContext('Message', $data->message)
+            $this->inference->addContext('Message', $this->prepareMessageItem($data->message))
                 ->addContext('Response', $data->response);
         }
     }

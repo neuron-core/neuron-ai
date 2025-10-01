@@ -9,6 +9,8 @@ use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
+use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\RAG\RAG;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -237,5 +239,20 @@ class AgentMonitoring implements \SplObserver
     protected function getBaseClassName(string $class): string
     {
         return \substr(\strrchr($class, '\\'), 1);
+    }
+
+    protected function prepareMessageItem(Message $item): array
+    {
+        $item = $item->jsonSerialize();
+        if (isset($item['attachments'])) {
+            $item['attachments'] = \array_map(function (array $attachment): array {
+                if ($attachment['content_type'] === AttachmentContentType::BASE64->value) {
+                    unset($attachment['content']);
+                }
+                return $attachment;
+            }, $item['attachments']);
+        }
+
+        return $item;
     }
 }

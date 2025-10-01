@@ -82,6 +82,7 @@ trait HandleStructuredEvents
     protected function deserialized(AgentInterface $agent, string $event, Deserialized $data): void
     {
         if (isset($this->deserialize)) {
+            $this->deserialize->addContext('Class', $data->class);
             $this->deserialize->end();
         }
     }
