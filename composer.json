@@ -1,6 +1,6 @@
 {
     "name": "neuron-core/neuron-ai",
-    "description": "The AI Agent Development Kit for PHP.",
+    "description": "The PHP Agentic Framework.",
     "minimum-stability": "stable",
     "authors": [
         {
