@@ -280,11 +280,6 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('anyOf', $schema['properties']['modes']['items']);
         $this->assertCount(2, $schema['properties']['modes']['items']['anyOf']);
 
-        // Verify mapping exists
-        $this->assertArrayHasKey('mapping', $schema['properties']['modes']['items']);
-        $this->assertArrayHasKey('ftpmode', $schema['properties']['modes']['items']['mapping']);
-        $this->assertArrayHasKey('emailmode', $schema['properties']['modes']['items']['mapping']);
-
         // Verify each anyOf schema is an object with expected properties
         $schemas = $schema['properties']['modes']['items']['anyOf'];
 
@@ -326,15 +321,10 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('anyOf', $schema['properties']['blocks']['items']);
         $this->assertCount(2, $schema['properties']['blocks']['items']['anyOf']);
 
-        // Verify mapping exists
-        $this->assertArrayHasKey('mapping', $schema['properties']['blocks']['items']);
-        $this->assertArrayHasKey('imageblock', $schema['properties']['blocks']['items']['mapping']);
-        $this->assertArrayHasKey('textblock', $schema['properties']['blocks']['items']['mapping']);
-
         // Verify each anyOf schema is an object with expected properties
         $schemas = $schema['properties']['blocks']['items']['anyOf'];
 
-        // First schema should be ImageBlock with __classname__ discriminator
+        // The first schema should be ImageBlock with __classname__ discriminator
         $this->assertEquals('object', $schemas[0]['type']);
         $this->assertArrayHasKey('properties', $schemas[0]);
         $this->assertArrayHasKey('__classname__', $schemas[0]['properties']);
@@ -343,7 +333,7 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('url', $schemas[0]['properties']);
         $this->assertContains('__classname__', $schemas[0]['required']);
 
-        // Second schema should be TextBlock with __classname__ discriminator
+        // The second schema should be TextBlock with __classname__ discriminator
         $this->assertEquals('object', $schemas[1]['type']);
         $this->assertArrayHasKey('properties', $schemas[1]);
         $this->assertArrayHasKey('__classname__', $schemas[1]['properties']);

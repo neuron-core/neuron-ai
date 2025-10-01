@@ -188,19 +188,18 @@ class Deserializer
      */
     protected function handleArray(mixed $value, \ReflectionProperty $property): mixed
     {
-        // Handle arrays of objects using docblock annotations
-        if ($this->isArrayOfObjects($property)) {
-            $elementTypes = $this->getArrayElementTypes($property);
+        $types = $this->extractArrayElementTypes($property);
 
-            if (\count($elementTypes) === 1) {
+        if ($types !== []) {
+            if (\count($types) === 1) {
                 // Single type - use existing logic
-                $elementType = $elementTypes[0];
+                $elementType = $types[0];
                 if (\class_exists($elementType)) {
                     return \array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
                 }
-            } elseif (\count($elementTypes) > 1) {
+            } elseif (\count($types) > 1) {
                 // Multiple types - use discriminator-based deserialization
-                return \array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $elementTypes), $value);
+                return \array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $types), $value);
             }
         }
 
@@ -209,21 +208,12 @@ class Deserializer
     }
 
     /**
-     * Check if a property represents an array of objects based on docblock
-     */
-    protected function isArrayOfObjects(\ReflectionProperty $property): bool
-    {
-        $types = $this->getArrayElementTypes($property);
-        return $types !== [];
-    }
-
-    /**
      * Extract element types from array docblock annotation
      * Supports single and multiple types
      *
      * @return array<string> Array of fully qualified class names
      */
-    protected function getArrayElementTypes(\ReflectionProperty $property): array
+    protected function extractArrayElementTypes(\ReflectionProperty $property): array
     {
         $docComment = $property->getDocComment();
         if (!$docComment) {
