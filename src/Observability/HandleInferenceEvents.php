@@ -63,19 +63,4 @@ trait HandleInferenceEvents
                 ->addContext('Response', $data->response);
         }
     }
-
-    protected function prepareMessageItem(Message $item): array
-    {
-        $item = $item->jsonSerialize();
-        if (isset($item['attachments'])) {
-            $item['attachments'] = \array_map(function ($attachment) {
-                if ($attachment['type'] === AttachmentContentType::BASE64->value) {
-                    unset($attachment['content']);
-                }
-                return $attachment;
-            }, $item['attachments']);
-        }
-
-        return $item;
-    }
 }
