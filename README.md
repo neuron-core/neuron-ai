@@ -60,7 +60,7 @@ https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 Install the latest version of the package:
 
 ```
-composer require inspector-apm/neuron-ai
+composer require neuron-core/neuron-ai
 ```
 
 <a name="create">
