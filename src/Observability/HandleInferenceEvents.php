@@ -6,9 +6,6 @@ namespace NeuronAI\Observability;
 
 use Inspector\Models\Segment;
 use NeuronAI\Agent;
-use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Events\MessageSaved;
