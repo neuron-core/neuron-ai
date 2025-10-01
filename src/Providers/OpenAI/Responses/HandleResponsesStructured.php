@@ -21,7 +21,7 @@ trait HandleResponsesStructured
                 'format' => [
                     'type' => 'json_schema',
                     'strict' => $this->strict_response,
-                    //"name" => $this->sanitizeClassName($className),
+                    "name" => $this->sanitizeClassName($className),
                     "schema" => $response_format,
                 ],
             ]
