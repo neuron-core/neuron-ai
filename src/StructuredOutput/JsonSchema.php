@@ -345,7 +345,6 @@ class JsonSchema
     protected function generateAnyOfSchema(array $types): array
     {
         $schemas = [];
-        $mapping = [];
 
         foreach ($types as $type) {
             $schema = null;
@@ -357,9 +356,8 @@ class JsonSchema
             }
 
             if ($schema !== null) {
-                // Extract short class name (lowercase) for discriminator
+                // Extract the short class name (lowercase) for discriminator
                 $shortName = \strtolower(\basename(\str_replace('\\', '/', $type)));
-                $mapping[$shortName] = $type;
 
                 // Inject __classname__ discriminator into schema
                 $schema = $this->injectDiscriminator($schema, $shortName);
@@ -367,10 +365,7 @@ class JsonSchema
             }
         }
 
-        return [
-            'anyOf' => $schemas,
-            'mapping' => $mapping, // Store mapping for deserializer
-        ];
+        return ['anyOf' => $schemas];
     }
 
     /**
