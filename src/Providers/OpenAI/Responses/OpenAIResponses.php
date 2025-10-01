@@ -46,7 +46,7 @@ class OpenAIResponses implements AIProviderInterface
         protected string $key,
         protected string $model,
         protected array $parameters = [],
-        protected bool $strict_response = false,
+        protected bool $strict_response = true,
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
