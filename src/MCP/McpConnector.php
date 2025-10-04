@@ -99,17 +99,45 @@ class McpConnector
                 throw new McpException($response['error']['message']);
             }
 
-            $response = $response['result']['content'][0];
+            $contents = $response['result']['content'];
 
-            if ($response['type'] === 'text') {
-                return $response['text'];
+            // If there's only one content item, return it directly
+            if (count($contents) === 1) {
+                $content = $contents[0];
+
+                if ($content['type'] === 'text') {
+                    return $content['text'];
+                }
+
+                if ($content['type'] === 'image') {
+                    return $content;
+                }
+
+                throw new McpException("Tool response format not supported: {$content['type']}");
             }
 
-            if ($response['type'] === 'image') {
-                return $response;
+            // If there are multiple content items, combine them
+            $results = [];
+            $hasImages = false;
+
+            foreach ($contents as $content) {
+                if ($content['type'] === 'text') {
+                    $results[] = $content['text'];
+                } elseif ($content['type'] === 'image') {
+                    $hasImages = true;
+                    $results[] = $content;
+                } else {
+                    throw new McpException("Tool response format not supported: {$content['type']}");
+                }
             }
 
-            throw new McpException("Tool response format not supported: {$response['type']}");
+            // If we have mixed or multiple text items, return as array or joined string
+            if ($hasImages) {
+                return $results; // Return array if images are present
+            }
+
+            // For multiple text items, join them with newlines
+            return implode("\n", $results);
         });
 
         // If the tool has no properties, return early
