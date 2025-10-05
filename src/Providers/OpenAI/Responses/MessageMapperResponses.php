@@ -106,10 +106,11 @@ class MessageMapperResponses implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): void
     {
         foreach ($message->getTools() as $tool) {
+            $inputs = $tool->getInputs();
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => \json_encode($tool->getInputs()),
+                'arguments' => \json_encode($inputs !== [] ? $inputs : new \stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }
