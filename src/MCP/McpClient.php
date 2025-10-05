@@ -26,7 +26,7 @@ class McpClient
                 ? new SseHttpTransport($config)
                 : new StreamableHttpTransport($config);
         } else {
-            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for SseHttpTransport.');
+            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for StreamableHttpTransport/SseHttpTransport.');
         }
 
         $this->transport->connect();
