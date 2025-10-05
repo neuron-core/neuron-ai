@@ -119,7 +119,7 @@ class McpClient
             "method" => "tools/call",
             "params" => [
                 "name" => $toolName,
-                ...($arguments !== [] ? ['arguments' => $arguments] : [])
+                ...($arguments !== [] ? ['arguments' => $arguments] : ['arguments' => new \stdClass()])
             ]
         ];
 
