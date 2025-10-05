@@ -18,12 +18,15 @@ class McpClient
      */
     public function __construct(array $config)
     {
-        if (\array_key_exists('command', $config)) {
+        if (isset($config['command'])) {
             $this->transport = new StdioTransport($config);
-        } elseif (\array_key_exists('url', $config)) {
-            $this->transport = new StreamableHttpTransport($config);
+        } elseif (isset($config['url'])) {
+            $isAsync = $config['async'] ?? false;
+            $this->transport = $isAsync
+                ? new SseHttpTransport($config)
+                : new StreamableHttpTransport($config);
         } else {
-            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for StreamableHttpTransport.');
+            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for SseHttpTransport.');
         }
 
         $this->transport->connect();
