@@ -29,6 +29,7 @@ trait HandleStream
                     function (ToolCallMessage $toolCallMessage) {
                         yield $toolCallMessage;
                         $toolCallResult = $this->executeTools($toolCallMessage);
+                        yield $toolCallResult;
                         yield from self::stream([$toolCallMessage, $toolCallResult]);
                     }
                 );
