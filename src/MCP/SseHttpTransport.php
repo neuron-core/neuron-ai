@@ -20,7 +20,7 @@ class SseHttpTransport implements McpTransportInterface
     protected ?string $postEndpointUrl = null;
 
     /** @var resource|null */
-    protected $sseStream = null;
+    protected $sseStream;
 
     protected string $sseBuffer = '';
     protected bool $connected = false;
@@ -72,7 +72,7 @@ class SseHttpTransport implements McpTransportInterface
             $headerString = $this->buildHeaderString($headers);
 
             // Open SSE connection using stream
-            $context = stream_context_create([
+            $context = \stream_context_create([
                 'http' => [
                     'method' => 'GET',
                     'header' => $headerString,
@@ -84,28 +84,26 @@ class SseHttpTransport implements McpTransportInterface
                 ]
             ]);
 
-            $this->sseStream = @fopen($this->config['url'], 'r', false, $context);
+            $this->sseStream = @\fopen($this->config['url'], 'r', false, $context);
 
             if ($this->sseStream === false) {
                 throw new McpException('Failed to open SSE connection to: ' . $this->config['url']);
             }
 
             // Set non-blocking mode for reading
-            stream_set_blocking($this->sseStream, false);
+            \stream_set_blocking($this->sseStream, false);
 
             // Extract session ID from response headers if present
-            $meta = stream_get_meta_data($this->sseStream);
-            if (isset($meta['wrapper_data']) && is_array($meta['wrapper_data'])) {
+            $meta = \stream_get_meta_data($this->sseStream);
+            if (isset($meta['wrapper_data']) && \is_array($meta['wrapper_data'])) {
                 foreach ($meta['wrapper_data'] as $header) {
-                    if (stripos($header, 'HTTP/') === 0) {
-                        // Check status code
-                        if (!preg_match('/HTTP\/\d\.\d\s+200/', $header)) {
-                            $this->cleanup();
-                            throw new McpException('SSE connection failed: ' . $header);
-                        }
+                    // Check status code
+                    if (\stripos((string) $header, 'HTTP/') === 0 && \in_array(\preg_match('/HTTP\/\d\.\d\s+200/', (string) $header), [0, false], true)) {
+                        $this->cleanup();
+                        throw new McpException('SSE connection failed: ' . $header);
                     }
-                    if (stripos($header, 'Mcp-Session-Id:') === 0) {
-                        $this->sessionId = trim(substr($header, 15));
+                    if (\stripos((string) $header, 'Mcp-Session-Id:') === 0) {
+                        $this->sessionId = \trim(\substr((string) $header, 15));
                     }
                 }
             }
@@ -128,24 +126,24 @@ class SseHttpTransport implements McpTransportInterface
      */
     protected function waitForEndpoint(): void
     {
-        $timeout = microtime(true) + 10; // 10 second timeout
+        $timeout = \microtime(true) + 10; // 10 second timeout
         $endpointReceived = false;
 
-        while (!$endpointReceived && microtime(true) < $timeout) {
+        while (!$endpointReceived && \microtime(true) < $timeout) {
             if ($this->sseStream === null) {
                 throw new McpException('SSE stream closed while waiting for endpoint');
             }
 
             // Read data from stream
-            $data = fread($this->sseStream, 8192);
+            $data = \fread($this->sseStream, 8192);
 
             if ($data !== false && $data !== '') {
                 $this->sseBuffer .= $data;
 
                 // Process complete SSE events (delimited by \n\n)
-                while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
-                    $eventBlock = substr($this->sseBuffer, 0, $pos);
-                    $this->sseBuffer = substr($this->sseBuffer, $pos + 2);
+                while (($pos = \strpos($this->sseBuffer, "\n\n")) !== false) {
+                    $eventBlock = \substr($this->sseBuffer, 0, $pos);
+                    $this->sseBuffer = \substr($this->sseBuffer, $pos + 2);
 
                     $parsed = $this->parseSseEvent($eventBlock);
 
@@ -158,7 +156,7 @@ class SseHttpTransport implements McpTransportInterface
             }
 
             if (!$endpointReceived) {
-                usleep(10000); // 10ms sleep to prevent busy waiting
+                \usleep(10000); // 10ms sleep to prevent busy waiting
             }
         }
 
@@ -178,19 +176,21 @@ class SseHttpTransport implements McpTransportInterface
         $data = '';
         $id = null;
 
-        foreach (explode("\n", $eventBlock) as $line) {
-            $line = trim($line);
-
-            if ($line === '' || str_starts_with($line, ':')) {
+        foreach (\explode("\n", $eventBlock) as $line) {
+            $line = \trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (\str_starts_with($line, ':')) {
                 continue;
             }
 
-            if (str_starts_with($line, 'event:')) {
-                $event = trim(substr($line, 6));
-            } elseif (str_starts_with($line, 'data:')) {
-                $data .= trim(substr($line, 5));
-            } elseif (str_starts_with($line, 'id:')) {
-                $id = trim(substr($line, 3));
+            if (\str_starts_with($line, 'event:')) {
+                $event = \trim(\substr($line, 6));
+            } elseif (\str_starts_with($line, 'data:')) {
+                $data .= \trim(\substr($line, 5));
+            } elseif (\str_starts_with($line, 'id:')) {
+                $id = \trim(\substr($line, 3));
             }
         }
 
@@ -214,7 +214,7 @@ class SseHttpTransport implements McpTransportInterface
         }
 
         try {
-            $headers = array_merge($this->getAuthHeaders(), [
+            $headers = \array_merge($this->getAuthHeaders(), [
                 'Content-Type' => 'application/json',
             ]);
 
@@ -222,7 +222,7 @@ class SseHttpTransport implements McpTransportInterface
                 $headers['Mcp-Session-Id'] = $this->sessionId;
             }
 
-            $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
+            $jsonData = \json_encode($data, \JSON_THROW_ON_ERROR);
 
             // Send POST request to the endpoint URL
             $response = $this->httpClient->post($this->postEndpointUrl, [
@@ -236,7 +236,7 @@ class SseHttpTransport implements McpTransportInterface
             // The actual response comes via the SSE stream
             if ($statusCode !== 202 && $statusCode !== 200) {
                 $body = (string) $response->getBody();
-                throw new McpException("POST request failed with status {$statusCode}: " . ($body ?: '(no body)'));
+                throw new McpException("POST request failed with status {$statusCode}: " . ($body !== '' && $body !== '0' ? $body : '(no body)'));
             }
 
         } catch (GuzzleException $e) {
@@ -262,32 +262,32 @@ class SseHttpTransport implements McpTransportInterface
             throw new McpException('SSE stream is not available');
         }
 
-        $timeout = microtime(true) + ($this->config['timeout'] ?? 30);
+        $timeout = \microtime(true) + ($this->config['timeout'] ?? 30);
         $received = false;
         $response = null;
 
-        while (!$received && microtime(true) < $timeout) {
+        while (!$received && \microtime(true) < $timeout) {
             // Read data from SSE stream
-            $data = fread($this->sseStream, 8192);
+            $data = \fread($this->sseStream, 8192);
 
             if ($data === false) {
-                if (feof($this->sseStream)) {
+                if (\feof($this->sseStream)) {
                     throw new McpException('SSE stream closed by server');
                 }
             } elseif ($data !== '') {
                 $this->sseBuffer .= $data;
 
                 // Process complete SSE events
-                while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
-                    $eventBlock = substr($this->sseBuffer, 0, $pos);
-                    $this->sseBuffer = substr($this->sseBuffer, $pos + 2);
+                while (($pos = \strpos($this->sseBuffer, "\n\n")) !== false) {
+                    $eventBlock = \substr($this->sseBuffer, 0, $pos);
+                    $this->sseBuffer = \substr($this->sseBuffer, $pos + 2);
 
                     $parsed = $this->parseSseEvent($eventBlock);
 
                     // Only process 'message' events for JSON-RPC responses
                     if ($parsed['event'] === 'message' && $parsed['data'] !== '') {
                         try {
-                            $message = json_decode($parsed['data'], true, 512, JSON_THROW_ON_ERROR);
+                            $message = \json_decode($parsed['data'], true, 512, \JSON_THROW_ON_ERROR);
 
                             // Check if it's a valid JSON-RPC message with an ID (response)
                             if (isset($message['jsonrpc']) && $message['jsonrpc'] === '2.0') {
@@ -295,7 +295,7 @@ class SseHttpTransport implements McpTransportInterface
                                 $received = true;
                                 break;
                             }
-                        } catch (\JsonException $e) {
+                        } catch (\JsonException) {
                             // Ignore invalid JSON, continue reading
                         }
                     }
@@ -303,7 +303,7 @@ class SseHttpTransport implements McpTransportInterface
             }
 
             if (!$received) {
-                usleep(10000); // 10ms sleep to prevent busy waiting
+                \usleep(10000); // 10ms sleep to prevent busy waiting
             }
         }
 
@@ -330,7 +330,7 @@ class SseHttpTransport implements McpTransportInterface
         $this->connected = false;
 
         if ($this->sseStream !== null) {
-            fclose($this->sseStream);
+            \fclose($this->sseStream);
             $this->sseStream = null;
         }
 
@@ -367,7 +367,7 @@ class SseHttpTransport implements McpTransportInterface
         foreach ($headers as $key => $value) {
             $headerLines[] = "$key: $value";
         }
-        return implode("\r\n", $headerLines) . "\r\n";
+        return \implode("\r\n", $headerLines) . "\r\n";
     }
 
     /**
@@ -376,11 +376,11 @@ class SseHttpTransport implements McpTransportInterface
     protected function resolveEndpointUrl(string $base, string $relative): string
     {
         // If relative is absolute URL, return it
-        if (str_contains($relative, '://') || str_starts_with($relative, '//')) {
+        if (\str_contains($relative, '://') || \str_starts_with($relative, '//')) {
             return $relative;
         }
 
-        $baseParts = parse_url($base);
+        $baseParts = \parse_url($base);
         if ($baseParts === false) {
             throw new McpException('Invalid base URL');
         }
@@ -403,21 +403,14 @@ class SseHttpTransport implements McpTransportInterface
         }
 
         // Resolve path
-        if (str_starts_with($relative, '/')) {
+        if (\str_starts_with($relative, '/')) {
             // Absolute path relative to authority
             return $authority . $relative;
-        } else {
-            // Relative path to base path's directory
-            $basePath = $baseParts['path'] ?? '/';
-            $lastSlashPos = strrpos($basePath, '/');
-
-            if ($lastSlashPos === false || $lastSlashPos === 0) {
-                $baseDir = '/';
-            } else {
-                $baseDir = substr($basePath, 0, $lastSlashPos + 1);
-            }
-
-            return $authority . $baseDir . $relative;
         }
+        // Relative path to base path's directory
+        $basePath = $baseParts['path'] ?? '/';
+        $lastSlashPos = \strrpos($basePath, '/');
+        $baseDir = $lastSlashPos === false || $lastSlashPos === 0 ? '/' : \substr($basePath, 0, $lastSlashPos + 1);
+        return $authority . $baseDir . $relative;
     }
 }
