@@ -99,7 +99,11 @@ class McpConnector
                 throw new McpException($response['error']['message']);
             }
 
-            return $response['result']['content'];
+            if (\array_key_exists('content', $response['result'])) {
+                return $response['result']['content'];
+            }
+
+            return "";
         });
 
         // If the tool has no properties, return early
