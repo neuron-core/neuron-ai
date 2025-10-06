@@ -64,9 +64,9 @@ This the tool to use only to gather information from the MySQL database.'
     }
 
     /**
-     * @param array<array{name: string, value: string}> $parameters
+     * @param array<array{name: string, value: string}>|null $parameters
      */
-    public function __invoke(string $query, array $parameters = []): string|array
+    public function __invoke(string $query, ?array $parameters = []): string|array
     {
         if (!$this->validateReadOnly($query)) {
             return "The query was rejected for security reasons.
@@ -76,6 +76,7 @@ This the tool to use only to gather information from the MySQL database.'
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
+        $parameters ??= [];
         foreach ($parameters as $parameter) {
             $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);

@@ -82,9 +82,9 @@ This the tool to use only to gather information from the PostgreSQL database.'
     }
 
     /**
-     * @param array<array{name: string, value: string}> $parameters
+     * @param array<array{name: string, value: string}>|null $parameters
      */
-    public function __invoke(string $query, array $parameters = []): array
+    public function __invoke(string $query, ?array $parameters = []): array
     {
         if (!$this->validateReadOnlyQuery($query)) {
             return [
@@ -96,6 +96,7 @@ It looks like you are trying to run a write query using the read-only query tool
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
+        $parameters ??= [];
         foreach ($parameters as $parameter) {
             $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
