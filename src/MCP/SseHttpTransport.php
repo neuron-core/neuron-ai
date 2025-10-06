@@ -100,7 +100,7 @@ class SseHttpTransport implements McpTransportInterface
             if (isset($meta['wrapper_data']) && \is_array($meta['wrapper_data'])) {
                 foreach ($meta['wrapper_data'] as $header) {
                     // Check status code
-                    if (\stripos((string) $header, 'HTTP/') === 0 && in_array(\preg_match('/HTTP\/\d\.\d\s+200/', (string) $header), [0, false], true)) {
+                    if (\stripos((string) $header, 'HTTP/') === 0 && \in_array(\preg_match('/HTTP\/\d\.\d\s+200/', (string) $header), [0, false], true)) {
                         $this->cleanup();
                         throw new McpException('SSE connection failed: ' . $header);
                     }
