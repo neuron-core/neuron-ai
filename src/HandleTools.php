@@ -145,29 +145,58 @@ trait HandleTools
         return $this;
     }
 
+    /**
+     * Execute all tools from a tool call message.
+     *
+     * This method can be overridden to implement custom execution strategies,
+     * such as concurrent execution, while reusing the single tool execution logic.
+     *
+     * @param ToolCallMessage $toolCallMessage The message containing tools to execute
+     * @return ToolCallResultMessage The result of all tool executions
+     * @throws ToolMaxTriesException If a tool exceeds its maximum retry attempts
+     */
     protected function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
     {
         $toolCallResult = new ToolCallResultMessage($toolCallMessage->getTools());
 
         foreach ($toolCallResult->getTools() as $tool) {
-            $this->notify('tool-calling', new ToolCalling($tool));
-            try {
-                $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
-
-                // Single tool max tries have the highest priority on the global max tries.
-                $maxTries = $tool->getMaxTries() ?? $this->tollMaxTries;
-                if ($this->toolAttempts[$tool->getName()] > $maxTries) {
-                    throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
-                }
-
-                $tool->execute();
-            } catch (\Throwable $exception) {
-                $this->notify('error', new AgentError($exception));
-                throw $exception;
-            }
-            $this->notify('tool-called', new ToolCalled($tool));
+            $this->executeSingleTool($tool);
         }
 
         return $toolCallResult;
+    }
+
+    /**
+     * Execute a single tool with proper error handling and retry logic.
+     *
+     * This method handles:
+     * - Tool execution notifications (before and after)
+     * - Retry attempt tracking
+     * - Maximum retry limit enforcement
+     * - Error notifications
+     *
+     * @param ToolInterface $tool The tool to execute
+     * @return void
+     * @throws ToolMaxTriesException If the tool exceeds its maximum retry attempts
+     * @throws \Throwable If the tool execution fails
+     */
+    protected function executeSingleTool(ToolInterface $tool): void
+    {
+        $this->notify('tool-calling', new ToolCalling($tool));
+        try {
+            $this->toolAttempts[$tool->getName()] = ($this->toolAttempts[$tool->getName()] ?? 0) + 1;
+
+            // Single tool max tries have the highest priority on the global max tries.
+            $maxTries = $tool->getMaxTries() ?? $this->tollMaxTries;
+            if ($this->toolAttempts[$tool->getName()] > $maxTries) {
+                throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
+            }
+
+            $tool->execute();
+        } catch (\Throwable $exception) {
+            $this->notify('error', new AgentError($exception));
+            throw $exception;
+        }
+        $this->notify('tool-called', new ToolCalled($tool));
     }
 }
