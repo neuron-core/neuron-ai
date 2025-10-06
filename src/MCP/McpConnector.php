@@ -99,17 +99,11 @@ class McpConnector
                 throw new McpException($response['error']['message']);
             }
 
-            $response = $response['result']['content'][0];
-
-            if ($response['type'] === 'text') {
-                return $response['text'];
+            if (\array_key_exists('content', $response['result'])) {
+                return $response['result']['content'];
             }
 
-            if ($response['type'] === 'image') {
-                return $response;
-            }
-
-            throw new McpException("Tool response format not supported: {$response['type']}");
+            return "";
         });
 
         // If the tool has no properties, return early
