@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stubs\CustomState;
 use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -237,5 +238,42 @@ class WorkflowInterruptTest extends TestCase
             $this->assertEquals($interrupt->getData(), $unserialized->getData());
             $this->assertEquals($interrupt->getCurrentNode(), $unserialized->getCurrentNode());
         }
+    }
+
+    public function testMultipleInterruptsAndResumesWithCustomState(): void
+    {
+        $workflow = Workflow::make(
+            state: new CustomState(),
+            persistence: new InMemoryPersistence(),
+            workflowId: 'multi-interrupt-workflow'
+        )->addNodes([
+            new NodeOne(),
+            new MultipleInterruptionsNode(),
+            new NodeThree(),
+        ]);
+
+        // First interrupt
+        try {
+            $workflow->start()->getResult();
+            $this->fail('First interrupt not thrown');
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->assertEquals(['count' => 1, 'message' => 'Interrupt #1'], $interrupt->getData());
+            $this->assertInstanceOf(CustomState::class, $interrupt->getState());
+        }
+
+        // Second interrupt
+        try {
+            $finalState = $workflow->start(true, 'second interrupt')->getResult();
+            $this->fail('Second interrupt not thrown');
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
+            $this->assertInstanceOf(CustomState::class, $interrupt->getState());
+        }
+
+        // Final completion
+        $finalState = $workflow->start(true, 'second response')->getResult();
+        $this->assertTrue($finalState->get('all_interrupts_complete'));
+        $this->assertEquals(3, $finalState->get('interrupt_count'));
+        $this->assertInstanceOf(CustomState::class, $finalState);
     }
 }

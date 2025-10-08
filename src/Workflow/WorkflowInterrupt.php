@@ -44,6 +44,7 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
             'data' => $this->data,
             'currentNode' => \serialize($this->currentNode),
             'state' => $this->state->all(),
+            'state_class' => $this->state::class,
             'currentEvent' => \serialize($this->currentEvent),
         ];
     }
@@ -58,7 +59,7 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         $this->message = $data['message'];
         $this->data = $data['data'];
         $this->currentNode = \unserialize($data['currentNode']);
-        $this->state = new WorkflowState($data['state']);
+        $this->state = new $data['state_class']($data['state']);
         $this->currentEvent = \unserialize($data['currentEvent']);
     }
 }
