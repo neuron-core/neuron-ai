@@ -15,7 +15,7 @@ use Spatie\Fork\Fork;
  * For more information you can check the GitHub repository of the package:
  * https://github.com/spatie/fork
  *
- * It requires the pcntl extensions which is installed in many Unix and Mac systems by default.
+ * It requires the pcntl extension which is installed in many Unix and Mac systems by default.
  *
  * ❗️ pcntl only works in CLI processes, not in a web context.
  *
