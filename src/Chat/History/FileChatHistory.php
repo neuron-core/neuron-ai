@@ -37,6 +37,9 @@ class FileChatHistory extends AbstractChatHistory
         return $this->directory . \DIRECTORY_SEPARATOR . $this->prefix.$this->key.$this->ext;
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function setMessages(array $messages): ChatHistoryInterface
     {
         $this->updateFile();
@@ -46,13 +49,26 @@ class FileChatHistory extends AbstractChatHistory
     protected function clear(): ChatHistoryInterface
     {
         if (!\unlink($this->getFilePath())) {
-            throw new ChatHistoryException("Unable to delete file '{$this->getFilePath()}'");
+            throw new ChatHistoryException("Unable to delete the file '{$this->getFilePath()}'");
         }
         return $this;
     }
 
     protected function updateFile(): void
     {
-        \file_put_contents($this->getFilePath(), \json_encode($this->jsonSerialize()), \LOCK_EX);
+        $content = \json_encode($this->jsonSerialize());
+        $filePath = $this->getFilePath();
+
+        // Try to write with LOCK_EX first for thread safety
+        $result = @\file_put_contents($filePath, $content, \LOCK_EX);
+
+        // If LOCK_EX fails (e.g., on some Windows environments), write without the lock
+        if ($result === false) {
+            $result = \file_put_contents($filePath, $content);
+        }
+
+        if ($result === false) {
+            throw new ChatHistoryException("Unable to save the chat history to file '{$filePath}'");
+        }
     }
 }
