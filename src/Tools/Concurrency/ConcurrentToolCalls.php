@@ -25,6 +25,11 @@ trait ConcurrentToolCalls
 {
     protected function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
     {
+        // Fallback to the original implementation if pcntl is not available (e.g. Windows).
+        if (!\extension_loaded('pcntl')) {
+            return parent::executeTools($toolCallMessage);
+        }
+
         $toolCallResult = new ToolCallResultMessage($toolCallMessage->getTools());
 
         Fork::new()->run(
