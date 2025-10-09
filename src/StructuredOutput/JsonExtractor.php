@@ -71,7 +71,7 @@ class JsonExtractor
     {
         $data = \json_decode($maybeJson, true, 512, \JSON_THROW_ON_ERROR);
 
-        if (in_array($data, [false, null, ''], true)) {
+        if (\in_array($data, [false, null, ''], true)) {
             return null;
         }
 
