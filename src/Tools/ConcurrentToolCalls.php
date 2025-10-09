@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tools\Concurrency;
+namespace NeuronAI\Tools;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -11,13 +11,12 @@ use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 
 /**
  * Implemented using spatie/fork
  *
- * For more information you can check the GitHub repository of the package:
+ * For more information, you can check the GitHub repository of the package:
  * https://github.com/spatie/fork
  *
  * It requires the pcntl extension which is installed in many Unix and Mac systems by default.
@@ -71,7 +70,7 @@ trait ConcurrentToolCalls
                         // Wrap the exception info with the tool for proper error handling
                         return \serialize([
                             'error' => true,
-                            'exception_class' => \get_class($exception),
+                            'exception_class' => $exception::class,
                             'exception_message' => $exception->getMessage(),
                             'exception_code' => $exception->getCode(),
                             'tool_name' => $tool->getName(),
