@@ -9,6 +9,14 @@ use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 
+/**
+ * Implemented using spatie/fork
+ *
+ * For more information you can check the GitHub repository of the package:
+ * https://github.com/spatie/fork
+ *
+ * @phpstan-ignore trait.unused
+ */
 trait ConcurrentToolCalls
 {
     protected function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
