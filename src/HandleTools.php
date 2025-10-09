@@ -154,6 +154,7 @@ trait HandleTools
      * @param ToolCallMessage $toolCallMessage The message containing tools to execute
      * @return ToolCallResultMessage The result of all tool executions
      * @throws ToolMaxTriesException If a tool exceeds its maximum retry attempts
+     * @throws \Throwable
      */
     protected function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
     {
@@ -169,14 +170,6 @@ trait HandleTools
     /**
      * Execute a single tool with proper error handling and retry logic.
      *
-     * This method handles:
-     * - Tool execution notifications (before and after)
-     * - Retry attempt tracking
-     * - Maximum retry limit enforcement
-     * - Error notifications
-     *
-     * @param ToolInterface $tool The tool to execute
-     * @return void
      * @throws ToolMaxTriesException If the tool exceeds its maximum retry attempts
      * @throws \Throwable If the tool execution fails
      */
