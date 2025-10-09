@@ -19,21 +19,23 @@
     "suggest": {
         "aws/aws-sdk-php": "^3.209",
         "elasticsearch/elasticsearch": "^7.0|^8.0",
+        "php-http/curl-client": "^2.3",
         "symfony/process": "^4.0|^5.0|^6.0|^7.0",
-        "typesense/typesense-php": "^5.0",
-        "php-http/curl-client": "^2.3"
+        "spatie/fork": "^1.2",
+        "typesense/typesense-php": "^5.0"
     },
     "require-dev": {
+        "ext-pdo": "*",
         "aws/aws-sdk-php": "^3.209",
         "elasticsearch/elasticsearch": "^8.0",
-        "ext-pdo": "*",
         "friendsofphp/php-cs-fixer": "^3.75",
         "html2text/html2text": "^4.3",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^9.0",
         "rector/rector": "^2.0",
-        "typesense/typesense-php": "^5.0",
-        "tomasvotruba/type-coverage": "^2.0"
+        "spatie/fork": "^1.2",
+        "tomasvotruba/type-coverage": "^2.0",
+        "typesense/typesense-php": "^5.0"
     },
     "bin": [
         "bin/neuron"
