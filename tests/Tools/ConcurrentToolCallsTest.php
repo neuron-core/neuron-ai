@@ -34,17 +34,17 @@ class ConcurrentToolCallsTest extends TestCase
 
         // Create multiple tools that will be executed concurrently
         $tool1 = Tool::make('tool_one', 'First tool')
-            ->setCallable(fn(): string => 'result_one')
+            ->setCallable(fn (): string => 'result_one')
             ->setCallId('call_1')
             ->setInputs([]);
 
         $tool2 = Tool::make('tool_two', 'Second tool')
-            ->setCallable(fn(): string => 'result_two')
+            ->setCallable(fn (): string => 'result_two')
             ->setCallId('call_2')
             ->setInputs([]);
 
         $tool3 = Tool::make('tool_three', 'Third tool')
-            ->setCallable(fn(): string => 'result_three')
+            ->setCallable(fn (): string => 'result_three')
             ->setCallId('call_3')
             ->setInputs([]);
 
@@ -80,7 +80,7 @@ class ConcurrentToolCallsTest extends TestCase
 
         // Create a single tool - should not use concurrency optimization
         $tool = Tool::make('single_tool', 'Single tool')
-            ->setCallable(fn(): string => 'single_result')
+            ->setCallable(fn (): string => 'single_result')
             ->setCallId('call_single')
             ->setInputs([]);
 
@@ -111,7 +111,7 @@ class ConcurrentToolCallsTest extends TestCase
         };
 
         $tool1 = Tool::make('success_tool', 'Tool that succeeds')
-            ->setCallable(fn(): string => 'success')
+            ->setCallable(fn (): string => 'success')
             ->setCallId('call_success')
             ->setInputs([]);
 
@@ -151,7 +151,7 @@ class ConcurrentToolCallsTest extends TestCase
         $agent->toolMaxTries(1);
 
         $tool = Tool::make('test_tool', 'Test tool')
-            ->setCallable(fn(): string => 'result')
+            ->setCallable(fn (): string => 'result')
             ->setCallId('call_1')
             ->setInputs([]);
 
@@ -160,7 +160,7 @@ class ConcurrentToolCallsTest extends TestCase
 
         // The second execution should throw ToolMaxTriesException
         $tool2 = Tool::make('test_tool', 'Test tool')
-            ->setCallable(fn(): string => 'result')
+            ->setCallable(fn (): string => 'result')
             ->setCallId('call_2')
             ->setInputs([]);
 
@@ -190,19 +190,19 @@ class ConcurrentToolCallsTest extends TestCase
 
         // Test with a string result
         $stringTool = Tool::make('string_tool', 'Returns string')
-            ->setCallable(fn(): string => 'string result')
+            ->setCallable(fn (): string => 'string result')
             ->setCallId('call_string')
             ->setInputs([]);
 
         // Test with array result
         $arrayTool = Tool::make('array_tool', 'Returns array')
-            ->setCallable(fn(): array => ['key' => 'value', 'number' => 42])
+            ->setCallable(fn (): array => ['key' => 'value', 'number' => 42])
             ->setCallId('call_array')
             ->setInputs([]);
 
         // Test with a numeric result
         $numericTool = Tool::make('numeric_tool', 'Returns number')
-            ->setCallable(fn(): int => 123)
+            ->setCallable(fn (): int => 123)
             ->setCallId('call_numeric')
             ->setInputs([]);
 
