@@ -9,7 +9,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
-use NeuronAI\Tools\ConcurrentToolCalls;
+use NeuronAI\Tools\ParallelToolCalls;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
@@ -23,7 +23,7 @@ class ConcurrentToolCallsTest extends TestCase
         }
 
         $agent = new class () extends Agent {
-            use ConcurrentToolCalls;
+            use ParallelToolCalls;
 
             // Make executeTools public for testing
             public function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
@@ -70,7 +70,7 @@ class ConcurrentToolCallsTest extends TestCase
         }
 
         $agent = new class () extends Agent {
-            use ConcurrentToolCalls;
+            use ParallelToolCalls;
 
             public function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
             {
@@ -102,7 +102,7 @@ class ConcurrentToolCallsTest extends TestCase
         }
 
         $agent = new class () extends Agent {
-            use ConcurrentToolCalls;
+            use ParallelToolCalls;
 
             public function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
             {
@@ -139,7 +139,7 @@ class ConcurrentToolCallsTest extends TestCase
         }
 
         $agent = new class () extends Agent {
-            use ConcurrentToolCalls;
+            use ParallelToolCalls;
 
             public function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
             {
@@ -180,7 +180,7 @@ class ConcurrentToolCallsTest extends TestCase
         }
 
         $agent = new class () extends Agent {
-            use ConcurrentToolCalls;
+            use ParallelToolCalls;
 
             public function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
             {

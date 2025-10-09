@@ -25,7 +25,7 @@ use Spatie\Fork\Fork;
  *
  * @phpstan-ignore trait.unused
  */
-trait ConcurrentToolCalls
+trait ParallelToolCalls
 {
     protected function executeTools(ToolCallMessage $toolCallMessage): ToolCallResultMessage
     {
