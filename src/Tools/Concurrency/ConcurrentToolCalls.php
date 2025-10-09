@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Tools\Concurrency;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
