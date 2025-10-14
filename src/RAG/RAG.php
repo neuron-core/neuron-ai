@@ -15,8 +15,6 @@ use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\Observability\Events\Retrieved;
 use NeuronAI\Observability\Events\Retrieving;
-use NeuronAI\Exceptions\MissingCallbackParameter;
-use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
@@ -39,27 +37,6 @@ class RAG extends Agent
      * @var PostProcessorInterface[]
      */
     protected array $postProcessors = [];
-
-    /**
-     * @throws MissingCallbackParameter
-     * @throws ToolCallableNotSet
-     * @throws \Throwable
-     */
-    /*public function chat(Message|array $messages): Message
-    {
-        $question = \is_array($messages) ? \end($messages) : $messages;
-
-        $this->notify('chat-rag-start');
-
-        $this->withDocumentsContext(
-            $this->retrieveDocuments($question)
-        );
-
-        $response = parent::chat($messages);
-
-        $this->notify('chat-rag-stop');
-        return $response;
-    }*/
 
     public function chatAsync(Message|array $messages): PromiseInterface
     {
