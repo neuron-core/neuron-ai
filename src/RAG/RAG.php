@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG;
 
+use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Agent;
 use NeuronAI\AgentInterface;
 use NeuronAI\Chat\Messages\Message;
@@ -44,7 +45,7 @@ class RAG extends Agent
      * @throws ToolCallableNotSet
      * @throws \Throwable
      */
-    public function chat(Message|array $messages): Message
+    /*public function chat(Message|array $messages): Message
     {
         $question = \is_array($messages) ? \end($messages) : $messages;
 
@@ -58,6 +59,22 @@ class RAG extends Agent
 
         $this->notify('chat-rag-stop');
         return $response;
+    }*/
+
+    public function chatAsync(Message|array $messages): PromiseInterface
+    {
+        $this->notify('chat-rag-start');
+
+        $question = \is_array($messages) ? \end($messages) : $messages;
+
+        $this->withDocumentsContext(
+            $this->retrieveDocuments($question)
+        );
+
+        return parent::chatAsync($messages)->then(function (Message $response): Message|PromiseInterface {
+            $this->notify('chat-rag-stop');
+            return $response;
+        });
     }
 
     /**
