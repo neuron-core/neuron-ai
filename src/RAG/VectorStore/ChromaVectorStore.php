@@ -16,13 +16,14 @@ class ChromaVectorStore implements VectorStoreInterface
         protected string $collection,
         protected string $host = 'http://localhost:8000',
         protected int $topK = 5,
+        protected string $version = 'v1',
     ) {
     }
 
     protected function getClient(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->host, '/')."/api/v1/collections/{$this->collection}/",
+            'base_uri' => \trim($this->host, '/')."/api/{$this->version}/collections/{$this->collection}/",
             'headers' => [
                 'Content-Type' => 'application/json',
             ]
