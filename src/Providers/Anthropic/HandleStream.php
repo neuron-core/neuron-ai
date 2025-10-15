@@ -67,7 +67,7 @@ trait HandleStream
             // Handle tool call
             if ($line['type'] === 'content_block_stop' && !empty($toolCalls)) {
                 // Restore the input field as an array
-                $toolCalls = \array_map(function (array $call) {
+                $toolCalls = \array_map(function (array $call): array {
                     $call['input'] = \json_decode((string) $call['input'], true);
                     return $call;
                 }, $toolCalls);

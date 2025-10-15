@@ -136,7 +136,7 @@ class StdioTransport implements McpTransportInterface
             }
 
             $chunk = \fread($this->pipes[1], 4096);
-            if ($chunk !== false && \strlen($chunk) > 0) {
+            if ($chunk !== false && $chunk !== '') {
                 $response .= $chunk;
 
                 // Try to parse what we have so far

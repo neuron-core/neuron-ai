@@ -26,7 +26,7 @@ class MermaidExporter implements ExporterInterface
     private function getShortClassName(string $class): string
     {
         // Check if it's a class name (contains namespace separator) and class exists
-        if (\strpos($class, '\\') !== false && \class_exists($class)) {
+        if (str_contains($class, '\\') && \class_exists($class)) {
             $reflection = new ReflectionClass($class);
             return $reflection->getShortName();
         }

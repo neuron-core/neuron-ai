@@ -198,7 +198,7 @@ class AgentMonitoring implements \SplObserver
      */
     protected function getContext(Agent $agent): array
     {
-        $mapTool = fn (ToolInterface $tool) => [
+        $mapTool = fn (ToolInterface $tool): array => [
             $tool->getName() => [
                 'description' => $tool->getDescription(),
                 'properties' => \array_map(
@@ -214,7 +214,7 @@ class AgentMonitoring implements \SplObserver
                 'instructions' => $agent->resolveInstructions(),
             ],
             'Tools' => \array_map(
-                fn (ToolInterface|ToolkitInterface $tool) => $tool instanceof ToolInterface
+                fn (ToolInterface|ToolkitInterface $tool): array => $tool instanceof ToolInterface
                     ? $mapTool($tool)
                     : [$tool::class => \array_map($mapTool, $tool->tools())],
                 $agent->getTools()

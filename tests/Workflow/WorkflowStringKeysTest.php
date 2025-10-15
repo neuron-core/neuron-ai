@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 // Calculator nodes that can be reused with different values
 class AddNode extends Node
 {
-    public function __construct(private int $value)
+    public function __construct(private readonly int $value)
     {
     }
 
@@ -30,7 +30,7 @@ class AddNode extends Node
 
 class MultiplyNode extends Node
 {
-    public function __construct(private int $value)
+    public function __construct(private readonly int $value)
     {
     }
 
@@ -47,7 +47,7 @@ class MultiplyNode extends Node
 
 class SubtractNode extends Node
 {
-    public function __construct(private int $value)
+    public function __construct(private readonly int $value)
     {
     }
 
@@ -104,8 +104,8 @@ class CalculatorWorkflow extends Workflow
             new Edge('multiply3_second', 'sub1'),
 
             // Branch based on even/odd
-            new Edge('sub1', 'finish_even', fn ($state) => $state->get('value') % 2 === 0),
-            new Edge('sub1', 'finish_odd', fn ($state) => $state->get('value') % 2 !== 0)
+            new Edge('sub1', 'finish_even', fn (WorkflowState $state): bool => $state->get('value') % 2 === 0),
+            new Edge('sub1', 'finish_odd', fn (WorkflowState $state): bool => $state->get('value') % 2 !== 0)
         ];
     }
 
@@ -160,8 +160,8 @@ class WorkflowStringKeysTest extends TestCase
         ])
         ->addEdges([
             new Edge('add1', 'multiply2'),
-            new Edge('multiply2', 'finish_even', fn ($state) => $state->get('value') % 2 === 0),
-            new Edge('multiply2', 'finish_odd', fn ($state) => $state->get('value') % 2 !== 0)
+            new Edge('multiply2', 'finish_even', fn (WorkflowState $state): bool => $state->get('value') % 2 === 0),
+            new Edge('multiply2', 'finish_odd', fn (WorkflowState $state): bool => $state->get('value') % 2 !== 0)
         ])
         ->setStart('add1')
         ->setEnd('finish_even')
