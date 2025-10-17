@@ -73,8 +73,10 @@ class ChromaVectorStore implements VectorStoreInterface
         $this->client()->post("{$this->collectionId}/delete", [
             RequestOptions::JSON => [
                 'where' => [
-                    'sourceType' => $sourceType,
-                    'sourceName' => $sourceName,
+                    '$and' => [
+                        ['sourceType' => ['$eq' => $sourceType]],
+                        ['sourceName' => ['$eq' => $sourceName]]
+                    ]
                 ]
             ]
         ]);
