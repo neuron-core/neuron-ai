@@ -12,7 +12,7 @@ PHP applications with a powerful and flexible architecture. We provide tools for
 from LLM interfaces, to data loading, to multi-agent orchestration, to monitoring and debugging.
 In addition, we provide tutorials and other educational content to help you get started using AI Agents in your projects.
 
-[**Video Tutorial**](https://www.youtube.com/watch?v=oSA1bP_j41w)
+[**Video Tutorial With Laravel**](https://www.youtube.com/watch?v=oSA1bP_j41w)
 
 [![Neuron & Inspector](./docs/images/youtube.png)](https://www.youtube.com/watch?v=oSA1bP_j41w)
 
@@ -30,6 +30,21 @@ In addition, we provide tutorials and other educational content to help you get 
 
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
 https://docs.neuron-ai.dev/overview/fast-learning-by-video.
+
+Neuron is the perfect AI branch of your favorite framework.
+
+## Laravel
+Neuron offers a well-defined encapsulation pattern, allowing you to work on your AI components in a dedicated namespace.
+You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, Nova, Horizon, Volt, etc.
+
+[Example project](https://github.com/neuron-core/laravel-travel-agent)
+
+## Symfony
+
+All Neuron components belong to its own interface, so you can easily define dependencies and automate objects creation
+using the Symfony service container. Watch how it works in a real project.
+
+[Symfony & Neuron](https://www.youtube.com/watch?v=JWRlcaGnsXw)
 
 ## How To
 
