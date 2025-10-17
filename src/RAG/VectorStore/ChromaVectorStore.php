@@ -39,7 +39,7 @@ class ChromaVectorStore implements VectorStoreInterface
     {
         try {
             $response = $this->client()->get($this->collection)->getBody()->getContents();
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
             $response = $client->post('collections', [
                 RequestOptions::JSON => ['name' => $this->collection]
