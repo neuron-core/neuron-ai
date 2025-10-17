@@ -37,14 +37,14 @@ Neuron is the perfect AI branch of your favorite framework.
 Neuron offers a well-defined encapsulation pattern, allowing you to work on your AI components in a dedicated namespace.
 You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, Nova, Horizon, Volt, etc.
 
-[Example project](https://github.com/neuron-core/laravel-travel-agent)
+[Example project (GitHub)](https://github.com/neuron-core/laravel-travel-agent)
 
 ## Symfony
 
 All Neuron components belong to its own interface, so you can easily define dependencies and automate objects creation
 using the Symfony service container. Watch how it works in a real project.
 
-[Symfony & Neuron](https://www.youtube.com/watch?v=JWRlcaGnsXw)
+[Symfony & Neuron (YouTube)](https://www.youtube.com/watch?v=JWRlcaGnsXw)
 
 ## How To
 
