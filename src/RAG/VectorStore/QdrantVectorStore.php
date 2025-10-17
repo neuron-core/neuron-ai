@@ -13,46 +13,46 @@ class QdrantVectorStore implements VectorStoreInterface
 {
     protected Client $client;
 
+    /**
+     * @throws GuzzleException
+     */
     public function __construct(
         protected string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
         protected int $topK = 4,
+        protected int $dimension = 1024,
     ) {
-        $this->client = new Client([
-            'base_uri' => \trim($this->collectionUrl, '/').'/',
-            'headers' => [
-                'Content-Type' => 'application/json',
-                ...(!\is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
-            ],
-        ]);
+        $this->initialize();
     }
 
-    public function initialize(int $size, string $distance, bool $override = false): void
+    /**
+     * @throws GuzzleException
+     */
+    protected function initialize(): void
     {
-        $response = $this->client->get('exists')->getBody()->getContents();
+        $response = $this->client()->get('exists')->getBody()->getContents();
         $response = \json_decode($response, true);
 
         if ($response['result']['exists']) {
-            if ($override) {
-                $this->destroy();
-            } else {
-                return;
-            }
+            return;
         }
 
-        $this->client->put('', [
+        $this->client()->put('', [
             RequestOptions::JSON => [
                 'vectors' => [
-                    'size' => $size,
-                    'distance' => $distance,
+                    'size' => $this->dimension,
+                    'distance' => 'cosine',
                 ],
             ],
         ]);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function destroy(): void
     {
-        $this->client->delete('');
+        $this->client()->delete('');
     }
 
     /**
@@ -82,7 +82,7 @@ class QdrantVectorStore implements VectorStoreInterface
             'vector' => $document->getEmbedding(),
         ], $documents);
 
-        $this->client->put('points', [
+        $this->client()->put('points', [
             RequestOptions::JSON => ['points' => $points]
         ]);
 
@@ -94,7 +94,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->client->post('points/delete', [
+        $this->client()->post('points/delete', [
             RequestOptions::JSON => [
                 'wait' => true,
                 'filter' => [
@@ -121,7 +121,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client->post('points/search', [
+        $response = $this->client()->post('points/search', [
             RequestOptions::JSON => [
                 'vector' => $embedding,
                 'limit' => $this->topK,
@@ -148,5 +148,16 @@ class QdrantVectorStore implements VectorStoreInterface
 
             return $document;
         }, $response['result']);
+    }
+
+    protected function client(): Client
+    {
+        return $this->client ?? $this->client = new Client([
+            'base_uri' => \trim($this->collectionUrl, '/').'/',
+            'headers' => [
+                'Content-Type' => 'application/json',
+                ...(!\is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
+            ],
+        ]);
     }
 }

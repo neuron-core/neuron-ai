@@ -4,34 +4,34 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\VectorStore;
 
+use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
-class QdrantVectorStoreTest extends TestCase
+class QdrantTest extends TestCase
 {
     use CheckOpenPort;
 
     public const SERVICE_PORT = 6333;
     public const COLLECTION_NAME = 'neuron-ai';
 
-    public const VECTOR_DIMENSION = 3;
-    public const DISTANCE_METRIC = 'Cosine';
-
     public const SOURCE_TYPE = 'manual';
     public const SOURCE_NAME = 'manual';
 
     protected QdrantVectorStore $store;
 
+    /**
+     * @throws GuzzleException
+     */
     public function setUp(): void
     {
         if (!$this->isPortOpen('127.0.0.1', self::SERVICE_PORT)) {
-            $this->markTestSkipped(\sprintf("Port %d is not open. Skipping test.", self::SERVICE_PORT));
+            $this->markTestSkipped("Port ".self::SERVICE_PORT." is not open. Skipping test.");
         }
 
         $this->store = new QdrantVectorStore(\sprintf("http://127.0.0.1:%d/collections/%s", self::SERVICE_PORT, self::COLLECTION_NAME));
-        $this->store->initialize(self::VECTOR_DIMENSION, self::DISTANCE_METRIC, true);
     }
 
     public function tearDown(): void
