@@ -28,6 +28,14 @@ class ChromaDBTest extends TestCase
     /**
      * @throws GuzzleException
      */
+    protected function tearDown(): void
+    {
+        $this->store->destroy();
+    }
+
+    /**
+     * @throws GuzzleException
+     */
     public function test_add_document_and_search(): void
     {
         $document = new Document('Hello World!');

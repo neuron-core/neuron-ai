@@ -85,6 +85,16 @@ class ChromaVectorStore implements VectorStoreInterface
     }
 
     /**
+     * Delete the current collection
+     *
+     * @throws GuzzleException
+     */
+    public function destroy(): void
+    {
+        $this->client()->delete($this->collectionId);
+    }
+
+    /**
      * @throws GuzzleException
      */
     public function addDocuments(array $documents): VectorStoreInterface
