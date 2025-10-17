@@ -37,8 +37,7 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     protected function initialize(): void
     {
-        $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
-        $response = $client->post('collections', [
+        $response = $this->client()->post('', [
             RequestOptions::JSON => [
                 'name' => $this->collection,
                 'get_or_create' => true,
@@ -93,8 +92,8 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function destroy(): void
     {
-        $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
-        $client->delete('collections/'.$this->collection);
+        //$client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/collections/']);
+        $this->client()->delete($this->collection);
     }
 
     /**
