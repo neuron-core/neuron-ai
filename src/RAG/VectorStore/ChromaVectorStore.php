@@ -105,24 +105,25 @@ class ChromaVectorStore implements VectorStoreInterface
             RequestOptions::JSON => [
                 'query_embeddings' => [$embedding],
                 'n_results' => $this->topK,
+                'include' => ['embeddings', 'documents', 'metadatas', 'distances'],
             ]
         ])->getBody()->getContents();
 
         $response = \json_decode($response, true);
 
         // Map the result
-        $size = \count($response['ids']);
+        $size = \count($response['ids'][0] ?? []);
         $result = [];
         for ($i = 0; $i < $size; $i++) {
             $document = new Document();
             $document->id = $response['ids'][0][$i] ?? \uniqid();
-            $document->embedding = $response['embeddings'][0][$i];
-            $document->content = $response['documents'][0][$i];
+            $document->embedding = $response['embeddings'][0][$i] ?? null;
+            $document->content = $response['documents'][0][$i] ?? '';
             $document->sourceType = $response['metadatas'][0][$i]['sourceType'] ?? null;
             $document->sourceName = $response['metadatas'][0][$i]['sourceName'] ?? null;
-            $document->score = VectorSimilarity::similarityFromDistance($response['distances'][0][$i]);
+            $document->score = VectorSimilarity::similarityFromDistance($response['distances'][0][$i] ?? 0.0);
 
-            foreach ($response['metadatas'][0][$i] as $name => $value) {
+            foreach (($response['metadatas'][0][$i] ?? []) as $name => $value) {
                 if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
                     $document->addMetadata($name, $value);
                 }
