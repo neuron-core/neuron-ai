@@ -55,6 +55,7 @@ class ChromaVectorStore implements VectorStoreInterface
             'base_uri' => \trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/",
             'headers' => [
                 'Content-Type' => 'application/json',
+                ...(!\is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
             ]
         ]);
     }
@@ -108,7 +109,7 @@ class ChromaVectorStore implements VectorStoreInterface
         $response = \json_decode($response, true);
 
         // Map the result
-        $size = \count($response['distances']);
+        $size = \count($response['ids']);
         $result = [];
         for ($i = 0; $i < $size; $i++) {
             $document = new Document();
