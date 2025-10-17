@@ -41,7 +41,7 @@ class QdrantVectorStore implements VectorStoreInterface
             RequestOptions::JSON => [
                 'vectors' => [
                     'size' => $this->dimension,
-                    'distance' => 'cosine',
+                    'distance' => 'Cosine',
                 ],
             ],
         ]);

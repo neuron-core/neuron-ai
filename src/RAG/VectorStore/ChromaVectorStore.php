@@ -51,7 +51,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->getClient()->post('upsert', [
+        $this->getClient()->post('add', [
             RequestOptions::JSON => $this->mapDocuments($documents),
         ]);
 
@@ -62,8 +62,8 @@ class ChromaVectorStore implements VectorStoreInterface
     {
         $response = $this->getClient()->post('query', [
             RequestOptions::JSON => [
-                'queryEmbeddings' => $embedding,
-                'nResults' => $this->topK,
+                'query_embeddings' => $embedding,
+                'n_results' => $this->topK,
             ]
         ])->getBody()->getContents();
 
