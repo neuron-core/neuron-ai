@@ -20,14 +20,14 @@ class ChromaVectorStore implements VectorStoreInterface
      * @throws GuzzleException
      */
     public function __construct(
-        protected string $collection,
+        string $collection,
         protected string $host = 'http://localhost:8000',
         protected string $tenant = 'default_tenant',
         protected string $database = 'default_database',
         protected ?string $key = null,
         protected int $topK = 5,
     ) {
-        $this->initialize();
+        $this->initialize($collection);
     }
 
     /**
@@ -35,24 +35,24 @@ class ChromaVectorStore implements VectorStoreInterface
      *
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
-    protected function initialize(): void
+    protected function initialize(string $collection): void
     {
         try {
-            $this->client()->get('');
+            $response = $this->client()->get($collection)->getBody()->getContents();
         } catch (\Exception $e) {
             $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
             $response = $client->post('collections', [
-                RequestOptions::JSON => ['name' => $this->collection]
+                RequestOptions::JSON => ['name' => $collection]
             ])->getBody()->getContents();
-
-            $this->collectionId = \json_decode($response, true)['id'];
         }
+
+        $this->collectionId = \json_decode($response, true)['id'];
     }
 
     protected function client(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/{$this->collectionId}/",
+            'base_uri' => \trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/",
             'headers' => [
                 'Content-Type' => 'application/json',
             ]
@@ -66,7 +66,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->client()->post('delete', [
+        $this->client()->post("{$this->collectionId}/delete", [
             RequestOptions::JSON => [
                 'where' => [
                     'sourceType' => $sourceType,
@@ -80,7 +80,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->client()->post('add', [
+        $this->client()->post("{$this->collectionId}/add", [
             RequestOptions::JSON => $this->mapDocuments($documents),
         ]);
 
@@ -89,7 +89,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client()->post('query', [
+        $response = $this->client()->post("{$this->collectionId}/query", [
             RequestOptions::JSON => [
                 'query_embeddings' => $embedding,
                 'n_results' => $this->topK,
