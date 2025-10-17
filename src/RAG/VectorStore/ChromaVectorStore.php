@@ -14,12 +14,17 @@ class ChromaVectorStore implements VectorStoreInterface
 {
     protected Client $client;
 
+    protected string $collectionId;
+
     /**
      * @throws GuzzleException
      */
     public function __construct(
         protected string $collection,
         protected string $host = 'http://localhost:8000',
+        protected string $tenant = 'default_tenant',
+        protected string $database = 'default_database',
+        protected ?string $key = null,
         protected int $topK = 5,
     ) {
         $this->initialize();
@@ -35,7 +40,7 @@ class ChromaVectorStore implements VectorStoreInterface
         try {
             $this->client()->get('');
         } catch (\Exception $e) {
-            $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v1/']);
+            $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
             $client->post('collections', [
                 RequestOptions::JSON => ['name' => $this->collection]
             ]);
@@ -45,7 +50,7 @@ class ChromaVectorStore implements VectorStoreInterface
     protected function client(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->host, '/')."/api/v1/collections/{$this->collection}/",
+            'base_uri' => \trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/{$this->collectionId}/",
             'headers' => [
                 'Content-Type' => 'application/json',
             ]
