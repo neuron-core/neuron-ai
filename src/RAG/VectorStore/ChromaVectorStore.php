@@ -78,6 +78,9 @@ class ChromaVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->client()->post("{$this->collectionId}/add", [
@@ -87,6 +90,9 @@ class ChromaVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $response = $this->client()->post("{$this->collectionId}/query", [
