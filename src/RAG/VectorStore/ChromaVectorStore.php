@@ -113,14 +113,14 @@ class ChromaVectorStore implements VectorStoreInterface
         $result = [];
         for ($i = 0; $i < $size; $i++) {
             $document = new Document();
-            $document->id = $response['ids'][$i] ?? \uniqid();
-            $document->embedding = $response['embeddings'][$i];
-            $document->content = $response['documents'][$i];
-            $document->sourceType = $response['metadatas'][$i]['sourceType'] ?? null;
-            $document->sourceName = $response['metadatas'][$i]['sourceName'] ?? null;
-            $document->score = VectorSimilarity::similarityFromDistance($response['distances'][$i]);
+            $document->id = $response['ids'][0][$i] ?? \uniqid();
+            $document->embedding = $response['embeddings'][0][$i];
+            $document->content = $response['documents'][0][$i];
+            $document->sourceType = $response['metadatas'][0][$i]['sourceType'] ?? null;
+            $document->sourceName = $response['metadatas'][0][$i]['sourceName'] ?? null;
+            $document->score = VectorSimilarity::similarityFromDistance($response['distances'][0][$i]);
 
-            foreach ($response['metadatas'][$i] as $name => $value) {
+            foreach ($response['metadatas'][0][$i] as $name => $value) {
                 if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
                     $document->addMetadata($name, $value);
                 }
