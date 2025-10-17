@@ -19,7 +19,7 @@ class ChromaDBTest extends TestCase
     public function setUp(): void
     {
         if (!$this->isPortOpen('127.0.0.1', 8000)) {
-            $this->markTestSkipped("Port 8000 is not open. Skipping test.");
+            $this->markTestSkipped("ChromaDB not available on port 8000. Skipping test.");
         }
 
         $this->store = new ChromaVectorStore('neuron-ai');
