@@ -20,14 +20,14 @@ class ChromaVectorStore implements VectorStoreInterface
      * @throws GuzzleException
      */
     public function __construct(
-        protected string $collection,
+        string $collection,
         protected string $host = 'http://localhost:8000',
         protected string $tenant = 'default_tenant',
         protected string $database = 'default_database',
         protected ?string $key = null,
         protected int $topK = 5,
     ) {
-        $this->initialize();
+        $this->initialize($collection);
     }
 
     /**
@@ -35,16 +35,15 @@ class ChromaVectorStore implements VectorStoreInterface
      *
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
-    protected function initialize(): void
+    protected function initialize(string $collection): void
     {
-        try {
-            $response = $this->client()->get($this->collection)->getBody()->getContents();
-        } catch (\Exception) {
-            $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
-            $response = $client->post('collections', [
-                RequestOptions::JSON => ['name' => $this->collection]
-            ])->getBody()->getContents();
-        }
+        $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
+        $response = $client->post('collections', [
+            RequestOptions::JSON => [
+                'name' => $collection,
+                'get_or_create' => true,
+            ]
+        ])->getBody()->getContents();
 
         $this->collectionId = \json_decode($response, true)['id'];
     }
@@ -68,6 +67,9 @@ class ChromaVectorStore implements VectorStoreInterface
         return $this->addDocuments([$document]);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
         $this->client()->post("{$this->collectionId}/delete", [
