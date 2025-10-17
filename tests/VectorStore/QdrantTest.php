@@ -31,7 +31,10 @@ class QdrantTest extends TestCase
             $this->markTestSkipped("Port ".self::SERVICE_PORT." is not open. Skipping test.");
         }
 
-        $this->store = new QdrantVectorStore(\sprintf("http://127.0.0.1:%d/collections/%s", self::SERVICE_PORT, self::COLLECTION_NAME));
+        $this->store = new QdrantVectorStore(
+            collectionUrl: \sprintf("http://127.0.0.1:%d/collections/%s", self::SERVICE_PORT, self::COLLECTION_NAME),
+            dimension: 3,
+        );
     }
 
     public function tearDown(): void
@@ -39,6 +42,9 @@ class QdrantTest extends TestCase
         $this->store->destroy();
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_add_document_and_search(): void
     {
         $document = new Document('Hello World!');
@@ -53,6 +59,9 @@ class QdrantTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_add_multiple_document_and_search(): void
     {
         $document = new Document('Hello!');
@@ -70,6 +79,9 @@ class QdrantTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');
