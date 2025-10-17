@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\VectorStore;
 
+use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
@@ -24,6 +25,9 @@ class ChromaDBTest extends TestCase
         $this->store = new ChromaVectorStore('neuron-ai');
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_add_document_and_search(): void
     {
         $document = new Document('Hello World!');
@@ -38,6 +42,9 @@ class ChromaDBTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_add_multiple_document_and_search(): void
     {
         $document = new Document('Hello!');
@@ -55,6 +62,9 @@ class ChromaDBTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');

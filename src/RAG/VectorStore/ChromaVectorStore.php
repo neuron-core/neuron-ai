@@ -59,6 +59,9 @@ class ChromaVectorStore implements VectorStoreInterface
         ]);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         return $this->addDocuments([$document]);
@@ -97,7 +100,7 @@ class ChromaVectorStore implements VectorStoreInterface
     {
         $response = $this->client()->post("{$this->collectionId}/query", [
             RequestOptions::JSON => [
-                'query_embeddings' => $embedding,
+                'query_embeddings' => [$embedding],
                 'n_results' => $this->topK,
             ]
         ])->getBody()->getContents();
