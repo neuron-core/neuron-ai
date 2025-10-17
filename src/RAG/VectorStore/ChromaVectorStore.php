@@ -91,7 +91,7 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function destroy(): void
     {
-        $this->client()->delete('', [RequestOptions::JSON => ['name' => $this->collection]]);
+        $this->client()->delete($this->collectionId);
     }
 
     /**
