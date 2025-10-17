@@ -135,7 +135,7 @@ class ChromaVectorStore implements VectorStoreInterface
         ];
 
         foreach ($documents as $document) {
-            $payload['ids'][] = $document->getId();
+            $payload['ids'][] = (string) $document->getId();
             $payload['documents'][] = $document->getContent();
             $payload['embeddings'][] = $document->getEmbedding();
             $payload['metadatas'][] = [
