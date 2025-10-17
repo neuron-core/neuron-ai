@@ -20,14 +20,14 @@ class ChromaVectorStore implements VectorStoreInterface
      * @throws GuzzleException
      */
     public function __construct(
-        string $collection,
+        protected string $collection,
         protected string $host = 'http://localhost:8000',
         protected string $tenant = 'default_tenant',
         protected string $database = 'default_database',
         protected ?string $key = null,
         protected int $topK = 5,
     ) {
-        $this->initialize($collection);
+        $this->initialize();
     }
 
     /**
@@ -35,12 +35,12 @@ class ChromaVectorStore implements VectorStoreInterface
      *
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
-    protected function initialize(string $collection): void
+    protected function initialize(): void
     {
         $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
         $response = $client->post('collections', [
             RequestOptions::JSON => [
-                'name' => $collection,
+                'name' => $this->collection,
                 'get_or_create' => true,
             ]
         ])->getBody()->getContents();
@@ -93,7 +93,8 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function destroy(): void
     {
-        $this->client()->delete($this->collectionId);
+        $client = new Client(['base_uri' => \trim($this->host, '/').'/api/v2/tenants/'.$this->tenant.'/databases/'.$this->database.'/']);
+        $client->delete('collections/'.$this->collection);
     }
 
     /**
