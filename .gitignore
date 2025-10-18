@@ -6,3 +6,4 @@ composer.lock
 .php-cs-fixer.cache
 /tests/VectorStore/*.store
 /**/CLAUDE.md
+.claude
