@@ -68,7 +68,7 @@ trait HandleStream
             if (isset($choice['delta']['tool_calls'])) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
 
-                if (isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls') {
+                if ($this->finishForToolCall($choice)) {
                     goto finish;
                 }
 
@@ -76,7 +76,7 @@ trait HandleStream
             }
 
             // Handle tool calls
-            if (isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls') {
+            if ($this->finishForToolCall($choice)) {
                 finish:
                 yield from $executeToolsCallback(
                     $this->createToolCallMessage([
@@ -94,6 +94,11 @@ trait HandleStream
 
             yield $content;
         }
+    }
+
+    protected function finishForToolCall(array $choice): bool
+    {
+        return isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls';
     }
 
     /**
