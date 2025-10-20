@@ -62,14 +62,22 @@ trait HandleStream
                 continue;
             }
 
+            $choice = $line['choices'][0];
+
             // Compile tool calls
-            if (isset($line['choices'][0]['delta']['tool_calls'])) {
+            if (isset($choice['delta']['tool_calls'])) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
+
+                if (isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls') {
+                    goto finish;
+                }
+
                 continue;
             }
 
             // Handle tool calls
-            if (isset($line['choices'][0]['finish_reason']) && $line['choices'][0]['finish_reason'] === 'tool_calls') {
+            if (isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls') {
+                finish:
                 yield from $executeToolsCallback(
                     $this->createToolCallMessage([
                         'content' => $text,
@@ -81,7 +89,7 @@ trait HandleStream
             }
 
             // Process regular content
-            $content = $line['choices'][0]['delta']['content'] ?? '';
+            $content = $choice['delta']['content'] ?? '';
             $text .= $content;
 
             yield $content;
