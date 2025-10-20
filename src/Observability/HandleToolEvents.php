@@ -19,7 +19,7 @@ trait HandleToolEvents
     /**
      * @var array<Segment>
      */
-    protected array $toolCalls;
+    protected array $toolCalls = [];
 
     public function toolsBootstrapping(AgentInterface $agent, string $event, mixed $data): void
     {
