@@ -18,7 +18,12 @@ interface AgentInterface extends \SplSubject
 
     public function resolveProvider(): AIProviderInterface;
 
+    /**
+     * @deprecated
+     */
     public function withInstructions(string $instructions): AgentInterface;
+
+    public function setInstructions(string $instructions): AgentInterface;
 
     public function instructions(): string;
 

@@ -22,7 +22,16 @@ class Agent implements AgentInterface
      */
     protected string $instructions;
 
+    /**
+     * @deprecated
+     */
     public function withInstructions(string $instructions): AgentInterface
+    {
+        $this->instructions = $instructions;
+        return $this;
+    }
+
+    public function setInstructions(string $instructions): AgentInterface
     {
         $this->instructions = $instructions;
         return $this;

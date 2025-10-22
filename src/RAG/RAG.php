@@ -109,7 +109,7 @@ class RAG extends Agent
         }
         $newInstructions .= '</EXTRA-CONTEXT>';
 
-        $this->withInstructions(\trim($newInstructions));
+        $this->setInstructions(\trim($newInstructions));
 
         return $this;
     }

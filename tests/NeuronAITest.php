@@ -50,7 +50,7 @@ class NeuronAITest extends TestCase
             }
         };
         $this->assertEquals('Hello', $agent->resolveInstructions());
-        $agent->withInstructions('Hello2');
+        $agent->setInstructions('Hello2');
         $this->assertEquals('Hello2', $agent->resolveInstructions());
     }
 

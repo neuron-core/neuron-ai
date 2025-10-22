@@ -112,7 +112,7 @@ trait HandleTools
 
         $instructions = $this->removeDelimitedContent($this->resolveInstructions(), '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
         if ($guidelines !== []) {
-            $this->withInstructions(
+            $this->setInstructions(
                 $instructions.\PHP_EOL.'<TOOLS-GUIDELINES>'.\PHP_EOL.\implode(\PHP_EOL.\PHP_EOL, $guidelines).\PHP_EOL.'</TOOLS-GUIDELINES>'
             );
         }
