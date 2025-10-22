@@ -178,7 +178,7 @@ class Workflow implements WorkflowInterface
 
                 $currentNode = $this->eventNodeMap[$nextEventClass];
                 $resuming = false; // Only the first node should be in resuming mode
-                $feedback = [];
+                $externalFeedback = null;
             }
 
             $this->persistence->delete($this->workflowId);
