@@ -33,7 +33,7 @@ class Workflow implements WorkflowInterface
     protected array $nodes = [];
 
     /**
-     * @var array<string, NodeInterface>
+     * @var array<class-string, NodeInterface>
      */
     protected array $eventNodeMap = [];
 
