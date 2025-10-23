@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
@@ -50,7 +51,7 @@ class Agent implements AgentInterface
     /**
      * Middleware to be registered with the workflow.
      *
-     * @var array<int, array{eventClass: class-string<Event>|WorkflowMiddleware, middleware: WorkflowMiddleware|WorkflowMiddleware[]|null}>
+     * @var array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
      */
     protected array $pendingMiddleware = [];
 
@@ -100,23 +101,26 @@ class Agent implements AgentInterface
     }
 
     /**
-     * Register middleware for the agent's workflow.
+     * Register middleware for a specific node class.
      *
-     * Usage:
-     * - Global middleware: $agent->middleware($middlewareInstance)
-     * - Event-specific: $agent->middleware(EventClass::class, $middlewareInstance)
-     * - Multiple middleware: $agent->middleware(EventClass::class, [$middleware1, $middleware2])
-     *
-     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
+     * @throws WorkflowException
      */
-    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): AgentInterface
+    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self
     {
-        $this->pendingMiddleware[] = [
-            'eventClass' => $eventClass,
-            'middleware' => $middleware,
-        ];
+        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
+        if (!isset($this->nodeMiddleware[$nodeClass])) {
+            $this->pendingMiddleware[$nodeClass] = [];
+        }
+
+        foreach ($middlewareArray as $m) {
+            if (! $m instanceof WorkflowMiddleware) {
+                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
+            }
+            $this->pendingMiddleware[$nodeClass][] = $m;
+        }
         return $this;
     }
 
@@ -151,8 +155,8 @@ class Agent implements AgentInterface
             ]);
 
         // Register pending middleware with the workflow
-        foreach ($this->pendingMiddleware as $registration) {
-            $workflow->middleware($registration['eventClass'], $registration['middleware']);
+        foreach ($this->pendingMiddleware as $node => $middleware) {
+            $workflow->middleware($node, $middleware);
         }
 
         // Share observers with the workflow

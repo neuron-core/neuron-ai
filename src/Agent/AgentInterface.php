@@ -7,12 +7,14 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use NeuronAI\Workflow\NodeInterface;
 
 interface AgentInterface
 {
@@ -37,12 +39,13 @@ interface AgentInterface
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
     /**
-     * Register middleware for the agent's workflow.
+     * Register middleware for a specific node class.
      *
-     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
+     * @throws WorkflowException
      */
-    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): AgentInterface;
+    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self;
 
     public function observe(\SplObserver $observer, string $event = "*"): self;
 
