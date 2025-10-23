@@ -10,6 +10,7 @@ use NeuronAI\Agent\Nodes\RouterNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
@@ -39,7 +40,6 @@ class Agent implements AgentInterface
     use Observable;
     use ResolveProvider;
     use HandleTools;
-    use ResolveChatHistory;
 
     protected AIProviderInterface $provider;
 
@@ -62,20 +62,26 @@ class Agent implements AgentInterface
         $this->workflowId ??= \uniqid('neuron_agent_');
     }
 
+    public function instructions(): string
+    {
+        return 'You are a helpful and friendly AI agent built with Neuron PHP framework.';
+    }
+
     public function setInstructions(string $instructions): self
     {
         $this->instructions = $instructions;
         return $this;
     }
 
-    public function instructions(): string
-    {
-        return 'You are a helpful and friendly AI agent built with Neuron PHP framework.';
-    }
-
     public function resolveInstructions(): string
     {
         return $this->instructions !== '' ? $this->instructions : $this->instructions();
+    }
+
+    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    {
+        $this->state->setChatHistory($chatHistory);
+        return $this;
     }
 
     /**
