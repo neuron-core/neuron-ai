@@ -76,7 +76,7 @@ class MessageMapperResponses implements MessageMapperInterface
 
     protected function isUserMessage(Message $message): bool
     {
-        return $message instanceof UserMessage || $message->getRole() === MessageRole::USER;
+        return $message instanceof UserMessage || $message->getRole() === MessageRole::USER->value;
     }
 
     public function mapDocumentAttachment(Attachment $attachment): array
