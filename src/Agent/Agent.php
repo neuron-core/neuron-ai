@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Agent\Nodes\AIProviderNode;
+use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\RouterNode;
-use NeuronAI\Agent\Nodes\StreamingAIProviderNode;
+use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -243,7 +243,7 @@ class Agent
         $instructions = $this->resolveInstructions();
 
         $workflow = $this->buildWorkflow(
-            new AIProviderNode($this->provider, $instructions, $tools)
+            new ChatNode($this->provider, $instructions, $tools)
         );
         $handler = $workflow->start();
 
@@ -277,7 +277,7 @@ class Agent
         $instructions = $this->resolveInstructions();
 
         $workflow = $this->buildWorkflow(
-            new StreamingAIProviderNode($this->provider, $instructions, $tools)
+            new StreamingNode($this->provider, $instructions, $tools)
         );
         $handler = $workflow->start();
 

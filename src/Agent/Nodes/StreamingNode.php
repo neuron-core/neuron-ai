@@ -27,7 +27,7 @@ use NeuronAI\Workflow\StartEvent;
  * When a ToolCallMessage is detected, it returns AIResponseEvent with the ToolCallMessage,
  * allowing RouterNode to route it to ToolNode for execution, which then loops back via StartEvent.
  */
-class StreamingAIProviderNode extends Node
+class StreamingNode extends Node
 {
     use Observable;
 

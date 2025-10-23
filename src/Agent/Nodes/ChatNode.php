@@ -17,7 +17,7 @@ use NeuronAI\Workflow\StartEvent;
 /**
  * Node responsible for making requests to the AI provider.
  */
-class AIProviderNode extends Node
+class ChatNode extends Node
 {
     use Observable;
 
