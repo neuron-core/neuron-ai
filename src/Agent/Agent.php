@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RouterNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
@@ -72,6 +73,17 @@ class Agent implements AgentInterface
     }
 
     /**
+     * Determines whether tools should be executed in parallel.
+     * Override this method to return true to enable parallel tool execution.
+     *
+     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
+     */
+    protected function parallelToolCalls(): bool
+    {
+        return false;
+    }
+
+    /**
      * Build the workflow with nodes.
      *
      * @param Node|Node[] $nodes
@@ -80,11 +92,16 @@ class Agent implements AgentInterface
     {
         $nodes = \is_array($nodes) ? $nodes : [$nodes];
 
+        // Select the appropriate ToolNode based on parallel execution setting
+        $toolNode = $this->parallelToolCalls()
+            ? new ParallelToolNode($this->toolMaxTries)
+            : new ToolNode($this->toolMaxTries);
+
         $workflow = Workflow::make($this->state)
             ->addNodes([
                 ...$nodes,
                 new RouterNode(),
-                new ToolNode($this->toolMaxTries),
+                $toolNode,
             ]);
 
         // Share observers with workflow
