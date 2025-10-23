@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Enums\AttachmentType;
+use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -52,12 +53,11 @@ class MessageMapperResponses implements MessageMapperInterface
         } else {
             $payload['content'] = [
                 [
-                    'type' => $message instanceof UserMessage ? 'input_text' : 'output_text',
+                    'type' => $this->isUserMessage($message) ? 'input_text' : 'output_text',
                     'text' => (string) $message->getContent(),
                 ],
             ];
         }
-
         foreach ($message->getAttachments() as $attachment) {
             if ($attachment->type === AttachmentType::DOCUMENT) {
                 if ($attachment->contentType === AttachmentContentType::URL) {
@@ -72,6 +72,11 @@ class MessageMapperResponses implements MessageMapperInterface
         }
 
         $this->mapping[] = $payload;
+    }
+
+    protected function isUserMessage(Message $message): bool
+    {
+        return $message instanceof UserMessage || $message->getRole() === MessageRole::USER;
     }
 
     public function mapDocumentAttachment(Attachment $attachment): array
