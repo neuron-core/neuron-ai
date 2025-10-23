@@ -12,7 +12,7 @@ interface NodeInterface
         WorkflowState $currentState,
         Event $currentEvent,
         bool $isResuming = false,
-        array $feedback = []
+        ?Interrupt\InterruptRequest $resumeRequest = null
     ): void;
 
     /**

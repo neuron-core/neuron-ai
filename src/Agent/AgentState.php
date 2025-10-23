@@ -13,23 +13,17 @@ use NeuronAI\Workflow\WorkflowState;
  */
 class AgentState extends WorkflowState
 {
-    public function __construct(
-        ChatHistoryInterface $chatHistory = new InMemoryChatHistory(),
-        array $data = []
-    ) {
-        parent::__construct($data);
-        $this->set('chat_history', $chatHistory);
-        $this->set('tool_attempts', []);
-    }
+    protected ChatHistoryInterface $chatHistory;
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        return $this->get('chat_history');
+        return $this->chatHistory ?? $this->chatHistory = new InMemoryChatHistory();
     }
 
-    public function setChatHistory(ChatHistoryInterface $chatHistory): void
+    public function setChatHistory(ChatHistoryInterface $chatHistory): AgentState
     {
-        $this->set('chat_history', $chatHistory);
+        $this->chatHistory = $chatHistory;
+        return $this;
     }
 
     public function incrementToolAttempt(string $toolName): void

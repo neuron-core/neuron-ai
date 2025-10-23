@@ -5,18 +5,28 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
+/**
+ * Exception thrown when a workflow needs human input.
+ *
+ * Contains:
+ * - InterruptRequest: Structured actions requiring approval
+ * - Node context: Class and checkpoints for resumption
+ * - Workflow state: Current state
+ * - Event: The event being processed when interrupted
+ */
 class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
 {
     /**
-     * @param array<string, mixed> $data Interrupt data
+     * @param InterruptRequest $request Structured interrupt request with actions
      * @param class-string<NodeInterface> $nodeClass Node class name
      * @param array<string, mixed> $nodeCheckpoints Node checkpoint state
      * @param WorkflowState $state Workflow state
      * @param Event $currentEvent Current event
      */
     public function __construct(
-        protected array $data,
+        protected InterruptRequest $request,
         protected string $nodeClass,
         protected array $nodeCheckpoints,
         protected WorkflowState $state,
@@ -25,9 +35,12 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         parent::__construct('Workflow interrupted for human input');
     }
 
-    public function getData(): array
+    /**
+     * Get the structured interrupt request.
+     */
+    public function getRequest(): InterruptRequest
     {
-        return $this->data;
+        return $this->request;
     }
 
     /**
@@ -60,7 +73,7 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     {
         return [
             'message' => $this->message,
-            'data' => $this->data,
+            'request' => $this->request->jsonSerialize(),
             'nodeClass' => $this->nodeClass,
             'nodeCheckpoints' => $this->nodeCheckpoints,
             'state' => $this->state->all(),
@@ -77,10 +90,11 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     public function __unserialize(array $data): void
     {
         $this->message = $data['message'];
-        $this->data = $data['data'];
+        $this->request = InterruptRequest::fromArray($data['request']);
         $this->nodeClass = $data['nodeClass'];
         $this->nodeCheckpoints = $data['nodeCheckpoints'];
         $this->state = new $data['state_class']($data['state']);
         $this->currentEvent = \unserialize($data['currentEvent']);
     }
 }
+

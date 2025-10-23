@@ -18,62 +18,62 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 // Create some example tools that we want to gate with approval
 class FileDeleteTool extends Tool
 {
-    public string $name = 'delete_file';
-    public string $description = 'Delete a file from the filesystem';
-
     public function __construct(
         public string $filePath = ''
     ) {
+        parent::__construct(
+            'delete_file',
+            'Delete a file from the filesystem'
+        );
     }
 
-    public function execute(): void
+    public function __invoke(): string
     {
         $this->result = "File '{$this->filePath}' has been deleted.";
-        echo "  [TOOL EXECUTED] Deleted file: {$this->filePath}\n";
+        return "  [TOOL EXECUTED] Deleted file: {$this->filePath}";
     }
 }
 
 class FileReadTool extends Tool
 {
-    public string $name = 'read_file';
-    public string $description = 'Read contents of a file';
-
     public function __construct(
         public string $filePath = ''
     ) {
+        parent::__construct(
+            'file_read',
+            'Read the contents of a file'
+        );
     }
 
-    public function execute(): void
+    public function __invoke(): string
     {
         $this->result = "Contents of '{$this->filePath}': Sample file content...";
-        echo "  [TOOL EXECUTED] Read file: {$this->filePath}\n";
+        return "  [TOOL EXECUTED] Read file: {$this->filePath}";
     }
 }
 
 class CommandExecuteTool extends Tool
 {
-    public string $name = 'execute_command';
-    public string $description = 'Execute a shell command';
-
     public function __construct(
         public string $command = ''
     ) {
+        parent::__construct(
+            'execute_command',
+            'Execute a system command'
+        );
     }
 
-    public function execute(): void
+    public function __invoke(): string
     {
         $this->result = "Command '{$this->command}' executed successfully.";
-        echo "  [TOOL EXECUTED] Executed command: {$this->command}\n";
+        return "  [TOOL EXECUTED] Executed command: {$this->command}";
     }
 }
 
-// Setup
-$apiKey = \getenv('ANTHROPIC_API_KEY');
-if (!$apiKey) {
-    die("Please set ANTHROPIC_API_KEY environment variable\n");
-}
-
-$provider = new Anthropic($apiKey, 'claude-3-5-sonnet-20241022');
+$provider = new Anthropic\Anthropic(
+    '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',
+    'claude-3-7-sonnet-latest'
+);
 $persistence = new FilePersistence(__DIR__);
 $workflowId = 'agent_with_tool_approval_' . \uniqid();
 
@@ -81,9 +81,7 @@ echo "=== Agent Middleware: Tool Approval Example ===\n\n";
 
 // Create agent with ToolApprovalMiddleware
 // Only 'delete_file' and 'execute_command' require approval
-$state = new AgentState(chatHistory: new InMemoryChatHistory());
-
-$agent = Agent::make($state)
+$agent = Agent::make()
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -115,8 +113,7 @@ echo "\nScenario 2: Dangerous operation (delete_file) - Requires approval\n";
 echo "-------------------------------------------------------------------\n";
 
 // Reset state for new conversation
-$state = new AgentState(chatHistory: new InMemoryChatHistory());
-$agent = Agent::make($state)
+$agent = Agent::make()
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -130,7 +127,7 @@ $agent = Agent::make($state)
     );
 
 try {
-    $message = UserMessage::make('Delete the old_logs.txt file');
+    $message = new UserMessage('Delete the old_logs.txt file');
     echo "User: {$message->getContent()}\n\n";
 
     $response = $agent->chat($message);
@@ -139,43 +136,31 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
-    $data = $interrupt->getData();
-    echo "Message: {$data['message']}\n";
-    echo "Tools requiring approval:\n";
+    $request = $interrupt->getRequest();
+    echo "Message: {$request->getReason()}\n";
+    echo "Actions requiring approval:\n";
 
-    foreach ($data['tools'] as $tool) {
-        echo "  - {$tool['name']}: {$tool['description']}\n";
-        echo "    Arguments: " . \json_encode($tool['arguments']) . "\n";
+    foreach ($request->getPendingActions() as $action) {
+        echo "  - {$action->name}: {$action->description}}";
     }
 
     echo "\n";
 
-    // Simulate user approval decision
-    $approved = promptUserForApproval();
-
-    // Store feedback in state
-    $state = $interrupt->getState();
-    $state->set('tool_approval_feedback', [
-        'approved' => $approved,
-        'reason' => $approved ? null : 'User rejected the operation for safety reasons'
-    ]);
+    foreach ($request->getPendingActions() as $action) {
+        if (promptUserForApproval()) {
+            $action->approve();
+        } else {
+            $action->reject('User denied operation');
+        }
+    }
 
     // Continue with the same agent state (it will resume automatically)
-    if ($approved) {
-        echo "\n✅ User APPROVED the operation\n";
-        echo "Resuming workflow...\n\n";
+    echo "Resuming workflow...\n\n";
 
-        // The agent needs to be rebuilt with the updated state for resumption
-        // In a real application, you'd use persistence to save/load workflow state
-        $response = $agent->chat([]); // Empty message triggers resume
-        echo "Agent: {$response->getContent()}\n";
-    } else {
-        echo "\n❌ User DENIED the operation\n";
-        echo "Resuming workflow with denial...\n\n";
-
-        $response = $agent->chat([]); // Empty message triggers resume
-        echo "Agent: {$response->getContent()}\n";
-    }
+    // The agent needs to be rebuilt with the updated state for resumption
+    // In a real application, you'd use persistence to save/load workflow state
+    $response = $agent->chat(interrupt: $request);
+    echo "Agent: {$response->getContent()}\n";
 }
 
 // Helper function to simulate user input
@@ -184,7 +169,7 @@ function promptUserForApproval(): bool
     // In a real application, this would prompt the user via CLI, web UI, etc.
     // For this example, we'll automatically approve for demonstration
     echo "\n[Simulating user decision...]\n";
-    \usleep(500000); // 0.5 second delay for effect
+    \sleep(1);
 
     // Randomly approve or deny for demonstration
     return (bool) \rand(0, 1);

@@ -9,7 +9,10 @@ use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\StartEvent;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -93,7 +96,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
         // Filter tools that require approval
         $toolsNeedingApproval = \array_filter(
             $tools,
-            fn (\NeuronAI\Tools\ToolInterface $tool): bool => $this->requiresApproval($tool->getName())
+            fn (ToolInterface $tool): bool => $this->requiresApproval($tool->getName())
         );
 
         // If no tools need approval, proceed normally
@@ -101,45 +104,51 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             return $next($event);
         }
 
-        // Check if we have feedback (resuming after interruption)
-        if ($state->has('tool_approval_feedback')) {
-            $feedback = $state->get('tool_approval_feedback');
-            $state->delete('tool_approval_feedback');
+        // Check if we're resuming with decisions
+        if ($state->has('_tool_approval_resume_request')) {
+            $request = $state->get('_tool_approval_resume_request');
+            $state->delete('_tool_approval_resume_request');
 
-            // If not approved, skip tool execution and go back to AI
-            if (!($feedback['approved'] ?? false)) {
+            // Check if any actions were rejected
+            if ($request->hasRejections()) {
                 if ($state instanceof AgentState) {
-                    $reason = $feedback['reason'] ?? 'User denied tool execution';
-                    $state->getChatHistory()->addMessage(new UserMessage($reason));
+                    $rejectedActions = $request->getRejectedActions();
+                    $reasons = \array_map(fn ($action) => $action->feedback ?? 'Rejected', $rejectedActions);
+                    $message = 'Tool execution denied: ' . \implode(', ', $reasons);
+                    $state->getChatHistory()->addMessage(new UserMessage($message));
                 }
 
                 // Go back to the AI provider
                 return new StartEvent();
             }
 
-            // Approved - continue to tool execution
+            // All approved - continue to tool execution
             return $next($event);
         }
 
-        // First time seeing this event - request approval
-        $toolsData = \array_map(
-            fn ($tool): array => [
-                'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
-                'arguments' => $tool->getArguments(),
-            ],
-            $toolsNeedingApproval
+        // First time seeing this event - create approval actions
+        $actions = [];
+        /** @var ToolInterface $tool */
+        foreach ($toolsNeedingApproval as $tool) {
+            $actions[] = new Action(
+                id: $tool->getCallId(),
+                name: $tool->getName(),
+                description: \json_encode($tool->getInputs()),
+            );
+        }
+
+        $request = new InterruptRequest(
+            actions: $actions,
+            reason: 'The following tools require approval before execution'
         );
+
+        // Store request in state so it's available on resume
+        $state->set('_tool_approval_resume_request', $request);
 
         // Interrupt workflow for human approval
         // The Workflow will automatically fill in the current node class and checkpoints
         throw new WorkflowInterrupt(
-            [
-                'type' => 'tool_approval_required',
-                'message' => 'The following tools require approval before execution:',
-                'tools' => $toolsData,
-                'tool_count' => \count($toolsNeedingApproval),
-            ],
+            $request,
             '', // Node class - will be filled by Workflow
             [], // Node checkpoints - will be filled by Workflow
             $state,

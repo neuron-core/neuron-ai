@@ -11,6 +11,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
 interface AgentInterface
@@ -35,8 +36,6 @@ interface AgentInterface
 
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
-    public function resolveChatHistory(): ChatHistoryInterface;
-
     /**
      * Register middleware for the agent's workflow.
      *
@@ -49,16 +48,22 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
+     * @param InterruptRequest|null $interrupt
      */
-    public function chat(Message|array $messages): Message;
+    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message;
 
     /**
      * @param Message|Message[] $messages
+     * @param InterruptRequest|null $resumeRequest
      */
-    public function stream(Message|array $messages): \Generator;
+    public function stream(Message|array $messages = [], ?InterruptRequest $resumeRequest = null): \Generator;
 
     /**
      * @param Message|Message[] $messages
+     * @param string|null $class
+     * @param int $maxRetries
+     * @param InterruptRequest|null $resumeRequest
+     * @return mixed
      */
-    public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $resumeRequest = null): mixed;
 }

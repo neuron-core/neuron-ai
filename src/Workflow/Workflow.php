@@ -15,6 +15,7 @@ use NeuronAI\Observability\Observable;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -43,8 +44,6 @@ class Workflow implements WorkflowInterface
 
     protected PersistenceInterface $persistence;
 
-    protected WorkflowState $state;
-
     protected string $workflowId;
 
     /**
@@ -62,7 +61,7 @@ class Workflow implements WorkflowInterface
     protected array $eventMiddleware = [];
 
     public function __construct(
-        ?WorkflowState $state = null,
+        protected WorkflowState $state = new WorkflowState(),
         ?PersistenceInterface $persistence = null,
         ?string $workflowId = null
     ) {
@@ -76,21 +75,39 @@ class Workflow implements WorkflowInterface
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
 
-        $this->state = $state ?? new WorkflowState();
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
     }
 
-    public function start(
-        bool $resume = false,
-        mixed $externalFeedback = null
-    ): WorkflowHandler {
-        return new WorkflowHandler($this, $resume, $externalFeedback);
+    /**
+     * Configure workflow persistence.
+     *
+     * Required when using middleware that interrupts workflows (e.g., ToolApprovalMiddleware).
+     *
+     * @param PersistenceInterface $persistence Persistence backend
+     * @param string $workflowId Unique workflow identifier
+     * @return self
+     */
+    public function setPersistence(PersistenceInterface $persistence, string $workflowId): self
+    {
+        $this->persistence = $persistence;
+        $this->workflowId = $workflowId;
+        return $this;
     }
 
-    public function wakeup(mixed $feedback = null): WorkflowHandler
+    /**
+     * Start or resume the workflow.
+     *
+     * - No parameter: Fresh start
+     * - InterruptRequest parameter: Resume from interruption with user decisions
+     *
+     * @param InterruptRequest|null $resumeRequest If provided, resumes workflow with these decisions
+     * @return WorkflowHandler
+     */
+    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
     {
-        return new WorkflowHandler($this, true, $feedback);
+        $isResume = $resumeRequest !== null;
+        return new WorkflowHandler($this, $isResume, $resumeRequest);
     }
 
     /**
@@ -143,10 +160,6 @@ class Workflow implements WorkflowInterface
 
     /**
      * Run the middleware pipeline around node execution.
-     *
-     * @param Event $event
-     * @return Event|Generator
-     * @throws WorkflowInterrupt
      */
     protected function runMiddlewarePipeline(Event $event, NodeInterface $node, WorkflowState $state): Event|Generator
     {
@@ -199,7 +212,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function resume(mixed $externalFeedback): \Generator
+    public function resume(?Interrupt\InterruptRequest $resumeRequest): \Generator
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
@@ -218,14 +231,14 @@ class Workflow implements WorkflowInterface
         // Derive node from event (deterministic from eventNodeMap)
         $currentNode = $this->eventNodeMap[$currentEvent::class];
 
-        // Restore checkpoint state to the node
+        // Restore the checkpoint state to the node
         $currentNode->setCheckpoints($interrupt->getNodeCheckpoints());
 
         yield from $this->execute(
             $currentEvent,
             $currentNode,
             true,
-            $externalFeedback
+            $resumeRequest
         );
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
@@ -240,7 +253,7 @@ class Workflow implements WorkflowInterface
         Event $currentEvent,
         NodeInterface $currentNode,
         bool $resuming = false,
-        mixed $externalFeedback = null
+        ?Interrupt\InterruptRequest $resumeRequest = null
     ): \Generator {
         try {
             while (!($currentEvent instanceof StopEvent)) {
@@ -248,12 +261,12 @@ class Workflow implements WorkflowInterface
                     $this->state,
                     $currentEvent,
                     $resuming,
-                    $externalFeedback
+                    $resumeRequest
                 );
 
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
                 try {
-                    // Execute node through middleware pipeline
+                    // Execute node through the middleware pipeline
                     $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->state);
 
                     if ($result instanceof \Generator) {
@@ -286,7 +299,7 @@ class Workflow implements WorkflowInterface
 
                 $currentNode = $this->eventNodeMap[$nextEventClass];
                 $resuming = false; // Only the first node should be in resuming mode
-                $externalFeedback = null;
+                $resumeRequest = null;
             }
 
             $this->persistence->delete($this->workflowId);
@@ -295,7 +308,7 @@ class Workflow implements WorkflowInterface
             // Middleware may throw interrupts without node context
             // Ensure we have the current node's class and checkpoints
             $finalInterrupt = new WorkflowInterrupt(
-                $interrupt->getData(),
+                $interrupt->getRequest(),
                 $currentNode::class,
                 $currentNode->getCheckpoints(),
                 $this->state,

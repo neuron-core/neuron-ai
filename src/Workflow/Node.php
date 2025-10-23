@@ -11,7 +11,7 @@ abstract class Node implements NodeInterface
     protected WorkflowState $currentState;
     protected Event $currentEvent;
     protected bool $isResuming = false;
-    protected mixed $feedback = null;
+    protected ?Interrupt\InterruptRequest $resumeRequest = null;
 
     /**
      * @var array<string, mixed>
@@ -28,22 +28,26 @@ abstract class Node implements NodeInterface
         WorkflowState $currentState,
         Event $currentEvent,
         bool $isResuming = false,
-        mixed $feedback = null
+        ?Interrupt\InterruptRequest $resumeRequest = null
     ): void {
         $this->currentState = $currentState;
         $this->currentEvent = $currentEvent;
         $this->isResuming = $isResuming;
-        $this->feedback = $feedback;
+        $this->resumeRequest = $resumeRequest;
     }
 
-    protected function consumeInterruptFeedback(): mixed
+    /**
+     * Get the interrupt request when resuming.
+     * Returns null if not resuming or no request provided.
+     */
+    protected function getResumeRequest(): ?Interrupt\InterruptRequest
     {
-        if ($this->isResuming && !\is_null($this->feedback)) {
-            $feedback = $this->feedback;
-            // Clear both feedback and resuming state after use to allow subsequent interrupts
-            $this->feedback = null;
+        if ($this->isResuming && $this->resumeRequest !== null) {
+            $request = $this->resumeRequest;
+            // Clear both request and resuming state after use to allow subsequent interrupts
+            $this->resumeRequest = null;
             $this->isResuming = false;
-            return $feedback;
+            return $request;
         }
 
         return null;
@@ -66,16 +70,16 @@ abstract class Node implements NodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interrupt(array $data): mixed
+    protected function interrupt(Interrupt\InterruptRequest $request): mixed
     {
-        return $this->interruptIf(true, $data);
+        return $this->interruptIf(true, $request);
     }
 
     /**
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interruptIf(callable|bool $condition, array $data): mixed
+    protected function interruptIf(callable|bool $condition, Interrupt\InterruptRequest $request): mixed
     {
         if ($feedback = $this->consumeInterruptFeedback()) {
             return $feedback;
@@ -85,7 +89,7 @@ abstract class Node implements NodeInterface
 
         if ($shouldInterrupt) {
             throw new WorkflowInterrupt(
-                $data,
+                $request,
                 static::class,
                 $this->checkpoints,
                 $this->currentState,

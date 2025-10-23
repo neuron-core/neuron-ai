@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 class WorkflowHandler
 {
@@ -13,7 +14,7 @@ class WorkflowHandler
     public function __construct(
         protected Workflow $workflow,
         protected bool $resume = false,
-        protected mixed $externalFeedback = null
+        protected ?InterruptRequest $resumeRequest = null
     ) {
     }
 
@@ -24,7 +25,7 @@ class WorkflowHandler
      */
     public function streamEvents(): \Generator
     {
-        $generator = $this->resume ? $this->workflow->resume($this->externalFeedback) : $this->workflow->run();
+        $generator = $this->resume ? $this->workflow->resume($this->resumeRequest) : $this->workflow->run();
 
         while ($generator->valid()) {
             yield $generator->current();
