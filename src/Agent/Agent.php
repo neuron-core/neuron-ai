@@ -39,6 +39,8 @@ class Agent implements AgentInterface
 
     protected string $instructions = '';
 
+    protected bool $parallelToolCalls = false;
+
     protected AgentState $state;
 
     protected Workflow $workflow;
@@ -70,9 +72,13 @@ class Agent implements AgentInterface
      *
      * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
-    public function parallelToolCalls(): bool
+    public function parallelToolCalls(?bool $flag = null): bool|AgentInterface
     {
-        return false;
+        if ($flag === null) {
+            return $this->parallelToolCalls;
+        }
+        $this->parallelToolCalls = $flag;
+        return $this;
     }
 
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
