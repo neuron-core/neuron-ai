@@ -73,12 +73,16 @@ class Agent implements AgentInterface
 
     /**
      * Build the workflow with nodes.
+     *
+     * @param Node|Node[] $nodes
      */
-    protected function buildWorkflow(Node $aiProviderNode): Workflow
+    protected function buildWorkflow(array|Node $nodes): Workflow
     {
+        $nodes = \is_array($nodes) ? $nodes : [$nodes];
+
         $workflow = Workflow::make($this->state)
             ->addNodes([
-                $aiProviderNode,
+                ...$nodes,
                 new RouterNode(),
                 new ToolNode($this->toolMaxTries),
             ]);
