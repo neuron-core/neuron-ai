@@ -70,7 +70,7 @@ class Agent implements AgentInterface
      *
      * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
-    protected function parallelToolCalls(): bool
+    public function parallelToolCalls(): bool
     {
         return false;
     }
