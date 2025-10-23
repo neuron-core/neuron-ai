@@ -17,7 +17,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         $json = [
             'stream' => true,
@@ -73,9 +73,9 @@ trait HandleStream
                     return $call;
                 }, $toolCalls);
 
-                yield from $executeToolsCallback(
-                    $this->createToolCallMessage(\end($toolCalls))
-                );
+                // Yield the ToolCallMessage and return, letting the workflow handle tool execution
+                yield $this->createToolCallMessage(\end($toolCalls));
+                return;
             }
 
             // Process regular content

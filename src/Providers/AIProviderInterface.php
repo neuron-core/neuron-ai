@@ -50,7 +50,7 @@ interface AIProviderInterface
     /**
      * @param Message[]|string $messages
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator;
+    public function stream(array|string $messages): \Generator;
 
     /**
      * @param Message[] $messages

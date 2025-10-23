@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Agent\Nodes\AIProviderNode;
 use NeuronAI\Agent\Nodes\RouterNode;
+use NeuronAI\Agent\Nodes\StreamingAIProviderNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -17,9 +18,8 @@ use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowHandler;
 
 /**
  * Agent implementation built on top of the Workflow system.
@@ -202,14 +202,11 @@ class Agent
     /**
      * Build the workflow with nodes.
      */
-    protected function buildWorkflow(): Workflow
+    protected function buildWorkflow(Node $aiProviderNode): Workflow
     {
-        $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
-
         $workflow = Workflow::make($this->state)
             ->addNodes([
-                new AIProviderNode($this->provider, $instructions, $tools),
+                $aiProviderNode,
                 new RouterNode(),
                 new ToolNode($this->toolMaxTries),
             ]);
@@ -242,13 +239,63 @@ class Agent
             $chatHistory->addMessage($message);
         }
 
-        $workflow = $this->buildWorkflow();
+        $tools = $this->bootstrapTools();
+        $instructions = $this->resolveInstructions();
+
+        $workflow = $this->buildWorkflow(
+            new AIProviderNode($this->provider, $instructions, $tools)
+        );
         $handler = $workflow->start();
 
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
         $this->notify('chat-stop');
+
+        return $finalState->getChatHistory()->getLastMessage();
+    }
+
+    /**
+     * Execute the chat with streaming.
+     *
+     * @param Message|Message[] $messages
+     * @throws \Throwable
+     */
+    public function stream(Message|array $messages): \Generator
+    {
+        $this->notify('stream-start');
+
+        $messages = \is_array($messages) ? $messages : [$messages];
+
+        // Add messages to chat history before building workflow
+        $chatHistory = $this->state->getChatHistory();
+        foreach ($messages as $message) {
+            $chatHistory->addMessage($message);
+        }
+
+        $tools = $this->bootstrapTools();
+        $instructions = $this->resolveInstructions();
+
+        $workflow = $this->buildWorkflow(
+            new StreamingAIProviderNode($this->provider, $instructions, $tools)
+        );
+        $handler = $workflow->start();
+
+        // Stream events and yield only StreamChunk objects
+        foreach ($handler->streamEvents() as $event) {
+            if ($event instanceof StreamChunk) {
+                yield $event->content;
+            }
+            // Optionally yield ToolCallMessage and ToolCallResultMessage for visibility
+            // if ($event instanceof ToolCallMessage || $event instanceof ToolCallResultMessage) {
+            //     yield $event;
+            // }
+        }
+
+        /** @var AgentState $finalState */
+        $finalState = $handler->getResult();
+
+        $this->notify('stream-stop');
 
         return $finalState->getChatHistory()->getLastMessage();
     }
