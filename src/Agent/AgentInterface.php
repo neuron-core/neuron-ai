@@ -2,7 +2,6 @@
 
 namespace NeuronAI\Agent;
 
-use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
