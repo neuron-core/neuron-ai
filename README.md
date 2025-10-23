@@ -12,7 +12,7 @@ PHP applications with a powerful and flexible architecture. We provide tools for
 from LLM interfaces, to data loading, to multi-agent orchestration, to monitoring and debugging.
 In addition, we provide tutorials and other educational content to help you get started using AI Agents in your projects.
 
-[**Video Tutorial With Laravel**](https://www.youtube.com/watch?v=oSA1bP_j41w)
+[**Laravel Tutorial**](https://www.youtube.com/watch?v=oSA1bP_j41w)
 
 [![Neuron & Inspector](./docs/images/youtube.png)](https://www.youtube.com/watch?v=oSA1bP_j41w)
 
