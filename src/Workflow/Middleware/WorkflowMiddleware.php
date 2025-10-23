@@ -4,68 +4,92 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Middleware;
 
-use Closure;
 use Generator;
 use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
  * Interface for workflow middleware components.
  *
- * Middleware intercepts the event flow between workflow nodes, allowing
- * developers to inject custom behavior at any point in the workflow's execution.
+ * Middleware wraps node execution, allowing developers to inject custom behavior
+ * before and after each node executes. Middleware is bound to specific node classes.
  *
  * Middleware can:
- * - Inspect and modify events before they reach nodes
- * - Transform node outputs
+ * - Execute logic before node execution (validation, logging, etc.)
+ * - Execute logic after node execution (transformation, caching, etc.)
+ * - Access the node instance and workflow state
  * - Interrupt workflows for human-in-the-loop patterns
- * - Add logging, validation, caching, etc.
- * - Short-circuit execution
+ * - Add cross-cutting concerns like monitoring, error handling, etc.
  *
  * Example usage:
  * ```php
  * class LoggingMiddleware implements WorkflowMiddleware
  * {
- *     public function handle(Event $event, WorkflowState $state, Closure $next): Event|Generator
+ *     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
  *     {
- *         Log::info('Event received', ['type' => get_class($event)]);
- *
- *         $result = $next($event);
- *
- *         Log::info('Event processed', ['type' => get_class($result)]);
- *
- *         return $result;
+ *         Log::info('Node starting', [
+ *             'node' => $node::class,
+ *             'event' => $event::class,
+ *         ]);
  *     }
  *
- *     public function shouldHandle(Event $event): bool
+ *     public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
  *     {
- *         return true; // Handle all events
+ *         Log::info('Node completed', [
+ *             'node' => $node::class,
+ *             'result' => $result instanceof Generator ? 'Generator' : $result::class,
+ *         ]);
  *     }
  * }
+ * ```
+ *
+ * Register global middleware that runs on all nodes:
+ * ```php
+ * $workflow->globalMiddleware(new LoggingMiddleware());
+ * ```
+ *
+ * Register middleware on specific nodes:
+ * ```php
+ * // Single node
+ * $workflow->middleware(MyNode::class, new ValidationMiddleware());
+ *
+ * // Multiple nodes at once
+ * $workflow->middleware([
+ *     MyNode::class => [new LoggingMiddleware(), new ValidationMiddleware()],
+ *     AnotherNode::class => new CachingMiddleware(),
+ * ]);
  * ```
  */
 interface WorkflowMiddleware
 {
     /**
-     * Handle the event through the middleware pipeline.
+     * Execute before the node runs.
      *
+     * This method is called before the node's __invoke method executes.
+     * Use this for validation, logging, state preparation, etc.
+     *
+     * @param NodeInterface $node The node about to execute
      * @param Event $event The event being processed
      * @param WorkflowState $state The current workflow state
-     * @param Closure $next Callback to invoke next middleware or node
-     *                      Signature: function(Event $event): Event|Generator
-     *
-     * @return Event|Generator The processed event or generator for streaming
+     * @return void
      */
-    public function handle(Event $event, WorkflowState $state, Closure $next): Event|Generator;
+    public function before(NodeInterface $node, Event $event, WorkflowState $state): void;
 
     /**
-     * Determine if this middleware should handle the given event.
+     * Execute after the node runs.
      *
-     * This allows middleware to be selective about which events they process.
-     * Return true to handle the event, false to skip this middleware.
+     * This method is called after the node's __invoke method completes.
+     * Use this for logging, caching, result transformation, etc.
      *
-     * @param Event $event The event to check
-     * @return bool True if this middleware should handle the event
+     * Note: For streaming nodes that return Generators, this is called after
+     * the generator is fully consumed, not after it's created.
+     *
+     * @param NodeInterface $node The node that executed
+     * @param Event $event The input event that was processed
+     * @param Event|Generator $result The result from the node (Event or Generator for streaming)
+     * @param WorkflowState $state The current workflow state
+     * @return void
      */
-    public function shouldHandle(Event $event): bool;
+    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void;
 }

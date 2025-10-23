@@ -37,10 +37,27 @@ abstract class Node implements NodeInterface
     }
 
     /**
+     * Check if the node is resuming after an interrupt.
+     */
+    public function isResuming(): bool
+    {
+        return $this->isResuming;
+    }
+
+    /**
      * Get the interrupt request when resuming.
      * Returns null if not resuming or no request provided.
      */
-    protected function getResumeRequest(): ?Interrupt\InterruptRequest
+    public function getResumeRequest(): ?Interrupt\InterruptRequest
+    {
+        return $this->resumeRequest;
+    }
+
+    /**
+     * Consume the interrupt request (used internally by nodes).
+     * Returns null if not resuming or no request provided.
+     */
+    protected function consumeResumeRequest(): ?Interrupt\InterruptRequest
     {
         if ($this->isResuming && $this->resumeRequest !== null) {
             $request = $this->resumeRequest;
@@ -81,7 +98,7 @@ abstract class Node implements NodeInterface
      */
     protected function interruptIf(callable|bool $condition, Interrupt\InterruptRequest $request): mixed
     {
-        if ($feedback = $this->consumeInterruptFeedback()) {
+        if ($feedback = $this->consumeResumeRequest()) {
             return $feedback;
         }
 

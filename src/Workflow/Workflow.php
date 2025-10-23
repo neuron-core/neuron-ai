@@ -47,18 +47,18 @@ class Workflow implements WorkflowInterface
     protected string $workflowId;
 
     /**
-     * Global middleware applied to all events.
+     * Global middleware applied to all nodes.
      *
      * @var WorkflowMiddleware[]
      */
     protected array $globalMiddleware = [];
 
     /**
-     * Event-specific middleware.
+     * Node-specific middleware.
      *
-     * @var array<class-string<Event>, WorkflowMiddleware[]>
+     * @var array<class-string<NodeInterface>, WorkflowMiddleware[]>
      */
-    protected array $eventMiddleware = [];
+    protected array $nodeMiddleware = [];
 
     public function __construct(
         protected WorkflowState $state = new WorkflowState(),
@@ -111,81 +111,88 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Register middleware for the workflow.
+     * Register global middleware that runs on all nodes.
      *
-     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
+     * @return self
      * @throws WorkflowException
      */
-    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): self
+    public function globalMiddleware(WorkflowMiddleware|array $middleware): self
     {
-        // Global middleware: middleware($middlewareInstance)
-        if ($eventClass instanceof WorkflowMiddleware) {
-            $this->globalMiddleware[] = $eventClass;
-            return $this;
-        }
-
-        // Event-specific middleware: middleware(EventClass::class, $middlewareInstance)
-        if ($middleware === null) {
-            throw new WorkflowException('Middleware instance must be provided when registering event-specific middleware');
-        }
-
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
-        if (!isset($this->eventMiddleware[$eventClass])) {
-            $this->eventMiddleware[$eventClass] = [];
-        }
-
         foreach ($middlewareArray as $m) {
-            $this->eventMiddleware[$eventClass][] = $m;
+            if (! $m instanceof WorkflowMiddleware) {
+                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
+            }
+            $this->globalMiddleware[] = $m;
         }
 
         return $this;
     }
 
     /**
-     * Get all registered middleware for the given event.
+     * Register middleware for a specific node class.
      *
-     * @param Event $event
+     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
+     * @throws WorkflowException
+     */
+    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self
+    {
+        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
+
+        if (!isset($this->nodeMiddleware[$nodeClass])) {
+            $this->nodeMiddleware[$nodeClass] = [];
+        }
+
+        foreach ($middlewareArray as $m) {
+            if (! $m instanceof WorkflowMiddleware) {
+                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
+            }
+            $this->nodeMiddleware[$nodeClass][] = $m;
+        }
+        return $this;
+    }
+
+    /**
+     * Get all registered middleware for the given node.
+     *
+     * @param NodeInterface $node
      * @return WorkflowMiddleware[]
      */
-    protected function getMiddlewareForEvent(Event $event): array
+    protected function getMiddlewareForNode(NodeInterface $node): array
     {
-        $eventClass = $event::class;
-        $eventSpecific = $this->eventMiddleware[$eventClass] ?? [];
+        $nodeClass = $node::class;
+        $nodeSpecific = $this->nodeMiddleware[$nodeClass] ?? [];
 
-        // Combine global and event-specific middleware
-        return \array_merge($this->globalMiddleware, $eventSpecific);
+        // Combine global and node-specific middleware
+        return \array_merge($this->globalMiddleware, $nodeSpecific);
     }
 
     /**
      * Run the middleware pipeline around node execution.
+     *
+     * Executes all middleware before() methods, then the node, then all middleware after() methods.
      */
     protected function runMiddlewarePipeline(Event $event, NodeInterface $node, WorkflowState $state): Event|Generator
     {
-        $middleware = $this->getMiddlewareForEvent($event);
+        $middleware = $this->getMiddlewareForNode($node);
 
-        // Filter middleware that should handle this event
-        $applicableMiddleware = \array_filter(
-            $middleware,
-            fn (WorkflowMiddleware $m): bool => $m->shouldHandle($event)
-        );
-
-        // If no middleware, just run the node
-        if ($applicableMiddleware === []) {
-            return $node->run($event, $state);
+        // Execute all before() methods in registration order
+        foreach ($middleware as $m) {
+            $m->before($node, $event, $state);
         }
 
-        // Build the middleware pipeline from the inside out
-        $pipeline = fn (Event $e): Event|Generator => $node->run($e, $state);
+        // Execute the node
+        $result = $node->run($event, $state);
 
-        // Reversely iterate to build the chain
-        foreach (\array_reverse($applicableMiddleware) as $middlewareInstance) {
-            $pipeline = (fn(Event $e): Event|Generator => $middlewareInstance->handle($e, $state, $pipeline));
+        // Execute all after() methods in registration order
+        foreach ($middleware as $m) {
+            $m->after($node, $event, $result, $state);
         }
 
-        // Execute the pipeline
-        return $pipeline($event);
+        return $result;
     }
 
     /**
