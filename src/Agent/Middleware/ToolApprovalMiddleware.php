@@ -115,12 +115,10 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             if (!($feedback['approved'] ?? false)) {
                 if ($state instanceof AgentState) {
                     $reason = $feedback['reason'] ?? 'User denied tool execution';
-                    $state->getChatHistory()->addMessage(
-                        new UserMessage($reason)
-                    );
+                    $state->getChatHistory()->addMessage(new UserMessage($reason));
                 }
 
-                // Skip tool execution, go back to AI provider
+                // Go back to the AI provider
                 return new StartEvent();
             }
 
