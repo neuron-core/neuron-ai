@@ -64,14 +64,6 @@ class Agent implements AgentInterface
         return $this->instructions !== '' ? $this->instructions : $this->instructions();
     }
 
-    protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
-    {
-        $escapedOpenTag = \preg_quote($openTag, '/');
-        $escapedCloseTag = \preg_quote($closeTag, '/');
-        $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
-        return \preg_replace($pattern, '', $text);
-    }
-
     /**
      * Determines whether tools should be executed in parallel.
      * Override this method to return true to enable parallel tool execution.
@@ -81,6 +73,14 @@ class Agent implements AgentInterface
     protected function parallelToolCalls(): bool
     {
         return false;
+    }
+
+    protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
+    {
+        $escapedOpenTag = \preg_quote($openTag, '/');
+        $escapedCloseTag = \preg_quote($closeTag, '/');
+        $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
+        return \preg_replace($pattern, '', $text);
     }
 
     /**
