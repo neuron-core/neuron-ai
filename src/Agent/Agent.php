@@ -283,13 +283,7 @@ class Agent
 
         // Stream events and yield only StreamChunk objects
         foreach ($handler->streamEvents() as $event) {
-            if ($event instanceof StreamChunk) {
-                yield $event->content;
-            }
-            // Optionally yield ToolCallMessage and ToolCallResultMessage for visibility
-            // if ($event instanceof ToolCallMessage || $event instanceof ToolCallResultMessage) {
-            //     yield $event;
-            // }
+            yield $event;
         }
 
         /** @var AgentState $finalState */

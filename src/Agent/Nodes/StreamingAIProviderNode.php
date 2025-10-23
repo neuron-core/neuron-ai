@@ -9,6 +9,7 @@ use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\StreamChunk;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -52,6 +53,10 @@ class StreamingAIProviderNode extends Node
             new InferenceStart($chatHistory->getLastMessage())
         );
 
+        if ($chatHistory->getLastMessage() instanceof ToolCallResultMessage) {
+            yield $chatHistory->getLastMessage();
+        }
+
         try {
             $content = '';
             $usage = new Usage(0, 0);
@@ -64,7 +69,7 @@ class StreamingAIProviderNode extends Node
             foreach ($stream as $chunk) {
                 // Check if this is a ToolCallMessage
                 if ($chunk instanceof ToolCallMessage) {
-                    // Add tool call message to chat history
+                    // Add the tool call message to the chat history
                     $chatHistory->addMessage($chunk);
 
                     $this->notify(
@@ -72,13 +77,13 @@ class StreamingAIProviderNode extends Node
                         new InferenceStop($chatHistory->getLastMessage(), $chunk)
                     );
 
-                    // Return AIResponseEvent with the ToolCallMessage
-                    // RouterNode will route this to ToolNode, which returns StartEvent
-                    // StartEvent will loop back to this node with updated history
+                    yield $chunk;
+
+                    // Go to the router node to handle the tool call
                     return new AIResponseEvent($chunk);
                 }
 
-                // Parse usage information from stream
+                // Parse usage information
                 $decoded = \json_decode((string) $chunk, true);
                 if (\is_array($decoded) && \array_key_exists('usage', $decoded)) {
                     $usage->inputTokens += $decoded['usage']['input_tokens'] ?? 0;
