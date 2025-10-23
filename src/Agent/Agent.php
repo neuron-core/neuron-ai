@@ -9,16 +9,11 @@ use NeuronAI\Agent\Nodes\RouterNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\AbstractChatHistory;
-use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\StaticConstructor;
-use NeuronAI\Tools\ProviderToolInterface;
-use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 
@@ -31,26 +26,17 @@ use NeuronAI\Workflow\Workflow;
  * - Checkpoints for state management
  * - Event-driven architecture for complex execution flows
  */
-class Agent
+class Agent implements AgentInterface
 {
     use StaticConstructor;
     use Observable;
+    use ResolveProvider;
+    use HandleTools;
+    use ResolveChatHistory;
 
     protected AIProviderInterface $provider;
 
     protected string $instructions = '';
-
-    /**
-     * @var array<ToolInterface|ToolkitInterface|ProviderToolInterface>
-     */
-    protected array $tools = [];
-
-    /**
-     * @var ToolInterface[]
-     */
-    protected array $toolsBootstrapCache = [];
-
-    protected int $toolMaxTries = 5;
 
     protected AgentState $state;
 
@@ -59,12 +45,6 @@ class Agent
     public function __construct(?AgentState $state = null)
     {
         $this->state = $state ?? new AgentState();
-    }
-
-    public function setAiProvider(AIProviderInterface $provider): self
-    {
-        $this->provider = $provider;
-        return $this;
     }
 
     public function setInstructions(string $instructions): self
@@ -81,115 +61,6 @@ class Agent
     public function resolveInstructions(): string
     {
         return $this->instructions !== '' ? $this->instructions : $this->instructions();
-    }
-
-    /**
-     * @param ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
-     * @throws AgentException
-     */
-    public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): self
-    {
-        $tools = \is_array($tools) ? $tools : [$tools];
-
-        foreach ($tools as $t) {
-            if (! $t instanceof ToolInterface && ! $t instanceof ToolkitInterface && ! $t instanceof ProviderToolInterface) {
-                throw new AgentException('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface');
-            }
-            $this->tools[] = $t;
-        }
-
-        // Empty the cache for the next turn
-        $this->toolsBootstrapCache = [];
-
-        return $this;
-    }
-
-    /**
-     * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
-     */
-    protected function tools(): array
-    {
-        return [];
-    }
-
-    /**
-     * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
-     */
-    public function getTools(): array
-    {
-        return \array_merge($this->tools, $this->tools());
-    }
-
-    public function toolMaxTries(int $tries): self
-    {
-        $this->toolMaxTries = $tries;
-        return $this;
-    }
-
-    public function withChatHistory(AbstractChatHistory $chatHistory): self
-    {
-        $this->state->setChatHistory($chatHistory);
-        return $this;
-    }
-
-    public function getChatHistory(): ChatHistoryInterface
-    {
-        return $this->state->getChatHistory();
-    }
-
-    /**
-     * Bootstrap tools and expand toolkits.
-     *
-     * @return ToolInterface[]
-     */
-    protected function bootstrapTools(): array
-    {
-        if (!empty($this->toolsBootstrapCache)) {
-            return $this->toolsBootstrapCache;
-        }
-
-        $this->notify('tools-bootstrapping');
-
-        $guidelines = [];
-
-        foreach ($this->getTools() as $tool) {
-            if ($tool instanceof ToolkitInterface) {
-                $kitGuidelines = $tool->guidelines();
-                if ($kitGuidelines !== null && $kitGuidelines !== '') {
-                    $name = (new \ReflectionClass($tool))->getShortName();
-                    $kitGuidelines = '# '.$name.\PHP_EOL.$kitGuidelines;
-                }
-
-                // Merge the tools
-                $innerTools = $tool->tools();
-                $this->toolsBootstrapCache = \array_merge($this->toolsBootstrapCache, $innerTools);
-
-                // Add guidelines to the system prompt
-                if ($kitGuidelines !== null && $kitGuidelines !== '' && $kitGuidelines !== '0') {
-                    $kitGuidelines .= \PHP_EOL.\implode(
-                        \PHP_EOL.'- ',
-                        \array_map(
-                            fn (ToolInterface $tool): string => "{$tool->getName()}: {$tool->getDescription()}",
-                            $innerTools
-                        )
-                    );
-
-                    $guidelines[] = $kitGuidelines;
-                }
-            } else {
-                // If the item is a simple tool, add to the list as it is
-                $this->toolsBootstrapCache[] = $tool;
-            }
-        }
-
-        $instructions = $this->removeDelimitedContent($this->resolveInstructions(), '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
-        if ($guidelines !== []) {
-            $this->setInstructions(
-                $instructions.\PHP_EOL.'<TOOLS-GUIDELINES>'.\PHP_EOL.\implode(\PHP_EOL.\PHP_EOL, $guidelines).\PHP_EOL.'</TOOLS-GUIDELINES>'
-            );
-        }
-
-        return $this->toolsBootstrapCache;
     }
 
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
@@ -240,11 +111,12 @@ class Agent
             $chatHistory->addMessage($message);
         }
 
-        $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
-
         $workflow = $this->buildWorkflow(
-            new ChatNode($this->provider, $instructions, $tools)
+            new ChatNode(
+                $this->resolveProvider(),
+                $this->resolveInstructions(),
+                $this->bootstrapTools()
+            )
         );
         $handler = $workflow->start();
 
@@ -274,11 +146,12 @@ class Agent
             $chatHistory->addMessage($message);
         }
 
-        $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
-
         $workflow = $this->buildWorkflow(
-            new StreamingNode($this->provider, $instructions, $tools)
+            new StreamingNode(
+                $this->resolveProvider(),
+                $this->resolveInstructions(),
+                $this->bootstrapTools()
+            )
         );
         $handler = $workflow->start();
 
@@ -314,14 +187,17 @@ class Agent
             $chatHistory->addMessage($message);
         }
 
-        $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
-
         // Get the output class
         $class ??= $this->getOutputClass();
 
         $workflow = $this->buildWorkflow(
-            new StructuredOutputNode($this->provider, $instructions, $tools, $class, $maxRetries)
+            new StructuredOutputNode(
+                $this->resolveProvider(),
+                $this->resolveInstructions(),
+                $this->bootstrapTools(),
+                $class,
+                $maxRetries
+            )
         );
         $handler = $workflow->start();
 
