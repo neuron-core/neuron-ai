@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\RouterNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
+use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -292,5 +293,55 @@ class Agent
         $this->notify('stream-stop');
 
         return $finalState->getChatHistory()->getLastMessage();
+    }
+
+    /**
+     * Execute structured output extraction.
+     *
+     * @param Message|Message[] $messages
+     * @throws AgentException
+     * @throws \Throwable
+     */
+    public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed
+    {
+        $this->notify('structured-start');
+
+        $messages = \is_array($messages) ? $messages : [$messages];
+
+        // Add messages to chat history before building workflow
+        $chatHistory = $this->state->getChatHistory();
+        foreach ($messages as $message) {
+            $chatHistory->addMessage($message);
+        }
+
+        $tools = $this->bootstrapTools();
+        $instructions = $this->resolveInstructions();
+
+        // Get the output class
+        $class ??= $this->getOutputClass();
+
+        $workflow = $this->buildWorkflow(
+            new StructuredOutputNode($this->provider, $instructions, $tools, $class, $maxRetries)
+        );
+        $handler = $workflow->start();
+
+        /** @var AgentState $finalState */
+        $finalState = $handler->getResult();
+
+        $this->notify('structured-stop');
+
+        // Return the structured output object
+        return $finalState->get('structured_output');
+    }
+
+    /**
+     * Get the output class for structured output.
+     * Override this method in subclasses to provide a default output class.
+     *
+     * @throws AgentException
+     */
+    protected function getOutputClass(): string
+    {
+        throw new AgentException('You need to specify an output class.');
     }
 }
