@@ -25,6 +25,11 @@ class WorkflowState
         return \array_key_exists($key, $this->data);
     }
 
+    public function delete(string $key): void
+    {
+        unset($this->data[$key]);
+    }
+
     /**
      * Missing keys in the state are simply ignored.
      *

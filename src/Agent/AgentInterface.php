@@ -10,6 +10,8 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
 interface AgentInterface
 {
@@ -34,6 +36,14 @@ interface AgentInterface
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
     public function resolveChatHistory(): ChatHistoryInterface;
+
+    /**
+     * Register middleware for the agent's workflow.
+     *
+     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     */
+    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): AgentInterface;
 
     public function observe(\SplObserver $observer, string $event = "*"): self;
 

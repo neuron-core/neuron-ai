@@ -15,6 +15,8 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\StaticConstructor;
+use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 
@@ -44,6 +46,13 @@ class Agent implements AgentInterface
     protected AgentState $state;
 
     protected Workflow $workflow;
+
+    /**
+     * Middleware to be registered with the workflow.
+     *
+     * @var array<int, array{eventClass: class-string<Event>|WorkflowMiddleware, middleware: WorkflowMiddleware|WorkflowMiddleware[]|null}>
+     */
+    protected array $pendingMiddleware = [];
 
     public function __construct(?AgentState $state = null)
     {
@@ -81,6 +90,27 @@ class Agent implements AgentInterface
         return $this;
     }
 
+    /**
+     * Register middleware for the agent's workflow.
+     *
+     * Usage:
+     * - Global middleware: $agent->middleware($middlewareInstance)
+     * - Event-specific: $agent->middleware(EventClass::class, $middlewareInstance)
+     * - Multiple middleware: $agent->middleware(EventClass::class, [$middleware1, $middleware2])
+     *
+     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     */
+    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): AgentInterface
+    {
+        $this->pendingMiddleware[] = [
+            'eventClass' => $eventClass,
+            'middleware' => $middleware,
+        ];
+
+        return $this;
+    }
+
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
     {
         $escapedOpenTag = \preg_quote($openTag, '/');
@@ -109,6 +139,11 @@ class Agent implements AgentInterface
                 new RouterNode(),
                 $toolNode,
             ]);
+
+        // Register pending middleware with the workflow
+        foreach ($this->pendingMiddleware as $registration) {
+            $workflow->middleware($registration['eventClass'], $registration['middleware']);
+        }
 
         // Share observers with the workflow
         foreach ($this->observers as $event => $observers) {

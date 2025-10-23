@@ -14,4 +14,18 @@ interface NodeInterface
         bool $isResuming = false,
         array $feedback = []
     ): void;
+
+    /**
+     * Get node checkpoints for persistence.
+     *
+     * @return array<string, mixed>
+     */
+    public function getCheckpoints(): array;
+
+    /**
+     * Set node checkpoints when resuming.
+     *
+     * @param array<string, mixed> $checkpoints
+     */
+    public function setCheckpoints(array $checkpoints): void;
 }

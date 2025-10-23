@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Generator;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\WorkflowEnd;
@@ -14,6 +15,7 @@ use NeuronAI\Observability\Observable;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
@@ -45,6 +47,20 @@ class Workflow implements WorkflowInterface
 
     protected string $workflowId;
 
+    /**
+     * Global middleware applied to all events.
+     *
+     * @var WorkflowMiddleware[]
+     */
+    protected array $globalMiddleware = [];
+
+    /**
+     * Event-specific middleware.
+     *
+     * @var array<class-string<Event>, WorkflowMiddleware[]>
+     */
+    protected array $eventMiddleware = [];
+
     public function __construct(
         ?WorkflowState $state = null,
         ?PersistenceInterface $persistence = null,
@@ -75,6 +91,88 @@ class Workflow implements WorkflowInterface
     public function wakeup(mixed $feedback = null): WorkflowHandler
     {
         return new WorkflowHandler($this, true, $feedback);
+    }
+
+    /**
+     * Register middleware for the workflow.
+     *
+     * @param class-string<Event>|WorkflowMiddleware $eventClass Event class or global middleware
+     * @param WorkflowMiddleware|WorkflowMiddleware[]|null $middleware Middleware instance(s)
+     * @throws WorkflowException
+     */
+    public function middleware(string|WorkflowMiddleware $eventClass, WorkflowMiddleware|array|null $middleware = null): self
+    {
+        // Global middleware: middleware($middlewareInstance)
+        if ($eventClass instanceof WorkflowMiddleware) {
+            $this->globalMiddleware[] = $eventClass;
+            return $this;
+        }
+
+        // Event-specific middleware: middleware(EventClass::class, $middlewareInstance)
+        if ($middleware === null) {
+            throw new WorkflowException('Middleware instance must be provided when registering event-specific middleware');
+        }
+
+        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
+
+        if (!isset($this->eventMiddleware[$eventClass])) {
+            $this->eventMiddleware[$eventClass] = [];
+        }
+
+        foreach ($middlewareArray as $m) {
+            $this->eventMiddleware[$eventClass][] = $m;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Get all registered middleware for the given event.
+     *
+     * @param Event $event
+     * @return WorkflowMiddleware[]
+     */
+    protected function getMiddlewareForEvent(Event $event): array
+    {
+        $eventClass = $event::class;
+        $eventSpecific = $this->eventMiddleware[$eventClass] ?? [];
+
+        // Combine global and event-specific middleware
+        return \array_merge($this->globalMiddleware, $eventSpecific);
+    }
+
+    /**
+     * Run the middleware pipeline around node execution.
+     *
+     * @param Event $event
+     * @return Event|Generator
+     * @throws WorkflowInterrupt
+     */
+    protected function runMiddlewarePipeline(Event $event, NodeInterface $node, WorkflowState $state): Event|Generator
+    {
+        $middleware = $this->getMiddlewareForEvent($event);
+
+        // Filter middleware that should handle this event
+        $applicableMiddleware = \array_filter(
+            $middleware,
+            fn (WorkflowMiddleware $m): bool => $m->shouldHandle($event)
+        );
+
+        // If no middleware, just run the node
+        if ($applicableMiddleware === []) {
+            return $node->run($event, $state);
+        }
+
+        // Build the middleware pipeline from the inside out
+        $pipeline = fn (Event $e): Event|Generator => $node->run($e, $state);
+
+        // Reversely iterate to build the chain
+        foreach (\array_reverse($applicableMiddleware) as $middlewareInstance) {
+            $pipeline = (fn(Event $e): Event|Generator => $middlewareInstance->handle($e, $state, $pipeline));
+        }
+
+        // Execute the pipeline
+        return $pipeline($event);
     }
 
     /**
@@ -115,8 +213,13 @@ class Workflow implements WorkflowInterface
         $interrupt = $this->persistence->load($this->workflowId);
 
         $this->state = $interrupt->getState();
-        $currentNode = $interrupt->getCurrentNode();
         $currentEvent = $interrupt->getCurrentEvent();
+
+        // Derive node from event (deterministic from eventNodeMap)
+        $currentNode = $this->eventNodeMap[$currentEvent::class];
+
+        // Restore checkpoint state to the node
+        $currentNode->setCheckpoints($interrupt->getNodeCheckpoints());
 
         yield from $this->execute(
             $currentEvent,
@@ -150,7 +253,8 @@ class Workflow implements WorkflowInterface
 
                 $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
                 try {
-                    $result = $currentNode->run($currentEvent, $this->state);
+                    // Execute node through middleware pipeline
+                    $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->state);
 
                     if ($result instanceof \Generator) {
                         foreach ($result as $event) {
@@ -161,7 +265,11 @@ class Workflow implements WorkflowInterface
                     } else {
                         $currentEvent = $result;
                     }
+                } catch (WorkflowInterrupt $interrupt) {
+                    // Interruptions are intentional, not errors - let them bubble to outer catch
+                    throw $interrupt;
                 } catch (\Throwable $exception) {
+                    // Only notify for actual errors
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
                 }
@@ -184,9 +292,19 @@ class Workflow implements WorkflowInterface
             $this->persistence->delete($this->workflowId);
 
         } catch (WorkflowInterrupt $interrupt) {
-            $this->persistence->save($this->workflowId, $interrupt);
-            $this->notify('workflow-interrupt', $interrupt);
-            throw $interrupt;
+            // Middleware may throw interrupts without node context
+            // Ensure we have the current node's class and checkpoints
+            $finalInterrupt = new WorkflowInterrupt(
+                $interrupt->getData(),
+                $currentNode::class,
+                $currentNode->getCheckpoints(),
+                $this->state,
+                $currentEvent
+            );
+
+            $this->persistence->save($this->workflowId, $finalInterrupt);
+            $this->notify('workflow-interrupt', $finalInterrupt);
+            throw $finalInterrupt;
         }
     }
 

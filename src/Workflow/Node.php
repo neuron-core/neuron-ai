@@ -84,10 +84,36 @@ abstract class Node implements NodeInterface
         $shouldInterrupt = \is_callable($condition) ? $condition() : $condition;
 
         if ($shouldInterrupt) {
-            throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);
+            throw new WorkflowInterrupt(
+                $data,
+                static::class,
+                $this->checkpoints,
+                $this->currentState,
+                $this->currentEvent
+            );
         }
 
         // Condition didn't meet, continue execution
         return null;
+    }
+
+    /**
+     * Get node checkpoints for persistence.
+     *
+     * @return array<string, mixed>
+     */
+    public function getCheckpoints(): array
+    {
+        return $this->checkpoints;
+    }
+
+    /**
+     * Set node checkpoints when resuming.
+     *
+     * @param array<string, mixed> $checkpoints
+     */
+    public function setCheckpoints(array $checkpoints): void
+    {
+        $this->checkpoints = $checkpoints;
     }
 }

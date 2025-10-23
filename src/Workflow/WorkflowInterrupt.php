@@ -8,9 +8,17 @@ use NeuronAI\Exceptions\WorkflowException;
 
 class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
 {
+    /**
+     * @param array<string, mixed> $data Interrupt data
+     * @param class-string<NodeInterface> $nodeClass Node class name
+     * @param array<string, mixed> $nodeCheckpoints Node checkpoint state
+     * @param WorkflowState $state Workflow state
+     * @param Event $currentEvent Current event
+     */
     public function __construct(
         protected array $data,
-        protected NodeInterface $currentNode,
+        protected string $nodeClass,
+        protected array $nodeCheckpoints,
         protected WorkflowState $state,
         protected Event $currentEvent
     ) {
@@ -22,9 +30,20 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         return $this->data;
     }
 
-    public function getCurrentNode(): NodeInterface
+    /**
+     * @return class-string<NodeInterface>
+     */
+    public function getNodeClass(): string
     {
-        return $this->currentNode;
+        return $this->nodeClass;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getNodeCheckpoints(): array
+    {
+        return $this->nodeCheckpoints;
     }
 
     public function getState(): WorkflowState
@@ -42,7 +61,8 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         return [
             'message' => $this->message,
             'data' => $this->data,
-            'currentNode' => \serialize($this->currentNode),
+            'nodeClass' => $this->nodeClass,
+            'nodeCheckpoints' => $this->nodeCheckpoints,
             'state' => $this->state->all(),
             'state_class' => $this->state::class,
             'currentEvent' => \serialize($this->currentEvent),
@@ -58,7 +78,8 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     {
         $this->message = $data['message'];
         $this->data = $data['data'];
-        $this->currentNode = \unserialize($data['currentNode']);
+        $this->nodeClass = $data['nodeClass'];
+        $this->nodeCheckpoints = $data['nodeCheckpoints'];
         $this->state = new $data['state_class']($data['state']);
         $this->currentEvent = \unserialize($data['currentEvent']);
     }
