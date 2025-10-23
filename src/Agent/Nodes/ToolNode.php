@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
@@ -34,18 +35,28 @@ class ToolNode extends Node
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): StartEvent
     {
-        $toolCallMessage = $event->toolCallMessage;
+        $toolCallResult = $this->executeTools($event->toolCallMessage, $state);
+
+        $state->getChatHistory()->addMessage($event->toolCallMessage);
+        $state->getChatHistory()->addMessage($toolCallResult);
+
+        // Go back to the AI provider
+        return new StartEvent();
+    }
+
+    /**
+     * @throws \Throwable
+     * @throws ToolMaxTriesException
+     */
+    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolCallResultMessage
+    {
         $toolCallResult = new ToolCallResultMessage($toolCallMessage->getTools());
 
         foreach ($toolCallResult->getTools() as $tool) {
             $this->executeSingleTool($tool, $state);
         }
 
-        $state->getChatHistory()->addMessage($toolCallMessage);
-        $state->getChatHistory()->addMessage($toolCallResult);
-
-        // Go back to the AI provider
-        return new StartEvent();
+        return $toolCallResult;
     }
 
     /**
