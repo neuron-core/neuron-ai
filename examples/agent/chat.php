@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
@@ -21,4 +23,4 @@ $result = \NeuronAI\Agent\Agent::make()
         new UserMessage('Hi, using the tool you have, calculate the square root of 16!')
     );
 
-var_dump($result);
+\var_dump($result);

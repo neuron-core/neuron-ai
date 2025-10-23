@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use NeuronAI\Agent\ToolCallChunk;
 use NeuronAI\Agent\ToolResultChunk;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -27,9 +29,9 @@ $result = \NeuronAI\Agent\Agent::make()
 /** @var \NeuronAI\Agent\StreamChunk $response */
 foreach ($result as $response) {
     if ($response instanceof ToolCallChunk) {
-        echo PHP_EOL.PHP_EOL.\array_reduce($response->tools, function (string $carry, ToolInterface $tool): string {
-            return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . PHP_EOL;
-        }, '').PHP_EOL;
+        echo \PHP_EOL.\PHP_EOL.\array_reduce($response->tools, function (string $carry, ToolInterface $tool): string {
+            return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . \PHP_EOL;
+        }, '').\PHP_EOL;
         continue;
     } elseif ($response instanceof ToolResultChunk) {
         continue;
@@ -38,4 +40,4 @@ foreach ($result as $response) {
     echo $response->content;
 }
 
-echo PHP_EOL;
+echo \PHP_EOL;

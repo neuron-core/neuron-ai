@@ -4,13 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Exceptions\ToolMaxTriesException;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\ToolCalled;
-use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AgentCompleteEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;

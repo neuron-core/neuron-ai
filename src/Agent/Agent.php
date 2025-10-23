@@ -98,7 +98,7 @@ class Agent implements AgentInterface
     {
         $nodes = \is_array($nodes) ? $nodes : [$nodes];
 
-        // Select the appropriate ToolNode based on parallel execution setting
+        // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls()
             ? new ParallelToolNode($this->toolMaxTries)
             : new ToolNode($this->toolMaxTries);
@@ -110,7 +110,7 @@ class Agent implements AgentInterface
                 $toolNode,
             ]);
 
-        // Share observers with workflow
+        // Share observers with the workflow
         foreach ($this->observers as $event => $observers) {
             foreach ($observers as $observer) {
                 $workflow->observe($observer, $event);
