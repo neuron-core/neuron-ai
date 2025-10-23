@@ -1,7 +1,7 @@
 <?php
 
-use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Agent\ToolCallChunk;
+use NeuronAI\Agent\ToolResultChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\ToolInterface;
@@ -26,15 +26,15 @@ $result = \NeuronAI\Agent\Agent::make()
 
 /** @var \NeuronAI\Agent\StreamChunk $response */
 foreach ($result as $response) {
-    if ($response instanceof ToolCallMessage) {
-        echo PHP_EOL.\array_reduce($response->getTools(), function ($carry, ToolInterface $tool): string {
-            return $carry . 'Calling ' . $tool->getName() . PHP_EOL;
-        }, '');
+    if ($response instanceof ToolCallChunk) {
+        echo PHP_EOL.PHP_EOL.\array_reduce($response->tools, function (string $carry, ToolInterface $tool): string {
+            return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . PHP_EOL;
+        }, '').PHP_EOL;
+        continue;
+    } elseif ($response instanceof ToolResultChunk) {
         continue;
     }
-    if ($response instanceof ToolCallResultMessage) {
-        continue;
-    }
+
     echo $response->content;
 }
 

@@ -7,6 +7,8 @@ namespace NeuronAI\Agent\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\StreamChunk;
+use NeuronAI\Agent\ToolCallChunk;
+use NeuronAI\Agent\ToolResultChunk;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -54,7 +56,7 @@ class StreamingNode extends Node
         );
 
         if ($chatHistory->getLastMessage() instanceof ToolCallResultMessage) {
-            yield $chatHistory->getLastMessage();
+            yield new ToolResultChunk($chatHistory->getLastMessage()->getTools());
         }
 
         try {
@@ -77,7 +79,7 @@ class StreamingNode extends Node
                         new InferenceStop($chatHistory->getLastMessage(), $chunk)
                     );
 
-                    yield $chunk;
+                    yield new ToolCallChunk($chunk->getTools());
 
                     // Go to the router node to handle the tool call
                     return new AIResponseEvent($chunk);
@@ -93,7 +95,7 @@ class StreamingNode extends Node
 
                 // Accumulate content and yield text chunks
                 $content .= $chunk;
-                yield new StreamChunk($chunk);
+                yield new StreamChunk(content: $chunk);
             }
 
             // Build final response message
