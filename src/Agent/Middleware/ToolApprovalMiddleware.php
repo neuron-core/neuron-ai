@@ -57,11 +57,6 @@ use NeuronAI\Workflow\WorkflowState;
 class ToolApprovalMiddleware implements WorkflowMiddleware
 {
     /**
-     * Whether the middleware is resuming after an interruption.
-     */
-    protected bool $isResuming = false;
-
-    /**
      * Feedback received from the human approver.
      *
      * @var array{approved: bool, reason?: string}|null
