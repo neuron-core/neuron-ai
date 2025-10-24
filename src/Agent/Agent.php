@@ -30,8 +30,6 @@ class Agent extends Workflow implements AgentInterface
     use ResolveProvider;
     use HandleTools;
 
-    protected AIProviderInterface $provider;
-
     protected string $instructions;
 
     protected bool $parallelToolCalls = false;
