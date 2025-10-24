@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Middleware;
+namespace NeuronAI\Agent\Middleware\Tools;
 
 /**
  * Serializable tool rejection handler.

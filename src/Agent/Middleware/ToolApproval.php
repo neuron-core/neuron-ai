@@ -6,7 +6,9 @@ namespace NeuronAI\Agent\Middleware;
 
 use Generator;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Event;
@@ -41,6 +43,10 @@ class ToolApproval implements WorkflowMiddleware
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
+        if (!$event instanceof AIInferenceEvent) {
+            return;
+        }
+
         // Check if we're resuming with decisions
         if ($node->isResuming() && $node->getResumeRequest() instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
             $this->processDecisions($node->getResumeRequest(), $event);

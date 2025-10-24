@@ -6,6 +6,8 @@ namespace NeuronAI\Agent\Middleware;
 
 use Generator;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Middleware\Tools\WriteTodosTool;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
@@ -79,7 +81,7 @@ PROMPT;
 
     /**
      * @param string $systemPrompt Custom system prompt for todo planning guidance
-     * @param string $toolName Name of the write todos tool (default: 'write_todos')
+     * @param string $toolName Name of the todos tool (default: 'write_todos')
      */
     public function __construct(
         private readonly string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
@@ -88,7 +90,7 @@ PROMPT;
     }
 
     /**
-     * Inject todo planning instructions and tool before inference.
+     * Inject to-do planning instructions and tool before inference.
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
@@ -111,14 +113,13 @@ PROMPT;
      */
     public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
     {
-        // Optional: Add observability/logging here
-        // For example, log when todos are updated by checking state
+        //
     }
 
     /**
-     * Check if WriteTodosTool is already in the tools array.
+     * Check if WriteTodosTool is already in the tool array.
      *
-     * @param array $tools
+     * @param ToolInterface[] $tools
      */
     private function hasWriteTodosTool(array $tools): bool
     {

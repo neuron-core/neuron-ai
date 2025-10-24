@@ -6,8 +6,7 @@ namespace NeuronAI\Agent\Middleware;
 
 use Generator;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\StreamingNode;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -37,7 +36,7 @@ class Summarization implements WorkflowMiddleware
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
         // Only apply to ChatNode and StreamingNode
-        if (!$node instanceof ChatNode && !$node instanceof StreamingNode) {
+        if (!$event instanceof AIInferenceEvent) {
             return;
         }
 

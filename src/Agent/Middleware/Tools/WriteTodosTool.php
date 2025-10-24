@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Middleware;
+namespace NeuronAI\Agent\Middleware\Tools;
 
+use NeuronAI\Tools\ArrayProperty;
+use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -13,6 +15,8 @@ use NeuronAI\Tools\ToolProperty;
  *
  * This tool allows agents to create, update, and track tasks during
  * complex multi-step operations.
+ *
+ * @method static static make(string $name = 'write_todos')
  */
 class WriteTodosTool extends Tool
 {
@@ -27,11 +31,19 @@ class WriteTodosTool extends Tool
     protected function properties(): array
     {
         return [
-            ToolProperty::make(
+            ArrayProperty::make(
                 name: 'todos',
-                type: PropertyType::ARRAY,
                 description: 'Array of todo items. Each item must have "content" (task description) and "status" (one of: pending, in_progress, completed)',
                 required: true,
+                items: ObjectProperty::make(
+                    name: 'item',
+                    description: 'Item in the todo list',
+                    required: true,
+                    properties: [
+                        ToolProperty::make('content', PropertyType::STRING, 'Task description'),
+                        ToolProperty::make('status', PropertyType::STRING, 'Current status of the task', true, ['pending', 'in_progress', 'completed']),
+                    ]
+                )
             ),
         ];
     }
