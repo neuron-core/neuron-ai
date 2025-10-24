@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG;
 
-use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\Message;
