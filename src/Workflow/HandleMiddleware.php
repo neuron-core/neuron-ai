@@ -42,26 +42,30 @@ trait HandleMiddleware
     }
 
     /**
-     * Register middleware for a specific node class.
+     * Register middleware for a specific node class or multiple node classes.
      *
-     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
+     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $nodeClass Node class name or array of node class names
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self
+    public function middleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
     {
+        $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
-        if (!isset($this->nodeMiddleware[$nodeClass])) {
-            $this->nodeMiddleware[$nodeClass] = [];
+        foreach ($nodeClasses as $class) {
+            if (!isset($this->nodeMiddleware[$class])) {
+                $this->nodeMiddleware[$class] = [];
+            }
+
+            foreach ($middlewareArray as $m) {
+                if (! $m instanceof WorkflowMiddleware) {
+                    throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
+                }
+                $this->nodeMiddleware[$class][] = $m;
+            }
         }
 
-        foreach ($middlewareArray as $m) {
-            if (! $m instanceof WorkflowMiddleware) {
-                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
-            }
-            $this->nodeMiddleware[$nodeClass][] = $m;
-        }
         return $this;
     }
 
