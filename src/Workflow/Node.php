@@ -37,23 +37,6 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Check if the node is resuming after an interrupt.
-     */
-    public function isResuming(): bool
-    {
-        return $this->isResuming;
-    }
-
-    /**
-     * Get the interrupt request when resuming.
-     * Returns null if not resuming or no request provided.
-     */
-    public function getResumeRequest(): ?Interrupt\InterruptRequest
-    {
-        return $this->resumeRequest;
-    }
-
-    /**
      * Consume the interrupt request (used internally by nodes).
      * Returns null if not resuming or no request provided.
      */
@@ -136,5 +119,29 @@ abstract class Node implements NodeInterface
     public function setCheckpoints(array $checkpoints): void
     {
         $this->checkpoints = $checkpoints;
+    }
+
+    /**
+     * Check if the node is in resuming mode.
+     *
+     * This is useful for middleware to determine if the workflow is resuming
+     * from an interruption.
+     */
+    public function isResuming(): bool
+    {
+        return $this->isResuming;
+    }
+
+    /**
+     * Get the resume request if the node is resuming.
+     *
+     * This allows middleware to access user decisions when resuming from
+     * an interruption.
+     *
+     * @return Interrupt\InterruptRequest|null The resume request or null if not resuming
+     */
+    public function getResumeRequest(): ?Interrupt\InterruptRequest
+    {
+        return $this->resumeRequest;
     }
 }

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\ToolApprovalMiddleware;
+use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic;
+use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -18,55 +19,70 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 // Create some example tools that we want to gate with approval
 class FileDeleteTool extends Tool
 {
-    public function __construct(
-        public string $filePath = ''
-    ) {
+    public function __construct()
+    {
         parent::__construct(
             'delete_file',
             'Delete a file from the filesystem'
         );
     }
 
-    public function __invoke(): string
+    protected function properties(): array
     {
-        $this->result = "File '{$this->filePath}' has been deleted.";
-        return "  [TOOL EXECUTED] Deleted file: {$this->filePath}";
+        return [
+            \NeuronAI\Tools\ToolProperty::make('path', PropertyType::STRING, 'The path to the file to delete', true),
+        ];
+    }
+
+    public function __invoke(string $path): string
+    {
+        return "File '{$path}' has been deleted.";
     }
 }
 
 class FileReadTool extends Tool
 {
-    public function __construct(
-        public string $filePath = ''
-    ) {
+    public function __construct()
+    {
         parent::__construct(
             'file_read',
             'Read the contents of a file'
         );
     }
 
-    public function __invoke(): string
+    protected function properties(): array
     {
-        $this->result = "Contents of '{$this->filePath}': Sample file content...";
-        return "  [TOOL EXECUTED] Read file: {$this->filePath}";
+        return [
+            \NeuronAI\Tools\ToolProperty::make('path', PropertyType::STRING, 'The path to the file to read', true),
+        ];
+    }
+
+    public function __invoke(string $path): string
+    {
+        return "Contents of '{$path}': Sample file content...";
     }
 }
 
 class CommandExecuteTool extends Tool
 {
-    public function __construct(
-        public string $command = ''
-    ) {
+    public function __construct()
+    {
         parent::__construct(
             'execute_command',
             'Execute a system command'
         );
     }
 
-    public function __invoke(): string
+    protected function properties(): array
     {
-        $this->result = "Command '{$this->command}' executed successfully.";
-        return "  [TOOL EXECUTED] Executed command: {$this->command}";
+        return [
+            \NeuronAI\Tools\ToolProperty::make('command', PropertyType::STRING, 'The command to execute', true),
+        ];
+    }
+
+    public function __invoke(string $command): string
+    {
+        return "Command '{$command}' executed successfully.";
     }
 }
 
@@ -75,13 +91,17 @@ $provider = new Anthropic\Anthropic(
     'claude-3-7-sonnet-latest'
 );
 $persistence = new FilePersistence(__DIR__);
-$workflowId = 'agent_with_tool_approval_' . \uniqid();
 
 echo "=== Agent Middleware: Tool Approval Example ===\n\n";
 
 // Create agent with ToolApprovalMiddleware
 // Only 'delete_file' and 'execute_command' require approval
-$agent = Agent::make()
+$id = 'workflow_1';
+$agent = Agent::make(
+        state: new AgentState(),
+        persistence: $persistence,
+        workflowId: $id
+    )
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -90,7 +110,7 @@ $agent = Agent::make()
         new CommandExecuteTool(),
     ])
     ->middleware(
-        ToolCallEvent::class,
+        ToolNode::class,
         new ToolApprovalMiddleware(['delete_file', 'execute_command'])
     );
 
@@ -104,8 +124,10 @@ try {
 
     $response = $agent->chat($message);
     echo "Agent: {$response->getContent()}\n\n";
+    $persistence->delete($id);
 } catch (\Exception $e) {
     echo "Error: {$e->getMessage()}\n\n";
+    $persistence->delete($id);
 }
 
 // Scenario 2: Dangerous operation (requires approval)
@@ -113,7 +135,12 @@ echo "\nScenario 2: Dangerous operation (delete_file) - Requires approval\n";
 echo "-------------------------------------------------------------------\n";
 
 // Reset state for new conversation
-$agent = Agent::make()
+$id = 'workflow_2';
+$agent = Agent::make(
+        state: new AgentState(),
+        persistence: $persistence,
+        workflowId: $id
+    )
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -122,16 +149,17 @@ $agent = Agent::make()
         new CommandExecuteTool(),
     ])
     ->middleware(
-        ToolCallEvent::class,
+        ToolNode::class,
         new ToolApprovalMiddleware(['delete_file', 'execute_command'])
     );
 
 try {
-    $message = new UserMessage('Delete the old_logs.txt file');
+    $message = new UserMessage('Delete the C:/old_logs.txt file');
     echo "User: {$message->getContent()}\n\n";
 
     $response = $agent->chat($message);
     echo "Agent: {$response->getContent()}\n\n";
+    $persistence->delete($id);
 
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
@@ -157,10 +185,18 @@ try {
     // Continue with the same agent state (it will resume automatically)
     echo "Resuming workflow...\n\n";
 
-    // The agent needs to be rebuilt with the updated state for resumption
-    // In a real application, you'd use persistence to save/load workflow state
-    $response = $agent->chat(interrupt: $request);
-    echo "Agent: {$response->getContent()}\n";
+    // Debug: Check chat history before resume
+    try {
+        $response = $agent->chat(interrupt: $request);
+        echo "Agent: {$response->getContent()}\n";
+        $persistence->delete($id);
+    } catch (\Exception $e) {
+        echo "\n❌ ERROR during resume:\n";
+        echo $e->getMessage() . "\n\n";
+        echo "Full error:\n";
+        echo $e->__toString() . "\n";
+        $persistence->delete($id);
+    }
 }
 
 // Helper function to simulate user input

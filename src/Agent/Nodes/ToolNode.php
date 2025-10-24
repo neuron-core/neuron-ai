@@ -37,7 +37,8 @@ class ToolNode extends Node
     {
         $toolCallResult = $this->executeTools($event->toolCallMessage, $state);
 
-        $state->getChatHistory()->addMessage($event->toolCallMessage);
+        // Note: ToolCallMessage is already in chat history from ChatNode
+        // Only add the tool result message
         $state->getChatHistory()->addMessage($toolCallResult);
 
         // Go back to the AI provider

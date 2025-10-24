@@ -38,7 +38,6 @@ class Action implements \JsonSerializable
      * @param string $description Detailed description of what this action does
      * @param ActionDecision $decision Current decision state
      * @param string|null $feedback Optional feedback from the approver
-     * @param array<string, mixed> $metadata Additional metadata about the action
      */
     public function __construct(
         public readonly string $id,
@@ -74,6 +73,19 @@ class Action implements \JsonSerializable
     }
 
     /**
+     * Mark this action as edited.
+     *
+     * @param string|null $feedback Optional explanation of the edit
+     */
+    public function edit(?string $feedback = null): void
+    {
+        $this->decision = ActionDecision::Edit;
+        if ($feedback !== null) {
+            $this->feedback = $feedback;
+        }
+    }
+
+    /**
      * Check if this action is pending.
      */
     public function isPending(): bool
@@ -95,6 +107,14 @@ class Action implements \JsonSerializable
     public function isRejected(): bool
     {
         return $this->decision->isRejected();
+    }
+
+    /**
+     * Check if this action is edited.
+     */
+    public function isEdited(): bool
+    {
+        return $this->decision === ActionDecision::Edit;
     }
 
     /**
