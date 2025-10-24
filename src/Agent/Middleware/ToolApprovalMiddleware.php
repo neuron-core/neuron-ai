@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use Generator;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Interrupt\Action;
@@ -37,6 +39,9 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
      * On initial run: Inspects tools and creates interrupt request for approval.
      * On resume: Processes human decisions and modifies tools accordingly.
      *
+     * @param ToolNode $node
+     * @param ToolCallEvent $event
+     * @param AgentState $state
      * @throws WorkflowInterrupt
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
@@ -58,7 +63,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
         // Create the interrupt request with actions for each tool
         $actions = [];
         foreach ($toolsToApprove as $tool) {
-            $actions[] = $this->createActionForTool($tool);
+            $actions[] = $this->createAction($tool);
         }
 
         $interruptRequest = new InterruptRequest(
@@ -115,7 +120,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
     /**
      * Create an Action for a tool that requires approval.
      */
-    protected function createActionForTool(ToolInterface $tool): Action
+    protected function createAction(ToolInterface $tool): Action
     {
         $inputs = $tool->getInputs();
         $inputsDescription = empty($inputs)
@@ -167,10 +172,9 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             // Process based on decision
             if ($action->isRejected()) {
                 $this->handleRejectedTool($tool, $action);
-            } elseif ($action->isEdited()) {
-                $this->handleEditedTool($tool, $action);
             }
-            // If approved, do nothing - tool executes normally
+
+            // If approved, do nothing - the tool will be executed normally
         }
     }
 
@@ -192,27 +196,5 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
         $tool->setCallable(function (...$args) use ($rejectionMessage): string {
             return $rejectionMessage;
         });
-    }
-
-    /**
-     * Handle an edited tool by updating its inputs.
-     *
-     * Note: The Action's feedback should contain instructions on what was edited,
-     * but the actual input modification must be done by the application when
-     * creating the resume request. This method serves as a placeholder for
-     * future enhancements where edited inputs could be stored in the Action.
-     *
-     * For now, applications should modify tool inputs before setting the decision.
-     */
-    protected function handleEditedTool(ToolInterface $tool, Action $action): void
-    {
-        // Currently, edited inputs should be handled by the application
-        // before resuming. This method exists for future extensibility
-        // where we might store edited inputs in the Action's metadata.
-
-        // In a future version, we could:
-        // if (isset($action->metadata['edited_inputs'])) {
-        //     $tool->setInputs($action->metadata['edited_inputs']);
-        // }
     }
 }
