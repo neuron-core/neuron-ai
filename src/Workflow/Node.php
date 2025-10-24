@@ -82,7 +82,7 @@ abstract class Node implements NodeInterface
      */
     protected function interruptIf(callable|bool $condition, InterruptRequest $request): mixed
     {
-        if ($feedback = $this->consumeResumeRequest()) {
+        if (($feedback = $this->consumeResumeRequest()) instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
             return $feedback;
         }
 

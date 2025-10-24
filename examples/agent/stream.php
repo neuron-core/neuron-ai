@@ -30,11 +30,12 @@ $agent = \NeuronAI\Agent\Agent::make()
         new ToolApprovalMiddleware(),
     );
 
-function process_response($response): void {
+function process_response($response): void
+{
     if ($response instanceof ToolCallChunk) {
         echo \PHP_EOL.\PHP_EOL.\array_reduce($response->tools, function (string $carry, ToolInterface $tool): string {
-                return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . \PHP_EOL;
-            }, '').\PHP_EOL;
+            return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . \PHP_EOL;
+        }, '').\PHP_EOL;
         return;
     } elseif ($response instanceof ToolResultChunk) {
         return;

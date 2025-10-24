@@ -37,6 +37,7 @@ use NeuronAI\Workflow\Workflow;
  */
 class Agent implements AgentInterface
 {
+    public $nodeMiddleware;
     use StaticConstructor;
     use Observable;
     use ResolveState;
@@ -59,7 +60,7 @@ class Agent implements AgentInterface
     public function __construct(
         protected PersistenceInterface $persistence = new InMemoryPersistence(),
         protected ?string $workflowId = null
-    ){
+    ) {
         $this->workflowId ??= \uniqid('neuron_agent_');
     }
 

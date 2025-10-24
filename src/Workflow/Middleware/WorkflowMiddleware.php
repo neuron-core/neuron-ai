@@ -20,7 +20,6 @@ interface WorkflowMiddleware
      * @param NodeInterface $node The node about to execute
      * @param Event $event The event being processed
      * @param WorkflowState $state The current workflow state
-     * @return void
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void;
 

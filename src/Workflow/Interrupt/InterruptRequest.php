@@ -65,7 +65,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getPendingActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a) => $a->isPending());
+        return \array_filter($this->actions, fn (Action $a): bool => $a->isPending());
     }
 
     /**
@@ -75,7 +75,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getApprovedActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a) => $a->isApproved());
+        return \array_filter($this->actions, fn (Action $a): bool => $a->isApproved());
     }
 
     /**
@@ -85,7 +85,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getRejectedActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a) => $a->isRejected());
+        return \array_filter($this->actions, fn (Action $a): bool => $a->isRejected());
     }
 
     /**
@@ -97,7 +97,7 @@ class InterruptRequest implements \JsonSerializable
     {
         return [
             'reason' => $this->reason,
-            'actions' => \array_map(fn (Action $a) => $a->jsonSerialize(), $this->actions),
+            'actions' => \array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
         ];
     }
 
@@ -109,7 +109,7 @@ class InterruptRequest implements \JsonSerializable
     public static function fromArray(array $data): self
     {
         $actions = \array_map(
-            fn (array $actionData) => Action::fromArray($actionData),
+            fn (array $actionData): \NeuronAI\Workflow\Interrupt\Action => Action::fromArray($actionData),
             $data['actions']
         );
 

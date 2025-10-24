@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Middleware\ToolApprovalMiddleware;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic;
 use NeuronAI\Tools\PropertyType;
@@ -76,9 +74,9 @@ $persistence = new FilePersistence(__DIR__);
 // Reset state for new conversation
 $id = 'workflow_1';
 $agent = Agent::make(
-        persistence: $persistence,
-        workflowId: $id
-    )
+    persistence: $persistence,
+    workflowId: $id
+)
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -104,7 +102,7 @@ try {
         $response = $agent->chat(interrupt: $interruptRequest);
     }
 
-    echo "Agent: ".json_encode($response->getContent())."\n\n";
+    echo "Agent: ".\json_encode($response->getContent())."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 

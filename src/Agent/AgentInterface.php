@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
-use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
@@ -51,22 +49,16 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @param InterruptRequest|null $interrupt
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message;
 
     /**
      * @param Message|Message[] $messages
-     * @param InterruptRequest|null $interrupt
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator;
 
     /**
      * @param Message|Message[] $messages
-     * @param string|null $class
-     * @param int $maxRetries
-     * @param InterruptRequest|null $interrupt
-     * @return mixed
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed;
 }

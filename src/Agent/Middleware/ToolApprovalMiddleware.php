@@ -42,7 +42,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
         // Check if we're resuming with decisions
-        if ($node->isResuming() && $node->getResumeRequest() !== null) {
+        if ($node->isResuming() && $node->getResumeRequest() instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
             $this->processDecisions($node->getResumeRequest(), $event);
             return;
         }
@@ -50,7 +50,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
         // Initial run: Check if any tools require approval
         $toolsToApprove = $this->filterToolsRequiringApproval($event->toolCallMessage->getTools());
 
-        if (empty($toolsToApprove)) {
+        if ($toolsToApprove === []) {
             // No tools require approval, continue execution
             return;
         }
@@ -93,14 +93,14 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
      */
     protected function filterToolsRequiringApproval(array $tools): array
     {
-        if (empty($this->toolsRequiringApproval)) {
+        if ($this->toolsRequiringApproval === []) {
             // Empty array means all tools require approval
             return $tools;
         }
 
         return \array_filter(
             $tools,
-            fn (ToolInterface $tool) => \in_array($tool->getName(), $this->toolsRequiringApproval, true)
+            fn (ToolInterface $tool): bool => \in_array($tool->getName(), $this->toolsRequiringApproval, true)
         );
     }
 
@@ -110,9 +110,9 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
     protected function createAction(ToolInterface $tool): Action
     {
         $inputs = $tool->getInputs();
-        $inputsDescription = empty($inputs)
+        $inputsDescription = $inputs === []
             ? '(no arguments)'
-            : \json_encode($inputs, JSON_PRETTY_PRINT);
+            : \json_encode($inputs, \JSON_PRETTY_PRINT);
 
         return new Action(
             id: $tool->getCallId() ?? \uniqid('tool_'),
@@ -140,15 +140,18 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
         ToolCallEvent $event,
     ): void {
         /** @var array<string, Action> $actions */
-        $actions = \array_reduce($request->actions, function (array $carry, Action $action) {
+        $actions = \array_reduce($request->actions, function (array $carry, Action $action): array {
             $carry[$action->id] = $action;
             return $carry;
         }, []);
 
         foreach ($event->toolCallMessage->getTools() as $tool) {
             $toolCallId = $tool->getCallId();
-
-            if ($toolCallId === null || !isset($actions[$toolCallId])) {
+            if ($toolCallId === null) {
+                // Tool doesn't require approval, skip
+                continue;
+            }
+            if (!isset($actions[$toolCallId])) {
                 // Tool doesn't require approval, skip
                 continue;
             }

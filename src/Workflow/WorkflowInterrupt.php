@@ -75,4 +75,3 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         $this->currentEvent = \unserialize($data['currentEvent']);
     }
 }
-

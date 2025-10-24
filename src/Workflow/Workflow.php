@@ -86,7 +86,6 @@ class Workflow implements WorkflowInterface
      *
      * @param PersistenceInterface $persistence Persistence backend
      * @param string $workflowId Unique workflow identifier
-     * @return self
      */
     public function setPersistence(PersistenceInterface $persistence, string $workflowId): self
     {
@@ -102,11 +101,10 @@ class Workflow implements WorkflowInterface
      * - InterruptRequest parameter: Resume from interruption with user decisions
      *
      * @param InterruptRequest|null $resumeRequest If provided, resumes workflow with these decisions
-     * @return WorkflowHandler
      */
     public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
     {
-        $isResume = $resumeRequest !== null;
+        $isResume = $resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest;
         return new WorkflowHandler($this, $isResume, $resumeRequest);
     }
 
@@ -114,7 +112,6 @@ class Workflow implements WorkflowInterface
      * Register global middleware that runs on all nodes.
      *
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
-     * @return self
      * @throws WorkflowException
      */
     public function globalMiddleware(WorkflowMiddleware|array $middleware): self
@@ -158,7 +155,6 @@ class Workflow implements WorkflowInterface
     /**
      * Get all registered middleware for the given node.
      *
-     * @param NodeInterface $node
      * @return WorkflowMiddleware[]
      */
     protected function getMiddlewareForNode(NodeInterface $node): array
