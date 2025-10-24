@@ -18,34 +18,6 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
-/**
- * Summarization Middleware
- *
- * Automatically summarizes conversation history when token count exceeds a threshold.
- * Preserves recent messages while condensing older messages using an AI model.
- *
- * Inspired by langchain's summarization middleware, this implementation:
- * - Monitors token usage in chat history
- * - Triggers summarization when threshold is exceeded
- * - Finds safe cutoff points that don't break tool call sequences
- * - Uses an AI provider to generate high-quality summaries
- * - Replaces old messages with a single summary message
- *
- * Example usage:
- * ```php
- * $agent = Agent::make()
- *     ->setAiProvider($provider)
- *     ->middleware(
- *         [ChatNode::class, StreamingNode::class],
- *         new Summarization(
- *             provider: $summarizationProvider,
- *             maxTokensBeforeSummary: 10000,
- *             messagesToKeep: 20
- *         )
- *     )
- *     ->chat($message);
- * ```
- */
 class Summarization implements WorkflowMiddleware
 {
     /**
@@ -53,14 +25,12 @@ class Summarization implements WorkflowMiddleware
      * @param int $maxTokensBeforeSummary Token threshold that triggers summarization (0 = disabled)
      * @param int $messagesToKeep Number of recent messages to preserve after summarization
      * @param string|null $summaryPrompt Custom prompt for summarization (null = use default)
-     * @param callable|null $tokenCounter Custom token counting function (null = use default)
      */
     public function __construct(
         protected AIProviderInterface $provider,
         protected int $maxTokensBeforeSummary = 10000,
-        protected int $messagesToKeep = 20,
+        protected int $messagesToKeep = 10,
         protected ?string $summaryPrompt = null,
-        protected $tokenCounter = null
     ) {
     }
 
@@ -98,7 +68,7 @@ class Summarization implements WorkflowMiddleware
         // Count total tokens
         $totalTokens = $this->countTokens($messages);
 
-        // Threshold not exceeded
+        // Threshold isn't exceeded
         if ($totalTokens <= $this->maxTokensBeforeSummary) {
             return;
         }
@@ -124,8 +94,10 @@ class Summarization implements WorkflowMiddleware
      */
     protected function summarizeHistory(AgentState $state, array $messages): void
     {
-        // Find safe cutoff point
+        // Find a safe cutoff point
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
+
+        echo "\n\nCutoff Index: " . $cutoffIndex . "\n\n";
 
         // If no safe cutoff found or not enough messages to summarize, skip
         if ($cutoffIndex === null || $cutoffIndex <= 0) {
@@ -183,18 +155,18 @@ class Summarization implements WorkflowMiddleware
      * Check if a given index is a safe cutoff point.
      *
      * A cutoff is safe if:
-     * 1. The message at index is not a ToolCallMessage (would leave tool call without result)
+     * 1. The message at "index" is not a ToolCallMessage (would leave tool call without result)
      * 2. The previous message is not a ToolCallMessage (would separate tool call from result)
      *
      * @param Message[] $messages
      */
     protected function isSafeCutoffPoint(array $messages, int $index): bool
     {
-        // Check if message at cutoff index is a ToolCallMessage
+        // Check if a message at cutoff index is a ToolCallMessage
         if (isset($messages[$index]) && $messages[$index] instanceof ToolCallMessage) {
             return false;
         }
-        // Check if previous message is a ToolCallMessage (would be separated from its result)
+        // Check if a previous message is a ToolCallMessage (would be separated from its result)
         return !($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage);
     }
 
@@ -312,7 +284,7 @@ PROMPT;
             $usage = $message->getUsage();
             if ($usage !== null) {
                 // Use actual token count from usage data
-                $totalTokens += $usage->totalTokens;
+                $totalTokens += $usage->getTotal();
             } else {
                 // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 $content = $message->getContent();

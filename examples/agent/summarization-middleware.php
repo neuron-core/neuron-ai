@@ -22,28 +22,27 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 // Initialize providers
 $mainProvider = new Anthropic(
-    \getenv('ANTHROPIC_API_KEY'),
+    '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',
     'claude-3-5-sonnet-20241022',
 );
 
 // Use a faster/cheaper model for summarization
 $summarizationProvider = new Anthropic(
-    \getenv('ANTHROPIC_API_KEY'),
+    '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',
     'claude-3-5-haiku-20241022',
 );
 
-// Create agent with summarization middleware
+// Create the agent with summarization middleware
 $agent = Agent::make()
     ->setAiProvider($mainProvider)
-    ->setInstructions('You are a helpful assistant with access to conversation history.')
     ->setChatHistory(new InMemoryChatHistory())
     // Apply summarization middleware to generative nodes
     ->middleware(
         [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
         new Summarization(
             provider: $summarizationProvider,
-            maxTokensBeforeSummary: 5000,  // Trigger summarization after 5000 tokens
-            messagesToKeep: 10,             // Keep last 10 messages
+            maxTokensBeforeSummary: 1000,
+            messagesToKeep: 3,
         )
     );
 
@@ -101,67 +100,3 @@ foreach ($messages as $index => $userMessage) {
 
 echo "\n" . \str_repeat("=", 50) . "\n";
 echo "Demo completed!\n";
-
-/**
- * Advanced Usage Examples
- */
-
-// Example 1: Custom summarization prompt
-$customSummarizationMiddleware = new Summarization(
-    provider: $summarizationProvider,
-    maxTokensBeforeSummary: 10000,
-    messagesToKeep: 20,
-    summaryPrompt: <<<'PROMPT'
-Analyze the conversation and provide:
-1. Main topics discussed
-2. Key technical details mentioned
-3. Any code examples or specific implementations
-4. Outstanding questions or unresolved issues
-
-Format the summary in a structured way.
-PROMPT
-);
-
-// Example 2: Custom token counter
-$customTokenCounterMiddleware = new Summarization(
-    provider: $summarizationProvider,
-    maxTokensBeforeSummary: 10000,
-    messagesToKeep: 20,
-    tokenCounter: function (array $messages): int {
-        // Custom token counting logic
-        // For example, using tiktoken or another tokenizer
-        $totalTokens = 0;
-        foreach ($messages as $message) {
-            // Your custom counting logic here
-            $content = $message->getContent();
-            $contentStr = \is_array($content) ? \json_encode($content) : (string) $content;
-            $totalTokens += \str_word_count($contentStr) * 1.3; // Rough approximation
-        }
-        return (int) $totalTokens;
-    }
-);
-
-// Example 3: Fluent API for configuration
-$fluentMiddleware = (new Summarization(provider: $summarizationProvider))
-    ->setMaxTokensBeforeSummary(8000)
-    ->setMessagesToKeep(15)
-    ->setSummaryPrompt('Create a brief summary focusing on technical details.')
-    ->setTokenCounter(fn ($messages) => \array_sum(
-        \array_map(fn ($msg) => \strlen((string) $msg->getContent()), $messages)
-    ) / 4);
-
-// Example 4: Disable summarization dynamically
-$disabledSummarization = new Summarization(
-    provider: $summarizationProvider,
-    maxTokensBeforeSummary: 0,  // 0 or negative disables summarization
-);
-
-// Example 5: Aggressive summarization (keep fewer messages)
-$aggressiveSummarization = new Summarization(
-    provider: $summarizationProvider,
-    maxTokensBeforeSummary: 3000,  // Lower threshold
-    messagesToKeep: 5,              // Keep fewer messages
-);
-
-echo "\nAdvanced configuration examples shown in code comments.\n";
-echo "Check the source code for more details!\n";
