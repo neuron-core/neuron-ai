@@ -19,6 +19,10 @@ use NeuronAI\Workflow\WorkflowState;
 
 class Summarization implements WorkflowMiddleware
 {
+    /**
+     * @var callable
+     */
+    public $tokenCounter;
     public function __construct(
         protected AIProviderInterface $provider,
         protected int $maxTokensBeforeSummary = 10000,

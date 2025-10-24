@@ -52,7 +52,7 @@ INSTRUCTIONS;
     {
         return new AgentState([
             'analyst_name' => 'DataBot',
-            'session_id' => uniqid('session_'),
+            'session_id' => \uniqid('session_'),
         ]);
     }
 }

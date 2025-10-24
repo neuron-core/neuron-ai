@@ -6,13 +6,10 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
-use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 interface AgentInterface

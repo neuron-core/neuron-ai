@@ -6,7 +6,6 @@ namespace NeuronAI\Agent\Middleware;
 
 use Generator;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
 use NeuronAI\Agent\Nodes\ToolNode;
