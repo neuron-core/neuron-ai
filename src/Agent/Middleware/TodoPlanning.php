@@ -27,7 +27,7 @@ use NeuronAI\Workflow\WorkflowState;
  *     ->chat(UserMessage::make('Build a complex feature'));
  * ```
  */
-class TodoPlanningMiddleware implements WorkflowMiddleware
+class TodoPlanning implements WorkflowMiddleware
 {
     private const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
 # Todo Planning Capabilities
