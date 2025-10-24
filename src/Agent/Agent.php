@@ -228,7 +228,7 @@ class Agent implements AgentInterface
         $workflow = $this->buildWorkflow([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
-                $this->bootstrapTools()
+                $this->bootstrapTools(),
             ),
             new StreamingNode($this->resolveProvider()),
         ]);
@@ -274,10 +274,8 @@ class Agent implements AgentInterface
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
-                $class,
-                $maxRetries
             ),
-            new StructuredOutputNode($this->resolveProvider()),
+            new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
         ]);
         $handler = $workflow->start($interrupt);
 

@@ -21,14 +21,10 @@ class PrepareInferenceNode extends Node
     /**
      * @param string $instructions System instructions for the agent
      * @param array $tools Available tools for the agent
-     * @param string|null $outputClass Class name for structured output (optional)
-     * @param int|null $maxRetries Maximum retry attempts for structured output (optional)
      */
     public function __construct(
         private readonly string $instructions,
         private readonly array $tools,
-        private readonly ?string $outputClass = null,
-        private readonly ?int $maxRetries = null,
     ) {
     }
 
@@ -40,8 +36,6 @@ class PrepareInferenceNode extends Node
         return new AIInferenceEvent(
             instructions: $this->instructions,
             tools: $this->tools,
-            outputClass: $this->outputClass,
-            maxRetries: $this->maxRetries,
         );
     }
 }

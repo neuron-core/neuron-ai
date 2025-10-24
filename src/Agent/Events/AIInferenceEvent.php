@@ -17,13 +17,11 @@ class AIInferenceEvent implements Event
     /**
      * @param string $instructions System instructions for the agent
      * @param array $tools Available tools for the agent
-     * @param string|null $outputClass Class name for structured output (StructuredOutputNode only)
      * @param int|null $maxRetries Maximum retry attempts for structured output (StructuredOutputNode only)
      */
     public function __construct(
         public string $instructions,
         public array $tools,
-        public ?string $outputClass = null,
         public ?int $maxRetries = null,
     ) {
     }

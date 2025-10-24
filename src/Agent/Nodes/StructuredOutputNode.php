@@ -45,6 +45,8 @@ class StructuredOutputNode extends Node
 
     public function __construct(
         protected AIProviderInterface $provider,
+        protected readonly string $outputClass,
+        protected int $maxTries = 1,
     ) {
     }
 
@@ -53,18 +55,17 @@ class StructuredOutputNode extends Node
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): AIResponseEvent
     {
-        if ($event->outputClass === null) {
+        if ($this->outputClass === null) {
             throw new AgentException('Output class must be specified in AIInferenceEvent for StructuredOutputNode');
         }
 
         $chatHistory = $state->getChatHistory();
-        $maxRetries = $event->maxRetries ?? 1;
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
-            $this->notify('schema-generation', new SchemaGeneration($event->outputClass));
-            $schema = JsonSchema::make()->generate($event->outputClass);
-            $this->notify('schema-generated', new SchemaGenerated($event->outputClass, $schema));
+            $this->notify('schema-generation', new SchemaGeneration($this->outputClass));
+            $schema = JsonSchema::make()->generate($this->outputClass);
+            $this->notify('schema-generated', new SchemaGenerated($this->outputClass, $schema));
             $state->set('structured_schema', $schema);
         }
 
@@ -95,7 +96,7 @@ class StructuredOutputNode extends Node
                 $response = $this->provider
                     ->systemPrompt($event->instructions)
                     ->setTools($event->tools)
-                    ->structured($messages, $event->outputClass, $schema);
+                    ->structured($messages, $this->outputClass, $schema);
 
                 $this->notify(
                     'inference-stop',
@@ -110,7 +111,7 @@ class StructuredOutputNode extends Node
                 }
 
                 // Process the response: extract, deserialize, and validate
-                $output = $this->processResponse($response, $schema, $event->outputClass);
+                $output = $this->processResponse($response, $schema, $this->outputClass);
 
                 // Store the structured output in state
                 $state->set('structured_output', $output);
@@ -130,8 +131,8 @@ class StructuredOutputNode extends Node
                 $this->notify('error', new AgentError($ex, false));
             }
 
-            $maxRetries--;
-        } while ($maxRetries >= 0);
+            $this->maxTries--;
+        } while ($this->maxTries >= 0);
 
         throw $exception;
     }
