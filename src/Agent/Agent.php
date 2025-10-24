@@ -23,6 +23,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use Throwable;
 
 class Agent extends Workflow implements AgentInterface
 {
@@ -149,9 +150,7 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Execute the chat.
      *
-     * @param Message|Message[] $messages Messages to send (optional when resuming)
-     * @param InterruptRequest|null $interrupt If provided, resumes from interruption
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
@@ -186,9 +185,7 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Execute the chat with streaming.
      *
-     * @param Message|Message[] $messages Messages to send (optional when resuming)
-     * @param InterruptRequest|null $interrupt If provided, resumes from interruption
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
@@ -228,12 +225,8 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Execute structured output extraction.
      *
-     * @param Message|Message[] $messages Messages to send (optional when resuming)
-     * @param string|null $class Output class name
-     * @param int $maxRetries Maximum number of retries for validation errors
-     * @param InterruptRequest|null $interrupt If provided, resumes from interruption
      * @throws AgentException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
