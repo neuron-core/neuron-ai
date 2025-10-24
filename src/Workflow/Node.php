@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 abstract class Node implements NodeInterface
 {
@@ -28,7 +29,7 @@ abstract class Node implements NodeInterface
         WorkflowState $currentState,
         Event $currentEvent,
         bool $isResuming = false,
-        ?Interrupt\InterruptRequest $resumeRequest = null
+        ?InterruptRequest $resumeRequest = null
     ): void {
         $this->currentState = $currentState;
         $this->currentEvent = $currentEvent;
@@ -40,7 +41,7 @@ abstract class Node implements NodeInterface
      * Consume the interrupt request (used internally by nodes).
      * Returns null if not resuming or no request provided.
      */
-    protected function consumeResumeRequest(): ?Interrupt\InterruptRequest
+    protected function consumeResumeRequest(): ?InterruptRequest
     {
         if ($this->isResuming && $this->resumeRequest !== null) {
             $request = $this->resumeRequest;
@@ -70,7 +71,7 @@ abstract class Node implements NodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interrupt(Interrupt\InterruptRequest $request): mixed
+    protected function interrupt(InterruptRequest $request): mixed
     {
         return $this->interruptIf(true, $request);
     }
@@ -79,7 +80,7 @@ abstract class Node implements NodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interruptIf(callable|bool $condition, Interrupt\InterruptRequest $request): mixed
+    protected function interruptIf(callable|bool $condition, InterruptRequest $request): mixed
     {
         if ($feedback = $this->consumeResumeRequest()) {
             return $feedback;
@@ -138,9 +139,9 @@ abstract class Node implements NodeInterface
      * This allows middleware to access user decisions when resuming from
      * an interruption.
      *
-     * @return Interrupt\InterruptRequest|null The resume request or null if not resuming
+     * @return InterruptRequest|null The resume request or null if not resuming
      */
-    public function getResumeRequest(): ?Interrupt\InterruptRequest
+    public function getResumeRequest(): ?InterruptRequest
     {
         return $this->resumeRequest;
     }
