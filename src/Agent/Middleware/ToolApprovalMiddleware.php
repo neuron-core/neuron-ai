@@ -21,11 +21,6 @@ use NeuronAI\Workflow\WorkflowState;
 class ToolApprovalMiddleware implements WorkflowMiddleware
 {
     /**
-     * State key for storing tool-to-action mapping.
-     */
-    private const TOOL_ACTION_MAP_KEY = '__tool_approval_action_map__';
-
-    /**
      * @param string[] $toolsRequiringApproval Tool names that require approval (empty = all tools)
      */
     public function __construct(
@@ -93,10 +88,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
      */
     public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
     {
-        // Clean up state after tool execution
-        if ($event instanceof ToolCallEvent && $state->has(self::TOOL_ACTION_MAP_KEY)) {
-            $state->delete(self::TOOL_ACTION_MAP_KEY);
-        }
+        //
     }
 
     /**
