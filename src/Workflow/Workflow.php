@@ -16,7 +16,6 @@ use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;

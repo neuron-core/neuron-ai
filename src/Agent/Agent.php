@@ -113,15 +113,15 @@ class Agent implements AgentInterface
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($nodeClasses as $class) {
-            if (!isset($this->agentMiddleware[$nodeClass])) {
-                $this->agentMiddleware[$nodeClass] = [];
+            if (!isset($this->agentMiddleware[$class])) {
+                $this->agentMiddleware[$class] = [];
             }
 
             foreach ($middlewareArray as $m) {
                 if (! $m instanceof WorkflowMiddleware) {
                     throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
                 }
-                $this->agentMiddleware[$nodeClass][] = $m;
+                $this->agentMiddleware[$class][] = $m;
             }
         }
 
