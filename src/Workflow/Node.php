@@ -71,7 +71,7 @@ abstract class Node implements NodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interrupt(InterruptRequest $request): mixed
+    protected function interrupt(InterruptRequest $request): ?InterruptRequest
     {
         return $this->interruptIf(true, $request);
     }
@@ -80,9 +80,9 @@ abstract class Node implements NodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interruptIf(callable|bool $condition, InterruptRequest $request): mixed
+    protected function interruptIf(callable|bool $condition, InterruptRequest $request): ?InterruptRequest
     {
-        if (($feedback = $this->consumeResumeRequest()) instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
+        if (($feedback = $this->consumeResumeRequest()) instanceof InterruptRequest) {
             return $feedback;
         }
 
