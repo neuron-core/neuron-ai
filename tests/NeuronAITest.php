@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\RAG;
-use NeuronAI\SystemPrompt;
+use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use PHPUnit\Framework\TestCase;

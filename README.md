@@ -90,7 +90,7 @@ php vendor/bin/neuron make:agent DataAnalystAgent
 namespace App\Neuron;
 
 use NeuronAI\Agent;
-use NeuronAI\SystemPrompt;
+use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
@@ -207,7 +207,7 @@ namespace App\Neuron;
 use NeuronAI\Agent;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\SystemPrompt;
+use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\Toolkits\MySQL\MySQLToolkit;
