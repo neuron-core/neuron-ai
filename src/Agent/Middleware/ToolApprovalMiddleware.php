@@ -169,6 +169,9 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
      *
      * This prevents the tool from executing its actual logic and instead
      * returns a human-readable rejection message that the AI can process.
+     *
+     * Uses ToolRejectionHandler instead of a closure to ensure serializability
+     * when workflows are interrupted multiple times.
      */
     protected function handleRejectedTool(ToolInterface $tool, Action $action): void
     {
@@ -178,9 +181,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             $action->feedback ?? 'No reason provided'
         );
 
-        // Replace the tool's callback with one that returns the rejection message
-        $tool->setCallable(function (...$args) use ($rejectionMessage): string {
-            return $rejectionMessage;
-        });
+        // Replace the tool's callback with a serializable rejection handler
+        $tool->setCallable(new ToolRejectionHandler($rejectionMessage));
     }
 }
