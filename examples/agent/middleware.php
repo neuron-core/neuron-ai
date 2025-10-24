@@ -92,18 +92,25 @@ $agent = Agent::make(
         new ToolApprovalMiddleware()
     );
 
+$request = null;
+
 try {
+    chat:
     $message = new UserMessage('Delete the C:/old_logs.txt file');
     echo "User: {$message->getContent()}\n\n";
 
-    $response = $agent->chat($message);
-    echo "Agent: {$response->getContent()}\n\n";
+    $response = $agent->chat(
+        $request ? [] : $message,
+        $request
+    );
+    echo "Agent: ".json_encode($response->getContent())."\n\n";
     $persistence->delete($id);
 
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
     $request = $interrupt->getRequest();
+
     echo "Message: {$request->getReason()}\n";
     echo "Actions requiring approval:\n";
 
@@ -123,20 +130,9 @@ try {
 
     // Continue with the same agent state (it will resume automatically)
     echo "Resuming workflow...\n\n";
-
-    // Debug: Check chat history before resume
-    try {
-        $response = $agent->chat(interrupt: $request);
-        echo "Agent: {$response->getContent()}\n";
-        $persistence->delete($id);
-    } catch (\Exception $e) {
-        echo "\n❌ ERROR during resume:\n";
-        echo $e->getMessage() . "\n\n";
-        echo "Full error:\n";
-        echo $e->__toString() . "\n";
-        $persistence->delete($id);
-    }
+    goto chat;
 }
+$persistence->delete($id);
 
 // Helper function to simulate user input
 function promptUserForApproval(): bool
