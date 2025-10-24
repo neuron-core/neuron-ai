@@ -20,12 +20,6 @@ use NeuronAI\Workflow\WorkflowState;
 
 class Summarization implements WorkflowMiddleware
 {
-    /**
-     * @param AIProviderInterface $provider The AI provider to use for generating summaries
-     * @param int $maxTokensBeforeSummary Token threshold that triggers summarization (0 = disabled)
-     * @param int $messagesToKeep Number of recent messages to preserve after summarization
-     * @param string|null $summaryPrompt Custom prompt for summarization (null = use default)
-     */
     public function __construct(
         protected AIProviderInterface $provider,
         protected int $maxTokensBeforeSummary = 10000,
@@ -38,7 +32,7 @@ class Summarization implements WorkflowMiddleware
      * Execute before the node runs.
      *
      * Checks if summarization is needed based on token count and performs
-     * the summarization if threshold is exceeded.
+     * the summarization if the threshold is exceeded.
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
