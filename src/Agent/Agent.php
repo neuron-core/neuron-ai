@@ -53,7 +53,7 @@ class Agent implements AgentInterface
      *
      * @var array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
      */
-    protected array $pendingMiddleware = [];
+    protected array $agentMiddleware = [];
 
     public function __construct(
         protected AgentState $state = new AgentState(),
@@ -112,14 +112,14 @@ class Agent implements AgentInterface
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
         if (!isset($this->nodeMiddleware[$nodeClass])) {
-            $this->pendingMiddleware[$nodeClass] = [];
+            $this->agentMiddleware[$nodeClass] = [];
         }
 
         foreach ($middlewareArray as $m) {
             if (! $m instanceof WorkflowMiddleware) {
                 throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
             }
-            $this->pendingMiddleware[$nodeClass][] = $m;
+            $this->agentMiddleware[$nodeClass][] = $m;
         }
         return $this;
     }
@@ -155,7 +155,7 @@ class Agent implements AgentInterface
             ]);
 
         // Register pending middleware with the workflow
-        foreach ($this->pendingMiddleware as $node => $middleware) {
+        foreach ($this->agentMiddleware as $node => $middleware) {
             $workflow->middleware($node, $middleware);
         }
 

@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\WorkflowInterrupt;
 
@@ -30,7 +31,7 @@ class FileDeleteTool extends Tool
     protected function properties(): array
     {
         return [
-            \NeuronAI\Tools\ToolProperty::make('path', PropertyType::STRING, 'The path to the file to delete', true),
+            ToolProperty::make('path', PropertyType::STRING, 'The path to the file to delete', true),
         ];
     }
 
@@ -53,7 +54,7 @@ class FileReadTool extends Tool
     protected function properties(): array
     {
         return [
-            \NeuronAI\Tools\ToolProperty::make('path', PropertyType::STRING, 'The path to the file to read', true),
+            ToolProperty::make('path', PropertyType::STRING, 'The path to the file to read', true),
         ];
     }
 
@@ -63,81 +64,20 @@ class FileReadTool extends Tool
     }
 }
 
-class CommandExecuteTool extends Tool
-{
-    public function __construct()
-    {
-        parent::__construct(
-            'execute_command',
-            'Execute a system command'
-        );
-    }
-
-    protected function properties(): array
-    {
-        return [
-            \NeuronAI\Tools\ToolProperty::make('command', PropertyType::STRING, 'The command to execute', true),
-        ];
-    }
-
-    public function __invoke(string $command): string
-    {
-        return "Command '{$command}' executed successfully.";
-    }
-}
-
 $provider = new Anthropic\Anthropic(
     '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',
     'claude-3-7-sonnet-latest'
 );
 $persistence = new FilePersistence(__DIR__);
 
-echo "=== Agent Middleware: Tool Approval Example ===\n\n";
-
-// Create agent with ToolApprovalMiddleware
-// Only 'delete_file' and 'execute_command' require approval
-$id = 'workflow_1';
-$agent = Agent::make(
-        state: new AgentState(),
-        persistence: $persistence,
-        workflowId: $id
-    )
-    ->setAiProvider($provider)
-    ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
-    ->addTool([
-        new FileReadTool(),
-        new FileDeleteTool(),
-        new CommandExecuteTool(),
-    ])
-    ->middleware(
-        ToolNode::class,
-        new ToolApprovalMiddleware(['delete_file', 'execute_command'])
-    );
-
-// Scenario 1: Safe operation (no approval needed)
-echo "Scenario 1: Safe operation (read_file) - No approval needed\n";
-echo "-----------------------------------------------------------\n";
-
-try {
-    $message = UserMessage::make('Read the config.json file');
-    echo "User: {$message->getContent()}\n\n";
-
-    $response = $agent->chat($message);
-    echo "Agent: {$response->getContent()}\n\n";
-    $persistence->delete($id);
-} catch (\Exception $e) {
-    echo "Error: {$e->getMessage()}\n\n";
-    $persistence->delete($id);
-}
-
-// Scenario 2: Dangerous operation (requires approval)
-echo "\nScenario 2: Dangerous operation (delete_file) - Requires approval\n";
-echo "-------------------------------------------------------------------\n";
+echo "=== Agent Middleware: Tool Approval Example ===\n";
+echo "-------------------------------------------------------------------\n\n";
 
 // Reset state for new conversation
-$id = 'workflow_2';
+$state = new AgentState();
+$id = 'workflow_1';
 $agent = Agent::make(
-        state: new AgentState(),
+        state: $state,
         persistence: $persistence,
         workflowId: $id
     )
@@ -146,7 +86,6 @@ $agent = Agent::make(
     ->addTool([
         new FileReadTool(),
         new FileDeleteTool(),
-        new CommandExecuteTool(),
     ])
     ->middleware(
         ToolNode::class,

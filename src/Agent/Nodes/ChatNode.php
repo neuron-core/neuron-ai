@@ -46,13 +46,13 @@ class ChatNode extends Node
             ->setTools($this->tools)
             ->chat($chatHistory->getMessages());
 
+        // Add the response to chat history
+        $chatHistory->addMessage($response);
+
         $this->notify(
             'inference-stop',
             new InferenceStop($chatHistory->getLastMessage(), $response)
         );
-
-        // Add response to chat history
-        $chatHistory->addMessage($response);
 
         return new AIResponseEvent($response);
     }

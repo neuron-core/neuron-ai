@@ -222,8 +222,8 @@ class Tool implements ToolInterface
         }, []);
 
         $this->setResult(
-            \method_exists($this, '__invoke') ? $this->__invoke(...$parameters)
-                : \call_user_func($this->callback, ...$parameters)
+            \is_callable($this->callback) ? \call_user_func($this->callback, ...$parameters)
+                : $this->__invoke(...$parameters)
         );
     }
 

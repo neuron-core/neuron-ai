@@ -59,65 +59,6 @@ class InterruptRequest implements \JsonSerializable
     }
 
     /**
-     * Get an action by its ID.
-     *
-     * @param string $id Action ID
-     * @return Action|null The action or null if not found
-     */
-    public function getAction(string $id): ?Action
-    {
-        foreach ($this->actions as $action) {
-            if ($action->id === $id) {
-                return $action;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Check if all actions are approved.
-     */
-    public function allApproved(): bool
-    {
-        foreach ($this->actions as $action) {
-            if (!$action->isApproved()) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Check if any action is rejected.
-     */
-    public function hasRejections(): bool
-    {
-        foreach ($this->actions as $action) {
-            if ($action->isRejected()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if all actions have been decided (no pending actions).
-     */
-    public function isComplete(): bool
-    {
-        foreach ($this->actions as $action) {
-            if ($action->isPending()) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
      * Get all pending actions.
      *
      * @return Action[]

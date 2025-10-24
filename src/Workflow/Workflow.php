@@ -312,19 +312,9 @@ class Workflow implements WorkflowInterface
             $this->persistence->delete($this->workflowId);
 
         } catch (WorkflowInterrupt $interrupt) {
-            // Middleware may throw interrupts without node context
-            // Ensure we have the current node's class and checkpoints
-            $finalInterrupt = new WorkflowInterrupt(
-                $interrupt->getRequest(),
-                $currentNode::class,
-                $currentNode->getCheckpoints(),
-                $this->state,
-                $currentEvent
-            );
-
-            $this->persistence->save($this->workflowId, $finalInterrupt);
-            $this->notify('workflow-interrupt', $finalInterrupt);
-            throw $finalInterrupt;
+            $this->persistence->save($this->workflowId, $interrupt);
+            $this->notify('workflow-interrupt', $interrupt);
+            throw $interrupt;
         }
     }
 
