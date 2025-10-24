@@ -22,13 +22,8 @@ $agent = \NeuronAI\Agent\Agent::make()
             'claude-3-7-sonnet-latest'
         )
     )
-    ->addTool(
-        CalculatorToolkit::make()
-    )
-    ->middleware(
-        ToolNode::class,
-        new ToolApproval(),
-    );
+    ->addTool(CalculatorToolkit::make())
+    ->middleware(ToolNode::class, new ToolApproval());
 
 function process_response($response): void
 {

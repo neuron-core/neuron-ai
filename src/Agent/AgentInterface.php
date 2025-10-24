@@ -13,6 +13,7 @@ use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowState;
 
 interface AgentInterface
 {
@@ -22,7 +23,7 @@ interface AgentInterface
 
     public function setInstructions(string $instructions): AgentInterface;
 
-    public function instructions(): string;
+    public function resolveInstructions(): string;
 
     /**
      * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools
@@ -36,18 +37,7 @@ interface AgentInterface
 
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
-    public function resolveAgentState(): AgentState;
-
-    /**
-     * Register middleware for a specific node class.
-     *
-     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
-     * @throws WorkflowException
-     */
-    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self;
-
-    public function observe(\SplObserver $observer, string $event = "*"): self;
+    public function resolveAgentState(): AgentState|WorkflowState;
 
     /**
      * @param Message|Message[] $messages

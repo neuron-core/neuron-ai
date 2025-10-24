@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Workflow\WorkflowState;
+
 trait ResolveState
 {
-    /**
-     * The AI provider instance.
-     */
-    protected AgentState $state;
-
     public function setAgentState(AgentState $state): AgentInterface
     {
         $this->state = $state;
@@ -25,7 +22,7 @@ trait ResolveState
     /**
      * Get the current instance of the chat history.
      */
-    public function resolveAgentState(): AgentState
+    public function resolveAgentState(): AgentState|WorkflowState
     {
         return $this->state ?? $this->state = $this->agentState();
     }

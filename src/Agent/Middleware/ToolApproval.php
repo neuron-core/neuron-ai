@@ -43,7 +43,7 @@ class ToolApproval implements WorkflowMiddleware
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        if (!$event instanceof AIInferenceEvent) {
+        if (!$event instanceof ToolCallEvent) {
             return;
         }
 

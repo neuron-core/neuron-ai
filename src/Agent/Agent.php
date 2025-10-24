@@ -15,10 +15,7 @@ use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\StaticConstructor;
-use NeuronAI\Workflow\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
@@ -27,46 +24,51 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 
-/**
- * Agent implementation built on top of the Workflow system.
- *
- * This implementation leverages workflow features like:
- * - Interruption for human-in-the-loop patterns
- * - Persistence for resuming workflows
- * - Checkpoints for state management
- * - Event-driven architecture for complex execution flows
- */
-class Agent implements AgentInterface
+class Agent extends Workflow implements AgentInterface
 {
-    use StaticConstructor;
-    use Observable;
     use ResolveState;
     use ResolveProvider;
     use HandleTools;
 
     protected AIProviderInterface $provider;
 
-    protected string $instructions = '';
+    protected string $instructions;
 
     protected bool $parallelToolCalls = false;
 
     /**
-     * Middleware to be registered with the workflow.
-     *
-     * @var array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
+     * @throws WorkflowException
      */
-    protected array $agentMiddleware = [];
-
     public function __construct(
-        protected PersistenceInterface $persistence = new InMemoryPersistence(),
-        protected ?string $workflowId = null
+        ?AgentState $state = null,
+        ?PersistenceInterface $persistence = null,
+        ?string $workflowId = null
     ) {
-        $this->workflowId ??= \uniqid('neuron_agent_');
+        // Initialize parent Workflow
+        parent::__construct(
+            $state ?? $this->agentState(),
+            $persistence ?? new InMemoryPersistence(),
+            $workflowId ?? \uniqid('neuron_agent_')
+        );
+
+        $this->init();
     }
 
-    public function instructions(): string
+    /**
+     * Initialize agent.
+     *
+     * @throws WorkflowException
+     */
+    private function init(): void
     {
-        return 'You are a helpful and friendly AI agent built with Neuron PHP framework.';
+        foreach ($this->agentMiddleware() as $nodeClass => $middlewares) {
+            parent::middleware($nodeClass, $middlewares);
+        }
+    }
+
+    protected function instructions(): string
+    {
+        return 'Your are a helpful and friendly AI agent built with Neuron PHP framework.';
     }
 
     public function setInstructions(string $instructions): self
@@ -77,7 +79,18 @@ class Agent implements AgentInterface
 
     public function resolveInstructions(): string
     {
-        return $this->instructions !== '' ? $this->instructions : $this->instructions();
+        return $this->instructions ?? $this->instructions();
+    }
+
+    /**
+     * Configure middleware for this agent when using the inheritance pattern.
+     * Override this method to register middleware on specific nodes.
+     *
+     * @return array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
+     */
+    protected function agentMiddleware(): array
+    {
+        return [];
     }
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
@@ -101,34 +114,6 @@ class Agent implements AgentInterface
         return $this;
     }
 
-    /**
-     * Register middleware for a specific node class.
-     *
-     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $nodeClass Node class name or array of node class names
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
-     * @throws WorkflowException
-     */
-    public function middleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
-    {
-        $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
-        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
-
-        foreach ($nodeClasses as $class) {
-            if (!isset($this->agentMiddleware[$class])) {
-                $this->agentMiddleware[$class] = [];
-            }
-
-            foreach ($middlewareArray as $m) {
-                if (! $m instanceof WorkflowMiddleware) {
-                    throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
-                }
-                $this->agentMiddleware[$class][] = $m;
-            }
-        }
-
-        return $this;
-    }
-
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
     {
         $escapedOpenTag = \preg_quote($openTag, '/');
@@ -138,13 +123,16 @@ class Agent implements AgentInterface
     }
 
     /**
-     * Build the workflow with nodes.
+     * Prepare the agent workflow with mode-specific nodes.
+     * Since Agent extends Workflow, we configure the current instance.
      *
-     * @param Node|Node[] $nodes
-     * @throws WorkflowException
+     * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
      */
-    protected function buildWorkflow(array|Node $nodes): Workflow
+    protected function prepareNodes(array|Node $nodes): void
     {
+        // Clear any previously added nodes (important for multiple calls)
+        $this->clearNodes();
+
         $nodes = \is_array($nodes) ? $nodes : [$nodes];
 
         // Select the appropriate ToolNode based on the parallel execution setting
@@ -152,26 +140,12 @@ class Agent implements AgentInterface
             ? new ParallelToolNode($this->toolMaxTries)
             : new ToolNode($this->toolMaxTries);
 
-        $workflow = Workflow::make($this->resolveAgentState(), $this->persistence, $this->workflowId)
-            ->addNodes([
-                ...$nodes,
-                new RouterNode(),
-                $toolNode,
-            ]);
-
-        // Register pending middleware with the workflow
-        foreach ($this->agentMiddleware as $node => $middleware) {
-            $workflow->middleware($node, $middleware);
-        }
-
-        // Share observers with the workflow
-        foreach ($this->observers as $event => $observers) {
-            foreach ($observers as $observer) {
-                $workflow->observe($observer, $event);
-            }
-        }
-
-        return $workflow;
+        // Add nodes to this workflow instance
+        $this->addNodes([
+            ...$nodes,
+            new RouterNode(),
+            $toolNode,
+        ]);
     }
 
     /**
@@ -191,14 +165,17 @@ class Agent implements AgentInterface
             $chatHistory->addMessage($message);
         }
 
-        $workflow = $this->buildWorkflow([
+        // Prepare workflow nodes for chat mode
+        $this->prepareNodes([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools()
             ),
             new ChatNode($this->resolveProvider()),
         ]);
-        $handler = $workflow->start($interrupt);
+
+        // Start workflow execution (Agent IS the workflow)
+        $handler = parent::start($interrupt);
 
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
@@ -225,14 +202,17 @@ class Agent implements AgentInterface
             $chatHistory->addMessage($message);
         }
 
-        $workflow = $this->buildWorkflow([
+        // Prepare workflow nodes for streaming mode
+        $this->prepareNodes([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
             ),
             new StreamingNode($this->resolveProvider()),
         ]);
-        $handler = $workflow->start($interrupt);
+
+        // Start workflow execution (Agent IS the workflow)
+        $handler = parent::start($interrupt);
 
         // Stream events and yield only StreamChunk objects
         foreach ($handler->streamEvents() as $event) {
@@ -270,14 +250,17 @@ class Agent implements AgentInterface
         // Get the output class
         $class ??= $this->getOutputClass();
 
-        $workflow = $this->buildWorkflow([
+        // Prepare workflow nodes for structured output mode
+        $this->prepareNodes([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
             ),
             new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
         ]);
-        $handler = $workflow->start($interrupt);
+
+        // Start workflow execution (Agent IS the workflow)
+        $handler = parent::start($interrupt);
 
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
