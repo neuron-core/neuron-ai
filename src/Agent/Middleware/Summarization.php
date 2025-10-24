@@ -59,11 +59,8 @@ class Summarization implements WorkflowMiddleware
             return;
         }
 
-        // Count total tokens
-        $totalTokens = $this->countTokens($messages);
-
         // Threshold isn't exceeded
-        if ($totalTokens <= $this->maxTokensBeforeSummary) {
+        if ($chatHistory->calculateTotalUsage() <= $this->maxTokensBeforeSummary) {
             return;
         }
 
@@ -73,8 +70,6 @@ class Summarization implements WorkflowMiddleware
 
     /**
      * Execute after the node runs.
-     *
-     * No action needed for summarization middleware.
      */
     public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
     {
@@ -267,10 +262,6 @@ PROMPT;
      */
     protected function countTokens(array $messages): int
     {
-        if ($this->tokenCounter !== null) {
-            return \call_user_func($this->tokenCounter, $messages);
-        }
-
         // Default token counting: use usage data if available, otherwise estimate
         $totalTokens = 0;
 

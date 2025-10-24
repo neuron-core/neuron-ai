@@ -13,11 +13,13 @@ class InMemoryChatHistory extends AbstractChatHistory
 
     public function setMessages(array $messages): ChatHistoryInterface
     {
+        $this->history = $messages;
         return $this;
     }
 
     protected function clear(): ChatHistoryInterface
     {
+        $this->history = [];
         return $this;
     }
 }
