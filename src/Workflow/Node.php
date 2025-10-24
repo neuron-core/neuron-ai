@@ -12,7 +12,7 @@ abstract class Node implements NodeInterface
     protected WorkflowState $currentState;
     protected Event $currentEvent;
     protected bool $isResuming = false;
-    protected ?Interrupt\InterruptRequest $resumeRequest = null;
+    protected ?InterruptRequest $resumeRequest = null;
 
     /**
      * @var array<string, mixed>
@@ -43,7 +43,7 @@ abstract class Node implements NodeInterface
      */
     protected function consumeResumeRequest(): ?InterruptRequest
     {
-        if ($this->isResuming && $this->resumeRequest !== null) {
+        if ($this->isResuming) {
             $request = $this->resumeRequest;
             // Clear both request and resuming state after use to allow subsequent interrupts
             $this->resumeRequest = null;

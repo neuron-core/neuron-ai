@@ -39,6 +39,7 @@ class Agent implements AgentInterface
 {
     use StaticConstructor;
     use Observable;
+    use ResolveState;
     use ResolveProvider;
     use HandleTools;
 
@@ -56,7 +57,6 @@ class Agent implements AgentInterface
     protected array $agentMiddleware = [];
 
     public function __construct(
-        protected AgentState $state = new AgentState(),
         protected PersistenceInterface $persistence = new InMemoryPersistence(),
         protected ?string $workflowId = null
     ){
@@ -81,7 +81,7 @@ class Agent implements AgentInterface
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        $this->state->setChatHistory($chatHistory);
+        $this->resolveAgentState()->setChatHistory($chatHistory);
         return $this;
     }
 
@@ -147,7 +147,7 @@ class Agent implements AgentInterface
             ? new ParallelToolNode($this->toolMaxTries)
             : new ToolNode($this->toolMaxTries);
 
-        $workflow = Workflow::make($this->state, $this->persistence, $this->workflowId)
+        $workflow = Workflow::make($this->resolveAgentState(), $this->persistence, $this->workflowId)
             ->addNodes([
                 ...$nodes,
                 new RouterNode(),
@@ -183,7 +183,7 @@ class Agent implements AgentInterface
         // Add messages to chat history before building workflow (only for fresh starts)
         if ($interrupt === null) {
             $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->state->getChatHistory();
+            $chatHistory = $this->resolveAgentState()->getChatHistory();
             foreach ($messages as $message) {
                 $chatHistory->addMessage($message);
             }
@@ -220,7 +220,7 @@ class Agent implements AgentInterface
         // Add messages to chat history before building workflow (only for fresh starts)
         if ($interrupt === null) {
             $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->state->getChatHistory();
+            $chatHistory = $this->resolveAgentState()->getChatHistory();
             foreach ($messages as $message) {
                 $chatHistory->addMessage($message);
             }
@@ -265,7 +265,7 @@ class Agent implements AgentInterface
         // Add messages to chat history before building workflow (only for fresh starts)
         if ($interrupt === null) {
             $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->state->getChatHistory();
+            $chatHistory = $this->resolveAgentState()->getChatHistory();
             foreach ($messages as $message) {
                 $chatHistory->addMessage($message);
             }
