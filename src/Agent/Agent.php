@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
+use NeuronAI\Agent\Nodes\PrepareInferenceNode;
 use NeuronAI\Agent\Nodes\RouterNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
@@ -190,13 +191,13 @@ class Agent implements AgentInterface
             $chatHistory->addMessage($message);
         }
 
-        $workflow = $this->buildWorkflow(
-            new ChatNode(
-                $this->resolveProvider(),
+        $workflow = $this->buildWorkflow([
+            new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools()
-            )
-        );
+            ),
+            new ChatNode($this->resolveProvider()),
+        ]);
         $handler = $workflow->start($interrupt);
 
         /** @var AgentState $finalState */
@@ -224,13 +225,13 @@ class Agent implements AgentInterface
             $chatHistory->addMessage($message);
         }
 
-        $workflow = $this->buildWorkflow(
-            new StreamingNode(
-                $this->resolveProvider(),
+        $workflow = $this->buildWorkflow([
+            new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools()
-            )
-        );
+            ),
+            new StreamingNode($this->resolveProvider()),
+        ]);
         $handler = $workflow->start($interrupt);
 
         // Stream events and yield only StreamChunk objects
@@ -269,15 +270,15 @@ class Agent implements AgentInterface
         // Get the output class
         $class ??= $this->getOutputClass();
 
-        $workflow = $this->buildWorkflow(
-            new StructuredOutputNode(
-                $this->resolveProvider(),
+        $workflow = $this->buildWorkflow([
+            new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
                 $class,
                 $maxRetries
-            )
-        );
+            ),
+            new StructuredOutputNode($this->resolveProvider()),
+        ]);
         $handler = $workflow->start($interrupt);
 
         /** @var AgentState $finalState */

@@ -5,33 +5,30 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
 
 /**
  * Node responsible for making requests to the AI provider.
+ *
+ * Receives an AIInferenceEvent containing instructions and tools that can be
+ * modified by middleware before the actual inference call is made.
  */
 class ChatNode extends Node
 {
     use Observable;
 
-    /**
-     * @param ToolInterface[] $tools
-     */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected string $instructions,
-        protected array $tools = []
     ) {
     }
 
-    public function __invoke(StartEvent $event, AgentState $state): AIResponseEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): AIResponseEvent
     {
         $chatHistory = $state->getChatHistory();
 
@@ -40,10 +37,10 @@ class ChatNode extends Node
             new InferenceStart($chatHistory->getLastMessage())
         );
 
-        // Make the AI provider call
+        // Make the AI provider call using configuration from the event
         $response = $this->provider
-            ->systemPrompt($this->instructions)
-            ->setTools($this->tools)
+            ->systemPrompt($event->instructions)
+            ->setTools($event->tools)
             ->chat($chatHistory->getMessages());
 
         // Add the response to chat history

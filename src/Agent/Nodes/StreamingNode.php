@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\StreamChunk;
 use NeuronAI\Agent\ToolCallChunk;
@@ -18,9 +19,7 @@ use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
 
 /**
  * Node responsible for streaming AI provider responses.
@@ -28,25 +27,23 @@ use NeuronAI\Workflow\StartEvent;
  * This node yields StreamChunk objects during execution and returns AIResponseEvent at the end.
  * When a ToolCallMessage is detected, it returns AIResponseEvent with the ToolCallMessage,
  * allowing RouterNode to route it to ToolNode for execution, which then loops back via StartEvent.
+ *
+ * Receives an AIInferenceEvent containing instructions and tools that can be
+ * modified by middleware before the actual inference call is made.
  */
 class StreamingNode extends Node
 {
     use Observable;
 
-    /**
-     * @param ToolInterface[] $tools
-     */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected string $instructions,
-        protected array $tools = []
     ) {
     }
 
     /**
      * @throws \Throwable
      */
-    public function __invoke(StartEvent $event, AgentState $state): \Generator
+    public function __invoke(AIInferenceEvent $event, AgentState $state): \Generator
     {
         $chatHistory = $state->getChatHistory();
 
@@ -63,9 +60,10 @@ class StreamingNode extends Node
             $content = '';
             $usage = new Usage(0, 0);
 
+            // Use instructions and tools from the event
             $stream = $this->provider
-                ->systemPrompt($this->instructions)
-                ->setTools($this->tools)
+                ->systemPrompt($event->instructions)
+                ->setTools($event->tools)
                 ->stream($chatHistory->getMessages());
 
             foreach ($stream as $chunk) {

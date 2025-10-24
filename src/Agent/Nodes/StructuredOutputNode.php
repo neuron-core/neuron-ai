@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Nodes;
 
 use GuzzleHttp\Exception\RequestException;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -30,41 +31,40 @@ use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
-use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
 
 /**
  * Node responsible for handling structured output requests with retry logic.
+ *
+ * Receives an AIInferenceEvent containing instructions, tools, output class,
+ * and max retries that can be modified by middleware before the actual inference call is made.
  */
 class StructuredOutputNode extends Node
 {
     use Observable;
 
-    /**
-     * @param ToolInterface[] $tools
-     */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected string $instructions,
-        protected array $tools,
-        protected string $class,
-        protected int $maxRetries = 1
     ) {
     }
 
     /**
      * @throws \Throwable
      */
-    public function __invoke(StartEvent $event, AgentState $state): AIResponseEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): AIResponseEvent
     {
+        if ($event->outputClass === null) {
+            throw new AgentException('Output class must be specified in AIInferenceEvent for StructuredOutputNode');
+        }
+
         $chatHistory = $state->getChatHistory();
+        $maxRetries = $event->maxRetries ?? 1;
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
-            $this->notify('schema-generation', new SchemaGeneration($this->class));
-            $schema = JsonSchema::make()->generate($this->class);
-            $this->notify('schema-generated', new SchemaGenerated($this->class, $schema));
+            $this->notify('schema-generation', new SchemaGeneration($event->outputClass));
+            $schema = JsonSchema::make()->generate($event->outputClass);
+            $this->notify('schema-generated', new SchemaGenerated($event->outputClass, $schema));
             $state->set('structured_schema', $schema);
         }
 
@@ -91,10 +91,11 @@ class StructuredOutputNode extends Node
                     new InferenceStart($last)
                 );
 
+                // Use instructions and tools from the event
                 $response = $this->provider
-                    ->systemPrompt($this->instructions)
-                    ->setTools($this->tools)
-                    ->structured($messages, $this->class, $schema);
+                    ->systemPrompt($event->instructions)
+                    ->setTools($event->tools)
+                    ->structured($messages, $event->outputClass, $schema);
 
                 $this->notify(
                     'inference-stop',
@@ -109,7 +110,7 @@ class StructuredOutputNode extends Node
                 }
 
                 // Process the response: extract, deserialize, and validate
-                $output = $this->processResponse($response, $schema, $this->class);
+                $output = $this->processResponse($response, $schema, $event->outputClass);
 
                 // Store the structured output in state
                 $state->set('structured_output', $output);
@@ -129,8 +130,8 @@ class StructuredOutputNode extends Node
                 $this->notify('error', new AgentError($ex, false));
             }
 
-            $this->maxRetries--;
-        } while ($this->maxRetries >= 0);
+            $maxRetries--;
+        } while ($maxRetries >= 0);
 
         throw $exception;
     }
