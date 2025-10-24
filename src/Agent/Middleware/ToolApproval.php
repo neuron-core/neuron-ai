@@ -18,7 +18,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 
-class ToolApprovalMiddleware implements WorkflowMiddleware
+class ToolApproval implements WorkflowMiddleware
 {
     /**
      * @param string[] $toolsRequiringApproval Tool names that require approval (empty = all tools)

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\ToolApprovalMiddleware;
+use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic;
@@ -85,7 +85,7 @@ $agent = Agent::make(
     ])
     ->middleware(
         ToolNode::class,
-        new ToolApprovalMiddleware()
+        new ToolApproval()
     );
 
 $interruptRequest = null;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use NeuronAI\Agent\Middleware\ToolApprovalMiddleware;
+use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Agent\ToolCallChunk;
 use NeuronAI\Agent\ToolResultChunk;
@@ -27,7 +27,7 @@ $agent = \NeuronAI\Agent\Agent::make()
     )
     ->middleware(
         ToolNode::class,
-        new ToolApprovalMiddleware(),
+        new ToolApproval(),
     );
 
 function process_response($response): void
