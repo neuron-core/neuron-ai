@@ -36,6 +36,8 @@ interface AgentInterface
 
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
+    public function resolveAgentState(): AgentState;
+
     /**
      * Register middleware for a specific node class.
      *

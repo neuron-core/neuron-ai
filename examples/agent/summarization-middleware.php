@@ -8,6 +8,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\Summarization;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
+use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -36,9 +37,9 @@ $agent = Agent::make()
     ->setAiProvider($mainProvider)
     ->setInstructions('You are a helpful assistant with access to conversation history.')
     ->setChatHistory(new InMemoryChatHistory())
-    // Apply summarization middleware to both ChatNode and StreamingNode
+    // Apply summarization middleware to generative nodes
     ->middleware(
-        [ChatNode::class, StreamingNode::class],
+        [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
         new Summarization(
             provider: $summarizationProvider,
             maxTokensBeforeSummary: 5000,  // Trigger summarization after 5000 tokens
@@ -81,7 +82,7 @@ foreach ($messages as $index => $userMessage) {
         }
 
         // Show token count and message count
-        $chatHistory = $agent->state->getChatHistory();
+        $chatHistory = $agent->resolveAgentState()->getChatHistory();
         $messageCount = \count($chatHistory->getMessages());
         $totalTokens = $chatHistory->calculateTotalUsage();
 
