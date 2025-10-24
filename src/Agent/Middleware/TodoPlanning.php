@@ -13,20 +13,6 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
-/**
- * Middleware that adds todo planning capabilities to agents.
- *
- * Inspired by LangChain's TodoListMiddleware, this middleware injects
- * instructions and tools that enable agents to create and manage structured
- * task lists for complex, multi-step operations.
- *
- * Usage:
- * ```php
- * $agent = Agent::make()
- *     ->middleware(ChatNode::class, new TodoPlanningMiddleware())
- *     ->chat(UserMessage::make('Build a complex feature'));
- * ```
- */
 class TodoPlanning implements WorkflowMiddleware
 {
     private const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
@@ -80,7 +66,7 @@ Example todo list for a complex feature implementation:
 PROMPT;
 
     /**
-     * @param string $systemPrompt Custom system prompt for todo planning guidance
+     * @param string $systemPrompt Custom system prompt for to-do planning guidance
      * @param string $toolName Name of the todos tool (default: 'write_todos')
      */
     public function __construct(
