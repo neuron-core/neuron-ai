@@ -64,23 +64,21 @@ class FileReadTool extends Tool
     }
 }
 
+echo "=== Agent Middleware: Tool Approval Example ===\n";
+echo "-------------------------------------------------------------------\n\n";
+
 $provider = new Anthropic\Anthropic(
     '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',
     'claude-3-7-sonnet-latest'
 );
 $persistence = new FilePersistence(__DIR__);
 
-echo "=== Agent Middleware: Tool Approval Example ===\n";
-echo "-------------------------------------------------------------------\n\n";
-
 // Reset state for new conversation
-$state = new AgentState();
 $id = 'workflow_1';
 $agent = Agent::make(
         persistence: $persistence,
         workflowId: $id
     )
-    ->setAgentState($state)
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -92,35 +90,36 @@ $agent = Agent::make(
         new ToolApprovalMiddleware()
     );
 
-$request = null;
+$interruptRequest = null;
 
 try {
     chat:
     $message = new UserMessage('Delete the C:/old_logs.txt file');
     echo "User: {$message->getContent()}\n\n";
 
-    $response = $agent->chat(
-        $request ? [] : $message,
-        $request
-    );
-    echo "Agent: ".json_encode($response->getContent())."\n\n";
-    $persistence->delete($id);
+    if ($interruptRequest == null) {
+        $response = $agent->chat(messages: $message);
+    } else {
+        echo "Resuming workflow...\n\n";
+        $response = $agent->chat(interrupt: $interruptRequest);
+    }
 
+    echo "Agent: ".json_encode($response->getContent())."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
-    $request = $interrupt->getRequest();
+    $interruptRequest = $interrupt->getRequest();
 
-    echo "Message: {$request->getReason()}\n";
+    echo "Message: {$interruptRequest->getReason()}\n\n";
     echo "Actions requiring approval:\n";
 
-    foreach ($request->getPendingActions() as $action) {
+    foreach ($interruptRequest->getPendingActions() as $action) {
         echo "  - {$action->name}: {$action->description}}";
     }
 
     echo "\n";
 
-    foreach ($request->getPendingActions() as $action) {
+    foreach ($interruptRequest->getPendingActions() as $action) {
         if (promptUserForApproval()) {
             $action->approve();
         } else {
@@ -128,8 +127,6 @@ try {
         }
     }
 
-    // Continue with the same agent state (it will resume automatically)
-    echo "Resuming workflow...\n\n";
     goto chat;
 }
 $persistence->delete($id);
@@ -139,7 +136,7 @@ function promptUserForApproval(): bool
 {
     // In a real application, this would prompt the user via CLI, web UI, etc.
     // For this example, we'll automatically approve for demonstration
-    echo "\n[Simulating user decision...]\n";
+    echo "\n[Simulating user decision...]\n\n";
     \sleep(1);
 
     // Randomly approve or deny for demonstration
@@ -147,5 +144,3 @@ function promptUserForApproval(): bool
 }
 
 echo "\n\n=== Example Complete ===\n";
-echo "This demonstrates how middleware can intercept workflow execution\n";
-echo "for human-in-the-loop patterns like tool approval.\n";
