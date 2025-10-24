@@ -51,7 +51,7 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 **Agent System**: The framework revolves around three main entity types:
 - `Agent` (src/Agent.php) - Base agent class with chat, streaming, and structured output capabilities
 - `RAG` (src/RAG/RAG.php) - Extends Agent with vector search and document retrieval
-- `Workflow` (src/Workflow/Workflow.php) - Event-driven node execution system for complex agentic processes with persistence and interruption support
+- `Workflow` (src/Workflow/Workflow.php) - Event-driven node execution system for complex agentic processes with persistence, streaming, interruption support, and middleware layer.
 
 **Provider Architecture**: Abstracted AI provider system supporting multiple LLM services:
 - All providers implement `AIProviderInterface` (src/Providers/AIProviderInterface.php)
@@ -83,6 +83,7 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 - `Event` - Marker interface for workflow events that trigger node execution
 - `WorkflowState` - Shared state container that persists data across node executions
 - `WorkflowInterrupt` - Exception-based mechanism for human-in-the-loop interactions
+- `WorkflowMiddleware` - Middleware layer for wrapping node execution
 
 **Key Features**:
 - **Event-Driven Architecture**: Nodes are triggered by events, promoting loose coupling
@@ -91,6 +92,8 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 - **Workflow Export**: Pluggable export system with MermaidExporter for diagram generation
 - **State Management**: Centralized state that flows through all workflow nodes
 - **Validation**: Automatic validation ensures workflows have required StartEvent handlers
+- **Middleware**: Middleware layer for wrapping node execution
+- **Streaming**: Event streaming for real-time client updates
 - **Observability**: Full integration with observable pattern for monitoring and debugging
 
 **File Structure**:
@@ -101,6 +104,7 @@ Each module is placed in its own namespace under `src/`. Sub-modules are grouped
 - `StartEvent.php/StopEvent.php` - Built-in workflow lifecycle events
 - `WorkflowState.php` - State container for cross-node data sharing
 - `WorkflowInterrupt.php` - Exception for workflow interruption handling
+- `Middleware` - Middleware system to allow developers to hook before and after node execution
 - `Exporter/` - Export system with MermaidExporter implementation
 - `Persistence/` - Persistence layer with InMemory and File implementations
 
@@ -113,6 +117,10 @@ $handler = Workflow::make()
         new ProcessingNode(),
         new CompletionNode(),
     ])
+    ->middleware(
+        ProcessingNode::class,
+        new LoggingMiddleware()
+    )
     ->start($initialState);
 
 $finalState = $handler->getResult();
@@ -138,20 +146,57 @@ foreach ($handler->streamEvents() as $event) {
 $finalState = $handler->getResult();
 ```
 
+### Neuron CLI
+
+Neuron CLI is a command-line interface for interacting with the framework. It supports the following commands:
+
+#### Core Commands
+- `evaluation` - Run AI evaluation tests on a directory of evaluators
+- `help` - Show help for a specific command
+
+#### Make Commands (Code Generation)
+The framework provides make commands to generate boilerplate classes:
+
+- `make:agent` - Create a new Agent class
+- `make:node` - Create a new Node class for workflows
+- `make:tool` - Create a new Tool class
+- `make:rag` - Create a new RAG class
+- `make:workflow` - Create a new Workflow class
+
+Run commands with:
+
+```bash
+# Core commands
+php vendor/bin/neuron evaluation --path=/path/to/evaluators
+php vendor/bin/neuron evaluation /path/to/evaluators --verbose
+
+# Make commands
+php vendor/bin/neuron make:agent MyAgent
+php vendor/bin/neuron make:tool MyTool
+php vendor/bin/neuron make:node ValidationNode
+php vendor/bin/neuron make:rag MyRAG
+php vendor/bin/neuron make:workflow DataProcessingWorkflow
+
+# Get help for any command
+php vendor/bin/neuron <command> --help
+```
+
 ### Key Traits and Patterns
 
 The codebase uses PHP traits extensively for modular functionality:
 - `StaticConstructor` - Provides `make()` static factory method
 - `Observable` - Observer pattern implementation for monitoring
-- `ResolveProvider`, `ResolveTools`, `ResolveChatHistory` - Dependency resolution
+- `ResolveProvider`, `HandleTools` - Dependency resolution
 
 All major components support the Observer pattern for monitoring and debugging, integrating with Inspector APM.
 
 ### Directory Structure
 
 - `src/` - Main source code with PSR-4 autoloading under `NeuronAI\` namespace
+- `src/Console/` - Neuron CLI commands
 - `src/Providers/` - AI provider implementations
 - `src/Tools/` - Tool system and built-in toolkits
+- `src/Agents/` - Agent system components
 - `src/RAG/` - RAG system components
 - `src/Workflow/` - Workflow orchestration system
 - `src/Chat/` - Chat messaging and history management

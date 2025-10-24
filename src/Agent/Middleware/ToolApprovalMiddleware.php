@@ -66,13 +66,14 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             $actions[] = $this->createAction($tool);
         }
 
+        $count = \count($actions);
         $interruptRequest = new InterruptRequest(
             actions: $actions,
             reason: \sprintf(
                 '%d tool call%s require%s human approval before execution',
-                \count($actions),
-                \count($actions) === 1 ? '' : 's',
-                \count($actions) === 1 ? 's' : ''
+                $count,
+                $count === 1 ? '' : 's',
+                $count === 1 ? 's' : ''
             )
         );
 
