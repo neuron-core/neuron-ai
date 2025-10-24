@@ -89,7 +89,7 @@ $agent = Agent::make(
     ])
     ->middleware(
         ToolNode::class,
-        new ToolApprovalMiddleware(['delete_file', 'execute_command'])
+        new ToolApprovalMiddleware()
     );
 
 try {

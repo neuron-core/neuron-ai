@@ -57,16 +57,16 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @param InterruptRequest|null $resumeRequest
+     * @param InterruptRequest|null $interrupt
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $resumeRequest = null): \Generator;
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator;
 
     /**
      * @param Message|Message[] $messages
      * @param string|null $class
      * @param int $maxRetries
-     * @param InterruptRequest|null $resumeRequest
+     * @param InterruptRequest|null $interrupt
      * @return mixed
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $resumeRequest = null): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed;
 }

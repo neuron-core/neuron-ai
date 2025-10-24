@@ -210,15 +210,15 @@ class Agent implements AgentInterface
      * Execute the chat with streaming.
      *
      * @param Message|Message[] $messages Messages to send (optional when resuming)
-     * @param InterruptRequest|null $resumeRequest If provided, resumes from interruption
+     * @param InterruptRequest|null $interrupt If provided, resumes from interruption
      * @throws \Throwable
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $resumeRequest = null): \Generator
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
         $this->notify('stream-start');
 
         // Add messages to chat history before building workflow (only for fresh starts)
-        if ($resumeRequest === null) {
+        if ($interrupt === null) {
             $messages = \is_array($messages) ? $messages : [$messages];
             $chatHistory = $this->state->getChatHistory();
             foreach ($messages as $message) {
@@ -233,7 +233,7 @@ class Agent implements AgentInterface
                 $this->bootstrapTools()
             )
         );
-        $handler = $workflow->start($resumeRequest);
+        $handler = $workflow->start($interrupt);
 
         // Stream events and yield only StreamChunk objects
         foreach ($handler->streamEvents() as $event) {
@@ -254,16 +254,16 @@ class Agent implements AgentInterface
      * @param Message|Message[] $messages Messages to send (optional when resuming)
      * @param string|null $class Output class name
      * @param int $maxRetries Maximum number of retries for validation errors
-     * @param InterruptRequest|null $resumeRequest If provided, resumes from interruption
+     * @param InterruptRequest|null $interrupt If provided, resumes from interruption
      * @throws AgentException
      * @throws \Throwable
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $resumeRequest = null): mixed
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
         $this->notify('structured-start');
 
         // Add messages to chat history before building workflow (only for fresh starts)
-        if ($resumeRequest === null) {
+        if ($interrupt === null) {
             $messages = \is_array($messages) ? $messages : [$messages];
             $chatHistory = $this->state->getChatHistory();
             foreach ($messages as $message) {
@@ -283,7 +283,7 @@ class Agent implements AgentInterface
                 $maxRetries
             )
         );
-        $handler = $workflow->start($resumeRequest);
+        $handler = $workflow->start($interrupt);
 
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
