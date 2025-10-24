@@ -17,9 +17,6 @@ class ToolRejectionHandler
     ) {
     }
 
-    /**
-     * Magic invoke method to make the class callable like a closure.
-     */
     public function __invoke(mixed ...$args): string
     {
         return $this->rejectionMessage;
