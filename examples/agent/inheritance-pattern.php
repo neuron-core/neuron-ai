@@ -66,7 +66,7 @@ try {
     chat:
     if ($interruptRequest == null) {
         $response = $agent->chat(
-            UserMessage::make('Calculate the compound annual growth rate if initial value is 1000 and final value is 1500 over 3 years')
+            new UserMessage('Calculate the compound annual growth rate if initial value is 1000 and final value is 1500 over 3 years')
         );
     } else {
         $response = $agent->chat(interrupt: $interruptRequest);
@@ -79,8 +79,8 @@ try {
     echo "Workflow interrupted for approval\n";
 
     // Handle approval flow
-    $request = $interrupt->getRequest();
-    foreach ($request->actions as $action) {
+    $interruptRequest = $interrupt->getRequest();
+    foreach ($interruptRequest->actions as $action) {
         echo "Action: {$action->name} - {$action->description}\n";
         // In a real app, prompt user for approval
         $action->approve();

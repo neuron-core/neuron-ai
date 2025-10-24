@@ -36,7 +36,7 @@ class ExponentialTool extends Tool
         ];
     }
 
-    public function __invoke(int|float $number, int $exponent): int|float
+    public function __invoke(int|float $number, int|float $exponent): int|float
     {
         return $number ** $exponent;
     }
