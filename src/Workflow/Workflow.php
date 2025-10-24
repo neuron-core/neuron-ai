@@ -231,6 +231,7 @@ class Workflow implements WorkflowInterface
         }
 
         $interrupt = $this->persistence->load($this->workflowId);
+        $this->state = $interrupt->getState();
 
         yield from $this->execute(
             $interrupt->getCurrentEvent(),
@@ -238,8 +239,6 @@ class Workflow implements WorkflowInterface
             true,
             $resumeRequest
         );
-
-        $this->state = $interrupt->getState();
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
 
