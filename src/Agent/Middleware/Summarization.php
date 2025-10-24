@@ -120,7 +120,6 @@ class Summarization implements WorkflowMiddleware
     /**
      * Summarize chat history by replacing old messages with a summary.
      *
-     * @param AgentState $state
      * @param Message[] $messages
      */
     protected function summarizeHistory(AgentState $state, array $messages): void
@@ -188,8 +187,6 @@ class Summarization implements WorkflowMiddleware
      * 2. The previous message is not a ToolCallMessage (would separate tool call from result)
      *
      * @param Message[] $messages
-     * @param int $index
-     * @return bool
      */
     protected function isSafeCutoffPoint(array $messages, int $index): bool
     {
@@ -197,20 +194,14 @@ class Summarization implements WorkflowMiddleware
         if (isset($messages[$index]) && $messages[$index] instanceof ToolCallMessage) {
             return false;
         }
-
         // Check if previous message is a ToolCallMessage (would be separated from its result)
-        if ($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage) {
-            return false;
-        }
-
-        return true;
+        return !($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage);
     }
 
     /**
      * Generate a summary of the provided messages using the AI provider.
      *
      * @param Message[] $messages
-     * @return string
      */
     protected function generateSummary(array $messages): string
     {
@@ -231,7 +222,7 @@ class Summarization implements WorkflowMiddleware
                 ->chat($summaryRequest);
 
             return (string) $response->getContent();
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             // If summarization fails, return a basic fallback summary
             return \sprintf(
                 'Previous conversation contained %d messages covering various topics.',
@@ -242,8 +233,6 @@ class Summarization implements WorkflowMiddleware
 
     /**
      * Get the default summarization prompt.
-     *
-     * @return string
      */
     protected function getDefaultSummaryPrompt(): string
     {
@@ -265,7 +254,6 @@ PROMPT;
      * Format messages into a readable conversation format for summarization.
      *
      * @param Message[] $messages
-     * @return string
      */
     protected function formatMessagesForSummarization(array $messages): string
     {
@@ -277,7 +265,7 @@ PROMPT;
 
             if ($message instanceof ToolCallMessage) {
                 $toolNames = \array_map(
-                    fn ($tool) => $tool->getName(),
+                    fn (\NeuronAI\Tools\ToolInterface $tool): string => $tool->getName(),
                     $message->getTools()
                 );
                 $formatted[] = \sprintf(
@@ -310,7 +298,6 @@ PROMPT;
      * Uses custom token counter if provided, otherwise uses default estimation.
      *
      * @param Message[] $messages
-     * @return int
      */
     protected function countTokens(array $messages): int
     {
@@ -339,9 +326,6 @@ PROMPT;
 
     /**
      * Set the maximum tokens before summarization threshold.
-     *
-     * @param int $tokens
-     * @return self
      */
     public function setMaxTokensBeforeSummary(int $tokens): self
     {
@@ -351,9 +335,6 @@ PROMPT;
 
     /**
      * Set the number of messages to keep after summarization.
-     *
-     * @param int $count
-     * @return self
      */
     public function setMessagesToKeep(int $count): self
     {
@@ -363,9 +344,6 @@ PROMPT;
 
     /**
      * Set a custom summarization prompt.
-     *
-     * @param string $prompt
-     * @return self
      */
     public function setSummaryPrompt(string $prompt): self
     {
@@ -377,7 +355,6 @@ PROMPT;
      * Set a custom token counter function.
      *
      * @param callable $counter Function that takes Message[] and returns int
-     * @return self
      */
     public function setTokenCounter(callable $counter): self
     {

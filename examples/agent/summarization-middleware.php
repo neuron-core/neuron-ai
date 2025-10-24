@@ -10,7 +10,7 @@ use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\Anthropic;
+use NeuronAI\Providers\Anthropic\Anthropic;
 
 /**
  * Example: Using Summarization Middleware
@@ -20,15 +20,15 @@ use NeuronAI\Providers\Anthropic;
  */
 
 // Initialize providers
-$mainProvider = Anthropic::make(
-    apiKey: \getenv('ANTHROPIC_API_KEY'),
-    model: 'claude-3-5-sonnet-20241022',
+$mainProvider = new Anthropic(
+    \getenv('ANTHROPIC_API_KEY'),
+    'claude-3-5-sonnet-20241022',
 );
 
 // Use a faster/cheaper model for summarization
-$summarizationProvider = Anthropic::make(
-    apiKey: \getenv('ANTHROPIC_API_KEY'),
-    model: 'claude-3-5-haiku-20241022',
+$summarizationProvider = new Anthropic(
+    \getenv('ANTHROPIC_API_KEY'),
+    'claude-3-5-haiku-20241022',
 );
 
 // Create agent with summarization middleware

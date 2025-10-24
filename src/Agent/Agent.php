@@ -42,7 +42,6 @@ class Agent implements AgentInterface
     use ResolveState;
     use ResolveProvider;
     use HandleTools;
-    public $nodeMiddleware;
 
     protected AIProviderInterface $provider;
 
@@ -104,24 +103,28 @@ class Agent implements AgentInterface
     /**
      * Register middleware for a specific node class.
      *
-     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
+     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $nodeClass Node class name or array of node class names
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
      * @throws WorkflowException
      */
-    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self
+    public function middleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
     {
+        $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
-        if (!isset($this->nodeMiddleware[$nodeClass])) {
-            $this->agentMiddleware[$nodeClass] = [];
+        foreach ($nodeClasses as $class) {
+            if (!isset($this->agentMiddleware[$nodeClass])) {
+                $this->agentMiddleware[$nodeClass] = [];
+            }
+
+            foreach ($middlewareArray as $m) {
+                if (! $m instanceof WorkflowMiddleware) {
+                    throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
+                }
+                $this->agentMiddleware[$nodeClass][] = $m;
+            }
         }
 
-        foreach ($middlewareArray as $m) {
-            if (! $m instanceof WorkflowMiddleware) {
-                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
-            }
-            $this->agentMiddleware[$nodeClass][] = $m;
-        }
         return $this;
     }
 
