@@ -100,9 +100,9 @@ class Summarization implements WorkflowMiddleware
         // Generate summary of old messages
         $summary = $this->generateSummary($oldMessages);
 
-        // Create new message list: summary + recent messages
+        // Create the new message list: summary + recent messages
         $newMessages = [
-            UserMessage::make("## Previous conversation summary:\n\n{$summary}"),
+            new UserMessage("## Previous conversation summary:\n\n{$summary}"),
             ...$recentMessages,
         ];
 
