@@ -47,10 +47,14 @@ $interruptRequest = null;
 
 try {
     stream:
-    $result = $agent->stream(
-        $interruptRequest ? [] : new UserMessage('Hi, using the tools you have, try to calculate the square root of 16!'),
-        $interruptRequest
-    );
+    if ($interruptRequest == null) {
+        $result = $agent->stream(
+            new UserMessage('Hi, using the tools you have, try to calculate the square root of 16!')
+        );
+    } else {
+        $result = $agent->stream(interrupt: $interruptRequest);
+    }
+
     /** @var \NeuronAI\Agent\StreamChunk $response */
     foreach ($result as $response) {
         process_response($response);
