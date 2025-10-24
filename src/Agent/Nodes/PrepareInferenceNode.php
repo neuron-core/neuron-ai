@@ -12,16 +12,11 @@ use NeuronAI\Workflow\StartEvent;
 /**
  * Prepares inference configuration by emitting an AIInferenceEvent.
  *
- * This node creates an event containing instructions and tools that can be
- * modified by middleware before reaching the actual inference nodes (ChatNode,
- * StreamingNode, or StructuredOutputNode).
+ * This node creates an event containing instructions and tools that can be modified
+ * by middleware before reaching the actual inference nodes (ChatNode, StreamingNode, or StructuredOutputNode).
  */
 class PrepareInferenceNode extends Node
 {
-    /**
-     * @param string $instructions System instructions for the agent
-     * @param array $tools Available tools for the agent
-     */
     public function __construct(
         private readonly string $instructions,
         private readonly array $tools,
