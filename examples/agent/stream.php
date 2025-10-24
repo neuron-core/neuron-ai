@@ -43,27 +43,29 @@ function process_response($response): void {
     echo $response->content;
 }
 
+$interruptRequest = null;
+
 try {
+    stream:
     $result = $agent->stream(
-        new UserMessage('Hi, using the tool you have, calculate the square root of 16!')
+        $interruptRequest ? [] : new UserMessage('Hi, using the tools you have, try to calculate the square root of 16!'),
+        $interruptRequest
     );
     /** @var \NeuronAI\Agent\StreamChunk $response */
     foreach ($result as $response) {
         process_response($response);
     }
 } catch (WorkflowInterrupt $interrupt) {
-    echo "\n".$interrupt->getRequest()->getReason()."\n";
+    $interruptRequest = $interrupt->getRequest();
+
+    echo "\nAgent interruption\n";
+    echo $interrupt->getRequest()->getReason()."\n\n";
 
     foreach ($interrupt->getRequest()->getPendingActions() as $action) {
         echo "- {$action->name}: {$action->description}\n";
         $action->reject('The user denied operation');
     }
-
-    $result = $agent->stream(interrupt: $interrupt->getRequest());
-    /** @var \NeuronAI\Agent\StreamChunk $response */
-    foreach ($result as $response) {
-        process_response($response);
-    }
+    goto stream;
 }
 
 echo \PHP_EOL;

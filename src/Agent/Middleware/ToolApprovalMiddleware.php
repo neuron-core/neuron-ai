@@ -72,13 +72,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             )
         );
 
-        throw new WorkflowInterrupt(
-            $interruptRequest,
-            $node::class,
-            $node->getCheckpoints(),
-            $state,
-            $event
-        );
+        throw new WorkflowInterrupt($interruptRequest, $node, $state, $event);
     }
 
     /**
@@ -124,8 +118,7 @@ class ToolApprovalMiddleware implements WorkflowMiddleware
             id: $tool->getCallId() ?? \uniqid('tool_'),
             name: $tool->getName(),
             description: \sprintf(
-                "Tool: %s\nDescription: %s\nInputs: %s",
-                $tool->getName(),
+                "Description: %s\nInputs: %s",
                 $tool->getDescription() ?? 'No description',
                 $inputsDescription
             ),

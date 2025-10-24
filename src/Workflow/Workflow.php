@@ -219,7 +219,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function resume(?Interrupt\InterruptRequest $resumeRequest): \Generator
+    public function resume(InterruptRequest $resumeRequest): \Generator
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
@@ -232,21 +232,14 @@ class Workflow implements WorkflowInterface
 
         $interrupt = $this->persistence->load($this->workflowId);
 
-        $this->state = $interrupt->getState();
-        $currentEvent = $interrupt->getCurrentEvent();
-
-        // Derive node from event (deterministic from eventNodeMap)
-        $currentNode = $this->eventNodeMap[$currentEvent::class];
-
-        // Restore the checkpoint state to the node
-        $currentNode->setCheckpoints($interrupt->getNodeCheckpoints());
-
         yield from $this->execute(
-            $currentEvent,
-            $currentNode,
+            $interrupt->getCurrentEvent(),
+            $interrupt->getNode(),
             true,
             $resumeRequest
         );
+
+        $this->state = $interrupt->getState();
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
 

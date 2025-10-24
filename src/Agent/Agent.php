@@ -180,13 +180,10 @@ class Agent implements AgentInterface
     {
         $this->notify('chat-start');
 
-        // Add messages to chat history before building workflow (only for fresh starts)
-        if ($interrupt === null) {
-            $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->resolveAgentState()->getChatHistory();
-            foreach ($messages as $message) {
-                $chatHistory->addMessage($message);
-            }
+        $messages = \is_array($messages) ? $messages : [$messages];
+        $chatHistory = $this->resolveAgentState()->getChatHistory();
+        foreach ($messages as $message) {
+            $chatHistory->addMessage($message);
         }
 
         $workflow = $this->buildWorkflow(
@@ -217,13 +214,10 @@ class Agent implements AgentInterface
     {
         $this->notify('stream-start');
 
-        // Add messages to chat history before building workflow (only for fresh starts)
-        if ($interrupt === null) {
-            $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->resolveAgentState()->getChatHistory();
-            foreach ($messages as $message) {
-                $chatHistory->addMessage($message);
-            }
+        $messages = \is_array($messages) ? $messages : [$messages];
+        $chatHistory = $this->resolveAgentState()->getChatHistory();
+        foreach ($messages as $message) {
+            $chatHistory->addMessage($message);
         }
 
         $workflow = $this->buildWorkflow(
@@ -262,13 +256,10 @@ class Agent implements AgentInterface
     {
         $this->notify('structured-start');
 
-        // Add messages to chat history before building workflow (only for fresh starts)
-        if ($interrupt === null) {
-            $messages = \is_array($messages) ? $messages : [$messages];
-            $chatHistory = $this->resolveAgentState()->getChatHistory();
-            foreach ($messages as $message) {
-                $chatHistory->addMessage($message);
-            }
+        $messages = \is_array($messages) ? $messages : [$messages];
+        $chatHistory = $this->resolveAgentState()->getChatHistory();
+        foreach ($messages as $message) {
+            $chatHistory->addMessage($message);
         }
 
         // Get the output class

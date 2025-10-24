@@ -18,20 +18,6 @@ interface NodeInterface
     ): void;
 
     /**
-     * Get node checkpoints for persistence.
-     *
-     * @return array<string, mixed>
-     */
-    public function getCheckpoints(): array;
-
-    /**
-     * Set node checkpoints when resuming.
-     *
-     * @param array<string, mixed> $checkpoints
-     */
-    public function setCheckpoints(array $checkpoints): void;
-
-    /**
      * Check if the node is in resuming mode.
      *
      * This is useful for middleware to determine if the workflow is resuming

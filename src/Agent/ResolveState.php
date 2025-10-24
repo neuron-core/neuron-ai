@@ -25,6 +25,6 @@ trait ResolveState
      */
     public function resolveAgentState(): AgentState
     {
-        return $this->state ?? $this->state = $this->state();
+        return $this->state ?? $this->state = $this->agentState();
     }
 }

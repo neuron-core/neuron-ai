@@ -77,10 +77,10 @@ echo "-------------------------------------------------------------------\n\n";
 $state = new AgentState();
 $id = 'workflow_1';
 $agent = Agent::make(
-        state: $state,
         persistence: $persistence,
         workflowId: $id
     )
+    ->setAgentState($state)
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([

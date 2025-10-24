@@ -30,7 +30,7 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     // Verify interrupt was saved
     $savedInterrupt = $persistence->load('test_workflow');
-    echo "Workflow interrupted at ".$savedInterrupt->getNodeClass().\PHP_EOL;
+    echo "Workflow interrupted at ".$savedInterrupt->getNode().\PHP_EOL;
 }
 
 // Resume the workflow providing external data
