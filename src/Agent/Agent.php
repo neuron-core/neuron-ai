@@ -37,12 +37,12 @@ use NeuronAI\Workflow\Workflow;
  */
 class Agent implements AgentInterface
 {
-    public $nodeMiddleware;
     use StaticConstructor;
     use Observable;
     use ResolveState;
     use ResolveProvider;
     use HandleTools;
+    public $nodeMiddleware;
 
     protected AIProviderInterface $provider;
 

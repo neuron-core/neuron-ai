@@ -29,6 +29,7 @@ class Workflow implements WorkflowInterface
 {
     use Observable;
     use StaticConstructor;
+    use HandleMiddleware;
 
     /**
      * @var NodeInterface[]
@@ -45,20 +46,6 @@ class Workflow implements WorkflowInterface
     protected PersistenceInterface $persistence;
 
     protected string $workflowId;
-
-    /**
-     * Global middleware applied to all nodes.
-     *
-     * @var WorkflowMiddleware[]
-     */
-    protected array $globalMiddleware = [];
-
-    /**
-     * Node-specific middleware.
-     *
-     * @var array<class-string<NodeInterface>, WorkflowMiddleware[]>
-     */
-    protected array $nodeMiddleware = [];
 
     public function __construct(
         protected WorkflowState $state = new WorkflowState(),
@@ -106,64 +93,6 @@ class Workflow implements WorkflowInterface
     {
         $isResume = $resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest;
         return new WorkflowHandler($this, $isResume, $resumeRequest);
-    }
-
-    /**
-     * Register global middleware that runs on all nodes.
-     *
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
-     * @throws WorkflowException
-     */
-    public function globalMiddleware(WorkflowMiddleware|array $middleware): self
-    {
-        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
-
-        foreach ($middlewareArray as $m) {
-            if (! $m instanceof WorkflowMiddleware) {
-                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
-            }
-            $this->globalMiddleware[] = $m;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Register middleware for a specific node class.
-     *
-     * @param class-string<NodeInterface> $nodeClass Node class name or array of node classes with middleware
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s) (required when $nodeClass is a string)
-     * @throws WorkflowException
-     */
-    public function middleware(string $nodeClass, WorkflowMiddleware|array $middleware): self
-    {
-        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
-
-        if (!isset($this->nodeMiddleware[$nodeClass])) {
-            $this->nodeMiddleware[$nodeClass] = [];
-        }
-
-        foreach ($middlewareArray as $m) {
-            if (! $m instanceof WorkflowMiddleware) {
-                throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
-            }
-            $this->nodeMiddleware[$nodeClass][] = $m;
-        }
-        return $this;
-    }
-
-    /**
-     * Get all registered middleware for the given node.
-     *
-     * @return WorkflowMiddleware[]
-     */
-    protected function getMiddlewareForNode(NodeInterface $node): array
-    {
-        $nodeClass = $node::class;
-        $nodeSpecific = $this->nodeMiddleware[$nodeClass] ?? [];
-
-        // Combine global and node-specific middleware
-        return \array_merge($this->globalMiddleware, $nodeSpecific);
     }
 
     /**
@@ -385,6 +314,11 @@ class Workflow implements WorkflowInterface
         }
     }
 
+    public function getEventNodeMap(): array
+    {
+        return $this->eventNodeMap;
+    }
+
     /**
      * @throws WorkflowException
      */
@@ -464,11 +398,6 @@ class Workflow implements WorkflowInterface
         } catch (ReflectionException $e) {
             throw new WorkflowException('Failed to validate '.$node::class.': ' . $e->getMessage());
         }
-    }
-
-    public function getEventNodeMap(): array
-    {
-        return $this->eventNodeMap;
     }
 
     public function getWorkflowId(): string
