@@ -99,7 +99,7 @@ PROMPT;
             return;
         }
 
-        // Inject todo planning instructions
+        // Inject to-do planning instructions
         $event->instructions .= "\n\n" . $this->systemPrompt;
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
