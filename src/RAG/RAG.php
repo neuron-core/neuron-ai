@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use GuzzleHttp\Promise\PromiseInterface;
-use NeuronAI\Agent;
-use NeuronAI\AgentInterface;
+use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Observability\Events\PostProcessed;
@@ -18,6 +18,8 @@ use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Throwable;
 
 /**
  * @method RAG withProvider(AIProviderInterface $provider)
@@ -38,26 +40,30 @@ class RAG extends Agent
      */
     protected array $postProcessors = [];
 
-    public function chatAsync(Message|array $messages): PromiseInterface
+    /**
+     * @throws Throwable
+     */
+    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
-        $this->notify('chat-rag-start');
-
         $question = \is_array($messages) ? \end($messages) : $messages;
+
+        $this->notify('chat-rag-start');
 
         $this->withDocumentsContext(
             $this->retrieveDocuments($question)
         );
 
-        return parent::chatAsync($messages)->then(function (Message $response): Message|PromiseInterface {
-            $this->notify('chat-rag-stop');
-            return $response;
-        });
+        $response = parent::chat($messages);
+
+        $this->notify('chat-rag-stop');
+
+        return $response;
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
-    public function stream(Message|array $messages): \Generator
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
         $question = \is_array($messages) ? \end($messages) : $messages;
 
@@ -72,7 +78,7 @@ class RAG extends Agent
         $this->notify('stream-rag-stop');
     }
 
-    public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
         $question = \is_array($messages) ? \end($messages) : $messages;
 

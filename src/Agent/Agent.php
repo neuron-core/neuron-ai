@@ -147,8 +147,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Execute the chat.
-     *
      * @throws Throwable
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
@@ -182,8 +180,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Execute the chat with streaming.
-     *
      * @throws Throwable
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
@@ -222,8 +218,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Execute structured output extraction.
-     *
      * @throws AgentException
      * @throws Throwable
      */
