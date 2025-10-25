@@ -36,25 +36,17 @@ class RAG extends Agent
     protected array $postProcessors = [];
 
     /**
-     * Override prepareNodes to build RAG pipeline.
-     *
-     * @param Node|Node[] $nodes Nodes from Agent (PrepareInferenceNode, InferenceNode)
+     * @return Node[]
      */
-    protected function prepareNodes(array|Node $nodes): void
+    protected function agentWorkflowNodes(): array
     {
-        $nodes = \is_array($nodes) ? $nodes : [$nodes];
-
-        $ragPipeline = [
+        return [
             new PrepareRAGNode(),
             new PreProcessQueryNode($this->preProcessors()),
             new RetrieveDocumentsNode($this->resolveRetrieval()),
             new PostProcessDocumentsNode($this->postProcessors()),
             new EnrichInstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
-            ...$nodes,
         ];
-
-        // Call parent to add RouterNode and ToolNode automatically
-        parent::prepareNodes($ragPipeline);
     }
 
     /**

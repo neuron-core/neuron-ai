@@ -109,14 +109,13 @@ class Agent extends Workflow implements AgentInterface
         return $this;
     }
 
-
     /**
      * Prepare the agent workflow with mode-specific nodes.
      * Since Agent extends Workflow, we configure the current instance.
      *
      * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
      */
-    protected function prepareNodes(array|Node $nodes): void
+    protected function compose(array|Node $nodes): void
     {
         // Clear any previously added nodes (important for multiple calls)
         $this->clearNodes();
@@ -130,10 +129,24 @@ class Agent extends Workflow implements AgentInterface
 
         // Add nodes to this workflow instance
         $this->addNodes([
+            ...$this->agentWorkflowNodes(),
             ...$nodes,
             new RouterNode(),
             $toolNode,
         ]);
+    }
+
+    /**
+     * @return Node[]
+     */
+    protected function agentWorkflowNodes(): array
+    {
+        return [
+            new PrepareInferenceNode(
+                $this->resolveInstructions(),
+                $this->bootstrapTools()
+            ),
+        ];
     }
 
     /**
@@ -150,7 +163,7 @@ class Agent extends Workflow implements AgentInterface
         }
 
         // Prepare workflow nodes for chat mode
-        $this->prepareNodes([
+        $this->compose([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools()
@@ -183,7 +196,7 @@ class Agent extends Workflow implements AgentInterface
         }
 
         // Prepare workflow nodes for streaming mode
-        $this->prepareNodes([
+        $this->compose([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
@@ -225,7 +238,7 @@ class Agent extends Workflow implements AgentInterface
         $class ??= $this->getOutputClass();
 
         // Prepare workflow nodes for structured output mode
-        $this->prepareNodes([
+        $this->compose([
             new PrepareInferenceNode(
                 $this->resolveInstructions(),
                 $this->bootstrapTools(),
