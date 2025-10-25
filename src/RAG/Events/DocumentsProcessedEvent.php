@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Events;
 
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 
 /**
  * Event emitted after documents are post-processed.

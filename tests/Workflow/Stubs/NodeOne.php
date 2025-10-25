@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\WorkflowState;
 
 class NodeOne extends Node

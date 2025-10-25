@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Middleware;
 
 use Generator;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 

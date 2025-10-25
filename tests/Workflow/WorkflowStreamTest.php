@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 

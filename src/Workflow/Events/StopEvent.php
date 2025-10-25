@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow;
+namespace NeuronAI\Workflow\Events;
+
+use NeuronAI\Workflow\Events\Event;
 
 class StopEvent implements Event
 {

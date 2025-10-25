@@ -13,6 +13,9 @@ use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\Observable;
 use NeuronAI\StaticConstructor;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -45,6 +48,8 @@ class Workflow implements WorkflowInterface
     protected PersistenceInterface $persistence;
 
     protected string $workflowId;
+
+    protected Event $startEvent;
 
     public function __construct(
         protected WorkflowState $state = new WorkflowState(),
@@ -95,6 +100,40 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Set a custom start event with initial data.
+     * Use this with the builder pattern to provide initial workflow data.
+     *
+     * @param Event $event Custom start event instance
+     */
+    public function withStartEvent(Event $event): self
+    {
+        $this->startEvent = $event;
+        return $this;
+    }
+
+    /**
+     * Resolve the start event for this workflow.
+     * Uses lazy initialization: checks property, falls back to startEvent() factory method.
+     *
+     * @return Event The start event instance
+     */
+    protected function resolveStartEvent(): Event
+    {
+        return $this->startEvent ?? $this->startEvent = $this->startEvent();
+    }
+
+    /**
+     * Create the default start event for this workflow.
+     * Override this method to provide a custom start event with initial data.
+     *
+     * @return Event The start event instance
+     */
+    protected function startEvent(): Event
+    {
+        return new StartEvent();
+    }
+
+    /**
      * Run the middleware pipeline around node execution.
      *
      * Executes all middleware before() methods, then the node, then all middleware after() methods.
@@ -133,7 +172,8 @@ class Workflow implements WorkflowInterface
             throw $exception;
         }
 
-        yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class]);
+        $startEvent = $this->resolveStartEvent();
+        yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
 
@@ -333,8 +373,11 @@ class Workflow implements WorkflowInterface
      */
     protected function validate(): void
     {
-        if (!isset($this->eventNodeMap[StartEvent::class])) {
-            throw new WorkflowException('No nodes found that handle '.StartEvent::class);
+        $startEvent = $this->resolveStartEvent();
+        $startEventClass = $startEvent::class;
+
+        if (!isset($this->eventNodeMap[$startEventClass])) {
+            throw new WorkflowException('No nodes found that handle '.$startEventClass);
         }
     }
 

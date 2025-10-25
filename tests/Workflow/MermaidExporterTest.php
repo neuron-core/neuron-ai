@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Exporter\MermaidExporter;
-use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\ConditionalNode;

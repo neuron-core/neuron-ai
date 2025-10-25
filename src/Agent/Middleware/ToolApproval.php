@@ -10,7 +10,7 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;

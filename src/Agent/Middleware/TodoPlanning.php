@@ -8,7 +8,7 @@ use Generator;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\Tools\WriteTodosTool;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow;
+namespace NeuronAI\Workflow\Events;
 
 interface Event
 {

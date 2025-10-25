@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\RAG\Events\QueryPreProcessEvent;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Events\StartEvent;
 
 /**
  * Gateway node that routes RAG workflow based on cache state.

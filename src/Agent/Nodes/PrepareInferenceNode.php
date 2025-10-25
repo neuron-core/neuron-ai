@@ -7,7 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
+use NeuronAI\Workflow\Events\StartEvent;
 
 /**
  * Prepares inference configuration by emitting an AIInferenceEvent.

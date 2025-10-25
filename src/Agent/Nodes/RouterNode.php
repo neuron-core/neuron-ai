@@ -9,7 +9,7 @@ use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StopEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 
 /**
  * Node responsible for routing the AI response to either tool execution or completion.

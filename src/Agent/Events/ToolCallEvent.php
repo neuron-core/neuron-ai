@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Events;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 
 /**
  * Event triggered when the AI provider requests tool execution.

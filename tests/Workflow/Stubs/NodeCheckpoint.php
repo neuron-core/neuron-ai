@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\StartEvent;
-use NeuronAI\Workflow\StopEvent;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\WorkflowState;
 
 class NodeCheckpoint extends Node
