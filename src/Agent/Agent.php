@@ -163,13 +163,9 @@ class Agent extends Workflow implements AgentInterface
         }
 
         // Prepare workflow nodes for chat mode
-        $this->compose([
-            new PrepareInferenceNode(
-                $this->resolveInstructions(),
-                $this->bootstrapTools()
-            ),
+        $this->compose(
             new ChatNode($this->resolveProvider()),
-        ]);
+        );
 
         // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
@@ -196,13 +192,9 @@ class Agent extends Workflow implements AgentInterface
         }
 
         // Prepare workflow nodes for streaming mode
-        $this->compose([
-            new PrepareInferenceNode(
-                $this->resolveInstructions(),
-                $this->bootstrapTools(),
-            ),
+        $this->compose(
             new StreamingNode($this->resolveProvider()),
-        ]);
+        );
 
         // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
@@ -238,13 +230,9 @@ class Agent extends Workflow implements AgentInterface
         $class ??= $this->getOutputClass();
 
         // Prepare workflow nodes for structured output mode
-        $this->compose([
-            new PrepareInferenceNode(
-                $this->resolveInstructions(),
-                $this->bootstrapTools(),
-            ),
+        $this->compose(
             new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
-        ]);
+        );
 
         // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
