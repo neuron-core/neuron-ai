@@ -16,6 +16,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\HandleContent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
@@ -30,6 +31,7 @@ class Agent extends Workflow implements AgentInterface
     use ResolveState;
     use ResolveProvider;
     use HandleTools;
+    use HandleContent;
 
     protected string $instructions;
 
@@ -107,13 +109,6 @@ class Agent extends Workflow implements AgentInterface
         return $this;
     }
 
-    protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
-    {
-        $escapedOpenTag = \preg_quote($openTag, '/');
-        $escapedCloseTag = \preg_quote($closeTag, '/');
-        $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
-        return \preg_replace($pattern, '', $text);
-    }
 
     /**
      * Prepare the agent workflow with mode-specific nodes.
