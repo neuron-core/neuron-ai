@@ -24,6 +24,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterrupt;
 use Throwable;
 
 class Agent extends Workflow implements AgentInterface
@@ -150,7 +151,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * @param Message|Message[] $messages
      * @throws Throwable
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
@@ -179,7 +183,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * @param Message|Message[] $messages
      * @throws Throwable
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
@@ -213,8 +220,11 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * @param Message|Message[] $messages
      * @throws AgentException
      * @throws Throwable
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
