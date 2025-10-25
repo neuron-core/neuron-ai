@@ -64,8 +64,8 @@ Use this tool if you need to retrieve user information that can help you provide
         $response = \json_decode($response, true);
 
         return match ($search_scope) {
-            'nodes' => $this->mapNodes($response['nodes']),
-            default => $this->mapEdges($response['edges']),
+            'nodes' => $this->mapNodes($response['nodes'] ?? []),
+            default => $this->mapEdges($response['edges'] ?? []),
         };
     }
 
