@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Workflow\WorkflowState;
 
 trait ResolveState
@@ -16,7 +18,9 @@ trait ResolveState
 
     protected function agentState(): AgentState
     {
-        return new AgentState();
+        $state = new AgentState();
+        $state->setChatHistory($this->chatHistory());
+        return $state;
     }
 
     /**
@@ -25,5 +29,21 @@ trait ResolveState
     public function resolveAgentState(): AgentState|WorkflowState
     {
         return $this->state ?? $this->state = $this->agentState();
+    }
+
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new InMemoryChatHistory();
+    }
+
+    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    {
+        $this->resolveAgentState()->setChatHistory($chatHistory);
+        return $this;
+    }
+
+    public function getChatHistory(): ChatHistoryInterface
+    {
+        return $this->resolveAgentState()->getChatHistory();
     }
 }

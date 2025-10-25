@@ -12,6 +12,7 @@ use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
@@ -89,12 +90,6 @@ class Agent extends Workflow implements AgentInterface
     protected function agentMiddleware(): array
     {
         return [];
-    }
-
-    public function setChatHistory(ChatHistoryInterface $chatHistory): self
-    {
-        $this->resolveAgentState()->setChatHistory($chatHistory);
-        return $this;
     }
 
     /**
