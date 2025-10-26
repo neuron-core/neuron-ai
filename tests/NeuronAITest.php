@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests;
 
-use NeuronAI\Agent;
-use NeuronAI\AgentInterface;
+use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -31,8 +31,8 @@ class NeuronAITest extends TestCase
     {
         $neuron = new Agent();
         $this->assertInstanceOf(AgentInterface::class, $neuron);
-        $this->assertInstanceOf(ChatHistoryInterface::class, $neuron->resolveChatHistory());
-        $this->assertInstanceOf(InMemoryChatHistory::class, $neuron->resolveChatHistory());
+        $this->assertInstanceOf(ChatHistoryInterface::class, $neuron->getChatHistory());
+        $this->assertInstanceOf(InMemoryChatHistory::class, $neuron->getChatHistory());
 
         $neuron = new RAG();
         $this->assertInstanceOf(Agent::class, $neuron);

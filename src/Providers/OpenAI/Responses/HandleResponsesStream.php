@@ -18,7 +18,7 @@ trait HandleResponsesStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         $json = [
             'stream' => true,
@@ -87,9 +87,7 @@ trait HandleResponsesStream
                     // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
-                        yield from $executeToolsCallback(
-                            $this->createToolCallMessage($toolCalls, $event['response']['usage'] ?? null)
-                        );
+                        yield $this->createToolCallMessage($toolCalls, $event['response']['usage'] ?? null);
                     } else {
                         return $this->createAssistantMessage($event['response']);
                     }

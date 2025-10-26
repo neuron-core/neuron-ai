@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\CustomState;
 use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -172,7 +173,8 @@ class WorkflowInterruptTest extends TestCase
 
         $this->expectException(\Exception::class); // Should fail when trying to load non-existent interrupt
 
-        $workflow->start(true, 'feedback')->getResult();
+        $resumeRequest = new InterruptRequest([], 'feedback');
+        $workflow->start($resumeRequest)->getResult();
     }
 
     public function testMultipleInterruptsAndResumes(): void

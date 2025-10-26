@@ -15,7 +15,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         $json = [
             'contents' => $this->messageMapper()->map($messages),
@@ -63,12 +63,10 @@ trait HandleStream
 
                 // Handle tool calls
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    yield from $executeToolsCallback(
-                        $this->createToolCallMessage([
-                            'content' => $text,
-                            'parts' => $toolCalls
-                        ])
-                    );
+                    yield $this->createToolCallMessage([
+                        'content' => $text,
+                        'parts' => $toolCalls
+                    ]);
 
                     return;
                 }

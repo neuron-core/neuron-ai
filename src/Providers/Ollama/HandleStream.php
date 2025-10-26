@@ -10,7 +10,7 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -49,9 +49,8 @@ trait HandleStream
 
             // Process tool calls
             if (isset($line['message']['tool_calls'])) {
-                yield from $executeToolsCallback(
-                    $this->createToolCallMessage($line['message'])
-                );
+                yield $this->createToolCallMessage($line['message']);
+                return;
             }
 
             // Process regular content

@@ -17,7 +17,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         // Attach the system prompt
         if (isset($this->system)) {
@@ -78,12 +78,10 @@ trait HandleStream
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
                 finish:
-                yield from $executeToolsCallback(
-                    $this->createToolCallMessage([
-                        'content' => $text,
-                        'tool_calls' => $toolCalls
-                    ])
-                );
+                yield $this->createToolCallMessage([
+                    'content' => $text,
+                    'tool_calls' => $toolCalls
+                ]);
 
                 return;
             }

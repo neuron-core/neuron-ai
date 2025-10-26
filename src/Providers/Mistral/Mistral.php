@@ -18,7 +18,7 @@ class Mistral extends OpenAI
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         // Attach the system prompt
         if ($this->system !== null) {
@@ -69,12 +69,11 @@ class Mistral extends OpenAI
 
                 // Handle tool calls
                 if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
-                    yield from $executeToolsCallback(
-                        $this->createToolCallMessage([
-                            'content' => $text,
-                            'tool_calls' => $toolCalls
-                        ])
-                    );
+                    yield $this->createToolCallMessage([
+                        'content' => $text,
+                        'tool_calls' => $toolCalls
+                    ]);
+                    return;
                 }
 
                 continue;

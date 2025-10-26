@@ -15,7 +15,7 @@ trait HandleWorkflowEvents
     /**
      * @throws \Exception
      */
-    public function workflowStart(\SplSubject $workflow, string $event, WorkflowStart $data): void
+    public function workflowStart(object $workflow, string $event, WorkflowStart $data): void
     {
         if (!$this->inspector->isRecording()) {
             return;
@@ -33,7 +33,7 @@ trait HandleWorkflowEvents
         }
     }
 
-    public function workflowEnd(\SplSubject $workflow, string $event, WorkflowEnd $data): void
+    public function workflowEnd(object $workflow, string $event, WorkflowEnd $data): void
     {
         if (\array_key_exists($workflow::class, $this->segments)) {
             $this->segments[$workflow::class]
@@ -46,7 +46,7 @@ trait HandleWorkflowEvents
         }
     }
 
-    public function workflowNodeStart(\SplSubject $workflow, string $event, WorkflowNodeStart $data): void
+    public function workflowNodeStart(object $workflow, string $event, WorkflowNodeStart $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -59,7 +59,7 @@ trait HandleWorkflowEvents
         $this->segments[$data->node] = $segment;
     }
 
-    public function workflowNodeEnd(\SplSubject $workflow, string $event, WorkflowNodeEnd $data): void
+    public function workflowNodeEnd(object $workflow, string $event, WorkflowNodeEnd $data): void
     {
         if (\array_key_exists($data->node, $this->segments)) {
             $segment = $this->segments[$data->node]->end();

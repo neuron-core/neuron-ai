@@ -13,7 +13,7 @@ trait HandleStream
     /**
      * @throws ProviderException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages): \Generator
     {
         $payload = $this->createPayLoad($messages);
         $result = $this->bedrockRuntimeClient->converseStream($payload);
@@ -62,9 +62,7 @@ trait HandleStream
         }
 
         if (isset($stopReason) && $stopReason === 'tool_use' && \count($tools) > 0) {
-            yield from $executeToolsCallback(
-                new ToolCallMessage(null, $tools),
-            );
+            yield new ToolCallMessage(null, $tools);
         }
     }
 }
