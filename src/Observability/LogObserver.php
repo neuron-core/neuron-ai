@@ -15,18 +15,16 @@ use Psr\Log\LogLevel;
 /**
  * Credits: https://github.com/sixty-nine
  */
-class LogObserver implements \SplObserver
+class LogObserver implements CallbackInterface
 {
     public function __construct(
         private readonly LoggerInterface $logger
     ) {
     }
 
-    public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
+    public function onEvent(string $event, object $source, mixed $data = null): void
     {
-        if ($event !== null) {
-            $this->logger->log(LogLevel::INFO, $event, $this->serializeData($data));
-        }
+        $this->logger->log(LogLevel::INFO, $event, $this->serializeData($data));
     }
 
     /**

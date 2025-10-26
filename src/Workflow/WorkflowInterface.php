@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
-interface WorkflowInterface extends \SplSubject
+interface WorkflowInterface
 {
     public function start(?Interrupt\InterruptRequest $resumeRequest = null): WorkflowHandler;
 

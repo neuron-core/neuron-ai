@@ -4,70 +4,182 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
-use SplObserver;
-
+/**
+ * Observable trait using the callback propagation system.
+ *
+ * This trait provides event emission capabilities to components and
+ * automatically initializes AgentMonitoring when configured.
+ *
+ * Key features:
+ * - Callbacks propagate automatically to sub-components
+ * - No need to implement SplSubject on every component
+ * - Easier to test and mock
+ * - Maintains serializability (callbacks must be invokable classes)
+ *
+ * Usage:
+ * ```php
+ * class MyComponent
+ * {
+ *     use Observable;
+ *
+ *     public function doSomething(): void
+ *     {
+ *         $this->notify('something-started', $data);
+ *         // ... logic ...
+ *         $this->notify('something-completed', $result);
+ *     }
+ * }
+ *
+ * $component = new MyComponent();
+ * $component->addCallback(new MyCallback());
+ * ```
+ */
 trait Observable
 {
     /**
-     * @var array<string, SplObserver[]>
+     * Flag to track if monitoring has been initialized.
      */
-    private array $observers = [];
+    private bool $monitoringInitialized = false;
 
-
-    private function initEventGroup(string $event = '*'): void
+    /**
+     * Initialize AgentMonitoring if INSPECTOR_INGESTION_KEY is set.
+     *
+     * This is called lazily on the first notify() call.
+     */
+    private function initializeMonitoring(): void
     {
-        /*
-         * If developers attach an observer, the agent monitoring will not be attached by default.
-         */
-        if (!isset($this->observers['*']) && !empty($_ENV['INSPECTOR_INGESTION_KEY'])) {
-            $this->observers['*'] = [
-                AgentMonitoring::instance(),
-            ];
+        if ($this->monitoringInitialized) {
+            return;
         }
 
-        if (!isset($this->observers[$event])) {
-            $this->observers[$event] = [];
+        $this->monitoringInitialized = true;
+
+        // Auto-attach AgentMonitoring when INSPECTOR_INGESTION_KEY is set
+        if (!empty($_ENV['INSPECTOR_INGESTION_KEY'])) {
+            $this->addCallback(NeuronMonitoring::instance());
         }
     }
 
     /**
-     * @return array<SplObserver>
+     * Notify all callbacks of an event.
+     *
+     * This method emits events to all registered callbacks and
+     * automatically propagates to sub-components.
+     *
+     * @param string $event The event name (e.g., 'inference-start', 'tool-calling')
+     * @param mixed $data Optional event data
      */
-    private function getEventObservers(string $event = "*"): array
+    public function notify(string $event, mixed $data = null): void
     {
-        $this->initEventGroup($event);
-        $group = $this->observers[$event];
-        $all = $this->observers["*"] ?? [];
+        // Lazily initialize monitoring on first use
+        $this->initializeMonitoring();
 
-        return \array_merge($group, $all);
+        foreach ($this->callbacks as $callback) {
+            $callback->onEvent($event, $this, $data);
+        }
     }
 
-    public function observe(SplObserver $observer, string $event = "*"): self
+    /**
+     * @var CallbackInterface[]
+     */
+    private array $callbacks = [];
+
+    /**
+     * Register a callback to receive events from this component.
+     *
+     * Callbacks are invoked in registration order when events are emitted.
+     *
+     * @param CallbackInterface $callback The callback to register
+     * @return $this
+     */
+    public function addCallback(CallbackInterface $callback): self
     {
-        $this->attach($observer, $event);
+        $this->callbacks[] = $callback;
         return $this;
     }
 
-    public function attach(SplObserver $observer, string $event = "*"): void
+    /**
+     * Register multiple callbacks at once.
+     *
+     * @param CallbackInterface[] $callbacks Array of callbacks to register
+     * @return $this
+     */
+    public function addCallbacks(array $callbacks): self
     {
-        $this->initEventGroup($event);
-        $this->observers[$event][] = $observer;
+        foreach ($callbacks as $callback) {
+            $this->addCallback($callback);
+        }
+        return $this;
     }
 
-    public function detach(SplObserver $observer, string $event = "*"): void
+    /**
+     * Remove a specific callback.
+     *
+     * @param CallbackInterface $callback The callback to remove
+     * @return $this
+     */
+    public function removeCallback(CallbackInterface $callback): self
     {
-        foreach ($this->getEventObservers($event) as $key => $s) {
-            if ($s === $observer) {
-                unset($this->observers[$event][$key]);
-            }
+        $this->callbacks = \array_filter(
+            $this->callbacks,
+            fn (CallbackInterface $c) => $c !== $callback
+        );
+        return $this;
+    }
+
+    /**
+     * Get all registered callbacks.
+     *
+     * @return CallbackInterface[]
+     */
+    public function getCallbacks(): array
+    {
+        return $this->callbacks;
+    }
+
+    /**
+     * Propagate all registered callbacks to a sub-component.
+     *
+     * This method automatically transfers callbacks from the parent
+     * component to a child component, enabling event bubbling through
+     * the component hierarchy.
+     *
+     * If the target component doesn't support callbacks (doesn't have
+     * the HasCallbacks trait or addCallback method), this method
+     * silently returns without error.
+     *
+     * @param object $component The component to propagate callbacks to
+     */
+    protected function propagateCallbacks(object $component): void
+    {
+        if (!\method_exists($component, 'addCallback')) {
+            return;
+        }
+
+        foreach ($this->callbacks as $callback) {
+            $component->addCallback($callback);
         }
     }
 
-    public function notify(string $event = "*", mixed $data = null): void
+    /**
+     * Propagate callbacks to multiple components at once.
+     *
+     * @param object[] $components Array of components to propagate callbacks to
+     */
+    protected function propagateCallbacksToAll(array $components): void
     {
-        // Broadcasting the '$event' event";
-        foreach ($this->getEventObservers($event) as $observer) {
-            $observer->update($this, $event, $data);
+        foreach ($components as $component) {
+            $this->propagateCallbacks($component);
         }
+    }
+
+    /**
+     * Clear all registered callbacks.
+     *
+     * Useful for testing or when resetting component state.
+     */
+    protected function clearCallbacks(): void
+    {
+        $this->callbacks = [];
     }
 }

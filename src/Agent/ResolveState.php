@@ -6,7 +6,6 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Workflow\WorkflowState;
 
 trait ResolveState
 {

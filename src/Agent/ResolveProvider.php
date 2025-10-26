@@ -16,6 +16,10 @@ trait ResolveProvider
     public function setAiProvider(AIProviderInterface $provider): AgentInterface
     {
         $this->provider = $provider;
+
+        // Propagate callbacks to the provider so it can emit events
+        $this->propagateCallbacks($provider);
+
         return $this;
     }
 
@@ -29,6 +33,13 @@ trait ResolveProvider
      */
     public function resolveProvider(): AIProviderInterface
     {
-        return $this->provider ?? $this->provider = $this->provider();
+        if (!isset($this->provider)) {
+            $this->provider = $this->provider();
+
+            // Propagate callbacks to the provider so it can emit events
+            $this->propagateCallbacks($this->provider);
+        }
+
+        return $this->provider;
     }
 }

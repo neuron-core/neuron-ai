@@ -24,7 +24,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
  * Getting started with observability:
  * https://docs.neuron-ai.dev/components/observability
  */
-class AgentMonitoring implements \SplObserver
+class NeuronMonitoring implements CallbackInterface
 {
     use HandleToolEvents;
     use HandleRagEvents;
@@ -89,7 +89,7 @@ class AgentMonitoring implements \SplObserver
         'workflow-node-end' => 'workflowNodeEnd',
     ];
 
-    protected static ?AgentMonitoring $instance = null;
+    protected static ?NeuronMonitoring $instance = null;
 
     /**
      * @param Inspector $inspector The monitoring instance
@@ -100,11 +100,10 @@ class AgentMonitoring implements \SplObserver
     ) {
     }
 
-
     /**
      * @throws InspectorException
      */
-    public static function instance(?string $key = null): AgentMonitoring
+    public static function instance(?string $key = null): NeuronMonitoring
     {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY']);
         $configuration->setTransport($_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
@@ -115,17 +114,17 @@ class AgentMonitoring implements \SplObserver
             return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 
-        if (!self::$instance instanceof AgentMonitoring) {
+        if (!self::$instance instanceof NeuronMonitoring) {
             self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
         return self::$instance;
     }
 
-    public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
+    public function onEvent(string $event, object $source, mixed $data = null): void
     {
-        if (!\is_null($event) && \array_key_exists($event, $this->methodsMap)) {
+        if (\array_key_exists($event, $this->methodsMap)) {
             $method = $this->methodsMap[$event];
-            $this->$method($subject, $event, $data);
+            $this->$method($source, $event, $data);
         }
     }
 
@@ -190,14 +189,14 @@ class AgentMonitoring implements \SplObserver
     /**
      * @throws \Exception
      */
-    public function reportError(\SplSubject $subject, string $event, AgentError $data): void
+    public function reportError(object $source, string $event, AgentError $data): void
     {
         $this->inspector->reportException($data->exception, !$data->unhandled);
 
         if ($data->unhandled) {
             $this->inspector->transaction()->setResult('error');
-            if ($subject instanceof Agent) {
-                $this->inspector->transaction()->setContext($this->getContext($subject));
+            if ($source instanceof Agent) {
+                $this->inspector->transaction()->setContext($this->getContext($source));
             }
         }
     }

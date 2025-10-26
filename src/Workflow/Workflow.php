@@ -285,6 +285,10 @@ class Workflow implements WorkflowInterface
     public function addNode(NodeInterface $node): Workflow
     {
         $this->nodes[] = $node;
+
+        // Propagate callbacks to the node so it can emit events
+        $this->propagateCallbacks($node);
+
         return $this;
     }
 
