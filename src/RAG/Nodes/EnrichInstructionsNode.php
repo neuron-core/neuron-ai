@@ -49,16 +49,8 @@ class EnrichInstructionsNode extends Node
         }
         $instructions .= '</EXTRA-CONTEXT>';
 
-        $enrichedInstructions = \trim($instructions);
-
-        // Cache for tool loop reuse
-        $state->set('rag_documents_retrieved', true);
-        $state->set('rag_enriched_instructions', $enrichedInstructions);
-        $state->set('rag_tools', $this->tools);
-        $state->set('rag_documents', $documents);
-
         return new AIInferenceEvent(
-            instructions: $enrichedInstructions,
+            instructions: $instructions,
             tools: $this->tools
         );
     }

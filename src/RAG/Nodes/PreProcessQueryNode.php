@@ -32,15 +32,6 @@ class PreProcessQueryNode extends Node
      */
     public function __invoke(StartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
-        // Check if documents already retrieved (tool loop detection)
-        if ($state->get('rag_documents_retrieved') === true) {
-            // Cache hit: return AIInferenceEvent directly, bypassing RAG pipeline
-            return new AIInferenceEvent(
-                instructions: $state->get('rag_enriched_instructions'),
-                tools: $state->get('rag_tools', [])
-            );
-        }
-
         $query = $state->getChatHistory()->getLastMessage();
 
         foreach ($this->preProcessors as $processor) {
