@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\StreamChunk;
 use NeuronAI\Agent\ToolCallChunk;
 use NeuronAI\Agent\ToolResultChunk;
@@ -19,6 +20,7 @@ use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -43,7 +45,7 @@ class StreamingNode extends Node
     /**
      * @throws \Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): \Generator
+    public function __invoke(AIInferenceEvent $event, AgentState $state): \Generator|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();
 
@@ -80,7 +82,7 @@ class StreamingNode extends Node
                     yield new ToolCallChunk($chunk->getTools());
 
                     // Go to the router node to handle the tool call
-                    return new AIResponseEvent($chunk);
+                    return new ToolCallEvent($chunk, $event);
                 }
 
                 // Parse usage information
@@ -112,7 +114,7 @@ class StreamingNode extends Node
                 new InferenceStop($chatHistory->getLastMessage(), $response)
             );
 
-            return new AIResponseEvent($response);
+            return new StopEvent();
 
         } catch (\Throwable $exception) {
             $this->notify('error', new AgentError($exception));

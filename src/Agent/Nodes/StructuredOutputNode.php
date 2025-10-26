@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\RequestException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -31,6 +32,7 @@ use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -53,7 +55,7 @@ class StructuredOutputNode extends Node
     /**
      * @throws \Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): AIResponseEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
         if ($this->outputClass === null) {
             throw new AgentException('Output class must be specified in AIInferenceEvent for StructuredOutputNode');
@@ -107,7 +109,7 @@ class StructuredOutputNode extends Node
 
                 // If the response is a tool call, route to tool execution
                 if ($response instanceof ToolCallMessage) {
-                    return new AIResponseEvent($response);
+                    return new ToolCallEvent($response, $event);
                 }
 
                 // Process the response: extract, deserialize, and validate
@@ -116,7 +118,7 @@ class StructuredOutputNode extends Node
                 // Store the structured output in state
                 $state->set('structured_output', $output);
 
-                return new AIResponseEvent($response);
+                return new StopEvent();
 
             } catch (RequestException $ex) {
                 $exception = $ex;

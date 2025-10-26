@@ -36,17 +36,21 @@ class RAG extends Agent
     protected array $postProcessors = [];
 
     /**
-     * @return Node[]
+     * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
      */
-    protected function agentWorkflowNodes(): array
+    protected function compose(array|Node $nodes): void
     {
-        return [
+        $nodes = \is_array($nodes) ? $nodes : [$nodes];
+
+        $nodes = \array_merge($nodes, [
             new PrepareRAGNode(),
             new PreProcessQueryNode($this->preProcessors()),
             new RetrieveDocumentsNode($this->resolveRetrieval()),
             new PostProcessDocumentsNode($this->postProcessors()),
             new EnrichInstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
-        ];
+        ]);
+
+        parent::compose($nodes);
     }
 
     /**

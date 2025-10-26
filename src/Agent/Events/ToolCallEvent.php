@@ -14,6 +14,7 @@ class ToolCallEvent implements Event
 {
     public function __construct(
         public readonly ToolCallMessage $toolCallMessage,
+        public readonly AIInferenceEvent $inferenceEvent,
     ) {
     }
 }

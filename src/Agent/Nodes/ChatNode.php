@@ -7,10 +7,13 @@ namespace NeuronAI\Agent\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AIResponseEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -28,7 +31,7 @@ class ChatNode extends Node
     ) {
     }
 
-    public function __invoke(AIInferenceEvent $event, AgentState $state): AIResponseEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();
 
@@ -51,6 +54,11 @@ class ChatNode extends Node
             new InferenceStop($chatHistory->getLastMessage(), $response)
         );
 
-        return new AIResponseEvent($response);
+        // If the response is a tool call, route to tool execution
+        if ($response instanceof ToolCallMessage) {
+            return new ToolCallEvent($response, $event);
+        }
+
+        return new StopEvent();
     }
 }

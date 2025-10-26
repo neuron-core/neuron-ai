@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -33,7 +34,7 @@ class ToolNode extends Node
      * @throws ToolMaxTriesException
      * @throws \Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): StartEvent
+    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent
     {
         $toolCallResult = $this->executeTools($event->toolCallMessage, $state);
 
@@ -42,7 +43,7 @@ class ToolNode extends Node
         $state->getChatHistory()->addMessage($toolCallResult);
 
         // Go back to the AI provider
-        return new StartEvent();
+        return $event->inferenceEvent;
     }
 
     /**

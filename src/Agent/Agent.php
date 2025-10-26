@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\PrepareInferenceNode;
@@ -17,6 +18,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
@@ -118,8 +120,10 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function compose(array|Node $nodes): void
     {
-        // Clear any previously added nodes (important for multiple calls)
-        $this->clearNodes();
+        if ($this->eventNodeMap !== []) {
+            // Already composed, do nothing
+            return;
+        }
 
         $nodes = \is_array($nodes) ? $nodes : [$nodes];
 
@@ -130,24 +134,17 @@ class Agent extends Workflow implements AgentInterface
 
         // Add nodes to this workflow instance
         $this->addNodes([
-            ...$this->agentWorkflowNodes(),
             ...$nodes,
-            new RouterNode(),
             $toolNode,
         ]);
     }
 
-    /**
-     * @return Node[]
-     */
-    protected function agentWorkflowNodes(): array
+    protected function startEvent(): Event
     {
-        return [
-            new PrepareInferenceNode(
-                $this->resolveInstructions(),
-                $this->bootstrapTools()
-            ),
-        ];
+        return new AIInferenceEvent(
+            $this->resolveInstructions(),
+            $this->bootstrapTools()
+        );
     }
 
     /**
