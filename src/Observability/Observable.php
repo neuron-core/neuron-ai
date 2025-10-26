@@ -42,6 +42,11 @@ trait Observable
     private bool $monitoringInitialized = false;
 
     /**
+     * @var CallbackInterface[]
+     */
+    private array $callbacks = [];
+
+    /**
      * Initialize AgentMonitoring if INSPECTOR_INGESTION_KEY is set.
      *
      * This is called lazily on the first notify() call.
@@ -78,11 +83,6 @@ trait Observable
             $callback->onEvent($event, $this, $data);
         }
     }
-
-    /**
-     * @var CallbackInterface[]
-     */
-    private array $callbacks = [];
 
     /**
      * Register a callback to receive events from this component.
