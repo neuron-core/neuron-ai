@@ -12,6 +12,10 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     protected string $baseUri = 'https://api.openai.com/v1/embeddings';
 
+    protected array $modelWithoutDimensions = [
+        'text-embedding-ada-002',
+    ];
+
     public function __construct(
         protected string $key,
         protected string $model,
@@ -34,12 +38,18 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
                 'model' => $this->model,
                 'input' => $text,
                 'encoding_format' => 'float',
-                'dimensions' => $this->dimensions,
+                ...($this->modelNeedsDimensions() ? ['dimensions' => $this->dimensions] : []),
+
             ]
         ])->getBody()->getContents();
 
         $response = \json_decode($response, true);
 
         return $response['data'][0]['embedding'];
+    }
+
+    protected function modelNeedsDimensions(): bool
+    {
+        return !in_array($this->model, $this->modelWithoutDimensions);
     }
 }
