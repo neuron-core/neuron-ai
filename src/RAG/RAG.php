@@ -14,6 +14,8 @@ use NeuronAI\RAG\Nodes\PrepareRAGNode;
 use NeuronAI\RAG\Nodes\RetrieveDocumentsNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -35,6 +37,11 @@ class RAG extends Agent
      */
     protected array $postProcessors = [];
 
+    protected function startEvent(): Event
+    {
+        return new StartEvent();
+    }
+
     /**
      * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
      */
@@ -43,7 +50,6 @@ class RAG extends Agent
         $nodes = \is_array($nodes) ? $nodes : [$nodes];
 
         $nodes = \array_merge($nodes, [
-            new PrepareRAGNode(),
             new PreProcessQueryNode($this->preProcessors()),
             new RetrieveDocumentsNode($this->resolveRetrieval()),
             new PostProcessDocumentsNode($this->postProcessors()),

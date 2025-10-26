@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessEvent;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -28,9 +30,18 @@ class PreProcessQueryNode extends Node
     /**
      * Apply preprocessors sequentially to the query.
      */
-    public function __invoke(QueryPreProcessEvent $event, AgentState $state): QueryPreProcessedEvent
+    public function __invoke(StartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
-        $query = $event->query;
+        // Check if documents already retrieved (tool loop detection)
+        if ($state->get('rag_documents_retrieved') === true) {
+            // Cache hit: return AIInferenceEvent directly, bypassing RAG pipeline
+            return new AIInferenceEvent(
+                instructions: $state->get('rag_enriched_instructions'),
+                tools: $state->get('rag_tools', [])
+            );
+        }
+
+        $query = $state->getChatHistory()->getLastMessage();
 
         foreach ($this->preProcessors as $processor) {
             $query = $processor->process($query);
