@@ -301,16 +301,6 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Clear all dynamically added nodes.
-     * Note: This does not affect nodes returned by the protected nodes() method.
-     */
-    protected function clearNodes(): void
-    {
-        $this->nodes = [];
-        $this->eventNodeMap = [];
-    }
-
-    /**
      * @return NodeInterface[]
      */
     protected function getNodes(): array
