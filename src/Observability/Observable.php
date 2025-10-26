@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Exceptions\InspectorException;
+
 trait Observable
 {
-    /**
-     * Flag to track if monitoring has been initialized.
-     */
     private bool $monitoringInitialized = false;
 
     /**
@@ -17,9 +16,7 @@ trait Observable
     private array $callbacks = [];
 
     /**
-     * Initialize AgentMonitoring if INSPECTOR_INGESTION_KEY is set.
-     *
-     * This is called lazily on the first notify() call.
+     * @throws InspectorException
      */
     private function initializeMonitoring(): void
     {
@@ -40,10 +37,10 @@ trait Observable
      *
      * @param string $event The event name (e.g., 'inference-start', 'tool-calling')
      * @param mixed $data Optional event data
+     * @throws InspectorException
      */
     public function notify(string $event, mixed $data = null): void
     {
-        // Lazily initialize monitoring on first use
         $this->initializeMonitoring();
 
         foreach ($this->callbacks as $callback) {
@@ -86,18 +83,6 @@ trait Observable
 
         foreach ($this->callbacks as $callback) {
             $component->addCallback($callback);
-        }
-    }
-
-    /**
-     * Propagate callbacks to multiple components at once.
-     *
-     * @param object[] $components Array of components to propagate callbacks to
-     */
-    protected function propagateCallbacksToAll(array $components): void
-    {
-        foreach ($components as $component) {
-            $this->propagateCallbacks($component);
         }
     }
 }
