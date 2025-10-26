@@ -28,6 +28,7 @@ trait ResolveState
      */
     public function resolveAgentState(): AgentState
     {
+        // @phpstan-ignore-next-line
         return $this->state ?? $this->state = $this->agentState();
     }
 
