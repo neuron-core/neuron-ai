@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Observability\Events\Retrieving;
+use NeuronAI\Observability\Observable;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
@@ -18,6 +20,8 @@ use NeuronAI\Workflow\Node;
  */
 class RetrieveDocumentsNode extends Node
 {
+    use Observable;
+
     public function __construct(
         private readonly RetrievalInterface $retrieval
     ) {
@@ -30,6 +34,8 @@ class RetrieveDocumentsNode extends Node
     {
         $query = $event->query;
 
+        $this->notify('rag-retrieving', new Retrieving($query));
+
         $documents = $this->retrieval->retrieve($query);
 
         // Deduplicate documents by content hash
@@ -39,6 +45,8 @@ class RetrieveDocumentsNode extends Node
             $retrievedDocs[$hash] = $document;
         }
         $retrievedDocs = \array_values($retrievedDocs);
+
+        $this->notify('rag-retrieved', new Retrieving($query));
 
         return new DocumentsRetrievedEvent($query, $retrievedDocs);
     }
