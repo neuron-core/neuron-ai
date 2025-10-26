@@ -114,9 +114,10 @@ class NeuronMonitoring implements CallbackInterface
             return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 
-        if (!self::$instance instanceof NeuronMonitoring) {
+        if (self::$instance === null) {
             self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
+
         return self::$instance;
     }
 

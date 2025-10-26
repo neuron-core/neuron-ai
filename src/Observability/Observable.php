@@ -4,36 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
-/**
- * Observable trait using the callback propagation system.
- *
- * This trait provides event emission capabilities to components and
- * automatically initializes AgentMonitoring when configured.
- *
- * Key features:
- * - Callbacks propagate automatically to sub-components
- * - No need to implement SplSubject on every component
- * - Easier to test and mock
- * - Maintains serializability (callbacks must be invokable classes)
- *
- * Usage:
- * ```php
- * class MyComponent
- * {
- *     use Observable;
- *
- *     public function doSomething(): void
- *     {
- *         $this->notify('something-started', $data);
- *         // ... logic ...
- *         $this->notify('something-completed', $result);
- *     }
- * }
- *
- * $component = new MyComponent();
- * $component->addCallback(new MyCallback());
- * ```
- */
 trait Observable
 {
     /**
@@ -59,10 +29,7 @@ trait Observable
 
         $this->monitoringInitialized = true;
 
-        // Auto-attach AgentMonitoring when INSPECTOR_INGESTION_KEY is set
-        if (!empty($_ENV['INSPECTOR_INGESTION_KEY'])) {
-            $this->addCallback(NeuronMonitoring::instance());
-        }
+        $this->observe(NeuronMonitoring::instance());
     }
 
     /**
@@ -92,49 +59,10 @@ trait Observable
      * @param CallbackInterface $callback The callback to register
      * @return $this
      */
-    public function addCallback(CallbackInterface $callback): self
+    public function observe(CallbackInterface $callback): self
     {
         $this->callbacks[] = $callback;
         return $this;
-    }
-
-    /**
-     * Register multiple callbacks at once.
-     *
-     * @param CallbackInterface[] $callbacks Array of callbacks to register
-     * @return $this
-     */
-    public function addCallbacks(array $callbacks): self
-    {
-        foreach ($callbacks as $callback) {
-            $this->addCallback($callback);
-        }
-        return $this;
-    }
-
-    /**
-     * Remove a specific callback.
-     *
-     * @param CallbackInterface $callback The callback to remove
-     * @return $this
-     */
-    public function removeCallback(CallbackInterface $callback): self
-    {
-        $this->callbacks = \array_filter(
-            $this->callbacks,
-            fn (CallbackInterface $c) => $c !== $callback
-        );
-        return $this;
-    }
-
-    /**
-     * Get all registered callbacks.
-     *
-     * @return CallbackInterface[]
-     */
-    public function getCallbacks(): array
-    {
-        return $this->callbacks;
     }
 
     /**
@@ -171,15 +99,5 @@ trait Observable
         foreach ($components as $component) {
             $this->propagateCallbacks($component);
         }
-    }
-
-    /**
-     * Clear all registered callbacks.
-     *
-     * Useful for testing or when resetting component state.
-     */
-    protected function clearCallbacks(): void
-    {
-        $this->callbacks = [];
     }
 }
