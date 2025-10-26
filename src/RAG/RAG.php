@@ -10,7 +10,6 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\Nodes\EnrichInstructionsNode;
 use NeuronAI\RAG\Nodes\PostProcessDocumentsNode;
 use NeuronAI\RAG\Nodes\PreProcessQueryNode;
-use NeuronAI\RAG\Nodes\PrepareRAGNode;
 use NeuronAI\RAG\Nodes\RetrieveDocumentsNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;

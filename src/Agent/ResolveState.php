@@ -26,7 +26,7 @@ trait ResolveState
     /**
      * Get the current instance of the chat history.
      */
-    public function resolveAgentState(): AgentState|WorkflowState
+    public function resolveAgentState(): AgentState
     {
         return $this->state ?? $this->state = $this->agentState();
     }

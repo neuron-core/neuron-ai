@@ -7,7 +7,6 @@ namespace NeuronAI\Agent\Nodes;
 use GuzzleHttp\Exception\RequestException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\AIResponseEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -57,10 +56,6 @@ class StructuredOutputNode extends Node
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
-        if ($this->outputClass === null) {
-            throw new AgentException('Output class must be specified in AIInferenceEvent for StructuredOutputNode');
-        }
-
         $chatHistory = $state->getChatHistory();
 
         // Generate JSON schema if not already generated

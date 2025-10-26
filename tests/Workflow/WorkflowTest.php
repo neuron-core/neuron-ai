@@ -182,7 +182,7 @@ class WorkflowTest extends TestCase
         }
 
         // Resume with human feedback
-        $finalState = $workflow->start(true, 'human input received')->getResult();
+        $finalState = $workflow->start(true)->getResult();
 
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertEquals('human input received', $finalState->get('received_feedback'));

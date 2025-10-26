@@ -7,7 +7,6 @@ namespace NeuronAI\RAG\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
-use NeuronAI\RAG\Events\QueryPreProcessEvent;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;

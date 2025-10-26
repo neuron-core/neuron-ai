@@ -16,7 +16,6 @@ use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\Events\StartEvent;
 
 /**
  * Node responsible for executing tool calls.
