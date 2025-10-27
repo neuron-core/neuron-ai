@@ -48,9 +48,13 @@ trait Observable
     /**
      * Register an observer to receive events from this component.
      */
-    public function observe(ObserverInterface $callback): self
+    public function observe(ObserverInterface $observer): self
     {
-        $this->observers[] = $callback;
+        if ($observer instanceof InspectorObserver) {
+            $this->monitoringInitialized = true;
+        }
+
+        $this->observers[] = $observer;
         return $this;
     }
 

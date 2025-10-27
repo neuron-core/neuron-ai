@@ -17,6 +17,7 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
+use NeuronAI\Workflow\Workflow;
 
 /**
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
@@ -26,6 +27,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
  */
 class InspectorObserver implements ObserverInterface
 {
+    use HandleAgentEvents;
     use HandleToolEvents;
     use HandleRagEvents;
     use HandleInferenceEvents;
@@ -131,57 +133,6 @@ class InspectorObserver implements ObserverInterface
     /**
      * @throws \Exception
      */
-    public function start(object $agent, string $event, mixed $data = null): void
-    {
-        if (!$this->inspector->isRecording() || !$agent instanceof Agent) {
-            return;
-        }
-
-        $method = $this->getEventPrefix($event);
-        $class = $agent::class;
-
-        if ($this->inspector->needTransaction()) {
-            $this->inspector->startTransaction($class.'::'.$method)
-                ->setType('ai-agent')
-                ->setContext($this->getContext($agent));
-        } elseif ($this->inspector->canAddSegments()) {
-            $key = $class.$method;
-
-            $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
-                ->setColor(self::STANDARD_COLOR);
-            $segment->setContext($this->getContext($agent));
-            $this->segments[$key] = $segment;
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    public function stop(Agent $agent, string $event, mixed $data = null): void
-    {
-        $method = $this->getEventPrefix($event);
-        $class = $agent::class;
-
-        $key = $class.$method;
-
-        if (\array_key_exists($key, $this->segments)) {
-            $segment = $this->segments[$key];
-            $segment->setContext($this->getContext($agent));
-            $segment->end();
-            unset($this->segments[$key]);
-        } elseif ($this->inspector->canAddSegments()) {
-            $transaction = $this->inspector->transaction()->setResult('success');
-            $transaction->setContext($this->getContext($agent));
-
-            if ($this->autoFlush) {
-                $this->inspector->flush();
-            }
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
     public function reportError(object $source, string $event, AgentError $data): void
     {
         $this->inspector->reportException($data->exception, !$data->unhandled);
@@ -189,7 +140,7 @@ class InspectorObserver implements ObserverInterface
         if ($data->unhandled) {
             $this->inspector->transaction()->setResult('error');
             if ($source instanceof Agent) {
-                $this->inspector->transaction()->setContext($this->getContext($source));
+                $this->inspector->transaction()->setContext($this->getAgentContext($source));
             }
         }
     }
@@ -197,34 +148,6 @@ class InspectorObserver implements ObserverInterface
     public function getEventPrefix(string $event): string
     {
         return \explode('-', $event)[0];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function getContext(Agent $agent): array
-    {
-        $mapTool = fn (ToolInterface $tool): array => [
-            $tool->getName() => [
-                'description' => $tool->getDescription(),
-                'properties' => \array_map(
-                    fn (ToolPropertyInterface $property) => $property->jsonSerialize(),
-                    $tool->getProperties()
-                )
-            ]
-        ];
-
-        return [
-            'Agent' => [
-                'provider' => $agent->resolveProvider()::class,
-                'instructions' => $agent->resolveInstructions(),
-            ],
-            'Tools' => \array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
-                $tool instanceof ToolInterface => $mapTool($tool),
-                $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
-                default => $tool->jsonSerialize(),
-            }, $agent->getTools()),
-        ];
     }
 
     protected function getBaseClassName(string $class): string
