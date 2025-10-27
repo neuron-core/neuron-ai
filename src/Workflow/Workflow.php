@@ -68,6 +68,9 @@ class Workflow implements WorkflowInterface
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
 
+        $this->persistence = $persistence ?? new InMemoryPersistence();
+        $this->workflowId = $workflowId ?? \uniqid('workflow_');
+
         // Register the default node middleware
         foreach ($this->middleware() as $nodeClass => $middlewares) {
             $this->addMiddleware($nodeClass, $middlewares);
