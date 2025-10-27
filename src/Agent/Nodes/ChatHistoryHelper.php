@@ -15,11 +15,10 @@ trait ChatHistoryHelper
     /**
      * @throws InspectorException
      */
-    protected function addToChatHistory(AgentState $state, Message $message)
+    protected function addToChatHistory(AgentState $state, Message $message): void
     {
         $this->notify('message-saving', new MessageSaving($message));
-        // @phpstan-ignore-next-line
-        $this->currentState->getChatHistory()->addMessage($message);
+        $state->getChatHistory()->addMessage($message);
         $this->notify('message-saved', new MessageSaved($message));
     }
 }

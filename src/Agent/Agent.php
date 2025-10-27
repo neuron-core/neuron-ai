@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatHistoryHelper;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -24,7 +25,6 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
-use Throwable;
 
 class Agent extends Workflow implements AgentInterface
 {
@@ -147,9 +147,10 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @throws Throwable
-     * @throws WorkflowException
+     * @throws \Throwable
      * @throws WorkflowInterrupt
+     * @throws InspectorException
+     * @throws WorkflowException
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
@@ -178,9 +179,10 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @throws Throwable
-     * @throws WorkflowException
      * @throws WorkflowInterrupt
+     * @throws InspectorException
+     * @throws WorkflowException
+     * @throws \Throwable
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
@@ -213,11 +215,12 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param Message|Message[] $messages
+     * @param Message|Message[]  $messages
+     * @throws \Throwable
      * @throws AgentException
-     * @throws Throwable
-     * @throws WorkflowException
      * @throws WorkflowInterrupt
+     * @throws InspectorException
+     * @throws WorkflowException
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {

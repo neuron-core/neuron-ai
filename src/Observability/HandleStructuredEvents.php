@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use Inspector\Models\Segment;
-use NeuronAI\AgentInterface;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
 use NeuronAI\Observability\Events\Extracted;
@@ -22,7 +21,7 @@ trait HandleStructuredEvents
     protected Segment $deserialize;
     protected Segment $validate;
 
-    protected function schemaGeneration(AgentInterface $agent, string $event, SchemaGeneration $data): void
+    protected function schemaGeneration(object $source, string $event, SchemaGeneration $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -32,7 +31,7 @@ trait HandleStructuredEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function schemaGenerated(AgentInterface $agent, string $event, SchemaGenerated $data): void
+    protected function schemaGenerated(object $source, string $event, SchemaGenerated $data): void
     {
         if (isset($this->schema)) {
             $this->schema->end();
@@ -40,7 +39,7 @@ trait HandleStructuredEvents
         }
     }
 
-    protected function extracting(AgentInterface $agent, string $event, Extracting $data): void
+    protected function extracting(object $source, string $event, Extracting $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -50,7 +49,7 @@ trait HandleStructuredEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function extracted(AgentInterface $agent, string $event, Extracted $data): void
+    protected function extracted(object $source, string $event, Extracted $data): void
     {
         if (!isset($this->extract)) {
             return;
@@ -69,7 +68,7 @@ trait HandleStructuredEvents
         );
     }
 
-    protected function deserializing(AgentInterface $agent, string $event, Deserializing $data): void
+    protected function deserializing(object $source, string $event, Deserializing $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -79,7 +78,7 @@ trait HandleStructuredEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function deserialized(AgentInterface $agent, string $event, Deserialized $data): void
+    protected function deserialized(object $source, string $event, Deserialized $data): void
     {
         if (isset($this->deserialize)) {
             $this->deserialize->addContext('Class', $data->class);
@@ -87,7 +86,7 @@ trait HandleStructuredEvents
         }
     }
 
-    protected function validating(AgentInterface $agent, string $event, Validating $data): void
+    protected function validating(object $source, string $event, Validating $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -97,7 +96,7 @@ trait HandleStructuredEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function validated(AgentInterface $agent, string $event, Validated $data): void
+    protected function validated(object $source, string $event, Validated $data): void
     {
         if (isset($this->validate)) {
             $this->validate->end();

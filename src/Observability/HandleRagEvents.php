@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
-use NeuronAI\AgentInterface;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\Observability\Events\PreProcessed;
@@ -14,7 +14,7 @@ use NeuronAI\Observability\Events\Retrieving;
 
 trait HandleRagEvents
 {
-    public function ragRetrieving(AgentInterface $agent, string $event, Retrieving $data): void
+    public function ragRetrieving(object $source, string $event, Retrieving $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -27,7 +27,7 @@ trait HandleRagEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    public function ragRetrieved(AgentInterface $agent, string $event, Retrieved $data): void
+    public function ragRetrieved(object $source, string $event, Retrieved $data): void
     {
         $id = \md5($data->question->getContent().$data->question->getRole());
 
@@ -41,7 +41,7 @@ trait HandleRagEvents
         }
     }
 
-    public function preProcessing(AgentInterface $agent, string $event, PreProcessing $data): void
+    public function preProcessing(object $source, string $event, PreProcessing $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -56,7 +56,7 @@ trait HandleRagEvents
         $this->segments[$data->processor] = $segment;
     }
 
-    public function preProcessed(AgentInterface $agent, string $event, PreProcessed $data): void
+    public function preProcessed(object $source, string $event, PreProcessed $data): void
     {
         if (\array_key_exists($data->processor, $this->segments)) {
             $this->segments[$data->processor]
@@ -65,7 +65,7 @@ trait HandleRagEvents
         }
     }
 
-    public function postProcessing(AgentInterface $agent, string $event, PostProcessing $data): void
+    public function postProcessing(object $source, string $event, PostProcessing $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -81,7 +81,7 @@ trait HandleRagEvents
         $this->segments[$data->processor] = $segment;
     }
 
-    public function postProcessed(AgentInterface $agent, string $event, PostProcessed $data): void
+    public function postProcessed(object $source, string $event, PostProcessed $data): void
     {
         if (\array_key_exists($data->processor, $this->segments)) {
             $this->segments[$data->processor]
