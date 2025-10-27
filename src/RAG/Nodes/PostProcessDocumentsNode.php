@@ -39,9 +39,9 @@ class PostProcessDocumentsNode extends Node
         $documents = $event->documents;
 
         foreach ($this->postProcessors as $processor) {
-            $this->notify('rag-postprocessing', new PostProcessing($processor::class, $query, $documents));
+            $this->emit('rag-postprocessing', new PostProcessing($processor::class, $query, $documents));
             $documents = $processor->process($query, $documents);
-            $this->notify('rag-postprocessed', new PostProcessed($processor::class, $query, $documents));
+            $this->emit('rag-postprocessed', new PostProcessed($processor::class, $query, $documents));
         }
 
         return new DocumentsProcessedEvent($query, $documents);

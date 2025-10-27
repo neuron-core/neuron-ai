@@ -67,7 +67,7 @@ trait HandleTools
             return $this->toolsBootstrapCache;
         }
 
-        $this->notify('tools-bootstrapping');
+        $this->emit('tools-bootstrapping');
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
@@ -106,7 +106,7 @@ trait HandleTools
             );
         }
 
-        $this->notify('tools-bootstrapped', new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines));
+        $this->emit('tools-bootstrapped', new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines));
 
         return $this->toolsBootstrapCache;
     }

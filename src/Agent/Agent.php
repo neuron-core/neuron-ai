@@ -111,7 +111,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
-        $this->notify('chat-start');
+        $this->emit('chat-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -129,7 +129,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
-        $this->notify('chat-stop');
+        $this->emit('chat-stop');
 
         return $finalState->getChatHistory()->getLastMessage();
     }
@@ -143,7 +143,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
     {
-        $this->notify('stream-start');
+        $this->emit('stream-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -166,7 +166,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
-        $this->notify('stream-stop');
+        $this->emit('stream-stop');
 
         return $finalState->getChatHistory()->getLastMessage();
     }
@@ -181,7 +181,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
-        $this->notify('structured-start');
+        $this->emit('structured-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -202,7 +202,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
-        $this->notify('structured-stop');
+        $this->emit('structured-stop');
 
         // Return the structured output object
         return $finalState->get('structured_output');

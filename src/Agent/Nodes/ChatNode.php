@@ -39,7 +39,7 @@ class ChatNode extends Node
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->notify(
+        $this->emit(
             'inference-start',
             new InferenceStart($lastMessage)
         );
@@ -53,7 +53,7 @@ class ChatNode extends Node
         // Add the response to chat history
         $this->addToChatHistory($state, $response);
 
-        $this->notify(
+        $this->emit(
             'inference-stop',
             new InferenceStop($lastMessage, $response)
         );

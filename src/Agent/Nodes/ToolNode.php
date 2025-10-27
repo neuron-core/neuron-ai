@@ -65,7 +65,7 @@ class ToolNode extends Node
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
     {
-        $this->notify('tool-calling', new ToolCalling($tool));
+        $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
             $state->incrementToolAttempt($tool->getName());
@@ -78,10 +78,10 @@ class ToolNode extends Node
 
             $tool->execute();
         } catch (\Throwable $exception) {
-            $this->notify('error', new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
 
-        $this->notify('tool-called', new ToolCalled($tool));
+        $this->emit('tool-called', new ToolCalled($tool));
     }
 }

@@ -34,7 +34,7 @@ class RetrieveDocumentsNode extends Node
     {
         $query = $event->query;
 
-        $this->notify('rag-retrieving', new Retrieving($query));
+        $this->emit('rag-retrieving', new Retrieving($query));
 
         $documents = $this->retrieval->retrieve($query);
 
@@ -46,7 +46,7 @@ class RetrieveDocumentsNode extends Node
         }
         $retrievedDocs = \array_values($retrievedDocs);
 
-        $this->notify('rag-retrieved', new Retrieving($query));
+        $this->emit('rag-retrieved', new Retrieving($query));
 
         return new DocumentsRetrievedEvent($query, $retrievedDocs);
     }

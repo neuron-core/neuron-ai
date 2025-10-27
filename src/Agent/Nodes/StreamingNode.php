@@ -39,7 +39,7 @@ class StreamingNode extends Node
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->notify(
+        $this->emit(
             'inference-start',
             new InferenceStart($lastMessage)
         );
@@ -64,7 +64,7 @@ class StreamingNode extends Node
                     // Add the tool call message to the chat history
                     $chatHistory->addMessage($chunk);
 
-                    $this->notify(
+                    $this->emit(
                         'inference-stop',
                         new InferenceStop($lastMessage, $chunk)
                     );
@@ -100,7 +100,7 @@ class StreamingNode extends Node
                 $this->addToChatHistory($state, $response);
             }
 
-            $this->notify(
+            $this->emit(
                 'inference-stop',
                 new InferenceStop($lastMessage, $response)
             );
@@ -108,7 +108,7 @@ class StreamingNode extends Node
             return new StopEvent();
 
         } catch (\Throwable $exception) {
-            $this->notify('error', new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
     }

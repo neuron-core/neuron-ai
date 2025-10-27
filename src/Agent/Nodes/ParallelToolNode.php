@@ -69,7 +69,7 @@ class ParallelToolNode extends ToolNode
                 throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
-            $this->notify('tool-calling', new ToolCalling($tool));
+            $this->emit('tool-calling', new ToolCalling($tool));
         }
 
         // Execute tools concurrently and collect serialized tool states
@@ -114,7 +114,7 @@ class ParallelToolNode extends ToolNode
                     $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
                 }
 
-                $this->notify('error', new AgentError($exception));
+                $this->emit('error', new AgentError($exception));
                 throw $exception;
             }
 
@@ -122,7 +122,7 @@ class ParallelToolNode extends ToolNode
             $executedTools[$index] = $data;
 
             // Notify that tool was called successfully
-            $this->notify('tool-called', new ToolCalled($data));
+            $this->emit('tool-called', new ToolCalled($data));
         }
 
         // Return a new ToolCallResultMessage with the executed tools

@@ -16,8 +16,8 @@ trait ChatHistoryHelper
      */
     protected function addToChatHistory(AgentState $state, Message $message): void
     {
-        $this->notify('message-saving', new MessageSaving($message));
+        $this->emit('message-saving', new MessageSaving($message));
         $state->getChatHistory()->addMessage($message);
-        $this->notify('message-saved', new MessageSaved($message));
+        $this->emit('message-saved', new MessageSaved($message));
     }
 }

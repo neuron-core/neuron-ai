@@ -32,11 +32,9 @@ trait Observable
     /**
      * Notify an event.
      *
-     * @param string $event The event name (e.g., 'inference-start', 'tool-calling')
-     * @param mixed $data Optional event data
      * @throws InspectorException
      */
-    public function notify(string $event, mixed $data = null): void
+    public function emit(string $event, mixed $data = null): void
     {
         $this->initializeMonitoring();
 

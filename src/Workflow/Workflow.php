@@ -149,19 +149,19 @@ class Workflow implements WorkflowInterface
      */
     public function run(): \Generator|WorkflowState
     {
-        $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap));
+        $this->emit('workflow-start', new WorkflowStart($this->eventNodeMap));
 
         try {
             $this->bootstrap();
         } catch (WorkflowException $exception) {
-            $this->notify('error', new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
 
         $startEvent = $this->resolveStartEvent();
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
-        $this->notify('workflow-end', new WorkflowEnd($this->resolveState()));
+        $this->emit('workflow-end', new WorkflowEnd($this->resolveState()));
 
         return $this->resolveState();
     }
@@ -171,12 +171,12 @@ class Workflow implements WorkflowInterface
      */
     public function resume(InterruptRequest $resumeRequest): \Generator|WorkflowState
     {
-        $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
+        $this->emit('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
         try {
             $this->bootstrap();
         } catch (WorkflowException $exception) {
-            $this->notify('error', new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
 
@@ -190,7 +190,7 @@ class Workflow implements WorkflowInterface
             $resumeRequest
         );
 
-        $this->notify('workflow-end', new WorkflowEnd($this->resolveState()));
+        $this->emit('workflow-end', new WorkflowEnd($this->resolveState()));
 
         return $this->resolveState();
     }
@@ -213,7 +213,7 @@ class Workflow implements WorkflowInterface
                     $resumeRequest
                 );
 
-                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->resolveState()));
+                $this->emit('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->resolveState()));
                 try {
                     // Execute node through the middleware pipeline
                     $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->resolveState());
@@ -232,10 +232,10 @@ class Workflow implements WorkflowInterface
                     throw $interrupt;
                 } catch (\Throwable $exception) {
                     // Only notify for actual errors
-                    $this->notify('error', new AgentError($exception));
+                    $this->emit('error', new AgentError($exception));
                     throw $exception;
                 }
-                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->resolveState()));
+                $this->emit('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->resolveState()));
 
                 if ($currentEvent instanceof StopEvent) {
                     break;
@@ -255,7 +255,7 @@ class Workflow implements WorkflowInterface
 
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);
-            $this->notify('workflow-interrupt', $interrupt);
+            $this->emit('workflow-interrupt', $interrupt);
             throw $interrupt;
         }
     }
