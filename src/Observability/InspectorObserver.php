@@ -12,12 +12,6 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\RAG\RAG;
-use NeuronAI\Tools\ProviderToolInterface;
-use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Tools\ToolPropertyInterface;
-use NeuronAI\Workflow\Workflow;
 
 /**
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
@@ -115,7 +109,7 @@ class InspectorObserver implements ObserverInterface
             return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 
-        if (self::$instance === null) {
+        if (!self::$instance instanceof \NeuronAI\Observability\InspectorObserver) {
             self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 

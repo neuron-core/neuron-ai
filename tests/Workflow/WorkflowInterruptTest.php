@@ -129,7 +129,7 @@ class WorkflowInterruptTest extends TestCase
         }
 
         // Resume with human feedback
-        $finalState = $workflow->start(true, 'human feedback provided')->getResult();
+        $finalState = $workflow->start(true)->getResult();
 
         // Verify the workflow completed successfully
         $this->assertTrue($finalState->get('node_one_executed'));
@@ -159,7 +159,7 @@ class WorkflowInterruptTest extends TestCase
 
         // Resume with array feedback
         $complexFeedback = ['decision' => 'approve', 'priority' => 'high'];
-        $finalState = $workflow->start(true, $complexFeedback)->getResult();
+        $finalState = $workflow->start(true)->getResult();
 
         $this->assertEquals($complexFeedback, $finalState->get('received_feedback'));
     }
@@ -198,14 +198,14 @@ class WorkflowInterruptTest extends TestCase
 
         // Second interrupt
         try {
-            $finalState = $workflow->start(true, 'second interrupt')->getResult();
+            $finalState = $workflow->start(true)->getResult();
             $this->fail('Second interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
         }
 
         // Final completion
-        $finalState = $workflow->start(true, 'second response')->getResult();
+        $finalState = $workflow->start(true)->getResult();
         $this->assertTrue($finalState->get('all_interrupts_complete'));
         $this->assertEquals(3, $finalState->get('interrupt_count'));
     }
@@ -265,7 +265,7 @@ class WorkflowInterruptTest extends TestCase
 
         // Second interrupt
         try {
-            $finalState = $workflow->start(true, 'second interrupt')->getResult();
+            $finalState = $workflow->start(true)->getResult();
             $this->fail('Second interrupt not thrown');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
@@ -273,7 +273,7 @@ class WorkflowInterruptTest extends TestCase
         }
 
         // Final completion
-        $finalState = $workflow->start(true, 'second response')->getResult();
+        $finalState = $workflow->start(true)->getResult();
         $this->assertTrue($finalState->get('all_interrupts_complete'));
         $this->assertEquals(3, $finalState->get('interrupt_count'));
         $this->assertInstanceOf(CustomState::class, $finalState);
