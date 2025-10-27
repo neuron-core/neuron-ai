@@ -35,7 +35,7 @@ trait HandleToolEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    public function toolsBootstrapped(AgentInterface $agent, string $event, ToolsBootstrapped $data): void
+    public function toolsBootstrapped(object $source, string $event, ToolsBootstrapped $data): void
     {
         if (isset($this->toolBootstrap)) {
             $this->toolBootstrap->end();
@@ -51,7 +51,7 @@ trait HandleToolEvents
         }
     }
 
-    public function toolCalling(AgentInterface $agent, string $event, ToolCalling $data): void
+    public function toolCalling(object $source, string $event, ToolCalling $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -65,7 +65,7 @@ trait HandleToolEvents
             ->setColor(self::STANDARD_COLOR);
     }
 
-    public function toolCalled(AgentInterface $agent, string $event, ToolCalled $data): void
+    public function toolCalled(object $source, string $event, ToolCalled $data): void
     {
         if (!\array_key_exists($data->tool::class, $this->toolCalls)) {
             return;
