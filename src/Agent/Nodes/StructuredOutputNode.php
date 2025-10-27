@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use GuzzleHttp\Exception\RequestException;
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -24,7 +25,6 @@ use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
@@ -42,8 +42,6 @@ use NeuronAI\Workflow\Node;
  */
 class StructuredOutputNode extends Node
 {
-    use Observable;
-
     public function __construct(
         protected AIProviderInterface $provider,
         protected readonly string $outputClass,
@@ -52,7 +50,9 @@ class StructuredOutputNode extends Node
     }
 
     /**
-     * @throws \Throwable
+     * @throws \ReflectionException
+     * @throws InspectorException
+     * @throws ToolMaxTriesException
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {

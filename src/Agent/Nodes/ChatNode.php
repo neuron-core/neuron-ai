@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
@@ -23,13 +23,14 @@ use NeuronAI\Workflow\Node;
  */
 class ChatNode extends Node
 {
-    use Observable;
-
     public function __construct(
         protected AIProviderInterface $provider,
     ) {
     }
 
+    /**
+     * @throws InspectorException
+     */
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();

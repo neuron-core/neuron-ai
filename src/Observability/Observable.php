@@ -30,10 +30,7 @@ trait Observable
     }
 
     /**
-     * Notify all callbacks of an event.
-     *
-     * This method emits events to all registered callbacks and
-     * automatically propagates to sub-components.
+     * Notify an event.
      *
      * @param string $event The event name (e.g., 'inference-start', 'tool-calling')
      * @param mixed $data Optional event data
@@ -50,11 +47,6 @@ trait Observable
 
     /**
      * Register a callback to receive events from this component.
-     *
-     * Callbacks are invoked in registration order when events are emitted.
-     *
-     * @param CallbackInterface $callback The callback to register
-     * @return $this
      */
     public function observe(CallbackInterface $callback): self
     {
@@ -64,20 +56,10 @@ trait Observable
 
     /**
      * Propagate all registered callbacks to a sub-component.
-     *
-     * This method automatically transfers callbacks from the parent
-     * component to a child component, enabling event bubbling through
-     * the component hierarchy.
-     *
-     * If the target component doesn't support callbacks (doesn't have
-     * the HasCallbacks trait or addCallback method), this method
-     * silently returns without error.
-     *
-     * @param object $component The component to propagate callbacks to
      */
     protected function propagateCallbacks(object $component): void
     {
-        if (!\method_exists($component, 'addCallback')) {
+        if (!\method_exists($component, 'observe')) {
             return;
         }
 

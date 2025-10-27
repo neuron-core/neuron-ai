@@ -18,7 +18,6 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
@@ -35,8 +34,6 @@ use NeuronAI\Workflow\Node;
  */
 class StreamingNode extends Node
 {
-    use Observable;
-
     public function __construct(
         protected AIProviderInterface $provider,
     ) {

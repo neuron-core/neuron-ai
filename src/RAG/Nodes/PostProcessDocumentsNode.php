@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
-use NeuronAI\Observability\Observable;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
@@ -20,8 +20,6 @@ use NeuronAI\Workflow\Node;
  */
 class PostProcessDocumentsNode extends Node
 {
-    use Observable;
-
     /**
      * @param PostProcessorInterface[] $postProcessors
      */
@@ -32,6 +30,8 @@ class PostProcessDocumentsNode extends Node
 
     /**
      * Apply post-processors sequentially to documents.
+     *
+     * @throws InspectorException
      */
     public function __invoke(DocumentsRetrievedEvent $event, AgentState $state): DocumentsProcessedEvent
     {

@@ -13,7 +13,6 @@ use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 
@@ -22,8 +21,6 @@ use NeuronAI\Workflow\Node;
  */
 class ToolNode extends Node
 {
-    use Observable;
-
     public function __construct(
         protected int $maxTries = 5
     ) {

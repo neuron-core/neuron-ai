@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
-use NeuronAI\Observability\Observable;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -21,8 +21,6 @@ use NeuronAI\Workflow\Node;
  */
 class PreProcessQueryNode extends Node
 {
-    use Observable;
-
     /**
      * @param PreProcessorInterface[] $preProcessors
      */
@@ -33,6 +31,8 @@ class PreProcessQueryNode extends Node
 
     /**
      * Apply preprocessors sequentially to the query.
+     *
+     * @throws InspectorException
      */
     public function __invoke(StartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {

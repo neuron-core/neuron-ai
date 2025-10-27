@@ -53,17 +53,21 @@ trait HandleMiddleware
     public function middleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
     {
         $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
-        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
+        $middlewareList = \is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($nodeClasses as $class) {
             if (!isset($this->nodeMiddleware[$class])) {
                 $this->nodeMiddleware[$class] = [];
             }
 
-            foreach ($middlewareArray as $m) {
+            foreach ($middlewareList as $m) {
                 if (! $m instanceof WorkflowMiddleware) {
                     throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
                 }
+
+                // If it is observable, we need to propagate the callbacks to the middleware
+                $this->propagateCallbacks($m);
+
                 $this->nodeMiddleware[$class][] = $m;
             }
         }
@@ -79,9 +83,9 @@ trait HandleMiddleware
     protected function getMiddlewareForNode(NodeInterface $node): array
     {
         $nodeClass = $node::class;
-        $nodeSpecific = $this->nodeMiddleware[$nodeClass] ?? [];
+        $middlewares = $this->nodeMiddleware[$nodeClass] ?? [];
 
         // Combine global and node-specific middleware
-        return \array_merge($this->globalMiddleware, $nodeSpecific);
+        return \array_merge($this->globalMiddleware, $middlewares);
     }
 }

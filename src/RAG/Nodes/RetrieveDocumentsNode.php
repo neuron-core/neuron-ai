@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Observability\Events\Retrieving;
-use NeuronAI\Observability\Observable;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
@@ -20,8 +20,6 @@ use NeuronAI\Workflow\Node;
  */
 class RetrieveDocumentsNode extends Node
 {
-    use Observable;
-
     public function __construct(
         private readonly RetrievalInterface $retrieval
     ) {
@@ -29,6 +27,8 @@ class RetrieveDocumentsNode extends Node
 
     /**
      * Retrieve and deduplicate documents.
+     *
+     * @throws InspectorException
      */
     public function __invoke(QueryPreProcessedEvent $event, AgentState $state): DocumentsRetrievedEvent
     {
