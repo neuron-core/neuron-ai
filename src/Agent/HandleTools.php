@@ -29,11 +29,6 @@ trait HandleTools
      */
     protected int $toolMaxTries = 5;
 
-    /**
-     * @var array<string, int>
-     */
-    protected array $toolAttempts = [];
-
     public function toolMaxTries(int $tries): Agent
     {
         $this->toolMaxTries = $tries;
