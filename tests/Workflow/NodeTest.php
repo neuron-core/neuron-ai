@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;

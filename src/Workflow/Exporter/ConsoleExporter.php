@@ -67,7 +67,7 @@ class ConsoleExporter implements ExporterInterface
             }
         }
 
-        return \array_map(fn (string $class): string => $this->getShortClassName($class), $returnEventClasses);
+        return \array_map($this->getShortClassName(...), $returnEventClasses);
     }
 
     private function renderFlow(array $connections): string

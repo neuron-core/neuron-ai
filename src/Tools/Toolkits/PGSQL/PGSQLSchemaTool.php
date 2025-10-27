@@ -279,7 +279,7 @@ and performance optimization. If you already know the database structure, you ca
             // Parse column names from index definition
             \preg_match('/\((.*?)\)/', (string) $row['indexdef'], $matches);
             $columnList = $matches[1] ?? '';
-            $columns = \array_map('trim', \explode(',', $columnList));
+            $columns = \array_map(trim(...), \explode(',', $columnList));
 
             // Clean up column names (remove function calls, etc.)
             $cleanColumns = [];

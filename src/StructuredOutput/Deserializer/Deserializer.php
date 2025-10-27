@@ -224,7 +224,7 @@ class Deserializer
         if (\preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
             $typesString = $matches[1];
             // Split by pipe and trim whitespace
-            $types = \array_map('trim', \explode('|', $typesString));
+            $types = \array_map(trim(...), \explode('|', $typesString));
             return \array_filter($types, fn (string $type): bool => \class_exists($type) || \enum_exists($type));
         }
 

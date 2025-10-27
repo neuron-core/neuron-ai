@@ -109,7 +109,7 @@ class InterruptRequest implements \JsonSerializable
     public static function fromArray(array $data): self
     {
         $actions = \array_map(
-            fn (array $actionData): \NeuronAI\Workflow\Interrupt\Action => Action::fromArray($actionData),
+            Action::fromArray(...),
             $data['actions']
         );
 

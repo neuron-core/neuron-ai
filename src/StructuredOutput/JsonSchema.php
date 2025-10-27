@@ -309,7 +309,7 @@ class JsonSchema
             $typesString = $matches[1];
             // Split by pipe and trim whitespace
             return $this->filterClassTypes(
-                \array_map('trim', \explode('|', $typesString))
+                \array_map(trim(...), \explode('|', $typesString))
             );
         }
 

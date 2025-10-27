@@ -76,7 +76,7 @@ class McpConnector
                 ($this->only === [] || \in_array($tool['name'], $this->only)),
         );
 
-        return \array_map(fn (array $tool): ToolInterface => $this->createTool($tool), $tools);
+        return \array_map($this->createTool(...), $tools);
     }
 
     /**

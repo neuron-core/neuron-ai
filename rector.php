@@ -16,7 +16,6 @@ return RectorConfig::configure()
         deadCode: true,
         typeDeclarations: true,
         earlyReturn: true,
-        strictBooleans: true,
     )
     ->withRules([
         AddReturnTypeDeclarationRector::class

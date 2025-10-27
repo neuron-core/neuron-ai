@@ -45,15 +45,13 @@ class Workflow implements WorkflowInterface
 
     protected ExporterInterface $exporter;
 
-    protected PersistenceInterface $persistence;
-
     protected string $workflowId;
 
     protected Event $startEvent;
 
     public function __construct(
         protected WorkflowState $state = new WorkflowState(),
-        ?PersistenceInterface $persistence = null,
+        protected ?PersistenceInterface $persistence = null,
         ?string $workflowId = null
     ) {
         $this->exporter = new ConsoleExporter();

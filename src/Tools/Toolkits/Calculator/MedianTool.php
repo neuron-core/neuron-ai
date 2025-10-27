@@ -49,14 +49,14 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, fn (string|float|int $value): bool => \is_numeric($value));
+        $numericData = \array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
         // Convert to float values and sort
-        $numericData = \array_map('floatval', $numericData);
+        $numericData = \array_map(floatval(...), $numericData);
         \sort($numericData);
 
         $count = \count($numericData);
