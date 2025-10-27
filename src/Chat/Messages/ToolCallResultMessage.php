@@ -12,7 +12,7 @@ use NeuronAI\Tools\ToolInterface;
 class ToolCallResultMessage extends UserMessage implements \Stringable
 {
     /**
-     * @param array<ToolInterface> $tools
+     * @param ToolInterface[] $tools
      */
     public function __construct(protected array $tools)
     {
@@ -20,7 +20,7 @@ class ToolCallResultMessage extends UserMessage implements \Stringable
     }
 
     /**
-     * @return array<ToolInterface>
+     * @return ToolInterface[]
      */
     public function getTools(): array
     {

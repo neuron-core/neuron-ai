@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
@@ -32,8 +33,10 @@ use Spatie\Fork\Fork;
 class ParallelToolNode extends ToolNode
 {
     /**
-     * @throws \Throwable
+     * @throws InspectorException
+     * @throws ToolException
      * @throws ToolMaxTriesException
+     * @throws \Throwable
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolCallResultMessage
     {

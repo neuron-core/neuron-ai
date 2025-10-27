@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Nodes\ChatHistoryHelper;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
@@ -31,6 +32,7 @@ class Agent extends Workflow implements AgentInterface
     use ResolveProvider;
     use HandleTools;
     use HandleContent;
+    use ChatHistoryHelper;
 
     protected string $instructions;
 
@@ -154,9 +156,8 @@ class Agent extends Workflow implements AgentInterface
         $this->notify('chat-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
-        $chatHistory = $this->resolveAgentState()->getChatHistory();
         foreach ($messages as $message) {
-            $chatHistory->addMessage($message);
+            $this->addToChatHistory($this->resolveAgentState(), $message);
         }
 
         // Prepare workflow nodes for chat mode
@@ -186,9 +187,8 @@ class Agent extends Workflow implements AgentInterface
         $this->notify('stream-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
-        $chatHistory = $this->resolveAgentState()->getChatHistory();
         foreach ($messages as $message) {
-            $chatHistory->addMessage($message);
+            $this->addToChatHistory($this->resolveAgentState(), $message);
         }
 
         // Prepare workflow nodes for streaming mode
@@ -224,9 +224,8 @@ class Agent extends Workflow implements AgentInterface
         $this->notify('structured-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
-        $chatHistory = $this->resolveAgentState()->getChatHistory();
         foreach ($messages as $message) {
-            $chatHistory->addMessage($message);
+            $this->addToChatHistory($this->resolveAgentState(), $message);
         }
 
         // Get the output class

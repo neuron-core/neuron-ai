@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use Inspector\Models\Segment;
-use NeuronAI\AgentInterface;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\ToolsBootstrapped;

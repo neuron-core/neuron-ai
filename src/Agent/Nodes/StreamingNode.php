@@ -22,18 +22,10 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
-/**
- * Node responsible for streaming AI provider responses.
- *
- * This node yields StreamChunk objects during execution and returns AIResponseEvent at the end.
- * When a ToolCallMessage is detected, it returns AIResponseEvent with the ToolCallMessage,
- * allowing RouterNode to route it to ToolNode for execution, which then loops back via StartEvent.
- *
- * Receives an AIInferenceEvent containing instructions and tools that can be
- * modified by middleware before the actual inference call is made.
- */
 class StreamingNode extends Node
 {
+    use ChatHistoryHelper;
+
     public function __construct(
         protected AIProviderInterface $provider,
     ) {
@@ -45,14 +37,15 @@ class StreamingNode extends Node
     public function __invoke(AIInferenceEvent $event, AgentState $state): \Generator|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();
+        $lastMessage = $chatHistory->getLastMessage();
 
         $this->notify(
             'inference-start',
-            new InferenceStart($chatHistory->getLastMessage())
+            new InferenceStart($lastMessage)
         );
 
-        if ($chatHistory->getLastMessage() instanceof ToolCallResultMessage) {
-            yield new ToolResultChunk($chatHistory->getLastMessage()->getTools());
+        if ($lastMessage instanceof ToolCallResultMessage) {
+            yield new ToolResultChunk($lastMessage->getTools());
         }
 
         try {
@@ -73,7 +66,7 @@ class StreamingNode extends Node
 
                     $this->notify(
                         'inference-stop',
-                        new InferenceStop($chatHistory->getLastMessage(), $chunk)
+                        new InferenceStop($lastMessage, $chunk)
                     );
 
                     yield new ToolCallChunk($chunk->getTools());
@@ -104,11 +97,12 @@ class StreamingNode extends Node
             $lastMessage = $chatHistory->getLastMessage();
             if ($response->getRole() !== $lastMessage->getRole()) {
                 $chatHistory->addMessage($response);
+                $this->addToChatHistory($state, $response);
             }
 
             $this->notify(
                 'inference-stop',
-                new InferenceStop($chatHistory->getLastMessage(), $response)
+                new InferenceStop($lastMessage, $response)
             );
 
             return new StopEvent();

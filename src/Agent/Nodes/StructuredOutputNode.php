@@ -42,6 +42,8 @@ use NeuronAI\Workflow\Node;
  */
 class StructuredOutputNode extends Node
 {
+    use ChatHistoryHelper;
+
     public function __construct(
         protected AIProviderInterface $provider,
         protected readonly string $outputClass,
@@ -78,7 +80,7 @@ class StructuredOutputNode extends Node
                         \PHP_EOL.\PHP_EOL.'- '.$error.\PHP_EOL.\PHP_EOL.
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $chatHistory->addMessage($correctionMessage);
+                    $this->addToChatHistory($state, $correctionMessage);
                 }
 
                 $messages = $chatHistory->getMessages();
@@ -100,7 +102,7 @@ class StructuredOutputNode extends Node
                     new InferenceStop($last, $response)
                 );
 
-                $chatHistory->addMessage($response);
+                $this->addToChatHistory($state, $response);
 
                 // If the response is a tool call, route to tool execution
                 if ($response instanceof ToolCallMessage) {
@@ -141,6 +143,7 @@ class StructuredOutputNode extends Node
      * @throws AgentException
      * @throws DeserializerException
      * @throws \ReflectionException
+     * @throws InspectorException
      */
     protected function processResponse(
         Message $response,

@@ -13,7 +13,7 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
 {
     /**
      * @param array<int, mixed>|string|int|float|null $content
-     * @param array<ToolInterface> $tools
+     * @param ToolInterface[] $tools
      */
     public function __construct(
         protected array|string|int|float|null $content,
@@ -23,7 +23,7 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
     }
 
     /**
-     * @return array<ToolInterface>
+     * @return ToolInterface[]
      */
     public function getTools(): array
     {

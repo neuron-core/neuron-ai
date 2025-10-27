@@ -23,6 +23,8 @@ use NeuronAI\Workflow\Node;
  */
 class ChatNode extends Node
 {
+    use ChatHistoryHelper;
+
     public function __construct(
         protected AIProviderInterface $provider,
     ) {
@@ -34,10 +36,11 @@ class ChatNode extends Node
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();
+        $lastMessage = $chatHistory->getLastMessage();
 
         $this->notify(
             'inference-start',
-            new InferenceStart($chatHistory->getLastMessage())
+            new InferenceStart($lastMessage)
         );
 
         // Make the AI provider call using configuration from the event
@@ -47,11 +50,11 @@ class ChatNode extends Node
             ->chat($chatHistory->getMessages());
 
         // Add the response to chat history
-        $chatHistory->addMessage($response);
+        $this->addToChatHistory($state, $response);
 
         $this->notify(
             'inference-stop',
-            new InferenceStop($chatHistory->getLastMessage(), $response)
+            new InferenceStop($lastMessage, $response)
         );
 
         // If the response is a tool call, route to tool execution

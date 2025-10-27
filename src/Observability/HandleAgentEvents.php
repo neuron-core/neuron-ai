@@ -2,6 +2,7 @@
 
 namespace NeuronAI\Observability;
 
+use Inspector\Models\Segment;
 use NeuronAI\Agent\Agent;
 use NeuronAI\RAG\RAG;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -14,6 +15,11 @@ use NeuronAI\Tools\ToolPropertyInterface;
  */
 trait HandleAgentEvents
 {
+    /**
+     * @var array<string, Segment>
+     */
+    protected array $agentSegments = [];
+
     /**
      * @throws \Exception
      */
@@ -33,10 +39,14 @@ trait HandleAgentEvents
         } elseif ($this->inspector->canAddSegments()) {
             $key = $class.$method;
 
+            if (\array_key_exists($key, $this->segments)) {
+                $key .= '-'.\uniqid();
+            }
+
             $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
                 ->setColor(self::STANDARD_COLOR);
             $segment->setContext($this->getAgentContext($source));
-            $this->segments[$key] = $segment;
+            $this->agentSegments[$key] = $segment;
         }
     }
 
@@ -50,11 +60,15 @@ trait HandleAgentEvents
 
         $key = $class.$method;
 
-        if (\array_key_exists($key, $this->segments)) {
-            $segment = $this->segments[$key];
-            $segment->setContext($this->getAgentContext($agent));
-            $segment->end();
-            unset($this->segments[$key]);
+        if (\array_key_exists($key, $this->agentSegments)) {
+            foreach (\array_reverse($this->agentSegments) as $key => $segment) {
+                if ($key === $class.$method) {
+                    $segment->setContext($this->getAgentContext($agent));
+                    $segment->end();
+                    unset($this->agentSegments[$key]);
+                    break;
+                }
+            }
         } elseif ($this->inspector->canAddSegments()) {
             $transaction = $this->inspector->transaction()->setResult('success');
             $transaction->setContext($this->getAgentContext($agent));
