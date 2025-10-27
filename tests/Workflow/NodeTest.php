@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
@@ -50,10 +51,10 @@ class NodeTest extends TestCase
             $state = $workflow->start()->getResult();
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals('test', $interrupt->getState()->get('checkpoint'));
-            $state = $workflow->wakeup('approved')->getResult();
+            $state = $workflow->start($interrupt->getRequest())->getResult();
         }
 
         $this->assertEquals('test', $state->get('checkpoint'));
-        $this->assertEquals('approved', $state->get('feedback'));
+        $this->assertEquals($interrupt->getRequest()->getReason(), $state->get('feedback'));
     }
 }

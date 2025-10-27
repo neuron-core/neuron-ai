@@ -109,7 +109,7 @@ class InspectorObserver implements ObserverInterface
             return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 
-        if (!self::$instance instanceof \NeuronAI\Observability\InspectorObserver) {
+        if (!self::$instance instanceof InspectorObserver) {
             self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
         }
 

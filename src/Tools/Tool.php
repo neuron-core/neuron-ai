@@ -222,7 +222,9 @@ class Tool implements ToolInterface
         }, []);
 
         $this->setResult(
-            \is_callable($this->callback) ? \call_user_func($this->callback, ...$parameters)
+            \is_callable($this->callback)
+                ? \call_user_func($this->callback, ...$parameters)
+                // @phpstan-ignore method.notFound
                 : $this->__invoke(...$parameters)
         );
     }

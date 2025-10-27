@@ -22,8 +22,6 @@ parameters:
     treatPhpDocTypesAsCertain: false
 
     ignoreErrors:
-            - message: '#Method SplObserver::update\(\) invoked with 3 parameters, 1 required\.#'
-              path: src/Observability/Observable.php
 
     excludePaths:
 

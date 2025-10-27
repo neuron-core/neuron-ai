@@ -19,14 +19,6 @@ use PHPUnit\Framework\TestCase;
 
 class NeuronAITest extends TestCase
 {
-    /**
-     * Sets up the fixture, for example, open a network connection.
-     * This method is called before a test is executed.
-     */
-    public function setUp(): void
-    {
-    }
-
     public function test_agent_instance(): void
     {
         $neuron = new Agent();
