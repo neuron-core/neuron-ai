@@ -42,7 +42,7 @@ INSTRUCTIONS;
         ];
     }
 
-    protected function agentMiddleware(): array
+    protected function middleware(): array
     {
         return [
             ToolNode::class => new ToolApproval(),

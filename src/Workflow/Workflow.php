@@ -49,6 +49,9 @@ class Workflow implements WorkflowInterface
 
     protected Event $startEvent;
 
+    /**
+     * @throws WorkflowException
+     */
     public function __construct(
         protected WorkflowState $state = new WorkflowState(),
         protected ?PersistenceInterface $persistence = null,
@@ -66,15 +69,14 @@ class Workflow implements WorkflowInterface
 
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
+
+        foreach ($this->middleware() as $nodeClass => $middlewares) {
+            $this->addMiddleware($nodeClass, $middlewares);
+        }
     }
 
     /**
      * Configure workflow persistence.
-     *
-     * Required when using middleware that interrupts workflows (e.g., ToolApprovalMiddleware).
-     *
-     * @param PersistenceInterface $persistence Persistence backend
-     * @param string $workflowId Unique workflow identifier
      */
     public function setPersistence(PersistenceInterface $persistence, string $workflowId): self
     {
@@ -85,23 +87,15 @@ class Workflow implements WorkflowInterface
 
     /**
      * Start or resume the workflow.
-     *
-     * - No parameter: Fresh start
-     * - InterruptRequest parameter: Resume from interruption with user decisions
-     *
-     * @param InterruptRequest|null $resumeRequest If provided, resumes workflow with these decisions
      */
     public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
     {
-        $isResume = $resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest;
+        $isResume = $resumeRequest instanceof InterruptRequest;
         return new WorkflowHandler($this, $isResume, $resumeRequest);
     }
 
     /**
      * Set a custom start event with initial data.
-     * Use this with the builder pattern to provide initial workflow data.
-     *
-     * @param Event $event Custom start event instance
      */
     public function withStartEvent(Event $event): self
     {
@@ -111,9 +105,6 @@ class Workflow implements WorkflowInterface
 
     /**
      * Resolve the start event for this workflow.
-     * Uses lazy initialization: checks property, falls back to startEvent() factory method.
-     *
-     * @return Event The start event instance
      */
     protected function resolveStartEvent(): Event
     {
@@ -122,9 +113,6 @@ class Workflow implements WorkflowInterface
 
     /**
      * Create the default start event for this workflow.
-     * Override this method to provide a custom start event with initial data.
-     *
-     * @return Event The start event instance
      */
     protected function startEvent(): Event
     {
@@ -133,8 +121,6 @@ class Workflow implements WorkflowInterface
 
     /**
      * Run the middleware pipeline around node execution.
-     *
-     * Executes all middleware before() methods, then the node, then all middleware after() methods.
      */
     protected function runMiddlewarePipeline(Event $event, NodeInterface $node, WorkflowState $state): Event|Generator
     {
@@ -159,7 +145,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function run(): \Generator
+    public function run(): \Generator|WorkflowState
     {
         $this->notify('workflow-start', new WorkflowStart($this->eventNodeMap));
 
@@ -181,7 +167,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|\Throwable
      */
-    public function resume(InterruptRequest $resumeRequest): \Generator
+    public function resume(InterruptRequest $resumeRequest): \Generator|WorkflowState
     {
         $this->notify('workflow-resume', new WorkflowStart($this->eventNodeMap));
 

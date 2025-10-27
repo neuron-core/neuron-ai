@@ -38,36 +38,6 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
-    /**
-     * @throws WorkflowException
-     */
-    public function __construct(
-        ?AgentState $state = null,
-        ?PersistenceInterface $persistence = null,
-        ?string $workflowId = null
-    ) {
-        // Initialize parent Workflow
-        parent::__construct(
-            $state ?? $this->agentState(),
-            $persistence,
-            $workflowId
-        );
-
-        $this->init();
-    }
-
-    /**
-     * Initialize agent.
-     *
-     * @throws WorkflowException
-     */
-    private function init(): void
-    {
-        foreach ($this->agentMiddleware() as $nodeClass => $middlewares) {
-            parent::addMiddleware($nodeClass, $middlewares);
-        }
-    }
-
     protected function instructions(): string
     {
         return 'Your are a helpful and friendly AI agent built with Neuron PHP framework.';
@@ -82,17 +52,6 @@ class Agent extends Workflow implements AgentInterface
     public function resolveInstructions(): string
     {
         return $this->instructions ?? $this->instructions();
-    }
-
-    /**
-     * Configure middleware for this agent when using the inheritance pattern.
-     * Override this method to register middleware on specific nodes.
-     *
-     * @return array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
-     */
-    protected function agentMiddleware(): array
-    {
-        return [];
     }
 
     /**

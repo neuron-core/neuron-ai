@@ -24,6 +24,14 @@ trait HandleMiddleware
     protected array $nodeMiddleware = [];
 
     /**
+     * @return array<class-string<NodeInterface>, WorkflowMiddleware[]>
+     */
+    protected function middleware(): array
+    {
+        return [];
+    }
+
+    /**
      * Register global middleware that runs on all nodes.
      *
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
