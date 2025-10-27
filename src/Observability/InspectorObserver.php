@@ -8,7 +8,7 @@ use Inspector\Configuration;
 use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
@@ -24,7 +24,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
  * Getting started with observability:
  * https://docs.neuron-ai.dev/components/observability
  */
-class NeuronMonitoring implements CallbackInterface
+class InspectorObserver implements ObserverInterface
 {
     use HandleToolEvents;
     use HandleRagEvents;
@@ -39,7 +39,6 @@ class NeuronMonitoring implements CallbackInterface
      * @var array<string, Segment>
      */
     protected array $segments = [];
-
 
     /**
      * @var array<string, string>
@@ -89,7 +88,7 @@ class NeuronMonitoring implements CallbackInterface
         'workflow-node-end' => 'workflowNodeEnd',
     ];
 
-    protected static ?NeuronMonitoring $instance = null;
+    protected static ?InspectorObserver $instance = null;
 
     /**
      * @param Inspector $inspector The monitoring instance
@@ -103,7 +102,7 @@ class NeuronMonitoring implements CallbackInterface
     /**
      * @throws InspectorException
      */
-    public static function instance(?string $key = null): NeuronMonitoring
+    public static function instance(?string $key = null): InspectorObserver
     {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY'] ?? '');
         $configuration->setTransport($_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
@@ -132,25 +131,21 @@ class NeuronMonitoring implements CallbackInterface
     /**
      * @throws \Exception
      */
-    public function start(Agent $agent, string $event, mixed $data = null): void
+    public function start(object $agent, string $event, mixed $data = null): void
     {
-        if (!$this->inspector->isRecording()) {
+        if (!$this->inspector->isRecording() || !$agent instanceof Agent) {
             return;
         }
 
-        $method = $this->getPrefix($event);
+        $method = $this->getEventPrefix($event);
         $class = $agent::class;
 
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($class.'::'.$method)
                 ->setType('ai-agent')
                 ->setContext($this->getContext($agent));
-        } elseif ($this->inspector->canAddSegments() && !$agent instanceof RAG) { // do not add "parent" agent segments on RAG
+        } elseif ($this->inspector->canAddSegments()) {
             $key = $class.$method;
-
-            if (\array_key_exists($key, $this->segments)) {
-                $key .= '-'.\uniqid();
-            }
 
             $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
                 ->setColor(self::STANDARD_COLOR);
@@ -164,19 +159,16 @@ class NeuronMonitoring implements CallbackInterface
      */
     public function stop(Agent $agent, string $event, mixed $data = null): void
     {
-        $method = $this->getPrefix($event);
+        $method = $this->getEventPrefix($event);
         $class = $agent::class;
 
-        if (\array_key_exists($class.$method, $this->segments)) {
-            // End the last segment for the given method and agent class
-            foreach (\array_reverse($this->segments, true) as $key => $segment) {
-                if ($key === $class.$method) {
-                    $segment->setContext($this->getContext($agent));
-                    $segment->end();
-                    unset($this->segments[$key]);
-                    break;
-                }
-            }
+        $key = $class.$method;
+
+        if (\array_key_exists($key, $this->segments)) {
+            $segment = $this->segments[$key];
+            $segment->setContext($this->getContext($agent));
+            $segment->end();
+            unset($this->segments[$key]);
         } elseif ($this->inspector->canAddSegments()) {
             $transaction = $this->inspector->transaction()->setResult('success');
             $transaction->setContext($this->getContext($agent));
@@ -202,7 +194,7 @@ class NeuronMonitoring implements CallbackInterface
         }
     }
 
-    public function getPrefix(string $event): string
+    public function getEventPrefix(string $event): string
     {
         return \explode('-', $event)[0];
     }
@@ -232,7 +224,6 @@ class NeuronMonitoring implements CallbackInterface
                 $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
                 default => $tool->jsonSerialize(),
             }, $agent->getTools()),
-            //'Messages' => $agent->resolveChatHistory()->getMessages(),
         ];
     }
 

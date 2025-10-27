@@ -15,7 +15,7 @@ use Psr\Log\LogLevel;
 /**
  * Credits: https://github.com/sixty-nine
  */
-class LogObserver implements CallbackInterface
+class LogObserver implements ObserverInterface
 {
     public function __construct(
         private readonly LoggerInterface $logger

@@ -11,9 +11,9 @@ trait Observable
     private bool $monitoringInitialized = false;
 
     /**
-     * @var CallbackInterface[]
+     * @var ObserverInterface[]
      */
-    private array $callbacks = [];
+    private array $observers = [];
 
     /**
      * @throws InspectorException
@@ -26,7 +26,7 @@ trait Observable
 
         $this->monitoringInitialized = true;
 
-        $this->observe(NeuronMonitoring::instance());
+        $this->observe(InspectorObserver::instance());
     }
 
     /**
@@ -40,31 +40,31 @@ trait Observable
     {
         $this->initializeMonitoring();
 
-        foreach ($this->callbacks as $callback) {
-            $callback->onEvent($event, $this, $data);
+        foreach ($this->observers as $observer) {
+            $observer->onEvent($event, $this, $data);
         }
     }
 
     /**
-     * Register a callback to receive events from this component.
+     * Register an observer to receive events from this component.
      */
-    public function observe(CallbackInterface $callback): self
+    public function observe(ObserverInterface $callback): self
     {
-        $this->callbacks[] = $callback;
+        $this->observers[] = $callback;
         return $this;
     }
 
     /**
-     * Propagate all registered callbacks to a sub-component.
+     * Propagate all registered observers to a sub-component.
      */
-    protected function propagateCallbacks(object $component): void
+    protected function propagateObservers(object $component): void
     {
         if (!\method_exists($component, 'observe')) {
             return;
         }
 
-        foreach ($this->callbacks as $callback) {
-            $component->addCallback($callback);
+        foreach ($this->observers as $observer) {
+            $component->observe($observer);
         }
     }
 }

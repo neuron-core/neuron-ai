@@ -66,7 +66,7 @@ trait HandleMiddleware
                 }
 
                 // If it is observable, we need to propagate the callbacks to the middleware
-                $this->propagateCallbacks($m);
+                $this->propagateObservers($m);
 
                 $this->nodeMiddleware[$class][] = $m;
             }

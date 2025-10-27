@@ -287,7 +287,7 @@ class Workflow implements WorkflowInterface
         $this->nodes[] = $node;
 
         // Propagate callbacks to the node so it can emit events
-        $this->propagateCallbacks($node);
+        $this->propagateObservers($node);
 
         return $this;
     }
