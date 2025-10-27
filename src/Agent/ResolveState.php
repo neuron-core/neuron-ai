@@ -23,12 +23,12 @@ trait ResolveState
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        $this->resolveAgentState()->setChatHistory($chatHistory);
+        $this->resolveState()->setChatHistory($chatHistory);
         return $this;
     }
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        return $this->resolveAgentState()->getChatHistory();
+        return $this->resolveState()->getChatHistory();
     }
 }
