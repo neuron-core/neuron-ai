@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
+use NeuronAI\Workflow\WorkflowInterrupt;
 
 class DataAnalystAgent extends Agent
 {
@@ -75,7 +76,7 @@ try {
     echo "Agent Response:\n";
     echo $response->getContent() . "\n";
 
-} catch (\NeuronAI\Workflow\WorkflowInterrupt $interrupt) {
+} catch (WorkflowInterrupt $interrupt) {
     echo "Workflow interrupted for approval\n";
 
     // Handle approval flow

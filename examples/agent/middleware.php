@@ -83,7 +83,7 @@ $agent = Agent::make(
         new FileReadTool(),
         new FileDeleteTool(),
     ])
-    ->middleware(
+    ->addMiddleware(
         ToolNode::class,
         new ToolApproval()
     );

@@ -29,7 +29,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function globalMiddleware(WorkflowMiddleware|array $middleware): self
+    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): self
     {
         $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
 
@@ -37,6 +37,10 @@ trait HandleMiddleware
             if (! $m instanceof WorkflowMiddleware) {
                 throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
             }
+
+            // If it is observable, we need to propagate the callbacks to the middleware
+            $this->propagateObservers($m);
+
             $this->globalMiddleware[] = $m;
         }
 
@@ -50,7 +54,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function middleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
+    public function addMiddleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
     {
         $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
         $middlewareList = \is_array($middleware) ? $middleware : [$middleware];

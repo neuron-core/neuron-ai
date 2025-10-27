@@ -6,7 +6,7 @@ namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Nodes\ChatHistoryHelper;
+use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
@@ -49,8 +49,8 @@ class Agent extends Workflow implements AgentInterface
         // Initialize parent Workflow
         parent::__construct(
             $state ?? $this->agentState(),
-            $persistence ?? new InMemoryPersistence(),
-            $workflowId ?? \uniqid('neuron_agent_')
+            $persistence,
+            $workflowId
         );
 
         $this->init();
@@ -64,7 +64,7 @@ class Agent extends Workflow implements AgentInterface
     private function init(): void
     {
         foreach ($this->agentMiddleware() as $nodeClass => $middlewares) {
-            parent::middleware($nodeClass, $middlewares);
+            parent::addMiddleware($nodeClass, $middlewares);
         }
     }
 

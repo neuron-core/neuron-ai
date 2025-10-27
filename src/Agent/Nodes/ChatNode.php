@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;

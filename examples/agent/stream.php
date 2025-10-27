@@ -23,7 +23,7 @@ $agent = \NeuronAI\Agent\Agent::make()
         )
     )
     ->addTool(CalculatorToolkit::make())
-    ->middleware(ToolNode::class, new ToolApproval());
+    ->addMiddleware(ToolNode::class, new ToolApproval());
 
 function process_response($response): void
 {

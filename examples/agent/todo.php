@@ -135,7 +135,7 @@ $agent = Agent::make()
         new RunTestsTool(),
         new WriteDocumentationTool(),
     ])
-    ->middleware(
+    ->addMiddleware(
         ChatNode::class,
         new TodoPlanning()
     );

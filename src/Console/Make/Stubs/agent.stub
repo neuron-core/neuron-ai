@@ -4,21 +4,33 @@ declare(strict_types=1);
 
 namespace [namespace];
 
-use NeuronAI\Agent;
-use NeuronAI\SystemPrompt;
+use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Tools\ToolInterface;
 
 class [classname] extends Agent
 {
     protected function provider(): AIProviderInterface
     {
-        // return an instance of Anthropic, OpenAI, Gemini, Ollama, etc...
+        /*return new Anthropic(
+            config('services.anthropic.api_key'),
+            'claude-3-7-sonnet-latest'
+        );*/
     }
 
-    public function instructions(): string
+    protected function instructions(): string
     {
         return (string) new SystemPrompt(
-            background: ["You are a friendly AI Agent created with NeuronAI framework."],
+            background: ["You are a friendly AI Agent created with NeuronAI PHP framework."],
         );
+    }
+
+    /**
+     * @return ToolInterface[]
+     */
+    protected function tools(): array
+    {
+        return [];
     }
 }

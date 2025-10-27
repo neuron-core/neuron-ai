@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Nodes;
+namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;

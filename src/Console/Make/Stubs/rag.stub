@@ -14,19 +14,19 @@ class [classname] extends RAG
     protected function provider(): AIProviderInterface
     {
         /*return new Anthropic(
-            $_ENV['ANTHROPIC_API_KEY'],
+            config('services.anthropic.api_key'),
             'claude-3-7-sonnet-latest'
         );*/
     }
-    
+
     protected function embeddings(): EmbeddingsProviderInterface
     {
         /*return new OpenAIEmbeddingsProvider(
-            key: 'OPENAI_API_KEY',
-            model: 'OPENAI_MODEL'
+            key: config('services.openai.api_key'),
+            model: 'OPENAI_EMBED_MODEL'
         );*/
     }
-    
+
     protected function vectorStore(): VectorStoreInterface
     {
         /*return new FileVectorStore(

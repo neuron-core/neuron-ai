@@ -37,7 +37,7 @@ $agent = Agent::make()
     ->setAiProvider($mainProvider)
     ->setChatHistory(new InMemoryChatHistory())
     // Apply summarization middleware to generative nodes
-    ->middleware(
+    ->addMiddleware(
         [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
         new Summarization(
             provider: $summarizationProvider,
