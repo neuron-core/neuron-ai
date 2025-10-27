@@ -8,7 +8,9 @@ use NeuronAI\Chat\Messages\Message;
 
 class PreProcessing
 {
-    public function __construct(public string $processor, public Message $original)
-    {
+    public function __construct(
+        public string $processor,
+        public Message $original
+    ){
     }
 }

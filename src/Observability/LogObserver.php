@@ -4,10 +4,32 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use NeuronAI\Observability\Events\AgentError;
+use NeuronAI\Observability\Events\Deserialized;
+use NeuronAI\Observability\Events\Deserializing;
+use NeuronAI\Observability\Events\Extracted;
+use NeuronAI\Observability\Events\Extracting;
+use NeuronAI\Observability\Events\InferenceStart;
+use NeuronAI\Observability\Events\InferenceStop;
+use NeuronAI\Observability\Events\InstructionsChanged;
+use NeuronAI\Observability\Events\InstructionsChanging;
+use NeuronAI\Observability\Events\MessageSaved;
+use NeuronAI\Observability\Events\MessageSaving;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
+use NeuronAI\Observability\Events\PreProcessed;
+use NeuronAI\Observability\Events\PreProcessing;
+use NeuronAI\Observability\Events\Retrieved;
+use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
+use NeuronAI\Observability\Events\ToolCalled;
+use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Observability\Events\Validating;
+use NeuronAI\Observability\Events\WorkflowEnd;
+use NeuronAI\Observability\Events\WorkflowNodeEnd;
+use NeuronAI\Observability\Events\WorkflowNodeStart;
+use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -45,40 +67,40 @@ class LogObserver implements ObserverInterface
         }
 
         return match ($data::class) {
-            Events\AgentError::class => [
+            AgentError::class => [
                 'error' => $data->exception->getMessage(),
             ],
-            Events\Deserializing::class,
-            Events\Deserialized::class => [
+            Deserializing::class,
+            Deserialized::class => [
                 'class' => $data->class
             ],
-            Events\Extracted::class => [
+            Extracted::class => [
                 'message' => $data->message->jsonSerialize(),
                 'schema' => $data->schema,
                 'json' => $data->json,
             ],
-            Events\Extracting::class,
-            Events\InferenceStart::class,
-            Events\MessageSaving::class,
-            Events\MessageSaved::class => [
+            Extracting::class,
+            InferenceStart::class,
+            MessageSaving::class,
+            MessageSaved::class => [
                 'message' => $data->message->jsonSerialize(),
             ],
-            Events\InferenceStop::class => [
+            InferenceStop::class => [
                 'message' => $data->message->jsonSerialize(),
                 'response' => $data->response->jsonSerialize(),
             ],
-            Events\InstructionsChanging::class => [
+            InstructionsChanging::class => [
                 'instructions' => $data->instructions,
             ],
-            Events\InstructionsChanged::class => [
+            InstructionsChanged::class => [
                 'previous' => $data->previous,
                 'current' => $data->current,
             ],
-            Events\ToolCalling::class,
-            Events\ToolCalled::class => [
+            ToolCalling::class,
+            ToolCalled::class => [
                 'tool' => $data->tool->jsonSerialize(),
             ],
-            Events\Validating::class => [
+            Validating::class => [
                 'class' => $data->class,
                 'json' => $data->class,
             ],
@@ -87,19 +109,20 @@ class LogObserver implements ObserverInterface
                 'json' => $data->class,
                 'violations' => $data->violations,
             ],
-            Events\Retrieving::class => [
-                'question' => $data->question->jsonSerialize(),
-            ],
-            Events\Retrieved::class => [
-                'question' => $data->question->jsonSerialize(),
-                'documents' => $data->documents,
-            ],
             SchemaGeneration::class => [
                 'class' => $data->class,
             ],
             SchemaGenerated::class => [
                 'class' => $data->class,
                 'schema' => $data->schema,
+            ],
+            PreProcessing::class => [
+                'processor' => $data->processor,
+                'original' => $data->original->jsonSerialize(),
+            ],
+            PreProcessed::class => [
+                'processor' => $data->processor,
+                'processed' => $data->processed->jsonSerialize(),
             ],
             PostProcessing::class => [
                 'processor' => $data->processor,
@@ -111,16 +134,23 @@ class LogObserver implements ObserverInterface
                 'question' => $data->question->jsonSerialize(),
                 'documents' => $data->documents,
             ],
-            Events\WorkflowStart::class => \array_map(fn (string $eventClass, NodeInterface $node): array => [
+            Retrieving::class => [
+                'question' => $data->question->jsonSerialize(),
+            ],
+            Retrieved::class => [
+                'question' => $data->question->jsonSerialize(),
+                'documents' => $data->documents,
+            ],
+            WorkflowStart::class => \array_map(fn (string $eventClass, NodeInterface $node): array => [
                 $eventClass => $node::class,
             ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)),
-            Events\WorkflowNodeStart::class => [
+            WorkflowNodeStart::class => [
                 'node' => $data->node,
             ],
-            Events\WorkflowNodeEnd::class => [
+            WorkflowNodeEnd::class => [
                 'node' => $data->node,
             ],
-            Events\WorkflowEnd::class => [
+            WorkflowEnd::class => [
                 'state' => $data->state->all(),
             ],
             default => [],
