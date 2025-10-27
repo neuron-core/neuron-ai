@@ -24,6 +24,8 @@ trait HandleMiddleware
     protected array $nodeMiddleware = [];
 
     /**
+     * Define your middleware here.
+     *
      * @return array<class-string<NodeInterface>, WorkflowMiddleware[]>
      */
     protected function middleware(): array

@@ -70,6 +70,7 @@ class Workflow implements WorkflowInterface
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
 
+        // Register the default node middleware
         foreach ($this->middleware() as $nodeClass => $middlewares) {
             $this->addMiddleware($nodeClass, $middlewares);
         }
