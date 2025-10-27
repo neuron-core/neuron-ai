@@ -9,26 +9,11 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 
 trait ResolveState
 {
-    public function setAgentState(AgentState $state): AgentInterface
-    {
-        $this->state = $state;
-        return $this;
-    }
-
-    protected function agentState(): AgentState
+    protected function state(): AgentState
     {
         $state = new AgentState();
         $state->setChatHistory($this->chatHistory());
         return $state;
-    }
-
-    /**
-     * Get the current instance of the chat history.
-     */
-    public function resolveAgentState(): AgentState
-    {
-        // @phpstan-ignore-next-line
-        return $this->state ?? $this->state = $this->agentState();
     }
 
     protected function chatHistory(): ChatHistoryInterface

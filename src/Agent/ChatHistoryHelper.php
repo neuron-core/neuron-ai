@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;

@@ -32,6 +32,7 @@ class Workflow implements WorkflowInterface
     use Observable;
     use StaticConstructor;
     use HandleMiddleware;
+    use ResolveState;
 
     /**
      * @var NodeInterface[]
@@ -53,7 +54,7 @@ class Workflow implements WorkflowInterface
      * @throws WorkflowException
      */
     public function __construct(
-        protected WorkflowState $state = new WorkflowState(),
+        protected ?WorkflowState $state = null,
         protected ?PersistenceInterface $persistence = null,
         ?string $workflowId = null
     ) {
@@ -66,9 +67,6 @@ class Workflow implements WorkflowInterface
         if (!\is_null($persistence) && \is_null($workflowId)) {
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
-
-        $this->persistence = $persistence ?? new InMemoryPersistence();
-        $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
 
         // Register the default node middleware
         foreach ($this->middleware() as $nodeClass => $middlewares) {
@@ -98,18 +96,10 @@ class Workflow implements WorkflowInterface
     /**
      * Set a custom start event with initial data.
      */
-    public function withStartEvent(Event $event): self
+    public function setStartEvent(Event $event): self
     {
         $this->startEvent = $event;
         return $this;
-    }
-
-    /**
-     * Resolve the start event for this workflow.
-     */
-    protected function resolveStartEvent(): Event
-    {
-        return $this->startEvent ?? $this->startEvent = $this->startEvent();
     }
 
     /**
@@ -118,6 +108,14 @@ class Workflow implements WorkflowInterface
     protected function startEvent(): Event
     {
         return new StartEvent();
+    }
+
+    /**
+     * Resolve the start event for this workflow.
+     */
+    protected function resolveStartEvent(): Event
+    {
+        return $this->startEvent ?? $this->startEvent = $this->startEvent();
     }
 
     /**
@@ -160,9 +158,9 @@ class Workflow implements WorkflowInterface
         $startEvent = $this->resolveStartEvent();
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
-        $this->notify('workflow-end', new WorkflowEnd($this->state));
+        $this->notify('workflow-end', new WorkflowEnd($this->resolveState()));
 
-        return $this->state;
+        return $this->resolveState();
     }
 
     /**
@@ -180,7 +178,7 @@ class Workflow implements WorkflowInterface
         }
 
         $interrupt = $this->persistence->load($this->workflowId);
-        $this->state = $interrupt->getState();
+        $this->setState($interrupt->getState());
 
         yield from $this->execute(
             $interrupt->getCurrentEvent(),
@@ -189,9 +187,9 @@ class Workflow implements WorkflowInterface
             $resumeRequest
         );
 
-        $this->notify('workflow-end', new WorkflowEnd($this->state));
+        $this->notify('workflow-end', new WorkflowEnd($this->resolveState()));
 
-        return $this->state;
+        return $this->resolveState();
     }
 
     /**
@@ -206,16 +204,16 @@ class Workflow implements WorkflowInterface
         try {
             while (!($currentEvent instanceof StopEvent)) {
                 $currentNode->setWorkflowContext(
-                    $this->state,
+                    $this->resolveState(),
                     $currentEvent,
                     $resuming,
                     $resumeRequest
                 );
 
-                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
+                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->resolveState()));
                 try {
                     // Execute node through the middleware pipeline
-                    $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->state);
+                    $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->resolveState());
 
                     if ($result instanceof \Generator) {
                         foreach ($result as $event) {
@@ -234,7 +232,7 @@ class Workflow implements WorkflowInterface
                     $this->notify('error', new AgentError($exception));
                     throw $exception;
                 }
-                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->state));
+                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->resolveState()));
 
                 if ($currentEvent instanceof StopEvent) {
                     break;

@@ -6,7 +6,6 @@ namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
@@ -18,14 +17,13 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
 
+/**
+ * @method AgentState resolveState()
+ */
 class Agent extends Workflow implements AgentInterface
 {
     use ResolveState;
@@ -117,7 +115,7 @@ class Agent extends Workflow implements AgentInterface
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveAgentState(), $message);
+            $this->addToChatHistory($this->resolveState(), $message);
         }
 
         // Prepare workflow nodes for chat mode
@@ -149,7 +147,7 @@ class Agent extends Workflow implements AgentInterface
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveAgentState(), $message);
+            $this->addToChatHistory($this->resolveState(), $message);
         }
 
         // Prepare workflow nodes for streaming mode
@@ -187,7 +185,7 @@ class Agent extends Workflow implements AgentInterface
 
         $messages = \is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveAgentState(), $message);
+            $this->addToChatHistory($this->resolveState(), $message);
         }
 
         // Get the output class

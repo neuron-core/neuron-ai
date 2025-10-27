@@ -34,8 +34,6 @@ interface AgentInterface
 
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
 
-    public function resolveAgentState(): AgentState|WorkflowState;
-
     /**
      * @param Message|Message[] $messages
      */
