@@ -40,6 +40,7 @@ class Ollama implements AIProviderInterface
     ) {
         $config = [
             'base_uri' => \trim($this->url, '/').'/',
+            'headers' => [],
         ];
 
         if ($this->httpOptions instanceof HttpClientOptions) {
