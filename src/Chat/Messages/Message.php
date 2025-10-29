@@ -128,9 +128,11 @@ class Message implements \JsonSerializable
      */
     public function jsonSerialize(): array
     {
+        $content = \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contentBlocks);
+
         $data = [
             'role' => $this->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contentBlocks)
+            'content' => $content !== [] ? $content : null,
         ];
 
         if ($this->getUsage() instanceof Usage) {
