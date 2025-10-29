@@ -97,7 +97,7 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
-        $result = new ToolCallMessage(\array_filter($tools));
+        $result = new ToolCallMessage(tools: \array_filter($tools));
         $result->setRole(MessageRole::MODEL);
 
         return $result;

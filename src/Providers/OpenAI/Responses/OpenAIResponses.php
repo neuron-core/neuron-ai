@@ -122,7 +122,7 @@ class OpenAIResponses implements AIProviderInterface
             $toolCalls
         );
 
-        $message = new ToolCallMessage($tools);
+        $message = new ToolCallMessage(tools: $tools);
 
         if (!\is_null($usage)) {
             $message->setUsage(

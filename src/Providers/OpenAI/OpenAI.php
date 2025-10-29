@@ -94,7 +94,7 @@ class OpenAI implements AIProviderInterface
             $message['tool_calls']
         );
 
-        $result = new ToolCallMessage($tools);
+        $result = new ToolCallMessage(tools: $tools);
 
         return $result->addMetadata('tool_calls', $message['tool_calls']);
     }

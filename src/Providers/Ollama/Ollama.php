@@ -76,7 +76,7 @@ class Ollama implements AIProviderInterface
         $tools = \array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
             ->setInputs($item['function']['arguments']), $message['tool_calls']);
 
-        $result = new ToolCallMessage($tools);
+        $result = new ToolCallMessage(tools: $tools);
 
         return $result->addMetadata('tool_calls', $message['tool_calls']);
     }

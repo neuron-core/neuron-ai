@@ -16,9 +16,10 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
      * @param ToolInterface[] $tools
      */
     public function __construct(
+        string|ContentBlock|array|null $content = null,
         protected array $tools
     ) {
-        parent::__construct();
+        parent::__construct($content);
     }
 
     /**
