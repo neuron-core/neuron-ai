@@ -15,7 +15,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
     public function __construct(
         protected string $key,
         protected string $model,
-        protected int $dimensions = 1024
+        protected ?int $dimensions = 1024
     ) {
         $this->client = new Client([
             'base_uri' => $this->baseUri,
@@ -34,12 +34,19 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
                 'model' => $this->model,
                 'input' => $text,
                 'encoding_format' => 'float',
-                'dimensions' => $this->dimensions,
+                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+
             ]
         ])->getBody()->getContents();
 
         $response = \json_decode($response, true);
 
         return $response['data'][0]['embedding'];
+    }
+
+    public function withoutDimensions(): self
+    {
+        $this->dimensions = null;
+        return $this;
     }
 }
