@@ -29,7 +29,7 @@ class TokenCounter implements TokenCounterInterface
 
             $messageChars += \strlen(
                 \json_encode(
-                    \array_map(fn (ContentBlock|array $block): array => \is_array($block) ? $block : $block->toArray(), $message->getContent())
+                    \array_map(fn (ContentBlock $block): array => $block->toArray(), $message->getContent())
                 )
             );
 

@@ -122,7 +122,17 @@ class OpenAIResponses implements AIProviderInterface
             $toolCalls
         );
 
-        $message = new ToolCallMessage(tools: $tools);
+        $contentBlocks = \array_map(
+            fn (array $item): \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock =>
+                new \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock(
+                    id: $item['call_id'],
+                    name: $item['name'],
+                    input: \json_decode((string) $item['arguments'], true)
+                ),
+            $toolCalls
+        );
+
+        $message = new ToolCallMessage(content: $contentBlocks, tools: $tools);
 
         if (!\is_null($usage)) {
             $message->setUsage(

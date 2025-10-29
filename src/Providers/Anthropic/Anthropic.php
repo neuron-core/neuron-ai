@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\ContentBlocks\ToolUseContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -97,7 +98,11 @@ class Anthropic implements AIProviderInterface
         }
 
         return new ToolCallMessage(
-            [$message],
+            new ToolUseContentBlock(
+                id: $message['id'],
+                name: $message['name'],
+                input: $message['input']
+            ),
             [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
         );
     }

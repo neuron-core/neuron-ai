@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
+use NeuronAI\Chat\ContentBlocks\ToolResultContentBlock;
 use NeuronAI\Tools\ToolInterface;
 
 /**
@@ -16,7 +17,17 @@ class ToolResultMessage extends UserMessage implements \Stringable
      */
     public function __construct(protected array $tools)
     {
-        parent::__construct(null);
+        // Create ToolResultContentBlock for each tool
+        $contentBlocks = \array_map(
+            fn (ToolInterface $tool): ToolResultContentBlock => new ToolResultContentBlock(
+                toolUseId: $tool->getCallId() ?? '',
+                content: $tool->getResult(),
+                isError: false
+            ),
+            $tools
+        );
+
+        parent::__construct($contentBlocks);
     }
 
     /**

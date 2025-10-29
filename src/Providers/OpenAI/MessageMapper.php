@@ -8,6 +8,8 @@ use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\ContentBlocks\ToolResultContentBlock;
+use NeuronAI\Chat\ContentBlocks\ToolUseContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -65,6 +67,8 @@ class MessageMapper implements MessageMapperInterface
             ],
             ImageContentBlock::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),
+            ToolUseContentBlock::class => $this->mapToolUseBlock($block),
+            ToolResultContentBlock::class => $this->mapToolResultBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -96,6 +100,27 @@ class MessageMapper implements MessageMapperInterface
                 'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
                 'file_data' => "data:{$block->mediaType};base64,{$block->source}",
             ]
+        ];
+    }
+
+    protected function mapToolUseBlock(ToolUseContentBlock $block): array
+    {
+        return [
+            'type' => 'function',
+            'id' => $block->id,
+            'function' => [
+                'name' => $block->name,
+                'arguments' => \json_encode($block->input),
+            ],
+        ];
+    }
+
+    protected function mapToolResultBlock(ToolResultContentBlock $block): array
+    {
+        return [
+            'type' => 'tool',
+            'tool_call_id' => $block->toolUseId,
+            'content' => $block->content,
         ];
     }
 

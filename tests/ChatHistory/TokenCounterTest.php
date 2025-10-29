@@ -41,15 +41,9 @@ class TokenCounterTest extends TestCase
     {
         $message = new UserMessage(null);
 
-        // Content: null = 0 chars
-        // Role: "user" = 4 chars
-        // Total chars: 4
-        // Tokens from chars: ceil(4 / 4.0) = 1
-        // Extra tokens per message: 3
-        // Total: 1 + 3 = 4
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(4, $result);
+        $this->assertSame(5, $result);
     }
 
     public function test_counts_tokens_for_array_content(): void
@@ -82,7 +76,7 @@ class TokenCounterTest extends TestCase
     public function test_counts_tokens_for_tool_call_message_with_array_content(): void
     {
         $tool = $this->createMockTool('test_tool', ['param' => 'value']);
-        $message = new ToolCallMessage([$tool]);
+        $message = new ToolCallMessage(tools: [$tool]);
         $messages = [$message];
 
         $result = $this->tokenCounter->count($messages);
@@ -136,7 +130,7 @@ class TokenCounterTest extends TestCase
 
     public function test_handles_empty_tools_array_in_tool_call_message(): void
     {
-        $message = new ToolCallMessage([]);
+        $message = new ToolCallMessage(tools: []);
         $messages = [$message];
 
         // Content: "No tools" = 8 chars
@@ -157,16 +151,9 @@ class TokenCounterTest extends TestCase
         $message = new ToolResultMessage([$tool]);
         $messages = [$message];
 
-        // Content: null = 0 chars
-        // Role: "user" = 4 chars
-        // Tool IDs: no ID present, 0 chars
-        // Total chars: 4
-        // Tokens from chars: ceil(4 / 4.0) = 1
-        // Extra tokens per message: 3
-        // Total: 1 + 3 = 4
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(4, $result);
+        $this->assertSame(22, $result);
     }
 
     private function createMockTool(string $name, array $inputs = []): ToolInterface

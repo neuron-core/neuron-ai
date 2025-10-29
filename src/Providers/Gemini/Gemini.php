@@ -97,7 +97,22 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
-        $result = new ToolCallMessage(tools: \array_filter($tools));
+        $contentBlocks = \array_map(function (array $item): ?\NeuronAI\Chat\ContentBlocks\ToolUseContentBlock {
+            if (!isset($item['functionCall'])) {
+                return null;
+            }
+
+            return new \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock(
+                id: $item['functionCall']['name'],
+                name: $item['functionCall']['name'],
+                input: $item['functionCall']['args']
+            );
+        }, $message['parts']);
+
+        $result = new ToolCallMessage(
+            content: \array_filter($contentBlocks),
+            tools: \array_filter($tools)
+        );
         $result->setRole(MessageRole::MODEL);
 
         return $result;

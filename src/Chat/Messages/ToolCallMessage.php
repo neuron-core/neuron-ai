@@ -17,7 +17,7 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
      */
     public function __construct(
         string|ContentBlock|array|null $content = null,
-        protected array $tools
+        protected array $tools = []
     ) {
         parent::__construct($content);
     }
