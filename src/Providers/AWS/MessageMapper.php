@@ -82,7 +82,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 

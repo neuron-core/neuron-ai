@@ -49,7 +49,7 @@ class MessageMapper implements MessageMapperInterface
 
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
@@ -108,7 +108,7 @@ class MessageMapper implements MessageMapperInterface
 
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
