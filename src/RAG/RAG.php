@@ -17,9 +17,6 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 
-/**
- * @method RAG withProvider(AIProviderInterface $provider)
- */
 class RAG extends Agent
 {
     use ResolveVectorStore;
