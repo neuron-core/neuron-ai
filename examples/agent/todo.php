@@ -119,7 +119,7 @@ echo "-------------------------------------------------------------------\n\n";
 
 // Create AI provider
 $provider = new Anthropic(
-    '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',
+    'ANTHROPIC_KEY',
     'claude-3-7-sonnet-latest'
 );
 
@@ -154,7 +154,7 @@ $message = new UserMessage(
 
 echo "User Request:\n";
 echo "─────────────\n";
-echo \wordwrap($message->getContent(), 75) . "\n\n";
+echo \wordwrap($message->getTextContent(), 75) . "\n\n";
 
 echo "Agent Execution:\n";
 echo "────────────────\n\n";
@@ -170,7 +170,7 @@ try {
     echo "\n";
     echo "Agent Response:\n";
     echo "───────────────\n";
-    echo \wordwrap($response->getContent(), 75) . "\n\n";
+    echo \wordwrap($response->getTextContent(), 75) . "\n\n";
 
     echo "Execution completed in {$duration} seconds.\n";
 } catch (\Exception $e) {

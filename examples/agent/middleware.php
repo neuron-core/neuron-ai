@@ -66,7 +66,7 @@ echo "=== Agent Middleware: Tool Approval Example ===\n";
 echo "-------------------------------------------------------------------\n\n";
 
 $provider = new Anthropic\Anthropic(
-    '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',
+    'ANTHROPIC_KEY',
     'claude-3-7-sonnet-latest'
 );
 $persistence = new FilePersistence(__DIR__);
@@ -93,7 +93,7 @@ $interruptRequest = null;
 try {
     chat:
     $message = new UserMessage('Delete the C:/old_logs.txt file');
-    echo "User: {$message->getContent()}\n\n";
+    echo "User: {$message->getTextContent()}\n\n";
 
     if ($interruptRequest == null) {
         $response = $agent->chat(messages: $message);
@@ -102,7 +102,7 @@ try {
         $response = $agent->chat(interrupt: $interruptRequest);
     }
 
-    echo "Agent: ".\json_encode($response->getContent())."\n\n";
+    echo "Agent: ".\json_encode($response->getTextContent())."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 

@@ -19,7 +19,7 @@ class DataAnalystAgent extends Agent
     protected function provider(): AIProviderInterface
     {
         return new Anthropic(
-            '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',
+            'ANTHROPIC_KEY',
             'claude-3-7-sonnet-latest'
         );
     }
@@ -74,7 +74,7 @@ try {
     }
 
     echo "Agent Response:\n";
-    echo $response->getContent() . "\n";
+    echo $response->getTextContent() . "\n";
 
 } catch (WorkflowInterrupt $interrupt) {
     echo "Workflow interrupted for approval\n";

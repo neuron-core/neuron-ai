@@ -22,13 +22,13 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 // Initialize providers
 $mainProvider = new Anthropic(
-    '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',
+    'ANTHROPIC_KEY',
     'claude-3-5-sonnet-20241022',
 );
 
 // Use a faster/cheaper model for summarization
 $summarizationProvider = new Anthropic(
-    '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',
+    'ANTHROPIC_KEY',
     'claude-3-5-haiku-20241022',
 );
 
@@ -71,7 +71,7 @@ foreach ($messages as $index => $userMessage) {
 
     try {
         $response = $agent->chat(UserMessage::make($userMessage));
-        $content = $response->getContent();
+        $content = $response->getTextContent();
 
         echo "Assistant: " . \substr($content, 0, 200);
         if (\strlen($content) > 200) {
@@ -81,7 +81,7 @@ foreach ($messages as $index => $userMessage) {
         }
 
         // Show token count and message count
-        $chatHistory = $agent->resolveAgentState()->getChatHistory();
+        $chatHistory = $agent->resolveState()->getChatHistory();
         $messageCount = \count($chatHistory->getMessages());
         $totalTokens = $chatHistory->calculateTotalUsage();
 
@@ -89,7 +89,7 @@ foreach ($messages as $index => $userMessage) {
 
         // Check if first message is a summary
         $firstMessage = $chatHistory->getMessages()[0] ?? null;
-        if ($firstMessage && \str_contains($firstMessage->getContent(), '## Previous conversation summary:')) {
+        if ($firstMessage && \str_contains($firstMessage->getTextContent(), '## Previous conversation summary:')) {
             echo "[INFO: History was summarized!]\n";
         }
 
