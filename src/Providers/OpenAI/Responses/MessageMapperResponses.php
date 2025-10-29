@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
-use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
-use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;

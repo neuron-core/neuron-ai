@@ -9,6 +9,7 @@ use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
 class MessageMapper implements MessageMapperInterface
@@ -72,6 +73,9 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapMessage(Message $message): array
     {
         $contentBlocks = $message->getContent();
