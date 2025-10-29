@@ -48,13 +48,11 @@ class ToolNode extends Node
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
     {
-        $toolCallResult = new ToolResultMessage($toolCallMessage->getTools());
-
-        foreach ($toolCallResult->getTools() as $tool) {
+        foreach ($toolCallMessage->getTools() as $tool) {
             $this->executeSingleTool($tool, $state);
         }
 
-        return $toolCallResult;
+        return new ToolResultMessage($toolCallMessage->getTools());
     }
 
     /**

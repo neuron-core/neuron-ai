@@ -16,20 +16,6 @@ use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 
-/**
- * Node responsible for executing tool calls in parallel using spatie/fork.
- *
- * This implementation requires:
- * - The pcntl PHP extension (available on Unix/Mac systems)
- * - The spatie/fork package
- *
- * Note: pcntl only works in CLI processes, not in a web context.
- *
- * Falls back to sequential execution when:
- * - pcntl extension is not available
- * - Only one tool needs to be executed
- * - spatie/fork is not installed
- */
 class ParallelToolNode extends ToolNode
 {
     /**
@@ -50,13 +36,12 @@ class ParallelToolNode extends ToolNode
             return parent::executeTools($toolCallMessage, $state);
         }
 
-        $toolCallResult = new ToolResultMessage($toolCallMessage->getTools());
-        $tools = $toolCallResult->getTools();
+        $tools = $toolCallMessage->getTools();
 
         // If there's only one tool, no need for concurrency
         if (\count($tools) === 1) {
             $this->executeSingleTool($tools[0], $state);
-            return $toolCallResult;
+            return new ToolResultMessage($toolCallMessage->getTools());
         }
 
         // Check max tries and notify before execution
