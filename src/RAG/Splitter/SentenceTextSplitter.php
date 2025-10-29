@@ -98,7 +98,7 @@ class SentenceTextSplitter extends AbstractSplitter
     {
         $pattern = '/(?<=[.!?…])\s+(?=(?:[\"\'\""\'\'«»„""]?)[A-ZÀ-Ÿ])/u';
         $sentences = \preg_split($pattern, \trim($text));
-        return \array_filter(\array_map('trim', $sentences));
+        return \array_filter(\array_map(trim(...), $sentences));
     }
 
     /**

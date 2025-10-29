@@ -15,9 +15,9 @@ class JsonExtractor
     {
         $this->extractors = [
             fn (string $text): array => [$text],                   // Try as it is
-            fn (string $text): array => $this->findByMarkdown($text),
-            fn (string $text): ?string => $this->findByBrackets($text),
-            fn (string $text): array => $this->findJSONLikeStrings($text),
+            $this->findByMarkdown(...),
+            $this->findByBrackets(...),
+            $this->findJSONLikeStrings(...),
         ];
     }
 

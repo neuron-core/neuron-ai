@@ -86,6 +86,6 @@ class DelimiterTextSplitter extends AbstractSplitter
      */
     private function calculateChunkLength(array $chunk): int
     {
-        return \array_sum(\array_map('strlen', $chunk)) + \count($chunk) * \strlen($this->separator) - 1;
+        return \array_sum(\array_map(strlen(...), $chunk)) + \count($chunk) * \strlen($this->separator) - 1;
     }
 }

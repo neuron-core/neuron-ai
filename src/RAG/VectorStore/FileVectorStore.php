@@ -110,7 +110,7 @@ class FileVectorStore implements VectorStoreInterface
     {
         \file_put_contents(
             $this->getFilePath(),
-            \implode(\PHP_EOL, \array_map(fn (array $vector) => \json_encode($vector), $documents)).\PHP_EOL,
+            \implode(\PHP_EOL, \array_map(\json_encode(...), $documents)).\PHP_EOL,
             \FILE_APPEND
         );
     }

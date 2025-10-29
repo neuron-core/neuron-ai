@@ -20,7 +20,7 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
 
         // Gemini does not support functions and provider tool at the same time
         if ($functionTools !== []) {
-            $mapping['functionDeclarations'] = \array_map(fn (ToolInterface $tool): array => $this->mapTool($tool), $functionTools);
+            $mapping['functionDeclarations'] = \array_map($this->mapTool(...), $functionTools);
         } else {
             foreach ($providerTools as $tool) {
                 $mapping[] = $this->mapProviderTool($tool);

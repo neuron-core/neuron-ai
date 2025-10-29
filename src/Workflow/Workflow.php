@@ -39,15 +39,11 @@ class Workflow implements WorkflowInterface
 
     protected ExporterInterface $exporter;
 
-    protected PersistenceInterface $persistence;
-
-    protected WorkflowState $state;
-
     protected string $workflowId;
 
     public function __construct(
-        ?WorkflowState $state = null,
-        ?PersistenceInterface $persistence = null,
+        protected ?WorkflowState $state = new WorkflowState(),
+        protected ?PersistenceInterface $persistence = new InMemoryPersistence(),
         ?string $workflowId = null
     ) {
         $this->exporter = new ConsoleExporter();
@@ -59,9 +55,6 @@ class Workflow implements WorkflowInterface
         if (!\is_null($persistence) && \is_null($workflowId)) {
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
-
-        $this->state = $state ?? new WorkflowState();
-        $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('neuron_workflow_');
     }
 

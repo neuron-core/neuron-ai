@@ -93,7 +93,7 @@ trait HandleTools
                 $this->toolsBootstrapCache = \array_merge($this->toolsBootstrapCache, $innerTools);
 
                 // Add guidelines to the system prompt
-                if ($kitGuidelines !== null && $kitGuidelines !== '' && $kitGuidelines !== '0') {
+                if (!in_array($kitGuidelines, [null, '', '0'], true)) {
                     $kitGuidelines .= \PHP_EOL.\implode(
                         \PHP_EOL.'- ',
                         \array_map(

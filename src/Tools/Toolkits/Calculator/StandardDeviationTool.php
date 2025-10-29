@@ -49,7 +49,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, fn (string|float|int $value): bool => \is_numeric($value));
+        $numericData = \array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
@@ -60,7 +60,7 @@ DESC
         }
 
         // Convert to float values
-        $numericData = \array_map('floatval', $numericData);
+        $numericData = \array_map(floatval(...), $numericData);
 
         // Calculate mean
         $mean = \array_sum($numericData) / \count($numericData);

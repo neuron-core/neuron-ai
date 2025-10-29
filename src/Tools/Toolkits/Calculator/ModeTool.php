@@ -50,14 +50,14 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, fn (string|int|float $value): bool => \is_numeric($value));
+        $numericData = \array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
         // Convert to float values
-        $numericData = \array_map('floatval', $numericData);
+        $numericData = \array_map(floatval(...), $numericData);
 
         // Count frequency of each value
         $frequencies = \array_count_values($numericData);
@@ -67,7 +67,7 @@ DESC
         $modes = \array_keys($frequencies, $maxFrequency);
 
         // Convert back to numeric values and sort
-        $modes = \array_map('floatval', $modes);
+        $modes = \array_map(floatval(...), $modes);
         \sort($modes);
 
         return $modes;
