@@ -10,7 +10,7 @@ class OpenAILikeEmbeddings extends OpenAIEmbeddingsProvider
         protected string $baseUri,
         protected string $key,
         protected string $model,
-        protected int $dimensions = 1024
+        protected ?int $dimensions = 1024
     ) {
         parent::__construct($key, $model, $dimensions);
     }
