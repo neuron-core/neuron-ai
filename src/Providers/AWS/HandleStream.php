@@ -62,7 +62,7 @@ trait HandleStream
         }
 
         if (isset($stopReason) && $stopReason === 'tool_use' && \count($tools) > 0) {
-            yield new ToolCallMessage($tools);
+            yield new ToolCallMessage(tools: $tools);
         }
     }
 }

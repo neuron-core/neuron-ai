@@ -256,7 +256,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'] ?? null), $message['tools']);
 
-        $item = new ToolCallMessage($tools);
+        $item = new ToolCallMessage(tools: $tools);
 
         $this->deserializeMeta($message, $item);
 
