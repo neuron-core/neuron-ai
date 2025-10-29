@@ -24,4 +24,7 @@ return RectorConfig::configure()
         \Rector\DeadCode\Rector\For_\RemoveDeadIfForeachForRector::class => [
             __DIR__ . '/src/Workflow/WorkflowHandler.php'
         ],
+        \Rector\Php81\Rector\ClassMethod\NewInInitializerRector::class => [
+            __DIR__ . '/src/Workflow/Workflow.php'
+        ]
     ]);
