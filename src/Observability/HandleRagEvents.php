@@ -19,21 +19,23 @@ trait HandleRagEvents
             return;
         }
 
-        $id = \md5($data->question->getContent().$data->question->getRole());
+        $questionText = $data->question->getTextContent();
+        $id = \md5($questionText.$data->question->getRole());
 
         $this->segments[$id] = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$data->question->getContent()} )")
+            ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$questionText} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
     public function ragRetrieved(object $source, string $event, Retrieved $data): void
     {
-        $id = \md5($data->question->getContent().$data->question->getRole());
+        $questionText = $data->question->getTextContent();
+        $id = \md5($questionText.$data->question->getRole());
 
         if (\array_key_exists($id, $this->segments)) {
             $segment = $this->segments[$id];
             $segment->addContext('Data', [
-                    'question' => $data->question->getContent(),
+                    'question' => $questionText,
                     'documents' => \count($data->documents)
                 ]);
             $segment->end();

@@ -15,6 +15,7 @@ use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Tools\ToolInterface;
 
 class Gemini implements AIProviderInterface
 {
@@ -85,7 +86,7 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $message): Message
     {
-        $tools = \array_map(function (array $item): ?\NeuronAI\Tools\ToolInterface {
+        $tools = \array_map(function (array $item): ?ToolInterface {
             if (!isset($item['functionCall'])) {
                 return null;
             }
@@ -96,10 +97,7 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
-        $result = new ToolCallMessage(
-            $message['content'] ?? null,
-            \array_filter($tools)
-        );
+        $result = new ToolCallMessage(\array_filter($tools));
         $result->setRole(MessageRole::MODEL);
 
         return $result;

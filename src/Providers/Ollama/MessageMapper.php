@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use NeuronAI\Chat\Attachments\Attachment;
-use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Enums\AttachmentType;
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -18,9 +19,6 @@ use NeuronAI\Providers\MessageMapperInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
-    /**
-     * Mapped messages.
-     */
     protected array $mapping = [];
 
     public function map(array $messages): array
@@ -43,56 +41,62 @@ class MessageMapper implements MessageMapperInterface
 
     public function mapMessage(Message $message): void
     {
-        $payload = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
+        $textContent = '';
+        $images = [];
 
-        if (\array_key_exists('usage', $payload)) {
-            unset($payload['usage']);
-        }
-
-        $attachments = $message->getAttachments();
-
-        foreach ($attachments as $attachment) {
-            if ($attachment->type === AttachmentType::DOCUMENT) {
-                throw new ProviderException('This provider does not support document attachments.');
+        foreach ($contentBlocks as $block) {
+            if ($block instanceof TextContentBlock) {
+                $textContent .= $block->text;
+            } elseif ($block instanceof ImageContentBlock) {
+                if ($block->sourceType === SourceType::URL) {
+                    throw new ProviderException('Ollama supports only base64 image type.');
+                }
+                $images[] = $block->source;
+            } else {
+                throw new ProviderException('This provider does not support '.$block::class.' content blocks.');
             }
-
-            $payload['images'][] = $this->mapAttachment($attachment);
         }
 
-        unset($payload['attachments']);
+        $payload = [
+            'role' => $message->getRole(),
+            'content' => $textContent,
+        ];
+
+        if ($images !== []) {
+            $payload['images'] = $images;
+        }
 
         $this->mapping[] = $payload;
     }
 
-    protected function mapAttachment(Attachment $attachment): string
-    {
-        return match ($attachment->contentType) {
-            AttachmentContentType::BASE64 => $attachment->content,
-            AttachmentContentType::URL => throw new ProviderException('Ollama support only base64 attachment type.'),
-        };
-    }
-
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $message = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
+        $textContent = '';
 
-        if (\array_key_exists('usage', $message)) {
-            unset($message['usage']);
+        foreach ($contentBlocks as $block) {
+            if ($block instanceof TextContentBlock) {
+                $textContent .= $block->text;
+            }
         }
 
-        if (\array_key_exists('tool_calls', $message)) {
-            $message['tool_calls'] = \array_map(function (array $toolCall): array {
+        $payload = [
+            'role' => $message->getRole(),
+            'content' => $textContent,
+        ];
+
+        if (\array_key_exists('tool_calls', $message->jsonSerialize())) {
+            $toolCalls = $message->jsonSerialize()['tool_calls'];
+            $payload['tool_calls'] = \array_map(function (array $toolCall): array {
                 if (empty($toolCall['function']['arguments'])) {
                     $toolCall['function']['arguments'] = new \stdClass();
                 }
                 return $toolCall;
-            }, $message['tool_calls']);
+            }, $toolCalls);
         }
 
-        unset($message['type']);
-        unset($message['tools']);
-
-        $this->mapping[] = $message;
+        $this->mapping[] = $payload;
     }
 
     public function mapToolsResult(ToolCallResultMessage $message): void

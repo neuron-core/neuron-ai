@@ -260,7 +260,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'] ?? null), $message['tools']);
 
-        $item = new ToolCallMessage($message['content'], $tools);
+        $item = new ToolCallMessage($tools);
 
         $this->deserializeMeta($message, $item);
 
@@ -299,29 +299,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 continue;
             }
             if ($key === 'attachments') {
-                foreach ($message['attachments'] as $attachment) {
-                    switch (AttachmentType::from($attachment['type'])) {
-                        case AttachmentType::IMAGE:
-                            $item->addAttachment(
-                                new Image(
-                                    $attachment['content'],
-                                    AttachmentContentType::from($attachment['content_type']),
-                                    $attachment['media_type'] ?? null
-                                )
-                            );
-                            break;
-                        case AttachmentType::DOCUMENT:
-                            $item->addAttachment(
-                                new Document(
-                                    $attachment['content'],
-                                    AttachmentContentType::from($attachment['content_type']),
-                                    $attachment['media_type'] ?? null
-                                )
-                            );
-                            break;
-                    }
-
-                }
+                // Attachments are now part of content blocks, skip this key
                 continue;
             }
             $item->addMetadata($key, $value);

@@ -47,27 +47,36 @@ class MessageMapperResponses implements MessageMapperInterface
     protected function mapMessage(Message $message): void
     {
         $payload['role'] = $message->getRole();
+        $contentBlocks = $message->getContent();
 
-        if (\is_array($message->getContent())) {
-            $payload['content'] = $message->getContent();
-        } else {
-            $payload['content'] = [
-                [
+        // Map content blocks to provider format
+        $payload['content'] = [];
+        foreach ($contentBlocks as $block) {
+            if ($block instanceof \NeuronAI\Chat\ContentBlocks\TextContentBlock) {
+                $payload['content'][] = [
                     'type' => $this->isUserMessage($message) ? 'input_text' : 'output_text',
-                    'text' => (string) $message->getContent(),
-                ],
-            ];
-        }
-        foreach ($message->getAttachments() as $attachment) {
-            if ($attachment->type === AttachmentType::DOCUMENT) {
-                if ($attachment->contentType === AttachmentContentType::URL) {
-                    // OpenAI does not support URL type
+                    'text' => $block->text,
+                ];
+            } elseif ($block instanceof \NeuronAI\Chat\ContentBlocks\FileContentBlock) {
+                if ($block->sourceType === \NeuronAI\Chat\Enums\SourceType::URL) {
                     throw new ProviderException('This provider does not support URL document attachments.');
                 }
-
-                $payload['content'][] = $this->mapDocumentAttachment($attachment);
-            } elseif ($attachment->type === AttachmentType::IMAGE) {
-                $payload['content'][] = $this->mapImageAttachment($attachment);
+                $payload['content'][] = [
+                    'type' => 'file',
+                    'file' => [
+                        'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
+                        'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+                    ]
+                ];
+            } elseif ($block instanceof \NeuronAI\Chat\ContentBlocks\ImageContentBlock) {
+                $url = match ($block->sourceType) {
+                    \NeuronAI\Chat\Enums\SourceType::URL => $block->source,
+                    \NeuronAI\Chat\Enums\SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+                };
+                $payload['content'][] = [
+                    'type' => 'input_image',
+                    'image_url' => $url,
+                ];
             }
         }
 

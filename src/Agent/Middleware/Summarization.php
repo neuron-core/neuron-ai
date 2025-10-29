@@ -185,7 +185,7 @@ class Summarization implements WorkflowMiddleware
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
                 ->chat($summaryRequest);
 
-            return (string) $response->getContent();
+            return $response->getTextContent();
         } catch (\Exception) {
             // If summarization fails, return a basic fallback summary
             return \sprintf(
@@ -225,7 +225,6 @@ PROMPT;
 
         foreach ($messages as $message) {
             $role = $message->getRole();
-            $content = $message->getContent();
 
             if ($message instanceof ToolCallMessage) {
                 $toolNames = \array_map(
@@ -243,8 +242,8 @@ PROMPT;
                     \strtoupper($role)
                 );
             } else {
-                // Regular message
-                $contentStr = \is_array($content) ? \json_encode($content) : (string) $content;
+                // Regular message - extract text content from blocks
+                $contentStr = $message->getTextContent();
                 $formatted[] = \sprintf(
                     '[%s]: %s',
                     \strtoupper($role),
@@ -275,8 +274,7 @@ PROMPT;
                 $totalTokens += $usage->getTotal();
             } else {
                 // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-                $content = $message->getContent();
-                $contentStr = \is_array($content) ? \json_encode($content) : (string) $content;
+                $contentStr = $message->getTextContent();
                 $totalTokens += (int) \ceil(\strlen($contentStr) / 4);
             }
         }

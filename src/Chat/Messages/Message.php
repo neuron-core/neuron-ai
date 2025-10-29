@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\Attachments\Attachment;
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
 
 /**
- * @method static static make(MessageRole $role, array<int, mixed>|string|int|float|null $content = null)
+ * @method static static make(MessageRole $role, string|ContentBlock|array<int, ContentBlock>|null $content = null)
  */
 class Message implements \JsonSerializable
 {
@@ -18,9 +19,9 @@ class Message implements \JsonSerializable
     protected ?Usage $usage = null;
 
     /**
-     * @var Attachment[]
+     * @var ContentBlock[]
      */
-    protected array $attachments = [];
+    protected array $contentBlocks = [];
 
     /**
      * @var array<string, mixed>
@@ -28,12 +29,15 @@ class Message implements \JsonSerializable
     protected array $meta = [];
 
     /**
-     * @param array<int, mixed>|string|int|float|null $content
+     * @param string|ContentBlock|ContentBlock[]|null $content
      */
     public function __construct(
         protected MessageRole $role,
-        protected array|string|int|float|null $content = null
+        string|ContentBlock|array|null $content = null
     ) {
+        if ($content !== null) {
+            $this->setContent($content);
+        }
     }
 
     public function getRole(): string
@@ -51,29 +55,47 @@ class Message implements \JsonSerializable
         return $this;
     }
 
-    public function getContent(): mixed
+    /**
+     * @return ContentBlock[]
+     */
+    public function getContent(): array
     {
-        return $this->content;
-    }
-
-    public function setContent(mixed $content): Message
-    {
-        $this->content = $content;
-        return $this;
+        return $this->contentBlocks;
     }
 
     /**
-     * @return array<Attachment>
+     * @param string|ContentBlock|ContentBlock[] $content
      */
-    public function getAttachments(): array
+    public function setContent(string|ContentBlock|array $content): Message
     {
-        return $this->attachments;
+        if (\is_string($content)) {
+            $this->contentBlocks = [new TextContentBlock($content)];
+        } elseif ($content instanceof ContentBlock) {
+            $this->contentBlocks = [$content];
+        } else {
+            $this->contentBlocks = $content;
+        }
+
+        return $this;
     }
 
-    public function addAttachment(Attachment $attachment): Message
+    public function addContentBlock(ContentBlock $block): Message
     {
-        $this->attachments[] = $attachment;
+        $this->contentBlocks[] = $block;
+
         return $this;
+    }
+
+    public function getTextContent(): string
+    {
+        $text = '';
+        foreach ($this->contentBlocks as $index => $block) {
+            if ($block instanceof TextContentBlock) {
+                $text .= ($index ? "\n" : '').$block->text;
+            }
+        }
+
+        return $text;
     }
 
     public function getUsage(): ?Usage
@@ -108,15 +130,11 @@ class Message implements \JsonSerializable
     {
         $data = [
             'role' => $this->getRole(),
-            'content' => $this->getContent()
+            'content' => \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contentBlocks)
         ];
 
         if ($this->getUsage() instanceof Usage) {
             $data['usage'] = $this->getUsage()->jsonSerialize();
-        }
-
-        if ($this->getAttachments() !== []) {
-            $data['attachments'] = \array_map(fn (Attachment $attachment): array => $attachment->jsonSerialize(), $this->getAttachments());
         }
 
         return \array_merge($this->meta, $data);

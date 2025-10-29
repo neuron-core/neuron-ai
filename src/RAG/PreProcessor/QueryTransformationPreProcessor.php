@@ -72,7 +72,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
 
     protected function prepareMessage(Message $question): UserMessage
     {
-        return new UserMessage('<ORIGINAL-QUERY>' . $question->getContent() . '</ORIGINAL-QUERY>');
+        return new UserMessage('<ORIGINAL-QUERY>' . $question->getTextContent() . '</ORIGINAL-QUERY>');
     }
 
     protected function getRewritingPrompt(): string

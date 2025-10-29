@@ -88,14 +88,14 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->addMessage($largeMessage);
 
         // Add the first tool call pair
-        $toolCall1 = new ToolCallMessage('Calling first tool', [$tool1]);
+        $toolCall1 = new ToolCallMessage([$tool1]);
         $this->chatHistory->addMessage($toolCall1);
 
         $toolResult1 = new ToolCallResultMessage([$tool1WithResult]);
         $this->chatHistory->addMessage($toolResult1);
 
         // Add the second tool call pair
-        $toolCall2 = new ToolCallMessage('Calling second tool', [$tool2]);
+        $toolCall2 = new ToolCallMessage([$tool2]);
         $this->chatHistory->addMessage($toolCall2);
 
         $toolResult2 = new ToolCallResultMessage([$tool2WithResult]);
@@ -164,7 +164,7 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->addMessage($userMessage);
         $this->assertCount(1, $this->chatHistory->getMessages());
 
-        $toolCall = new ToolCallMessage('Tool call', [$tool]);
+        $toolCall = new ToolCallMessage([$tool]);
         $this->chatHistory->addMessage($toolCall);
         $this->assertCount(2, $this->chatHistory->getMessages());
 

@@ -10,7 +10,9 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Image;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\Ollama\Ollama;
@@ -59,7 +61,7 @@ class OllamaTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -80,7 +82,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image('base_64_encoded_image', AttachmentContentType::BASE64));
+            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::BASE64));
 
         $response = $provider->chat([$message]);
 
@@ -102,7 +104,7 @@ class OllamaTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_chat_with_url_image_fail(): void
@@ -123,7 +125,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image('base_64_encoded_image'));
+            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);

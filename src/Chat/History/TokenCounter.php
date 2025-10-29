@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 
@@ -22,13 +23,11 @@ class TokenCounter implements TokenCounterInterface
         foreach ($messages as $message) {
             $messageChars = 0;
 
-            // Count content characters
-            $content = $message->getContent();
-            if (\is_string($content)) {
-                $messageChars += \strlen($content);
-            } elseif ($content !== null) {
-                // For arrays and other types, use JSON representation
-                $messageChars += \strlen(\json_encode($content));
+            // Count content characters from content blocks
+            $contentBlocks = $message->getContent();
+            if ($contentBlocks !== []) {
+                // JSON encode content blocks for token counting
+                $messageChars += \strlen(\json_encode(\array_map(fn (ContentBlock $block): array => $block->toArray(), $contentBlocks)));
             }
 
             // Handle tool calls

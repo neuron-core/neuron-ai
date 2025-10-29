@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Attachments\Attachment;
-use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\ContentBlocks\AudioContentBlock;
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\ContentBlocks\VideoContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -38,48 +43,64 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): array
     {
-        $payload = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
 
-        if (\array_key_exists('usage', $payload)) {
-            unset($payload['usage']);
-        }
-
-        $attachments = $message->getAttachments();
-
-        if (\is_string($payload['content']) && $attachments) {
-            $payload['content'] = [
-                [
-                    'type' => 'text',
-                    'text' => $payload['content'],
-                ],
-            ];
-        }
-
-        foreach ($attachments as $attachment) {
-            $payload['content'][] = $this->mapAttachment($attachment);
-        }
-
-        unset($payload['attachments']);
-
-        return $payload;
+        return [
+            'role' => $message->getRole(),
+            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+        ];
     }
 
-    protected function mapAttachment(Attachment $attachment): array
+    protected function mapContentBlock(ContentBlock $block): array
     {
-        return match($attachment->contentType) {
-            AttachmentContentType::URL => [
-                'type' => $attachment->type->value,
+        return match ($block::class) {
+            TextContentBlock::class => [
+                'type' => 'text',
+                'text' => $block->text,
+            ],
+            ImageContentBlock::class => $this->mapImageBlock($block),
+            FileContentBlock::class => $this->mapFileBlock($block),
+            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+        };
+    }
+
+    protected function mapImageBlock(ImageContentBlock $block): array
+    {
+        return match ($block->sourceType) {
+            SourceType::URL => [
+                'type' => 'image',
                 'source' => [
                     'type' => 'url',
-                    'url' => $attachment->content,
+                    'url' => $block->source,
                 ],
             ],
-            AttachmentContentType::BASE64 => [
-                'type' => $attachment->type->value,
+            SourceType::BASE64 => [
+                'type' => 'image',
                 'source' => [
                     'type' => 'base64',
-                    'media_type' => $attachment->mediaType,
-                    'data' => $attachment->content,
+                    'media_type' => $block->mediaType,
+                    'data' => $block->source,
+                ],
+            ],
+        };
+    }
+
+    protected function mapFileBlock(FileContentBlock $block): array
+    {
+        return match ($block->sourceType) {
+            SourceType::URL => [
+                'type' => 'document',
+                'source' => [
+                    'type' => 'url',
+                    'url' => $block->source,
+                ],
+            ],
+            SourceType::BASE64 => [
+                'type' => 'document',
+                'source' => [
+                    'type' => 'base64',
+                    'media_type' => $block->mediaType,
+                    'data' => $block->source,
                 ],
             ],
         };
@@ -87,16 +108,12 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): array
     {
-        $message = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
 
-        if (\array_key_exists('usage', $message)) {
-            unset($message['usage']);
-        }
-
-        unset($message['type']);
-        unset($message['tools']);
-
-        return $message;
+        return [
+            'role' => $message->getRole(),
+            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+        ];
     }
 
     protected function mapToolsResult(ToolCallResultMessage $message): array

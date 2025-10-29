@@ -11,7 +11,11 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Attachments\Image;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\ContentBlockType;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
@@ -80,9 +84,9 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image(
-                image: 'base64_encoded_image_data',
-                type: AttachmentContentType::BASE64,
+            ->addContentBlock(new ImageContentBlock(
+                source: 'base64_encoded_image_data',
+                sourceType: SourceType::BASE64,
                 mediaType: 'image/png'
             ));
 
@@ -134,7 +138,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image(image: 'https://example.com/image.png'));
+            ->addContentBlock(new ImageContentBlock(source: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 
@@ -183,9 +187,9 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addAttachment(new Document(
-                document: 'base64_encoded_document_data',
-                type: AttachmentContentType::BASE64,
+            ->addContentBlock(new FileContentBlock(
+                source: 'base64_encoded_document_data',
+                sourceType: SourceType::BASE64,
                 mediaType: 'pdf'
             ));
 
@@ -237,7 +241,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addAttachment(new Document(document: 'https://example.com/document.pdf'));
+            ->addContentBlock(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 

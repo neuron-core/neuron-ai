@@ -11,7 +11,10 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Attachments\Image;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
@@ -53,13 +56,18 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        [
+                            'type' => 'text',
+                            'text' => 'Hi',
+                        ]
+                    ],
                 ],
             ],
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_chat_with_url_image(): void
@@ -77,7 +85,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image('https://example.com/image.png'));
+            ->addContentBlock(new ImageContentBlock(source: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $response = $provider->chat([$message]);
 
@@ -100,7 +108,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -118,7 +126,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addAttachment(new Image('base_64_encoded_image', AttachmentContentType::BASE64, 'image/jpeg'));
+            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
 
         $response = $provider->chat([$message]);
 
@@ -141,7 +149,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_chat_with_url_document_fail(): void
@@ -159,7 +167,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addAttachment(new Document('https://example.com/document.pdf'));
+            ->addContentBlock(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);
@@ -180,7 +188,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addAttachment(new Image('base_64_encoded_document', AttachmentContentType::BASE64, 'application/pdf'));
+            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
 
         $response = $provider->chat([$message]);
 
@@ -203,7 +211,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->getTextContent());
     }
 
     public function test_tools_payload(): void
@@ -244,7 +252,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -313,7 +323,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -381,7 +393,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -455,7 +469,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [

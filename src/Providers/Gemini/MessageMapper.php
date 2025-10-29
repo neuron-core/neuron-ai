@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use NeuronAI\Chat\Attachments\Attachment;
-use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\ContentBlocks\AudioContentBlock;
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\ContentBlocks\VideoContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -38,35 +43,41 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): array
     {
-        $payload = [
+        $contentBlocks = $message->getContent();
+
+        return [
             'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL->value : $message->getRole(),
-            'parts' => [
-                ['text' => $message->getContent()]
-            ],
+            'parts' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
         ];
-
-        $attachments = $message->getAttachments();
-
-        foreach ($attachments as $attachment) {
-            $payload['parts'][] = $this->mapAttachment($attachment);
-        }
-
-        return $payload;
     }
 
-    protected function mapAttachment(Attachment $attachment): array
+    protected function mapContentBlock(ContentBlock $block): array
     {
-        return match($attachment->contentType) {
-            AttachmentContentType::URL => [
+        return match ($block::class) {
+            TextContentBlock::class => [
+                'text' => $block->text,
+            ],
+            ImageContentBlock::class,
+            FileContentBlock::class,
+            AudioContentBlock::class,
+            VideoContentBlock::class => $this->mapMediaBlock($block),
+            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+        };
+    }
+
+    protected function mapMediaBlock(ImageContentBlock|FileContentBlock|AudioContentBlock|VideoContentBlock $block): array
+    {
+        return match ($block->sourceType) {
+            SourceType::URL => [
                 'file_data' => [
-                    'file_uri' => $attachment->content,
-                    'mime_type' => $attachment->mediaType,
+                    'file_uri' => $block->source,
+                    'mime_type' => $block->mediaType,
                 ],
             ],
-            AttachmentContentType::BASE64 => [
+            SourceType::BASE64 => [
                 'inline_data' => [
-                    'data' => $attachment->content,
-                    'mime_type' => $attachment->mediaType,
+                    'data' => $block->source,
+                    'mime_type' => $block->mediaType,
                 ]
             ]
         };

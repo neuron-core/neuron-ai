@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\Chat\Attachments\Attachment;
-use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Enums\AttachmentType;
+use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -20,9 +22,6 @@ class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
 
-    /**
-     * @throws ProviderException
-     */
     public function map(array $messages): array
     {
         $this->mapping = [];
@@ -41,88 +40,67 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapMessage(Message $message): void
     {
-        $payload = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
 
-        if (\array_key_exists('usage', $payload)) {
-            unset($payload['usage']);
-        }
-
-        $attachments = $message->getAttachments();
-
-        if (\is_string($payload['content']) && $attachments) {
-            $payload['content'] = [
-                [
-                    'type' => 'text',
-                    'text' => $payload['content'],
-                ],
-            ];
-        }
-
-        foreach ($attachments as $attachment) {
-            if ($attachment->type === AttachmentType::DOCUMENT) {
-                if ($attachment->contentType === AttachmentContentType::URL) {
-                    // OpenAI does not support URL type
-                    throw new ProviderException('This provider does not support URL document attachments.');
-                }
-
-                $payload['content'][] = $this->mapDocumentAttachment($attachment);
-            } elseif ($attachment->type === AttachmentType::IMAGE) {
-                $payload['content'][] = $this->mapImageAttachment($attachment);
-            }
-        }
-
-        unset($payload['attachments']);
-
-        $this->mapping[] = $payload;
+        $this->mapping[] = [
+            'role' => $message->getRole(),
+            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+        ];
     }
 
-    public function mapDocumentAttachment(Attachment $attachment): array
+    protected function mapContentBlock(ContentBlock $block): array
     {
+        return match ($block::class) {
+            TextContentBlock::class => [
+                'type' => 'text',
+                'text' => $block->text,
+            ],
+            ImageContentBlock::class => $this->mapImageBlock($block),
+            FileContentBlock::class => $this->mapFileBlock($block),
+            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+        };
+    }
+
+    protected function mapImageBlock(ImageContentBlock $block): array
+    {
+        $url = match ($block->sourceType) {
+            SourceType::URL => $block->source,
+            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+        };
+
+        return [
+            'type' => 'image_url',
+            'image_url' => [
+                'url' => $url,
+            ],
+        ];
+    }
+
+    protected function mapFileBlock(FileContentBlock $block): array
+    {
+        if ($block->sourceType === SourceType::URL) {
+            throw new ProviderException('This provider does not support URL document attachments.');
+        }
+
         return [
             'type' => 'file',
             'file' => [
-                // The filename is required, but the Document class does not have a filename property.
-                'filename' => "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
+                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
+                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
             ]
         ];
     }
 
-    protected function mapImageAttachment(Attachment $attachment): array
-    {
-        return match($attachment->contentType) {
-            AttachmentContentType::URL => [
-                'type' => 'image_url',
-                'image_url' => [
-                    'url' => $attachment->content,
-                ],
-            ],
-            AttachmentContentType::BASE64 => [
-                'type' => 'image_url',
-                'image_url' => [
-                    'url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
-                ],
-            ]
-        };
-    }
-
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $message = $message->jsonSerialize();
+        $contentBlocks = $message->getContent();
 
-        if (\array_key_exists('usage', $message)) {
-            unset($message['usage']);
-        }
-
-        unset($message['type']);
-        unset($message['tools']);
-
-        $this->mapping[] = $message;
+        $this->mapping[] = [
+            'role' => $message->getRole(),
+            'content' => \array_map(fn (ContentBlock $block): array => $this->mapContentBlock($block), $contentBlocks)
+        ];
     }
 
     protected function mapToolsResult(ToolCallResultMessage $message): void

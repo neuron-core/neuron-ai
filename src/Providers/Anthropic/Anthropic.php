@@ -97,7 +97,6 @@ class Anthropic implements AIProviderInterface
         }
 
         return new ToolCallMessage(
-            [$message],
             [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
         );
     }
