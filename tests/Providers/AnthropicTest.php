@@ -54,13 +54,15 @@ class AnthropicTest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
         ];
 
         $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('How can I assist you today?', $response->getContent());
+        $this->assertSame('How can I assist you today?', $response->getTextContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -307,7 +309,9 @@ class AnthropicTest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -376,7 +380,9 @@ class AnthropicTest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -445,7 +451,9 @@ class AnthropicTest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [
@@ -545,7 +553,9 @@ class AnthropicTest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi'],
+                    ],
                 ],
             ],
             'tools' => [

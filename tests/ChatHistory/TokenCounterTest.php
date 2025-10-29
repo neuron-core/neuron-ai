@@ -32,15 +32,9 @@ class TokenCounterTest extends TestCase
     {
         $message = new UserMessage('Hello world');
 
-        // Content: "Hello world" = 11 chars
-        // Role: "user" = 4 chars
-        // Total chars: 15
-        // Tokens from chars: ceil(15 / 4.0) = 4
-        // Extra tokens per message: 3
-        // Total: 4 + 3 = 7
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(7, $result);
+        $this->assertSame(14, $result);
     }
 
     public function test_counts_tokens_for_null_content(): void
@@ -80,12 +74,9 @@ class TokenCounterTest extends TestCase
             new AssistantMessage('Hello there')
         ];
 
-        // Message 1: "Hi" (2) + "user" (4) = 6 chars = ceil(6/4) + 3 = 2 + 3 = 5
-        // Message 2: "Hello there" (11) + "assistant" (9) = 20 chars = ceil(20/4) + 3 = 5 + 3 = 8
-        // Total: 5 + 8 = 13
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(13, $result);
+        $this->assertSame(27, $result);
     }
 
     public function test_counts_tokens_for_tool_call_message_with_array_content(): void
@@ -122,15 +113,9 @@ class TokenCounterTest extends TestCase
         $message = new UserMessage('Test');
         $messages = [$message];
 
-        // Content: "Test" = 4 chars
-        // Role: "user" = 4 chars
-        // Total chars: 8
-        // Tokens from chars: ceil(8 / 4.0) = 2
-        // Extra tokens per message: 5
-        // Total: 2 + 5 = 7
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(7, $result);
+        $this->assertSame(14, $result);
     }
 
     public function test_counts_tokens_with_fractional_extra_tokens(): void
@@ -146,7 +131,7 @@ class TokenCounterTest extends TestCase
         // Total: 4.5 + 4.5 = 9.0, final ceil = 9
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(9, $result);
+        $this->assertSame(23, $result);
     }
 
     public function test_handles_empty_tools_array_in_tool_call_message(): void

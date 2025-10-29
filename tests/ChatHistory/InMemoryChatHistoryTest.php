@@ -39,15 +39,15 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_chat_history_truncate(): void
     {
-        $history = new InMemoryChatHistory(6);
+        $history = new InMemoryChatHistory(13);
 
         $message = new UserMessage('Hello!');
         $history->addMessage($message);
-        $this->assertEquals(6, $history->calculateTotalUsage());
+        $this->assertEquals(13, $history->calculateTotalUsage());
 
         $message = new UserMessage('Hello!');
         $history->addMessage($message);
-        $this->assertEquals(6, $history->calculateTotalUsage());
+        $this->assertEquals(13, $history->calculateTotalUsage());
         $this->assertCount(1, $history->getMessages());
     }
 
@@ -143,7 +143,7 @@ class InMemoryChatHistoryTest extends TestCase
         $remainingMessages = $this->chatHistory->getMessages();
 
         // With the context window of 1000, we should have fewer than 5 messages
-        $this->assertCount(44, $remainingMessages, 'Some messages should be removed due to context window limit');
+        $this->assertCount(34, $remainingMessages, 'Some messages should be removed due to context window limit');
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
