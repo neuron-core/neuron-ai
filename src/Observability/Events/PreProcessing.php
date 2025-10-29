@@ -11,6 +11,6 @@ class PreProcessing
     public function __construct(
         public string $processor,
         public Message $original
-    ){
+    ) {
     }
 }

@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
-use NeuronAI\Chat\Attachments\Document;
-use NeuronAI\Chat\Attachments\Image;
-use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;

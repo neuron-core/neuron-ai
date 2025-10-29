@@ -14,7 +14,8 @@ class FileContentBlock implements ContentBlock
         public readonly SourceType $sourceType,
         public readonly ?string $mediaType = null,
         public readonly ?string $filename = null
-    ) {}
+    ) {
+    }
 
     public function getType(): ContentBlockType
     {

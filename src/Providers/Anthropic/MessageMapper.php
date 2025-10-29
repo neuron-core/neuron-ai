@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\ContentBlocks\AudioContentBlock;
 use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
-use NeuronAI\Chat\ContentBlocks\VideoContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;

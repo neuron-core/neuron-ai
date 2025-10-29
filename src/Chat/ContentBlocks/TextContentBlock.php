@@ -10,7 +10,8 @@ class TextContentBlock implements ContentBlock
 {
     public function __construct(
         public readonly string $text
-    ) {}
+    ) {
+    }
 
     public function getType(): ContentBlockType
     {

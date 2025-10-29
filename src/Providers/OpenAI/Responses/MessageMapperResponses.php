@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Attachments\Attachment;
+use NeuronAI\Chat\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -49,72 +52,53 @@ class MessageMapperResponses implements MessageMapperInterface
         $payload['role'] = $message->getRole();
         $contentBlocks = $message->getContent();
 
-        // Map content blocks to provider format
+        // Map content blocks to the provider format
         $payload['content'] = [];
         foreach ($contentBlocks as $block) {
-            if ($block instanceof \NeuronAI\Chat\ContentBlocks\TextContentBlock) {
-                $payload['content'][] = [
-                    'type' => $this->isUserMessage($message) ? 'input_text' : 'output_text',
-                    'text' => $block->text,
-                ];
-            } elseif ($block instanceof \NeuronAI\Chat\ContentBlocks\FileContentBlock) {
-                if ($block->sourceType === \NeuronAI\Chat\Enums\SourceType::URL) {
-                    throw new ProviderException('This provider does not support URL document attachments.');
-                }
-                $payload['content'][] = [
-                    'type' => 'file',
-                    'file' => [
-                        'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
-                        'file_data' => "data:{$block->mediaType};base64,{$block->source}",
-                    ]
-                ];
-            } elseif ($block instanceof \NeuronAI\Chat\ContentBlocks\ImageContentBlock) {
-                $url = match ($block->sourceType) {
-                    \NeuronAI\Chat\Enums\SourceType::URL => $block->source,
-                    \NeuronAI\Chat\Enums\SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
-                };
-                $payload['content'][] = [
-                    'type' => 'input_image',
-                    'image_url' => $url,
-                ];
-            }
+            $payload['content'][] = match ($block::class) {
+                TextContentBlock::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
+                FileContentBlock::class => $this->mapFileBlock($block),
+                ImageContentBlock::class => $this->mapImageBlock($block),
+                default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            };
         }
 
         $this->mapping[] = $payload;
     }
 
+    protected function mapTextBlock(TextContentBlock $block, bool $forUser): array
+    {
+        return [
+            'type' => $forUser ? 'input_text' : 'output_text',
+            'text' => $block->text,
+        ];
+    }
+
+    protected function mapFileBlock(FileContentBlock $block): array
+    {
+        return [
+            'type' => 'file',
+            'file' => [
+                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
+                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+            ]
+        ];
+    }
+
+    protected function mapImageBlock(ImageContentBlock $block): array
+    {
+        return [
+            'type' => 'input_image',
+            'image_url' => match ($block->sourceType) {
+                SourceType::URL => $block->source,
+                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+            },
+        ];
+    }
+
     protected function isUserMessage(Message $message): bool
     {
         return $message instanceof UserMessage || $message->getRole() === MessageRole::USER->value;
-    }
-
-    public function mapDocumentAttachment(Attachment $attachment): array
-    {
-        return match ($attachment->contentType) {
-            AttachmentContentType::URL => [
-                'type' => 'input_file',
-                'file_url' => $attachment->content,
-            ],
-            AttachmentContentType::BASE64 => [
-                'type' => 'input_file',
-                'filename' => "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
-            ]
-        };
-    }
-
-    protected function mapImageAttachment(Attachment $attachment): array
-    {
-        return match($attachment->contentType) {
-            AttachmentContentType::URL => [
-                'type' => 'input_image',
-                'image_url' => $attachment->content,
-            ],
-            AttachmentContentType::BASE64 => [
-                'type' => 'input_image',
-                'image_url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
-            ]
-        };
     }
 
     protected function mapToolCall(ToolCallMessage $message): void

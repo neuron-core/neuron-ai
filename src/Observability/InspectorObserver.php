@@ -9,7 +9,7 @@ use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 
@@ -152,13 +152,13 @@ class InspectorObserver implements ObserverInterface
     protected function prepareMessageItem(Message $item): array
     {
         $item = $item->jsonSerialize();
-        if (isset($item['attachments'])) {
-            $item['attachments'] = \array_map(function (array $attachment): array {
-                if ($attachment['content_type'] === AttachmentContentType::BASE64->value) {
-                    unset($attachment['content']);
+        if (isset($item['content'])) {
+            $item['content'] = \array_map(function (array $block): array {
+                if ($block['source_type'] === SourceType::BASE64->value) {
+                    unset($block['source']);
                 }
-                return $attachment;
-            }, $item['attachments']);
+                return $block;
+            }, $item['content']);
         }
 
         return $item;

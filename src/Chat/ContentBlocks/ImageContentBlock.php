@@ -13,7 +13,8 @@ class ImageContentBlock implements ContentBlock
         public readonly string $source,
         public readonly SourceType $sourceType,
         public readonly ?string $mediaType = null
-    ) {}
+    ) {
+    }
 
     public function getType(): ContentBlockType
     {

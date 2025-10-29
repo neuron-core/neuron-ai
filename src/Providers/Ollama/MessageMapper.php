@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
