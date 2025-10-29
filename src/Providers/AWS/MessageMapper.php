@@ -8,7 +8,7 @@ use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Providers\MessageMapperInterface;
 
 class MessageMapper implements MessageMapperInterface
@@ -19,7 +19,7 @@ class MessageMapper implements MessageMapperInterface
 
         foreach ($messages as $message) {
             $mapping[] = match ($message::class) {
-                ToolCallResultMessage::class => $this->mapToolCallResult($message),
+                ToolResultMessage::class => $this->mapToolCallResult($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 default => $this->mapMessage($message),
             };
@@ -28,7 +28,7 @@ class MessageMapper implements MessageMapperInterface
         return $mapping;
     }
 
-    protected function mapToolCallResult(ToolCallResultMessage $message): array
+    protected function mapToolCallResult(ToolResultMessage $message): array
     {
         $toolContents = [];
         foreach ($message->getTools() as $tool) {

@@ -7,7 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
@@ -38,7 +38,7 @@ class ParallelToolNode extends ToolNode
      * @throws ToolMaxTriesException
      * @throws \Throwable
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolCallResultMessage
+    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
     {
         // Fallback to sequential execution if pcntl is not available (e.g., Windows)
         if (!\extension_loaded('pcntl')) {
@@ -50,7 +50,7 @@ class ParallelToolNode extends ToolNode
             return parent::executeTools($toolCallMessage, $state);
         }
 
-        $toolCallResult = new ToolCallResultMessage($toolCallMessage->getTools());
+        $toolCallResult = new ToolResultMessage($toolCallMessage->getTools());
         $tools = $toolCallResult->getTools();
 
         // If there's only one tool, no need for concurrency
@@ -126,6 +126,6 @@ class ParallelToolNode extends ToolNode
         }
 
         // Return a new ToolCallResultMessage with the executed tools
-        return new ToolCallResultMessage($executedTools);
+        return new ToolResultMessage($executedTools);
     }
 }

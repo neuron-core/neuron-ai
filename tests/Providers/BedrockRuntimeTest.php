@@ -8,7 +8,7 @@ use Aws\Result;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use GuzzleHttp\Promise\FulfilledPromise;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Tools\PropertyType;
@@ -130,12 +130,12 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('Sys');
 
-        /** @var Message|ToolCallResultMessage $response */
+        /** @var Message|ToolResultMessage $response */
         $response = $provider->chat([
             new UserMessage('Use tool')
         ]);
 
-        /** @var ToolCallResultMessage $response */
+        /** @var ToolResultMessage $response */
         // Response should be a ToolCallMessage (subclass) with tools
         $this->assertSame('tool_call', $response->jsonSerialize()['type']);
         $this->assertCount(1, $response->getTools());

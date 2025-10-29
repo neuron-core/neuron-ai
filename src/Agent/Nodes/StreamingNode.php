@@ -13,7 +13,7 @@ use NeuronAI\Agent\ToolCallChunk;
 use NeuronAI\Agent\ToolResultChunk;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -44,7 +44,7 @@ class StreamingNode extends Node
             new InferenceStart($lastMessage)
         );
 
-        if ($lastMessage instanceof ToolCallResultMessage) {
+        if ($lastMessage instanceof ToolResultMessage) {
             yield new ToolResultChunk($lastMessage->getTools());
         }
 

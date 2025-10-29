@@ -12,7 +12,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
@@ -189,7 +189,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Tool result messages have a special case - they're user messages
             // but can only follow tool call messages (assistant)
             // This is valid after a ToolCallMessage
-            if ($message instanceof ToolCallResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
+            if ($message instanceof ToolResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
                 $expectingRole = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
@@ -270,14 +270,14 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     /**
      * @param array<string, mixed> $message
      */
-    protected function deserializeToolCallResult(array $message): ToolCallResultMessage
+    protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
         $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'])
             ->setResult($tool['result']), $message['tools']);
 
-        return new ToolCallResultMessage($tools);
+        return new ToolResultMessage($tools);
     }
 
     /**

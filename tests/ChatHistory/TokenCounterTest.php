@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\ChatHistory;
 use NeuronAI\Chat\History\TokenCounter;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
@@ -169,7 +169,7 @@ class TokenCounterTest extends TestCase
     public function test_handles_tool_without_id_in_result_message(): void
     {
         $tool = $this->createMockToolWithoutId('test_tool');
-        $message = new ToolCallResultMessage([$tool]);
+        $message = new ToolResultMessage([$tool]);
         $messages = [$message];
 
         // Content: null = 0 chars

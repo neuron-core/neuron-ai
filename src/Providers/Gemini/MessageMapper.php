@@ -15,7 +15,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
@@ -33,7 +33,7 @@ class MessageMapper implements MessageMapperInterface
                 UserMessage::class,
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
-                ToolCallResultMessage::class => $this->mapToolsResult($message),
+                ToolResultMessage::class => $this->mapToolsResult($message),
                 default => throw new ProviderException('Could not map message type '.$message::class),
             };
         }
@@ -98,7 +98,7 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapToolsResult(ToolCallResultMessage $message): array
+    protected function mapToolsResult(ToolResultMessage $message): array
     {
         return [
             'role' => MessageRole::USER->value,

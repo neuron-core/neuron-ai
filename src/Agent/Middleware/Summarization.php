@@ -9,7 +9,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -236,7 +236,7 @@ PROMPT;
                     \strtoupper($role),
                     \implode(', ', $toolNames)
                 );
-            } elseif ($message instanceof ToolCallResultMessage) {
+            } elseif ($message instanceof ToolResultMessage) {
                 $formatted[] = \sprintf(
                     '[%s]: Tool results received',
                     \strtoupper($role)

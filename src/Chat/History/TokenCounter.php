@@ -6,7 +6,7 @@ namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 
 class TokenCounter implements TokenCounterInterface
 {
@@ -42,7 +42,7 @@ class TokenCounter implements TokenCounterInterface
             }
 
             // Handle tool call results
-            if ($message instanceof ToolCallResultMessage) {
+            if ($message instanceof ToolResultMessage) {
                 foreach ($message->getTools() as $tool) {
                     $messageChars += \strlen($tool->getResult());
 

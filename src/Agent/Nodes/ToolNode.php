@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
@@ -46,9 +46,9 @@ class ToolNode extends Node
      * @throws \Throwable
      * @throws ToolMaxTriesException
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolCallResultMessage
+    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
     {
-        $toolCallResult = new ToolCallResultMessage($toolCallMessage->getTools());
+        $toolCallResult = new ToolResultMessage($toolCallMessage->getTools());
 
         foreach ($toolCallResult->getTools() as $tool) {
             $this->executeSingleTool($tool, $state);

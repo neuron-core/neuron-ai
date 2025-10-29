@@ -9,7 +9,7 @@ use NeuronAI\Tools\ToolInterface;
 /**
  * @method static static make(ToolInterface[] $tools)
  */
-class ToolCallResultMessage extends UserMessage implements \Stringable
+class ToolResultMessage extends UserMessage implements \Stringable
 {
     /**
      * @param ToolInterface[] $tools
