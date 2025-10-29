@@ -154,7 +154,7 @@ class InspectorObserver implements ObserverInterface
         $item = $item->jsonSerialize();
         if (isset($item['content'])) {
             $item['content'] = \array_map(function (array $block): array {
-                if ($block['source_type'] === SourceType::BASE64->value) {
+                if (isset($block['source_type']) && $block['source_type'] === SourceType::BASE64->value) {
                     unset($block['source']);
                 }
                 return $block;
