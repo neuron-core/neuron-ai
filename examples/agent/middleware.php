@@ -66,7 +66,7 @@ echo "=== Agent Middleware: Tool Approval Example ===\n";
 echo "-------------------------------------------------------------------\n\n";
 
 $provider = new Anthropic\Anthropic(
-    'ANTHROPIC_KEY',
+    '',
     'claude-3-7-sonnet-latest'
 );
 $persistence = new FilePersistence(__DIR__);

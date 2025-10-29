@@ -19,7 +19,7 @@ class DataAnalystAgent extends Agent
     protected function provider(): AIProviderInterface
     {
         return new Anthropic(
-            'ANTHROPIC_KEY',
+            '',
             'claude-3-7-sonnet-latest'
         );
     }

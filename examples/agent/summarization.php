@@ -22,13 +22,13 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 // Initialize providers
 $mainProvider = new Anthropic(
-    'ANTHROPIC_KEY',
+    '',
     'claude-3-5-sonnet-20241022',
 );
 
 // Use a faster/cheaper model for summarization
 $summarizationProvider = new Anthropic(
-    'ANTHROPIC_KEY',
+    '',
     'claude-3-5-haiku-20241022',
 );
 

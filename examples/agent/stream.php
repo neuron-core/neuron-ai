@@ -18,7 +18,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 $agent = \NeuronAI\Agent\Agent::make()
     ->setAiProvider(
         new Anthropic(
-            'ANTHROPIC_KEY',
+            '',
             'claude-3-7-sonnet-latest'
         )
     )

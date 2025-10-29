@@ -5,7 +5,6 @@ declare(strict_types=1);
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\TodoPlanning;
 use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\PrepareInferenceNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
@@ -119,7 +118,7 @@ echo "-------------------------------------------------------------------\n\n";
 
 // Create AI provider
 $provider = new Anthropic(
-    'ANTHROPIC_KEY',
+    '',
     'claude-3-7-sonnet-latest'
 );
 
