@@ -13,13 +13,13 @@
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.9",
         "inspector-apm/inspector-php": "^3.15.10",
-        "psr/http-message": "^1.0|^2.0",
-        "psr/log": "^1.0|^2.0|^3.0"
+        "psr/http-message": "^1.0|^2.0"
     },
     "suggest": {
         "aws/aws-sdk-php": "^3.209",
         "elasticsearch/elasticsearch": "^7.0|^8.0",
         "php-http/curl-client": "^2.3",
+        "psr/log": "^1.0|^2.0|^3.0",
         "symfony/process": "^4.0|^5.0|^6.0|^7.0",
         "spatie/fork": "^1.2",
         "typesense/typesense-php": "^5.0"
