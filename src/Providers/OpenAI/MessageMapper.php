@@ -40,6 +40,9 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapMessage(Message $message): void
     {
         $contentBlocks = $message->getContent();
@@ -50,6 +53,9 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapContentBlock(ContentBlock $block): array
     {
         return match ($block::class) {
@@ -93,6 +99,9 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapToolCall(ToolCallMessage $message): void
     {
         $contentBlocks = $message->getContent();

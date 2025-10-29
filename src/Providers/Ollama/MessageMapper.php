@@ -20,6 +20,9 @@ class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
 
+    /**
+     * @throws ProviderException
+     */
     public function map(array $messages): array
     {
         $this->mapping = [];
