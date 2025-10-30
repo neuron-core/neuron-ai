@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\AWS;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -88,7 +88,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapContentBlock(ContentBlock $block): array
     {
-        if ($block instanceof TextContentBlock) {
+        if ($block instanceof TextContent) {
             return ['text' => $block->text];
         }
 

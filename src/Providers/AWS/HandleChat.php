@@ -38,7 +38,7 @@ trait HandleChat
                         if (isset($toolContent['toolUse'])) {
                             $tools[] = $this->createTool($toolContent);
                             $input = $toolContent['toolUse']['input'];
-                            $contentBlocks[] = new \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock(
+                            $contentBlocks[] = new \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent(
                                 id: $toolContent['toolUse']['toolUseId'],
                                 name: $toolContent['toolUse']['name'],
                                 input: \is_array($input) ? $input : []

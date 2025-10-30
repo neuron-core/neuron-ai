@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\ContentBlocks;
+namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 
-class ToolResultContentBlock implements ContentBlock
+class ToolResultContent implements ContentBlock
 {
     /**
      * @param string $toolUseId Tool call identifier (references the corresponding ToolUseContentBlock)

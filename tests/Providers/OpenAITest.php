@@ -9,8 +9,8 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Chat\ContentBlocks\FileContentBlock;
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -82,7 +82,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(source: 'https://example.com/image.png', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(source: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $response = $provider->chat([$message]);
 
@@ -123,7 +123,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
+            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
 
         $response = $provider->chat([$message]);
 
@@ -164,7 +164,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContentBlock(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);
@@ -185,7 +185,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
+            ->addContent(new ImageContent(source: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
 
         $response = $provider->chat([$message]);
 

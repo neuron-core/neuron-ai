@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
-use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -48,9 +48,9 @@ class MessageMapper implements MessageMapperInterface
         $images = [];
 
         foreach ($contentBlocks as $block) {
-            if ($block instanceof TextContentBlock) {
+            if ($block instanceof TextContent) {
                 $textContent .= $block->text;
-            } elseif ($block instanceof ImageContentBlock) {
+            } elseif ($block instanceof ImageContent) {
                 if ($block->sourceType === SourceType::URL) {
                     throw new ProviderException('Ollama supports only base64 image type.');
                 }
@@ -78,7 +78,7 @@ class MessageMapper implements MessageMapperInterface
         $textContent = '';
 
         foreach ($contentBlocks as $block) {
-            if ($block instanceof TextContentBlock) {
+            if ($block instanceof TextContent) {
                 $textContent .= $block->text;
             }
         }

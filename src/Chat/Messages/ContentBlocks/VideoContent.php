@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\ContentBlocks;
+namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 
-class AudioContentBlock implements ContentBlock
+class VideoContent implements ContentBlock
 {
     public function __construct(
         public readonly string $source,
@@ -18,7 +18,7 @@ class AudioContentBlock implements ContentBlock
 
     public function getType(): ContentBlockType
     {
-        return ContentBlockType::AUDIO;
+        return ContentBlockType::VIDEO;
     }
 
     /**

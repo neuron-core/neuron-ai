@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Tools\ToolInterface;
 
 /**

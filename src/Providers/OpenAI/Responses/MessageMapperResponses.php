@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
-use NeuronAI\Chat\ContentBlocks\FileContentBlock;
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
-use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -54,9 +54,9 @@ class MessageMapperResponses implements MessageMapperInterface
         $payload['content'] = [];
         foreach ($contentBlocks as $block) {
             $payload['content'][] = match ($block::class) {
-                TextContentBlock::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
+                TextContent::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
                 FileContentBlock::class => $this->mapFileBlock($block),
-                ImageContentBlock::class => $this->mapImageBlock($block),
+                ImageContent::class => $this->mapImageBlock($block),
                 default => throw new ProviderException('Unsupported content block type: '.$block::class),
             };
         }
@@ -64,7 +64,7 @@ class MessageMapperResponses implements MessageMapperInterface
         $this->mapping[] = $payload;
     }
 
-    protected function mapTextBlock(TextContentBlock $block, bool $forUser): array
+    protected function mapTextBlock(TextContent $block, bool $forUser): array
     {
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
@@ -83,7 +83,7 @@ class MessageMapperResponses implements MessageMapperInterface
         ];
     }
 
-    protected function mapImageBlock(ImageContentBlock $block): array
+    protected function mapImageBlock(ImageContent $block): array
     {
         return [
             'type' => 'input_image',

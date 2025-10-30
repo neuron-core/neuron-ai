@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\ContentBlocks\FileContentBlock;
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
-use NeuronAI\Chat\ContentBlocks\TextContentBlock;
-use NeuronAI\Chat\ContentBlocks\ToolResultContentBlock;
-use NeuronAI\Chat\ContentBlocks\ToolUseContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -54,19 +54,19 @@ class MessageMapper implements MessageMapperInterface
     protected function mapContentBlock(ContentBlock $block): array
     {
         return match ($block::class) {
-            TextContentBlock::class => [
+            TextContent::class => [
                 'type' => 'text',
                 'text' => $block->text,
             ],
-            ImageContentBlock::class => $this->mapImageBlock($block),
+            ImageContent::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),
-            ToolUseContentBlock::class => $this->mapToolUseBlock($block),
-            ToolResultContentBlock::class => $this->mapToolResultBlock($block),
+            ToolUseContent::class => $this->mapToolUseBlock($block),
+            ToolResultContent::class => $this->mapToolResultBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
 
-    protected function mapImageBlock(ImageContentBlock $block): array
+    protected function mapImageBlock(ImageContent $block): array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
@@ -108,7 +108,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapToolUseBlock(ToolUseContentBlock $block): array
+    protected function mapToolUseBlock(ToolUseContent $block): array
     {
         return [
             'type' => 'tool_use',
@@ -118,7 +118,7 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapToolResultBlock(ToolResultContentBlock $block): array
+    protected function mapToolResultBlock(ToolResultContent $block): array
     {
         return [
             'type' => 'tool_result',

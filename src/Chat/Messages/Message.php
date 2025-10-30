@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\ContentBlocks\TextContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Exceptions\InvalidMessage;
 use NeuronAI\StaticConstructor;
@@ -22,7 +22,7 @@ class Message implements \JsonSerializable
     /**
      * @var ContentBlock[]
      */
-    protected array $contentBlocks = [];
+    protected array $contents = [];
 
     /**
      * @var array<string, mixed>
@@ -37,7 +37,7 @@ class Message implements \JsonSerializable
         string|ContentBlock|array|null $content = null
     ) {
         if ($content !== null) {
-            $this->setContentBlocks($content);
+            $this->setContents($content);
         }
     }
 
@@ -61,31 +61,31 @@ class Message implements \JsonSerializable
      */
     public function getContentBlocks(): array
     {
-        return $this->contentBlocks;
+        return $this->contents;
     }
 
     /**
      * @param string|ContentBlock|ContentBlock[] $content
      */
-    public function setContentBlocks(string|ContentBlock|array $content): Message
+    public function setContents(string|ContentBlock|array $content): Message
     {
         if (\is_string($content)) {
-            $this->contentBlocks = [new TextContentBlock($content)];
+            $this->contents = [new TextContent($content)];
         } elseif ($content instanceof ContentBlock) {
-            $this->contentBlocks = [$content];
+            $this->contents = [$content];
         } else {
             // Assume it's an array
             foreach ($content as $block) {
-                $this->addContentBlock($block);
+                $this->addContent($block);
             }
         }
 
         return $this;
     }
 
-    public function addContentBlock(ContentBlock $block): Message
+    public function addContent(ContentBlock $block): Message
     {
-        $this->contentBlocks[] = $block;
+        $this->contents[] = $block;
 
         return $this;
     }
@@ -96,8 +96,8 @@ class Message implements \JsonSerializable
     public function getContent(): string
     {
         $text = '';
-        foreach ($this->contentBlocks as $index => $block) {
-            if ($block instanceof TextContentBlock) {
+        foreach ($this->contents as $index => $block) {
+            if ($block instanceof TextContent) {
                 $text .= ($index ? "\n" : '').$block->text;
             }
         }
@@ -137,7 +137,7 @@ class Message implements \JsonSerializable
     {
         $data = [
             'role' => $this->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contentBlocks)
+            'content' => \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contents)
         ];
 
         if ($this->getUsage() instanceof Usage) {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\ContentBlocks;
+namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 
-class TextContentBlock implements ContentBlock
+class TextContent implements ContentBlock
 {
     public function __construct(
         public readonly string $text

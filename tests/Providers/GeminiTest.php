@@ -9,8 +9,8 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Chat\ContentBlocks\FileContentBlock;
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Gemini\Gemini;
@@ -86,7 +86,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(
+            ->addContent(new ImageContent(
                 source: '/test.png',
                 sourceType: SourceType::URL,
                 mediaType: 'image/png'
@@ -130,7 +130,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(
+            ->addContent(new ImageContent(
                 source: 'base64_encoded_image_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'image/png'
@@ -174,7 +174,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContentBlock(new FileContentBlock(
+            ->addContent(new FileContentBlock(
                 source: '/test.pdf',
                 sourceType: SourceType::URL,
                 mediaType: 'application/pdf'
@@ -218,7 +218,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContentBlock(new ImageContentBlock(
+            ->addContent(new ImageContent(
                 source: 'base64_encoded_document_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'application/pdf'

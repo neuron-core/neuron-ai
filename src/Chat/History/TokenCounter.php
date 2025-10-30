@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
-use NeuronAI\Chat\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;

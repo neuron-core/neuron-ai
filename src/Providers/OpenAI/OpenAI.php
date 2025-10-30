@@ -95,8 +95,8 @@ class OpenAI implements AIProviderInterface
         );
 
         $contentBlocks = \array_map(
-            fn (array $item): \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock =>
-                new \NeuronAI\Chat\ContentBlocks\ToolUseContentBlock(
+            fn (array $item): \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent =>
+                new \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent(
                     id: $item['id'],
                     name: $item['function']['name'],
                     input: \json_decode((string) $item['function']['arguments'], true)

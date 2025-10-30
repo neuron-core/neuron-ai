@@ -2,24 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\ContentBlocks;
+namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 
-class FileContentBlock implements ContentBlock
+class ImageContent implements ContentBlock
 {
     public function __construct(
         public readonly string $source,
         public readonly SourceType $sourceType,
-        public readonly ?string $mediaType = null,
-        public readonly ?string $filename = null
+        public readonly ?string $mediaType = null
     ) {
     }
 
     public function getType(): ContentBlockType
     {
-        return ContentBlockType::FILE;
+        return ContentBlockType::IMAGE;
     }
 
     /**
@@ -32,7 +31,6 @@ class FileContentBlock implements ContentBlock
             'source' => $this->source,
             'source_type' => $this->sourceType->value,
             'media_type' => $this->mediaType,
-            'filename' => $this->filename,
         ]);
     }
 

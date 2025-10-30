@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\ContentBlocks\ToolResultContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
 use NeuronAI\Tools\ToolInterface;
 
 /**
@@ -19,7 +19,7 @@ class ToolResultMessage extends UserMessage implements \Stringable
     {
         // Create ToolResultContentBlock for each tool
         $contentBlocks = \array_map(
-            fn (ToolInterface $tool): ToolResultContentBlock => new ToolResultContentBlock(
+            fn (ToolInterface $tool): ToolResultContent => new ToolResultContent(
                 toolUseId: $tool->getCallId() ?? '',
                 content: $tool->getResult(),
                 isError: false

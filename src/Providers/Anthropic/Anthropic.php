@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Client;
-use NeuronAI\Chat\ContentBlocks\ToolUseContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -98,7 +98,7 @@ class Anthropic implements AIProviderInterface
         }
 
         return new ToolCallMessage(
-            new ToolUseContentBlock(
+            new ToolUseContent(
                 id: $message['id'],
                 name: $message['name'],
                 input: $message['input']

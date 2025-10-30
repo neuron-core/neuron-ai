@@ -9,7 +9,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Chat\ContentBlocks\ImageContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -80,7 +80,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::BASE64));
+            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::BASE64));
 
         $response = $provider->chat([$message]);
 
@@ -123,7 +123,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContentBlock(new ImageContentBlock(source: 'base_64_encoded_image', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);
