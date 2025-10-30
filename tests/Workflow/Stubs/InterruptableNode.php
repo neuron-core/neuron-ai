@@ -28,7 +28,7 @@ class InterruptableNode extends Node
             )
         );
 
-        $state->set('received_feedback', $feedback->getReason());
+        $state->set('received_feedback', $feedback->getMessage());
 
         return new SecondEvent('Continued after interrupt');
     }

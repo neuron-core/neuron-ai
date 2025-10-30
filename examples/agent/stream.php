@@ -59,7 +59,7 @@ try {
     $interruptRequest = $interrupt->getRequest();
 
     echo "\nAgent interruption\n";
-    echo $interrupt->getRequest()->getReason()."\n\n";
+    echo $interrupt->getRequest()->getMessage()."\n\n";
 
     foreach ($interrupt->getRequest()->getPendingActions() as $action) {
         echo "- {$action->name}: {$action->description}\n";

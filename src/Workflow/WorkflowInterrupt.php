@@ -25,7 +25,7 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         protected WorkflowState $state,
         protected Event $event
     ) {
-        parent::__construct($request->getReason());
+        parent::__construct($request->getMessage());
     }
 
     /**

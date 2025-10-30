@@ -24,7 +24,7 @@ class NodeCheckpoint extends Node
         $state->set('checkpoint', $checkpoint);
 
         $feedback = $this->interrupt(new InterruptRequest([], 'what do you mean?'));
-        $state->set('feedback', $feedback->getReason());
+        $state->set('feedback', $feedback->getMessage());
 
         return new StopEvent();
     }

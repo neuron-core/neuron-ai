@@ -45,17 +45,17 @@ class InterruptRequest implements \JsonSerializable
 {
     /**
      * @param Action[] $actions Actions requiring approval
-     * @param string $reason Human-readable reason for the interruption
+     * @param string $message Human-readable reason for the interruption
      */
     public function __construct(
         public array $actions,
-        protected string $reason = ''
+        protected string $message = ''
     ) {
     }
 
-    public function getReason(): string
+    public function getMessage(): string
     {
-        return $this->reason;
+        return $this->message;
     }
 
     /**
@@ -96,23 +96,8 @@ class InterruptRequest implements \JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'reason' => $this->reason,
+            'reason' => $this->message,
             'actions' => \array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
         ];
-    }
-
-    /**
-     * Create from array.
-     *
-     * @param array<string, mixed> $data
-     */
-    public static function fromArray(array $data): self
-    {
-        $actions = \array_map(
-            Action::fromArray(...),
-            $data['actions']
-        );
-
-        return new self($actions, $data['reason'] ?? '');
     }
 }

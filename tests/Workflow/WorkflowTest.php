@@ -177,7 +177,7 @@ class WorkflowTest extends TestCase
             $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals('human input needed', $interrupt->getRequest()->getReason());
+            $this->assertEquals('human input needed', $interrupt->getRequest()->getMessage());
             $this->assertInstanceOf(InterruptableNode::class, $interrupt->getNode());
         }
 

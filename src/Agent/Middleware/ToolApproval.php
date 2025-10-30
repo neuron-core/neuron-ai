@@ -69,7 +69,7 @@ class ToolApproval implements WorkflowMiddleware
         $count = \count($actions);
         $interruptRequest = new InterruptRequest(
             actions: $actions,
-            reason: \sprintf(
+            message: \sprintf(
                 '%d tool call%s require%s human approval before execution',
                 $count,
                 $count === 1 ? '' : 's',
@@ -124,8 +124,7 @@ class ToolApproval implements WorkflowMiddleware
             name: $tool->getName(),
             description: \sprintf(
                 "Description: %s\nInputs: %s",
-                $tool->getDescription() ?? 'No description',
-                $inputsDescription
+                $tool->getDescription() ?? 'No description', $inputsDescription
             ),
             decision: ActionDecision::Pending,
             feedback: null

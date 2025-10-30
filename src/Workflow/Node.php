@@ -13,8 +13,8 @@ abstract class Node implements NodeInterface
 {
     use Observable;
 
-    protected WorkflowState $currentState;
-    protected Event $currentEvent;
+    protected WorkflowState $state;
+    protected Event $event;
     protected bool $isResuming = false;
     protected ?InterruptRequest $resumeRequest = null;
 
@@ -35,8 +35,8 @@ abstract class Node implements NodeInterface
         bool $isResuming = false,
         ?InterruptRequest $resumeRequest = null
     ): void {
-        $this->currentState = $currentState;
-        $this->currentEvent = $currentEvent;
+        $this->state = $currentState;
+        $this->event = $currentEvent;
         $this->isResuming = $isResuming;
         $this->resumeRequest = $resumeRequest;
     }
@@ -96,8 +96,8 @@ abstract class Node implements NodeInterface
             throw new WorkflowInterrupt(
                 $request,
                 $this,
-                $this->currentState,
-                $this->currentEvent
+                $this->state,
+                $this->event
             );
         }
 
