@@ -41,7 +41,7 @@ $agent = Agent::make()
         [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
         new Summarization(
             provider: $summarizationProvider,
-            maxTokensBeforeSummary: 1000,
+            maxTokens: 1000,
             messagesToKeep: 3,
         )
     );

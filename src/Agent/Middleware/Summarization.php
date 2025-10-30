@@ -25,7 +25,7 @@ class Summarization implements WorkflowMiddleware
     public $tokenCounter;
     public function __construct(
         protected AIProviderInterface $provider,
-        protected int $maxTokensBeforeSummary = 10000,
+        protected int $maxTokens = 30000,
         protected int $messagesToKeep = 10,
         protected ?string $summaryPrompt = null,
     ) {
@@ -45,7 +45,7 @@ class Summarization implements WorkflowMiddleware
         }
 
         // Summarization disabled
-        if ($this->maxTokensBeforeSummary <= 0) {
+        if ($this->maxTokens <= 0) {
             return;
         }
 
@@ -63,7 +63,7 @@ class Summarization implements WorkflowMiddleware
         }
 
         // Threshold isn't exceeded
-        if ($chatHistory->calculateTotalUsage() <= $this->maxTokensBeforeSummary) {
+        if ($chatHistory->calculateTotalUsage() <= $this->maxTokens) {
             return;
         }
 
@@ -285,9 +285,9 @@ PROMPT;
     /**
      * Set the maximum tokens before summarization threshold.
      */
-    public function setMaxTokensBeforeSummary(int $tokens): self
+    public function setMaxTokens(int $tokens): self
     {
-        $this->maxTokensBeforeSummary = $tokens;
+        $this->maxTokens = $tokens;
         return $this;
     }
 
