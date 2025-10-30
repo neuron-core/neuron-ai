@@ -4,32 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
-/**
- * Represents a single approvable action in an interrupt request.
- *
- * Actions describe operations that require human approval before execution.
- * Each action has:
- * - Unique identifier
- * - Human-readable name and description
- * - Decision state (pending, approved, rejected)
- * - Optional feedback from the approver
- *
- * Example:
- * ```php
- * $action = new Action(
- *     id: 'delete_file_1',
- *     name: 'Delete File',
- *     description: 'Delete /var/log/old_logs.txt',
- *     metadata: ['path' => '/var/log/old_logs.txt']
- * );
- *
- * // User approves
- * $action->approve('Approved - file is outdated');
- *
- * // Or rejects
- * $action->reject('Rejected - file still needed');
- * ```
- */
 class Action implements \JsonSerializable
 {
     /**
