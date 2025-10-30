@@ -7,6 +7,7 @@ namespace NeuronAI\Chat\Messages;
 use NeuronAI\Chat\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\ContentBlocks\TextContentBlock;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Exceptions\InvalidMessage;
 use NeuronAI\StaticConstructor;
 
 /**
@@ -73,7 +74,10 @@ class Message implements \JsonSerializable
         } elseif ($content instanceof ContentBlock) {
             $this->contentBlocks = [$content];
         } else {
-            $this->contentBlocks = $content;
+            // Assume it's an array
+            foreach ($content as $block) {
+                $this->addContentBlock($block);
+            }
         }
 
         return $this;
