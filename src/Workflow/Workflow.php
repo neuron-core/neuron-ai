@@ -72,8 +72,8 @@ class Workflow implements WorkflowInterface
         $this->workflowId = $workflowId ?? \uniqid('workflow_');
 
         // Register the default node middleware
-        foreach ($this->middleware() as $nodeClass => $middlewares) {
-            $this->addMiddleware($nodeClass, $middlewares);
+        foreach ($this->middleware() as $nodes => $middlewares) {
+            $this->addMiddleware($nodes, $middlewares);
         }
     }
 

@@ -22,10 +22,10 @@ use NeuronAI\Workflow\WorkflowState;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param string[] $toolsRequiringApproval Tool names that require approval (empty = all tools)
+     * @param string[] $tools Tool names that require approval (empty = all tools)
      */
     public function __construct(
-        protected array $toolsRequiringApproval = []
+        protected array $tools = []
     ) {
     }
 
@@ -98,14 +98,14 @@ class ToolApproval implements WorkflowMiddleware
      */
     protected function filterToolsRequiringApproval(array $tools): array
     {
-        if ($this->toolsRequiringApproval === []) {
+        if ($this->tools === []) {
             // Empty array means all tools require approval
             return $tools;
         }
 
         return \array_filter(
             $tools,
-            fn (ToolInterface $tool): bool => \in_array($tool->getName(), $this->toolsRequiringApproval, true)
+            fn (ToolInterface $tool): bool => \in_array($tool->getName(), $this->tools, true)
         );
     }
 
