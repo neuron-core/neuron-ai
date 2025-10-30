@@ -23,8 +23,8 @@ class InterruptableNode extends Node
 
         $feedback = $this->interrupt(
             new InterruptRequest(
-                [new Action('action_id', 'action_name', 'action_description')],
                 'human input needed',
+                [new Action('action_id', 'action_name', 'action_description')],
             )
         );
 
