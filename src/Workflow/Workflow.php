@@ -184,7 +184,7 @@ class Workflow implements WorkflowInterface
         $this->setState($interrupt->getState());
 
         yield from $this->execute(
-            $interrupt->getCurrentEvent(),
+            $interrupt->getEvent(),
             $interrupt->getNode(),
             true,
             $resumeRequest

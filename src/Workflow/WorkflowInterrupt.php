@@ -23,9 +23,9 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         protected InterruptRequest $request,
         protected NodeInterface $node,
         protected WorkflowState $state,
-        protected Event $currentEvent
+        protected Event $event
     ) {
-        parent::__construct('Workflow interrupted for human input');
+        parent::__construct($request->getReason());
     }
 
     /**
@@ -46,19 +46,19 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         return $this->state;
     }
 
-    public function getCurrentEvent(): Event
+    public function getEvent(): Event
     {
-        return $this->currentEvent;
+        return $this->event;
     }
 
     public function jsonSerialize(): array
     {
         return [
             'message' => $this->message,
-            'request' => $this->request->jsonSerialize(),
+            'request' => \serialize($this->request),
             'node' => \serialize($this->node),
             'state' => \serialize($this->state),
-            'currentEvent' => \serialize($this->currentEvent),
+            'currentEvent' => \serialize($this->event),
         ];
     }
 
@@ -70,9 +70,9 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     public function __unserialize(array $data): void
     {
         $this->message = $data['message'];
-        $this->request = InterruptRequest::fromArray($data['request']);
+        $this->request = \unserialize($data['request']);
         $this->node = \unserialize($data['node']);
         $this->state = \unserialize($data['state']);
-        $this->currentEvent = \unserialize($data['currentEvent']);
+        $this->event = \unserialize($data['currentEvent']);
     }
 }
