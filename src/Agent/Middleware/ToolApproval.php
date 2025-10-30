@@ -46,8 +46,8 @@ class ToolApproval implements WorkflowMiddleware
             return;
         }
 
-        // Check if we're resuming with decisions
-        if ($node->isResuming() && $node->getResumeRequest() instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
+        // Check if we're resuming
+        if ($node->isResuming() && $node->getResumeRequest() instanceof InterruptRequest) {
             $this->processDecisions($node->getResumeRequest(), $event);
             return;
         }
@@ -68,13 +68,13 @@ class ToolApproval implements WorkflowMiddleware
 
         $count = \count($actions);
         $interruptRequest = new InterruptRequest(
-            actions: $actions,
             message: \sprintf(
                 '%d tool call%s require%s human approval before execution',
                 $count,
                 $count === 1 ? '' : 's',
                 $count === 1 ? 's' : ''
-            )
+            ),
+            actions: $actions
         );
 
         throw new WorkflowInterrupt($interruptRequest, $node, $state, $event);
@@ -143,24 +143,17 @@ class ToolApproval implements WorkflowMiddleware
         InterruptRequest $request,
         ToolCallEvent $event,
     ): void {
-        /** @var array<string, Action> $actions */
-        $actions = \array_reduce($request->actions, function (array $carry, Action $action): array {
-            $carry[$action->id] = $action;
-            return $carry;
-        }, []);
-
         foreach ($event->toolCallMessage->getTools() as $tool) {
             $toolCallId = $tool->getCallId();
             if ($toolCallId === null) {
                 // Tool doesn't require approval, skip
                 continue;
             }
-            if (!isset($actions[$toolCallId])) {
+
+            if (!$action = $request->getAction($toolCallId)) {
                 // Tool doesn't require approval, skip
                 continue;
             }
-
-            $action = $actions[$toolCallId];
 
             // Process based on decision
             if ($action->isRejected()) {

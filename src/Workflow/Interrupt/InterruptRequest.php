@@ -4,53 +4,22 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
-/**
- * Container for interrupt actions that require human approval.
- *
- * When a workflow needs human input, it throws a WorkflowInterrupt containing
- * an InterruptRequest. The request includes:
- * - One or more actions requiring decisions
- * - A reason for the interruption
- *
- * The application processes these actions, gets user decisions, and resumes
- * the workflow by passing the updated request back.
- *
- * Example:
- * ```php
- * // Middleware creates request
- * $request = new InterruptRequest(
- *     actions: [
- *         new Action('delete_1', 'Delete File', 'Delete /var/log/old.txt'),
- *         new Action('exec_1', 'Execute Command', 'Run: rm -rf /tmp/*'),
- *     ],
- *     reason: 'Dangerous operations require approval'
- * );
- *
- * throw new WorkflowInterrupt($request, ...);
- *
- * // Application handles
- * foreach ($request->actions as $action) {
- *     if (askUser($action->name)) {
- *         $action->approve();
- *     } else {
- *         $action->reject('User denied');
- *     }
- * }
- *
- * // Resume workflow
- * $workflow->start($request);
- * ```
- */
 class InterruptRequest implements \JsonSerializable
 {
     /**
-     * @param Action[] $actions Actions requiring approval
-     * @param string $message Human-readable reason for the interruption
+     * @var array<string, Action> $actions
      */
-    public function __construct(
-        public array $actions,
-        protected string $message = ''
-    ) {
+    protected array $actions = [];
+
+    /**
+     * @param string $message Human-readable reason for the interruption
+     * @param Action[] $actions Actions requiring approval
+     */
+    public function __construct(protected string $message, array $actions = [])
+    {
+        foreach ($actions as $action) {
+            $this->addAction($action);
+        }
     }
 
     public function getMessage(): string
@@ -58,10 +27,40 @@ class InterruptRequest implements \JsonSerializable
         return $this->message;
     }
 
+    public function addAction(Action $action): InterruptRequest
+    {
+        $this->actions[$action->id] = $action;
+        return $this;
+    }
+
+    public function getAction(string $id): ?Action
+    {
+        return $this->actions[$id] ?? null;
+    }
+
+    /**
+     * @return Action[]
+     */
+    public function getActions(): array
+    {
+        return \array_values($this->actions);
+    }
+
+    /**
+     * @param Action[] $actions
+     */
+    public function setActions(array $actions): InterruptRequest
+    {
+        foreach ($actions as $action) {
+            $this->addAction($action);
+        }
+        return $this;
+    }
+
     /**
      * Get all pending actions.
      *
-     * @return Action[]
+     * @return array<string, Action>
      */
     public function getPendingActions(): array
     {
@@ -71,7 +70,7 @@ class InterruptRequest implements \JsonSerializable
     /**
      * Get all approved actions.
      *
-     * @return Action[]
+     * @return array<string, Action>
      */
     public function getApprovedActions(): array
     {
@@ -81,7 +80,7 @@ class InterruptRequest implements \JsonSerializable
     /**
      * Get all rejected actions.
      *
-     * @return Action[]
+     * @return array<string, Action>
      */
     public function getRejectedActions(): array
     {
@@ -99,5 +98,14 @@ class InterruptRequest implements \JsonSerializable
             'reason' => $this->message,
             'actions' => \array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
         ];
+    }
+
+    public static function fromArray(array $data): InterruptRequest
+    {
+        $instance = new static($data['reason']);
+         foreach ($data['actions'] as $actionData) {
+             $instance->addAction(Action::fromArray($actionData));
+         }
+         return $instance;
     }
 }
