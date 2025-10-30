@@ -71,7 +71,7 @@ foreach ($messages as $index => $userMessage) {
 
     try {
         $response = $agent->chat(UserMessage::make($userMessage));
-        $content = $response->getTextContent();
+        $content = $response->getContent();
 
         echo "Assistant: " . \substr($content, 0, 200);
         if (\strlen($content) > 200) {
@@ -89,7 +89,7 @@ foreach ($messages as $index => $userMessage) {
 
         // Check if first message is a summary
         $firstMessage = $chatHistory->getMessages()[0] ?? null;
-        if ($firstMessage && \str_contains($firstMessage->getTextContent(), '## Previous conversation summary:')) {
+        if ($firstMessage && \str_contains($firstMessage->getContent(), '## Previous conversation summary:')) {
             echo "[INFO: History was summarized!]\n";
         }
 

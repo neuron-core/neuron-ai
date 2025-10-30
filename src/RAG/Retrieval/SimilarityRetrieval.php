@@ -19,7 +19,7 @@ class SimilarityRetrieval implements RetrievalInterface
     public function retrieve(Message $query): array
     {
         return $this->vectorStore->similaritySearch(
-            $this->embeddingProvider->embedText($query->getTextContent())
+            $this->embeddingProvider->embedText($query->getContent())
         );
     }
 }

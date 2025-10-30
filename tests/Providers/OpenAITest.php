@@ -64,7 +64,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_chat_with_url_image(): void
@@ -105,7 +105,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -146,7 +146,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_chat_with_url_document_fail(): void
@@ -208,7 +208,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_tools_payload(): void

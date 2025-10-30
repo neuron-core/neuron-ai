@@ -10,7 +10,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
 
 /**
- * @method static static make(MessageRole $role, string|ContentBlock|array<int, ContentBlock>|null $content = null)
+ * @method static static make(MessageRole $role, string|ContentBlock|ContentBlock[]|null $content = null)
  */
 class Message implements \JsonSerializable
 {
@@ -36,7 +36,7 @@ class Message implements \JsonSerializable
         string|ContentBlock|array|null $content = null
     ) {
         if ($content !== null) {
-            $this->setContent($content);
+            $this->setContentBlocks($content);
         }
     }
 
@@ -58,7 +58,7 @@ class Message implements \JsonSerializable
     /**
      * @return ContentBlock[]
      */
-    public function getContent(): array
+    public function getContentBlocks(): array
     {
         return $this->contentBlocks;
     }
@@ -66,7 +66,7 @@ class Message implements \JsonSerializable
     /**
      * @param string|ContentBlock|ContentBlock[] $content
      */
-    public function setContent(string|ContentBlock|array $content): Message
+    public function setContentBlocks(string|ContentBlock|array $content): Message
     {
         if (\is_string($content)) {
             $this->contentBlocks = [new TextContentBlock($content)];
@@ -86,7 +86,10 @@ class Message implements \JsonSerializable
         return $this;
     }
 
-    public function getTextContent(): string
+    /**
+     * Get the text content of the message.
+     */
+    public function getContent(): string
     {
         $text = '';
         foreach ($this->contentBlocks as $index => $block) {

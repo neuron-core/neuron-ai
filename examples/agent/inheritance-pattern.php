@@ -74,7 +74,7 @@ try {
     }
 
     echo "Agent Response:\n";
-    echo $response->getTextContent() . "\n";
+    echo $response->getContent() . "\n";
 
 } catch (WorkflowInterrupt $interrupt) {
     echo "Workflow interrupted for approval\n";

@@ -66,7 +66,7 @@ class BedrockRuntimeTest extends TestCase
             new UserMessage('Hi')
         ]);
 
-        $this->assertSame('Hello world', $response->getTextContent());
+        $this->assertSame('Hello world', $response->getContent());
         $this->assertNotNull($response->getUsage());
         $this->assertSame(5, $response->getUsage()->jsonSerialize()['input_tokens']);
         $this->assertSame(3, $response->getUsage()->jsonSerialize()['output_tokens']);

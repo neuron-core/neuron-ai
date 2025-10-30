@@ -59,7 +59,7 @@ class OllamaTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -102,7 +102,7 @@ class OllamaTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getTextContent());
+        $this->assertSame('test response', $response->getContent());
     }
 
     public function test_chat_with_url_image_fail(): void

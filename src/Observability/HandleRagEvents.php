@@ -19,7 +19,7 @@ trait HandleRagEvents
             return;
         }
 
-        $questionText = $data->question->getTextContent();
+        $questionText = $data->question->getContent();
         $id = \md5($questionText.$data->question->getRole());
 
         $this->segments[$id] = $this->inspector
@@ -29,7 +29,7 @@ trait HandleRagEvents
 
     public function ragRetrieved(object $source, string $event, Retrieved $data): void
     {
-        $questionText = $data->question->getTextContent();
+        $questionText = $data->question->getContent();
         $id = \md5($questionText.$data->question->getRole());
 
         if (\array_key_exists($id, $this->segments)) {

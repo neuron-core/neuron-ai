@@ -47,7 +47,7 @@ class MessageMapper implements MessageMapperInterface
      */
     protected function mapMessage(Message $message): void
     {
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
 
         $this->mapping[] = [
             'role' => $message->getRole(),
@@ -129,7 +129,7 @@ class MessageMapper implements MessageMapperInterface
      */
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
 
         $this->mapping[] = [
             'role' => $message->getRole(),

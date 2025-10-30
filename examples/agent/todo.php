@@ -153,7 +153,7 @@ $message = new UserMessage(
 
 echo "User Request:\n";
 echo "─────────────\n";
-echo \wordwrap($message->getTextContent(), 75) . "\n\n";
+echo \wordwrap($message->getContent(), 75) . "\n\n";
 
 echo "Agent Execution:\n";
 echo "────────────────\n\n";
@@ -169,7 +169,7 @@ try {
     echo "\n";
     echo "Agent Response:\n";
     echo "───────────────\n";
-    echo \wordwrap($response->getTextContent(), 75) . "\n\n";
+    echo \wordwrap($response->getContent(), 75) . "\n\n";
 
     echo "Execution completed in {$duration} seconds.\n";
 } catch (\Exception $e) {

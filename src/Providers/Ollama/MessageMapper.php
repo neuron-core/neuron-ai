@@ -43,7 +43,7 @@ class MessageMapper implements MessageMapperInterface
 
     public function mapMessage(Message $message): void
     {
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
         $textContent = '';
         $images = [];
 
@@ -74,7 +74,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
         $textContent = '';
 
         foreach ($contentBlocks as $block) {

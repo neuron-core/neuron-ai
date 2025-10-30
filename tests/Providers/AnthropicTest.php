@@ -62,7 +62,7 @@ class AnthropicTest extends TestCase
         ];
 
         $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('How can I assist you today?', $response->getTextContent());
+        $this->assertSame('How can I assist you today?', $response->getContent());
     }
 
     public function test_chat_with_base64_image(): void

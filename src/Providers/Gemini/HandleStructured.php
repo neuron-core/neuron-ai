@@ -25,8 +25,8 @@ trait HandleStructured
         if (!empty($this->tools)) {
             $last_message = \end($messages);
             if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
-                $last_message->setContent(
-                    $last_message->getTextContent() . ' Respond using this JSON schema: '.\json_encode($response_format)
+                $last_message->setContentBlocks(
+                    $last_message->getContent() . ' Respond using this JSON schema: '.\json_encode($response_format)
                 );
             }
         } else {

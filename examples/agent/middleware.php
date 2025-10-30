@@ -93,7 +93,7 @@ $interruptRequest = null;
 try {
     chat:
     $message = new UserMessage('Delete the C:/old_logs.txt file');
-    echo "User: {$message->getTextContent()}\n\n";
+    echo "User: {$message->getContent()}\n\n";
 
     if ($interruptRequest == null) {
         $response = $agent->chat(messages: $message);
@@ -102,7 +102,7 @@ try {
         $response = $agent->chat(interrupt: $interruptRequest);
     }
 
-    echo "Agent: ".\json_encode($response->getTextContent())."\n\n";
+    echo "Agent: ".\json_encode($response->getContent())."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 

@@ -48,7 +48,7 @@ class MessageMapperResponses implements MessageMapperInterface
     protected function mapMessage(Message $message): void
     {
         $payload['role'] = $message->getRole();
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
 
         // Map content blocks to the provider format
         $payload['content'] = [];

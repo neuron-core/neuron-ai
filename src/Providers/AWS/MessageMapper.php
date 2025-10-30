@@ -78,7 +78,7 @@ class MessageMapper implements MessageMapperInterface
      */
     protected function mapMessage(Message $message): array
     {
-        $contentBlocks = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
 
         return [
             'role' => $message->getRole(),

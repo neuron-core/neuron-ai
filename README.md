@@ -132,14 +132,14 @@ $agent = DataAnalystAgent::make();
 $response = $agent->chat(
     new UserMessage("Hi, I'm Valerio. Who are you?")
 );
-echo $response->getContent();
+echo $response->getContentBlocks();
 // I'm a data analyst. How can I help you today?
 
 
 $response = $agent->chat(
     new UserMessage("Do you remember my name?")
 );
-echo $response->getContent();
+echo $response->getContentBlocks();
 // Your name is Valerio, as you said in your introduction.
 ```
 
@@ -249,7 +249,7 @@ $response = DataAnalystAgent::make()->chat(
     new UserMessage("How many orders we received today?")
 );
 
-echo $response->getContent();
+echo $response->getContentBlocks();
 ```
 
 Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/getting-started/tools).
