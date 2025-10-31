@@ -41,7 +41,7 @@ class OpenAITranscribeProvider implements TranscribeProviderInterface
             ],
             [
                 'name' => 'model',
-                'contents' => 'whisper-1'
+                'contents' => $this->model
             ],
             [
                 'name' => 'language',
