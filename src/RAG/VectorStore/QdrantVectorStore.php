@@ -19,7 +19,7 @@ class QdrantVectorStore implements VectorStoreInterface
     public function __construct(
         protected string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
-        protected int $topK = 4,
+        protected int $topK = 5,
         protected int $dimension = 1024,
     ) {
         $this->initialize();
@@ -121,9 +121,11 @@ class QdrantVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client()->post('points/search', [
+        $response = $this->client()->post('points/query', [
             RequestOptions::JSON => [
-                'vector' => $embedding,
+                'query' => [
+                    'recommend' => ['positive' => [$embedding]]
+                ],
                 'limit' => $this->topK,
                 'with_payload' => true,
                 'with_vector' => true,
@@ -147,7 +149,7 @@ class QdrantVectorStore implements VectorStoreInterface
             }
 
             return $document;
-        }, $response['result']);
+        }, $response['result']['points']);
     }
 
     protected function client(): Client
