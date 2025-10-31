@@ -13,6 +13,13 @@ class Transcribe extends Agent
 {
     use ResolveTranscribeProvider;
 
+    /**
+     * [Source audio] Speech to text.
+     *
+     * @param AudioContent $audio
+     * @return string
+     * @throws ContentBlocksException
+     */
     public function transcribeAudio(AudioContent $audio): string
     {
         if ($audio->sourceType->value === SourceType::URL) {
