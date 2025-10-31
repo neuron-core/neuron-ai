@@ -73,8 +73,9 @@ class Workflow implements WorkflowInterface
 
         // Register the node middleware
         $global = $this->globalMiddleware();
-        foreach ($this->middleware() as $nodes => $middlewares) {
-            $this->addMiddleware($nodes, \array_merge($middlewares, $global));
+        foreach ($this->middleware() as $node => $middleware) {
+            $middleware = \is_array($middleware) ? $middleware : [$middleware];
+            $this->addMiddleware($node, \array_merge($middleware, $global));
         }
     }
 

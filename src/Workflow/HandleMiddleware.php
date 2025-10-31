@@ -36,7 +36,7 @@ trait HandleMiddleware
     /**
      * Define nodes middleware here.
      *
-     * @return array<class-string<NodeInterface>, WorkflowMiddleware[]>
+     * @return array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
      */
     protected function middleware(): array
     {
