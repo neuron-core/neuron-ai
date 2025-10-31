@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
+use NeuronAI\Providers\HttpClientOptions;
 
 class AzureOpenAI extends OpenAI
 {
@@ -17,12 +18,13 @@ class AzureOpenAI extends OpenAI
         protected string $version,
         protected bool $strict_response = false,
         protected array $parameters = [],
+        protected ?\NeuronAI\Providers\HttpClientOptions $httpOptions = null,
     ) {
-        parent::__construct($key, $model, $parameters, $strict_response);
+        parent::__construct($key, $model, $parameters, $strict_response, $httpOptions);
 
         $this->setBaseUrl();
 
-        $this->client = new Client([
+        $config = [
             'base_uri' => $this->baseUri,
             'query'    => [
                 'api-version' => $this->version,
@@ -32,7 +34,13 @@ class AzureOpenAI extends OpenAI
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ],
-        ]);
+        ];
+
+        if ($this->httpOptions instanceof HttpClientOptions) {
+            $config = $this->mergeHttpOptions($config, $this->httpOptions);
+        }
+
+        $this->client = new Client($config);
     }
 
     private function setBaseUrl(): void
