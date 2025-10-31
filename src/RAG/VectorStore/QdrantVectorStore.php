@@ -121,7 +121,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client()->post('points/search', [
+        $response = $this->client()->post('points/query', [
             RequestOptions::JSON => [
                 'query' => [
                     'recommend' => ['positive' => [$embedding]]
