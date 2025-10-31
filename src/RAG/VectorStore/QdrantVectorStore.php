@@ -19,7 +19,7 @@ class QdrantVectorStore implements VectorStoreInterface
     public function __construct(
         protected string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
-        protected int $topK = 4,
+        protected int $topK = 5,
         protected int $dimension = 1024,
     ) {
         $this->initialize();
@@ -123,7 +123,9 @@ class QdrantVectorStore implements VectorStoreInterface
     {
         $response = $this->client()->post('points/search', [
             RequestOptions::JSON => [
-                'vector' => $embedding,
+                'query' => [
+                    'recommend' => ['positive' => [$embedding]]
+                ],
                 'limit' => $this->topK,
                 'with_payload' => true,
                 'with_vector' => true,
