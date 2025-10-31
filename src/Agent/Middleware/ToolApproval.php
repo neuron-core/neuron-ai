@@ -124,7 +124,8 @@ class ToolApproval implements WorkflowMiddleware
             name: $tool->getName(),
             description: \sprintf(
                 "Description: %s\nInputs: %s",
-                $tool->getDescription() ?? 'No description', $inputsDescription
+                $tool->getDescription() ?? 'No description',
+                $inputsDescription
             ),
             decision: ActionDecision::Pending,
             feedback: null
@@ -150,7 +151,7 @@ class ToolApproval implements WorkflowMiddleware
                 continue;
             }
 
-            if (!$action = $request->getAction($toolCallId)) {
+            if (!($action = $request->getAction($toolCallId)) instanceof \NeuronAI\Workflow\Interrupt\Action) {
                 // Tool doesn't require approval, skip
                 continue;
             }

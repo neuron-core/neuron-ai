@@ -103,9 +103,9 @@ class InterruptRequest implements \JsonSerializable
     public static function fromArray(array $data): InterruptRequest
     {
         $instance = new self($data['reason']);
-         foreach ($data['actions'] as $actionData) {
-             $instance->addAction(Action::fromArray($actionData));
-         }
-         return $instance;
+        foreach ($data['actions'] as $actionData) {
+            $instance->addAction(Action::fromArray($actionData));
+        }
+        return $instance;
     }
 }

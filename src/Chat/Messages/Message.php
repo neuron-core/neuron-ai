@@ -7,7 +7,6 @@ namespace NeuronAI\Chat\Messages;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Exceptions\InvalidMessage;
 use NeuronAI\StaticConstructor;
 
 /**

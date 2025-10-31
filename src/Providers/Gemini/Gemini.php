@@ -98,13 +98,11 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
-        $contentBlocks = \array_map(function (ToolInterface $tool): ToolUseContent {
-            return new ToolUseContent(
-                id: $tool->getName(),
-                name: $tool->getName(),
-                input: $tool->getInputs()
-            );
-        }, $tools);
+        $contentBlocks = \array_map(fn(ToolInterface $tool): ToolUseContent => new ToolUseContent(
+            id: $tool->getName(),
+            name: $tool->getName(),
+            input: $tool->getInputs()
+        ), $tools);
 
         $result = new ToolCallMessage(
             content: \array_filter($contentBlocks),
