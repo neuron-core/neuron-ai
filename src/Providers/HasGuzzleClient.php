@@ -33,7 +33,7 @@ trait HasGuzzleClient
         if ($options->connectTimeout !== null) {
             $config['connect_timeout'] = $options->connectTimeout;
         }
-        if ($options->handler !== null) {
+        if ($options->handler instanceof \GuzzleHttp\HandlerStack) {
             $config['handler'] = $options->handler;
         }
 
