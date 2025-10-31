@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
+use GuzzleHttp\HandlerStack;
+
 class HttpClientOptions
 {
     /**
@@ -13,6 +15,7 @@ class HttpClientOptions
         public readonly ?float $timeout = null,
         public readonly ?float $connectTimeout = null,
         public readonly ?array $headers = null,
+        public readonly ?HandlerStack $handler = null,
     ) {
     }
 }
