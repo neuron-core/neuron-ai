@@ -24,7 +24,17 @@ trait HandleMiddleware
     protected array $nodeMiddleware = [];
 
     /**
-     * Define your middleware here.
+     * Define the global middleware.
+     *
+     * @return WorkflowMiddleware[]
+     */
+    protected function globalMiddleware(): array
+    {
+        return [];
+    }
+
+    /**
+     * Define nodes middleware here.
      *
      * @return array<class-string<NodeInterface>, WorkflowMiddleware[]>
      */
@@ -48,7 +58,7 @@ trait HandleMiddleware
                 throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
             }
 
-            // If it is observable, we need to propagate the callbacks to the middleware
+            // If it is observable, propagate the callbacks to the middleware
             $this->propagateObservers($m);
 
             $this->globalMiddleware[] = $m;
@@ -79,7 +89,7 @@ trait HandleMiddleware
                     throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
                 }
 
-                // If it is observable, we need to propagate the callbacks to the middleware
+                // If it is observable, propagate the callbacks to the middleware
                 $this->propagateObservers($m);
 
                 $this->nodeMiddleware[$class][] = $m;

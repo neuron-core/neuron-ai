@@ -71,9 +71,10 @@ class Workflow implements WorkflowInterface
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $workflowId ?? \uniqid('workflow_');
 
-        // Register the default node middleware
+        // Register the node middleware
+        $global = $this->globalMiddleware();
         foreach ($this->middleware() as $nodes => $middlewares) {
-            $this->addMiddleware($nodes, $middlewares);
+            $this->addMiddleware($nodes, \array_merge($middlewares, $global));
         }
     }
 
