@@ -141,7 +141,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             }
         }
 
-        $this->client->patch(\trim($this->host, '/')."/indexes/{$this->indexUid}/settings/embedder/", [
+        $this->client->patch(\trim($this->host, '/')."/indexes/{$this->indexUid}/settings/embedders", [
             RequestOptions::JSON => [
                 $this->embedder => [
                     'dimensions' => $this->dimension,
@@ -151,7 +151,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ]
         ]);
 
-        $this->client->patch(\trim($this->host, '/')."/indexes/{$this->indexUid}/settings/filterable-attributes/", [
+        $this->client->patch(\trim($this->host, '/')."/indexes/{$this->indexUid}/settings/filterable-attributes", [
             RequestOptions::JSON => ['sourceType', 'sourceName']
         ]);
     }
