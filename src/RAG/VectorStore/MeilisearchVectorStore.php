@@ -7,7 +7,6 @@ namespace NeuronAI\RAG\VectorStore;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
-use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 
 class MeilisearchVectorStore implements VectorStoreInterface
@@ -40,11 +39,17 @@ class MeilisearchVectorStore implements VectorStoreInterface
         }
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         return $this->addDocuments([$document]);
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->client->put('documents', [
@@ -77,6 +82,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws GuzzleException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $response = $this->client->post('search', [
