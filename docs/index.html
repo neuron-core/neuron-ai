@@ -1,0 +1,2129 @@
+                            <!DOCTYPE html>
+                            <html lang="en">
+                            <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <meta name="description" content="Neuron AI - The enterprise-ready PHP framework for building production-ready AI agents. Build sophisticated AI solutions in PHP without switching to Python.">
+                                <meta name="keywords" content="PHP, AI, AI agents, LLM, machine learning, framework, Laravel, Symfony, WordPress">
+
+                                <meta property="og:title" content="Neuron AI - The Agentic Framework for PHP">
+                                <meta property="og:description" content="Build production-ready AI agents in PHP with the same language and tools your team already knows.">
+                                <meta property="og:type" content="website">
+                                <meta property="og:url" content="https://neuron-ai.dev">
+
+                                <meta name="twitter:card" content="summary_large_image">
+                                <meta name="twitter:title" content="Neuron AI - The Agentic Framework for PHP">
+                                <meta name="twitter:description" content="Build production-ready AI agents in PHP with the same language and tools your team already knows.">
+
+                                <link rel="canonical" href="https://neuron-ai.dev">
+
+                                <title>Neuron AI - The Agentic Framework for PHP</title>
+
+                                <link rel="preconnect" href="https://fonts.googleapis.com">
+                                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+                                <!-- Umami tracking code -->
+                                <script defer src="https://cloud.umami.is/script.js" data-website-id="4a0aa25b-8a8b-4335-a981-a49851ea6294"></script>
+
+                                <style>
+                                    /* ===== CSS CUSTOM PROPERTIES ===== */
+                                    :root {
+                                        --color-white: #FFFFFF;
+                                        --color-black: #0A0A0A;
+                                        --color-gray-50: #F9FAFB;
+                                        --color-gray-100: #F3F4F6;
+                                        --color-gray-200: #E5E7EB;
+                                        --color-gray-300: #D1D5DB;
+                                        --color-gray-400: #9CA3AF;
+                                        --color-gray-500: #6B7280;
+                                        --color-gray-600: #4B5563;
+                                        --color-gray-700: #374151;
+                                        --color-gray-800: #1F2937;
+                                        --color-gray-900: #111827;
+
+                                        --color-orange: #FF6B35;
+                                        --color-orange-dark: #E85A2A;
+                                        --color-violet: #7C3AED;
+                                        --color-violet-dark: #6D28D9;
+
+                                        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                                        --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+                                        --spacing-xs: 0.5rem;
+                                        --spacing-sm: 1rem;
+                                        --spacing-md: 1.5rem;
+                                        --spacing-lg: 2rem;
+                                        --spacing-xl: 3rem;
+                                        --spacing-2xl: 4rem;
+                                        --spacing-3xl: 6rem;
+
+                                        --transition-fast: 150ms ease;
+                                        --transition-base: 250ms ease;
+                                        --transition-slow: 350ms ease;
+                                    }
+
+                                    /* ===== RESET & BASE STYLES ===== */
+                                    * {
+                                        margin: 0;
+                                        padding: 0;
+                                        box-sizing: border-box;
+                                    }
+
+                                    html {
+                                        scroll-behavior: smooth;
+                                    }
+
+                                    body {
+                                        font-family: var(--font-sans);
+                                        font-size: 16px;
+                                        line-height: 1.6;
+                                        color: var(--color-gray-900);
+                                        background-color: var(--color-white);
+                                        -webkit-font-smoothing: antialiased;
+                                        -moz-osx-font-smoothing: grayscale;
+                                    }
+
+                                    /* ===== TYPOGRAPHY ===== */
+                                    h1, h2, h3, h4, h5, h6 {
+                                        font-weight: 800;
+                                        line-height: 1.2;
+                                        color: var(--color-black);
+                                    }
+
+                                    h1 {
+                                        font-size: 3.5rem;
+                                        letter-spacing: -0.02em;
+                                    }
+
+                                    h2 {
+                                        font-size: 2.5rem;
+                                        letter-spacing: -0.01em;
+                                    }
+
+                                    h3 {
+                                        font-size: 1.875rem;
+                                    }
+
+                                    h4 {
+                                        font-size: 1.5rem;
+                                    }
+
+                                    p {
+                                        margin-bottom: var(--spacing-md);
+                                        color: var(--color-gray-700);
+                                    }
+
+                                    a {
+                                        color: var(--color-violet);
+                                        text-decoration: none;
+                                        transition: color var(--transition-fast);
+                                    }
+
+                                    a:hover {
+                                        color: var(--color-violet-dark);
+                                    }
+
+                                    /* ===== LAYOUT ===== */
+                                    .container {
+                                        max-width: 1200px;
+                                        margin: 0 auto;
+                                        padding: 0 var(--spacing-lg);
+                                    }
+
+                                    .section {
+                                        padding: var(--spacing-3xl) 0;
+                                        opacity: 0;
+                                        transform: translateY(30px);
+                                        transition: opacity 0.8s ease, transform 0.8s ease;
+                                        border-bottom: 1px solid var(--color-gray-200);
+                                    }
+
+                                    .section.visible {
+                                        opacity: 1;
+                                        transform: translateY(0);
+                                    }
+
+                                    /* ===== NAVIGATION ===== */
+                                    .nav {
+                                        position: fixed;
+                                        top: 0;
+                                        left: 0;
+                                        right: 0;
+                                        background-color: rgba(255, 255, 255, 0.95);
+                                        backdrop-filter: blur(10px);
+                                        border-bottom: 1px solid var(--color-gray-200);
+                                        z-index: 1000;
+                                        transition: box-shadow var(--transition-base);
+                                    }
+
+                                    .nav.scrolled {
+                                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                                    }
+
+                                    .nav__container {
+                                        display: flex;
+                                        justify-content: space-between;
+                                        align-items: center;
+                                        padding: var(--spacing-md) var(--spacing-lg);
+                                    }
+
+                                    .nav__logo {
+                                        font-size: 1.5rem;
+                                        font-weight: 800;
+                                        color: var(--color-black);
+                                        display: flex;
+                                        align-items: center;
+                                        gap: var(--spacing-xs);
+                                    }
+
+                                    .nav__logo-icon {
+                                        height: 32px;
+                                        width: auto;
+                                    }
+
+                                    .nav__links {
+                                        display: flex;
+                                        gap: var(--spacing-lg);
+                                        list-style: none;
+                                    }
+
+                                    .nav__link {
+                                        color: var(--color-gray-700);
+                                        font-weight: 500;
+                                        transition: color var(--transition-fast);
+                                    }
+
+                                    .nav__link:hover {
+                                        color: var(--color-violet);
+                                    }
+
+                                    .nav__toggle {
+                                        display: none;
+                                        background: none;
+                                        border: none;
+                                        cursor: pointer;
+                                        padding: var(--spacing-xs);
+                                    }
+
+                                    .nav__toggle-icon {
+                                        width: 24px;
+                                        height: 2px;
+                                        background-color: var(--color-black);
+                                        display: block;
+                                        position: relative;
+                                        transition: background-color var(--transition-fast);
+                                    }
+
+                                    .nav__toggle-icon::before,
+                                    .nav__toggle-icon::after {
+                                        content: '';
+                                        position: absolute;
+                                        width: 24px;
+                                        height: 2px;
+                                        background-color: var(--color-black);
+                                        transition: transform var(--transition-base);
+                                    }
+
+                                    .nav__toggle-icon::before {
+                                        top: -8px;
+                                    }
+
+                                    .nav__toggle-icon::after {
+                                        bottom: -8px;
+                                    }
+
+                                    .nav__toggle.active .nav__toggle-icon {
+                                        background-color: transparent;
+                                    }
+
+                                    .nav__toggle.active .nav__toggle-icon::before {
+                                        transform: rotate(45deg) translate(5px, 5px);
+                                    }
+
+                                    .nav__toggle.active .nav__toggle-icon::after {
+                                        transform: rotate(-45deg) translate(6px, -6px);
+                                    }
+
+                                    /* ===== BUTTONS ===== */
+                                    .btn {
+                                        display: inline-block;
+                                        padding: 1rem 2rem;
+                                        font-size: 1rem;
+                                        font-weight: 600;
+                                        text-align: center;
+                                        cursor: pointer;
+                                        border: none;
+                                        transition: all var(--transition-base);
+                                        text-decoration: none;
+                                    }
+
+                                    .btn-primary {
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                    }
+
+                                    .btn-primary:hover {
+                                        background-color: var(--color-violet-dark);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 10px 25px -5px rgba(124, 58, 237, 0.4);
+                                    }
+
+                                    .btn-secondary {
+                                        background-color: var(--color-white);
+                                        color: var(--color-violet);
+                                        border: 2px solid var(--color-violet);
+                                    }
+
+                                    .btn-secondary:hover {
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                        transform: translateY(-2px);
+                                    }
+
+                                    .btn-orange {
+                                        background-color: var(--color-orange);
+                                        color: var(--color-white);
+                                    }
+
+                                    .btn-orange:hover {
+                                        background-color: var(--color-orange-dark);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 10px 25px -5px rgba(255, 107, 53, 0.4);
+                                    }
+
+                                    .github-icon {
+                                        display: inline-block;
+                                        width: 20px;
+                                        height: 20px;
+                                        margin-right: 8px;
+                                        vertical-align: middle;
+                                        fill: currentColor;
+                                    }
+
+                                    .nav__link .github-icon {
+                                        width: 16px;
+                                        height: 16px;
+                                        margin-right: 4px;
+                                    }
+
+                                    .footer__link .github-icon {
+                                        width: 16px;
+                                        height: 16px;
+                                        margin-right: 4px;
+                                    }
+
+                                    /* ===== HERO SECTION ===== */
+                                    .hero {
+                                        padding-top: calc(80px + var(--spacing-3xl));
+                                        padding-bottom: var(--spacing-3xl);
+                                        background-color: var(--color-white);
+                                        overflow: hidden;
+                                    }
+
+                                    .hero__content {
+                                        text-align: center;
+                                        max-width: 900px;
+                                        margin: 0 auto;
+                                    }
+
+                                    .hero__badge {
+                                        display: inline-block;
+                                        padding: var(--spacing-xs) var(--spacing-md);
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        margin-bottom: var(--spacing-lg);
+                                        animation: fadeInDown 0.8s ease;
+                                    }
+
+                                    .hero__title {
+                                        margin-bottom: var(--spacing-md);
+                                        animation: fadeInUp 0.8s ease 0.2s both;
+                                    }
+
+                                    .hero__subtitle {
+                                        font-size: 1.25rem;
+                                        color: var(--color-gray-600);
+                                        margin-bottom: var(--spacing-xl);
+                                        animation: fadeInUp 0.8s ease 0.4s both;
+                                    }
+
+                                    .hero__cta {
+                                        display: flex;
+                                        gap: var(--spacing-md);
+                                        justify-content: center;
+                                        flex-wrap: wrap;
+                                        animation: fadeInUp 0.8s ease 0.6s both;
+                                    }
+
+                                    /* ===== PROBLEM SECTION ===== */
+                                    .problem {
+                                        background-color: var(--color-gray-50);
+                                    }
+
+                                    .problem__content {
+                                        max-width: 800px;
+                                        margin: 0 auto;
+                                        text-align: center;
+                                    }
+
+                                    .problem__title {
+                                        margin-bottom: var(--spacing-lg);
+                                        color: var(--color-black);
+                                    }
+
+                                    .problem__list {
+                                        display: grid;
+                                        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                                        gap: var(--spacing-lg);
+                                        margin-top: var(--spacing-xl);
+                                    }
+
+                                    .problem__item {
+                                        padding: var(--spacing-lg);
+                                        background-color: var(--color-white);
+                                        border-left: 4px solid var(--color-black);
+                                        transition: transform var(--transition-base), box-shadow var(--transition-base);
+                                    }
+
+                                    .problem__item:hover {
+                                        transform: translateX(8px);
+                                        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+                                    }
+
+                                    .problem__item-icon {
+                                        width: 48px;
+                                        height: 48px;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .problem__item-title {
+                                        font-size: 1.125rem;
+                                        font-weight: 700;
+                                        margin-bottom: var(--spacing-sm);
+                                        color: var(--color-gray-900);
+                                    }
+
+                                    .problem__item-text {
+                                        font-size: 0.9375rem;
+                                        color: var(--color-gray-600);
+                                        margin-bottom: 0;
+                                    }
+
+                                    /* ===== FEATURES SECTION ===== */
+                                    .features {
+                                        background-color: var(--color-gray-50);
+                                    }
+
+                                    .features__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .features__grid {
+                                        display: grid;
+                                        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                                        gap: var(--spacing-xl);
+                                    }
+
+                                    .feature-card {
+                                        background-color: var(--color-white);
+                                        padding: var(--spacing-xl);
+                                        border-left: 4px solid var(--color-black);
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .feature-card:hover {
+                                        transform: translateY(-4px);
+                                        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+                                    }
+
+                                    .feature-card__icon {
+                                        width: 64px;
+                                        height: 64px;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .feature-card__title {
+                                        font-size: 1.5rem;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .feature-card__text {
+                                        margin-bottom: 0;
+                                    }
+
+                                    .feature-card__link {
+                                        display: inline-block;
+                                        margin-top: 16px;
+                                        color: var(--color-black);
+                                        font-weight: 600;
+                                        text-decoration: none;
+                                        transition: color 0.3s ease;
+                                    }
+
+                                    .feature-card__link:hover {
+                                        color: #000000;
+                                        text-decoration: underline;
+                                    }
+
+                                    /* ===== TECHNICAL HIGHLIGHTS SECTION ===== */
+                                    .technical__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .technical__grid {
+                                        display: grid;
+                                        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                                        gap: var(--spacing-lg);
+                                    }
+
+                                    .technical__item {
+                                        text-align: center;
+                                        padding: var(--spacing-xl);
+                                        background-color: var(--color-gray-50);
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .technical__item:hover {
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                    }
+
+                                    .technical__item:hover .technical__item-icon {
+                                        fill: var(--color-white);
+                                    }
+
+                                    .technical__item:hover .technical__item-title,
+                                    .technical__item:hover .technical__item-text {
+                                        color: var(--color-white);
+                                    }
+
+                                    .technical__item-icon {
+                                        width: 56px;
+                                        height: 56px;
+                                        margin: 0 auto var(--spacing-md);
+                                        fill: var(--color-violet);
+                                        transition: fill var(--transition-base);
+                                    }
+
+                                    .technical__item-title {
+                                        font-size: 1.125rem;
+                                        font-weight: 700;
+                                        margin-bottom: var(--spacing-sm);
+                                        transition: color var(--transition-base);
+                                    }
+
+                                    .technical__item-text {
+                                        font-size: 0.9375rem;
+                                        margin-bottom: 0;
+                                        transition: color var(--transition-base);
+                                    }
+
+                                    /* ===== INTEGRATION SECTION ===== */
+                                    .integration {
+                                        background-color: var(--color-gray-50);
+                                    }
+
+                                    .integration__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-lg);
+                                    }
+
+                                    .integration__subtitle {
+                                        text-align: center;
+                                        font-size: 1.125rem;
+                                        color: var(--color-gray-600);
+                                        max-width: 700px;
+                                        margin: 0 auto var(--spacing-xl);
+                                    }
+
+                                    .integration__logos {
+                                        display: flex;
+                                        justify-content: center;
+                                        align-items: center;
+                                        gap: var(--spacing-xl);
+                                        flex-wrap: wrap;
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .integration__logo {
+                                        font-size: 1.5rem;
+                                        font-weight: 700;
+                                        padding: var(--spacing-md) var(--spacing-lg);
+                                        background-color: var(--color-white);
+                                        color: var(--color-gray-700);
+                                        border: 2px solid var(--color-gray-200);
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .integration__logo:hover {
+                                        border-color: var(--color-violet);
+                                        color: var(--color-violet);
+                                        transform: scale(1.05);
+                                    }
+
+                                    /* ===== CODE EXAMPLE SECTION ===== */
+                                    .code-example__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-lg);
+                                    }
+
+                                    .code-example__subtitle {
+                                        text-align: center;
+                                        font-size: 1.125rem;
+                                        color: var(--color-gray-600);
+                                        max-width: 700px;
+                                        margin: 0 auto var(--spacing-xl);
+                                    }
+
+                                    .code-block {
+                                        position: relative;
+                                        max-width: 800px;
+                                        margin: 0 auto;
+                                        background-color: var(--color-gray-900);
+                                        border: 2px solid var(--color-gray-700);
+                                        overflow: hidden;
+                                    }
+
+                                    .code-block__header {
+                                        display: flex;
+                                        justify-content: space-between;
+                                        align-items: center;
+                                        padding: var(--spacing-md) var(--spacing-lg);
+                                        background-color: var(--color-gray-800);
+                                        border-bottom: 1px solid var(--color-gray-700);
+                                    }
+
+                                    .code-block__title {
+                                        color: var(--color-gray-300);
+                                        font-family: var(--font-mono);
+                                        font-size: 0.875rem;
+                                        font-weight: 500;
+                                    }
+
+                                    .code-block__copy {
+                                        padding: var(--spacing-xs) var(--spacing-md);
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                        border: none;
+                                        cursor: pointer;
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        transition: background-color var(--transition-fast);
+                                    }
+
+                                    .code-block__copy:hover {
+                                        background-color: var(--color-violet-dark);
+                                    }
+
+                                    .code-block__copy.copied {
+                                        background-color: var(--color-orange);
+                                    }
+
+                                    .code-block__content {
+                                        padding: var(--spacing-lg);
+                                        overflow-x: auto;
+                                    }
+
+                                    .code-block__content pre {
+                                        margin: 0;
+                                        font-family: var(--font-mono);
+                                        font-size: 0.875rem;
+                                        line-height: 1.6;
+                                        color: var(--color-gray-100);
+                                    }
+
+                                    .code-block__content code {
+                                        font-family: var(--font-mono);
+                                    }
+
+                                    .code-keyword { color: #FF79C6; }
+                                    .code-class { color: #8BE9FD; }
+                                    .code-function { color: #FFB86C; }
+                                    .code-string { color: #F1FA8C; }
+                                    .code-comment { color: #6272A4; font-style: italic; }
+                                    .code-variable { color: #FF6B35; }
+
+                                    /* ===== CONSULTANCY SECTION ===== */
+                                    .consultancy {
+                                        background-color: var(--color-black);
+                                        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='neural-pattern-consultancy' x='0' y='0' width='100' height='100' patternUnits='userSpaceOnUse'%3E%3Cg opacity='0.08'%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='50' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='85' cy='15' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='25' cy='45' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='70' cy='50' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='15' cy='75' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='55' cy='80' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='90' cy='85' r='1.5' fill='%23ffffff'/%3E%3Cline x1='10' y1='10' x2='50' y2='20' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='50' y1='20' x2='85' y2='15' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='10' y1='10' x2='25' y2='45' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='50' y1='20' x2='70' y2='50' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='25' y1='45' x2='70' y2='50' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='25' y1='45' x2='15' y2='75' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='70' y1='50' x2='55' y2='80' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='70' y1='50' x2='90' y2='85' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='15' y1='75' x2='55' y2='80' stroke='%23ffffff' stroke-width='0.5'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100' height='100' fill='url(%23neural-pattern-consultancy)'/%3E%3C/svg%3E");
+                                        background-size: 100px 100px;
+                                        background-repeat: repeat;
+                                    }
+
+                                    .consultancy__content {
+                                        max-width: 900px;
+                                        margin: 0 auto;
+                                    }
+
+                                    .consultancy__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-md);
+                                        font-size: 2.5rem;
+                                        color: var(--color-white);
+                                    }
+
+                                    .consultancy__subtitle {
+                                        text-align: center;
+                                        font-size: 1.25rem;
+                                        color: var(--color-gray-300);
+                                        margin-bottom: var(--spacing-2xl);
+                                        line-height: 1.8;
+                                    }
+
+                                    .consultancy__benefits {
+                                        display: grid;
+                                        gap: var(--spacing-xl);
+                                        margin-bottom: var(--spacing-2xl);
+                                    }
+
+                                    .consultancy__benefit {
+                                        display: flex;
+                                        gap: var(--spacing-lg);
+                                        align-items: flex-start;
+                                        background-color: rgba(255, 255, 255, 0.05);
+                                        padding: var(--spacing-xl);
+                                        border: 1px solid rgba(255, 255, 255, 0.15);
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .consultancy__benefit:hover {
+                                        background-color: rgba(255, 255, 255, 0.08);
+                                        border-color: rgba(255, 255, 255, 0.25);
+                                        transform: translateY(-4px);
+                                        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+                                    }
+
+                                    .consultancy__benefit-icon {
+                                        width: 56px;
+                                        height: 56px;
+                                        flex-shrink: 0;
+                                    }
+
+                                    .consultancy__benefit-content {
+                                        flex: 1;
+                                    }
+
+                                    .consultancy__benefit-title {
+                                        font-size: 1.5rem;
+                                        margin-bottom: var(--spacing-sm);
+                                        color: var(--color-white);
+                                    }
+
+                                    .consultancy__benefit-text {
+                                        color: var(--color-gray-300);
+                                        line-height: 1.7;
+                                        margin-bottom: 0;
+                                    }
+
+                                    .consultancy__cta {
+                                        text-align: center;
+                                        padding-top: var(--spacing-xl);
+                                        border-top: 2px solid rgba(255, 255, 255, 0.2);
+                                    }
+
+                                    .consultancy__cta-note {
+                                        margin-top: var(--spacing-md);
+                                        color: var(--color-gray-300);
+                                        font-size: 0.95rem;
+                                    }
+
+                                    .btn-lg {
+                                        padding: 1.25rem 3rem;
+                                        font-size: 1.125rem;
+                                    }
+
+                                    .calendar-icon {
+                                        width: 20px;
+                                        height: 20px;
+                                        margin-right: 10px;
+                                        vertical-align: middle;
+                                        display: inline-block;
+                                    }
+
+                                    /* ===== USE CASES SECTION ===== */
+                                    .use-cases__title {
+                                        text-align: center;
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .use-cases__grid {
+                                        display: grid;
+                                        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                                        gap: var(--spacing-lg);
+                                    }
+
+                                    .use-case {
+                                        padding: var(--spacing-xl);
+                                        background-color: var(--color-gray-50);
+                                        border-left: 4px solid var(--color-black);
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .use-case:hover {
+                                        background-color: var(--color-white);
+                                        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+                                    }
+
+                                    .use-case__icon {
+                                        width: 48px;
+                                        height: 48px;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .use-case__title {
+                                        font-size: 1.25rem;
+                                        font-weight: 700;
+                                        margin-bottom: var(--spacing-sm);
+                                    }
+
+                                    .use-case__text {
+                                        margin-bottom: 0;
+                                    }
+
+                                    .use-case__link {
+                                        display: inline-block;
+                                        margin-top: 12px;
+                                        color: var(--color-black);
+                                        font-weight: 600;
+                                        text-decoration: none;
+                                        transition: color 0.3s ease;
+                                    }
+
+                                    .use-case__link:hover {
+                                        color: var(--color-gray-800);
+                                        text-decoration: underline;
+                                    }
+
+                                    /* ===== GETTING STARTED SECTION ===== */
+                                    .getting-started {
+                                        background-color: var(--color-black);
+                                        color: var(--color-white);
+                                    }
+
+                                    .getting-started__grid {
+                                        display: grid;
+                                        grid-template-columns: 1fr 1fr;
+                                        gap: var(--spacing-3xl);
+                                        align-items: center;
+                                    }
+
+                                    .getting-started__content {
+                                        padding-right: var(--spacing-xl);
+                                    }
+
+                                    .getting-started__title {
+                                        color: var(--color-white);
+                                        margin-bottom: var(--spacing-lg);
+                                        text-align: left;
+                                    }
+
+                                    .getting-started__text {
+                                        font-size: 1.125rem;
+                                        color: rgba(255, 255, 255, 0.9);
+                                        line-height: 1.7;
+                                        margin: 0;
+                                        text-align: left;
+                                    }
+
+                                    .getting-started__video {
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: var(--spacing-lg);
+                                    }
+
+                                    .getting-started__video-wrapper {
+                                        position: relative;
+                                        width: 100%;
+                                        padding-bottom: 56.25%;
+                                        background-color: rgba(0, 0, 0, 0.3);
+                                        border: 2px solid rgba(255, 255, 255, 0.2);
+                                        overflow: hidden;
+                                    }
+
+                                    .getting-started__video-wrapper iframe {
+                                        position: absolute;
+                                        top: 0;
+                                        left: 0;
+                                        width: 100%;
+                                        height: 100%;
+                                    }
+
+                                    .getting-started__cta {
+                                        display: flex;
+                                        justify-content: center;
+                                    }
+
+                                    @media (max-width: 768px) {
+                                        .getting-started__grid {
+                                            grid-template-columns: 1fr;
+                                            gap: var(--spacing-2xl);
+                                        }
+
+                                        .getting-started__content {
+                                            padding-right: 0;
+                                        }
+
+                                        .getting-started__title {
+                                            text-align: center;
+                                        }
+
+                                        .getting-started__text {
+                                            text-align: center;
+                                        }
+                                    }
+
+                                    /* ===== NEWSLETTER SECTION ===== */
+                                    .newsletter .container {
+                                        display: flex;
+                                        gap: var(--spacing-3xl);
+                                        align-items: center;
+                                    }
+
+                                    .newsletter__content {
+                                        flex: 1;
+                                        max-width: 500px;
+                                    }
+
+                                    .newsletter__title {
+                                        text-align: left;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .newsletter__text {
+                                        text-align: left;
+                                        font-size: 1.125rem;
+                                        color: var(--color-gray-600);
+                                        margin: 0;
+                                    }
+
+                                    .newsletter__form-wrapper {
+                                        flex: 1;
+                                        max-width: 500px;
+                                    }
+
+                                    .newsletter__form {
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: var(--spacing-md);
+                                    }
+
+                                    .newsletter__input {
+                                        width: 100%;
+                                        padding: var(--spacing-md);
+                                        font-size: 1rem;
+                                        border: 2px solid var(--color-gray-300);
+                                        font-family: var(--font-sans);
+                                        transition: border-color var(--transition-fast);
+                                    }
+
+                                    .newsletter__input:focus {
+                                        outline: none;
+                                        border-color: var(--color-violet);
+                                    }
+
+                                    .newsletter__input.error {
+                                        border-color: var(--color-orange);
+                                    }
+
+                                    .newsletter__submit {
+                                        padding: var(--spacing-md) var(--spacing-xl);
+                                        background-color: var(--color-violet);
+                                        color: var(--color-white);
+                                        border: none;
+                                        font-size: 1rem;
+                                        font-weight: 600;
+                                        cursor: pointer;
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .newsletter__submit:hover {
+                                        background-color: var(--color-violet-dark);
+                                        transform: translateY(-2px);
+                                    }
+
+                                    .newsletter__message {
+                                        text-align: left;
+                                        margin-top: var(--spacing-md);
+                                        font-weight: 600;
+                                        display: none;
+                                    }
+
+                                    .newsletter__message.success {
+                                        color: var(--color-violet);
+                                    }
+
+                                    .newsletter__message.error {
+                                        color: var(--color-orange);
+                                    }
+
+                                    /* Top newsletter section - black background variant */
+                                    #top-newsletter {
+                                        background-color: var(--color-black);
+                                        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='neural-pattern' x='0' y='0' width='100' height='100' patternUnits='userSpaceOnUse'%3E%3Cg opacity='0.08'%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='50' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='85' cy='15' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='25' cy='45' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='70' cy='50' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='15' cy='75' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='55' cy='80' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='90' cy='85' r='1.5' fill='%23ffffff'/%3E%3Cline x1='10' y1='10' x2='50' y2='20' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='50' y1='20' x2='85' y2='15' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='10' y1='10' x2='25' y2='45' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='50' y1='20' x2='70' y2='50' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='25' y1='45' x2='70' y2='50' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='25' y1='45' x2='15' y2='75' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='70' y1='50' x2='55' y2='80' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='70' y1='50' x2='90' y2='85' stroke='%23ffffff' stroke-width='0.5'/%3E%3Cline x1='15' y1='75' x2='55' y2='80' stroke='%23ffffff' stroke-width='0.5'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100' height='100' fill='url(%23neural-pattern)'/%3E%3C/svg%3E");
+                                        background-size: 100px 100px;
+                                        background-repeat: repeat;
+                                    }
+
+                                    #top-newsletter .newsletter__title {
+                                        color: var(--color-white);
+                                    }
+
+                                    #top-newsletter .newsletter__text {
+                                        color: var(--color-gray-300);
+                                    }
+
+                                    #top-newsletter .newsletter__input {
+                                        background-color: var(--color-white);
+                                        border-color: var(--color-gray-400);
+                                    }
+
+                                    #top-newsletter .newsletter__input:focus {
+                                        border-color: var(--color-violet);
+                                    }
+
+                                    #top-newsletter .newsletter__message.success {
+                                        color: var(--color-violet);
+                                    }
+
+                                    #top-newsletter .newsletter__message.error {
+                                        color: var(--color-orange);
+                                    }
+
+                                    /* Responsive: stack vertically on mobile */
+                                    @media (max-width: 768px) {
+                                        .newsletter .container {
+                                            flex-direction: column;
+                                            gap: var(--spacing-xl);
+                                        }
+
+                                        .newsletter__title {
+                                            text-align: center;
+                                        }
+
+                                        .newsletter__text {
+                                            text-align: center;
+                                        }
+
+                                        .newsletter__message {
+                                            text-align: center;
+                                        }
+                                    }
+
+                                    /* ===== BOOK PROMOTION SECTION ===== */
+                                    .book-promo {
+                                        background-color: var(--color-white);
+                                    }
+
+                                    .book-promo__grid {
+                                        display: grid;
+                                        grid-template-columns: 400px 1fr;
+                                        gap: var(--spacing-3xl);
+                                        align-items: center;
+                                    }
+
+                                    .book-promo__image {
+                                        display: flex;
+                                        justify-content: center;
+                                        align-items: center;
+                                    }
+
+                                    .book-promo__cover {
+                                        width: 100%;
+                                        max-width: 350px;
+                                        height: auto;
+                                        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                                        transition: transform var(--transition-base), box-shadow var(--transition-base);
+                                    }
+
+                                    .book-promo__cover:hover {
+                                        transform: translateY(-8px);
+                                        box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+                                    }
+
+                                    .book-promo__content {
+                                        padding-left: var(--spacing-lg);
+                                    }
+
+                                    .book-promo__title {
+                                        color: var(--color-black);
+                                        margin-bottom: var(--spacing-md);
+                                        text-align: left;
+                                    }
+
+                                    .book-promo__subtitle {
+                                        font-size: 1.25rem;
+                                        font-weight: 600;
+                                        color: var(--color-violet);
+                                        margin-bottom: var(--spacing-lg);
+                                        line-height: 1.5;
+                                    }
+
+                                    .book-promo__description {
+                                        font-size: 1.125rem;
+                                        color: var(--color-gray-700);
+                                        line-height: 1.7;
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .book-promo__price {
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: var(--spacing-xs);
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .book-promo__price-amount {
+                                        font-size: 2rem;
+                                        font-weight: 700;
+                                        color: var(--color-black);
+                                    }
+
+                                    .book-promo__availability {
+                                        font-size: 0.875rem;
+                                        color: var(--color-gray-600);
+                                        font-weight: 500;
+                                    }
+
+                                    .book-promo__buttons {
+                                        display: flex;
+                                        gap: var(--spacing-md);
+                                        flex-wrap: wrap;
+                                    }
+
+                                    .btn-book {
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: var(--spacing-sm);
+                                        padding: var(--spacing-md) var(--spacing-xl);
+                                        font-size: 1rem;
+                                        font-weight: 600;
+                                        border: 2px solid;
+                                        transition: all var(--transition-base);
+                                    }
+
+                                    .book-icon {
+                                        width: 20px;
+                                        height: 20px;
+                                    }
+
+                                    .btn-amazon {
+                                        background-color: var(--color-black);
+                                        color: var(--color-white);
+                                        border-color: var(--color-black);
+                                    }
+
+                                    .btn-amazon:hover {
+                                        background-color: var(--color-white);
+                                        color: var(--color-black);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                                    }
+
+                                    .btn-google-play {
+                                        background-color: var(--color-white);
+                                        color: var(--color-black);
+                                        border-color: var(--color-black);
+                                    }
+
+                                    .btn-google-play:hover {
+                                        background-color: var(--color-black);
+                                        color: var(--color-white);
+                                        transform: translateY(-2px);
+                                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                                    }
+
+                                    @media (max-width: 968px) {
+                                        .book-promo__grid {
+                                            grid-template-columns: 1fr;
+                                            gap: var(--spacing-2xl);
+                                        }
+
+                                        .book-promo__content {
+                                            padding-left: 0;
+                                        }
+
+                                        .book-promo__title {
+                                            text-align: center;
+                                        }
+
+                                        .book-promo__subtitle {
+                                            text-align: center;
+                                        }
+
+                                        .book-promo__description {
+                                            text-align: center;
+                                        }
+
+                                        .book-promo__price {
+                                            align-items: center;
+                                        }
+
+                                        .book-promo__buttons {
+                                            justify-content: center;
+                                        }
+                                    }
+
+                                    /* ===== FOOTER ===== */
+                                    .footer {
+                                        background-color: var(--color-gray-900);
+                                        color: var(--color-gray-300);
+                                        padding: var(--spacing-3xl) 0 var(--spacing-lg);
+                                    }
+
+                                    .footer__content {
+                                        display: grid;
+                                        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                                        gap: var(--spacing-xl);
+                                        margin-bottom: var(--spacing-xl);
+                                    }
+
+                                    .footer__column-title {
+                                        color: var(--color-white);
+                                        font-size: 1.125rem;
+                                        font-weight: 700;
+                                        margin-bottom: var(--spacing-md);
+                                    }
+
+                                    .footer__links {
+                                        list-style: none;
+                                    }
+
+                                    .footer__link {
+                                        display: block;
+                                        padding: var(--spacing-xs) 0;
+                                        color: var(--color-gray-400);
+                                        transition: color var(--transition-fast);
+                                    }
+
+                                    .footer__link:hover {
+                                        color: var(--color-white);
+                                    }
+
+                                    .footer__bottom {
+                                        border-top: 1px solid var(--color-gray-800);
+                                        padding-top: var(--spacing-lg);
+                                        text-align: center;
+                                        color: var(--color-gray-500);
+                                        font-size: 0.875rem;
+                                    }
+
+                                    /* ===== ANIMATIONS ===== */
+                                    @keyframes fadeInDown {
+                                        from {
+                                            opacity: 0;
+                                            transform: translateY(-20px);
+                                        }
+                                        to {
+                                            opacity: 1;
+                                            transform: translateY(0);
+                                        }
+                                    }
+
+                                    @keyframes fadeInUp {
+                                        from {
+                                            opacity: 0;
+                                            transform: translateY(20px);
+                                        }
+                                        to {
+                                            opacity: 1;
+                                            transform: translateY(0);
+                                        }
+                                    }
+
+                                    @keyframes pulse {
+                                        0%, 100% {
+                                            transform: scale(1);
+                                        }
+                                        50% {
+                                            transform: scale(1.05);
+                                        }
+                                    }
+
+                                    /* ===== RESPONSIVE DESIGN ===== */
+                                    @media (max-width: 768px) {
+                                        h1 {
+                                            font-size: 2.5rem;
+                                        }
+
+                                        h2 {
+                                            font-size: 2rem;
+                                        }
+
+                                        h3 {
+                                            font-size: 1.5rem;
+                                        }
+
+                                        .nav__links {
+                                            position: fixed;
+                                            top: 60px;
+                                            left: 0;
+                                            right: 0;
+                                            background-color: var(--color-white);
+                                            flex-direction: column;
+                                            padding: var(--spacing-lg);
+                                            border-bottom: 1px solid var(--color-gray-200);
+                                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                                            transform: translateY(-100%);
+                                            opacity: 0;
+                                            transition: transform var(--transition-base), opacity var(--transition-base);
+                                            pointer-events: none;
+                                        }
+
+                                        .nav__links.active {
+                                            transform: translateY(0);
+                                            opacity: 1;
+                                            pointer-events: all;
+                                        }
+
+                                        .nav__toggle {
+                                            display: block;
+                                        }
+
+                                        .hero__cta {
+                                            flex-direction: column;
+                                        }
+
+                                        .btn {
+                                            width: 100%;
+                                        }
+
+
+                                        .section {
+                                            padding: var(--spacing-xl) 0;
+                                        }
+
+                                        .hero {
+                                            padding-top: calc(60px + var(--spacing-xl));
+                                            padding-bottom: var(--spacing-xl);
+                                        }
+                                    }
+
+                                    @media (max-width: 480px) {
+                                        h1 {
+                                            font-size: 2rem;
+                                        }
+
+                                        h2 {
+                                            font-size: 1.75rem;
+                                        }
+
+                                        .container {
+                                            padding: 0 var(--spacing-md);
+                                        }
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <!-- Navigation -->
+                                <nav class="nav" id="navbar">
+                                    <div class="nav__container">
+                                        <a href="#" class="nav__logo">
+                                            <img src="images/logo-black.png" alt="Neuron AI Logo" class="nav__logo-icon">
+                                            Neuron AI
+                                        </a>
+                                        <ul class="nav__links" id="navLinks">
+                                            <li><a href="#features" class="nav__link">Features</a></li>
+                                            <li><a href="#code" class="nav__link">Code</a></li>
+                                            <li><a href="#use-cases" class="nav__link">Use Cases</a></li>
+                                            <li><a href="https://docs.neuron-ai.dev/" class="nav__link" target="_blank" rel="noopener">Docs</a></li>
+                                            <li><a href="https://github.com/neuron-core/neuron-ai" class="nav__link" target="_blank" rel="noopener"><svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a></li>
+                                        </ul>
+                                        <button class="nav__toggle" id="navToggle" aria-label="Toggle navigation">
+                                            <span class="nav__toggle-icon"></span>
+                                        </button>
+                                    </div>
+                                </nav>
+
+                                <!-- Hero Section -->
+                                <section class="hero">
+                                    <div class="container">
+                                        <div class="hero__content">
+                                            <span class="hero__badge">Enterprise-Ready AI Framework</span>
+                                            <h1 class="hero__title">Build Sophisticated AI experiences in PHP</h1>
+                                            <p class="hero__subtitle">
+                                                Neuron is the framework that lets you create production-ready AI agents entirely in PHP.
+                                                Stop switching languages and leverage your existing expertise to build AI driven products.
+                                            </p>
+                                            <div class="hero__cta">
+                                                <a href="https://docs.neuron-ai.dev/" class="btn btn-primary" target="_blank" rel="noopener">Documentation</a>
+                                                <a href="https://github.com/neuron-core/neuron-ai" class="btn btn-secondary" target="_blank" rel="noopener"><svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>View on GitHub</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Newsletter Section (Top) -->
+                                <section class="section newsletter" id="top-newsletter">
+                                    <div class="container">
+                                        <div class="newsletter__content">
+                                            <h2 class="newsletter__title">Join the PHP AI Revolution</h2>
+                                            <p class="newsletter__text">
+                                                Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP.
+                                                Join a community of PHP developers pioneering the future of AI development.
+                                            </p>
+                                        </div>
+                                        <div class="newsletter__form-wrapper">
+                                            <form class="newsletter__form" id="topNewsletterForm">
+                                                <input
+                                                    type="text"
+                                                    class="newsletter__input"
+                                                    id="topNameInput"
+                                                    placeholder="Your name"
+                                                    required
+                                                    aria-label="Name"
+                                                >
+                                                <input
+                                                    type="email"
+                                                    class="newsletter__input"
+                                                    id="topEmailInput"
+                                                    placeholder="Your email address"
+                                                    required
+                                                    aria-label="Email address"
+                                                >
+                                                <button type="submit" class="newsletter__submit">Subscribe</button>
+                                            </form>
+                                            <div class="newsletter__message" id="topNewsletterMessage"></div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Key Features Section -->
+                                <section class="section features" id="features">
+                                    <div class="container">
+                                        <h2 class="features__title">Built To Scale In Production</h2>
+                                        <div class="features__grid">
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="8" y="8" width="48" height="48" stroke="#7C3AED" stroke-width="3"/>
+                                                    <path d="M20 32L28 40L44 24" stroke="#7C3AED" stroke-width="3"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">Flexible Architecture</h3>
+                                                <p class="feature-card__text">
+                                                    Build simple RAG applications or complex multi-agent pipelines. Neuron's modular components
+                                                    let you design solutions that fit your specific business needs without forcing you into rigid patterns.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="32" cy="32" r="24" stroke="#7C3AED" stroke-width="3"/>
+                                                    <circle cx="20" cy="24" r="4" fill="#7C3AED"/>
+                                                    <circle cx="44" cy="24" r="4" fill="#7C3AED"/>
+                                                    <circle cx="32" cy="44" r="4" fill="#7C3AED"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">Multi-Provider Support</h3>
+                                                <p class="feature-card__text">
+                                                    Work with OpenAI, Anthropic, Gemini, Pinecone, Elasticsearch, and more. Switch between LLM providers
+                                                    with a single line of code without impacting your agent implementation.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="12" y="12" width="16" height="16" stroke="#7C3AED" stroke-width="3"/>
+                                                    <rect x="36" y="12" width="16" height="16" stroke="#7C3AED" stroke-width="3"/>
+                                                    <rect x="12" y="36" width="16" height="16" stroke="#7C3AED" stroke-width="3"/>
+                                                    <rect x="36" y="36" width="16" height="16" stroke="#7C3AED" stroke-width="3"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">Modular Agent Toolkits</h3>
+                                                <p class="feature-card__text">
+                                                    Build agents with specialized capabilities by mixing and matching toolkits. Add database readers,
+                                                    API integrators, or custom tools to create AI solutions tailored to your use case.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M32 8L8 24L32 40L56 24L32 8Z" stroke="#7C3AED" stroke-width="3"/>
+                                                    <path d="M8 36L32 52L56 36" stroke="#7C3AED" stroke-width="3"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">RAG Capabilities</h3>
+                                                <p class="feature-card__text">
+                                                    Implement powerful Retrieval-Augmented Generation in just a few lines. Connect agents to your
+                                                    knowledge bases and external data sources for enhanced accuracy and relevance.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="16" y="16" width="32" height="32" stroke="#7C3AED" stroke-width="3"/>
+                                                    <circle cx="32" cy="32" r="8" fill="#7C3AED"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">Data Integration</h3>
+                                                <p class="feature-card__text">
+                                                    Load data from CSV, JSON, SQL databases, and more to create unified data models for your agents.
+                                                    Work seamlessly with your existing data infrastructure.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                            <div class="feature-card">
+                                                <svg class="feature-card__icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="12" y="20" width="40" height="24" stroke="#7C3AED" stroke-width="3"/>
+                                                    <path d="M20 28L28 36L44 28" stroke="#7C3AED" stroke-width="3"/>
+                                                </svg>
+                                                <h3 class="feature-card__title">Built-in Observability</h3>
+                                                <p class="feature-card__text">
+                                                    Monitor agent execution with Inspector.dev integration. Move from prototype to production with
+                                                    confidence—enable monitoring with just one line of code.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="feature-card__link" target="_blank" rel="noopener">Read more →</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Technical Highlights Section -->
+                                <section class="section technical" id="technical">
+                                    <div class="container">
+                                        <h2 class="technical__title">Built on PHP 8's Modern Type System</h2>
+                                        <div class="technical__grid">
+                                            <div class="technical__item">
+                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="8" y="8" width="40" height="40"/>
+                                                    <path d="M20 28L26 34L36 22" stroke="white" stroke-width="3"/>
+                                                </svg>
+                                                <h4 class="technical__item-title">Fully Typed</h4>
+                                                <p class="technical__item-text">
+                                                    Every method, property, and return value is explicitly typed for maximum IDE support and type safety.
+                                                </p>
+                                            </div>
+                                            <div class="technical__item">
+                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="28" cy="28" r="20"/>
+                                                    <text x="28" y="34" text-anchor="middle" fill="white" font-size="20" font-weight="bold">9</text>
+                                                </svg>
+                                                <h4 class="technical__item-title">PHPStan Level 9</h4>
+                                                <p class="technical__item-text">
+                                                    Complete type coverage across the entire framework ensures reliability and maintainability.
+                                                </p>
+                                            </div>
+                                            <div class="technical__item">
+                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="12" y="16" width="32" height="8"/>
+                                                    <rect x="12" y="28" width="32" height="8"/>
+                                                    <rect x="12" y="40" width="32" height="8"/>
+                                                </svg>
+                                                <h4 class="technical__item-title">PSR Standards</h4>
+                                                <p class="technical__item-text">
+                                                    Built on standard PSR interfaces with minimal dependencies to avoid version conflicts.
+                                                </p>
+                                            </div>
+                                            <div class="technical__item">
+                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M28 8L12 20V40L28 52L44 40V20L28 8Z"/>
+                                                    <circle cx="28" cy="28" r="6" fill="white"/>
+                                                </svg>
+                                                <h4 class="technical__item-title">IDE Autocompletion</h4>
+                                                <p class="technical__item-text">
+                                                    Strong typing enables accurate IDE suggestions and faster debugging cycles for your team.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Framework Integration Section -->
+                                <section class="section integration" id="integration">
+                                    <div class="container">
+                                        <h2 class="integration__title">Perfectly Integrated With Your Favorite Frameworks</h2>
+                                        <p class="integration__subtitle">
+                                            Whether you're using Laravel, Symfony, WordPress, or a custom MVC framework, Neuron integrates
+                                            seamlessly without requiring refactoring or disrupting your established environment.
+                                        </p>
+                                        <div class="integration__logos">
+                                            <div class="integration__logo">Laravel</div>
+                                            <div class="integration__logo">Symfony</div>
+                                            <div class="integration__logo">WordPress</div>
+                                            <div class="integration__logo">Custom MVC</div>
+                                        </div>
+                                        <p style="text-align: center; color: var(--color-gray-600); max-width: 700px; margin: 0 auto;">
+                                            Consistent patterns work across the entire PHP ecosystem, enabling knowledge transfer between projects
+                                            and making it easy for your team to adopt AI capabilities wherever they build.
+                                        </p>
+                                    </div>
+                                </section>
+
+                                <!-- Code Example Section -->
+                                <section class="section code-example" id="code">
+                                    <div class="container">
+                                        <h2 class="code-example__title">See How Simple It Is</h2>
+                                        <p class="code-example__subtitle">
+                                            Create a functional AI agent with clean, understandable PHP code. No complex setup, no boilerplate—just elegant, production-ready implementation.
+                                        </p>
+                                        <div class="code-block">
+                                            <div class="code-block__header">
+                                                <span class="code-block__title">CustomerServiceAgent.php</span>
+                                                <button class="code-block__copy" data-code="example1">Copy Code</button>
+                                            </div>
+                                            <div class="code-block__content">
+                                                <pre><code id="example1"><span class="code-comment">// Create a customer service AI agent</span>
+                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Agent</span>;
+                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Prompts\SystemPrompt</span>;
+                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Providers\Anthropic</span>;
+
+                            <span class="code-keyword">class</span> <span class="code-class">CustomerServiceAgent</span> <span class="code-keyword">extends</span> <span class="code-class">Agent</span>
+                            {
+                                <span class="code-keyword">public function</span> <span class="code-function">__construct</span>()
+                                {
+                                    <span class="code-comment">// Configure Claude as the AI provider</span>
+                                    <span class="code-variable">$this</span>-><span class="code-function">setProvider</span>(<span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(<span class="code-string">'claude-3-5-sonnet'</span>));
+
+                                    <span class="code-comment">// Define system instructions</span>
+                                    <span class="code-variable">$this</span>-><span class="code-function">setSystemPrompt</span>(<span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
+                                        <span class="code-string">'You are a helpful customer service assistant. '</span> .
+                                        <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
+                                    ));
+                                }
+
+                                <span class="code-keyword">public function</span> <span class="code-function">handleCustomerQuery</span>(<span class="code-keyword">string</span> <span class="code-variable">$query</span>): <span class="code-keyword">string</span>
+                                {
+                                    <span class="code-comment">// Process the customer's question</span>
+                                    <span class="code-keyword">return</span> <span class="code-variable">$this</span>-><span class="code-function">ask</span>(<span class="code-variable">$query</span>);
+                                }
+                            }
+
+                            <span class="code-comment">// Use the agent in your application</span>
+                            <span class="code-variable">$agent</span> = <span class="code-keyword">new</span> <span class="code-class">CustomerServiceAgent</span>();
+                            <span class="code-variable">$response</span> = <span class="code-variable">$agent</span>-><span class="code-function">handleCustomerQuery</span>(<span class="code-string">'How do I reset my password?'</span>);
+                            <span class="code-keyword">echo</span> <span class="code-variable">$response</span>;</code></pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Getting Started Section -->
+                                <section class="section getting-started" id="getting-started">
+                                    <div class="container">
+                                        <div class="getting-started__grid">
+                                            <div class="getting-started__content">
+                                                <h2 class="getting-started__title">Ready to Build AI Agents in PHP?</h2>
+                                                <p class="getting-started__text">
+                                                    Learn how to build powerful AI agents in PHP with our comprehensive video tutorials.
+                                                    Watch step-by-step guides that cover everything from installation to advanced features,
+                                                    and start building production-ready AI agents in minutes.
+                                                </p>
+                                            </div>
+                                            <div class="getting-started__video">
+                                                <div class="getting-started__video-wrapper">
+                                                    <iframe
+                                                        src="https://www.youtube.com/embed/oSA1bP_j41w"
+                                                        title="Neuron AI Tutorial"
+                                                        frameborder="0"
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                        allowfullscreen>
+                                                    </iframe>
+                                                </div>
+                                                <div class="getting-started__cta">
+                                                    <a href="https://docs.neuron-ai.dev/overview/fast-learning-by-video" class="btn btn-orange btn-lg" target="_blank" rel="noopener">Watch Video Tutorials</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Use Cases Section -->
+                                <section class="section use-cases" id="use-cases">
+                                    <div class="container">
+                                        <h2 class="use-cases__title">Get Inspired By Community Projects</h2>
+                                        <div class="use-cases__grid">
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="8" y="8" width="32" height="32" stroke="#FF6B35" stroke-width="3"/>
+                                                    <path d="M16 16H32M16 24H32M16 32H24" stroke="#FF6B35" stroke-width="2"/>
+                                                </svg>
+                                                <h4 class="use-case__title">Data Analyst Agents</h4>
+                                                <p class="use-case__text">
+                                                    Build intelligent agents that query SQL databases, analyze trends, and generate insights—all
+                                                    using natural language commands from your business users.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="24" cy="16" r="8" stroke="#FF6B35" stroke-width="3"/>
+                                                    <path d="M12 36C12 28 16 24 24 24C32 24 36 28 36 36" stroke="#FF6B35" stroke-width="3"/>
+                                                </svg>
+                                                <h4 class="use-case__title">Customer Service Assistants</h4>
+                                                <p class="use-case__text">
+                                                    Deploy AI-powered support agents that understand your products, access your knowledge base,
+                                                    and provide accurate, contextual responses to customer inquiries.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M8 24L24 8L40 24L24 40L8 24Z" stroke="#FF6B35" stroke-width="3"/>
+                                                    <circle cx="24" cy="24" r="6" fill="#FF6B35"/>
+                                                </svg>
+                                                <h4 class="use-case__title">Content Reviewers</h4>
+                                                <p class="use-case__text">
+                                                    Automate technical article reviews, code documentation checks, and content quality assurance
+                                                    with AI agents that understand your style guidelines.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="12" y="12" width="12" height="12" stroke="#FF6B35" stroke-width="3"/>
+                                                    <rect x="28" y="12" width="12" height="12" stroke="#FF6B35" stroke-width="3"/>
+                                                    <rect x="12" y="28" width="12" height="12" stroke="#FF6B35" stroke-width="3"/>
+                                                    <rect x="28" y="28" width="12" height="12" stroke="#FF6B35" stroke-width="3"/>
+                                                </svg>
+                                                <h4 class="use-case__title">RAG Systems</h4>
+                                                <p class="use-case__text">
+                                                    Implement Retrieval-Augmented Generation with Ollama or cloud providers to create AI systems
+                                                    that combine LLM reasoning with your proprietary knowledge.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="24" cy="24" r="16" stroke="#FF6B35" stroke-width="3"/>
+                                                    <path d="M24 12V24L32 28" stroke="#FF6B35" stroke-width="3"/>
+                                                </svg>
+                                                <h4 class="use-case__title">Process Automation</h4>
+                                                <p class="use-case__text">
+                                                    Automate complex business processes by orchestrating multiple AI agents that handle different
+                                                    parts of your workflow, from data validation to decision-making.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                            <div class="use-case">
+                                                <svg class="use-case__icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M8 32L16 24L24 28L32 20L40 24" stroke="#FF6B35" stroke-width="3" stroke-linecap="square"/>
+                                                    <circle cx="16" cy="24" r="3" fill="#FF6B35"/>
+                                                    <circle cx="24" cy="28" r="3" fill="#FF6B35"/>
+                                                    <circle cx="32" cy="20" r="3" fill="#FF6B35"/>
+                                                    <circle cx="40" cy="24" r="3" fill="#FF6B35"/>
+                                                </svg>
+                                                <h4 class="use-case__title">Intelligent Monitoring</h4>
+                                                <p class="use-case__text">
+                                                    Create agents that monitor application metrics, detect anomalies, and provide intelligent
+                                                    alerts with context-aware recommendations for your DevOps team.
+                                                </p>
+                                                <a href="https://docs.neuron-ai.dev/" class="use-case__link" target="_blank" rel="noopener">Learn more →</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Consultancy & Support Section -->
+                                <section class="section consultancy" id="consultancy">
+                                    <div class="container">
+                                        <div class="consultancy__content">
+                                            <h2 class="consultancy__title">Get Expert Support from the Framework Creators</h2>
+                                            <p class="consultancy__subtitle">
+                                                Build your AI-powered applications with confidence. Our team of framework creators provides
+                                                dedicated consultancy and support to accelerate your project success.
+                                            </p>
+                                            <div class="consultancy__benefits">
+                                                <div class="consultancy__benefit">
+                                                    <svg class="consultancy__benefit-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <circle cx="28" cy="28" r="22" stroke="#ffffff" stroke-width="3"/>
+                                                        <path d="M20 28L26 34L36 22" stroke="#ffffff" stroke-width="3"/>
+                                                    </svg>
+                                                    <div class="consultancy__benefit-content">
+                                                        <h3 class="consultancy__benefit-title">Deep Framework Knowledge</h3>
+                                                        <p class="consultancy__benefit-text">
+                                                            Work directly with the people who built Neuron. Get insights into best practices,
+                                                            architecture decisions, and advanced features that aren't in the docs.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="consultancy__benefit">
+                                                    <svg class="consultancy__benefit-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <rect x="10" y="10" width="36" height="36" stroke="#ffffff" stroke-width="3"/>
+                                                        <path d="M18 28L24 34L38 20" stroke="#ffffff" stroke-width="3"/>
+                                                    </svg>
+                                                    <div class="consultancy__benefit-content">
+                                                        <h3 class="consultancy__benefit-title">Faster Time to Market</h3>
+                                                        <p class="consultancy__benefit-text">
+                                                            Avoid common pitfalls and accelerate development with expert guidance. Get your
+                                                            AI agents into production faster with proven patterns and solutions.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="consultancy__benefit">
+                                                    <svg class="consultancy__benefit-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <circle cx="28" cy="16" r="8" stroke="#ffffff" stroke-width="3"/>
+                                                        <circle cx="16" cy="36" r="8" stroke="#ffffff" stroke-width="3"/>
+                                                        <circle cx="40" cy="36" r="8" stroke="#ffffff" stroke-width="3"/>
+                                                        <path d="M26 22L18 30M30 22L38 30" stroke="#ffffff" stroke-width="3"/>
+                                                    </svg>
+                                                    <div class="consultancy__benefit-content">
+                                                        <h3 class="consultancy__benefit-title">Custom Solutions & Training</h3>
+                                                        <p class="consultancy__benefit-text">
+                                                            Get tailored solutions for your specific use case and comprehensive training for
+                                                            your team to build and maintain AI agents confidently.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="consultancy__benefit">
+                                                    <svg class="consultancy__benefit-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M28 8L8 20L28 32L48 20L28 8Z" stroke="#ffffff" stroke-width="3"/>
+                                                        <path d="M8 30L28 42L48 30" stroke="#ffffff" stroke-width="3"/>
+                                                    </svg>
+                                                    <div class="consultancy__benefit-content">
+                                                        <h3 class="consultancy__benefit-title">Priority Support & Updates</h3>
+                                                        <p class="consultancy__benefit-text">
+                                                            Get priority access to new features, dedicated support channels, and early insights
+                                                            into framework roadmap and upcoming capabilities.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="consultancy__cta">
+                                                <a href="https://cal.com/inspector/neuron-meeting" class="btn btn-primary btn-lg" target="_blank" rel="noopener">
+                                                    <svg class="calendar-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                                                        <line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="2"/>
+                                                        <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                        <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                    </svg>
+                                                    Schedule a Consultation
+                                                </a>
+                                                <p class="consultancy__cta-note">30-minute free consultation to discuss your AI project</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Book Promotion Section -->
+                                <section class="section book-promo" id="book">
+                                    <div class="container">
+                                        <div class="book-promo__grid">
+                                            <div class="book-promo__image">
+                                                <img src="images/book-cover.png" alt="Start with AI Agents in PHP Book Cover" class="book-promo__cover">
+                                            </div>
+                                            <div class="book-promo__content">
+                                                <h2 class="book-promo__title">Start with AI Agents in PHP</h2>
+                                                <p class="book-promo__subtitle">The definitive guide to building AI-powered agents with PHP</p>
+                                                <p class="book-promo__description">
+                                                    Position yourself in the AI Agent era with this comprehensive resource that shows exactly
+                                                    how to get there using PHP. Learn from practical examples and real-world use cases.
+                                                </p>
+                                                <div class="book-promo__price">
+                                                    <span class="book-promo__price-amount">$8.90</span>
+                                                    <span class="book-promo__availability">Available on Amazon and Google Play</span>
+                                                </div>
+                                                <div class="book-promo__buttons">
+                                                    <a href="https://www.amazon.com/dp/B0F1YX8KJB" class="btn btn-book btn-amazon" target="_blank" rel="noopener">
+                                                        <svg class="book-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M14.5 14.5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM18 6H4V4h14c.55 0 1-.45 1-1s-.45-1-1-1H4c-1.1 0-2 .9-2 2v11c0 .55.45 1 1 1s1-.45 1-1V8h14l-2.5 6H8c-.55 0-1 .45-1 1s.45 1 1 1h9c.41 0 .78-.24.94-.62l3-7c.19-.45-.13-.96-.62-.96-.1 0-.2.02-.29.06L18 6z" fill="currentColor"/>
+                                                        </svg>
+                                                        Buy on Amazon
+                                                    </a>
+                                                    <a href="https://play.google.com/store/books/details?pcampaignid=books_read_action&id=agJPEQAAQBAJ&pli=1" class="btn btn-book btn-google-play" target="_blank" rel="noopener">
+                                                        <svg class="book-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M4 6h16v12H4V6zm0-2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4zm6.5 5h-2v2h2V9h2v2h2v2h-2v2h-2v-2h-2v-2h2V9zm6 0h-2v6h2V9z" fill="currentColor"/>
+                                                        </svg>
+                                                        Buy on Google Play
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Newsletter Section -->
+                                <section class="section newsletter" id="newsletter">
+                                    <div class="container">
+                                        <div class="newsletter__content">
+                                            <h2 class="newsletter__title">Join the PHP AI Revolution</h2>
+                                            <p class="newsletter__text">
+                                                Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP.
+                                                Join a community of PHP developers pioneering the future of AI development.
+                                            </p>
+                                        </div>
+                                        <div class="newsletter__form-wrapper">
+                                            <form class="newsletter__form" id="newsletterForm">
+                                                <input
+                                                    type="text"
+                                                    class="newsletter__input"
+                                                    id="nameInput"
+                                                    placeholder="Your name"
+                                                    required
+                                                    aria-label="Name"
+                                                >
+                                                <input
+                                                    type="email"
+                                                    class="newsletter__input"
+                                                    id="emailInput"
+                                                    placeholder="Your email address"
+                                                    required
+                                                    aria-label="Email address"
+                                                >
+                                                <button type="submit" class="newsletter__submit">Subscribe</button>
+                                            </form>
+                                            <div class="newsletter__message" id="newsletterMessage"></div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Footer -->
+                                <footer class="footer">
+                                    <div class="container">
+                                        <div class="footer__content">
+                                            <div>
+                                                <h4 class="footer__column-title">Neuron AI</h4>
+                                                <ul class="footer__links">
+                                                    <li><a href="https://docs.neuron-ai.dev/" class="footer__link" target="_blank" rel="noopener">Documentation</a></li>
+                                                    <li><a href="https://docs.neuron-ai.dev/overview/fast-learning-by-video" class="footer__link" target="_blank" rel="noopener">Video Tutorials</a></li>
+                                                    <li><a href="https://github.com/neuron-core/neuron-ai" class="footer__link" target="_blank" rel="noopener"><svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub</a></li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="footer__column-title">Resources</h4>
+                                                <ul class="footer__links">
+                                                    <li><a href="#features" class="footer__link">Features</a></li>
+                                                    <li><a href="#code" class="footer__link">Code Examples</a></li>
+                                                    <li><a href="#use-cases" class="footer__link">Use Cases</a></li>
+                                                    <li><a href="#community" class="footer__link">Community</a></li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="footer__column-title">Ecosystem</h4>
+                                                <ul class="footer__links">
+                                                    <li><a href="https://inspector.dev" class="footer__link" target="_blank" rel="noopener">Inspector.dev</a></li>
+                                                    <li><a href="#" class="footer__link">NeuronHub</a></li>
+                                                    <li><a href="#newsletter" class="footer__link">Newsletter</a></li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="footer__column-title">Company</h4>
+                                                <ul class="footer__links">
+                                                    <li><a href="https://inspector.dev" class="footer__link" target="_blank" rel="noopener">About Inspector</a></li>
+                                                    <li><a href="https://github.com/neuron-core" class="footer__link" target="_blank" rel="noopener"><svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>GitHub Organization</a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="footer__bottom">
+                                            <p>&copy; 2024-2025 Inspector S.R.L. | Neuron is part of the Inspector ecosystem.</p>
+                                        </div>
+                                    </div>
+                                </footer>
+
+                                <script>
+                                    // Smooth scrolling for anchor links
+                                    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                                        anchor.addEventListener('click', function (e) {
+                                            const href = this.getAttribute('href');
+                                            if (href !== '#' && href !== '') {
+                                                e.preventDefault();
+                                                const target = document.querySelector(href);
+                                                if (target) {
+                                                    const navHeight = document.querySelector('.nav').offsetHeight;
+                                                    const targetPosition = target.offsetTop - navHeight;
+                                                    window.scrollTo({
+                                                        top: targetPosition,
+                                                        behavior: 'smooth'
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    });
+
+                                    // Intersection Observer for scroll animations
+                                    const observerOptions = {
+                                        threshold: 0.1,
+                                        rootMargin: '0px 0px -50px 0px'
+                                    };
+
+                                    const observer = new IntersectionObserver((entries) => {
+                                        entries.forEach(entry => {
+                                            if (entry.isIntersecting) {
+                                                entry.target.classList.add('visible');
+                                            }
+                                        });
+                                    }, observerOptions);
+
+                                    document.querySelectorAll('.section').forEach(section => {
+                                        observer.observe(section);
+                                    });
+
+                                    // Navbar scroll effect
+                                    const navbar = document.getElementById('navbar');
+                                    let lastScroll = 0;
+
+                                    window.addEventListener('scroll', () => {
+                                        const currentScroll = window.pageYOffset;
+
+                                        if (currentScroll > 50) {
+                                            navbar.classList.add('scrolled');
+                                        } else {
+                                            navbar.classList.remove('scrolled');
+                                        }
+
+                                        lastScroll = currentScroll;
+                                    });
+
+                                    // Mobile navigation toggle
+                                    const navToggle = document.getElementById('navToggle');
+                                    const navLinks = document.getElementById('navLinks');
+
+                                    navToggle.addEventListener('click', () => {
+                                        navToggle.classList.toggle('active');
+                                        navLinks.classList.toggle('active');
+                                    });
+
+                                    // Close mobile menu when clicking a link
+                                    navLinks.querySelectorAll('a').forEach(link => {
+                                        link.addEventListener('click', () => {
+                                            navToggle.classList.remove('active');
+                                            navLinks.classList.remove('active');
+                                        });
+                                    });
+
+                                    // Copy to clipboard functionality
+                                    document.querySelectorAll('.code-block__copy').forEach(button => {
+                                        button.addEventListener('click', async () => {
+                                            const codeId = button.getAttribute('data-code');
+                                            const codeElement = document.getElementById(codeId);
+                                            const codeText = codeElement.textContent;
+
+                                            try {
+                                                await navigator.clipboard.writeText(codeText);
+                                                const originalText = button.textContent;
+                                                button.textContent = 'Copied!';
+                                                button.classList.add('copied');
+
+                                                setTimeout(() => {
+                                                    button.textContent = originalText;
+                                                    button.classList.remove('copied');
+                                                }, 2000);
+                                            } catch (err) {
+                                                console.error('Failed to copy code:', err);
+                                                button.textContent = 'Failed to copy';
+                                                setTimeout(() => {
+                                                    button.textContent = 'Copy Code';
+                                                }, 2000);
+                                            }
+                                        });
+                                    });
+
+                                    // Top Newsletter form validation and submission
+                                    const topNewsletterForm = document.getElementById('topNewsletterForm');
+                                    const topNameInput = document.getElementById('topNameInput');
+                                    const topEmailInput = document.getElementById('topEmailInput');
+                                    const topNewsletterMessage = document.getElementById('topNewsletterMessage');
+
+                                    topNewsletterForm.addEventListener('submit', (e) => {
+                                        e.preventDefault();
+
+                                        const name = topNameInput.value.trim();
+                                        const email = topEmailInput.value.trim();
+                                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                                        if (!name) {
+                                            topNameInput.classList.add('error');
+                                            topNewsletterMessage.textContent = 'Please enter your name.';
+                                            topNewsletterMessage.className = 'newsletter__message error';
+                                            topNewsletterMessage.style.display = 'block';
+                                            return;
+                                        }
+
+                                        if (!emailRegex.test(email)) {
+                                            topEmailInput.classList.add('error');
+                                            topNewsletterMessage.textContent = 'Please enter a valid email address.';
+                                            topNewsletterMessage.className = 'newsletter__message error';
+                                            topNewsletterMessage.style.display = 'block';
+                                            return;
+                                        }
+
+                                        topNameInput.classList.remove('error');
+                                        topEmailInput.classList.remove('error');
+
+                                        // Simulate form submission (replace with actual API call)
+                                        topNewsletterMessage.textContent = 'Thank you for subscribing! Check your inbox for confirmation.';
+                                        topNewsletterMessage.className = 'newsletter__message success';
+                                        topNewsletterMessage.style.display = 'block';
+                                        topNameInput.value = '';
+                                        topEmailInput.value = '';
+
+                                        setTimeout(() => {
+                                            topNewsletterMessage.style.display = 'none';
+                                        }, 5000);
+                                    });
+
+                                    // Remove error class when user starts typing in top newsletter form
+                                    topNameInput.addEventListener('input', () => {
+                                        topNameInput.classList.remove('error');
+                                        if (topNewsletterMessage.classList.contains('error')) {
+                                            topNewsletterMessage.style.display = 'none';
+                                        }
+                                    });
+
+                                    topEmailInput.addEventListener('input', () => {
+                                        topEmailInput.classList.remove('error');
+                                        if (topNewsletterMessage.classList.contains('error')) {
+                                            topNewsletterMessage.style.display = 'none';
+                                        }
+                                    });
+
+                                    // Bottom Newsletter form validation and submission
+                                    const newsletterForm = document.getElementById('newsletterForm');
+                                    const nameInput = document.getElementById('nameInput');
+                                    const emailInput = document.getElementById('emailInput');
+                                    const newsletterMessage = document.getElementById('newsletterMessage');
+
+                                    newsletterForm.addEventListener('submit', (e) => {
+                                        e.preventDefault();
+
+                                        const name = nameInput.value.trim();
+                                        const email = emailInput.value.trim();
+                                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                                        if (!name) {
+                                            nameInput.classList.add('error');
+                                            newsletterMessage.textContent = 'Please enter your name.';
+                                            newsletterMessage.className = 'newsletter__message error';
+                                            newsletterMessage.style.display = 'block';
+                                            return;
+                                        }
+
+                                        if (!emailRegex.test(email)) {
+                                            emailInput.classList.add('error');
+                                            newsletterMessage.textContent = 'Please enter a valid email address.';
+                                            newsletterMessage.className = 'newsletter__message error';
+                                            newsletterMessage.style.display = 'block';
+                                            return;
+                                        }
+
+                                        nameInput.classList.remove('error');
+                                        emailInput.classList.remove('error');
+
+                                        // Simulate form submission (replace with actual API call)
+                                        newsletterMessage.textContent = 'Thank you for subscribing! Check your inbox for confirmation.';
+                                        newsletterMessage.className = 'newsletter__message success';
+                                        newsletterMessage.style.display = 'block';
+                                        nameInput.value = '';
+                                        emailInput.value = '';
+
+                                        setTimeout(() => {
+                                            newsletterMessage.style.display = 'none';
+                                        }, 5000);
+                                    });
+
+                                    // Remove error class when user starts typing in newsletter form
+                                    nameInput.addEventListener('input', () => {
+                                        nameInput.classList.remove('error');
+                                        if (newsletterMessage.classList.contains('error')) {
+                                            newsletterMessage.style.display = 'none';
+                                        }
+                                    });
+
+                                    emailInput.addEventListener('input', () => {
+                                        emailInput.classList.remove('error');
+                                        if (newsletterMessage.classList.contains('error')) {
+                                            newsletterMessage.style.display = 'none';
+                                        }
+                                    });
+                                </script>
+                            </body>
+                            </html>
