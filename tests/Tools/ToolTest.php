@@ -465,4 +465,16 @@ class ToolTest extends TestCase
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
     }
+
+    public function test_annotations(): void
+    {
+        $tool = Tool::make('foo-bar', 'description', annotations: [
+            'readOnly' => true,
+            'idempotent' => false,
+        ]);
+        $this->assertEquals([
+            'readOnly' => true,
+            'idempotent' => false,
+        ], $tool->getAnnotations());
+    }
 }

@@ -91,7 +91,8 @@ class McpConnector
     {
         $tool = Tool::make(
             name: $item['name'],
-            description: $item['description'] ?? null
+            description: $item['description'] ?? null,
+            annotations: $item['annotations'] ?? [],
         )->setCallable(function (...$arguments) use ($item) {
             $response = \call_user_func($this->client->callTool(...), $item['name'], $arguments);
 
