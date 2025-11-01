@@ -121,7 +121,6 @@ class MeilisearchVectorStore implements VectorStoreInterface
             RequestOptions::JSON => [
                 'uid' => $this->indexUid,
                 'primaryKey' => 'id',
-                'embedder' => $this->embedder,
             ]
         ]);
 
