@@ -40,7 +40,9 @@ class MeiliSearchTest extends TestCase
         $document->embedding = $this->embedding;
         $document->addMetadata('customProperty', 'customValue');
 
-        $store->addDocument($document);
+        $store->addDocuments([
+            $document, $document, $document, $document, $document, $document, $document, $document, $document, $document,
+        ]);
 
         $results = $store->similaritySearch($this->embedding);
 
