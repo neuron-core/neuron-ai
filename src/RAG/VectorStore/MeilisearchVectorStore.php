@@ -125,17 +125,23 @@ class MeilisearchVectorStore implements VectorStoreInterface
      */
     protected function createIndex(): void
     {
-        $this->client->post(\trim($this->host, '/').'/indexes', [
+        $response = $this->client->post(\trim($this->host, '/').'/indexes', [
             RequestOptions::JSON => [
                 'uid' => $this->indexUid,
                 'primaryKey' => 'id',
             ]
-        ]);
+        ])->getBody()->getContents();
+
+        $response = \json_decode($response, true);
 
         foreach (range(1, 10) as $i) {
             try {
-                $this->client->get('');
-                break;
+                $task = $this->client->get(\trim($this->host, '/').'/tasks/'.$response['taskUid'])->getBody()->getContents();
+                $task = \json_decode($task, true);
+                if ($task['status'] === 'succeeded') {
+                    break;
+                }
+                \sleep(1);
             } catch (\Exception) {
                 \sleep(1);
             }
