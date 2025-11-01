@@ -139,7 +139,6 @@ class MeilisearchVectorStore implements VectorStoreInterface
             } catch (\Exception) {
                 \sleep(1);
             }
-            ++$i;
         }
 
         $this->client->patch(\trim($this->host, '/').'/indexes/settings/embedder', [
