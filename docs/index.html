@@ -1573,36 +1573,36 @@
 
 <span class="code-keyword">class</span> <span class="code-class">CustomerServiceAgent</span> <span class="code-keyword">extends</span> <span class="code-class">Agent</span>
 {
-<span class="code-keyword">protected function</span> <span class="code-function">provider</span>(): AIProviderInterface
-{
-<span class="code-comment">// you can also use OpenAI, Gemini, XAI, AWS Bedrock, Azure, and others</span>
-<span class="code-keyword">return</span> <span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(
-<span class="code-string">'ANTHROPIC_API_KEY'</span>
-<span class="code-string">'claude-4-5-sonnet'</span>
-);
-}
+    <span class="code-keyword">protected function</span> <span class="code-function">provider</span>(): AIProviderInterface
+    {
+        <span class="code-comment">// you can also use OpenAI, Gemini, XAI, AWS Bedrock, Azure, and others</span>
+        <span class="code-keyword">return</span> <span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(
+            <span class="code-string">'ANTHROPIC_API_KEY'</span>
+            <span class="code-string">'claude-4-5-sonnet'</span>
+        );
+    }
 
-<span class="code-keyword">public function</span> <span class="code-function">instructions</span>(): <span class="code-keyword">string</span>
-{
-<span class="code-keyword">return</span> (<span class="code-keyword">string</span>) <span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
-background: [
-<span class="code-string">'You are a helpful customer service assistant. '</span> .
-<span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
-]
-);
-}
+    <span class="code-keyword">public function</span> <span class="code-function">instructions</span>(): <span class="code-keyword">string</span>
+    {
+        <span class="code-keyword">return</span> (<span class="code-keyword">string</span>) <span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
+            background: [
+                <span class="code-string">'You are a helpful customer service assistant. '</span> .
+                <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
+            ]
+        );
+    }
 
-<span class="code-keyword">public function</span> <span class="code-function">tools</span>(): <span class="code-keyword">array</span>
-{
-<span class="code-keyword">return</span> [
-<span class="code-class">CalculatorToolkit</span>::<span class="code-keyword">make</span>(),
-];
-}
+    <span class="code-keyword">public function</span> <span class="code-function">tools</span>(): <span class="code-keyword">array</span>
+    {
+        <span class="code-keyword">return</span> [
+            <span class="code-class">CalculatorToolkit</span>::<span class="code-keyword">make</span>(),
+        ];
+    }
 }
 
 <span class="code-comment">// Use the agent in your application</span>
 <span class="code-variable">$agent</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>()-><span class="code-function">chat</span>(
-<span class="code-keyword">new</span> <span class="code-class">UserMessage</span>(<span class="code-string">'Give me the daily average of sales in the last 30 days?'</span>)
+    <span class="code-keyword">new</span> <span class="code-class">UserMessage</span>(<span class="code-string">'Give me the daily average of sales in the last 30 days?'</span>)
 );
 
 <span class="code-keyword">echo</span> <span class="code-variable">$response</span>-><span class="code-function">getContent()</span>;</code></pre>
@@ -1815,7 +1815,7 @@ background: [
                 </div>
                 <div class="book-promo__content">
                     <h2 class="book-promo__title">Start with AI Agents in PHP</h2>
-                    <p class="book-promo__subtitle">The definitive guide to building AI-powered agents with PHP</p>
+                    <p class="book-promo__subtitle">The ultimate guide to building AI-powered agents with PHP</p>
                     <p class="book-promo__description">
                         Position yourself in the AI Agent era with this comprehensive resource that shows exactly
                         how to get there using PHP. Learn from practical examples and real-world use cases.
