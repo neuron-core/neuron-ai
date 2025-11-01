@@ -26,7 +26,7 @@ class MeiliSearchTest extends TestCase
         $this->embedding = \json_decode(\file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
     }
 
-    public function test_elasticsearch_instance(): void
+    public function test_meilisearchsearch_instance(): void
     {
         $store = new MeilisearchVectorStore('neuron');
         $this->assertInstanceOf(VectorStoreInterface::class, $store);
@@ -48,7 +48,7 @@ class MeiliSearchTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
-    public function test_elasticsearch_delete_documents(): void
+    public function test_mailisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
         $store->deleteBySource('manual', 'manual');
