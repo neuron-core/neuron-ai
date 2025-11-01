@@ -132,6 +132,16 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ]
         ]);
 
+        foreach (range(1, 10) as $i) {
+            try {
+                $this->client->get('');
+                break;
+            } catch (\Exception) {
+                \sleep(1);
+            }
+            ++$i;
+        }
+
         $this->client->patch(\trim($this->host, '/').'/indexes/settings/embedder', [
             RequestOptions::JSON => [
                 $this->embedder => [
