@@ -27,6 +27,12 @@ interface ToolInterface extends \JsonSerializable
     public function getProperties(): array;
 
     /**
+     * Get the annotations present on the tool.
+     * @return array<string, mixed>
+     */
+    public function getAnnotations(): array;
+
+    /**
      * Names of the required properties.
      *
      * @return array<string>

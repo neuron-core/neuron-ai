@@ -11,7 +11,7 @@ use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 
 /**
- * @method static static make(?string $name = null, ?string $description = null, array $properties = [])
+ * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $annotations = [])
  */
 class Tool implements ToolInterface
 {
@@ -51,11 +51,13 @@ class Tool implements ToolInterface
      * Tool constructor.
      *
      * @param ToolPropertyInterface[] $properties
+     * @param array<string, mixed> $annotations
      */
     public function __construct(
         protected string $name,
         protected ?string $description = null,
-        array $properties = []
+        array $properties = [],
+        protected array $annotations = [],
     ) {
         if ($properties !== []) {
             $this->properties = $properties;
@@ -84,6 +86,14 @@ class Tool implements ToolInterface
     protected function properties(): array
     {
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getAnnotations(): array
+    {
+        return $this->annotations;
     }
 
     /**
