@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\DataLoader;
 
+use NeuronAI\Exceptions\DataReaderException;
 use NeuronAI\RAG\Document;
 
 class FileDataLoader extends AbstractDataLoader
@@ -13,10 +14,17 @@ class FileDataLoader extends AbstractDataLoader
      */
     protected array $readers = [];
 
+    /**
+     * @throws DataReaderException
+     */
     public function __construct(protected string $path, array $readers = [])
     {
         parent::__construct();
         $this->setReaders($readers);
+
+        if (! \file_exists($this->path)) {
+            throw new DataReaderException('The provided path does not exist: ' . $this->path);
+        }
     }
 
     /**
@@ -41,10 +49,6 @@ class FileDataLoader extends AbstractDataLoader
 
     public function getDocuments(): array
     {
-        if (! \file_exists($this->path)) {
-            return [];
-        }
-
         // If it's a directory
         if (\is_dir($this->path)) {
             return $this->getDocumentsFromDirectory($this->path);
