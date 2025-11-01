@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
@@ -13,12 +14,16 @@ class MeilisearchVectorStore implements VectorStoreInterface
 {
     protected Client $client;
 
+    /**
+     * @throws GuzzleException
+     */
     public function __construct(
-        string $indexUid,
-        string $host = 'http://localhost:7700',
+        protected string $indexUid,
+        protected string $host = 'http://localhost:7700',
         ?string $key = null,
         protected string $embedder = 'default',
         protected int $topK = 5,
+        protected int $dimension = 1024,
     ) {
         $this->client = new Client([
             'base_uri' => \trim($host, '/').'/indexes/'.$indexUid.'/',
@@ -31,7 +36,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
         try {
             $this->client->get('');
         } catch (\Exception) {
-            throw new VectorStoreException("Index {$indexUid} doesn't exists. Remember to attach a custom embedder to the index in order to process vectors.");
+            $this->createIndex();
         }
     }
 
@@ -65,7 +70,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
     {
         $this->client->post('documents/delete', [
             RequestOptions::JSON => [
-                'filter' => "sourceType = {$sourceType} AND sourceName = {$sourceName}",
+                'filter' => "sourceType = {$sourceType} AND sourceName = '{$sourceName}'",
             ]
         ]);
 
@@ -105,5 +110,33 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
             return $document;
         }, $response['hits']);
+    }
+
+    /**
+     * @throws GuzzleException
+     */
+    protected function createIndex(): void
+    {
+        $this->client->post(\trim($this->host, '/').'/indexes', [
+            RequestOptions::JSON => [
+                'uid' => $this->indexUid,
+                'primaryKey' => 'id',
+                'embedder' => $this->embedder,
+            ]
+        ]);
+
+        $this->client->patch(\trim($this->host, '/').'/indexes/settings/embedder', [
+            RequestOptions::JSON => [
+                $this->embedder => [
+                    'dimensions' => $this->dimension,
+                    'source' => 'userProvided',
+                    'binaryQuantized' => false
+                ]
+            ]
+        ]);
+
+        $this->client->patch(\trim($this->host, '/').'/indexes/settings/filterable-attributes', [
+            RequestOptions::JSON => ['sourceType', 'sourceName']
+        ]);
     }
 }
