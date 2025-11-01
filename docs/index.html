@@ -1564,35 +1564,47 @@
                                             <div class="code-block__content">
                                                 <pre><code id="example1"><span class="code-comment">// Create a customer service AI agent</span>
 <span class="code-keyword">use</span> <span class="code-class">NeuronAI\Agent</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\Chat\Messages\UserMessage</span>;
 <span class="code-keyword">use</span> <span class="code-class">NeuronAI\SystemPrompt</span>;
 <span class="code-keyword">use</span> <span class="code-class">NeuronAI\Providers\Anthropic\Anthropic</span>;
 <span class="code-keyword">use</span> <span class="code-class">NeuronAI\Providers\AIProviderInterface</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\Tools\Toolkits\CalculatorToolkit</span>;
 
 <span class="code-keyword">class</span> <span class="code-class">CustomerServiceAgent</span> <span class="code-keyword">extends</span> <span class="code-class">Agent</span>
 {
     <span class="code-keyword">protected function</span> <span class="code-function">provider</span>(): AIProviderInterface
     {
-        <span class="code-comment">// Configure Claude as the AI provider</span>
-        <span class="code-variable">$this</span>-><span class="code-function">setProvider</span>(<span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(<span class="code-string">'claude-3-5-sonnet'</span>));
-
-        <span class="code-comment">// Define system instructions</span>
-        <span class="code-variable">$this</span>-><span class="code-function">setSystemPrompt</span>(<span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
-            <span class="code-string">'You are a helpful customer service assistant. '</span> .
-            <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
-        ));
+        <span class="code-comment">// you can also use OpenAI, Gemini, XAI, AWS Bedrock, Azure, and others</span>
+        <span class="code-keyword">return</span> <span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(
+            <span class="code-string">'ANTHROPIC_API_KEY'</span>
+            <span class="code-string">'claude-4-5-sonnet'</span>
+        );
     }
 
-    <span class="code-keyword">public function</span> <span class="code-function">handleCustomerQuery</span>(<span class="code-keyword">string</span> <span class="code-variable">$query</span>): <span class="code-keyword">string</span>
+    <span class="code-keyword">public function</span> <span class="code-function">instructions</span>(): <span class="code-keyword">string</span>
     {
-        <span class="code-comment">// Process the customer's question</span>
-        <span class="code-keyword">return</span> <span class="code-variable">$this</span>-><span class="code-function">ask</span>(<span class="code-variable">$query</span>);
+        <span class="code-keyword">return</span> (<span class="code-keyword">string</span>) <span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
+            background: [
+                <span class="code-string">'You are a helpful customer service assistant. '</span> .
+                <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
+            ]
+        )
+    }
+
+    <span class="code-keyword">public function</span> <span class="code-function">tools</span>(): <span class="code-keyword">array</span>
+    {
+        <span class="code-keyword">return</span> [
+            <span class="code-class">CalculatorToolkit</span>::<span class="code-keyword">make</span>(),
+        ];
     }
 }
 
 <span class="code-comment">// Use the agent in your application</span>
-<span class="code-variable">$agent</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>();
-<span class="code-variable">$response</span> = <span class="code-variable">$agent</span>-><span class="code-function">chat</span>(<span class="code-string">'How do I reset my password?'</span>);
-<span class="code-keyword">echo</span> <span class="code-variable">$response</span>;</code></pre>
+<span class="code-variable">$agent</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>()-><span class="code-function">chat</span>(
+    <span class="code-keyword">new</span> <span class="code-class">UserMessage</span>(<span class="code-string">'Give me the daily average of sales in the last 30 days?'</span>)
+);
+
+<span class="code-keyword">echo</span> <span class="code-variable">$response</span>-><span class="code-function">getContent()</span>;</code></pre>
                                             </div>
                                         </div>
                                     </div>
