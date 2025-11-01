@@ -1344,7 +1344,7 @@
                                 <section class="hero">
                                     <div class="container">
                                         <div class="hero__content">
-                                            <span class="hero__badge">Enterprise-Ready AI Framework</span>
+                                            <span class="hero__badge">Production-Ready AI Framework</span>
                                             <h1 class="hero__title">Build Sophisticated AI experiences in PHP</h1>
                                             <p class="hero__subtitle">
                                                 Neuron is the framework that lets you create production-ready AI agents entirely in PHP.
@@ -1481,7 +1481,7 @@
                                 <!-- Technical Highlights Section -->
                                 <section class="section technical" id="technical">
                                     <div class="container">
-                                        <h2 class="technical__title">Built on PHP 8's Modern Type System</h2>
+                                        <h2 class="technical__title">Built on PHP Modern Type System</h2>
                                         <div class="technical__grid">
                                             <div class="technical__item">
                                                 <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1498,20 +1498,9 @@
                                                     <circle cx="28" cy="28" r="20"/>
                                                     <text x="28" y="34" text-anchor="middle" fill="white" font-size="20" font-weight="bold">9</text>
                                                 </svg>
-                                                <h4 class="technical__item-title">PHPStan Level 9</h4>
+                                                <h4 class="technical__item-title">PHPStan 100% coverage</h4>
                                                 <p class="technical__item-text">
                                                     Complete type coverage across the entire framework ensures reliability and maintainability.
-                                                </p>
-                                            </div>
-                                            <div class="technical__item">
-                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <rect x="12" y="16" width="32" height="8"/>
-                                                    <rect x="12" y="28" width="32" height="8"/>
-                                                    <rect x="12" y="40" width="32" height="8"/>
-                                                </svg>
-                                                <h4 class="technical__item-title">PSR Standards</h4>
-                                                <p class="technical__item-text">
-                                                    Built on standard PSR interfaces with minimal dependencies to avoid version conflicts.
                                                 </p>
                                             </div>
                                             <div class="technical__item">
@@ -1522,6 +1511,17 @@
                                                 <h4 class="technical__item-title">IDE Autocompletion</h4>
                                                 <p class="technical__item-text">
                                                     Strong typing enables accurate IDE suggestions and faster debugging cycles for your team.
+                                                </p>
+                                            </div>
+                                            <div class="technical__item">
+                                                <svg class="technical__item-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect x="12" y="16" width="32" height="8"/>
+                                                    <rect x="12" y="28" width="32" height="8"/>
+                                                    <rect x="12" y="40" width="32" height="8"/>
+                                                </svg>
+                                                <h4 class="technical__item-title">Flexible Architecture</h4>
+                                                <p class="technical__item-text">
+                                                    Neuron integrates seamlessly with your existing codebase without refactoring or disrupting established environments.
                                                 </p>
                                             </div>
                                         </div>
@@ -1537,10 +1537,10 @@
                                             seamlessly without requiring refactoring or disrupting your established environment.
                                         </p>
                                         <div class="integration__logos">
-                                            <div class="integration__logo">Laravel</div>
-                                            <div class="integration__logo">Symfony</div>
-                                            <div class="integration__logo">WordPress</div>
-                                            <div class="integration__logo">Custom MVC</div>
+                                            <div class="integration__logo"><a href="https://www.youtube.com/watch?v=oSA1bP_j41w" target="_blank">Laravel</a></div>
+                                            <div class="integration__logo"><a href="https://www.youtube.com/watch?v=JWRlcaGnsXw" target="_blank">Symfony</a></div>
+                                            <div class="integration__logo"><a href="https://docs.neuron-ai.dev/" target="_blank">WordPress</a></div>
+                                            <div class="integration__logo"><a href="https://docs.neuron-ai.dev/" target="_blank">Custom MVC</a></div>
                                         </div>
                                         <p style="text-align: center; color: var(--color-gray-600); max-width: 700px; margin: 0 auto;">
                                             Consistent patterns work across the entire PHP ecosystem, enabling knowledge transfer between projects
@@ -1563,35 +1563,36 @@
                                             </div>
                                             <div class="code-block__content">
                                                 <pre><code id="example1"><span class="code-comment">// Create a customer service AI agent</span>
-                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Agent</span>;
-                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Prompts\SystemPrompt</span>;
-                            <span class="code-keyword">use</span> <span class="code-class">Neuron\Providers\Anthropic</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\Agent</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\SystemPrompt</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\Providers\Anthropic\Anthropic</span>;
+<span class="code-keyword">use</span> <span class="code-class">NeuronAI\Providers\AIProviderInterface</span>;
 
-                            <span class="code-keyword">class</span> <span class="code-class">CustomerServiceAgent</span> <span class="code-keyword">extends</span> <span class="code-class">Agent</span>
-                            {
-                                <span class="code-keyword">public function</span> <span class="code-function">__construct</span>()
-                                {
-                                    <span class="code-comment">// Configure Claude as the AI provider</span>
-                                    <span class="code-variable">$this</span>-><span class="code-function">setProvider</span>(<span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(<span class="code-string">'claude-3-5-sonnet'</span>));
+<span class="code-keyword">class</span> <span class="code-class">CustomerServiceAgent</span> <span class="code-keyword">extends</span> <span class="code-class">Agent</span>
+{
+    <span class="code-keyword">protected function</span> <span class="code-function">provider</span>(): AIProviderInterface
+    {
+        <span class="code-comment">// Configure Claude as the AI provider</span>
+        <span class="code-variable">$this</span>-><span class="code-function">setProvider</span>(<span class="code-keyword">new</span> <span class="code-class">Anthropic</span>(<span class="code-string">'claude-3-5-sonnet'</span>));
 
-                                    <span class="code-comment">// Define system instructions</span>
-                                    <span class="code-variable">$this</span>-><span class="code-function">setSystemPrompt</span>(<span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
-                                        <span class="code-string">'You are a helpful customer service assistant. '</span> .
-                                        <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
-                                    ));
-                                }
+        <span class="code-comment">// Define system instructions</span>
+        <span class="code-variable">$this</span>-><span class="code-function">setSystemPrompt</span>(<span class="code-keyword">new</span> <span class="code-class">SystemPrompt</span>(
+            <span class="code-string">'You are a helpful customer service assistant. '</span> .
+            <span class="code-string">'Provide clear, friendly, and accurate responses.'</span>
+        ));
+    }
 
-                                <span class="code-keyword">public function</span> <span class="code-function">handleCustomerQuery</span>(<span class="code-keyword">string</span> <span class="code-variable">$query</span>): <span class="code-keyword">string</span>
-                                {
-                                    <span class="code-comment">// Process the customer's question</span>
-                                    <span class="code-keyword">return</span> <span class="code-variable">$this</span>-><span class="code-function">ask</span>(<span class="code-variable">$query</span>);
-                                }
-                            }
+    <span class="code-keyword">public function</span> <span class="code-function">handleCustomerQuery</span>(<span class="code-keyword">string</span> <span class="code-variable">$query</span>): <span class="code-keyword">string</span>
+    {
+        <span class="code-comment">// Process the customer's question</span>
+        <span class="code-keyword">return</span> <span class="code-variable">$this</span>-><span class="code-function">ask</span>(<span class="code-variable">$query</span>);
+    }
+}
 
-                            <span class="code-comment">// Use the agent in your application</span>
-                            <span class="code-variable">$agent</span> = <span class="code-keyword">new</span> <span class="code-class">CustomerServiceAgent</span>();
-                            <span class="code-variable">$response</span> = <span class="code-variable">$agent</span>-><span class="code-function">handleCustomerQuery</span>(<span class="code-string">'How do I reset my password?'</span>);
-                            <span class="code-keyword">echo</span> <span class="code-variable">$response</span>;</code></pre>
+<span class="code-comment">// Use the agent in your application</span>
+<span class="code-variable">$agent</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>();
+<span class="code-variable">$response</span> = <span class="code-variable">$agent</span>-><span class="code-function">chat</span>(<span class="code-string">'How do I reset my password?'</span>);
+<span class="code-keyword">echo</span> <span class="code-variable">$response</span>;</code></pre>
                                             </div>
                                         </div>
                                     </div>
