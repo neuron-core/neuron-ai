@@ -43,6 +43,7 @@ class MeiliSearchTest extends TestCase
         $store->addDocument($document);
 
         $results = $store->similaritySearch($this->embedding);
+        var_dump($results);
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
