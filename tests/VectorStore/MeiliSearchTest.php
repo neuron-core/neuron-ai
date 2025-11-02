@@ -42,6 +42,9 @@ class MeiliSearchTest extends TestCase
 
         $store->addDocument($document);
 
+        // Wait for Meilisearch to index the document
+        sleep(5);
+
         $results = $store->similaritySearch($this->embedding);
 
         $this->assertNotEmpty($results);
