@@ -76,6 +76,8 @@ trait HandleStream
                 yield from $executeToolsCallback(
                     $this->createToolCallMessage(\end($toolCalls))
                 );
+
+                return;
             }
 
             // Process regular content
