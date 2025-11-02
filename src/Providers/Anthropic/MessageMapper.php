@@ -98,14 +98,13 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        // Add tool call blocks from metadata (stored during createToolCallMessage)
-        $toolCall = $message->getMetadata('anthropic_tool_call');
-        if ($toolCall !== null) {
+        // Add tool call blocks from the tools array
+        foreach ($message->getTools() as $tool) {
             $parts[] = [
                 'type' => 'tool_use',
-                'id' => $toolCall->getId(),
-                'name' => $toolCall->getName(),
-                'input' => null,
+                'id' => $tool->getCallId(),
+                'name' => $tool->getName(),
+                'input' => $tool->getInputs() ?: new \stdClass(),
             ];
         }
 
