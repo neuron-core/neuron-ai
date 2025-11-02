@@ -46,7 +46,6 @@ class MessageMapperResponses implements MessageMapperInterface
      */
     protected function mapMessage(Message $message): void
     {
-        $payload['type'] = 'message';
         $payload['role'] = $message->getRole();
 
         if (\is_array($message->getContent())) {
@@ -116,28 +115,25 @@ class MessageMapperResponses implements MessageMapperInterface
         // Add text content if present (OpenAI Responses supports text + function_call)
         $text = $message->getContent();
         if (\is_string($text) && $text !== '') {
-            $content[] = [
-                'type' => 'output_text',
-                'text' => $text,
+            $this->mapping[] = [
+                'role' => $message->getRole(),
+                'content' => [
+                    'type' => 'output_text',
+                    'text' => $text,
+                ]
             ];
         }
 
         // Add function call items
         foreach ($message->getTools() as $tool) {
             $inputs = $tool->getInputs();
-            $content[] = [
+            $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
                 'arguments' => \json_encode($inputs !== [] ? $inputs : new \stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }
-
-        $this->mapping[] = [
-            'type' => 'message',
-            'role' => $message->getRole(),
-            'content' => $content,
-        ];
     }
 
     protected function mapToolsResult(ToolCallResultMessage $message): void
