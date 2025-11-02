@@ -6,7 +6,9 @@ namespace NeuronAI\Tests;
 
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
+use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use PHPUnit\Framework\TestCase;
 
 class JsonSchemaTest extends TestCase
@@ -257,6 +259,41 @@ class JsonSchemaTest extends TestCase
                 ]
             ],
             'required' => ['firstName', 'lastName', 'address', 'tags'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
+    public function test_array_of_object(): void
+    {
+        $people = new class () {
+            /** @var \NeuronAI\Tests\Stubs\StructuredOutput\User[] */
+            #[SchemaProperty(description: "The list of users", required: true)]
+            #[ArrayOf(User::class)]
+            public array $people;
+        };
+
+        $schema = (new JsonSchema())->generate($people::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'people' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'name' => [
+                                'type' => 'string',
+                                'description' => 'The name of the user'
+                            ]
+                        ],
+                        'required' => ['name'],
+                        'additionalProperties' => false,
+                    ],
+                    'description' => 'The list of users'
+                ]
+            ],
+            'required' => ['people'],
             'additionalProperties' => false,
         ], $schema);
     }
