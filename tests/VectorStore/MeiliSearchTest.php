@@ -42,6 +42,9 @@ class MeiliSearchTest extends TestCase
 
         $store->addDocument($document);
 
+        // Wait for Meilisearch to index the document
+        \sleep(5);
+
         $results = $store->similaritySearch($this->embedding);
 
         $this->assertNotEmpty($results);
@@ -49,10 +52,13 @@ class MeiliSearchTest extends TestCase
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
 
-    public function test_mailisearch_delete_documents(): void
+    public function test_meilisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
         $store->deleteBySource('manual', 'manual');
+
+        // Wait for Meilisearch to delete documents
+        \sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);
