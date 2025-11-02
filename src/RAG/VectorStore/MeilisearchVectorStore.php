@@ -134,7 +134,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $response = \json_decode($response, true);
 
-        foreach (range(1, 10) as $i) {
+        foreach (\range(1, 10) as $i) {
             try {
                 $task = $this->client->get(\trim($this->host, '/').'/tasks/'.$response['taskUid'])->getBody()->getContents();
                 $task = \json_decode($task, true);
