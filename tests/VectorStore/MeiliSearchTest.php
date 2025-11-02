@@ -43,7 +43,7 @@ class MeiliSearchTest extends TestCase
         $store->addDocument($document);
 
         // Wait for Meilisearch to index the document
-        sleep(5);
+        \sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
 
@@ -58,7 +58,7 @@ class MeiliSearchTest extends TestCase
         $store->deleteBySource('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
-        sleep(5);
+        \sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);
