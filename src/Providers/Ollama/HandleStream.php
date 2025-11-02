@@ -33,6 +33,8 @@ trait HandleStream
             ...['json' => $json]
         ])->getBody();
 
+        $text = '';
+
         while (! $stream->eof()) {
             if (!$line = $this->parseNextJson($stream)) {
                 continue;
@@ -49,14 +51,21 @@ trait HandleStream
 
             // Process tool calls
             if (isset($line['message']['tool_calls'])) {
+                // Preserve any accumulated text content before tool call
+                $message = $line['message'];
+                if ($text !== '') {
+                    $message['content'] = $text;
+                }
+
                 yield from $executeToolsCallback(
-                    $this->createToolCallMessage($line['message'])
+                    $this->createToolCallMessage($message)
                 );
                 return;
             }
 
             // Process regular content
             $content = $line['message']['content'] ?? '';
+            $text .= $content;
 
             yield $content;
         }

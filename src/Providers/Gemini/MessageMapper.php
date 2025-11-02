@@ -74,16 +74,28 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): array
     {
+        $parts = [];
+
+        // Include text content if present (Gemini supports mixed text and functionCall in parts array)
+        $content = $message->getContent();
+        if (\is_string($content) && $content !== '') {
+            $parts[] = ['text' => $content];
+        }
+
+        // Add function calls
+        $parts = [
+            ...$parts,
+            ...\array_map(fn (ToolInterface $tool): array => [
+                'functionCall' => [
+                    'name' => $tool->getName(),
+                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
+                ]
+            ], $message->getTools())
+        ];
+
         return [
             'role' => MessageRole::MODEL->value,
-            'parts' => [
-                ...\array_map(fn (ToolInterface $tool): array => [
-                    'functionCall' => [
-                        'name' => $tool->getName(),
-                        'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
-                    ]
-                ], $message->getTools())
-            ]
+            'parts' => $parts
         ];
     }
 

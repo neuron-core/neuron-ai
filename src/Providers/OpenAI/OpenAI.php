@@ -94,7 +94,11 @@ class OpenAI implements AIProviderInterface
             $message['tool_calls']
         );
 
-        $result = new ToolCallMessage('', $tools);
+        // OpenAI typically returns null/empty content when tool_calls are present,
+        // but we preserve any content that may be returned
+        $content = $message['content'] ?? '';
+
+        $result = new ToolCallMessage($content, $tools);
 
         return $result->addMetadata('tool_calls', $message['tool_calls']);
     }

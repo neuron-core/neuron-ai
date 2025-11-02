@@ -82,9 +82,10 @@ class Anthropic implements AIProviderInterface
 
     /**
      * @param array<string, mixed> $message
+     * @param array<int, array<string, mixed>>|null $content Full content array including text and tool blocks
      * @throws ProviderException
      */
-    public function createToolCallMessage(array $message): Message
+    public function createToolCallMessage(array $message, ?array $content = null): Message
     {
         $tool = $this->findTool($message['name'])
             ->setInputs($message['input'])
@@ -96,8 +97,11 @@ class Anthropic implements AIProviderInterface
             $message['input'] = new \stdClass();
         }
 
+        // Use provided content array (text + tool blocks) or fallback to just tool block
+        $messageContent = $content ?? [$message];
+
         return new ToolCallMessage(
-            [$message],
+            $messageContent,
             [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
         );
     }

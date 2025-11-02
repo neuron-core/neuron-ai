@@ -19,6 +19,7 @@ trait HandleStream
         $result = $this->bedrockRuntimeClient->converseStream($payload);
 
         $tools = [];
+        $text = '';
         foreach ($result as $eventParserIterator) {
             if (!$eventParserIterator instanceof EventParsingIterator) {
                 continue;
@@ -52,7 +53,9 @@ trait HandleStream
                 }
 
                 if (isset($event['contentBlockDelta']['delta']['text'])) {
-                    yield $event['contentBlockDelta']['delta']['text'];
+                    $textChunk = $event['contentBlockDelta']['delta']['text'];
+                    $text .= $textChunk;
+                    yield $textChunk;
                 }
             }
 
@@ -62,8 +65,9 @@ trait HandleStream
         }
 
         if (isset($stopReason) && $stopReason === 'tool_use' && \count($tools) > 0) {
+            // Preserve accumulated text content before tool calls (AWS Bedrock follows Anthropic's pattern)
             yield from $executeToolsCallback(
-                new ToolCallMessage(null, $tools),
+                new ToolCallMessage($text !== '' ? $text : null, $tools),
             );
         }
     }
