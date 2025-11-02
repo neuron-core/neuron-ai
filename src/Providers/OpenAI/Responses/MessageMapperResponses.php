@@ -46,6 +46,7 @@ class MessageMapperResponses implements MessageMapperInterface
      */
     protected function mapMessage(Message $message): void
     {
+        $payload['type'] = 'message';
         $payload['role'] = $message->getRole();
 
         if (\is_array($message->getContent())) {
@@ -133,6 +134,7 @@ class MessageMapperResponses implements MessageMapperInterface
         }
 
         $this->mapping[] = [
+            'type' => 'message',
             'role' => $message->getRole(),
             'content' => $content,
         ];
