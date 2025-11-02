@@ -39,7 +39,7 @@ trait HandleStream
         ])->getBody();
 
         $toolCalls = [];
-        $textContent = [];
+        $text = '';
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
@@ -55,21 +55,6 @@ trait HandleStream
             if ($line['type'] === 'message_delta') {
                 yield \json_encode(['usage' => $line['usage']]);
                 continue;
-            }
-
-            // Track text content blocks
-            if ($line['type'] === 'content_block_start' &&
-                isset($line['content_block']['type']) &&
-                $line['content_block']['type'] === 'text') {
-                $textContent[$line['index']] = ['type' => 'text', 'text' => ''];
-            }
-
-            // Accumulate text deltas
-            if ($line['type'] === 'content_block_delta' &&
-                isset($line['delta']['text']) &&
-                isset($line['index']) &&
-                isset($textContent[$line['index']])) {
-                $textContent[$line['index']]['text'] .= $line['delta']['text'];
             }
 
             // Tool calls detection (https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
@@ -89,14 +74,8 @@ trait HandleStream
                     return $call;
                 }, $toolCalls);
 
-                // Combine text blocks and tool blocks to match Anthropic's content array format
-                $content = \array_merge(
-                    \array_values($textContent),
-                    \array_values($toolCalls)
-                );
-
                 yield from $executeToolsCallback(
-                    $this->createToolCallMessage(\end($toolCalls), $content)
+                    $this->createToolCallMessage(\end($toolCalls), $text)
                 );
 
                 return;
@@ -104,6 +83,7 @@ trait HandleStream
 
             // Process regular content
             $content = $line['delta']['text'] ?? '';
+            $text .= $content;
 
             yield $content;
         }
