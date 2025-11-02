@@ -19,6 +19,10 @@ jobs:
                 image: chromadb/chroma:latest
                 ports:
                     - 8000:8000
+            mailisearch:
+                image: getmeili/meilisearch:latest
+                ports:
+                    - 7700:7700
         strategy:
             matrix:
                 os: [ubuntu-latest]
