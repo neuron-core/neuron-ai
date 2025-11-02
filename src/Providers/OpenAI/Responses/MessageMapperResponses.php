@@ -140,19 +140,12 @@ class MessageMapperResponses implements MessageMapperInterface
 
     protected function mapToolsResult(ToolCallResultMessage $message): void
     {
-        $content = [];
-
         foreach ($message->getTools() as $tool) {
-            $content[] = [
+            $this->mapping[] = [
                 'type' => 'function_call_output',
                 'call_id' => $tool->getCallId(),
                 'output' => $tool->getResult(),
             ];
         }
-
-        $this->mapping[] = [
-            'role' => $message->getRole(),
-            'content' => $content,
-        ];
     }
 }
