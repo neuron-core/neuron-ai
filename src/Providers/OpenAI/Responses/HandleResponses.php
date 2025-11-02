@@ -44,7 +44,11 @@ trait HandleResponses
                 $toolCalls = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
                 if ($toolCalls !== []) {
-                    return $this->createToolCallMessage($toolCalls, $response['usage'] ?? null);
+                    // Extract text content from output_text items
+                    $textItems = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'output_text');
+                    $text = \implode('', \array_map(fn (array $item): string => $item['text'] ?? '', $textItems));
+
+                    return $this->createToolCallMessage($toolCalls, $text, $response['usage'] ?? null);
                 }
 
                 return $this->createAssistantMessage($response);

@@ -43,6 +43,7 @@ trait HandleResponsesStream
         ])->getBody();
 
         $toolCalls = [];
+        $text = '';
 
         while (! $stream->eof()) {
             if (!$event = $this->parseNextDataLine($stream)) {
@@ -81,14 +82,16 @@ trait HandleResponsesStream
 
                     // Stream delta text
                 case 'response.output_text.delta':
-                    yield $event['delta'] ?? '';
+                    $content = $event['delta'] ?? '';
+                    $text .= $content;
+                    yield $content;
                     break;
 
                     // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
                         yield from $executeToolsCallback(
-                            $this->createToolCallMessage($toolCalls, $event['response']['usage'] ?? null)
+                            $this->createToolCallMessage($toolCalls, $text, $event['response']['usage'] ?? null)
                         );
                     } else {
                         return $this->createAssistantMessage($event['response']);
