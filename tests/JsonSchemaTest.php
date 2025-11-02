@@ -265,8 +265,7 @@ class JsonSchemaTest extends TestCase
 
     public function test_array_of_object(): void
     {
-        $people = new class
-        {
+        $people = new class () {
             /** @var \NeuronAI\Tests\Stubs\StructuredOutput\User[] */
             #[SchemaProperty(description: "The list of users", required: true)]
             #[ArrayOf(User::class)]
