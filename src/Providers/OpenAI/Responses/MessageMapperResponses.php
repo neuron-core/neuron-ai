@@ -117,10 +117,7 @@ class MessageMapperResponses implements MessageMapperInterface
         if (\is_string($text) && $text !== '') {
             $this->mapping[] = [
                 'role' => $message->getRole(),
-                'content' => [
-                    'type' => 'output_text',
-                    'text' => $text,
-                ]
+                'content' => $text,
             ];
         }
 
