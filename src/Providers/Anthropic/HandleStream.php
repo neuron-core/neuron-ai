@@ -39,6 +39,7 @@ trait HandleStream
         ])->getBody();
 
         $toolCalls = [];
+        $text = '';
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
@@ -74,12 +75,13 @@ trait HandleStream
                 }, $toolCalls);
 
                 // Yield the ToolCallMessage and return, letting the workflow handle tool execution
-                yield $this->createToolCallMessage(\end($toolCalls));
+                yield $this->createToolCallMessage(\end($toolCalls), $text);
                 return;
             }
 
             // Process regular content
             $content = $line['delta']['text'] ?? '';
+            $text .= $content;
 
             yield $content;
         }

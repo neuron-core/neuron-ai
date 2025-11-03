@@ -34,7 +34,7 @@ class ToolUseContent implements ContentBlock
             'type' => $this->getType()->value,
             'id' => $this->id,
             'name' => $this->name,
-            'input' => $this->input,
+            'input' => $this->input ?: new \stdClass(),
         ];
     }
 

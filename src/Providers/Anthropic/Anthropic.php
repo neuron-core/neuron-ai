@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -85,7 +86,7 @@ class Anthropic implements AIProviderInterface
      * @param array<string, mixed> $message
      * @throws ProviderException
      */
-    public function createToolCallMessage(array $message): Message
+    public function createToolCallMessage(array $message, string $content): Message
     {
         $tool = $this->findTool($message['name'])
             ->setInputs($message['input'])
@@ -97,12 +98,14 @@ class Anthropic implements AIProviderInterface
             $message['input'] = new \stdClass();
         }
 
-        return new ToolCallMessage(
-            new ToolUseContent(
-                id: $message['id'],
-                name: $message['name'],
-                input: $message['input']
-            ),
+        return new ToolCallMessage([
+                new TextContent($content),
+                new ToolUseContent(
+                    id: $message['id'],
+                    name: $message['name'],
+                    input: $message['input']
+                )
+            ],
             [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
         );
     }
