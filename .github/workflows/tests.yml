@@ -28,7 +28,7 @@ jobs:
                 ports:
                     - 3306:3306
             typesense:
-                image: typesense/typesense:latest
+                image: typesense/typesense:29.0
                 ports:
                     - 8108:8108
             elasticsearch:
