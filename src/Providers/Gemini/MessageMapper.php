@@ -9,8 +9,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -63,8 +61,6 @@ class MessageMapper implements MessageMapperInterface
             FileContentBlock::class,
             AudioContent::class,
             VideoContent::class => $this->mapMediaBlock($block),
-            ToolUseContent::class => $this->mapToolUseBlock($block),
-            ToolResultContent::class => $this->mapToolResultBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -85,28 +81,6 @@ class MessageMapper implements MessageMapperInterface
                 ]
             ]
         };
-    }
-
-    protected function mapToolUseBlock(ToolUseContent $block): array
-    {
-        return [
-            'functionCall' => [
-                'name' => $block->name,
-                'args' => $block->input !== [] ? $block->input : new \stdClass(),
-            ]
-        ];
-    }
-
-    protected function mapToolResultBlock(ToolResultContent $block): array
-    {
-        return [
-            'functionResponse' => [
-                'name' => $block->toolUseId,
-                'response' => [
-                    'content' => $block->content,
-                ],
-            ],
-        ];
     }
 
     protected function mapToolCall(ToolCallMessage $message): array

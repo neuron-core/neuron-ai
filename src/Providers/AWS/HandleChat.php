@@ -33,20 +33,13 @@ trait HandleChat
                 $stopReason = $response['stopReason'] ?? '';
                 if ($stopReason === 'tool_use') {
                     $tools = [];
-                    $contentBlocks = [];
                     foreach ($response['output']['message']['content'] ?? [] as $toolContent) {
                         if (isset($toolContent['toolUse'])) {
                             $tools[] = $this->createTool($toolContent);
-                            $input = $toolContent['toolUse']['input'];
-                            $contentBlocks[] = new \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent(
-                                id: $toolContent['toolUse']['toolUseId'],
-                                name: $toolContent['toolUse']['name'],
-                                input: \is_array($input) ? $input : []
-                            );
                         }
                     }
 
-                    $toolCallMessage = new ToolCallMessage(content: $contentBlocks, tools: $tools);
+                    $toolCallMessage = new ToolCallMessage(null, $tools);
                     $toolCallMessage->setUsage($usage);
                     return $toolCallMessage;
                 }

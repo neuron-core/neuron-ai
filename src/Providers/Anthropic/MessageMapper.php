@@ -8,8 +8,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -60,8 +58,6 @@ class MessageMapper implements MessageMapperInterface
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),
-            ToolUseContent::class => $this->mapToolUseBlock($block),
-            ToolResultContent::class => $this->mapToolResultBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -106,26 +102,6 @@ class MessageMapper implements MessageMapperInterface
                 ],
             ],
         };
-    }
-
-    protected function mapToolUseBlock(ToolUseContent $block): array
-    {
-        return [
-            'type' => 'tool_use',
-            'id' => $block->id,
-            'name' => $block->name,
-            'input' => $block->input,
-        ];
-    }
-
-    protected function mapToolResultBlock(ToolResultContent $block): array
-    {
-        return [
-            'type' => 'tool_result',
-            'tool_use_id' => $block->toolUseId,
-            'content' => $block->content,
-            'is_error' => $block->isError,
-        ];
     }
 
     protected function mapToolCall(ToolCallMessage $message): array

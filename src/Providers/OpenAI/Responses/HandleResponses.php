@@ -44,7 +44,7 @@ trait HandleResponses
                 $toolCalls = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
                 if ($toolCalls !== []) {
-                    return $this->createToolCallMessage($toolCalls, $response['usage'] ?? null);
+                    return $this->createToolCallMessage($toolCalls, null, $response['usage'] ?? null);
                 }
 
                 return $this->createAssistantMessage($response);

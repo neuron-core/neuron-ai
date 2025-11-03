@@ -13,8 +13,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -360,16 +358,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 source: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
-            ),
-            ContentBlockType::TOOL_USE => new ToolUseContent(
-                id: $block['id'],
-                name: $block['name'],
-                input: $block['input']
-            ),
-            ContentBlockType::TOOL_RESULT => new ToolResultContent(
-                toolUseId: $block['tool_use_id'],
-                content: $block['content'],
-                isError: $block['is_error'] ?? false
             ),
         };
     }
