@@ -32,17 +32,17 @@ class SQLChatHistoryTest extends TestCase
         $this->pdo = new \PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
         $this->pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
         $this->pdo->exec("CREATE TABLE IF NOT EXISTS chat_history (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  thread_id VARCHAR(255) NOT NULL,
-  messages LONGTEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          thread_id VARCHAR(255) NOT NULL,
+          messages LONGTEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  UNIQUE KEY uk_thread_id (thread_id),
-  INDEX idx_thread_id (thread_id)
-);");
+          UNIQUE KEY uk_thread_id (thread_id),
+          INDEX idx_thread_id (thread_id)
+        );");
 
-        $this->threadId = 'test-thread-' . \uniqid();
+        $this->threadId =  \uniqid('test-thread-');
 
         $this->history = new SQLChatHistory($this->threadId, $this->pdo);
     }
@@ -151,7 +151,7 @@ class SQLChatHistoryTest extends TestCase
             ->setResult('Tool result');
 
         $this->history->addMessage(new UserMessage('Use the tool'));
-        $this->history->addMessage(new ToolCallMessage(tools: [$tool]));
+        $this->history->addMessage(new ToolCallMessage(null, [$tool]));
         $this->history->addMessage(new ToolCallResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly

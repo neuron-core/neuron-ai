@@ -30,7 +30,6 @@ class EloquentChatHistory extends AbstractChatHistory
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
             ->get()
-            // @phpstan-ignore-next-line
             ->map($this->recordToArray(...))
             ->all();
 
