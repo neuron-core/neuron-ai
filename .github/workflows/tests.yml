@@ -23,6 +23,19 @@ jobs:
                 image: getmeili/meilisearch:latest
                 ports:
                     - 7700:7700
+            mysql:
+                image: mysql/mysql-server:latest
+                ports:
+                    - 3306:3306
+            typesense:
+                image: typesense/typesense:latest
+                ports:
+                    - 8108:8108
+            elasticsearch:
+                image: elasticsearch:latest
+                ports:
+                    - 9200:9200
+                    - 9300:9300
         strategy:
             matrix:
                 os: [ubuntu-latest]
@@ -60,53 +73,53 @@ jobs:
                   echo "::add-matcher::${{ runner.tool_cache }}/php.json"
                   echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
 
-            - name: Configure sysctl limits (for elastic to boot)
-              run: |
-                  sudo swapoff -a
-                  sudo sysctl -w vm.swappiness=1
-                  sudo sysctl -w fs.file-max=262144
-                  sudo sysctl -w vm.max_map_count=262144
+#            - name: Configure sysctl limits (for elastic to boot)
+#              run: |
+#                  sudo swapoff -a
+#                  sudo sysctl -w vm.swappiness=1
+#                  sudo sysctl -w fs.file-max=262144
+#                  sudo sysctl -w vm.max_map_count=262144
 
-            - name: Runs Elasticsearch
-              uses: elastic/elastic-github-actions/elasticsearch@master
-              with:
-                  stack-version: 8.17.0
-                  security-enabled: false
+#            - name: Runs Elasticsearch
+#              uses: elastic/elastic-github-actions/elasticsearch@master
+#              with:
+#                  stack-version: 8.17.0
+#                  security-enabled: false
 
-            - name: Install Typesense Database
-              run: |
-                  docker run -id \
-                  -p 8108:8108 \
-                  --name typesense \
-                  -v /tmp/typesense-data:/data \
-                  -v /tmp/typesense-analytics-data:/analytics-data \
-                  typesense/typesense:28.0 \
-                  --api-key=xyz \
-                  --data-dir=/data \
-                  --enable-search-analytics=true \
-                  --analytics-dir=/analytics-data  \
-                  --analytics-flush-interval=60 \
-                  --analytics-minute-rate-limit=100 \
-                  --enable-cors
-
-            - name: Wait for Typesense to be healthy
-              shell: bash
-              run: |
-                  start_time=$(date +%s)
-                  timeout=60
-                  counter=0
-                  until curl -s http://localhost:8108/health | grep -q '"ok":true'; do
-                    if [ $counter -eq $timeout ]; then
-                      echo "Timed out waiting for Typesense to be healthy"
-                      exit 1
-                    fi
-                    echo "Waiting for Typesense to be healthy..."
-                    sleep 5
-                    counter=$((counter + 1))
-                  done
-                  end_time=$(date +%s)
-                  elapsed=$((end_time - start_time))
-                  echo "Typesense healthcheck elapsed: ${elapsed}s"
+#            - name: Install Typesense Database
+#              run: |
+#                  docker run -id \
+#                  -p 8108:8108 \
+#                  --name typesense \
+#                  -v /tmp/typesense-data:/data \
+#                  -v /tmp/typesense-analytics-data:/analytics-data \
+#                  typesense/typesense:28.0 \
+#                  --api-key=xyz \
+#                  --data-dir=/data \
+#                  --enable-search-analytics=true \
+#                  --analytics-dir=/analytics-data  \
+#                  --analytics-flush-interval=60 \
+#                  --analytics-minute-rate-limit=100 \
+#                  --enable-cors
+#
+#            - name: Wait for Typesense to be healthy
+#              shell: bash
+#              run: |
+#                  start_time=$(date +%s)
+#                  timeout=60
+#                  counter=0
+#                  until curl -s http://localhost:8108/health | grep -q '"ok":true'; do
+#                    if [ $counter -eq $timeout ]; then
+#                      echo "Timed out waiting for Typesense to be healthy"
+#                      exit 1
+#                    fi
+#                    echo "Waiting for Typesense to be healthy..."
+#                    sleep 5
+#                    counter=$((counter + 1))
+#                  done
+#                  end_time=$(date +%s)
+#                  elapsed=$((end_time - start_time))
+#                  echo "Typesense healthcheck elapsed: ${elapsed}s"
 
             - name: Install PHP dependencies
               run: composer update --${{ matrix.dependency-version }} --no-interaction --no-progress --ansi
