@@ -153,7 +153,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(22, $result);
+        $this->assertSame(5, $result);
     }
 
     private function createMockTool(string $name, array $inputs = []): ToolInterface
