@@ -27,10 +27,6 @@ jobs:
                 image: mysql/mysql-server:latest
                 ports:
                     - 3306:3306
-            typesense:
-                image: typesense/typesense:29.0
-                ports:
-                    - 8108:8108
             elasticsearch:
                 image: elasticsearch:8.19.6
                 ports:
@@ -86,22 +82,22 @@ jobs:
 #                  stack-version: 8.17.0
 #                  security-enabled: false
 
-#            - name: Install Typesense Database
-#              run: |
-#                  docker run -id \
-#                  -p 8108:8108 \
-#                  --name typesense \
-#                  -v /tmp/typesense-data:/data \
-#                  -v /tmp/typesense-analytics-data:/analytics-data \
-#                  typesense/typesense:28.0 \
-#                  --api-key=xyz \
-#                  --data-dir=/data \
-#                  --enable-search-analytics=true \
-#                  --analytics-dir=/analytics-data  \
-#                  --analytics-flush-interval=60 \
-#                  --analytics-minute-rate-limit=100 \
-#                  --enable-cors
-#
+            - name: Install Typesense Database
+              run: |
+                  docker run -id \
+                  -p 8108:8108 \
+                  --name typesense \
+                  -v /tmp/typesense-data:/data \
+                  -v /tmp/typesense-analytics-data:/analytics-data \
+                  typesense/typesense:28.0 \
+                  --api-key=xyz \
+                  --data-dir=/data \
+                  --enable-search-analytics=true \
+                  --analytics-dir=/analytics-data  \
+                  --analytics-flush-interval=60 \
+                  --analytics-minute-rate-limit=100 \
+                  --enable-cors
+
             - name: Wait for Typesense to be healthy
               shell: bash
               run: |
