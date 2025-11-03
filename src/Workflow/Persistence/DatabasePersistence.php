@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
@@ -10,7 +12,8 @@ class DatabasePersistence implements PersistenceInterface
     public function __construct(
         protected \PDO $pdo,
         protected string $table = 'workflow_interrupts'
-    ) {}
+    ) {
+    }
 
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {

@@ -7,45 +7,6 @@ namespace NeuronAI\Chat\History;
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
 
-/**
- * Migration:
- *
- * ```php
- * Schema::create('chat_messages', function (Blueprint $table) {
- *     $table->id();
- *     $table->string('thread_id')->index();
- *     $table->string('role');
- *     $table->json('content');
- *     $table->json('meta')->nullable();
- *     $table->timestamps();
- *
- *     $table->index(['thread_id', 'id']); // For efficient ordering and trimming
- * });
- * ```
- *
- * Example Model:
- * ```php
- * class ChatMessage extends Model
- * {
- *     protected $fillable = ['thread_id', 'role', 'content', 'meta'];
- *
- *     protected $casts = ['content' => 'array', 'meta' => 'array'];
- *
- *     public function conversation()
- *     {
- *         return $this->belongsTo(Conversation::class, 'thread_id');
- *     }
- * }
- * ```
- *
- * Usage:
- * ```php
- * $history = new EloquentChatHistory(
- *     threadId: 'conversation-123',
- *     modelClass: ChatMessage::class
- * );
- * ```
- */
 class EloquentChatHistory extends AbstractChatHistory
 {
     /**
@@ -69,7 +30,7 @@ class EloquentChatHistory extends AbstractChatHistory
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
             ->get()
-            ->map(fn ($record) => $this->recordToArray($record))
+            ->map($this->recordToArray(...))
             ->all();
 
         if (!empty($messages)) {
@@ -146,7 +107,7 @@ class EloquentChatHistory extends AbstractChatHistory
 
         // Merge meta fields if present
         if ($meta = $record->getAttribute('meta')) {
-            $data = array_merge($data, (array) $meta);
+            return \array_merge($data, (array) $meta);
         }
 
         return $data;
