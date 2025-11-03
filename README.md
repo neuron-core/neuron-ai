@@ -3,6 +3,10 @@
 [![Latest Stable Version](https://poser.pugx.org/inspector-apm/neuron-ai/v/stable)](https://packagist.org/packages/inspector-apm/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
 
+> [!IMPORTANT]
+> Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
+> [Subscribe to the newsletter](https://neuron-ai.dev)
+
 > Before moving on, support the community giving a GitHub star ⭐️. Thank you!
 
 ## What is Neuron?
@@ -15,10 +19,6 @@ In addition, we provide tutorials and other educational content to help you get 
 [**Laravel Tutorial**](https://www.youtube.com/watch?v=oSA1bP_j41w)
 
 [![Neuron & Inspector](./docs/images/youtube.png)](https://www.youtube.com/watch?v=oSA1bP_j41w)
-
-> [!IMPORTANT]
-> Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
-> [Subscribe to the newsletter](https://neuron-ai.dev)
 
 ## Requirements
 
