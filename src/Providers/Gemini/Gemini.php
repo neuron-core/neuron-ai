@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;

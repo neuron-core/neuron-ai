@@ -102,7 +102,9 @@ class MessageMapperResponses implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): void
     {
         // Add text if present
-        if ($text = $message->getContent()) {
+        $text = $message->getContent();
+        // Add text if present
+        if ($text !== '' && $text !== '0') {
             $this->mapping[] = [
                 'role' => $message->getRole(),
                 'content' => $text,

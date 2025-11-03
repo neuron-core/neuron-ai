@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;

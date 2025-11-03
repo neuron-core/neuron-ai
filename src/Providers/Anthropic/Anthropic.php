@@ -92,7 +92,8 @@ class Anthropic implements AIProviderInterface
             ->setInputs($message['input'])
             ->setCallId($message['id']);
 
-        return new ToolCallMessage([
+        return new ToolCallMessage(
+            [
                 new TextContent($content),
                 new ToolUseContent(
                     id: $message['id'],

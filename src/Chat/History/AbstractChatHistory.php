@@ -4,8 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
+use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -234,7 +244,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function deserializeMessage(array $message): Message
     {
         $messageRole = MessageRole::from($message['role']);
-        $messageContent = $message['content'] ?? null;
+        $messageContent = $this->deserializeContent($message['content'] ?? null);
 
         $item = match ($messageRole) {
             MessageRole::ASSISTANT => new AssistantMessage($messageContent),
@@ -274,6 +284,94 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             ->setResult($tool['result']), $message['tools']);
 
         return new ToolResultMessage($tools);
+    }
+
+    /**
+     * Deserialize content from storage format to ContentBlock array.
+     *
+     * Handles both legacy string format and new content block array format.
+     * Legacy formats are automatically converted to ContentBlocks for migration.
+     *
+     * @return string|ContentBlock|ContentBlock[]|null
+     */
+    protected function deserializeContent(mixed $content): string|ContentBlock|array|null
+    {
+        if ($content === null) {
+            return null;
+        }
+
+        // Legacy format: simple string - convert to TextContent for migration
+        if (\is_string($content)) {
+            return new TextContent($content);
+        }
+
+        // New format: array of content blocks
+        if (\is_array($content)) {
+            // Check if it's an array of content blocks (has 'type' key in first element)
+            if (isset($content[0]['type'])) {
+                return \array_map($this->deserializeContentBlock(...), $content);
+            }
+
+            // Single block structure (has 'type' key at root level)
+            if (isset($content['type'])) {
+                return $this->deserializeContentBlock($content);
+            }
+
+            // Empty array
+            if ($content === []) {
+                return null;
+            }
+        }
+
+        // Fallback: treat as string and convert to TextContent
+        return new TextContent((string) $content);
+    }
+
+    /**
+     * Deserialize a single content block from array format.
+     *
+     * @param array<string, mixed> $block
+     */
+    protected function deserializeContentBlock(array $block): ContentBlock
+    {
+        $type = ContentBlockType::from($block['type']);
+
+        return match ($type) {
+            ContentBlockType::TEXT => new TextContent(
+                text: $block['text']
+            ),
+            ContentBlockType::IMAGE => new ImageContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+            ContentBlockType::FILE => new FileContentBlock(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null,
+                filename: $block['filename'] ?? null
+            ),
+            ContentBlockType::AUDIO => new AudioContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+            ContentBlockType::VIDEO => new VideoContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+            ContentBlockType::TOOL_USE => new ToolUseContent(
+                id: $block['id'],
+                name: $block['name'],
+                input: $block['input']
+            ),
+            ContentBlockType::TOOL_RESULT => new ToolResultContent(
+                toolUseId: $block['tool_use_id'],
+                content: $block['content'],
+                isError: $block['is_error'] ?? false
+            ),
+        };
     }
 
     /**

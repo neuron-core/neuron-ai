@@ -8,8 +8,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolResultContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -19,7 +17,6 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
-use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
