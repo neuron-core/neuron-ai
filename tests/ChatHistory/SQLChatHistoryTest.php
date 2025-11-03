@@ -30,7 +30,7 @@ class SQLChatHistoryTest extends TestCase
         }
 
         $this->pdo = new \PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
-        $this->pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+        $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         $this->pdo->exec("CREATE TABLE IF NOT EXISTS chat_history (
           id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           thread_id VARCHAR(255) NOT NULL,
