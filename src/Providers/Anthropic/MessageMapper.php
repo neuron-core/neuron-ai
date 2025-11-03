@@ -107,9 +107,11 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): array
     {
         $parts = [];
+        // Add text content if present
+        $content = $message->getContent();
 
         // Add text content if present
-        if ($content = $message->getContent()) {
+        if ($content !== '' && $content !== '0') {
             $parts[] = [
                 'type' => 'text',
                 'text' => $content,
