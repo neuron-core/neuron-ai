@@ -245,7 +245,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * @param array<string, mixed> $messages
+     * @param array<int, array<string, mixed>> $messages
      * @return  Message[]
      */
     protected function deserializeMessages(array $messages): array

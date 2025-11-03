@@ -32,7 +32,7 @@ jobs:
                 ports:
                     - 8108:8108
             elasticsearch:
-                image: elasticsearch:latest
+                image: elasticsearch:8.19.6
                 ports:
                     - 9200:9200
                     - 9300:9300
