@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -124,7 +125,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): void
     {
         $blocks = \array_map(
-            fn (array $item): ToolUseContent => new ToolUseContent(
+            fn (ToolInterface $item): ToolUseContent => new ToolUseContent(
                 id: $item['id'],
                 name: $item['function']['name'],
                 input: \json_decode((string) $item['function']['arguments'], true)
