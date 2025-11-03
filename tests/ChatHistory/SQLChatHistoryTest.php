@@ -7,9 +7,8 @@ namespace NeuronAI\Tests\ChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
@@ -31,6 +30,18 @@ class SQLChatHistoryTest extends TestCase
         }
 
         $this->pdo = new \PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
+        $this->pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+        $this->pdo->exec("CREATE TABLE IF NOT EXISTS chat_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  thread_id VARCHAR(255) NOT NULL,
+  messages LONGTEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uk_thread_id (thread_id),
+  INDEX idx_thread_id (thread_id)
+);");
+
         $this->threadId = 'test-thread-' . \uniqid();
 
         $this->history = new SQLChatHistory($this->threadId, $this->pdo);
@@ -141,7 +152,7 @@ class SQLChatHistoryTest extends TestCase
 
         $this->history->addMessage(new UserMessage('Use the tool'));
         $this->history->addMessage(new ToolCallMessage(tools: [$tool]));
-        $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
+        $this->history->addMessage(new ToolCallResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
         $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
@@ -150,33 +161,11 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(3, $messages);
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
-        $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
+        $this->assertInstanceOf(ToolCallResultMessage::class, $messages[2]);
 
         $toolCallMessage = $messages[1];
         $this->assertCount(1, $toolCallMessage->getTools());
         $this->assertEquals('test_tool', $toolCallMessage->getTools()[0]->getName());
-    }
-
-    public function test_persists_content_blocks(): void
-    {
-        $message = new UserMessage([
-            new TextContent('First text block'),
-            new TextContent('Second text block'),
-        ]);
-
-        $this->history->addMessage($message);
-
-        // Load from database
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
-        $messages = $newHistory->getMessages();
-
-        $this->assertCount(1, $messages);
-        $contentBlocks = $messages[0]->getContentBlocks();
-        $this->assertCount(2, $contentBlocks);
-        $this->assertInstanceOf(TextContent::class, $contentBlocks[0]);
-        $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
-        $this->assertEquals('First text block', $contentBlocks[0]->text);
-        $this->assertEquals('Second text block', $contentBlocks[1]->text);
     }
 
     public function test_truncates_history_when_context_window_exceeded(): void

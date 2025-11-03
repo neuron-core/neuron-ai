@@ -47,7 +47,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $model->newQuery()->create([
             'thread_id' => $this->threadId,
             'role' => $message->getRole(),
-            'content' => $message->getContentBlocks(),
+            'content' => $message->getContent(),
             'meta' => $this->serializeMessageMeta($message),
         ]);
     }
