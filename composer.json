@@ -30,7 +30,7 @@
         "elasticsearch/elasticsearch": "^8.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "html2text/html2text": "^4.3",
-        "illuminate/database": "^11.0",
+        "illuminate/database": "^10.0",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^9.0",
         "rector/rector": "^2.0",
