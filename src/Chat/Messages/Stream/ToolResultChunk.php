@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent;
+namespace NeuronAI\Chat\Messages\Stream;
 
-class ToolCallChunk
+class ToolResultChunk
 {
     public function __construct(public readonly array $tools)
     {

@@ -8,9 +8,9 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Agent\StreamChunk;
-use NeuronAI\Agent\ToolCallChunk;
-use NeuronAI\Agent\ToolResultChunk;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -85,7 +85,7 @@ class StreamingNode extends Node
 
                 // Accumulate content and yield text chunks
                 $content .= $chunk;
-                yield new StreamChunk(content: $chunk);
+                yield new TextChunk(content: $chunk);
             }
 
             // Build final response message
