@@ -127,8 +127,7 @@ class ToolApproval implements WorkflowMiddleware
                 $tool->getDescription() ?? 'No description',
                 $inputsDescription
             ),
-            decision: ActionDecision::Pending,
-            feedback: null
+            decision: ActionDecision::Pending
         );
     }
 
