@@ -65,8 +65,6 @@ class MessageMapper implements MessageMapperInterface
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),
-            ToolUseContent::class => $this->mapToolUseBlock($block),
-            ToolResultContent::class => $this->mapToolResultBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -98,27 +96,6 @@ class MessageMapper implements MessageMapperInterface
                 'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
                 'file_data' => "data:{$block->mediaType};base64,{$block->source}",
             ]
-        ];
-    }
-
-    protected function mapToolUseBlock(ToolUseContent $block): array
-    {
-        return [
-            'type' => 'function',
-            'id' => $block->id,
-            'function' => [
-                'name' => $block->name,
-                'arguments' => \json_encode($block->input),
-            ],
-        ];
-    }
-
-    protected function mapToolResultBlock(ToolResultContent $block): array
-    {
-        return [
-            'type' => 'tool',
-            'tool_call_id' => $block->toolUseId,
-            'content' => $block->content,
         ];
     }
 
