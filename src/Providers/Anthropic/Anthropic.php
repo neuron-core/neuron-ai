@@ -92,12 +92,6 @@ class Anthropic implements AIProviderInterface
             ->setInputs($message['input'])
             ->setCallId($message['id']);
 
-        // During serialization and deserialization PHP convert the original empty object {} to empty array []
-        // causing an error on the Anthropic API. If there are no inputs, we need to restore the empty JSON object.
-        if (empty($message['input'])) {
-            $message['input'] = new \stdClass();
-        }
-
         return new ToolCallMessage([
                 new TextContent($content),
                 new ToolUseContent(
