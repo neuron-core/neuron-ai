@@ -42,9 +42,6 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapMessage(Message $message): void
     {
         $contentBlocks = $message->getContentBlocks();
@@ -124,16 +121,22 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $contentBlocks = $message->getContentBlocks();
+        $blocks = \array_map(
+            fn (array $item): ToolUseContent => new ToolUseContent(
+                id: $item['id'],
+                name: $item['function']['name'],
+                input: \json_decode((string) $item['function']['arguments'], true)
+            ),
+            $message->getTools()
+        );
+
+        $blocks = \array_merge($blocks, $message->getContentBlocks());
 
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => \array_map($this->mapContentBlock(...), $blocks)
         ];
     }
 

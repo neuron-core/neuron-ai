@@ -39,8 +39,8 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
-        $text = '';
         $toolCalls = [];
+        $text = '';
 
         while (! $stream->eof()) {
             $line = $this->readLine($stream);

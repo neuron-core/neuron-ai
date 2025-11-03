@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
@@ -111,7 +112,7 @@ class OpenAIResponses implements AIProviderInterface
      * @param array<string, mixed> $toolCalls
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $toolCalls, ?array $usage): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, string $text, ?array $usage): ToolCallMessage
     {
         $tools = \array_map(
             fn (array $item): ToolInterface => $this->findTool($item['name'])
@@ -122,17 +123,7 @@ class OpenAIResponses implements AIProviderInterface
             $toolCalls
         );
 
-        $contentBlocks = \array_map(
-            fn (array $item): \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent =>
-                new \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent(
-                    id: $item['call_id'],
-                    name: $item['name'],
-                    input: \json_decode((string) $item['arguments'], true)
-                ),
-            $toolCalls
-        );
-
-        $message = new ToolCallMessage(content: $contentBlocks, tools: $tools);
+        $message = new ToolCallMessage($text, $tools);
 
         if (!\is_null($usage)) {
             $message->setUsage(

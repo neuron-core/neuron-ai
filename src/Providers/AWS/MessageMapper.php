@@ -57,6 +57,8 @@ class MessageMapper implements MessageMapperInterface
     {
         $toolCallContents = [];
 
+        // todo: add the text eventually attached to the tool call message
+
         foreach ($message->getTools() as $tool) {
             $toolCallContents[] = [
                 'toolUse' => [

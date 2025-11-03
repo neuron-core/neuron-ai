@@ -74,18 +74,9 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $contentBlocks = $message->getContentBlocks();
-        $textContent = '';
-
-        foreach ($contentBlocks as $block) {
-            if ($block instanceof TextContent) {
-                $textContent .= $block->text;
-            }
-        }
-
         $payload = [
             'role' => $message->getRole(),
-            'content' => $textContent,
+            'content' => $message->getContent(),
         ];
 
         if (\array_key_exists('tool_calls', $message->jsonSerialize())) {

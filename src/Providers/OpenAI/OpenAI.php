@@ -94,17 +94,10 @@ class OpenAI implements AIProviderInterface
             $message['tool_calls']
         );
 
-        $contentBlocks = \array_map(
-            fn (array $item): \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent =>
-                new \NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent(
-                    id: $item['id'],
-                    name: $item['function']['name'],
-                    input: \json_decode((string) $item['function']['arguments'], true)
-                ),
-            $message['tool_calls']
+        $result = new ToolCallMessage(
+            $message['content'] ?? '',
+            $tools
         );
-
-        $result = new ToolCallMessage(content: $contentBlocks, tools: $tools);
 
         return $result->addMetadata('tool_calls', $message['tool_calls']);
     }

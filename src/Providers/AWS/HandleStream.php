@@ -19,6 +19,7 @@ trait HandleStream
         $result = $this->bedrockRuntimeClient->converseStream($payload);
 
         $tools = [];
+        $text = '';
         foreach ($result as $eventParserIterator) {
             if (!$eventParserIterator instanceof EventParsingIterator) {
                 continue;
@@ -52,7 +53,9 @@ trait HandleStream
                 }
 
                 if (isset($event['contentBlockDelta']['delta']['text'])) {
-                    yield $event['contentBlockDelta']['delta']['text'];
+                    $textChunk = $event['contentBlockDelta']['delta']['text'];
+                    $text .= $textChunk;
+                    yield $textChunk;
                 }
             }
 
@@ -62,7 +65,7 @@ trait HandleStream
         }
 
         if (isset($stopReason) && $stopReason === 'tool_use' && \count($tools) > 0) {
-            yield new ToolCallMessage(tools: $tools);
+            yield new ToolCallMessage($text !== '' ? $text : null, $tools);
         }
     }
 }

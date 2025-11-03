@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ToolUseContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
@@ -98,14 +99,8 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
-        $contentBlocks = \array_map(fn (ToolInterface $tool): ToolUseContent => new ToolUseContent(
-            id: $tool->getName(),
-            name: $tool->getName(),
-            input: $tool->getInputs()
-        ), $tools);
-
         $result = new ToolCallMessage(
-            content: \array_filter($contentBlocks),
+            content: $message['content'] ?? null,
             tools: \array_filter($tools)
         );
         $result->setRole(MessageRole::MODEL);
