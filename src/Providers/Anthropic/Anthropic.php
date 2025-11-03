@@ -97,7 +97,7 @@ class Anthropic implements AIProviderInterface
                 new ToolUseContent(
                     id: $message['id'],
                     name: $message['name'],
-                    input: $message['input']
+                    input: $message['input'] ?? []
                 )
             ],
             [$tool] // Anthropic call one tool at a time. So we pass an array with one element.
