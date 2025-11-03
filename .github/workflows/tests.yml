@@ -23,6 +23,14 @@ jobs:
                 image: getmeili/meilisearch:latest
                 ports:
                     - 7700:7700
+            mysql:
+                image: mysql:8.0
+                env:
+                    MYSQL_ALLOW_EMPTY_PASSWORD: yes
+                    MYSQL_DATABASE: neuron-ai
+                ports:
+                    - 3306:3306
+                options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
         strategy:
             matrix:
                 os: [ubuntu-latest]
