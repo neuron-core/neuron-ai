@@ -53,24 +53,23 @@ class EloquentChatHistory extends AbstractChatHistory
 
     protected function onTrimHistory(int $index): void
     {
-        if ($index <= 0) {
-            return;
-        }
-
         /** @var Model $model */
         $model = new $this->modelClass();
 
-        // Get the IDs of messages to keep (skip the first $index messages)
-        $idsToKeep = $model->newQuery()
+        // Get the IDs to delete (first $index messages, ordered by id)
+        $idsToDelete = $model->newQuery()
+            ->select('id')
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
-            ->skip($index)
-            ->pluck('id');
+            ->offset($index)
+            ->limit(\PHP_INT_MAX)
+            ->pluck('id')
+            ->toArray();
 
-        // Delete messages not in the keep list
+        // Delete the old messages
         $model->newQuery()
             ->where('thread_id', $this->threadId)
-            ->whereNotIn('id', $idsToKeep)
+            ->whereIn('id', $idsToDelete)
             ->delete();
     }
 
