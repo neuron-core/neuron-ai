@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\ChatHistory;
 
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Schema\Blueprint;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\EloquentChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -32,7 +33,7 @@ class EloquentChatHistoryTest extends TestCase
         $capsule->bootEloquent();
 
         // Create the chat_messages table
-        Capsule::schema()->create('chat_messages', function ($table) {
+        Capsule::schema()->create('chat_messages', function (Blueprint $table): void {
             $table->id();
             $table->string('thread_id');
             $table->string('role');
@@ -60,7 +61,6 @@ class EloquentChatHistoryTest extends TestCase
     public function test_starts_with_empty_history(): void
     {
         $messages = $this->history->getMessages();
-        $this->assertIsArray($messages);
         $this->assertCount(0, $messages);
     }
 
@@ -70,11 +70,11 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage($message);
 
         // Verify in database
-        $count = ChatMessage::where('thread_id', $this->threadId)->count();
+        $count = ChatMessage::query()->where('thread_id', $this->threadId)->count();
         $this->assertEquals(1, $count);
 
         // Verify message content
-        $record = ChatMessage::where('thread_id', $this->threadId)->first();
+        $record = ChatMessage::query()->where('thread_id', $this->threadId)->first();
         $this->assertEquals('user', $record->role);
         $this->assertEquals('Hello from Eloquent!', $record->content);
     }
@@ -103,7 +103,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new AssistantMessage('Message 2'));
         $this->history->addMessage(new UserMessage('Message 3'));
 
-        $count = ChatMessage::where('thread_id', $this->threadId)->count();
+        $count = ChatMessage::query()->where('thread_id', $this->threadId)->count();
         $this->assertEquals(3, $count);
 
         $messages = $this->history->getMessages();
@@ -113,12 +113,12 @@ class EloquentChatHistoryTest extends TestCase
     public function test_clear_removes_all_messages_from_database(): void
     {
         $this->history->addMessage(new UserMessage('Test message'));
-        $this->assertEquals(1, ChatMessage::where('thread_id', $this->threadId)->count());
+        $this->assertEquals(1, ChatMessage::query()->where('thread_id', $this->threadId)->count());
 
         $this->history->flushAll();
 
         // Verify messages are removed from database
-        $this->assertEquals(0, ChatMessage::where('thread_id', $this->threadId)->count());
+        $this->assertEquals(0, ChatMessage::query()->where('thread_id', $this->threadId)->count());
 
         // Verify history is empty
         $this->assertCount(0, $this->history->getMessages());
@@ -202,8 +202,8 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());
 
         // Verify database isolation
-        $this->assertEquals(1, ChatMessage::where('thread_id', $thread1)->count());
-        $this->assertEquals(1, ChatMessage::where('thread_id', $thread2)->count());
+        $this->assertEquals(1, ChatMessage::query()->where('thread_id', $thread1)->count());
+        $this->assertEquals(1, ChatMessage::query()->where('thread_id', $thread2)->count());
     }
 
     public function test_set_messages_maintains_database_consistency(): void
@@ -212,12 +212,12 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new UserMessage('Message 1'));
         $this->history->addMessage(new AssistantMessage('Message 2'));
 
-        $this->assertEquals(2, ChatMessage::where('thread_id', $this->threadId)->count());
+        $this->assertEquals(2, ChatMessage::query()->where('thread_id', $this->threadId)->count());
 
         // The setMessages method is used internally by addMessage
         // Verify that in-memory and database are in sync
         $messages = $this->history->getMessages();
-        $dbRecords = ChatMessage::where('thread_id', $this->threadId)->orderBy('id')->get();
+        $dbRecords = ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->get();
 
         $this->assertCount(\count($messages), $dbRecords);
     }
