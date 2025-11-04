@@ -38,11 +38,27 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     abstract protected function clear(): ChatHistoryInterface;
 
+    protected function onNewMessage(Message $message): void
+    {
+        // Handle single message addition
+    }
+
+    protected function onTrimHistory(int $index): void
+    {
+        // When the trim is triggered, the messages in the position from zero to the index are removed.
+    }
+
     public function addMessage(Message $message): ChatHistoryInterface
     {
         $this->history[] = $message;
 
-        $this->trimHistory();
+        $this->onNewMessage($message);
+
+        $skipIndex = $this->trimHistory();
+
+        if ($skipIndex > 0) {
+            $this->onTrimHistory($skipIndex);
+        }
 
         $this->setMessages($this->history);
 
@@ -80,10 +96,10 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $this->tokenCounter->count($this->history);
     }
 
-    protected function trimHistory(): void
+    protected function trimHistory(): int
     {
         if ($this->history === []) {
-            return;
+            return 0;
         }
 
         $tokenCount = $this->tokenCounter->count($this->history);
@@ -91,7 +107,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Early exit if all messages fit within the token limit
         if ($tokenCount <= $this->contextWindow) {
             $this->ensureValidMessageSequence();
-            return;
+            return 0;
         }
 
         // Binary search to find how many messages to skip from the beginning
@@ -101,6 +117,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         // Ensure valid message sequence
         $this->ensureValidMessageSequence();
+
+        return $skipFrom;
     }
 
     /**
