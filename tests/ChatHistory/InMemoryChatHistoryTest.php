@@ -184,6 +184,26 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->flushAll();
     }
 
+    public function test_double_assistant_messages(): void
+    {
+        $this->chatHistory->flushAll();
+
+        $userMessage = new UserMessage('User message');
+        $this->chatHistory->addMessage($userMessage);
+        $assistantMessage = new AssistantMessage('Assistant message 1');
+        $this->chatHistory->addMessage($assistantMessage);
+        $assistantMessage2 = new AssistantMessage('Assistant message 2');
+        $this->chatHistory->addMessage($assistantMessage2);
+
+        $messages = $this->chatHistory->getMessages();
+
+        $this->assertCount(2, $messages);
+        $this->assertInstanceOf(AssistantMessage::class, \end($messages));
+        $this->assertEquals('Assistant message 1', \end($messages)->getContent());
+        ;
+        $this->chatHistory->flushAll();
+    }
+
     public function test_empty_history_if_no_user_message(): void
     {
         $this->chatHistory->flushAll();
