@@ -227,7 +227,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 // Toggle the expected role
                 $expectingRole = ($expectingRole === [MessageRole::USER->value])
                     ? [MessageRole::ASSISTANT->value, MessageRole::MODEL->value]
-                    : [MessageRole::ASSISTANT->value, MessageRole::USER->value];
+                    : [MessageRole::USER->value];
             }
             // If not the expected role, we have an invalid alternation
             // Skip this message to maintain a valid sequence
