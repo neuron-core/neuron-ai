@@ -24,6 +24,11 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory = new InMemoryChatHistory(1000);
     }
 
+    protected function tearDown(): void
+    {
+        $this->chatHistory->flushAll();
+    }
+
     public function test_chat_history_instance(): void
     {
         $history = new InMemoryChatHistory();
@@ -62,8 +67,6 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_multiple_tool_call_pairs_are_handled_correctly(): void
     {
-        $this->chatHistory->flushAll();
-
         // Create two different tools
         $tool1 = Tool::make('tool_1', 'First tool')
             ->setInputs(['param1' => 'value1'])
@@ -130,8 +133,6 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
-        $this->chatHistory->flushAll();
-
         // Add several regular messages that exceed the context window
         for ($i = 0; $i < 50; $i++) {
             $message = $i % 2 === 0
@@ -148,8 +149,6 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_remove_intermediate_invalid_message_types(): void
     {
-        $this->chatHistory->flushAll();
-
         $tool = Tool::make('mixed_tool', 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123');
@@ -181,21 +180,32 @@ class InMemoryChatHistoryTest extends TestCase
         $messages = $this->chatHistory->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, \end($messages));
-        $this->chatHistory->flushAll();
+    }
+
+    public function test_double_assistant_messages(): void
+    {
+        $userMessage = new UserMessage('User message');
+        $this->chatHistory->addMessage($userMessage);
+        $assistantMessage = new AssistantMessage('Assistant message 1');
+        $this->chatHistory->addMessage($assistantMessage);
+        $assistantMessage2 = new AssistantMessage('Assistant message 2');
+        $this->chatHistory->addMessage($assistantMessage2);
+
+        $messages = $this->chatHistory->getMessages();
+
+        $this->assertCount(2, $messages);
+        $this->assertInstanceOf(AssistantMessage::class, \end($messages));
+        $this->assertEquals('Assistant message 1', \end($messages)->getContent());
     }
 
     public function test_empty_history_if_no_user_message(): void
     {
-        $this->chatHistory->flushAll();
-
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
         $this->assertEmpty($this->chatHistory->getMessages());
     }
 
     public function test_remove_messages_before_the_first_user_message(): void
     {
-        $this->chatHistory->flushAll();
-
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
         $this->chatHistory->addMessage(new UserMessage('Test message'));
         $this->assertCount(1, $this->chatHistory->getMessages());
