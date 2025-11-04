@@ -321,6 +321,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         // Legacy format: simple string - convert to TextContent for migration
         if (\is_string($content)) {
+            if ($json = \json_decode($content, true)) {
+                return $this->deserializeContent($json);
+            }
             return new TextContent($content);
         }
 
@@ -329,11 +332,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Check if it's an array of content blocks (has 'type' key in first element)
             if (isset($content[0]['type'])) {
                 return \array_map($this->deserializeContentBlock(...), $content);
-            }
-
-            // Single block structure (has 'type' key at root level)
-            if (isset($content['type'])) {
-                return $this->deserializeContentBlock($content);
             }
 
             // Empty array

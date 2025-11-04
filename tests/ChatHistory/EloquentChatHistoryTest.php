@@ -76,7 +76,7 @@ class EloquentChatHistoryTest extends TestCase
         // Verify message content
         $record = ChatMessage::query()->where('thread_id', $this->threadId)->first();
         $this->assertEquals('user', $record->role);
-        $this->assertEquals('Hello from Eloquent!', $record->content);
+        $this->assertEquals('[{"type":"text","text":"Hello from Eloquent!"}]', $record->content);
     }
 
     public function test_loads_existing_messages_from_database(): void

@@ -46,7 +46,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $model->newQuery()->create([
             'thread_id' => $this->threadId,
             'role' => $message->getRole(),
-            'content' => $message->getContentBlocks(),
+            'content' => \json_encode($message->getContentBlocks()),
             'meta' => $this->serializeMessageMeta($message),
         ]);
     }
@@ -64,7 +64,8 @@ class EloquentChatHistory extends AbstractChatHistory
         $idsToKeep = $model->newQuery()
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
-            ->skip($index)
+            ->offset($index)
+            ->limit(\PHP_INT_MAX)
             ->pluck('id');
 
         // Delete messages not in the keep list
