@@ -67,9 +67,11 @@ class RAG extends Agent
             $this->retrieveDocuments($question)
         );
 
-        yield from parent::stream($messages);
+        $response = yield from parent::stream($messages);
 
         $this->notify('stream-rag-stop');
+
+        return $response;
     }
 
     public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed
