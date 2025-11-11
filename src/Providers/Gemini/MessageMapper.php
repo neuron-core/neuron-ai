@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Enums\MessageRole;
@@ -56,6 +57,9 @@ class MessageMapper implements MessageMapperInterface
         return match ($block::class) {
             TextContent::class => [
                 'text' => $block->text,
+            ],
+            ReasoningContent::class => [
+                'thought' => $block->text,
             ],
             ImageContent::class,
             FileContentBlock::class,

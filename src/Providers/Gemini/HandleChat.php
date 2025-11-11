@@ -7,6 +7,11 @@ namespace NeuronAI\Providers\Gemini;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
@@ -47,25 +52,45 @@ trait HandleChat
                     return new Message(MessageRole::from($content['role']), '');
                 }
 
-                $parts = $content['parts'];
+                $blocks = [];
+                foreach($content['parts'] as $part) {
+                    if (isset($part['text'])) {
+                        $blocks[] = new TextContent($part['text']);
+                    }
 
-                if (\array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
-                    $response = $this->createToolCallMessage($content);
-                } else {
-                    $response = new Message(MessageRole::from($content['role']), $parts[0]['text'] ?? '');
+                    if (isset($part['thought'])) {
+                        $blocks[] = new ReasoningContent($part['thought']);
+                    }
+
+                    if (isset($part['inlineData'])) {
+                        $blocks[] = new ImageContent(
+                            $part['inlineData']['data'],
+                            SourceType::BASE64,
+                            'image/png'
+                        );
+                    }
+
+                    if (isset($part['functionCall'])) {
+                        $message = $this->createToolCallMessage($content);
+                        $message->setContents($blocks);
+                    }
+                }
+
+                if (!isset($message)) {
+                    $message = new AssistantMessage($blocks);
                 }
 
                 if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
                     // Extract citations from groundingMetadata
                     $citations = $this->extractCitations($result['candidates'][0]['groundingMetadata']);
                     if (!empty($citations)) {
-                        $response->addMetadata('citations', $citations);
+                        $message->addMetadata('citations', $citations);
                     }
                 }
 
                 // Attach the usage for the current interaction
                 if (\array_key_exists('usageMetadata', $result)) {
-                    $response->setUsage(
+                    $message->setUsage(
                         new Usage(
                             $result['usageMetadata']['promptTokenCount'],
                             $result['usageMetadata']['candidatesTokenCount'] ?? 0
@@ -73,7 +98,7 @@ trait HandleChat
                     );
                 }
 
-                return $response;
+                return $message;
             });
     }
 }
