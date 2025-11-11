@@ -35,7 +35,6 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
                 'input' => $text,
                 'encoding_format' => 'float',
                 ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-
             ]
         ])->getBody()->getContents();
 
