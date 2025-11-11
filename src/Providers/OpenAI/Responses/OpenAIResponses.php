@@ -98,7 +98,7 @@ class OpenAIResponses implements AIProviderInterface
                 }
             }
 
-            if ($block['type'] === 'reasoning') {
+            if ($block['type'] === 'reasoning' && !empty($block['summary'])) {
                 $blocks[] = new ReasoningContent($block['summary'][0]['text'], $block['id']);
             }
         }
