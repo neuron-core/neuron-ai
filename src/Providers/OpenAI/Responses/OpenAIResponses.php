@@ -6,9 +6,9 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
@@ -85,31 +85,28 @@ class OpenAIResponses implements AIProviderInterface
 
     protected function createAssistantMessage(array $response): AssistantMessage
     {
-        $messages = \array_values(
-            \array_filter(
-                $response['output'],
-                fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
-            )
-        );
+        $blocks = [];
+        $citations = [];
+        foreach ($response['output'] as $block) {
+            if ($block['type'] == 'message') {
+                $content = $block['content'][0];
 
-        $content = $messages[0]['content'][0];
+                $blocks[] = new TextContent($content['text']);
 
-        $message = new AssistantMessage($content['text']);
+                if (isset($content['annotations'])) {
+                    $citations = \array_merge($citations, $this->extractCitations($content['text'], $content['annotations']));
+                }
+            }
 
-        if (isset($content['reasoning'])) {
-            foreach ($content['reasoning']['content'] as $item) {
-                $message->addContent(
-                    new ReasoningContent($item['text'])
-                );
+            if ($block['type'] == 'reasoning') {
+                $blocks[] = new ReasoningContent($block['summary'][0]['text']);
             }
         }
 
-        if (isset($content['annotations'])) {
-            // Extract citations from annotations
-            $citations = $this->extractCitations($content['text'], $content['annotations']);
-            if ($citations !== []) {
-                $message->addMetadata('citations', $citations);
-            }
+        $message = new AssistantMessage($blocks);
+
+        if ($citations !== []) {
+            $message->addMetadata('citations', $citations);
         }
 
         if (\array_key_exists('usage', $response)) {
