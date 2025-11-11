@@ -384,7 +384,7 @@ class JsonSchema
                 $this->discriminator => [
                     'type' => 'string',
                     'enum' => [$discriminatorValue],
-                    'description' => 'Internal discriminator for class type resolution',
+                    'description' => 'You must include this fixed type discriminator for class type resolution.',
                 ],
                 ...($schema['properties'] ?? []),
             ];
