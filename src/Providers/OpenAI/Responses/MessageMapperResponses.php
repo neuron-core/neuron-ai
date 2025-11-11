@@ -54,9 +54,14 @@ class MessageMapperResponses implements MessageMapperInterface
         // Map content blocks to the provider format
         $payload['content'] = [];
         foreach ($contentBlocks as $block) {
+            // ReasoningContent blocks are intentionally filtered out as they are
+            // output-only from the API and should not be sent back in subsequent requests
+            if ($block instanceof ReasoningContent) {
+                continue;
+            }
+
             $payload['content'][] = match ($block::class) {
                 TextContent::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
-                ReasoningContent::class => $this->mapReasoningBlock($block),
                 FileContentBlock::class => $this->mapFileBlock($block),
                 ImageContent::class => $this->mapImageBlock($block),
                 default => throw new ProviderException('Unsupported content block type: '.$block::class),
@@ -71,20 +76,6 @@ class MessageMapperResponses implements MessageMapperInterface
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
             'text' => $block->text,
-        ];
-    }
-
-    protected function mapReasoningBlock(ReasoningContent $block): array
-    {
-        return [
-            'id' => $block->id,
-            'type' => 'reasoning',
-            'summary' => [
-                [
-                    'type' => 'summary_text',
-                    'text' => $block->text,
-                ]
-            ]
         ];
     }
 

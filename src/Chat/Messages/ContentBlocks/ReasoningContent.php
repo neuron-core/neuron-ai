@@ -6,8 +6,10 @@ use NeuronAI\Chat\Enums\ContentBlockType;
 
 class ReasoningContent extends TextContent
 {
-    public function __construct(string $text, public readonly ?string $id = null)
-    {
+    public function __construct(
+        string $text,
+        public readonly ?string $id = null,
+    ) {
         parent::__construct($text);
     }
 
