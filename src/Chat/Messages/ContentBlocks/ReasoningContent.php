@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;

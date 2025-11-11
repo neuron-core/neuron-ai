@@ -53,7 +53,7 @@ trait HandleChat
                 }
 
                 $blocks = [];
-                foreach($content['parts'] as $part) {
+                foreach ($content['parts'] as $part) {
                     if (isset($part['text'])) {
                         $blocks[] = $part['thought'] ?? false
                             ? new ReasoningContent($part['text'])
