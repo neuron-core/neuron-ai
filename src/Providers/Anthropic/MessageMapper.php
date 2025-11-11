@@ -60,6 +60,7 @@ class MessageMapper implements MessageMapperInterface
             ReasoningContent::class => [
                 'type' => 'thinking',
                 'thinking' => $block->text,
+                'signature' => $block->id,
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),

@@ -44,7 +44,7 @@ trait HandleChat
                 $blocks = [];
                 foreach ($result['content'] as $content) {
                     if ($content['type'] === 'thinking') {
-                        $blocks[] = new ReasoningContent($content['thinking']);
+                        $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
                         continue;
                     }
 
