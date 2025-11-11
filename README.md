@@ -145,7 +145,7 @@ echo $response->getContent();
 // Your name is Valerio, as you said in your introduction.
 ```
 
-As you can see in the example above, the Agent automatically has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/components/chat-history-and-memory).
+As you can see in the example above, the Agent has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/components/chat-history-and-memory).
 
 <a name="monitoring">
 
