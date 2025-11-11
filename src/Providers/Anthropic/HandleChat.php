@@ -57,6 +57,14 @@ trait HandleChat
                     );
                 }
 
+                // Extract citations from all content blocks
+                if (isset($result['content']) && \is_array($result['content'])) {
+                    $citations = $this->extractCitations($result['content']);
+                    if (!empty($citations)) {
+                        $response->addMetadata('citations', $citations);
+                    }
+                }
+
                 return $response;
             });
     }

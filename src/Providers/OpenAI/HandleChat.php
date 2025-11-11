@@ -53,6 +53,19 @@ trait HandleChat
                     );
                 }
 
+                // Extract citations from content annotations
+                $message = $result['choices'][0]['message'];
+                if (isset($message['content']) && \is_array($message['content'])) {
+                    foreach ($message['content'] as $contentBlock) {
+                        if (isset($contentBlock['annotations']) && \is_array($contentBlock['annotations'])) {
+                            $citations = $this->extractCitations($contentBlock['text'] ?? '', $contentBlock['annotations']);
+                            if (!empty($citations)) {
+                                $response->addMetadata('citations', $citations);
+                            }
+                        }
+                    }
+                }
+
                 return $response;
             });
     }

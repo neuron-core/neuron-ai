@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -399,8 +400,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 );
                 continue;
             }
-            if ($key === 'attachments') {
-                // Attachments are now part of content blocks, skip this key
+            if ($key === 'citations' && \is_array($value)) {
+                // Deserialize citations from array back to Citation objects
+                $citations = \array_map(
+                    Citation::fromArray(...),
+                    $value
+                );
+                $item->addMetadata($key, $citations);
                 continue;
             }
             $item->addMetadata($key, $value);

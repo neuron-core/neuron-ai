@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -95,7 +96,11 @@ class OpenAIResponses implements AIProviderInterface
         $message = new AssistantMessage($content['text']);
 
         if (isset($content['annotations'])) {
-            $message->addMetadata('annotations', $content['annotations']);
+            // Extract citations from annotations
+            $citations = $this->extractCitations($content['text'], $content['annotations']);
+            if ($citations !== []) {
+                $message->addMetadata('citations', $citations);
+            }
         }
 
         if (\array_key_exists('usage', $response)) {
@@ -131,5 +136,51 @@ class OpenAIResponses implements AIProviderInterface
         }
 
         return $message;
+    }
+
+    /**
+     * Extract citations from OpenAI Responses annotations.
+     *
+     * @param array<int, array<string, mixed>> $annotations
+     * @return Citation[]
+     */
+    protected function extractCitations(string $text, array $annotations): array
+    {
+        $citations = [];
+
+        foreach ($annotations as $annotation) {
+            $type = $annotation['type'] ?? null;
+
+            if ($type === 'file_citation') {
+                $fileCitation = $annotation['file_citation'] ?? [];
+                $citations[] = new Citation(
+                    id: $fileCitation['file_id'] ?? \uniqid('openai_responses_file_'),
+                    source: $fileCitation['file_id'] ?? '',
+                    startIndex: $annotation['start_index'] ?? null,
+                    endIndex: $annotation['end_index'] ?? null,
+                    citedText: $annotation['text'] ?? null,
+                    metadata: [
+                        'type' => 'file_citation',
+                        'quote' => $fileCitation['quote'] ?? null,
+                        'provider' => 'openai_responses',
+                    ]
+                );
+            } elseif ($type === 'file_path') {
+                $filePath = $annotation['file_path'] ?? [];
+                $citations[] = new Citation(
+                    id: $filePath['file_id'] ?? \uniqid('openai_responses_path_'),
+                    source: $filePath['file_id'] ?? '',
+                    startIndex: $annotation['start_index'] ?? null,
+                    endIndex: $annotation['end_index'] ?? null,
+                    citedText: $annotation['text'] ?? null,
+                    metadata: [
+                        'type' => 'file_path',
+                        'provider' => 'openai_responses',
+                    ]
+                );
+            }
+        }
+
+        return $citations;
     }
 }

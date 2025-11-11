@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -92,5 +93,48 @@ class Anthropic implements AIProviderInterface
 
         // Anthropic call one tool at a time. So we pass an array with one element.
         return new ToolCallMessage($content, [$tool]);
+    }
+
+    /**
+     * Extract citations from Anthropic's content blocks.
+     *
+     * @param array<int, array<string, mixed>> $contentBlocks
+     * @return Citation[]
+     */
+    protected function extractCitations(array $contentBlocks): array
+    {
+        $citations = [];
+        $textOffset = 0;
+
+        foreach ($contentBlocks as $index => $block) {
+            $type = $block['type'] ?? null;
+
+            if ($type === 'text') {
+                $text = $block['text'] ?? '';
+                $textLength = \mb_strlen($text);
+
+                // Check if this text block has citations metadata
+                if (isset($block['citations']) && \is_array($block['citations'])) {
+                    foreach ($block['citations'] as $citation) {
+                        $citations[] = new Citation(
+                            id: $citation['id'] ?? \uniqid('anthropic_'),
+                            source: $citation['source'] ?? '',
+                            title: $citation['title'] ?? null,
+                            startIndex: ($citation['start_index'] ?? 0) + $textOffset,
+                            endIndex: ($citation['end_index'] ?? $textLength) + $textOffset,
+                            citedText: $citation['text'] ?? null,
+                            metadata: [
+                                'block_index' => $index,
+                                'provider' => 'anthropic',
+                            ]
+                        );
+                    }
+                }
+
+                $textOffset += $textLength;
+            }
+        }
+
+        return $citations;
     }
 }

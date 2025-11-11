@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -104,5 +105,64 @@ class Gemini implements AIProviderInterface
         $result->setRole(MessageRole::MODEL);
 
         return $result;
+    }
+
+    /**
+     * Extract citations from Gemini's groundingMetadata.
+     *
+     * @param array<string, mixed> $groundingMetadata
+     * @return Citation[]
+     */
+    protected function extractCitations(array $groundingMetadata): array
+    {
+        $citations = [];
+
+        // Extract from groundingChunks (web search results)
+        if (isset($groundingMetadata['groundingChunks'])) {
+            foreach ($groundingMetadata['groundingChunks'] as $index => $chunk) {
+                if (isset($chunk['web'])) {
+                    $citations[] = new Citation(
+                        id: 'gemini_chunk_'.$index,
+                        source: $chunk['web']['uri'] ?? '',
+                        title: $chunk['web']['title'] ?? null,
+                        metadata: [
+                            'chunk_index' => $index,
+                            'provider' => 'gemini',
+                        ]
+                    );
+                }
+            }
+        }
+
+        // Extract from groundingSupports (links response text to sources)
+        if (isset($groundingMetadata['groundingSupports'])) {
+            foreach ($groundingMetadata['groundingSupports'] as $support) {
+                $segment = $support['segment'] ?? null;
+                $chunkIndices = $support['groundingChunkIndices'] ?? [];
+                $confidenceScores = $support['confidenceScores'] ?? [];
+
+                foreach ($chunkIndices as $idx => $chunkIndex) {
+                    $sourceChunk = $groundingMetadata['groundingChunks'][$chunkIndex] ?? null;
+
+                    if ($sourceChunk && isset($sourceChunk['web'])) {
+                        $citations[] = new Citation(
+                            id: 'gemini_support_'.\uniqid(),
+                            source: $sourceChunk['web']['uri'] ?? '',
+                            title: $sourceChunk['web']['title'] ?? null,
+                            startIndex: $segment['startIndex'] ?? null,
+                            endIndex: $segment['endIndex'] ?? null,
+                            citedText: $segment['text'] ?? null,
+                            metadata: [
+                                'chunk_index' => $chunkIndex,
+                                'confidence' => $confidenceScores[$idx] ?? null,
+                                'provider' => 'gemini',
+                            ]
+                        );
+                    }
+                }
+            }
+        }
+
+        return $citations;
     }
 }

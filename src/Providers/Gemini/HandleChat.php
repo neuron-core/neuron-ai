@@ -56,7 +56,11 @@ trait HandleChat
                 }
 
                 if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
-                    $response->addMetadata('groundingMetadata', $result['candidates'][0]['groundingMetadata']);
+                    // Extract citations from groundingMetadata
+                    $citations = $this->extractCitations($result['candidates'][0]['groundingMetadata']);
+                    if (!empty($citations)) {
+                        $response->addMetadata('citations', $citations);
+                    }
                 }
 
                 // Attach the usage for the current interaction

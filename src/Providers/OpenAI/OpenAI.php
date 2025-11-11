@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -100,5 +101,51 @@ class OpenAI implements AIProviderInterface
         );
 
         return $result->addMetadata('tool_calls', $message['tool_calls']);
+    }
+
+    /**
+     * Extract citations from OpenAI's content annotations.
+     *
+     * @param array<int, array<string, mixed>> $annotations
+     * @return Citation[]
+     */
+    protected function extractCitations(string $text, array $annotations): array
+    {
+        $citations = [];
+
+        foreach ($annotations as $annotation) {
+            $type = $annotation['type'] ?? null;
+
+            if ($type === 'file_citation') {
+                $fileCitation = $annotation['file_citation'] ?? [];
+                $citations[] = new Citation(
+                    id: $fileCitation['file_id'] ?? \uniqid('openai_file_'),
+                    source: $fileCitation['file_id'] ?? '',
+                    startIndex: $annotation['start_index'] ?? null,
+                    endIndex: $annotation['end_index'] ?? null,
+                    citedText: $annotation['text'] ?? null,
+                    metadata: [
+                        'type' => 'file_citation',
+                        'quote' => $fileCitation['quote'] ?? null,
+                        'provider' => 'openai',
+                    ]
+                );
+            } elseif ($type === 'file_path') {
+                $filePath = $annotation['file_path'] ?? [];
+                $citations[] = new Citation(
+                    id: $filePath['file_id'] ?? \uniqid('openai_path_'),
+                    source: $filePath['file_id'] ?? '',
+                    startIndex: $annotation['start_index'] ?? null,
+                    endIndex: $annotation['end_index'] ?? null,
+                    citedText: $annotation['text'] ?? null,
+                    metadata: [
+                        'type' => 'file_path',
+                        'provider' => 'openai',
+                    ]
+                );
+            }
+        }
+
+        return $citations;
     }
 }
