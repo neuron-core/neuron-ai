@@ -59,7 +59,8 @@ class MessageMapper implements MessageMapperInterface
                 'text' => $block->text,
             ],
             ReasoningContent::class => [
-                'thought' => $block->text,
+                'thought' => true,
+                'text' => $block->text,
             ],
             ImageContent::class,
             FileContentBlock::class,

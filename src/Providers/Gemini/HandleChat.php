@@ -55,11 +55,9 @@ trait HandleChat
                 $blocks = [];
                 foreach($content['parts'] as $part) {
                     if (isset($part['text'])) {
-                        $blocks[] = new TextContent($part['text']);
-                    }
-
-                    if (isset($part['thought'])) {
-                        $blocks[] = new ReasoningContent($part['thought']);
+                        $blocks[] = $part['thought'] ?? false
+                            ? new ReasoningContent($part['text'])
+                            : new TextContent($part['text']);
                     }
 
                     if (isset($part['inlineData'])) {
