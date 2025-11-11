@@ -88,7 +88,7 @@ class OpenAIResponses implements AIProviderInterface
         $blocks = [];
         $citations = [];
         foreach ($response['output'] as $block) {
-            if ($block['type'] == 'message') {
+            if ($block['type'] === 'message') {
                 $content = $block['content'][0];
 
                 $blocks[] = new TextContent($content['text']);
@@ -98,8 +98,8 @@ class OpenAIResponses implements AIProviderInterface
                 }
             }
 
-            if ($block['type'] == 'reasoning') {
-                $blocks[] = new ReasoningContent($block['summary'][0]['text']);
+            if ($block['type'] === 'reasoning') {
+                $blocks[] = new ReasoningContent($block['summary'][0]['text'], $block['summary'][0]['id']);
             }
         }
 

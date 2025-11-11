@@ -78,8 +78,12 @@ class MessageMapperResponses implements MessageMapperInterface
     {
         return [
             'type' => 'reasoning',
+            'id' => $block->id,
             'summary' => [
-                ['text' => $block->text]
+                [
+                    'type' => 'summary_text',
+                    'text' => $block->text,
+                ]
             ]
         ];
     }
