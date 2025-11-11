@@ -56,6 +56,7 @@ class MessageMapperResponses implements MessageMapperInterface
         foreach ($contentBlocks as $block) {
             $payload['content'][] = match ($block::class) {
                 TextContent::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
+                ReasoningContent::class => $this->mapReasoningBlock($block),
                 FileContentBlock::class => $this->mapFileBlock($block),
                 ImageContent::class => $this->mapImageBlock($block),
                 default => throw new ProviderException('Unsupported content block type: '.$block::class),
@@ -67,18 +68,19 @@ class MessageMapperResponses implements MessageMapperInterface
 
     protected function mapTextBlock(TextContent $block, bool $forUser): array
     {
-        if ($block instanceof ReasoningContent) {
-            return [
-                'type' => 'reasoning',
-                'summary' => [
-                    ['text' => $block->text]
-                ]
-            ];
-        }
-
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
             'text' => $block->text,
+        ];
+    }
+
+    protected function mapReasoningBlock(ReasoningContent $block): array
+    {
+        return [
+            'type' => 'reasoning',
+            'summary' => [
+                ['text' => $block->text]
+            ]
         ];
     }
 
