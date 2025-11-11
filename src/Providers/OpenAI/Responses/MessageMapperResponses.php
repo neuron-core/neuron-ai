@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -66,6 +67,15 @@ class MessageMapperResponses implements MessageMapperInterface
 
     protected function mapTextBlock(TextContent $block, bool $forUser): array
     {
+        if ($block instanceof ReasoningContent) {
+            return [
+                'type' => 'reasoning',
+                'summary' => [
+                    ['text' => $block->text]
+                ]
+            ];
+        }
+
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
             'text' => $block->text,

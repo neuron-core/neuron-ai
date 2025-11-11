@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\Anthropic;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -55,6 +56,10 @@ class MessageMapper implements MessageMapperInterface
             TextContent::class => [
                 'type' => 'text',
                 'text' => $block->text,
+            ],
+            ReasoningContent::class => [
+                'type' => 'thinking',
+                'thinking' => $block->text,
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContentBlock::class => $this->mapFileBlock($block),
