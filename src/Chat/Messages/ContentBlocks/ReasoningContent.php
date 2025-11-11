@@ -17,4 +17,9 @@ class ReasoningContent extends TextContent
     {
         return ContentBlockType::REASONING;
     }
+
+    public function toArray(): array
+    {
+        return \array_merge(parent::toArray(), ['id' => $this->id]);
+    }
 }
