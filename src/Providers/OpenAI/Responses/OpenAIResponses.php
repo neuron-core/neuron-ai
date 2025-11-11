@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
@@ -94,6 +95,14 @@ class OpenAIResponses implements AIProviderInterface
         $content = $messages[0]['content'][0];
 
         $message = new AssistantMessage($content['text']);
+
+        if (isset($content['reasoning'])) {
+            foreach ($content['reasoning']['content'] as $item) {
+                $message->addContent(
+                    new ReasoningContent($item['text'])
+                );
+            }
+        }
 
         if (isset($content['annotations'])) {
             // Extract citations from annotations
