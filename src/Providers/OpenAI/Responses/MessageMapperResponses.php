@@ -77,8 +77,8 @@ class MessageMapperResponses implements MessageMapperInterface
     protected function mapReasoningBlock(ReasoningContent $block): array
     {
         return [
-            'type' => 'reasoning',
             'id' => $block->id,
+            'type' => 'reasoning',
             'summary' => [
                 [
                     'type' => 'summary_text',
