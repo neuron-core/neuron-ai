@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
@@ -97,7 +98,10 @@ class Message implements \JsonSerializable
         $text = '';
         foreach ($this->contents as $index => $block) {
             if ($block instanceof TextContent) {
-                $text .= ($index ? "\n" : '').$block->text;
+                $text .= ($index > 0 ? " " : '').$block->text;
+            }
+            if ($block instanceof ReasoningContent) {
+                $text .= ($index > 0 ? "\n\n" : '').$block->text."\n\n";
             }
         }
 
