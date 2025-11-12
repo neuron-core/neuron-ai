@@ -113,11 +113,9 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): array
     {
         $parts = [];
-        // Add text content if present
-        $contentBlocks = $message->getContentBlocks();
 
         // Add text content if present
-        if (!empty($contentBlocks)) {
+        if ($contentBlocks = $message->getContentBlocks()) {
             $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
@@ -139,13 +137,19 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
+        $parts = \array_map(fn (ToolInterface $tool): array => [
+            'type' => 'tool_result',
+            'tool_use_id' => $tool->getCallId(),
+            'content' => $tool->getResult(),
+        ], $message->getTools());
+
+        if ($contentBlocks = $message->getContentBlocks()) {
+            $parts = [...$parts, ...\array_map($this->mapContentBlock(...), $contentBlocks)];
+        }
+
         return [
             'role' => MessageRole::USER,
-            'content' => \array_map(fn (ToolInterface $tool): array => [
-                'type' => 'tool_result',
-                'tool_use_id' => $tool->getCallId(),
-                'content' => $tool->getResult(),
-            ], $message->getTools())
+            'content' => $parts
         ];
     }
 }
