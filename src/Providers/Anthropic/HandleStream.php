@@ -110,6 +110,11 @@ trait HandleStream
                     continue;
                 }
 
+                if ($delta['type'] === 'signature_delta') {
+                    $contentBlocks[$currentBlockIndex]->id = $delta['signature'];
+                    continue;
+                }
+
                 if ($delta['type'] === 'input_json_delta') {
                     $toolCalls = $this->composeToolCalls($line, $toolCalls);
                     continue;
