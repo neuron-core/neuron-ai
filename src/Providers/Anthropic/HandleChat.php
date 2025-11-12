@@ -63,6 +63,10 @@ trait HandleChat
                     $message = $this->createToolCallMessage($toolCalls, $blocks);
                 } else {
                     $message = new AssistantMessage($blocks);
+                    $citations = $this->extractCitations($result['content']);
+                    if (!empty($citations)) {
+                        $message->addMetadata('citations', $citations);
+                    }
                 }
 
                 // Attach the usage for the current interaction
@@ -73,14 +77,6 @@ trait HandleChat
                             $result['usage']['output_tokens']
                         )
                     );
-                }
-
-                // Extract citations from all content blocks
-                if (isset($result['content']) && \is_array($result['content'])) {
-                    $citations = $this->extractCitations($result['content']);
-                    if (!empty($citations)) {
-                        $message->addMetadata('citations', $citations);
-                    }
                 }
 
                 return $message;
