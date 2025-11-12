@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\Gemini;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
@@ -52,7 +53,7 @@ trait HandleChat
                 if (\array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
                     $response = $this->createToolCallMessage($content);
                 } else {
-                    $response = new Message(MessageRole::from($content['role']), $parts[0]['text'] ?? '');
+                    $response = new AssistantMessage($parts[0]['text'] ?? '');
                 }
 
                 if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
