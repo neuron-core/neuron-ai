@@ -78,14 +78,17 @@ trait HandleStream
 
                 // Initialize content block
                 if ($currentBlockType === 'text') {
-                    $contentBlocks[$currentBlockIndex] = ['type' => 'text', 'text' => ''];
+                    $contentBlocks[$currentBlockIndex] = new TextContent('');
                 } elseif ($currentBlockType === 'thinking') {
-                    $contentBlocks[$currentBlockIndex] = [
-                        'type' => 'thinking',
-                        'thinking' => '',
-                        'signature' => $line['content_block']['signature'] ?? null
-                    ];
+                    $contentBlocks[$currentBlockIndex] = new ReasoningContent('', $line['content_block']['signature'] ?? null);
                 }
+
+                // Tool calls detection (https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
+                if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
+                    $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                    continue;
+                }
+
                 continue;
             }
 
@@ -95,14 +98,14 @@ trait HandleStream
 
                 if ($delta['type'] === 'text_delta') {
                     $text = $delta['text'];
-                    $contentBlocks[$currentBlockIndex]['text'] .= $text;
+                    $contentBlocks[$currentBlockIndex]->text .= $text;
                     yield new TextChunk($text);
                     continue;
                 }
 
                 if ($delta['type'] === 'thinking_delta') {
                     $thinking = $delta['thinking'];
-                    $contentBlocks[$currentBlockIndex]['thinking'] .= $thinking;
+                    $contentBlocks[$currentBlockIndex]->text .= $thinking;
                     yield new ReasoningChunk($thinking);
                     continue;
                 }
@@ -111,12 +114,6 @@ trait HandleStream
                     $toolCalls = $this->composeToolCalls($line, $toolCalls);
                     continue;
                 }
-            }
-
-            // Tool calls detection (https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
-            if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
-                $toolCalls = $this->composeToolCalls($line, $toolCalls);
-                continue;
             }
 
             // Handle content block stop
@@ -134,19 +131,10 @@ trait HandleStream
         }
 
         // Build final message
-        $blocks = [];
-        foreach ($contentBlocks as $block) {
-            if ($block['type'] === 'text') {
-                $blocks[] = new TextContent($block['text']);
-            } elseif ($block['type'] === 'thinking') {
-                $blocks[] = new ReasoningContent($block['thinking'], $block['signature']);
-            }
-        }
-
         if (!empty($toolCalls)) {
-            $message = $this->createToolCallMessage(\end($toolCalls), $blocks);
+            $message = $this->createToolCallMessage(\end($toolCalls), $contentBlocks);
         } else {
-            $message = new AssistantMessage($blocks);
+            $message = new AssistantMessage($contentBlocks);
         }
 
         $message->setUsage($usage);
@@ -163,23 +151,15 @@ trait HandleStream
      */
     protected function composeToolCalls(array $line, array $toolCalls): array
     {
-        // Handle content_block_start event with tool_use type
-        if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
-            if (!\array_key_exists($line['index'], $toolCalls)) {
-                $toolCalls[$line['index']] = [
-                    'type' => 'tool_use',
-                    'id' => $line['content_block']['id'],
-                    'name' => $line['content_block']['name'],
-                    'input' => '',
-                ];
-            }
-        }
-
-        // Handle content_block_delta event with input_json_delta type
-        if (isset($line['delta']['type']) && $line['delta']['type'] === 'input_json_delta') {
-            if ($input = $line['delta']['partial_json'] ?? null) {
-                $toolCalls[$line['index']]['input'] .= $input;
-            }
+        if (!\array_key_exists($line['index'], $toolCalls)) {
+            $toolCalls[$line['index']] = [
+                'type' => 'tool_use',
+                'id' => $line['content_block']['id'],
+                'name' => $line['content_block']['name'],
+                'input' => '',
+            ];
+        } elseif ($input = $line['delta']['partial_json'] ?? null) {
+            $toolCalls[$line['index']]['input'] .= $input;
         }
 
         return $toolCalls;

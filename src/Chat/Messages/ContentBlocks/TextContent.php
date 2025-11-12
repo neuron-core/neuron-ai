@@ -9,7 +9,7 @@ use NeuronAI\Chat\Enums\ContentBlockType;
 class TextContent implements ContentBlock
 {
     public function __construct(
-        public readonly string $text
+        public string $text
     ) {
     }
 
