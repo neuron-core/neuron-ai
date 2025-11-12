@@ -9,9 +9,11 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
@@ -512,5 +514,51 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_stream_returns_message_with_text_chunks(): void
+    {
+        // Mock SSE streaming response from OpenAI
+        $streamBody = "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\n";
+        $streamBody .= "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n";
+        $streamBody .= "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" there\"},\"finish_reason\":null}]}\n\n";
+        $streamBody .= "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"!\"},\"finish_reason\":\"stop\"}]}\n\n";
+        $streamBody .= "data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"choices\":[],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":3}}\n\n";
+        $streamBody .= "data: [DONE]\n\n";
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $streamBody),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
+
+        $generator = $provider->stream([new UserMessage('Hi')]);
+
+        $chunks = [];
+        foreach ($generator as $chunk) {
+            $chunks[] = $chunk;
+        }
+
+        // Get the final message from generator return value
+        $message = $generator->getReturn();
+
+        // Assert we received TextChunk instances (empty strings filtered out)
+        $this->assertGreaterThanOrEqual(3, \count($chunks));
+        foreach ($chunks as $chunk) {
+            $this->assertInstanceOf(TextChunk::class, $chunk);
+        }
+
+        // Verify chunk contents
+        $this->assertSame('Hello', $chunks[0]->content);
+        $this->assertSame(' there', $chunks[1]->content);
+        $this->assertSame('!', $chunks[2]->content);
+
+        // Assert the final message is correct
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertSame('Hello there!', $message->getContent());
+        $this->assertSame(8, $message->getUsage()->inputTokens);
+        $this->assertSame(3, $message->getUsage()->outputTokens);
     }
 }

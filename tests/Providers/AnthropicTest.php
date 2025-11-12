@@ -9,9 +9,13 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
@@ -596,5 +600,115 @@ class AnthropicTest extends TestCase
         ];
 
         $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_stream_returns_message_with_text_chunks(): void
+    {
+        // Mock SSE streaming response with text content
+        $streamBody = "event: message_start\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "event: content_block_start\n";
+        $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n";
+        $streamBody .= "event: content_block_delta\n";
+        $streamBody .= "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n";
+        $streamBody .= "event: content_block_delta\n";
+        $streamBody .= "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" world\"}}\n\n";
+        $streamBody .= "event: content_block_stop\n";
+        $streamBody .= "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n";
+        $streamBody .= "event: message_delta\n";
+        $streamBody .= "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\n";
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $streamBody),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+
+        $generator = $provider->stream([new UserMessage('Hi')]);
+
+        $chunks = [];
+        foreach ($generator as $chunk) {
+            $chunks[] = $chunk;
+        }
+
+        // Get the final message from generator return value
+        $message = $generator->getReturn();
+
+        // Assert we received TextChunk instances
+        $this->assertCount(2, $chunks);
+        $this->assertInstanceOf(TextChunk::class, $chunks[0]);
+        $this->assertInstanceOf(TextChunk::class, $chunks[1]);
+        $this->assertSame('Hello', $chunks[0]->content);
+        $this->assertSame(' world', $chunks[1]->content);
+
+        // Assert the final message is correct
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertSame('Hello world', $message->getContent());
+        $this->assertSame(10, $message->getUsage()->inputTokens);
+        $this->assertSame(5, $message->getUsage()->outputTokens);
+    }
+
+    public function test_stream_returns_message_with_thinking_and_text_chunks(): void
+    {
+        // Mock SSE streaming response with thinking and text content
+        $streamBody = "event: message_start\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":15,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "event: content_block_start\n";
+        $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"sig123\"}}\n\n";
+        $streamBody .= "event: content_block_delta\n";
+        $streamBody .= "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"Let me think\"}}\n\n";
+        $streamBody .= "event: content_block_delta\n";
+        $streamBody .= "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" about this\"}}\n\n";
+        $streamBody .= "event: content_block_stop\n";
+        $streamBody .= "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n";
+        $streamBody .= "event: content_block_start\n";
+        $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n";
+        $streamBody .= "event: content_block_delta\n";
+        $streamBody .= "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"The answer\"}}\n\n";
+        $streamBody .= "event: content_block_stop\n";
+        $streamBody .= "data: {\"type\":\"content_block_stop\",\"index\":1}\n\n";
+        $streamBody .= "event: message_delta\n";
+        $streamBody .= "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":8}}\n\n";
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $streamBody),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+
+        $generator = $provider->stream([new UserMessage('Question?')]);
+
+        $chunks = [];
+        foreach ($generator as $chunk) {
+            $chunks[] = $chunk;
+        }
+
+        // Get the final message from generator return value
+        $message = $generator->getReturn();
+
+        // Assert we received both ReasoningChunk and TextChunk instances
+        $this->assertCount(3, $chunks);
+        $this->assertInstanceOf(ReasoningChunk::class, $chunks[0]);
+        $this->assertInstanceOf(ReasoningChunk::class, $chunks[1]);
+        $this->assertInstanceOf(TextChunk::class, $chunks[2]);
+        $this->assertSame('Let me think', $chunks[0]->content);
+        $this->assertSame(' about this', $chunks[1]->content);
+        $this->assertSame('The answer', $chunks[2]->content);
+
+        // Assert the final message has both thinking and text content blocks
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $contentBlocks = $message->getContentBlocks();
+        $this->assertCount(2, $contentBlocks);
+        $this->assertInstanceOf(ReasoningContent::class, $contentBlocks[0]);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\ContentBlocks\TextContent::class, $contentBlocks[1]);
+        $this->assertSame('Let me think about this', $contentBlocks[0]->text);
+        $this->assertSame('sig123', $contentBlocks[0]->id);
+        $this->assertSame('The answer', $contentBlocks[1]->text);
+        $this->assertSame(15, $message->getUsage()->inputTokens);
+        $this->assertSame(8, $message->getUsage()->outputTokens);
     }
 }

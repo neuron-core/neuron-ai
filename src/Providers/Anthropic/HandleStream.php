@@ -129,7 +129,6 @@ trait HandleStream
                 }
                 $currentBlockIndex = null;
                 $currentBlockType = null;
-                continue;
             }
         }
 
