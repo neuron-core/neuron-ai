@@ -121,7 +121,7 @@ class MessageMapper implements MessageMapperInterface
             $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
-        // Add tool call blocks from the tools array
+        // Add tool call blocks from the tool array
         foreach ($message->getTools() as $tool) {
             $parts[] = [
                 'type' => 'tool_use',
