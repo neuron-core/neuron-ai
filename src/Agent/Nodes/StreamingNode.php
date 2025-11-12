@@ -71,7 +71,7 @@ class StreamingNode extends Node
 
                     yield new ToolCallChunk($chunk->getTools());
 
-                    // Go to the router node to handle the tool call
+                    // Go to the ToolNode to handle the tool execution
                     return new ToolCallEvent($chunk, $event);
                 }
 
