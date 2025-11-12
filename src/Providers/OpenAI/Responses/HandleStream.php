@@ -75,7 +75,7 @@ trait HandleStream
                     }
                     break;
 
-                // Collect tool call arguments
+                    // Collect tool call arguments
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     break;
