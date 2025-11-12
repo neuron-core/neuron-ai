@@ -62,15 +62,15 @@ trait HandleStream
             switch ($event['type']) {
                 // Initialize the tool call
                 case 'response.output_item.added':
-                    if ($event['item']['type'] == 'function_call') {
+                    if ($event['item']['type'] === 'function_call') {
                         $toolCalls[$event['item']['id']] = [
                             'name' => $event['item']['name'],
                             'arguments' => $event['item']['arguments'] ?? null,
                             'call_id' => $event['item']['call_id'],
                         ];
                     }
-                    if ($event['item']['type'] == 'message') {
-                        $blocks[$event['item']['id']] = new TextContent($event['item']['content']['text']);
+                    if ($event['item']['type'] === 'message') {
+                        $blocks[$event['item']['id']] = new TextContent($event['item']['content'][0]['text'] ?? '');
                     }
                     break;
 
