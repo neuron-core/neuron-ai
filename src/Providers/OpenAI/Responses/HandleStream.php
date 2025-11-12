@@ -60,19 +60,6 @@ trait HandleStream
             }
 
             switch ($event['type']) {
-                // Comment for now to maintain backward compatibility. They can be added later.
-                /*case 'response.web_search_call.searching':
-                    yield ['status' => 'web_search_call.searching'];
-                    break;
-
-                case 'response.web_search_call.completed':
-                    yield ['status' => 'web_search_call.completed'];
-                    break;
-
-                case 'response.queued':
-                    yield ['status' => 'queued'];
-                    break;*/
-
                 // Initialize the tool call
                 case 'response.output_item.added':
                     if ($event['item']['type'] == 'function_call') {
@@ -122,16 +109,12 @@ trait HandleStream
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
 
                 default:
-                    // Ignore other events like response.start, metadata, etc.
+                    // Ignore other events
                     break;
             }
         }
 
-        // If we reach here without a response.completed event, return empty assistant message
-        $blocks = [];
-        if ($text !== '') {
-            $blocks[] = new TextContent($text);
-        }
+        // If we reach here without a response.completed event, return an assistant message
         return new AssistantMessage($blocks);
     }
 
