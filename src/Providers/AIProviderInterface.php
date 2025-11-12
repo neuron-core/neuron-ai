@@ -48,7 +48,14 @@ interface AIProviderInterface
     public function chatAsync(array $messages): PromiseInterface;
 
     /**
-     * @param Message[]|string $messages
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks (TextChunk, ReasoningChunk, etc.) during streaming
+     * for real-time delivery to the user. The generator MUST return a complete
+     * Message object (AssistantMessage or ToolCallMessage) as its final value.
+     *
+     * @param Message[] $messages
+     * @return \Generator<int, \NeuronAI\Chat\Messages\Stream\TextChunk|\NeuronAI\Chat\Messages\Stream\ReasoningChunk|\NeuronAI\Chat\Messages\Stream\ToolCallChunk|array, mixed, Message>
      */
     public function stream(array|string $messages): \Generator;
 

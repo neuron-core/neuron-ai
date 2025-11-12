@@ -6,12 +6,20 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
     /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     *
      * @throws ProviderException
      * @throws GuzzleException
      */
@@ -41,6 +49,7 @@ trait HandleStream
 
         $toolCalls = [];
         $text = '';
+        $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
@@ -49,26 +58,25 @@ trait HandleStream
                 continue;
             }
 
-            // Inform the agent about usage when stream
+            // Capture usage information
             if (\array_key_exists('usageMetadata', $line)) {
-                yield \json_encode(['usage' => [
-                    'input_tokens' => $line['usageMetadata']['promptTokenCount'],
-                    'output_tokens' => $line['usageMetadata']['candidatesTokenCount'] ?? 0,
-                ]]);
+                $usage->inputTokens += $line['usageMetadata']['promptTokenCount'] ?? 0;
+                $usage->outputTokens += $line['usageMetadata']['candidatesTokenCount'] ?? 0;
             }
 
             // Process tool calls
             if ($this->hasToolCalls($line)) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
 
-                // Handle tool calls
+                // Handle tool calls when finished
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    yield $this->createToolCallMessage([
+                    $message = $this->createToolCallMessage([
                         'content' => $text,
                         'parts' => $toolCalls
                     ]);
+                    $message->setUsage($usage);
 
-                    return;
+                    return $message;
                 }
 
                 continue;
@@ -78,8 +86,21 @@ trait HandleStream
             $content = $line['candidates'][0]['content']['parts'][0]['text'] ?? '';
             $text .= $content;
 
-            yield $content;
+            if ($content !== '') {
+                yield new TextChunk($content);
+            }
         }
+
+        // Build final message
+        $blocks = [];
+        if ($text !== '') {
+            $blocks[] = new TextContent($text);
+        }
+
+        $message = new AssistantMessage($blocks);
+        $message->setUsage($usage);
+
+        return $message;
     }
 
     /**

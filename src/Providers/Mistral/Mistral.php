@@ -6,7 +6,11 @@ namespace NeuronAI\Providers\Mistral;
 
 use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
@@ -15,6 +19,10 @@ class Mistral extends OpenAI
     protected string $baseUri = 'https://api.mistral.ai/v1';
 
     /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     *
      * @throws ProviderException
      * @throws GuzzleException
      */
@@ -44,18 +52,17 @@ class Mistral extends OpenAI
 
         $text = '';
         $toolCalls = [];
+        $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
             if (($line = $this->parseNextDataLine($stream)) === null) {
                 continue;
             }
 
-            // Inform the agent about usage when stream
+            // Capture usage information
             if (empty($line['choices']) && !empty($line['usage'])) {
-                yield \json_encode(['usage' => [
-                    'input_tokens' => $line['usage']['prompt_tokens'],
-                    'output_tokens' => $line['usage']['completion_tokens'],
-                ]]);
+                $usage->inputTokens += $line['usage']['prompt_tokens'] ?? 0;
+                $usage->outputTokens += $line['usage']['completion_tokens'] ?? 0;
                 continue;
             }
 
@@ -69,11 +76,13 @@ class Mistral extends OpenAI
 
                 // Handle tool calls
                 if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
-                    yield $this->createToolCallMessage([
+                    $message = $this->createToolCallMessage([
                         'content' => $text,
                         'tool_calls' => $toolCalls
                     ]);
-                    return;
+                    $message->setUsage($usage);
+
+                    return $message;
                 }
 
                 continue;
@@ -83,8 +92,21 @@ class Mistral extends OpenAI
             $content = $line['choices'][0]['delta']['content'] ?? '';
             $text .= $content;
 
-            yield $content;
+            if ($content !== '') {
+                yield new TextChunk($content);
+            }
         }
+
+        // Build final message
+        $blocks = [];
+        if ($text !== '') {
+            $blocks[] = new TextContent($text);
+        }
+
+        $message = new AssistantMessage($blocks);
+        $message->setUsage($usage);
+
+        return $message;
     }
 
     protected function isToolCallPart(array $line): bool

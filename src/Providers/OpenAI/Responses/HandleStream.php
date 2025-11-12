@@ -6,6 +6,9 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
@@ -15,6 +18,10 @@ use Psr\Http\Message\StreamInterface;
 trait HandleStream
 {
     /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     *
      * @throws ProviderException
      * @throws GuzzleException
      */
@@ -84,17 +91,17 @@ trait HandleStream
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
                     $text .= $content;
-                    yield $content;
+                    if ($content !== '') {
+                        yield new TextChunk($content);
+                    }
                     break;
 
                     // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
-                        yield $this->createToolCallMessage($toolCalls, $text, $event['response']['usage'] ?? null);
-                    } else {
-                        return $this->createAssistantMessage($event['response']);
+                        return $this->createToolCallMessage($toolCalls, $text, $event['response']['usage'] ?? null);
                     }
-                    break;
+                    return $this->createAssistantMessage($event['response']);
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
@@ -104,6 +111,13 @@ trait HandleStream
                     break;
             }
         }
+
+        // If we reach here without a response.completed event, return empty assistant message
+        $blocks = [];
+        if ($text !== '') {
+            $blocks[] = new TextContent($text);
+        }
+        return new AssistantMessage($blocks);
     }
 
     /**

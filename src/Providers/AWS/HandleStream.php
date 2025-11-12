@@ -5,12 +5,20 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use Aws\Api\Parser\EventParsingIterator;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 
 trait HandleStream
 {
     /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     *
      * @throws ProviderException
      */
     public function stream(array|string $messages): \Generator
@@ -20,6 +28,9 @@ trait HandleStream
 
         $tools = [];
         $text = '';
+        $usage = new Usage(0, 0);
+        $stopReason = null;
+
         foreach ($result as $eventParserIterator) {
             if (!$eventParserIterator instanceof EventParsingIterator) {
                 continue;
@@ -29,12 +40,8 @@ trait HandleStream
             foreach ($eventParserIterator as $event) {
 
                 if (isset($event['metadata'])) {
-                    yield \json_encode([
-                        'usage' => [
-                            'input_tokens' => $event['metadata']['usage']['inputTokens'] ?? 0,
-                            'output_tokens' => $event['metadata']['usage']['outputTokens'] ?? 0,
-                        ]
-                    ]);
+                    $usage->inputTokens += $event['metadata']['usage']['inputTokens'] ?? 0;
+                    $usage->outputTokens += $event['metadata']['usage']['outputTokens'] ?? 0;
                 }
 
                 if (isset($event['messageStop']['stopReason'])) {
@@ -55,7 +62,7 @@ trait HandleStream
                 if (isset($event['contentBlockDelta']['delta']['text'])) {
                     $textChunk = $event['contentBlockDelta']['delta']['text'];
                     $text .= $textChunk;
-                    yield $textChunk;
+                    yield new TextChunk($textChunk);
                 }
             }
 
@@ -64,8 +71,19 @@ trait HandleStream
             }
         }
 
-        if (isset($stopReason) && $stopReason === 'tool_use' && \count($tools) > 0) {
-            yield new ToolCallMessage($text !== '' ? $text : null, $tools);
+        // Build final message
+        if ($stopReason === 'tool_use' && \count($tools) > 0) {
+            $message = new ToolCallMessage($text !== '' ? $text : null, $tools);
+        } else {
+            $blocks = [];
+            if ($text !== '') {
+                $blocks[] = new TextContent($text);
+            }
+            $message = new AssistantMessage($blocks);
         }
+
+        $message->setUsage($usage);
+
+        return $message;
     }
 }

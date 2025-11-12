@@ -7,13 +7,21 @@ namespace NeuronAI\Providers\OpenAI;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
     /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     *
      * @throws ProviderException
      * @throws GuzzleException
      */
@@ -44,18 +52,17 @@ trait HandleStream
 
         $toolCalls = [];
         $text = '';
+        $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
                 continue;
             }
 
-            // Inform the agent about usage when stream
+            // Capture usage information
             if (!empty($line['usage'])) {
-                yield \json_encode(['usage' => [
-                    'input_tokens' => $line['usage']['prompt_tokens'],
-                    'output_tokens' => $line['usage']['completion_tokens'],
-                ]]);
+                $usage->inputTokens += $line['usage']['prompt_tokens'] ?? 0;
+                $usage->outputTokens += $line['usage']['completion_tokens'] ?? 0;
             }
 
             if (empty($line['choices'])) {
@@ -78,20 +85,35 @@ trait HandleStream
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
                 finish:
-                yield $this->createToolCallMessage([
+                // Create ToolCallMessage with accumulated content
+                $message = $this->createToolCallMessage([
                     'content' => $text,
                     'tool_calls' => $toolCalls
                 ]);
+                $message->setUsage($usage);
 
-                return;
+                return $message;
             }
 
             // Process regular content
             $content = $choice['delta']['content'] ?? '';
             $text .= $content;
 
-            yield $content;
+            if ($content !== '') {
+                yield new TextChunk($content);
+            }
         }
+
+        // Build final message
+        $blocks = [];
+        if ($text !== '') {
+            $blocks[] = new TextContent($text);
+        }
+
+        $message = new AssistantMessage($blocks);
+        $message->setUsage($usage);
+
+        return $message;
     }
 
     protected function finishForToolCall(array $choice): bool

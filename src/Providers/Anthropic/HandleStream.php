@@ -6,6 +6,13 @@ namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
@@ -13,6 +20,8 @@ trait HandleStream
 {
     /**
      * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
      *
      * @throws ProviderException
      * @throws GuzzleException
@@ -39,7 +48,10 @@ trait HandleStream
         ])->getBody();
 
         $toolCalls = [];
-        $text = '';
+        $contentBlocks = [];
+        $usage = new Usage(0, 0);
+        $currentBlockIndex = null;
+        $currentBlockType = null;
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
@@ -48,43 +60,103 @@ trait HandleStream
 
             // https://docs.anthropic.com/en/api/messages-streaming
             if ($line['type'] === 'message_start') {
-                yield \json_encode(['usage' => $line['message']['usage']]);
+                $usage->inputTokens += $line['message']['usage']['input_tokens'] ?? 0;
+                $usage->outputTokens += $line['message']['usage']['output_tokens'] ?? 0;
                 continue;
             }
 
             if ($line['type'] === 'message_delta') {
-                yield \json_encode(['usage' => $line['usage']]);
+                $usage->outputTokens += $line['usage']['output_tokens'] ?? 0;
                 continue;
             }
 
+            // Track content block start
+            if ($line['type'] === 'content_block_start') {
+                $currentBlockIndex = $line['index'];
+                $currentBlockType = $line['content_block']['type'] ?? null;
+
+                // Initialize content block
+                if ($currentBlockType === 'text') {
+                    $contentBlocks[$currentBlockIndex] = ['type' => 'text', 'text' => ''];
+                } elseif ($currentBlockType === 'thinking') {
+                    $contentBlocks[$currentBlockIndex] = [
+                        'type' => 'thinking',
+                        'thinking' => '',
+                        'signature' => $line['content_block']['signature'] ?? null
+                    ];
+                }
+                continue;
+            }
+
+            // Handle content block deltas
+            if ($line['type'] === 'content_block_delta') {
+                $delta = $line['delta'];
+
+                if ($delta['type'] === 'text_delta') {
+                    $text = $delta['text'];
+                    $contentBlocks[$currentBlockIndex]['text'] .= $text;
+                    yield new TextChunk($text);
+                    continue;
+                }
+
+                if ($delta['type'] === 'thinking_delta') {
+                    $thinking = $delta['thinking'];
+                    $contentBlocks[$currentBlockIndex]['thinking'] .= $thinking;
+                    yield new ReasoningChunk($thinking);
+                    continue;
+                }
+
+                if ($delta['type'] === 'input_json_delta') {
+                    $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                    continue;
+                }
+            }
+
             // Tool calls detection (https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
-            if (
-                (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') ||
-                (isset($line['delta']['type']) && $line['delta']['type'] === 'input_json_delta')
-            ) {
+            if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
                 continue;
             }
 
-            // Handle tool call
-            if ($line['type'] === 'content_block_stop' && !empty($toolCalls)) {
-                // Restore the input field as an array
-                $toolCalls = \array_map(function (array $call): array {
-                    $call['input'] = \json_decode((string) $call['input'], true);
-                    return $call;
-                }, $toolCalls);
-
-                // Yield the ToolCallMessage and return, letting the workflow handle tool execution
-                yield $this->createToolCallMessage(\end($toolCalls), $text);
-                return;
+            // Handle content block stop
+            if ($line['type'] === 'content_block_stop') {
+                if (!empty($toolCalls)) {
+                    // Finalize tool calls
+                    $toolCalls = \array_map(function (array $call): array {
+                        $call['input'] = \json_decode((string) $call['input'], true);
+                        return $call;
+                    }, $toolCalls);
+                }
+                $currentBlockIndex = null;
+                $currentBlockType = null;
+                continue;
             }
-
-            // Process regular content
-            $content = $line['delta']['text'] ?? '';
-            $text .= $content;
-
-            yield $content;
         }
+
+        // Build final message
+        $blocks = [];
+        foreach ($contentBlocks as $block) {
+            if ($block['type'] === 'text') {
+                $blocks[] = new TextContent($block['text']);
+            } elseif ($block['type'] === 'thinking') {
+                $blocks[] = new ReasoningContent($block['thinking'], $block['signature']);
+            }
+        }
+
+        if (!empty($toolCalls)) {
+            // Create ToolCallMessage with accumulated content blocks
+            $message = $this->createToolCallMessage(\end($toolCalls));
+            if ($blocks !== []) {
+                $message->setContents($blocks);
+            }
+        } else {
+            // Create AssistantMessage
+            $message = new AssistantMessage($blocks);
+        }
+
+        $message->setUsage($usage);
+
+        return $message;
     }
 
     /**

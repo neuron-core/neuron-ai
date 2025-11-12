@@ -5,11 +5,20 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Ollama;
 
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
+    /**
+     * Stream response from the LLM.
+     *
+     * Yields intermediate chunks during streaming and returns the final complete Message.
+     */
     public function stream(array|string $messages): \Generator
     {
         // Include the system prompt
@@ -34,39 +43,53 @@ trait HandleStream
         ])->getBody();
 
         $text = '';
+        $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextJson($stream)) {
                 continue;
             }
 
-            // Last chunk will contain the usage information.
+            // Last chunk will contain the usage information
             if ($line['done'] === true) {
-                yield \json_encode(['usage' => [
-                    'input_tokens' => $line['prompt_eval_count'],
-                    'output_tokens' => $line['eval_count'],
-                ]]);
+                $usage->inputTokens += $line['prompt_eval_count'] ?? 0;
+                $usage->outputTokens += $line['eval_count'] ?? 0;
                 continue;
             }
 
             // Process tool calls
             if (isset($line['message']['tool_calls'])) {
                 // Preserve any accumulated text content before tool call
-                $message = $line['message'];
+                $messageData = $line['message'];
                 if ($text !== '') {
-                    $message['content'] = $text;
+                    $messageData['content'] = $text;
                 }
 
-                yield $this->createToolCallMessage($message);
-                return;
+                $message = $this->createToolCallMessage($messageData);
+                $message->setUsage($usage);
+
+                return $message;
             }
 
             // Process regular content
             $content = $line['message']['content'] ?? '';
             $text .= $content;
 
-            yield $content;
+            if ($content !== '') {
+                yield new TextChunk($content);
+            }
         }
+
+        // Build final message
+        $blocks = [];
+        if ($text !== '') {
+            $blocks[] = new TextContent($text);
+        }
+
+        $message = new AssistantMessage($blocks);
+        $message->setUsage($usage);
+
+        return $message;
     }
 
     protected function parseNextJson(StreamInterface $stream): ?array
