@@ -114,14 +114,11 @@ class MessageMapper implements MessageMapperInterface
     {
         $parts = [];
         // Add text content if present
-        $content = $message->getContent();
+        $contentBlocks = $message->getContentBlocks();
 
         // Add text content if present
-        if ($content !== '' && $content !== '0') {
-            $parts[] = [
-                'type' => 'text',
-                'text' => $content,
-            ];
+        if (!empty($contentBlocks)) {
+            $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
         // Add tool call blocks from the tools array
@@ -135,7 +132,7 @@ class MessageMapper implements MessageMapperInterface
         }
 
         return [
-            'role' => MessageRole::ASSISTANT->value,
+            'role' => MessageRole::ASSISTANT,
             'content' => $parts,
         ];
     }
