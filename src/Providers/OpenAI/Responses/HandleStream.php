@@ -7,7 +7,9 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
@@ -50,7 +52,7 @@ trait HandleStream
         ])->getBody();
 
         $toolCalls = [];
-        $text = '';
+        $blocks = [];
 
         while (! $stream->eof()) {
             if (!$event = $this->parseNextDataLine($stream)) {
@@ -80,26 +82,39 @@ trait HandleStream
                             'call_id' => $event['item']['call_id'],
                         ];
                     }
+                    if ($event['item']['type'] == 'message') {
+                        $blocks[$event['item']['id']] = new TextContent($event['item']['content']['text']);
+                    }
                     break;
 
-                    // Collect tool call arguments
+                // Collect tool call arguments
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     break;
 
-                    // Stream delta text
+                // Stream delta text
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
-                    $text .= $content;
-                    if ($content !== '') {
-                        yield new TextChunk($content);
-                    }
+                    $blocks[$event['item_id']]->text .= $content;
+                    yield new TextChunk($content);
                     break;
 
-                    // Return the final message
+                case 'response.reasoning_summary_part.added':
+                    $content = $event['part']['text'] ?? '';
+                    $blocks[$event['item_id']] = new ReasoningContent($content);
+                    yield new ReasoningChunk($content);
+                    break;
+
+                case 'response.reasoning_summary_text.delta':
+                    $content = $event['delta'] ?? '';
+                    $blocks[$event['item_id']]->text .= $content;
+                    yield new ReasoningChunk($content);
+                    break;
+
+                // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
-                        return $this->createToolCallMessage($toolCalls, $text, $event['response']['usage'] ?? null);
+                        return $this->createToolCallMessage($toolCalls, $blocks, $event['response']['usage'] ?? null);
                     }
                     return $this->createAssistantMessage($event['response']);
 
