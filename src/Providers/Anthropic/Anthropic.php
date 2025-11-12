@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Anthropic;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -82,10 +83,10 @@ class Anthropic implements AIProviderInterface
     }
 
     /**
-     * @param array<string, mixed> $message
+     * @param string|ContentBlock|ContentBlock[]|null $content
      * @throws ProviderException
      */
-    public function createToolCallMessage(array $message, ?string $content = null): Message
+    public function createToolCallMessage(array $message, string|array|null $content = null): ToolCallMessage
     {
         $tool = $this->findTool($message['name'])
             ->setInputs($message['input'])

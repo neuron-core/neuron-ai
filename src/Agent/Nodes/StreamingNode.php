@@ -46,7 +46,6 @@ class StreamingNode extends Node
         }
 
         try {
-            // Use instructions and tools from the event
             $stream = $this->provider
                 ->systemPrompt($event->instructions)
                 ->setTools($event->tools)
@@ -57,11 +56,10 @@ class StreamingNode extends Node
                 yield $chunk;
             }
 
-            // Get the final message from generator return value
+            // Get the final message from the generator return value
             $message = $stream->getReturn();
 
-            // Add message to chat history
-            $chatHistory->addMessage($message);
+            // Add the message to the chat history
             $this->addToChatHistory($state, $message);
 
             $this->emit(
@@ -69,7 +67,7 @@ class StreamingNode extends Node
                 new InferenceStop($lastMessage, $message)
             );
 
-            // Route based on message type
+            // Route based on the message type
             if ($message instanceof ToolCallMessage) {
                 yield new ToolCallChunk($message->getTools());
                 return new ToolCallEvent($message, $event);

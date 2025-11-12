@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
@@ -143,13 +144,8 @@ trait HandleStream
         }
 
         if (!empty($toolCalls)) {
-            // Create ToolCallMessage with accumulated content blocks
-            $message = $this->createToolCallMessage(\end($toolCalls));
-            if ($blocks !== []) {
-                $message->setContents($blocks);
-            }
+            $message = $this->createToolCallMessage(\end($toolCalls), $blocks);
         } else {
-            // Create AssistantMessage
             $message = new AssistantMessage($blocks);
         }
 
@@ -167,15 +163,23 @@ trait HandleStream
      */
     protected function composeToolCalls(array $line, array $toolCalls): array
     {
-        if (!\array_key_exists($line['index'], $toolCalls)) {
-            $toolCalls[$line['index']] = [
-                'type' => 'tool_use',
-                'id' => $line['content_block']['id'],
-                'name' => $line['content_block']['name'],
-                'input' => '',
-            ];
-        } elseif ($input = $line['delta']['partial_json'] ?? null) {
-            $toolCalls[$line['index']]['input'] .= $input;
+        // Handle content_block_start event with tool_use type
+        if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
+            if (!\array_key_exists($line['index'], $toolCalls)) {
+                $toolCalls[$line['index']] = [
+                    'type' => 'tool_use',
+                    'id' => $line['content_block']['id'],
+                    'name' => $line['content_block']['name'],
+                    'input' => '',
+                ];
+            }
+        }
+
+        // Handle content_block_delta event with input_json_delta type
+        if (isset($line['delta']['type']) && $line['delta']['type'] === 'input_json_delta') {
+            if ($input = $line['delta']['partial_json'] ?? null) {
+                $toolCalls[$line['index']]['input'] .= $input;
+            }
         }
 
         return $toolCalls;
