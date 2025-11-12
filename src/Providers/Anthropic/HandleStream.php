@@ -83,7 +83,7 @@ trait HandleStream
                     $contentBlocks[$currentBlockIndex] = new ReasoningContent('');
                 }
 
-                if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
+                if ($currentBlockType === 'tool_use') {
                     $toolCalls = $this->composeToolCalls($line, $toolCalls);
                     continue;
                 }
