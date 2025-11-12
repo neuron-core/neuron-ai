@@ -149,7 +149,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => MessageRole::USER,
-            'content' => $parts
+            'content' => \array_values($parts),
         ];
     }
 }
