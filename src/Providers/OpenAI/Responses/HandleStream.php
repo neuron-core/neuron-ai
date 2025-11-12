@@ -74,12 +74,12 @@ trait HandleStream
                     }
                     break;
 
-                // Collect tool call arguments
+                    // Collect tool call arguments
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     break;
 
-                // Stream delta text
+                    // Stream delta text
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
                     $blocks[$event['item_id']]->text .= $content;
@@ -98,7 +98,7 @@ trait HandleStream
                     yield new ReasoningChunk($content);
                     break;
 
-                // Return the final message
+                    // Return the final message
                 case 'response.completed':
                     if ($toolCalls !== []) {
                         return $this->createToolCallMessage($toolCalls, $blocks, $event['response']['usage'] ?? null);

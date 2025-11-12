@@ -59,7 +59,7 @@ trait HandleChat
                     }
                 }
 
-                if (!empty($toolCalls)) {
+                if ($toolCalls !== []) {
                     $message = $this->createToolCallMessage($toolCalls, $blocks);
                 } else {
                     $message = new AssistantMessage($blocks);
