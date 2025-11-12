@@ -18,7 +18,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
-class MessageMapperResponses implements MessageMapperInterface
+class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
 

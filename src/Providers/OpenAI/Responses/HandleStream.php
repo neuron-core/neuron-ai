@@ -12,7 +12,7 @@ use Psr\Http\Message\StreamInterface;
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
  */
-trait HandleResponsesStream
+trait HandleStream
 {
     /**
      * @throws ProviderException
@@ -75,7 +75,7 @@ trait HandleResponsesStream
                     }
                     break;
 
-                    // Update the tool call arguments
+                // Collect tool call arguments
                 case 'response.function_call_arguments.done':
                     $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
                     break;

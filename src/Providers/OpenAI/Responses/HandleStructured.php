@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Messages\Message;
 
-trait HandleResponsesStructured
+trait HandleStructured
 {
     public function structured(
         array $messages,

@@ -71,6 +71,7 @@ trait HandleChat
                     if (isset($part['functionCall'])) {
                         $message = $this->createToolCallMessage($content);
                         $message->setContents($blocks);
+                        break;
                     }
                 }
 

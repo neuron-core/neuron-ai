@@ -24,9 +24,9 @@ class OpenAIResponses implements AIProviderInterface
 {
     use HasGuzzleClient;
     use HandleWithTools;
-    use HandleResponses;
-    use HandleResponsesStream;
-    use HandleResponsesStructured;
+    use HandleChat;
+    use HandleStream;
+    use HandleStructured;
 
     /**
      * The main URL of the provider API.
@@ -75,12 +75,12 @@ class OpenAIResponses implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapperResponses();
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
     public function toolPayloadMapper(): ToolPayloadMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapperResponses();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
     }
 
     protected function createAssistantMessage(array $response): AssistantMessage

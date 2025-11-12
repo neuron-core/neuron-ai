@@ -12,7 +12,7 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
  */
-trait HandleResponses
+trait HandleChat
 {
     public function chat(array $messages): Message
     {

@@ -10,7 +10,7 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
 
-class ToolPayloadMapperResponses implements ToolPayloadMapperInterface
+class ToolPayloadMapper implements ToolPayloadMapperInterface
 {
     /**
      * @throws ProviderException
