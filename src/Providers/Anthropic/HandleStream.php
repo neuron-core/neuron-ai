@@ -54,12 +54,12 @@ trait HandleStream
         $currentBlockIndex = null;
         $currentBlockType = null;
 
+        // https://docs.anthropic.com/en/api/messages-streaming
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
                 continue;
             }
 
-            // https://docs.anthropic.com/en/api/messages-streaming
             if ($line['type'] === 'message_start') {
                 $usage->inputTokens += $line['message']['usage']['input_tokens'] ?? 0;
                 $usage->outputTokens += $line['message']['usage']['output_tokens'] ?? 0;
@@ -80,10 +80,9 @@ trait HandleStream
                 if ($currentBlockType === 'text') {
                     $contentBlocks[$currentBlockIndex] = new TextContent('');
                 } elseif ($currentBlockType === 'thinking') {
-                    $contentBlocks[$currentBlockIndex] = new ReasoningContent('', $line['content_block']['signature'] ?? null);
+                    $contentBlocks[$currentBlockIndex] = new ReasoningContent('');
                 }
 
-                // Tool calls detection (https://docs.anthropic.com/en/api/messages-streaming#streaming-request-with-tool-use)
                 if (isset($line['content_block']['type']) && $line['content_block']['type'] === 'tool_use') {
                     $toolCalls = $this->composeToolCalls($line, $toolCalls);
                     continue;
@@ -123,13 +122,6 @@ trait HandleStream
 
             // Handle content block stop
             if ($line['type'] === 'content_block_stop') {
-                if (!empty($toolCalls)) {
-                    // Finalize tool calls
-                    $toolCalls = \array_map(function (array $call): array {
-                        $call['input'] = \json_decode((string) $call['input'], true);
-                        return $call;
-                    }, $toolCalls);
-                }
                 $currentBlockIndex = null;
                 $currentBlockType = null;
             }
@@ -137,14 +129,17 @@ trait HandleStream
 
         // Build final message
         if (!empty($toolCalls)) {
-            $message = $this->createToolCallMessage(\end($toolCalls), $contentBlocks);
-        } else {
-            $message = new AssistantMessage($contentBlocks);
+            // Decode tool calls input
+            $toolCalls = \array_map(function (array $call): array {
+                $call['input'] = \json_decode((string) $call['input'], true);
+                return $call;
+            }, $toolCalls);
+
+            return $this->createToolCallMessage(\end($toolCalls), $contentBlocks)->setUsage($usage);
         }
 
-        $message->setUsage($usage);
-
-        return $message;
+        $message = new AssistantMessage($contentBlocks);
+        return $message->setUsage($usage);
     }
 
     /**
