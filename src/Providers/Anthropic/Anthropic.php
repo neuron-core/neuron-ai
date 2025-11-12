@@ -86,14 +86,15 @@ class Anthropic implements AIProviderInterface
      * @param string|ContentBlock|ContentBlock[]|null $content
      * @throws ProviderException
      */
-    public function createToolCallMessage(array $message, string|array|null $content = null): ToolCallMessage
+    public function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
-        $tool = $this->findTool($message['name'])
-            ->setInputs($message['input'])
-            ->setCallId($message['id']);
+        $tools = \array_map(function (array $tool) {
+            return $this->findTool($tool['name'])
+                ->setInputs($tool['input'])
+                ->setCallId($tool['id']);
+        }, $toolCalls);
 
-        // Anthropic call one tool at a time. So we pass an array with one element.
-        return new ToolCallMessage($content, [$tool]);
+        return new ToolCallMessage($content, $tools);
     }
 
     /**

@@ -135,7 +135,7 @@ trait HandleStream
                 return $call;
             }, $toolCalls);
 
-            return $this->createToolCallMessage(\end($toolCalls), $contentBlocks)->setUsage($usage);
+            return $this->createToolCallMessage($toolCalls, $contentBlocks)->setUsage($usage);
         }
 
         $message = new AssistantMessage($contentBlocks);

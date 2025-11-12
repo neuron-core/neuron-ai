@@ -42,6 +42,7 @@ trait HandleChat
                 $result = \json_decode($response->getBody()->getContents(), true);
 
                 $blocks = [];
+                $toolCalls = [];
                 foreach ($result['content'] as $content) {
                     if ($content['type'] === 'thinking') {
                         $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
@@ -54,13 +55,13 @@ trait HandleChat
                     }
 
                     if ($content['type'] === 'tool_use') {
-                        $message = $this->createToolCallMessage($content);
-                        $message->setContents($blocks);
-                        break;
+                        $toolCalls[] = $content;
                     }
                 }
 
-                if (!isset($message)) {
+                if (!empty($toolCalls)) {
+                    $message = $this->createToolCallMessage($toolCalls, $blocks);
+                } else {
                     $message = new AssistantMessage($blocks);
                 }
 
