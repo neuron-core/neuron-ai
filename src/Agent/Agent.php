@@ -173,7 +173,7 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Stream with protocol adapter for frontend integration.
+     * Stream with a protocol adapter for frontend integration.
      *
      * @throws \Throwable
      * @throws WorkflowInterrupt
