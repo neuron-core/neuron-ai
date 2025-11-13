@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 
 // routes/api.php

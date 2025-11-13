@@ -9,8 +9,8 @@ use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 

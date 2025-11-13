@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Adapters;
+namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
-use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
-use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Events\StreamChunk;
+use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolResultChunk;
 
 /**
  * Adapter for AG-UI Protocol.
@@ -18,7 +19,7 @@ use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
  *
  * @see https://docs.ag-ui.com/concepts/events
  */
-class AGUIAdapter implements StreamAdapterInterface
+class AGUIAdapter extends SSEAdapter
 {
     protected ?string $runId = null;
 
@@ -64,7 +65,7 @@ class AGUIAdapter implements StreamAdapterInterface
             $this->currentMessageId = $this->generateId('msg');
             $this->messageStarted = true;
 
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'TextMessageStart',
                 'messageId' => $this->currentMessageId,
                 'role' => 'assistant',
@@ -73,7 +74,7 @@ class AGUIAdapter implements StreamAdapterInterface
         }
 
         // Stream content delta
-        yield $this->formatEvent([
+        yield $this->sse([
             'type' => 'TextMessageContent',
             'messageId' => $this->currentMessageId,
             'delta' => $chunk->content,
@@ -90,14 +91,14 @@ class AGUIAdapter implements StreamAdapterInterface
             $this->reasoningId = $this->generateId('reasoning');
             $this->reasoningStarted = true;
 
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'ReasoningStart',
                 'messageId' => $this->reasoningId,
                 'timestamp' => $this->timestamp(),
             ]);
         }
 
-        yield $this->formatEvent([
+        yield $this->sse([
             'type' => 'ReasoningMessageContent',
             'messageId' => $this->reasoningId,
             'delta' => $chunk->content,
@@ -116,7 +117,7 @@ class AGUIAdapter implements StreamAdapterInterface
             if (! isset($this->toolCallStarted[$toolCallId])) {
                 $this->toolCallStarted[$toolCallId] = true;
 
-                yield $this->formatEvent([
+                yield $this->sse([
                     'type' => 'ToolCallStart',
                     'toolCallId' => $toolCallId,
                     'toolCallName' => $toolName,
@@ -128,7 +129,7 @@ class AGUIAdapter implements StreamAdapterInterface
             // Stream tool arguments as JSON
             $args = $tool->getInputs();
             if (! empty($args)) {
-                yield $this->formatEvent([
+                yield $this->sse([
                     'type' => 'ToolCallArgs',
                     'toolCallId' => $toolCallId,
                     'delta' => \json_encode($args),
@@ -137,7 +138,7 @@ class AGUIAdapter implements StreamAdapterInterface
             }
 
             // Mark tool call arguments as complete
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'ToolCallEnd',
                 'toolCallId' => $toolCallId,
                 'timestamp' => $this->timestamp(),
@@ -152,7 +153,7 @@ class AGUIAdapter implements StreamAdapterInterface
             $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
 
             // Emit tool result
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'ToolCallResult',
                 'toolCallId' => $toolCallId,
                 'content' => $tool->getResult(),
@@ -162,45 +163,16 @@ class AGUIAdapter implements StreamAdapterInterface
         }
     }
 
-    /**
-     * Format event as JSON-encoded Server-Sent Event.
-     */
-    protected function formatEvent(array $data): string
+    protected function chunkToArray(StreamChunk $chunk): array
     {
-        return 'data: ' . \json_encode($data) . "\n\n";
-    }
-
-    /**
-     * Generate unique identifier with prefix.
-     */
-    protected function generateId(string $prefix): string
-    {
-        return $prefix . '_' . \uniqid('', true);
-    }
-
-    /**
-     * Get current timestamp in ISO 8601 format.
-     */
-    protected function timestamp(): string
-    {
-        return \date('c');
-    }
-
-    public function getHeaders(): array
-    {
-        return [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no',
-        ];
+        return $chunk->toArray();
     }
 
     public function start(): iterable
     {
         $this->runId = $this->generateId('run');
 
-        yield $this->formatEvent([
+        yield $this->sse([
             'type' => 'RunStarted',
             'runId' => $this->runId,
             'threadId' => $this->threadId,
@@ -212,7 +184,7 @@ class AGUIAdapter implements StreamAdapterInterface
     {
         // Close any open text message
         if ($this->messageStarted && $this->currentMessageId !== null) {
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'TextMessageEnd',
                 'messageId' => $this->currentMessageId,
                 'timestamp' => $this->timestamp(),
@@ -223,7 +195,7 @@ class AGUIAdapter implements StreamAdapterInterface
 
         // Emit RunFinished event
         if ($this->runId !== null) {
-            yield $this->formatEvent([
+            yield $this->sse([
                 'type' => 'RunFinished',
                 'runId' => $this->runId,
                 'timestamp' => $this->timestamp(),

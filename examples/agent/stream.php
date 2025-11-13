@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolResultChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\ToolInterface;
@@ -51,7 +51,7 @@ try {
         $result = $agent->stream(interrupt: $interruptRequest);
     }
 
-    /** @var \NeuronAI\Chat\Messages\Stream\TextChunk $response */
+    /** @var \NeuronAI\Chat\Messages\Stream\Events\TextChunk $response */
     foreach ($result as $response) {
         process_response($response);
     }

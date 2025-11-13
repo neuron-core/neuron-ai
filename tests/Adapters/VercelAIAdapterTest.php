@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Adapters;
 
-use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
-use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
-use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Events\ToolResultChunk;
+use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
