@@ -139,7 +139,7 @@ class McpConnector
             type: $type,
             description: $prop['description'] ?? null,
             required: $required,
-            enum: $prop['items']['enum'] ?? []
+            enum: $prop['items']['enum'] ?? $prop['enum'] ?? []
         );
     }
 
