@@ -164,12 +164,9 @@ class Agent extends Workflow implements AgentInterface
             yield $event;
         }
 
-        /** @var AgentState $finalState */
-        $finalState = $handler->getResult();
-
         $this->emit('stream-stop');
 
-        return $finalState->getChatHistory()->getLastMessage();
+        return $this->resolveState()->getChatHistory()->getLastMessage();
     }
 
     /**
