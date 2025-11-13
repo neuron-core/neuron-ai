@@ -15,7 +15,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
-use NeuronAI\Stream\Adapters\StreamAdapterInterface;
+use NeuronAI\Agent\Adapters\StreamAdapterInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
@@ -212,8 +212,6 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Stream with protocol adapter for frontend integration.
      *
-     * @param StreamAdapterInterface $adapter Protocol adapter (e.g., VercelAIAdapter)
-     * @param Message|Message[] $messages
      * @throws \Throwable
      * @throws WorkflowInterrupt
      * @throws InspectorException
@@ -241,7 +239,7 @@ class Agent extends Workflow implements AgentInterface
             yield $output;
         }
 
-        // Preserve the return value from original stream
+        // Preserve the return value from the original stream
         return $this->resolveState()->getChatHistory()->getLastMessage();
     }
 

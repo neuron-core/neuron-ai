@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 
 // routes/api.php
@@ -34,16 +34,17 @@ Route::post('/chat', function (Request $request) {
         )
         ->addTool(CalculatorToolkit::make());
 
-    // Create adapter
     $adapter = new VercelAIAdapter();
+
+    $stream = $agent->streamWithAdapter(
+        $adapter,
+        new UserMessage($validated['message'])
+    );
 
     // Return streaming response
     return response()->stream(
-        function () use ($agent, $adapter, $validated) {
-            foreach ($agent->streamWithAdapter(
-                $adapter,
-                new UserMessage($validated['message'])
-            ) as $line) {
+        function () use ($stream) {
+            foreach ($stream as $line) {
                 echo $line;
                 \ob_flush();
                 \flush();

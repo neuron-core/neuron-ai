@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Stream\Adapters;
+namespace NeuronAI\Agent\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\TextChunk;

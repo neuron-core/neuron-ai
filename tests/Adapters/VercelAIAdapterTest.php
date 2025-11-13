@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Stream\Adapters;
+namespace NeuronAI\Tests\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
-use NeuronAI\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
@@ -33,9 +33,7 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_start_returns_empty_array(): void
     {
-        $result = \iterator_to_array($this->adapter->start());
-
-        $this->assertEmpty($result);
+        $this->assertEmpty($this->adapter->start());
     }
 
     public function test_end_returns_finish_and_done_messages(): void
@@ -74,7 +72,7 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_reasoning_chunk(): void
     {
         // Initialize with a text chunk first to set message ID
-        \iterator_to_array($this->adapter->transform(new TextChunk('init')));
+        $this->adapter->transform(new TextChunk('init'));
 
         $chunk = new ReasoningChunk('Thinking...');
         $result = \iterator_to_array($this->adapter->transform($chunk));
@@ -87,7 +85,7 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_tool_call_chunk(): void
     {
         // Initialize with a text chunk first
-        \iterator_to_array($this->adapter->transform(new TextChunk('init')));
+        $this->adapter->transform(new TextChunk('init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $chunk = new ToolCallChunk([$tool]);
@@ -103,9 +101,9 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_tool_result_chunk(): void
     {
         // Initialize and call tool first
-        \iterator_to_array($this->adapter->transform(new TextChunk('init')));
+        $this->adapter->transform(new TextChunk('init'));
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        \iterator_to_array($this->adapter->transform(new ToolCallChunk([$tool])));
+        $this->adapter->transform(new ToolCallChunk([$tool]));
 
         // Now send result
         $tool->setResult('42');

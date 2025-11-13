@@ -5,7 +5,7 @@ declare(strict_types=1);
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -50,19 +50,14 @@ $agent = Agent::make()
     )
     ->addTool(CalculatorToolkit::make());
 
-// Create the Vercel AI adapter
-$adapter = new VercelAIAdapter();
-
-// Set HTTP headers for Server-Sent Events
-foreach ($adapter->getHeaders() as $key => $value) {
-    \header("$key: $value");
-}
-
-// Stream the response with the adapter
-foreach ($agent->streamWithAdapter(
-    $adapter,
+// Initialize the streaming with the adapter
+$stream = $agent->streamWithAdapter(
+    new VercelAIAdapter(),
     new UserMessage('What is the square root of 144?')
-) as $line) {
+);
+
+// Process the response
+foreach ($stream as $line) {
     echo $line;
     \flush();
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Stream\Adapters;
+namespace NeuronAI\Agent\Adapters;
 
 interface StreamAdapterInterface
 {
