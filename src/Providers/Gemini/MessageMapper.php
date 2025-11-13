@@ -113,17 +113,23 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
+        $parts = \array_map(fn (ToolInterface $tool): array => [
+            'functionResponse' => [
+                'name' => $tool->getName(),
+                'response' => [
+                    'name' => $tool->getName(),
+                    'content' => $tool->getResult(),
+                ],
+            ],
+        ], $message->getTools());
+
+        if ($contentBlocks = $message->getContentBlocks()) {
+            $parts = [...$parts, ...\array_map($this->mapContentBlock(...), $contentBlocks)];
+        }
+
         return [
             'role' => MessageRole::USER,
-            'parts' => \array_map(fn (ToolInterface $tool): array => [
-                'functionResponse' => [
-                    'name' => $tool->getName(),
-                    'response' => [
-                        'name' => $tool->getName(),
-                        'content' => $tool->getResult(),
-                    ],
-                ],
-            ], $message->getTools()),
+            'parts' => \array_values($parts),
         ];
     }
 }
