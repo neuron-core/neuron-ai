@@ -91,25 +91,22 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): array
     {
         $parts = [];
-        $content = $message->getContent();
 
-        if ($content !== '' && $content !== '0') {
-            $parts[] = ['text' => $content];
+        if ($contentBlocks = $message->getContentBlocks()) {
+            $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
-        // Add function calls
-        $parts = [
-            ...$parts,
-            ...\array_map(fn (ToolInterface $tool): array => [
+        foreach ($message->getTools() as $tool) {
+            $parts[] = [
                 'functionCall' => [
                     'name' => $tool->getName(),
                     'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
                 ]
-            ], $message->getTools())
-        ];
+            ];
+        }
 
         return [
-            'role' => MessageRole::MODEL->value,
+            'role' => MessageRole::MODEL,
             'parts' => $parts
         ];
     }
@@ -117,7 +114,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolsResult(ToolResultMessage $message): array
     {
         return [
-            'role' => MessageRole::USER->value,
+            'role' => MessageRole::USER,
             'parts' => \array_map(fn (ToolInterface $tool): array => [
                 'functionResponse' => [
                     'name' => $tool->getName(),
