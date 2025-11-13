@@ -41,7 +41,7 @@ trait HandleChat
             ->then(function (ResponseInterface $response) {
                 $result = \json_decode($response->getBody()->getContents(), true);
 
-                if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
+                if ($this->finishForToolCall($result['choices'][0])) {
                     $response = $this->createToolCallMessage($result['choices'][0]['message']);
                 } else {
                     $response = new AssistantMessage($result['choices'][0]['message']['content']);
