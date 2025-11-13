@@ -6,7 +6,6 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -89,12 +88,11 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $blocks, array $toolCalls): Message
     {
-        $tools = \array_map(function (array $item): ToolInterface {
+        $tools = \array_map(fn(array $item): ToolInterface =>
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
-            return $this->findTool($item['functionCall']['name'])
-                ->setInputs($item['functionCall']['args'])
-                ->setCallId($item['functionCall']['name']);
-        }, $toolCalls);
+            $this->findTool($item['functionCall']['name'])
+            ->setInputs($item['functionCall']['args'])
+            ->setCallId($item['functionCall']['name']), $toolCalls);
 
         return new ToolCallMessage($blocks, $tools);
     }

@@ -11,7 +11,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -368,7 +368,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
-            ContentBlockType::FILE => new FileContentBlock(
+            ContentBlockType::FILE => new FileContent(
                 source: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null,

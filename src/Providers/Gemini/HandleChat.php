@@ -68,7 +68,7 @@ trait HandleChat
                     }
 
                     if (isset($part['functionCall'])) {
-                        $toolCalls = \array_filter($content['parts'], fn ($item) => isset($item['functionCall']));
+                        $toolCalls = \array_filter($content['parts'], fn (array $item): bool => isset($item['functionCall']));
                         $message = $this->createToolCallMessage($blocks, $toolCalls);
                         break;
                     }

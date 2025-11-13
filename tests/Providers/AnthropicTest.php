@@ -10,7 +10,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Enums\SourceType;
@@ -190,7 +190,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContentBlock(
+            ->addContent(new FileContent(
                 source: 'base64_encoded_document_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'pdf'
@@ -244,7 +244,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContent(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -63,7 +63,7 @@ class MessageMapper implements MessageMapperInterface
                 'signature' => $block->id,
             ],
             ImageContent::class => $this->mapImageBlock($block),
-            FileContentBlock::class => $this->mapFileBlock($block),
+            FileContent::class => $this->mapFileBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -89,7 +89,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapFileBlock(FileContentBlock $block): array
+    protected function mapFileBlock(FileContent $block): array
     {
         return match ($block->sourceType) {
             SourceType::URL => [

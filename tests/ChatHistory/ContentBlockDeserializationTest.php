@@ -8,7 +8,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
@@ -201,7 +201,7 @@ class ContentBlockDeserializationTest extends TestCase
         $this->assertEquals('base64data', $contentBlocks[1]->source);
         $this->assertEquals(SourceType::BASE64, $contentBlocks[1]->sourceType);
 
-        $this->assertInstanceOf(FileContentBlock::class, $contentBlocks[2]);
+        $this->assertInstanceOf(FileContent::class, $contentBlocks[2]);
         $this->assertEquals('https://example.com/doc.pdf', $contentBlocks[2]->source);
         $this->assertEquals('document.pdf', $contentBlocks[2]->filename);
 

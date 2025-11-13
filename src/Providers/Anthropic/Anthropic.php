@@ -87,7 +87,7 @@ class Anthropic implements AIProviderInterface
      */
     public function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
-        $tools = \array_map(fn(array $tool): \NeuronAI\Tools\ToolInterface => $this->findTool($tool['name'])
+        $tools = \array_map(fn (array $tool): \NeuronAI\Tools\ToolInterface => $this->findTool($tool['name'])
             ->setInputs($tool['input'])
             ->setCallId($tool['id']), $toolCalls);
 

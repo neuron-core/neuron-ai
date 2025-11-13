@@ -10,7 +10,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Stream\TextChunk;
@@ -166,7 +166,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContentBlock(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContent(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);

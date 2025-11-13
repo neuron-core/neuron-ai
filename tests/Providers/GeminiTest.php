@@ -9,7 +9,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -174,7 +174,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContentBlock(
+            ->addContent(new FileContent(
                 source: '/test.pdf',
                 sourceType: SourceType::URL,
                 mediaType: 'application/pdf'

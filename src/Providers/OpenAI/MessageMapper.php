@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
@@ -61,7 +61,7 @@ class MessageMapper implements MessageMapperInterface
                 'text' => $block->text,
             ],
             ImageContent::class => $this->mapImageBlock($block),
-            FileContentBlock::class => $this->mapFileBlock($block),
+            FileContent::class => $this->mapFileBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
@@ -81,7 +81,7 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapFileBlock(FileContentBlock $block): array
+    protected function mapFileBlock(FileContent $block): array
     {
         if ($block->sourceType === SourceType::URL) {
             throw new ProviderException('This provider does not support URL document attachments.');

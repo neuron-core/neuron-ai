@@ -8,7 +8,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -111,6 +111,15 @@ trait HandleStream
                     $part['inlineData']['data'],
                     SourceType::BASE64,
                     $part['inlineData']['mimeType']
+                );
+                continue;
+            }
+
+            if (isset($part['fileData'])) {
+                $blocks['file'] = new FileContent(
+                    $part['fileData']['fileUri'],
+                    SourceType::URL,
+                    $part['fileData']['mimeType']
                 );
             }
         }

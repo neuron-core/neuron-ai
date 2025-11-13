@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -62,7 +62,7 @@ class MessageMapper implements MessageMapperInterface
 
             $payload['content'][] = match ($block::class) {
                 TextContent::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
-                FileContentBlock::class => $this->mapFileBlock($block),
+                FileContent::class => $this->mapFileBlock($block),
                 ImageContent::class => $this->mapImageBlock($block),
                 default => throw new ProviderException('Unsupported content block type: '.$block::class),
             };
@@ -79,7 +79,7 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapFileBlock(FileContentBlock $block): array
+    protected function mapFileBlock(FileContent $block): array
     {
         return [
             'type' => 'file',

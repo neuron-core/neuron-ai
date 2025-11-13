@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\Gemini;
 
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -63,14 +63,14 @@ class MessageMapper implements MessageMapperInterface
                 'text' => $block->text,
             ],
             ImageContent::class,
-            FileContentBlock::class,
+            FileContent::class,
             AudioContent::class,
             VideoContent::class => $this->mapMediaBlock($block),
             default => throw new ProviderException('Unsupported content block type: '.$block::class),
         };
     }
 
-    protected function mapMediaBlock(ImageContent|FileContentBlock|AudioContent|VideoContent $block): array
+    protected function mapMediaBlock(ImageContent|FileContent|AudioContent|VideoContent $block): array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
