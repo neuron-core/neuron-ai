@@ -60,7 +60,7 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
-        // Ensure message has started
+        // Ensure the message has started
         if (! $this->messageStarted) {
             $this->currentMessageId = $this->generateId('msg');
             $this->messageStarted = true;
@@ -84,7 +84,7 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleReasoning(ReasoningChunk $chunk): iterable
     {
-        // AG-UI supports reasoning as draft extension
+        // AG-UI supports reasoning as a draft extension
         // We'll emit it as a custom event for now, but this could be
         // specialized into ReasoningMessageStart/Content/End pattern
         if (! $this->reasoningStarted) {
@@ -161,11 +161,6 @@ class AGUIAdapter extends SSEAdapter
                 'timestamp' => $this->timestamp(),
             ]);
         }
-    }
-
-    protected function chunkToArray(StreamChunk $chunk): array
-    {
-        return $chunk->toArray();
     }
 
     public function start(): iterable

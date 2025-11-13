@@ -87,11 +87,6 @@ class VercelAIAdapter extends SSEAdapter
         }
     }
 
-    protected function chunkToArray(StreamChunk $chunk): array
-    {
-        return $chunk->toArray();
-    }
-
     public function getHeaders(): array
     {
         return [

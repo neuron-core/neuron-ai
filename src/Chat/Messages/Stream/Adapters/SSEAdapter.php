@@ -30,17 +30,6 @@ abstract class SSEAdapter implements StreamAdapterInterface
     }
 
     /**
-     * Transform a StreamChunk into an array representation.
-     *
-     * This method should be implemented by child classes to define
-     * how each chunk type is transformed into the protocol-specific format.
-     *
-     * @param StreamChunk $chunk The chunk to transform
-     * @return array<string, mixed> The transformed data
-     */
-    abstract protected function chunkToArray(StreamChunk $chunk): array;
-
-    /**
      * Generate a unique identifier with an optional prefix.
      *
      * @param string $prefix The prefix for the ID
