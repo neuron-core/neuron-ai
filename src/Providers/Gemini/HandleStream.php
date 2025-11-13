@@ -94,7 +94,7 @@ trait HandleStream
             }
 
             if (isset($part['text'])) {
-                if ($part['thought']) {
+                if ($part['thought'] ?? false) {
                     // Accumulate the reasoning text
                     $blocks['reasoning']->text .= $part['text'];
                     yield new ReasoningChunk($part['text']);
