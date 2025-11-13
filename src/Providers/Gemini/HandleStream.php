@@ -91,13 +91,7 @@ trait HandleStream
             }
         }
 
-        // Build final message
-        $blocks = [];
-        if ($text !== '') {
-            $blocks[] = new TextContent($text);
-        }
-
-        $message = new AssistantMessage($blocks);
+        $message = new AssistantMessage(new TextContent($text));
         $message->setUsage($usage);
 
         return $message;
