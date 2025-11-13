@@ -24,7 +24,7 @@ class VercelAIAdapter extends SSEAdapter
 
     public function transform(object $chunk): iterable
     {
-        // Lazy init message ID on first chunk
+        // Lazy init message ID on the first chunk
         if ($this->messageId === null) {
             $this->messageId = $this->generateId('msg');
             yield $this->sse(['type' => 'start', 'messageId' => $this->messageId]);
