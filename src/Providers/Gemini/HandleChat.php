@@ -63,13 +63,13 @@ trait HandleChat
                         $blocks[] = new ImageContent(
                             $part['inlineData']['data'],
                             SourceType::BASE64,
-                            'image/png'
+                            $part['inlineData']['mimeType']
                         );
                     }
 
                     if (isset($part['functionCall'])) {
-                        $message = $this->createToolCallMessage($content);
-                        $message->setContents($blocks);
+                        $toolCalls = \array_filter($content['parts'], fn ($item) => isset($item['functionCall']));
+                        $message = $this->createToolCallMessage($blocks, $toolCalls);
                         break;
                     }
                 }

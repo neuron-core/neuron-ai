@@ -6,8 +6,13 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
@@ -48,8 +53,13 @@ trait HandleStream
         ])->getBody();
 
         $toolCalls = [];
-        $text = '';
         $usage = new Usage(0, 0);
+
+        /** @var array<string, TextContent|ReasoningContent> $blocks */
+        $blocks = [
+            'text' => new TextContent(''),
+            'reasoning' => new ReasoningContent('')
+        ];
 
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
@@ -70,28 +80,42 @@ trait HandleStream
 
                 // Handle tool calls when finished
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    $message = $this->createToolCallMessage([
-                        'content' => $text,
-                        'parts' => $toolCalls
-                    ]);
-                    $message->setUsage($usage);
-
-                    return $message;
+                    return $this->createToolCallMessage(\array_values($blocks), $toolCalls)->setUsage($usage);
                 }
 
                 continue;
             }
 
-            // Process regular content
-            $content = $line['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $text .= $content;
+            // Process content
+            $part = $line['candidates'][0]['content']['parts'][0] ?? null;
 
-            if ($content !== '') {
-                yield new TextChunk($content);
+            if ($part === null) {
+                continue;
+            }
+
+            if (isset($part['text'])) {
+                if ($part['thought']) {
+                    // Accumulate the reasoning text
+                    $blocks['reasoning']->text .= $part['text'];
+                    yield new ReasoningChunk($part['text']);
+                } else {
+                    // Accumulate simple text output
+                    $blocks['text']->text .= $part['text'];
+                    yield new TextChunk($part['text']);
+                }
+                continue;
+            }
+
+            if (isset($part['inlineData'])) {
+                $blocks['image'] = new ImageContent(
+                    $part['inlineData']['data'],
+                    SourceType::BASE64,
+                    $part['inlineData']['mimeType']
+                );
             }
         }
 
-        $message = new AssistantMessage(new TextContent($text));
+        $message = new AssistantMessage(\array_values($blocks));
         $message->setUsage($usage);
 
         return $message;
