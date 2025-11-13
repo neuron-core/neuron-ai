@@ -47,7 +47,7 @@ class MessageMapper implements MessageMapperInterface
         $contentBlocks = $message->getContentBlocks();
 
         return [
-            'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL->value : $message->getRole(),
+            'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL : $message->getRole(),
             'parts' => \array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
