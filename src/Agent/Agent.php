@@ -173,6 +173,40 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * Stream with protocol adapter for frontend integration.
+     *
+     * @throws \Throwable
+     * @throws WorkflowInterrupt
+     * @throws InspectorException
+     * @throws WorkflowException
+     */
+    public function streamWithAdapter(
+        StreamAdapterInterface $adapter,
+        Message|array $messages = [],
+        ?InterruptRequest $interrupt = null
+    ): \Generator {
+        // Protocol start
+        foreach ($adapter->start() as $output) {
+            yield $output;
+        }
+
+        // Transform each chunk through the adapter
+        foreach ($this->stream($messages, $interrupt) as $chunk) {
+            foreach ($adapter->transform($chunk) as $output) {
+                yield $output;
+            }
+        }
+
+        // Protocol end
+        foreach ($adapter->end() as $output) {
+            yield $output;
+        }
+
+        // Preserve the return value from the original stream
+        return $this->resolveState()->getChatHistory()->getLastMessage();
+    }
+
+    /**
      * @param Message|Message[]  $messages
      * @throws \Throwable
      * @throws AgentException
@@ -207,40 +241,6 @@ class Agent extends Workflow implements AgentInterface
 
         // Return the structured output object
         return $finalState->get('structured_output');
-    }
-
-    /**
-     * Stream with protocol adapter for frontend integration.
-     *
-     * @throws \Throwable
-     * @throws WorkflowInterrupt
-     * @throws InspectorException
-     * @throws WorkflowException
-     */
-    public function streamWithAdapter(
-        StreamAdapterInterface $adapter,
-        Message|array $messages = [],
-        ?InterruptRequest $interrupt = null
-    ): \Generator {
-        // Protocol start
-        foreach ($adapter->start() as $output) {
-            yield $output;
-        }
-
-        // Transform each chunk through the adapter
-        foreach ($this->stream($messages, $interrupt) as $chunk) {
-            foreach ($adapter->transform($chunk) as $output) {
-                yield $output;
-            }
-        }
-
-        // Protocol end
-        foreach ($adapter->end() as $output) {
-            yield $output;
-        }
-
-        // Preserve the return value from the original stream
-        return $this->resolveState()->getChatHistory()->getLastMessage();
     }
 
     /**
