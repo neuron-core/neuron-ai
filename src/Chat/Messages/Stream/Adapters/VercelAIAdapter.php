@@ -17,17 +17,17 @@ use NeuronAI\UniqueIdGenerator;
  */
 class VercelAIAdapter extends SSEAdapter
 {
-    protected ?string $messageId = null;
+    protected bool $started = false;
 
     /** @var array<string, string> */
     protected array $toolCallIds = [];
 
     public function transform(object $chunk): iterable
     {
-        // Lazy init message ID on the first chunk
-        if ($this->messageId === null) {
-            $this->messageId = $this->generateId('msg');
-            yield $this->sse(['type' => 'start', 'messageId' => $this->messageId]);
+        // Lazy init on the first chunk
+        if (!$this->started) {
+            $this->started = true;
+            yield $this->sse(['type' => 'start', 'messageId' => $chunk->messageId]);
         }
 
         yield from match (true) {

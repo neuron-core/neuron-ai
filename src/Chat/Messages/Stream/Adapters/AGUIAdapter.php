@@ -87,19 +87,18 @@ class AGUIAdapter extends SSEAdapter
         // We'll emit it as a custom event for now, but this could be
         // specialized into ReasoningMessageStart/Content/End pattern
         if (! $this->reasoningStarted) {
-            $this->reasoningId = $this->generateId('reasoning');
             $this->reasoningStarted = true;
 
             yield $this->sse([
                 'type' => 'ReasoningStart',
-                'messageId' => $this->reasoningId,
+                'messageId' => $chunk->messageId,
                 'timestamp' => $this->timestamp(),
             ]);
         }
 
         yield $this->sse([
             'type' => 'ReasoningMessageContent',
-            'messageId' => $this->reasoningId,
+            'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
             'timestamp' => $this->timestamp(),
         ]);
