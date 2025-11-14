@@ -69,6 +69,7 @@ class StreamingNode extends Node
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
+                yield new ToolCallChunk($message->getTools());
                 return new ToolCallEvent($message, $event);
             }
 

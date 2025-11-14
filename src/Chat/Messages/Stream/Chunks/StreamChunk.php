@@ -7,7 +7,7 @@ namespace NeuronAI\Chat\Messages\Stream\Chunks;
 abstract class StreamChunk
 {
     public function __construct(
-        public readonly string $messageId,
+        public readonly ?string $messageId = null,
     ) {
     }
 

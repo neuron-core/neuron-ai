@@ -74,11 +74,9 @@ trait HandleStream
                 continue;
             }
 
-            yield from match ($eventType) {
-                'content_block_delta' => $this->handleBlockDelta($line),
-                'content_block_stop' => $this->handleBlockStop($line),
-                default => null,
-            };
+            if ($eventType === 'content_block_delta') {
+                yield from $this->handleBlockDelta($line);
+            }
         }
 
         // Build the final message
@@ -145,16 +143,6 @@ trait HandleStream
 
         if ($delta['type'] === 'input_json_delta') {
             $this->streamState->composeToolCalls($event);
-        }
-    }
-
-    protected function handleBlockStop(array $event): \Generator
-    {
-        if (
-            !isset($this->streamState->blocks[$event['index']]) &&
-            $this->streamState->hasToolCalls()
-        ) {
-            yield new ToolCallChunk($this->streamState->messageId, $this->streamState->getToolCalls());
         }
     }
 }

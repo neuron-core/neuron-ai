@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use NeuronAI\UniqueIdGenerator;
 
 /**
  * Adapter for Vercel AI SDK Data Stream Protocol.
@@ -42,7 +43,7 @@ class VercelAIAdapter extends SSEAdapter
     {
         yield $this->sse([
             'type' => 'text-delta',
-            'id' => $chunk->id,
+            'id' => UniqueIdGenerator::generateId(),
             'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
         ]);
@@ -52,7 +53,7 @@ class VercelAIAdapter extends SSEAdapter
     {
         yield $this->sse([
             'type' => 'reasoning-delta',
-            'id' => $chunk->id,
+            'id' => UniqueIdGenerator::generateId(),
             'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
         ]);
