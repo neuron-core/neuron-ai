@@ -18,6 +18,8 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
+    protected StreamState $streamState;
+
     /**
      * Stream response from the LLM.
      *
@@ -47,9 +49,9 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
-        $toolCalls = [];
+        $this->streamState = new StreamState();
+
         $contentBlocks = [];
-        $usage = new Usage(0, 0);
         $currentBlockIndex = null;
         $currentBlockType = null;
 
@@ -60,13 +62,13 @@ trait HandleStream
             }
 
             if ($line['type'] === 'message_start') {
-                $usage->inputTokens += $line['message']['usage']['input_tokens'] ?? 0;
-                $usage->outputTokens += $line['message']['usage']['output_tokens'] ?? 0;
+                $this->streamState->addInputTokens($line['message']['usage']['input_tokens'] ?? 0);
+                $this->streamState->addOutputTokens($line['message']['usage']['output_tokens'] ?? 0);
                 continue;
             }
 
             if ($line['type'] === 'message_delta') {
-                $usage->outputTokens += $line['usage']['output_tokens'] ?? 0;
+                $this->streamState->addOutputTokens($line['usage']['output_tokens'] ?? 0);
                 continue;
             }
 
@@ -83,7 +85,7 @@ trait HandleStream
                 }
 
                 if ($currentBlockType === 'tool_use') {
-                    $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                    $this->streamState->composeToolCalls($line);
                     continue;
                 }
 
@@ -114,7 +116,7 @@ trait HandleStream
                 }
 
                 if ($delta['type'] === 'input_json_delta') {
-                    $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                    $this->streamState->composeToolCalls($line);
                     continue;
                 }
             }
@@ -127,18 +129,20 @@ trait HandleStream
         }
 
         // Build final message
-        if (!empty($toolCalls)) {
-            // Decode tool calls input
-            $toolCalls = \array_map(function (array $call): array {
-                $call['input'] = \json_decode((string) $call['input'], true);
-                return $call;
-            }, $toolCalls);
-
-            return $this->createToolCallMessage($toolCalls, $contentBlocks)->setUsage($usage);
+        if ($this->streamState->hasToolCalls()) {
+            return $this->createToolCallMessage(
+                $this->streamState->getToolCalls(),
+                $contentBlocks
+            )->setUsage($this->streamState->getUsage());
         }
 
         $message = new AssistantMessage($contentBlocks);
-        return $message->setUsage($usage);
+        return $message->setUsage($this->streamState->getUsage());
+    }
+
+    protected function parseMessageStart(array $event): \Generator
+    {
+
     }
 
     /**
