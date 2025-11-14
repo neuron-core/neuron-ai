@@ -92,7 +92,7 @@ trait HandleStream
 
     protected function handleMessageStart(array $message): void
     {
-        $this->streamState->messageId = $message['id'];
+        $this->streamState->messageId($message['id']);
         $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
         $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
     }
@@ -124,14 +124,14 @@ trait HandleStream
         if ($delta['type'] === 'text_delta') {
             $text = $delta['text'];
             $this->streamState->blocks[$index]->text .= $text;
-            yield new TextChunk($this->streamState->messageId, $text);
+            yield new TextChunk($this->streamState->messageId(), $text);
             return;
         }
 
         if ($delta['type'] === 'thinking_delta') {
             $thinking = $delta['thinking'];
             $this->streamState->blocks[$index]->text .= $thinking;
-            yield new ReasoningChunk($this->streamState->messageId, $thinking);
+            yield new ReasoningChunk($this->streamState->messageId(), $thinking);
             return;
         }
 

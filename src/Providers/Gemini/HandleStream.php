@@ -20,10 +20,12 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
+    protected StreamState $streamState;
+
     /**
      * Stream response from the LLM.
      *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
+     * https://ai.google.dev/api/live#messages
      *
      * @throws ProviderException
      * @throws GuzzleException
@@ -52,8 +54,7 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
-        $toolCalls = [];
-        $usage = new Usage(0, 0);
+        $this->streamState = new StreamState();
 
         /** @var array<string, TextContent|ReasoningContent> $blocks */
         $blocks = [
@@ -70,17 +71,20 @@ trait HandleStream
 
             // Capture usage information
             if (\array_key_exists('usageMetadata', $line)) {
-                $usage->inputTokens += $line['usageMetadata']['promptTokenCount'] ?? 0;
-                $usage->outputTokens += $line['usageMetadata']['candidatesTokenCount'] ?? 0;
+                $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
+                $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
             }
 
             // Process tool calls
-            if ($this->hasToolCalls($line)) {
-                $toolCalls = $this->composeToolCalls($line, $toolCalls);
+            if ($this->isToolCalls($line)) {
+                $this->streamState->composeToolCalls($line);
 
                 // Handle tool calls when finished
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    return $this->createToolCallMessage(\array_values($blocks), $toolCalls)->setUsage($usage);
+                    return $this->createToolCallMessage(
+                        \array_values($blocks),
+                        $this->streamState->getToolCalls()
+                    )->setUsage($this->streamState->getUsage());
                 }
 
                 continue;
@@ -97,11 +101,11 @@ trait HandleStream
                 if ($part['thought'] ?? false) {
                     // Accumulate the reasoning text
                     $blocks['reasoning']->text .= $part['text'];
-                    yield new ReasoningChunk($part['text']);
+                    yield new ReasoningChunk($this->streamState->messageId(), $part['text']);
                 } else {
                     // Accumulate simple text output
                     $blocks['text']->text .= $part['text'];
-                    yield new TextChunk($part['text']);
+                    yield new TextChunk($this->streamState->messageId(), $part['text']);
                 }
                 continue;
             }
@@ -125,25 +129,9 @@ trait HandleStream
         }
 
         $message = new AssistantMessage(\array_values($blocks));
-        $message->setUsage($usage);
+        $message->setUsage($this->streamState->getUsage());
 
         return $message;
-    }
-
-    /**
-     * Recreate the tool_calls format from streaming Gemini API.
-     */
-    protected function composeToolCalls(array $line, array $toolCalls): array
-    {
-        $parts = $line['candidates'][0]['content']['parts'] ?? [];
-
-        foreach ($parts as $index => $part) {
-            if (isset($part['functionCall'])) {
-                $toolCalls[$index]['functionCall'] = $part['functionCall'];
-            }
-        }
-
-        return $toolCalls;
     }
 
     /**
@@ -152,7 +140,7 @@ trait HandleStream
      * @param array $line The data line to check for tool function calls.
      * @return bool Returns true if the line contains tool function calls, otherwise false.
      */
-    protected function hasToolCalls(array $line): bool
+    protected function isToolCalls(array $line): bool
     {
         $parts = $line['candidates'][0]['content']['parts'] ?? [];
 

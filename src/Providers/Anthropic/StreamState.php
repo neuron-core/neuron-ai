@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\Usage;
 
 class StreamState
 {
-    public string $messageId;
+    protected string $messageId;
 
     /**
      * @var TextContent[]|ReasoningContent[]
@@ -42,6 +42,15 @@ class StreamState
     public function getUsage(): Usage
     {
         return $this->usage;
+    }
+
+    public function messageId(string $id = null): string
+    {
+        if ($id) {
+            $this->messageId = $id;
+        }
+
+        return $this->messageId;
     }
 
     /**
