@@ -56,12 +56,6 @@ trait HandleStream
 
         $this->streamState = new StreamState();
 
-        /** @var array<string, TextContent|ReasoningContent> $blocks */
-        $blocks = [
-            'text' => new TextContent(''),
-            'reasoning' => new ReasoningContent('')
-        ];
-
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
 
@@ -76,13 +70,13 @@ trait HandleStream
             }
 
             // Process tool calls
-            if ($this->isToolCalls($line)) {
+            if ($this->hasToolCalls($line)) {
                 $this->streamState->composeToolCalls($line);
 
                 // Handle tool calls when finished
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
                     return $this->createToolCallMessage(
-                        \array_values($blocks),
+                        $this->streamState->getContentBlocks(),
                         $this->streamState->getToolCalls()
                     )->setUsage($this->streamState->getUsage());
                 }
@@ -91,47 +85,50 @@ trait HandleStream
             }
 
             // Process content
-            $part = $line['candidates'][0]['content']['parts'][0] ?? null;
-
-            if ($part === null) {
+            if (! ($part = $line['candidates'][0]['content']['parts'][0] ?? null)) {
                 continue;
             }
 
             if (isset($part['text'])) {
-                if ($part['thought'] ?? false) {
-                    // Accumulate the reasoning text
-                    $blocks['reasoning']->text .= $part['text'];
-                    yield new ReasoningChunk($this->streamState->messageId(), $part['text']);
-                } else {
-                    // Accumulate simple text output
-                    $blocks['text']->text .= $part['text'];
-                    yield new TextChunk($this->streamState->messageId(), $part['text']);
-                }
+                yield from $this->handleTextData($part);
                 continue;
             }
 
             if (isset($part['inlineData'])) {
-                $blocks['image'] = new ImageContent(
+                $this->streamState->addContentBlock('image', new ImageContent(
                     $part['inlineData']['data'],
                     SourceType::BASE64,
                     $part['inlineData']['mimeType']
-                );
+                ));
                 continue;
             }
 
             if (isset($part['fileData'])) {
-                $blocks['file'] = new FileContent(
+                $this->streamState->addContentBlock('file', new FileContent(
                     $part['fileData']['fileUri'],
                     SourceType::URL,
                     $part['fileData']['mimeType']
-                );
+                ));
             }
         }
 
-        $message = new AssistantMessage(\array_values($blocks));
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
 
         return $message;
+    }
+
+    protected function handleTextData(array $part): \Generator
+    {
+        if ($part['thought'] ?? false) {
+            // Accumulate the reasoning text
+            $this->streamState->updateContentBlock('reasoning', $part['text']);
+            yield new ReasoningChunk($this->streamState->messageId(), $part['text']);
+        } else {
+            // Accumulate simple text output
+            $this->streamState->updateContentBlock('text', $part['text']);
+            yield new TextChunk($this->streamState->messageId(), $part['text']);
+        }
     }
 
     /**
@@ -140,7 +137,7 @@ trait HandleStream
      * @param array $line The data line to check for tool function calls.
      * @return bool Returns true if the line contains tool function calls, otherwise false.
      */
-    protected function isToolCalls(array $line): bool
+    protected function hasToolCalls(array $line): bool
     {
         $parts = $line['candidates'][0]['content']['parts'] ?? [];
 

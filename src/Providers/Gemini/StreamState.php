@@ -2,6 +2,9 @@
 
 namespace NeuronAI\Providers\Gemini;
 
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\UniqueIdGenerator;
 
@@ -10,6 +13,11 @@ class StreamState
     protected string $messageId;
 
     protected array $toolCalls = [];
+
+    /**
+     * @var array<string, ContentBlock>
+     */
+    protected array $blocks = [];
 
     public function __construct(
         protected Usage $usage = new Usage(0, 0),
@@ -40,6 +48,28 @@ class StreamState
         }
 
         return $this->messageId;
+    }
+
+    public function addContentBlock(string $type, ContentBlock $block): void
+    {
+        $this->blocks[$type] = $block;
+    }
+
+    public function updateContentBlock(string $type, string $content): void
+    {
+        if (!isset($this->blocks[$type])) {
+            $this->blocks[$type] = $type === 'text' ? new TextContent('') : new ReasoningContent('');
+        }
+
+        $this->blocks[$type]->text .= $content;
+    }
+
+    /**
+     * @return ContentBlock[]
+     */
+    public function getContentBlocks(): array
+    {
+        return \array_values($this->blocks);
     }
 
     /**
