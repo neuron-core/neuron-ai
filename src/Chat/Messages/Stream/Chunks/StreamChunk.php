@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Events;
+namespace NeuronAI\Chat\Messages\Stream\Chunks;
 
 abstract class StreamChunk
 {

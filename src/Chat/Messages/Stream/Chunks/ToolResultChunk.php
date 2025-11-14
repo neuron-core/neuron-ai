@@ -2,13 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Events;
+namespace NeuronAI\Chat\Messages\Stream\Chunks;
 
-class TextChunk extends StreamChunk
+use NeuronAI\Tools\ToolInterface;
+
+class ToolResultChunk extends StreamChunk
 {
+    /**
+     * @param array<int, ToolInterface> $tools
+     */
     public function __construct(
         string $messageId,
-        public readonly string $content,
+        public readonly array $tools,
     ) {
         parent::__construct($messageId);
     }
@@ -17,7 +22,7 @@ class TextChunk extends StreamChunk
     {
         return [
             'messageId' => $this->messageId,
-            'content' => $this->content,
+            'tools' => $this->tools,
         ];
     }
 }

@@ -55,7 +55,7 @@ interface AIProviderInterface
      * Message object (AssistantMessage or ToolCallMessage) as its final value.
      *
      * @param Message[] $messages
-     * @return \Generator<int, \NeuronAI\Chat\Messages\Stream\Events\TextChunk|\NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk|\NeuronAI\Chat\Messages\Stream\Events\ToolCallChunk|array, mixed, Message>
+     * @return \Generator<int, \NeuronAI\Chat\Messages\Stream\Chunks\TextChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk|array, mixed, Message>
      */
     public function stream(array|string $messages): \Generator;
 
