@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\SSEParser;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
@@ -57,7 +58,7 @@ trait HandleStream
 
         // https://docs.anthropic.com/en/api/messages-streaming
         while (! $stream->eof()) {
-            if (!$line = $this->parseNextDataLine($stream)) {
+            if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
@@ -143,43 +144,5 @@ trait HandleStream
     protected function parseMessageStart(array $event): \Generator
     {
 
-    }
-
-    protected function parseNextDataLine(StreamInterface $stream): ?array
-    {
-        $line = $this->readLine($stream);
-
-        if (! \str_starts_with((string) $line, 'data:')) {
-            return null;
-        }
-
-        $line = \trim(\substr((string) $line, \strlen('data: ')));
-
-        try {
-            return \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
-            throw new ProviderException('Anthropic streaming error - '.$exception->getMessage());
-        }
-    }
-
-    protected function readLine(StreamInterface $stream): string
-    {
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            $byte = $stream->read(1);
-
-            if ($byte === '') {
-                return $buffer;
-            }
-
-            $buffer .= $byte;
-
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
     }
 }

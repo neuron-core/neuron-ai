@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Providers\SSEParser;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
@@ -94,7 +95,7 @@ trait HandleStream
 
     protected function parseNextJson(StreamInterface $stream): ?array
     {
-        $line = $this->readLine($stream);
+        $line = SSEParser::readLine($stream);
 
         if (empty($line)) {
             return null;
@@ -111,22 +112,5 @@ trait HandleStream
         }
 
         return $json;
-    }
-
-    protected function readLine(StreamInterface $stream): string
-    {
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            if ('' === ($byte = $stream->read(1))) {
-                return $buffer;
-            }
-            $buffer .= $byte;
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
     }
 }
