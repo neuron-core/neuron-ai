@@ -50,97 +50,85 @@ trait HandleStream
 
         $this->streamState = new StreamState();
 
-        $contentBlocks = [];
-        $currentBlockIndex = null;
-        $currentBlockType = null;
-
         // https://docs.anthropic.com/en/api/messages-streaming
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
-            if ($line['type'] === 'message_start') {
-                $this->streamState->addInputTokens($line['message']['usage']['input_tokens'] ?? 0);
-                $this->streamState->addOutputTokens($line['message']['usage']['output_tokens'] ?? 0);
-                continue;
-            }
-
-            if ($line['type'] === 'message_delta') {
-                $this->streamState->addOutputTokens($line['usage']['output_tokens'] ?? 0);
-                continue;
-            }
-
-            // Track content block start
-            if ($line['type'] === 'content_block_start') {
-                $currentBlockIndex = $line['index'];
-                $currentBlockType = $line['content_block']['type'] ?? null;
-
-                // Initialize content block
-                if ($currentBlockType === 'text') {
-                    $contentBlocks[$currentBlockIndex] = new TextContent('');
-                } elseif ($currentBlockType === 'thinking') {
-                    $contentBlocks[$currentBlockIndex] = new ReasoningContent('');
-                }
-
-                if ($currentBlockType === 'tool_use') {
-                    $this->streamState->composeToolCalls($line);
-                    continue;
-                }
-
-                continue;
-            }
-
-            // Handle content block deltas
-            if ($line['type'] === 'content_block_delta') {
-                $delta = $line['delta'];
-
-                if ($delta['type'] === 'text_delta') {
-                    $text = $delta['text'];
-                    $contentBlocks[$currentBlockIndex]->text .= $text;
-                    yield new TextChunk($text);
-                    continue;
-                }
-
-                if ($delta['type'] === 'thinking_delta') {
-                    $thinking = $delta['thinking'];
-                    $contentBlocks[$currentBlockIndex]->text .= $thinking;
-                    yield new ReasoningChunk($thinking);
-                    continue;
-                }
-
-                if ($delta['type'] === 'signature_delta') {
-                    $contentBlocks[$currentBlockIndex]->id = $delta['signature'];
-                    continue;
-                }
-
-                if ($delta['type'] === 'input_json_delta') {
-                    $this->streamState->composeToolCalls($line);
-                    continue;
-                }
-            }
-
-            // Handle content block stop
-            if ($line['type'] === 'content_block_stop') {
-                $currentBlockIndex = null;
-                $currentBlockType = null;
-            }
+            yield from match ($line['type']) {
+                'message_start' => $this->handleMessageStart($line['message']),
+                'message_delta' => $this->handleMessageDelta($line),
+                'content_block_start' => $this->handleBlockStart($line),
+                'content_block_delta' => $this->handleBlockDelta($line),
+                default => null,
+            };
         }
 
-        // Build final message
+        // Build the final message
         if ($this->streamState->hasToolCalls()) {
             return $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
-                $contentBlocks
+                $this->streamState->blocks
             )->setUsage($this->streamState->getUsage());
         }
 
-        $message = new AssistantMessage($contentBlocks);
+        $message = new AssistantMessage($this->streamState->blocks);
         return $message->setUsage($this->streamState->getUsage());
     }
 
-    protected function parseMessageStart(array $event): \Generator
+    protected function handleMessageStart(array $message): \Generator
     {
+        $this->streamState->messageId = $message['id'];
+        $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
+        $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
+    }
 
+    protected function handleMessageDelta(array $event): \Generator
+    {
+        $this->streamState->addOutputTokens($event['usage']['output_tokens'] ?? 0);
+    }
+
+    protected function handleBlockStart(array $event): \Generator
+    {
+        $index = $event['index'];
+        $type = $event['content_block']['type'] ?? null;
+
+        if ($type === 'text') {
+            $this->streamState->blocks[$index] = new TextContent('');
+        } elseif ($type === 'thinking') {
+            $this->streamState->blocks[$index] = new ReasoningContent('');
+        } elseif ($type === 'tool_use') {
+            $this->streamState->composeToolCalls($event);
+        }
+    }
+
+    protected function handleBlockDelta(array $event): \Generator
+    {
+        $index = $event['index'];
+        $delta = $event['delta'];
+
+        if ($delta['type'] === 'text_delta') {
+            $text = $delta['text'];
+            $this->streamState->blocks[$index]->text .= $text;
+            yield new TextChunk($this->streamState->messageId, $text);
+            return;
+        }
+
+        if ($delta['type'] === 'thinking_delta') {
+            $thinking = $delta['thinking'];
+            $this->streamState->blocks[$index]->text .= $thinking;
+            yield new ReasoningChunk($this->streamState->messageId, $thinking);
+            return;
+        }
+
+        if ($delta['type'] === 'signature_delta') {
+            $this->streamState->blocks[$index]->id = $delta['signature'];
+            return;
+        }
+
+        if ($delta['type'] === 'input_json_delta') {
+            $this->streamState->composeToolCalls($event);
+        }
     }
 }

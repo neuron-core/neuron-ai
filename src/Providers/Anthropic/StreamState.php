@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\Usage;
 
 class StreamState
 {
     public string $messageId;
+
+    /**
+     * @var ContentBlock[]
+     */
+    public array $blocks = [];
 
     /**
      * @var array<int, array<string, mixed>>

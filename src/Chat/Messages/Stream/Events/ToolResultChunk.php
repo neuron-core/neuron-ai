@@ -12,17 +12,15 @@ class ToolResultChunk extends StreamChunk
      * @param array<int, ToolInterface> $tools
      */
     public function __construct(
-        string $id,
         string $messageId,
         public readonly array $tools,
     ) {
-        parent::__construct($id, $messageId);
+        parent::__construct($messageId);
     }
 
     public function toArray(): array
     {
         return [
-            'id' => $this->id,
             'messageId' => $this->messageId,
             'tools' => $this->tools,
         ];
