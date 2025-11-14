@@ -44,7 +44,7 @@ class StreamState
         return $this->usage;
     }
 
-    public function messageId(string $id = null): string
+    public function messageId(?string $id = null): string
     {
         if ($id) {
             $this->messageId = $id;
