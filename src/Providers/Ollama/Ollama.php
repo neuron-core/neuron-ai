@@ -68,16 +68,14 @@ class Ollama implements AIProviderInterface
     }
 
     /**
-     * @param array<string, mixed> $message
+     * @param array<string, mixed> $toolCalls
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $message): Message
+    protected function createToolCallMessage(array $toolCalls, array|string|null $content = null): ToolCallMessage
     {
         $tools = \array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
-            ->setInputs($item['function']['arguments']), $message['tool_calls']);
+            ->setInputs($item['function']['arguments']), $toolCalls);
 
-        $result = new ToolCallMessage($message['content'], $tools);
-
-        return $result->addMetadata('tool_calls', $message['tool_calls']);
+        return new ToolCallMessage($content, $tools);
     }
 }

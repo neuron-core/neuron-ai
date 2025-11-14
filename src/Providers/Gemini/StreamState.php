@@ -44,7 +44,7 @@ class StreamState
     public function messageId(): string
     {
         if (!isset($this->messageId)) {
-            $this->messageId = UniqueIdGenerator::generateId('msq_');
+            $this->messageId = UniqueIdGenerator::generateId('msg_');
         }
 
         return $this->messageId;
