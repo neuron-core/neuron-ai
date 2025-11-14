@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
 
@@ -56,11 +57,26 @@ trait HandleStream
                 continue;
             }
 
-            yield from match ($line['type']) {
-                'message_start' => $this->handleMessageStart($line['message']),
-                'message_delta' => $this->handleMessageDelta($line),
-                'content_block_start' => $this->handleBlockStart($line),
+            $eventType = $line['type'] ?? null;
+
+            if ($eventType === 'message_start') {
+                $this->handleMessageStart($line['message']);
+                continue;
+            }
+
+            if ($eventType === 'message_delta') {
+                $this->handleMessageDelta($line);
+                continue;
+            }
+
+            if ($eventType === 'content_block_start') {
+                $this->handleBlockStart($line);
+                continue;
+            }
+
+            yield from match ($eventType) {
                 'content_block_delta' => $this->handleBlockDelta($line),
+                'content_block_stop' => $this->handleBlockStop($line),
                 default => null,
             };
         }
@@ -77,19 +93,19 @@ trait HandleStream
         return $message->setUsage($this->streamState->getUsage());
     }
 
-    protected function handleMessageStart(array $message): \Generator
+    protected function handleMessageStart(array $message): void
     {
         $this->streamState->messageId = $message['id'];
         $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
         $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
     }
 
-    protected function handleMessageDelta(array $event): \Generator
+    protected function handleMessageDelta(array $event): void
     {
         $this->streamState->addOutputTokens($event['usage']['output_tokens'] ?? 0);
     }
 
-    protected function handleBlockStart(array $event): \Generator
+    protected function handleBlockStart(array $event): void
     {
         $index = $event['index'];
         $type = $event['content_block']['type'] ?? null;
@@ -129,6 +145,16 @@ trait HandleStream
 
         if ($delta['type'] === 'input_json_delta') {
             $this->streamState->composeToolCalls($event);
+        }
+    }
+
+    protected function handleBlockStop(array $event): \Generator
+    {
+        if (
+            !isset($this->streamState->blocks[$event['index']]) &&
+            $this->streamState->hasToolCalls()
+        ) {
+            yield new ToolCallChunk($this->streamState->messageId, $this->streamState->getToolCalls());
         }
     }
 }

@@ -21,7 +21,6 @@ class ToolCallChunk extends StreamChunk
     public function toArray(): array
     {
         return [
-            'id' => $this->id,
             'messageId' => $this->messageId,
             'tools' => $this->tools,
         ];
