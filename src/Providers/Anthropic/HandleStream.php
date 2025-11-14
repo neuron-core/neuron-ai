@@ -145,29 +145,6 @@ trait HandleStream
 
     }
 
-    /**
-     * Recreate the tool_call format of anthropic API from streaming.
-     *
-     * @param  array<string, mixed>  $line
-     * @param  array<int, array<string, mixed>>  $toolCalls
-     * @return array<int, array<string, mixed>>
-     */
-    protected function composeToolCalls(array $line, array $toolCalls): array
-    {
-        if (!\array_key_exists($line['index'], $toolCalls)) {
-            $toolCalls[$line['index']] = [
-                'type' => 'tool_use',
-                'id' => $line['content_block']['id'],
-                'name' => $line['content_block']['name'],
-                'input' => '',
-            ];
-        } elseif ($input = $line['delta']['partial_json'] ?? null) {
-            $toolCalls[$line['index']]['input'] .= $input;
-        }
-
-        return $toolCalls;
-    }
-
     protected function parseNextDataLine(StreamInterface $stream): ?array
     {
         $line = $this->readLine($stream);
