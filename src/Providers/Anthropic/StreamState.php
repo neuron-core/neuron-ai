@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Usage;
 
 class StreamState
@@ -12,7 +13,7 @@ class StreamState
     public string $messageId;
 
     /**
-     * @var ContentBlock[]
+     * @var TextContent[]|ReasoningContent[]
      */
     public array $blocks = [];
 
