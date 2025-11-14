@@ -9,8 +9,6 @@ use NeuronAI\Tools\ToolInterface;
 class ToolResultChunk extends StreamChunk
 {
     /**
-     * @param string $id
-     * @param string $messageId
      * @param array<int, ToolInterface> $tools
      */
     public function __construct(

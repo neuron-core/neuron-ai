@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\Usage;
@@ -7,8 +9,6 @@ use NeuronAI\Chat\Messages\Usage;
 class StreamState
 {
     public string $messageId;
-
-    public string $index;
 
     /**
      * @var array<int, array<string, mixed>>

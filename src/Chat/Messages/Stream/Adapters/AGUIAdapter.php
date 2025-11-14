@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\Events\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Events\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Events\ToolResultChunk;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
-use NeuronAI\Chat\Messages\Stream\Events\StreamChunk;
 use NeuronAI\UniqueIdGenerator;
 
 /**
@@ -37,7 +36,7 @@ abstract class SSEAdapter implements StreamAdapterInterface
      */
     protected function generateId(string $prefix = ''): string
     {
-        $id = (string) UniqueIdGenerator::generateId();
+        $id = UniqueIdGenerator::generateId();
 
         return $prefix !== '' ? $prefix . '_' . $id : $id;
     }

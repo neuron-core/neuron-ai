@@ -12,10 +12,8 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Events\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Events\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
-use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {

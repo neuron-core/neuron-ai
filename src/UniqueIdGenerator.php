@@ -13,7 +13,7 @@ class UniqueIdGenerator
     protected static int $sequence = 0;
     protected static int $lastTimestamp = 0;
 
-    public static function generateId(): int
+    public static function generateId(string $prefix = ''): string
     {
         // Initialize machine ID once (you can set this based on server/process)
         if (self::$machineId === null) {
@@ -37,7 +37,9 @@ class UniqueIdGenerator
         self::$lastTimestamp = $timestamp;
 
         // Combine: timestamp (41 bits) + machine ID (10 bits) + sequence (12 bits)
-        return ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
+        $id = ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
+
+        return $prefix . $id;
     }
 
     protected static function getCurrentTimestamp(): int

@@ -97,11 +97,11 @@ trait HandleStream
     {
         $line = SSEParser::readLine($stream);
 
-        if (empty($line)) {
+        if ($line === '' || $line === '0') {
             return null;
         }
 
-        $json = \json_decode((string) $line, true);
+        $json = \json_decode($line, true);
 
         if ($json['done']) {
             return null;

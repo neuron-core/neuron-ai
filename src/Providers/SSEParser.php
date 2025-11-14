@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers;
 
 use NeuronAI\Exceptions\ProviderException;
@@ -11,11 +13,11 @@ class SSEParser
     {
         $line = static::readLine($stream);
 
-        if (! \str_starts_with((string) $line, 'data:')) {
+        if (! \str_starts_with($line, 'data:')) {
             return null;
         }
 
-        $line = \trim(\substr((string) $line, \strlen('data: ')));
+        $line = \trim(\substr($line, \strlen('data: ')));
 
         try {
             return \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
