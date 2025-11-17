@@ -133,7 +133,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $right = $totalMessages;
 
         while ($left < $right) {
-            $mid = \intval(($left + $right) / 2);
+            $mid = (int) (($left + $right) / 2);
             $subset = \array_slice($this->history, $mid);
 
             if ($this->tokenCounter->count($subset) <= $this->contextWindow) {
@@ -149,57 +149,114 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Ensures the message list:
-     * 1. Starts with a UserMessage
-     * 2. Ends with an AssistantMessage
-     * 3. Maintains tool call/result pairs
+     * Ensures the message list is valid for the model:
+     * 1. Leading tool_call / tool_call_result messages are removed.
+     * 2. The first message is a "real" message (user/assistant/model).
+     * 3. Alternation between user and assistant/model roles is preserved,
+     *    and tool_call/tool_call_result pairs are kept valid.
      */
     protected function ensureValidMessageSequence(): void
     {
-        // Ensure it starts with a UserMessage
+        // Drop leading tool_call / tool_call_result messages
+        $this->dropLeadingToolMessages();
+
+        if ($this->history === []) {
+            return;
+        }
+
+        // Ensure the first message is a real chat message (USER / ASSISTANT / MODEL)
         $this->ensureStartsWithUser();
 
-        // Ensure it ends with an AssistantMessage
+        if ($this->history === []) {
+            return;
+        }
+
+        // Normalize role alternation and keep tool_call/tool_call_result pairs
         $this->ensureValidAlternation();
     }
 
     /**
-     * Ensures the message list starts with a UserMessage.
+     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
      */
-    protected function ensureStartsWithUser(): void
+    protected function dropLeadingToolMessages(): void
     {
-        // Find the first UserMessage
-        $firstUserIndex = null;
+        if ($this->history === []) {
+            return;
+        }
+
+        $start = 0;
+
         foreach ($this->history as $index => $message) {
-            if ($message->getRole() === MessageRole::USER->value) {
-                $firstUserIndex = $index;
-                break;
+            if ($message instanceof ToolCallMessage || $message instanceof ToolCallResultMessage) {
+                $start = $index + 1;
+                continue;
             }
+
+            // First non-tool message reached, stop advancing
+            break;
         }
 
-        if ($firstUserIndex === null) {
-            // No UserMessage found
-            $this->history = [];
-            return;
-        }
-
-        if ($firstUserIndex === 0) {
-            return;
-        }
-
-        if ($firstUserIndex > 0) {
-            // Remove messages before the first user message
-            $this->history = \array_slice($this->history, $firstUserIndex);
+        if ($start > 0) {
+            $this->history = \array_slice($this->history, $start);
         }
     }
 
     /**
-     * Ensures valid alternation between user and assistant messages.
+     * Ensures the history starts with a "real" chat message:
+     * USER, ASSISTANT or MODEL. If none exists, history is cleared.
+     */
+    protected function ensureStartsWithUser(): void
+    {
+        if ($this->history === []) {
+            return;
+        }
+
+        $firstIndex = null;
+
+        foreach ($this->history as $index => $message) {
+            $role = $message->getRole();
+
+            if (\in_array($role, [
+                MessageRole::USER->value,
+                MessageRole::ASSISTANT->value,
+                MessageRole::MODEL->value,
+            ], true)) {
+                $firstIndex = $index;
+                break;
+            }
+        }
+
+        // No real chat message found – clear the history
+        if ($firstIndex === null) {
+            $this->history = [];
+            return;
+        }
+
+        if ($firstIndex > 0) {
+            $this->history = \array_slice($this->history, $firstIndex);
+        }
+    }
+
+    /**
+     * Ensures valid alternation between user and assistant/model messages,
+     * while preserving valid tool_call/tool_call_result pairs.
      */
     protected function ensureValidAlternation(): void
     {
+        if ($this->history === []) {
+            return;
+        }
+
         $result = [];
-        $expectingRole = [MessageRole::USER->value]; // Should start with user
+
+        // First message is already guaranteed to be USER / ASSISTANT / MODEL
+        $firstRole = $this->history[0]->getRole();
+
+        $expectingRole = match ($firstRole) {
+            MessageRole::ASSISTANT->value,
+            MessageRole::MODEL->value => [MessageRole::ASSISTANT->value, MessageRole::MODEL->value],
+            default => [MessageRole::USER->value],
+        };
 
         foreach ($this->history as $message) {
             $messageRole = $message->getRole();
@@ -207,7 +264,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Tool result messages have a special case - they're user messages
             // but can only follow tool call messages (assistant)
             // This is valid after a ToolCallMessage
-            if ($message instanceof ToolCallResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
+            if (
+                $message instanceof ToolCallResultMessage
+                && $result !== []
+                && $result[\count($result) - 1] instanceof ToolCallMessage
+            ) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
                 $expectingRole = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
@@ -217,8 +278,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Check if this message has the expected role
             if (\in_array($messageRole, $expectingRole, true)) {
                 $result[] = $message;
-                // Toggle the expected role
-                $expectingRole = ($expectingRole === [MessageRole::USER->value])
+
+                $expectingRole = $messageRole === MessageRole::USER->value
                     ? [MessageRole::ASSISTANT->value, MessageRole::MODEL->value]
                     : [MessageRole::USER->value];
             }
@@ -243,11 +304,14 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMessages(array $messages): array
     {
-        return \array_map(fn (array $message): Message => match ($message['type'] ?? null) {
-            'tool_call' => $this->deserializeToolCall($message),
-            'tool_call_result' => $this->deserializeToolCallResult($message),
-            default => $this->deserializeMessage($message),
-        }, $messages);
+        return \array_map(
+            fn (array $message): Message => match ($message['type'] ?? null) {
+                'tool_call' => $this->deserializeToolCall($message),
+                'tool_call_result' => $this->deserializeToolCallResult($message),
+                default => $this->deserializeMessage($message),
+            },
+            $messages
+        );
     }
 
     /**
@@ -274,9 +338,12 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
-            ->setInputs($tool['inputs'])
-            ->setCallId($tool['callId'] ?? null), $message['tools']);
+        $tools = \array_map(
+            fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+                ->setInputs($tool['inputs'])
+                ->setCallId($tool['callId'] ?? null),
+            $message['tools']
+        );
 
         $item = new ToolCallMessage($message['content'], $tools);
 
@@ -290,10 +357,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolCallResultMessage
     {
-        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
-            ->setInputs($tool['inputs'])
-            ->setCallId($tool['callId'])
-            ->setResult($tool['result']), $message['tools']);
+        $tools = \array_map(
+            fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+                ->setInputs($tool['inputs'])
+                ->setCallId($tool['callId'])
+                ->setResult($tool['result']),
+            $message['tools']
+        );
 
         return new ToolCallResultMessage($tools);
     }
