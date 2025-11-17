@@ -86,7 +86,7 @@ trait HandleStream
             )->setUsage($this->streamState->getUsage());
         }
 
-        $message = new AssistantMessage($this->streamState->blocks);
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
         return $message->setUsage($this->streamState->getUsage());
     }
 

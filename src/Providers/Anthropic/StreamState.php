@@ -4,55 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Providers\BasicStreamState;
 
-class StreamState
+class StreamState extends BasicStreamState
 {
-    protected string $messageId;
-
-    /**
-     * @var TextContent[]|ReasoningContent[]
-     */
-    public array $blocks = [];
-
-    /**
-     * @var array<int, array<string, mixed>>
-     */
-    public array $toolCalls = [];
-
-    public function __construct(
-        protected Usage $usage = new Usage(0, 0),
-    ) {
-    }
-
-    public function addInputTokens(int $tokens): self
-    {
-        $this->usage->inputTokens += $tokens;
-        return $this;
-    }
-
-    public function addOutputTokens(int $tokens): self
-    {
-        $this->usage->outputTokens += $tokens;
-        return $this;
-    }
-
-    public function getUsage(): Usage
-    {
-        return $this->usage;
-    }
-
-    public function messageId(?string $id = null): string
-    {
-        if ($id) {
-            $this->messageId = $id;
-        }
-
-        return $this->messageId;
-    }
-
     /**
      * Recreate the tool_call format of anthropic API from streaming.
      *
@@ -79,10 +34,5 @@ class StreamState
             $call['input'] = \json_decode((string) $call['input'], true);
             return $call;
         }, $this->toolCalls);
-    }
-
-    public function hasToolCalls(): bool
-    {
-        return $this->toolCalls !== [];
     }
 }
