@@ -38,6 +38,43 @@ class DeserializerTest extends TestCase
         $this->assertEquals('Rome', $obj->address->city);
     }
 
+    public function test_constructor_as_new_instance(): void
+    {
+        // Check we can manually instantiate the class with values
+        $greenObj = new ColorWithDefaults(0, 255, 0);
+
+        $this->assertInstanceOf(ColorWithDefaults::class, $greenObj);
+        $this->assertEquals(0, $greenObj->r);
+        $this->assertEquals(255, $greenObj->g);
+        $this->assertEquals(0, $greenObj->b);
+    }
+
+    public function test_constructor_deserialize_with_default_values(): void
+    {
+        // Create a new instance from json deserialization, where all properties are optional and have default values (will be black)
+        $json = '{}';
+
+        $obj = Deserializer::make()->fromJson($json, ColorWithDefaults::class);
+
+        $this->assertInstanceOf(ColorWithDefaults::class, $obj);
+        $this->assertEquals(0, $obj->r);
+        $this->assertEquals(0, $obj->g);
+        $this->assertEquals(0, $obj->b);
+    }
+
+    public function test_constructor_deserialize_with_provided_values(): void
+    {
+        // Create a new instance, where properties are being provided for a "green" color
+        $json = '{"r": 0, "g": 255, "b": 0}';
+
+        $obj = Deserializer::make()->fromJson($json, ColorWithDefaults::class);
+
+        $this->assertInstanceOf(ColorWithDefaults::class, $obj);
+        $this->assertEquals(0, $obj->r);
+        $this->assertEquals(255, $obj->g);
+        $this->assertEquals(0, $obj->b);
+    }
+
     public function test_deserialize_array(): void
     {
         $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent"}]}';
