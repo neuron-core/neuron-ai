@@ -1,0 +1,182 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\ChatHistory;
+
+use NeuronAI\Chat\History\AbstractChatHistory;
+use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\TokenCounterInterface;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tools\Tool;
+use PHPUnit\Framework\TestCase;
+
+class AbstractChatHistoryTest extends TestCase
+{
+    private TestChatHistory $history;
+
+    protected function setUp(): void
+    {
+        $this->history = new TestChatHistory(
+            contextWindow: 500,
+            tokenCounter: new DummyTokenCounter()
+        );
+    }
+
+    public function test_history_starting_with_tool_messages_is_normalized(): void
+    {
+        $tool = Tool::make('test_tool', 'Test tool')->setInputs([]);
+
+        $this->history->setMessages([
+            new ToolCallMessage('call', [$tool]),
+            new ToolCallResultMessage([$tool->setResult(['x' => 1])]),
+            new UserMessage('Hello'),
+            new AssistantMessage('Hi'),
+        ]);
+
+        $this->history->ensureValidMessageSequencePublic();
+
+        $messages = $this->history->getMessages();
+
+        $this->assertCount(2, $messages);
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+        $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
+    }
+
+    public function test_history_cleared_when_only_tool_messages_exist(): void
+    {
+        $tool = Tool::make('test_tool', 'Test tool')->setInputs([]);
+
+        $this->history->setMessages([
+            new ToolCallMessage('call', [$tool]),
+            new ToolCallResultMessage([$tool]),
+        ]);
+
+        $this->history->ensureValidMessageSequencePublic();
+
+        $this->assertCount(0, $this->history->getMessages());
+    }
+
+    public function test_history_starting_with_tool_call_result_is_normalized(): void
+    {
+        $tool = Tool::make('test_tool', 'Test tool')
+            ->setInputs([])
+            ->setResult(['ok' => true]);
+
+        // This simulates the DB snapshot scenario from issue #372:
+        // history effectively starts with a tool_call_result entry.
+        $this->history->setMessages([
+            new ToolCallResultMessage([$tool]),
+            new UserMessage('Hello'),
+            new AssistantMessage('Hi'),
+        ]);
+
+        $this->history->ensureValidMessageSequencePublic();
+
+        $messages = $this->history->getMessages();
+
+        $this->assertNotEmpty($messages);
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+    }
+
+    public function test_tool_messages_between_user_and_assistant_are_preserved(): void
+    {
+        $tool = Tool::make('test_tool', 'Test tool')
+            ->setInputs(['param' => 'value'])
+            ->setCallId('call_123');
+
+        $toolWithResult = Tool::make('test_tool', 'Test tool')
+            ->setInputs(['param' => 'value'])
+            ->setCallId('call_123')
+            ->setResult(['ok' => true]);
+
+        // Valid sequence:
+        // user -> tool_call -> tool_call_result -> assistant
+        $this->history->setMessages([
+            new UserMessage('Use the tool'),
+            new ToolCallMessage(null, [$tool]),
+            new ToolCallResultMessage([$toolWithResult]),
+            new AssistantMessage('Here is the result'),
+        ]);
+
+        $this->history->ensureValidMessageSequencePublic();
+
+        $messages = $this->history->getMessages();
+
+        // Nothing should be dropped in the middle – only leading tool messages are trimmed.
+        $this->assertCount(4, $messages);
+
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+        $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
+        $this->assertInstanceOf(ToolCallResultMessage::class, $messages[2]);
+        $this->assertInstanceOf(AssistantMessage::class, $messages[3]);
+    }
+
+    public function test_role_alternation_is_enforced(): void
+    {
+        $this->history->setMessages([
+            new UserMessage('U1'),
+            new AssistantMessage('A1'),
+            new AssistantMessage('A2 INVALID'),
+            new UserMessage('U2'),
+        ]);
+
+        $this->history->ensureValidMessageSequencePublic();
+
+        $messages = $this->history->getMessages();
+
+        $this->assertCount(3, $messages);
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+        $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
+        $this->assertInstanceOf(UserMessage::class, $messages[2]);
+    }
+}
+
+/**
+ * Minimal concrete implementation of AbstractChatHistory for testing
+ * the sequence normalization logic in isolation.
+ */
+class TestChatHistory extends AbstractChatHistory
+{
+    /**
+     * @param array<int, Message> $messages
+     */
+    public function setMessages(array $messages): ChatHistoryInterface
+    {
+        $this->history = $messages;
+
+        return $this;
+    }
+
+    protected function clear(): ChatHistoryInterface
+    {
+        $this->history = [];
+
+        return $this;
+    }
+
+    public function ensureValidMessageSequencePublic(): void
+    {
+        $this->ensureValidMessageSequence();
+    }
+}
+
+/**
+ * Dummy token counter with deterministic size
+ * to keep trimHistory behavior predictable in tests.
+ */
+class DummyTokenCounter implements TokenCounterInterface
+{
+    /**
+     * @param array<int, Message> $messages
+     */
+    public function count(array $messages): int
+    {
+        // 10 "tokens" per message, arbitrary but stable
+        return \count($messages) * 10;
+    }
+}
