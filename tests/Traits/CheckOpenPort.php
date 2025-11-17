@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Traits;
 
 trait CheckOpenPort
 {
-    private function isPortOpen(string $host, int $port, int $timeout = 1): bool
+    private function isPortOpen(string $host, int $port, float $timeout = 0.5): bool
     {
         $connection = @\fsockopen($host, $port, $errno, $errstr, $timeout);
         if (\is_resource($connection)) {

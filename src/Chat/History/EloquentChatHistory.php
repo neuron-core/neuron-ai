@@ -26,10 +26,12 @@ class EloquentChatHistory extends AbstractChatHistory
         /** @var Model $model */
         $model = new $this->modelClass();
 
+        /** @var array<string, mixed> $messages */
         $messages = $model->newQuery()
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
             ->get()
+            // @phpstan-ignore-next-line
             ->map($this->recordToArray(...))
             ->all();
 

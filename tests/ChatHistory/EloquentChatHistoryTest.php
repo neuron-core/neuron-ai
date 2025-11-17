@@ -248,6 +248,11 @@ class EloquentChatHistoryTest extends TestCase
 
 /**
  * Mock Eloquent Model for testing
+ *
+ * @property string $thread_id
+ * @property string $role
+ * @property string $content
+ * @property array $meta
  */
 class ChatMessage extends Model
 {
