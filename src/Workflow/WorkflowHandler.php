@@ -22,9 +22,6 @@ class WorkflowHandler
     /**
      * Stream workflow events, optionally through a protocol adapter.
      *
-     * When an adapter is provided, events are transformed for frontend integration
-     * (e.g., Vercel AI SDK, AG-UI protocol). Without an adapter, raw events are streamed.
-     *
      * @param StreamAdapterInterface|null $adapter Optional protocol adapter
      * @throws \Throwable
      * @throws WorkflowException
@@ -33,7 +30,7 @@ class WorkflowHandler
     public function streamEvents(?StreamAdapterInterface $adapter = null): \Generator
     {
         // Protocol start (if adapter provided)
-        if ($adapter !== null) {
+        if ($adapter instanceof StreamAdapterInterface) {
             foreach ($adapter->start() as $output) {
                 yield $output;
             }
@@ -46,7 +43,7 @@ class WorkflowHandler
             $event = $generator->current();
 
             // Transform through adapter or yield raw event
-            if ($adapter !== null) {
+            if ($adapter instanceof StreamAdapterInterface) {
                 foreach ($adapter->transform($event) as $output) {
                     yield $output;
                 }
@@ -61,7 +58,7 @@ class WorkflowHandler
         $this->result = $generator->getReturn();
 
         // Protocol end (if adapter provided)
-        if ($adapter !== null) {
+        if ($adapter instanceof StreamAdapterInterface) {
             foreach ($adapter->end() as $output) {
                 yield $output;
             }

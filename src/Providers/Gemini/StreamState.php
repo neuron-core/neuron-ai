@@ -7,9 +7,7 @@ namespace NeuronAI\Providers\Gemini;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Providers\BasicStreamState;
-use NeuronAI\UniqueIdGenerator;
 
 class StreamState extends BasicStreamState
 {

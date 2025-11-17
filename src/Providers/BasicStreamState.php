@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
@@ -41,7 +43,7 @@ class BasicStreamState
         return $this->usage;
     }
 
-    public function messageId(string $id = null): string
+    public function messageId(?string $id = null): string
     {
         if ($id !== null) {
             $this->messageId = $id;
