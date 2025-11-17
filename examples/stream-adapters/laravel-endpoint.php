@@ -36,9 +36,9 @@ Route::post('/chat', function (Request $request) {
 
     $adapter = new VercelAIAdapter();
 
-    $stream = $agent->streamWithAdapter(
-        $adapter,
-        new UserMessage($validated['message'])
+    $stream = $agent->stream(
+        messages: new UserMessage($validated['message']),
+        adapter: $adapter
     );
 
     // Return streaming response

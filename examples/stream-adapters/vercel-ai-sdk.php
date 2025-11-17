@@ -51,9 +51,9 @@ $agent = Agent::make()
     ->addTool(CalculatorToolkit::make());
 
 // Initialize the streaming with the adapter
-$stream = $agent->streamWithAdapter(
-    new VercelAIAdapter(),
-    new UserMessage('What is the square root of 144?')
+$stream = $agent->stream(
+    messages: new UserMessage('What is the square root of 144?'),
+    adapter: new VercelAIAdapter()
 );
 
 // Process the response

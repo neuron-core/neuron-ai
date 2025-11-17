@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
@@ -19,21 +20,52 @@ class WorkflowHandler
     }
 
     /**
+     * Stream workflow events, optionally through a protocol adapter.
+     *
+     * When an adapter is provided, events are transformed for frontend integration
+     * (e.g., Vercel AI SDK, AG-UI protocol). Without an adapter, raw events are streamed.
+     *
+     * @param StreamAdapterInterface|null $adapter Optional protocol adapter
      * @throws \Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function streamEvents(): \Generator
+    public function streamEvents(?StreamAdapterInterface $adapter = null): \Generator
     {
+        // Protocol start (if adapter provided)
+        if ($adapter !== null) {
+            foreach ($adapter->start() as $output) {
+                yield $output;
+            }
+        }
+
+        // Stream events
         $generator = $this->resume ? $this->workflow->resume($this->resumeRequest) : $this->workflow->run();
 
         while ($generator->valid()) {
-            yield $generator->current();
+            $event = $generator->current();
+
+            // Transform through adapter or yield raw event
+            if ($adapter !== null) {
+                foreach ($adapter->transform($event) as $output) {
+                    yield $output;
+                }
+            } else {
+                yield $event;
+            }
+
             $generator->next();
         }
 
         // Store the final result
         $this->result = $generator->getReturn();
+
+        // Protocol end (if adapter provided)
+        if ($adapter !== null) {
+            foreach ($adapter->end() as $output) {
+                yield $output;
+            }
+        }
     }
 
     /**
