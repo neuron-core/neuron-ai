@@ -57,6 +57,9 @@ class Deserializer
         // Get all properties including private/protected
         $properties = $reflection->getProperties();
 
+        // Track values set on promoted properties
+        $promotedArgs = [];
+
         foreach ($properties as $property) {
             $propertyName = $property->getName();
 
@@ -72,13 +75,18 @@ class Deserializer
                 }
 
                 $property->setValue($instance, $value);
+
+                // Track any promoted arguments that are being set
+                if ($property->isPromoted()) {
+                    $promotedArgs[ $propertyName ] = $value;
+                }
             }
         }
 
         // Call constructor if it exists and is public
         $constructor = $reflection->getConstructor();
         if ($constructor && $constructor->isPublic() && $constructor->getNumberOfRequiredParameters() === 0) {
-            $constructor->invoke($instance);
+            $constructor->invokeArgs($instance, $promotedArgs);
         }
 
         return $instance;

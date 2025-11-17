@@ -9,6 +9,7 @@ use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
+use NeuronAI\Tests\Stubs\StructuredOutput\ColorWithDefaults;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
 use NeuronAI\Tests\Stubs\StringEnum;
@@ -36,6 +37,33 @@ class DeserializerTest extends TestCase
 
         $this->assertInstanceOf(Person::class, $obj);
         $this->assertEquals('Rome', $obj->address->city);
+    }
+
+    public function test_constructor_deserialize_with_default_values(): void
+    {
+        // Create a new instance from json deserialization, where all properties are optional and have default values (will be black)
+        $json = '{}';
+
+        $obj = Deserializer::make()->fromJson($json, ColorWithDefaults::class);
+
+        $this->assertInstanceOf(ColorWithDefaults::class, $obj);
+        $this->assertEquals(100, $obj->r);
+        $this->assertEquals(100, $obj->g);
+        $this->assertEquals(100, $obj->b);
+    }
+
+    public function test_constructor_deserialize_with_provided_values(): void
+    {
+        // Create a new instance, where properties are being provided for a "green" color
+        $json = '{"r": 255, "g": 0, "b": 0, "transparency": 100}';
+
+        $obj = Deserializer::make()->fromJson($json, ColorWithDefaults::class);
+
+        $this->assertInstanceOf(ColorWithDefaults::class, $obj);
+        $this->assertEquals(255, $obj->r);
+        $this->assertEquals(0, $obj->g);
+        $this->assertEquals(0, $obj->b);
+        $this->assertEquals(100, $obj->transparency);
     }
 
     public function test_deserialize_array(): void
