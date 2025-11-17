@@ -15,14 +15,12 @@ use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * Inspired by Andrew Monty - https://github.com/AndrewMonty
+ * Originally inspired by Andrew Monty - https://github.com/AndrewMonty
  */
 trait HandleStream
 {
     /**
      * Stream response from the LLM.
-     *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
      *
      * @throws ProviderException
      * @throws GuzzleException
