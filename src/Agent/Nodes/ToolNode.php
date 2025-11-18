@@ -22,7 +22,7 @@ use NeuronAI\Workflow\Node;
 class ToolNode extends Node
 {
     public function __construct(
-        protected int $maxTries = 5
+        protected int $maxTries = 10
     ) {
     }
 
