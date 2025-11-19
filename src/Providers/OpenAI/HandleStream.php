@@ -10,9 +10,10 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\SSEParser;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
@@ -55,7 +56,7 @@ trait HandleStream
         $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
-            if (!$line = $this->parseNextDataLine($stream)) {
+            if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
@@ -150,7 +151,7 @@ trait HandleStream
         return $toolCalls;
     }
 
-    protected function parseNextDataLine(StreamInterface $stream): ?array
+    /*protected function parseNextDataLine(StreamInterface $stream): ?array
     {
         $line = $this->readLine($stream);
 
@@ -169,26 +170,5 @@ trait HandleStream
         } catch (\Throwable $exception) {
             throw new ProviderException('OpenAI streaming error - '.$exception->getMessage());
         }
-    }
-
-    protected function readLine(StreamInterface $stream): string
-    {
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            $byte = $stream->read(1);
-
-            if ($byte === '') {
-                return $buffer;
-            }
-
-            $buffer .= $byte;
-
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
-    }
+    }*/
 }

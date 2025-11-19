@@ -2,31 +2,32 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Adapters;
+namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
-use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
-use NeuronAI\Chat\Messages\Stream\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\ToolResultChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use NeuronAI\UniqueIdGenerator;
 
 /**
  * Adapter for Vercel AI SDK Data Stream Protocol.
  *
  * @see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
  */
-class VercelAIAdapter implements StreamAdapterInterface
+class VercelAIAdapter extends SSEAdapter
 {
-    protected ?string $messageId = null;
+    protected bool $started = false;
 
     /** @var array<string, string> */
     protected array $toolCallIds = [];
 
     public function transform(object $chunk): iterable
     {
-        // Lazy init message ID on first chunk
-        if ($this->messageId === null) {
-            $this->messageId = \uniqid('msg_', true);
-            yield $this->sse(['type' => 'start', 'messageId' => $this->messageId]);
+        // Lazy init on the first chunk
+        if (!$this->started) {
+            $this->started = true;
+            yield $this->sse(['type' => 'start', 'messageId' => $chunk->messageId]);
         }
 
         yield from match (true) {
@@ -42,7 +43,8 @@ class VercelAIAdapter implements StreamAdapterInterface
     {
         yield $this->sse([
             'type' => 'text-delta',
-            'id' => $this->messageId,
+            'id' => UniqueIdGenerator::generateId(),
+            'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
         ]);
     }
@@ -51,7 +53,8 @@ class VercelAIAdapter implements StreamAdapterInterface
     {
         yield $this->sse([
             'type' => 'reasoning-delta',
-            'id' => \uniqid('reasoning_', true),
+            'id' => UniqueIdGenerator::generateId(),
+            'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
         ]);
     }
@@ -59,7 +62,7 @@ class VercelAIAdapter implements StreamAdapterInterface
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
         foreach ($chunk->tools as $tool) {
-            $callId = \uniqid('call_', true);
+            $callId = $this->generateId('call');
             $this->toolCallIds[$tool->getName()] = $callId;
 
             yield $this->sse([
@@ -74,7 +77,7 @@ class VercelAIAdapter implements StreamAdapterInterface
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
         foreach ($chunk->tools as $tool) {
-            $callId = $this->toolCallIds[$tool->getName()] ?? \uniqid('call_', true);
+            $callId = $this->toolCallIds[$tool->getName()] ?? $this->generateId('call');
 
             yield $this->sse([
                 'type' => 'tool-output-available',
@@ -82,14 +85,6 @@ class VercelAIAdapter implements StreamAdapterInterface
                 'output' => $tool->getResult(),
             ]);
         }
-    }
-
-    /**
-     * Format data as Server-Sent Event.
-     */
-    protected function sse(array $data): string
-    {
-        return 'data: ' . \json_encode($data) . "\n\n";
     }
 
     public function getHeaders(): array

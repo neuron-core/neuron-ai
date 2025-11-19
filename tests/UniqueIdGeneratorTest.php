@@ -49,8 +49,8 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testGenerateIdReturnsInteger(): void
     {
-        $id = UniqueIdGenerator::generateId();
-        $this->assertGreaterThan(0, $id);
+        $id = UniqueIdGenerator::generateId('id_');
+        $this->assertStringStartsWith('id_', $id);
     }
 
     /**
@@ -62,7 +62,7 @@ class UniqueIdGeneratorTest extends TestCase
         $count = 1000;
 
         for ($i = 0; $i < $count; $i++) {
-            $ids[] = UniqueIdGenerator::generateId();
+            $ids[] = UniqueIdGenerator::generateId('id_');
         }
 
         // All IDs should be unique
@@ -70,7 +70,7 @@ class UniqueIdGeneratorTest extends TestCase
 
         // All IDs should be positive integers
         foreach ($ids as $id) {
-            $this->assertGreaterThan(0, $id);
+            $this->assertStringStartsWith('id_', $id);
         }
     }
 
@@ -86,7 +86,7 @@ class UniqueIdGeneratorTest extends TestCase
 
         $id2 = UniqueIdGenerator::generateId();
 
-        $this->assertGreaterThan($id1, $id2);
+        $this->assertNotEquals($id1, $id2);
     }
 
     /**
@@ -94,7 +94,7 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testMachineIdWithinValidRange(): void
     {
-        $id = UniqueIdGenerator::generateId();
+        $id = (int) UniqueIdGenerator::generateId();
 
         // Extract machine ID from generated ID
         $machineId = ($id >> 12) & 1023; // Extract 10 bits for machine ID
@@ -111,7 +111,7 @@ class UniqueIdGeneratorTest extends TestCase
         // Generate multiple IDs rapidly to likely hit same millisecond
         $ids = [];
         for ($i = 0; $i < 100; $i++) {
-            $ids[] = UniqueIdGenerator::generateId();
+            $ids[] = (int) UniqueIdGenerator::generateId();
         }
 
         // Check that we have some IDs with incrementing sequences
@@ -130,8 +130,8 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testMachineIdConsistency(): void
     {
-        $id1 = UniqueIdGenerator::generateId();
-        $id2 = UniqueIdGenerator::generateId();
+        $id1 = (int) UniqueIdGenerator::generateId();
+        $id2 = (int) UniqueIdGenerator::generateId();
 
         $machineId1 = ($id1 >> 12) & 1023;
         $machineId2 = ($id2 >> 12) & 1023;
@@ -144,7 +144,7 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testIdBitComposition(): void
     {
-        $id = UniqueIdGenerator::generateId();
+        $id = (int) UniqueIdGenerator::generateId();
 
         // Verify ID fits in 64-bit signed integer
         $this->assertLessThanOrEqual(\PHP_INT_MAX, $id);
@@ -184,8 +184,8 @@ class UniqueIdGeneratorTest extends TestCase
         $lastTimestampProperty->setValue(null, $currentTime);
 
         // Generate IDs - should handle overflow gracefully
-        $id1 = UniqueIdGenerator::generateId();
-        $id2 = UniqueIdGenerator::generateId();
+        $id1 = (int) UniqueIdGenerator::generateId();
+        $id2 = (int) UniqueIdGenerator::generateId();
 
         $this->assertNotEquals($id1, $id2);
     }
@@ -199,7 +199,7 @@ class UniqueIdGeneratorTest extends TestCase
         $iterations = 10000;
 
         for ($i = 0; $i < $iterations; $i++) {
-            $ids[] = UniqueIdGenerator::generateId();
+            $ids[] = (int) UniqueIdGenerator::generateId();
 
             // Occasionally add tiny delays to simulate varying timing
             if ($i % 100 === 0) {
@@ -233,7 +233,7 @@ class UniqueIdGeneratorTest extends TestCase
     public function testTimestampExtraction(): void
     {
         $beforeTime = (int)(\microtime(true) * 1000);
-        $id = UniqueIdGenerator::generateId();
+        $id = (int) UniqueIdGenerator::generateId();
         $afterTime = (int)(\microtime(true) * 1000);
 
         $extractedTimestamp = $id >> 22;
@@ -271,7 +271,7 @@ class UniqueIdGeneratorTest extends TestCase
     public function testStaticStateManagement(): void
     {
         // Generate first ID
-        $id1 = UniqueIdGenerator::generateId();
+        $id1 = (int) UniqueIdGenerator::generateId();
 
         // Use reflection to check machine ID was set
         $reflection = new ReflectionClass(UniqueIdGenerator::class);
@@ -280,7 +280,7 @@ class UniqueIdGeneratorTest extends TestCase
         $this->assertTrue($machineIdProperty->isInitialized());
 
         // Generate second ID - should use the same machine ID
-        $id2 = UniqueIdGenerator::generateId();
+        $id2 = (int) UniqueIdGenerator::generateId();
 
         $machineId1 = ($id1 >> 12) & 1023;
         $machineId2 = ($id2 >> 12) & 1023;

@@ -4,20 +4,25 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
+use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\SSEParser;
 use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
+    protected StreamState $streamState;
+
     /**
      * Stream response from the LLM.
      *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
+     * @throws GuzzleException
+     * @throws ProviderException
      */
     public function stream(array|string $messages): \Generator
     {
@@ -42,65 +47,56 @@ trait HandleStream
             ...['json' => $json]
         ])->getBody();
 
-        $text = '';
-        $usage = new Usage(0, 0);
+        $this->streamState = new StreamState();
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextJson($stream)) {
                 continue;
             }
 
-            // Last chunk will contain the usage information
-            if ($line['done'] === true) {
-                $usage->inputTokens += $line['prompt_eval_count'] ?? 0;
-                $usage->outputTokens += $line['eval_count'] ?? 0;
+            // Process tool calls
+            if (isset($line['message']['tool_calls'])) {
+                return $this->createToolCallMessage(
+                    $line['message']['tool_calls'],
+                    $this->streamState->getContentBlocks()
+                )->setUsage($this->streamState->getUsage());
+            }
+
+            if ($thinking = $line['message']['thinking'] ?? null) {
+                $this->streamState->reasoning .= $thinking;
+                yield new ReasoningChunk($this->streamState->messageId(), $thinking);
                 continue;
             }
 
-            // Process tool calls
-            if (isset($line['message']['tool_calls'])) {
-                // Preserve any accumulated text content before tool call
-                $messageData = $line['message'];
-                if ($text !== '') {
-                    $messageData['content'] = $text;
-                }
-
-                $message = $this->createToolCallMessage($messageData);
-                $message->setUsage($usage);
-
-                return $message;
-            }
-
             // Process regular content
-            $content = $line['message']['content'] ?? '';
-            $text .= $content;
+            if ($content = $line['message']['content'] ?? null) {
+                $this->streamState->text .= $content;
+                yield new TextChunk($this->streamState->messageId(), $content);
+                continue;
+            }
 
-            if ($content !== '') {
-                yield new TextChunk($content);
+            // The last chunk will contain the usage information
+            if ($line['done'] === true) {
+                $this->streamState->addInputTokens($line['prompt_eval_count'] ?? 0);
+                $this->streamState->addOutputTokens($line['eval_count'] ?? 0);
             }
         }
 
-        // Build final message
-        $blocks = [];
-        if ($text !== '') {
-            $blocks[] = new TextContent($text);
-        }
-
-        $message = new AssistantMessage($blocks);
-        $message->setUsage($usage);
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        $message->setUsage($this->streamState->getUsage());
 
         return $message;
     }
 
     protected function parseNextJson(StreamInterface $stream): ?array
     {
-        $line = $this->readLine($stream);
+        $line = SSEParser::readLine($stream);
 
-        if (empty($line)) {
+        if ($line === '' || $line === '0') {
             return null;
         }
 
-        $json = \json_decode((string) $line, true);
+        $json = \json_decode($line, true);
 
         if ($json['done']) {
             return null;
@@ -111,22 +107,5 @@ trait HandleStream
         }
 
         return $json;
-    }
-
-    protected function readLine(StreamInterface $stream): string
-    {
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            if ('' === ($byte = $stream->read(1))) {
-                return $buffer;
-            }
-            $buffer .= $byte;
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
     }
 }

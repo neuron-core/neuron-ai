@@ -21,7 +21,7 @@ class MySQLSchemaTool extends Tool
             'Retrieves MySQL database schema information including tables, columns, relationships, and indexes.
             Use this tool first to understand the database structure before writing any SQL queries.
             Essential for generating accurate queries with proper table/column names, JOIN conditions,
-            and performance optimization. If you already know the database structure, you can skip this step.'
+            and performance optimization. DO NOT call this tool if you already have database schema information in the context.'
         );
     }
 

@@ -9,20 +9,18 @@ use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Stream\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * Inspired by Andrew Monty - https://github.com/AndrewMonty
+ * Originally inspired by Andrew Monty - https://github.com/AndrewMonty
  */
 trait HandleStream
 {
     /**
      * Stream response from the LLM.
-     *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
      *
      * @throws ProviderException
      * @throws GuzzleException

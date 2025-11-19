@@ -15,7 +15,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
-use NeuronAI\Agent\Adapters\StreamAdapterInterface;
+use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
@@ -136,14 +136,19 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * Stream agent responses, optionally through a protocol adapter.
+     *
      * @param Message|Message[] $messages
      * @throws WorkflowInterrupt
      * @throws InspectorException
      * @throws WorkflowException
      * @throws \Throwable
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator
-    {
+    public function stream(
+        Message|array $messages = [],
+        ?InterruptRequest $interrupt = null,
+        ?StreamAdapterInterface $adapter = null,
+    ): \Generator {
         $this->emit('stream-start');
 
         $messages = \is_array($messages) ? $messages : [$messages];
@@ -159,47 +164,13 @@ class Agent extends Workflow implements AgentInterface
         // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
 
-        // Stream events and yield only StreamChunk objects
-        foreach ($handler->streamEvents() as $event) {
+        // Stream events, optionally through adapter
+        foreach ($handler->streamEvents($adapter) as $event) {
             yield $event;
         }
 
         $this->emit('stream-stop');
 
-        return $this->resolveState()->getChatHistory()->getLastMessage();
-    }
-
-    /**
-     * Stream with a protocol adapter for frontend integration.
-     *
-     * @throws \Throwable
-     * @throws WorkflowInterrupt
-     * @throws InspectorException
-     * @throws WorkflowException
-     */
-    public function streamWithAdapter(
-        StreamAdapterInterface $adapter,
-        Message|array $messages = [],
-        ?InterruptRequest $interrupt = null
-    ): \Generator {
-        // Protocol start
-        foreach ($adapter->start() as $output) {
-            yield $output;
-        }
-
-        // Transform each chunk through the adapter
-        foreach ($this->stream($messages, $interrupt) as $chunk) {
-            foreach ($adapter->transform($chunk) as $output) {
-                yield $output;
-            }
-        }
-
-        // Protocol end
-        foreach ($adapter->end() as $output) {
-            yield $output;
-        }
-
-        // Preserve the return value from the original stream
         return $this->resolveState()->getChatHistory()->getLastMessage();
     }
 

@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
@@ -41,7 +42,7 @@ interface AgentInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): \Generator;
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null, ?StreamAdapterInterface $adapter = null): \Generator;
 
     /**
      * @param Message|Message[] $messages

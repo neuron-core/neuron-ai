@@ -9,10 +9,11 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\SSEParser;
 
 class Mistral extends OpenAI
 {
@@ -55,7 +56,7 @@ class Mistral extends OpenAI
         $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
-            if (($line = $this->parseNextDataLine($stream)) === null) {
+            if (($line = SSEParser::parseNextSSEEvent($stream)) === null) {
                 continue;
             }
 

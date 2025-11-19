@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Adapters;
+namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 interface StreamAdapterInterface
 {

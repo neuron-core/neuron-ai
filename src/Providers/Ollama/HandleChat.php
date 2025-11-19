@@ -46,13 +46,13 @@ trait HandleChat
                 $response = \json_decode($response->getBody()->getContents(), true);
                 $message = $response['message'];
 
-                if (\array_key_exists('tool_calls', $message)) {
-                    $message = $this->createToolCallMessage($message);
+                if (isset($message['tool_calls'])) {
+                    $message = $this->createToolCallMessage($message['tool_calls'], $message['content'] ?? null);
                 } else {
                     $message = new AssistantMessage($message['content']);
                 }
 
-                if (\array_key_exists('prompt_eval_count', $response) && \array_key_exists('eval_count', $response)) {
+                if (isset($response['prompt_eval_count']) && isset($response['eval_count'])) {
                     $message->setUsage(
                         new Usage($response['prompt_eval_count'], $response['eval_count'])
                     );

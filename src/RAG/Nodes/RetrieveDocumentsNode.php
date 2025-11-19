@@ -47,7 +47,7 @@ class RetrieveDocumentsNode extends Node
         }
         $retrievedDocs = \array_values($retrievedDocs);
 
-        $this->emit('rag-retrieved', new Retrieved($query, $documents));
+        $this->emit('rag-retrieved', new Retrieved($query, $retrievedDocs));
 
         return new DocumentsRetrievedEvent($query, $retrievedDocs);
     }
