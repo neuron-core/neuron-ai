@@ -91,9 +91,17 @@ class Gemini implements AIProviderInterface
             }
 
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
-            return $this->findTool($item['functionCall']['name'])
+            $tool = $this->findTool($item['functionCall']['name'])
                 ->setInputs($item['functionCall']['args'])
                 ->setCallId($item['functionCall']['name']);
+
+            // Store thoughtSignature for Gemini 3 Pro compatibility
+            // Gemini 3 Pro requires thoughtSignature to be preserved and sent back
+            if (isset($item['thoughtSignature'])) {
+                $tool->setAnnotation('thought_signature', $item['thoughtSignature']);
+            }
+
+            return $tool;
         }, $message['parts']);
 
         $result = new ToolCallMessage(

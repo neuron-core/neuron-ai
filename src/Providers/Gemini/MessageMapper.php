@@ -85,12 +85,23 @@ class MessageMapper implements MessageMapperInterface
         // Add function calls
         $parts = [
             ...$parts,
-            ...\array_map(fn (ToolInterface $tool): array => [
-                'functionCall' => [
-                    'name' => $tool->getName(),
-                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
-                ]
-            ], $message->getTools())
+            ...\array_map(function (ToolInterface $tool): array {
+                $part = [
+                    'functionCall' => [
+                        'name' => $tool->getName(),
+                        'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
+                    ]
+                ];
+
+                // Include thought_signature for Gemini 3 Pro compatibility
+                // Gemini 3 Pro requires thought_signature to be sent back with function calls
+                $thoughtSignature = $tool->getAnnotation('thought_signature');
+                if ($thoughtSignature !== null) {
+                    $part['thought_signature'] = $thoughtSignature;
+                }
+
+                return $part;
+            }, $message->getTools())
         ];
 
         return [
