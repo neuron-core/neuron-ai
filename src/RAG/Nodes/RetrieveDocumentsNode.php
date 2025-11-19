@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Observability\Events\Retrieved;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -46,7 +47,7 @@ class RetrieveDocumentsNode extends Node
         }
         $retrievedDocs = \array_values($retrievedDocs);
 
-        $this->emit('rag-retrieved', new Retrieving($query));
+        $this->emit('rag-retrieved', new Retrieved($query, $documents));
 
         return new DocumentsRetrievedEvent($query, $retrievedDocs);
     }
