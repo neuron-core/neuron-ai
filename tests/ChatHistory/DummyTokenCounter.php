@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\TokenCounterInterface;

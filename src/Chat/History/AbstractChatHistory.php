@@ -218,8 +218,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
             if (\in_array($role, [
                 MessageRole::USER->value,
-                MessageRole::ASSISTANT->value,
-                MessageRole::MODEL->value,
+                MessageRole::DEVELOPER->value,
             ], true)) {
                 $firstIndex = $index;
                 break;
