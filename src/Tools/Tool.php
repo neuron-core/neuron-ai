@@ -97,6 +97,31 @@ class Tool implements ToolInterface
     }
 
     /**
+     * Set an annotation value.
+     *
+     * @param string $key
+     * @param mixed $value
+     * @return self
+     */
+    public function setAnnotation(string $key, mixed $value): self
+    {
+        $this->annotations[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * Get a specific annotation value.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    public function getAnnotation(string $key, mixed $default = null): mixed
+    {
+        return $this->annotations[$key] ?? $default;
+    }
+
+    /**
      * @return ToolPropertyInterface[]
      */
     public function getProperties(): array
