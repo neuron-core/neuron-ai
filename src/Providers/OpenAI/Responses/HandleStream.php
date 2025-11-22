@@ -104,7 +104,7 @@ trait HandleStream
                     return $this->createAssistantMessage($event['response']);
 
                 case 'response.failed':
-                    throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
+                    throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
 
                 default:
                     // Ignore other events
