@@ -415,4 +415,10 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             $item->addMetadata($key, $value);
         }
     }
+
+    public function setTokenCounter(TokenCounterInterface $tokenCounter): ChatHistoryInterface
+    {
+        $this->tokenCounter = $tokenCounter;
+        return $this;
+    }
 }

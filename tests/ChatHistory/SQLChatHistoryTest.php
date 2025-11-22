@@ -170,11 +170,12 @@ class SQLChatHistoryTest extends TestCase
 
     public function test_truncates_history_when_context_window_exceeded(): void
     {
-        // Create history with small context window
+        // Create history with a small context window
         $smallHistory = new SQLChatHistory($this->threadId, $this->pdo, contextWindow: 100);
+        $smallHistory->setTokenCounter(new DummyTokenCounter());
 
-        // Add many messages to exceed context window
-        for ($i = 0; $i < 20; $i++) {
+        // Add many messages to exceed the context window
+        for ($i = 0; $i <= 11; $i++) {
             $message = $i % 2 === 0
                 ? new UserMessage("User message $i with some text")
                 : new AssistantMessage("Assistant message $i with some text");
@@ -184,10 +185,9 @@ class SQLChatHistoryTest extends TestCase
         $messages = $smallHistory->getMessages();
 
         // Should have fewer messages due to truncation
-        $this->assertLessThan(20, \count($messages));
-        $this->assertGreaterThan(0, \count($messages));
+        $this->assertCount(10, $messages);
 
-        // First message should be a user message (valid sequence)
+        // The first message should be a user message (valid sequence)
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
     }
 

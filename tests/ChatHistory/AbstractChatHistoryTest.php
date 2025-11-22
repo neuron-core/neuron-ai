@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\ChatHistory;
 
-use NeuronAI\Chat\History\AbstractChatHistory;
-use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Chat\History\TokenCounterInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -114,21 +110,5 @@ class AbstractChatHistoryTest extends TestCase
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
         $this->assertInstanceOf(UserMessage::class, $messages[2]);
-    }
-}
-
-/**
- * Dummy token counter with deterministic size
- * to keep trimHistory behavior predictable in tests.
- */
-class DummyTokenCounter implements TokenCounterInterface
-{
-    /**
-     * @param array<int, Message> $messages
-     */
-    public function count(array $messages): int
-    {
-        // 10 "tokens" per message, arbitrary but stable
-        return \count($messages) * 10;
     }
 }
