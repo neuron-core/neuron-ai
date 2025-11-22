@@ -11,7 +11,7 @@ use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\EloquentChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
@@ -46,7 +46,6 @@ class EloquentChatHistoryTest extends TestCase
 
         $this->threadId = \uniqid('test-thread-');
         $this->history = new EloquentChatHistory($this->threadId, ChatMessage::class);
-        $this->history->setTokenCounter(new DummyTokenCounter());
     }
 
     protected function tearDown(): void
@@ -77,7 +76,7 @@ class EloquentChatHistoryTest extends TestCase
         // Verify message content
         $record = ChatMessage::query()->where('thread_id', $this->threadId)->first();
         $this->assertEquals('user', $record->role);
-        $this->assertEquals('Hello from Eloquent!', $record->content);
+        $this->assertEquals('[{"type":"text","text":"Hello from Eloquent!"}]', $record->content);
     }
 
     public function test_loads_existing_messages_from_database(): void
@@ -88,7 +87,6 @@ class EloquentChatHistoryTest extends TestCase
 
         // Create a new instance with the same thread_id
         $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
-        $newHistory->setTokenCounter(new DummyTokenCounter());
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -97,6 +95,19 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
         $this->assertEquals('First message', $messages[0]->getContent());
         $this->assertEquals('Second message', $messages[1]->getContent());
+    }
+
+    public function test_persists_multiple_messages(): void
+    {
+        $this->history->addMessage(new UserMessage('Message 1'));
+        $this->history->addMessage(new AssistantMessage('Message 2'));
+        $this->history->addMessage(new UserMessage('Message 3'));
+
+        $count = ChatMessage::query()->where('thread_id', $this->threadId)->count();
+        $this->assertEquals(3, $count);
+
+        $messages = $this->history->getMessages();
+        $this->assertCount(3, $messages);
     }
 
     public function test_clear_removes_all_messages_from_database(): void
@@ -126,7 +137,7 @@ class EloquentChatHistoryTest extends TestCase
 
         $this->history->addMessage(new UserMessage('Use the tool'));
         $this->history->addMessage(new ToolCallMessage(null, [$tool]));
-        $this->history->addMessage(new ToolCallResultMessage([$toolWithResult]));
+        $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
         $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
@@ -135,7 +146,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertCount(3, $messages);
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
-        $this->assertInstanceOf(ToolCallResultMessage::class, $messages[2]);
+        $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
 
         $toolCallMessage = $messages[1];
         $this->assertCount(1, $toolCallMessage->getTools());
@@ -147,9 +158,9 @@ class EloquentChatHistoryTest extends TestCase
         // Create history with small context window
         $smallHistory = new EloquentChatHistory($this->threadId, ChatMessage::class, contextWindow: 100);
 
-        // Add many messages to exceed the context window
-        for ($i = 0; $i <= 11; $i++) {
-            $message = $i % 2 !== 0
+        // Add many messages to exceed context window
+        for ($i = 0; $i < 20; $i++) {
+            $message = $i % 2 === 0
                 ? new UserMessage("User message $i with some text")
                 : new AssistantMessage("Assistant message $i with some text");
             $smallHistory->addMessage($message);
@@ -158,7 +169,7 @@ class EloquentChatHistoryTest extends TestCase
         $messages = $smallHistory->getMessages();
 
         // Should have fewer messages due to truncation
-        $this->assertLessThan(11, \count($messages));
+        $this->assertLessThan(20, \count($messages));
         $this->assertGreaterThan(0, \count($messages));
 
         // First message should be a user message (valid sequence)

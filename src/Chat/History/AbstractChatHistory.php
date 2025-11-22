@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
-use NeuronAI\Chat\Attachments\Document;
-use NeuronAI\Chat\Attachments\Image;
-use NeuronAI\Chat\Enums\AttachmentContentType;
-use NeuronAI\Chat\Enums\AttachmentType;
+use NeuronAI\Chat\Messages\Citation;
+use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolCallResultMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
@@ -96,6 +102,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $this->tokenCounter->count($this->history);
     }
 
+    /**
+     * @return int The index of the first element to retain (keeping most recent messages) - 0 Skip no messages (include all) - count($this->history): Skip all messages (include none)
+     */
     protected function trimHistory(): int
     {
         if ($this->history === []) {
@@ -133,7 +142,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $right = $totalMessages;
 
         while ($left < $right) {
-            $mid = (int) (($left + $right) / 2);
+            $mid = \intval(($left + $right) / 2);
             $subset = \array_slice($this->history, $mid);
 
             if ($this->tokenCounter->count($subset) <= $this->contextWindow) {
@@ -149,113 +158,57 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Ensures the message list is valid for the model:
-     * 1. Leading tool_call / tool_call_result messages are removed.
-     * 2. The first message is a "real" message (user/assistant/model).
-     * 3. Alternation between user and assistant/model roles is preserved,
-     *    and tool_call/tool_call_result pairs are kept valid.
+     * Ensures the message list:
+     * 1. Starts with a UserMessage
+     * 2. Ends with an AssistantMessage
+     * 3. Maintains tool call/result pairs
      */
     protected function ensureValidMessageSequence(): void
     {
-        // Drop leading tool_call / tool_call_result messages
-        $this->dropLeadingToolMessages();
-
-        if ($this->history === []) {
-            return;
-        }
-
-        // Ensure the first message is a real chat message (USER / ASSISTANT / MODEL)
+        // Ensure it starts with a UserMessage
         $this->ensureStartsWithUser();
 
-        if ($this->history === []) {
-            return;
-        }
-
-        // Normalize role alternation and keep tool_call/tool_call_result pairs
+        // Ensure it ends with an AssistantMessage
         $this->ensureValidAlternation();
     }
 
     /**
-     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
-     */
-    protected function dropLeadingToolMessages(): void
-    {
-        if ($this->history === []) {
-            return;
-        }
-
-        $start = 0;
-
-        foreach ($this->history as $index => $message) {
-            if ($message instanceof ToolCallMessage || $message instanceof ToolCallResultMessage) {
-                $start = $index + 1;
-                continue;
-            }
-
-            // First non-tool message reached, stop advancing
-            break;
-        }
-
-        if ($start > 0) {
-            $this->history = \array_slice($this->history, $start);
-        }
-    }
-
-    /**
-     * Ensures the history starts with a "real" chat message:
-     * USER, ASSISTANT or MODEL. If none exists, history is cleared.
+     * Ensures the message list starts with a UserMessage.
      */
     protected function ensureStartsWithUser(): void
     {
-        if ($this->history === []) {
-            return;
-        }
-
-        $firstIndex = null;
-
+        // Find the first UserMessage
+        $firstUserIndex = null;
         foreach ($this->history as $index => $message) {
-            $role = $message->getRole();
-
-            if (\in_array($role, [
-                MessageRole::USER->value,
-                MessageRole::DEVELOPER->value,
-            ], true)) {
-                $firstIndex = $index;
+            if ($message->getRole() === MessageRole::USER->value) {
+                $firstUserIndex = $index;
                 break;
             }
         }
 
-        // No real chat message found – clear the history
-        if ($firstIndex === null) {
+        if ($firstUserIndex === null) {
+            // No UserMessage found
             $this->history = [];
             return;
         }
 
-        if ($firstIndex > 0) {
-            $this->history = \array_slice($this->history, $firstIndex);
+        if ($firstUserIndex === 0) {
+            return;
+        }
+
+        if ($firstUserIndex > 0) {
+            // Remove messages before the first user message
+            $this->history = \array_slice($this->history, $firstUserIndex);
         }
     }
 
     /**
-     * Ensures valid alternation between user and assistant/model messages,
-     * while preserving valid tool_call/tool_call_result pairs.
+     * Ensures valid alternation between user and assistant messages.
      */
     protected function ensureValidAlternation(): void
     {
-        if ($this->history === []) {
-            return;
-        }
-
         $result = [];
-
-        // First message is already guaranteed to be USER / ASSISTANT / MODEL
-        $firstRole = $this->history[0]->getRole();
-
-        $expectingRole = match ($firstRole) {
-            MessageRole::ASSISTANT->value,
-            MessageRole::MODEL->value => [MessageRole::ASSISTANT->value, MessageRole::MODEL->value],
-            default => [MessageRole::USER->value],
-        };
+        $expectingRole = [MessageRole::USER->value]; // Should start with user
 
         foreach ($this->history as $message) {
             $messageRole = $message->getRole();
@@ -263,11 +216,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Tool result messages have a special case - they're user messages
             // but can only follow tool call messages (assistant)
             // This is valid after a ToolCallMessage
-            if (
-                $message instanceof ToolCallResultMessage
-                && $result !== []
-                && $result[\count($result) - 1] instanceof ToolCallMessage
-            ) {
+            if ($message instanceof ToolResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
                 $expectingRole = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
@@ -277,8 +226,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Check if this message has the expected role
             if (\in_array($messageRole, $expectingRole, true)) {
                 $result[] = $message;
-
-                $expectingRole = $messageRole === MessageRole::USER->value
+                // Toggle the expected role
+                $expectingRole = ($expectingRole === [MessageRole::USER->value])
                     ? [MessageRole::ASSISTANT->value, MessageRole::MODEL->value]
                     : [MessageRole::USER->value];
             }
@@ -298,19 +247,16 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * @param array<string, mixed> $messages
+     * @param array<int, array<string, mixed>> $messages
      * @return  Message[]
      */
     protected function deserializeMessages(array $messages): array
     {
-        return \array_map(
-            fn (array $message): Message => match ($message['type'] ?? null) {
-                'tool_call' => $this->deserializeToolCall($message),
-                'tool_call_result' => $this->deserializeToolCallResult($message),
-                default => $this->deserializeMessage($message),
-            },
-            $messages
-        );
+        return \array_map(fn (array $message): Message => match ($message['type'] ?? null) {
+            'tool_call' => $this->deserializeToolCall($message),
+            'tool_call_result' => $this->deserializeToolCallResult($message),
+            default => $this->deserializeMessage($message),
+        }, $messages);
     }
 
     /**
@@ -319,7 +265,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function deserializeMessage(array $message): Message
     {
         $messageRole = MessageRole::from($message['role']);
-        $messageContent = $message['content'] ?? null;
+        $messageContent = $this->deserializeContent($message['content'] ?? null);
 
         $item = match ($messageRole) {
             MessageRole::ASSISTANT => new AssistantMessage($messageContent),
@@ -337,14 +283,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = \array_map(
-            fn (array $tool) => Tool::make($tool['name'], $tool['description'])
-                ->setInputs($tool['inputs'])
-                ->setCallId($tool['callId'] ?? null),
-            $message['tools']
-        );
+        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+            ->setInputs($tool['inputs'])
+            ->setCallId($tool['callId'] ?? null), $message['tools']);
 
-        $item = new ToolCallMessage($message['content'], $tools);
+        $item = new ToolCallMessage(tools: $tools);
 
         $this->deserializeMeta($message, $item);
 
@@ -354,17 +297,94 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     /**
      * @param array<string, mixed> $message
      */
-    protected function deserializeToolCallResult(array $message): ToolCallResultMessage
+    protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = \array_map(
-            fn (array $tool) => Tool::make($tool['name'], $tool['description'])
-                ->setInputs($tool['inputs'])
-                ->setCallId($tool['callId'])
-                ->setResult($tool['result']),
-            $message['tools']
-        );
+        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+            ->setInputs($tool['inputs'])
+            ->setCallId($tool['callId'])
+            ->setResult($tool['result']), $message['tools']);
 
-        return new ToolCallResultMessage($tools);
+        return new ToolResultMessage($tools);
+    }
+
+    /**
+     * Deserialize content from storage format to ContentBlock array.
+     *
+     * Handles both legacy string format and new content block array format.
+     * Legacy formats are automatically converted to ContentBlocks for migration.
+     *
+     * @return string|ContentBlock|ContentBlock[]|null
+     */
+    protected function deserializeContent(mixed $content): string|ContentBlock|array|null
+    {
+        if ($content === null) {
+            return null;
+        }
+
+        // Legacy format: simple string - convert to TextContent for migration
+        if (\is_string($content)) {
+            if ($json = \json_decode($content, true)) {
+                return $this->deserializeContent($json);
+            }
+            return new TextContent($content);
+        }
+
+        // New format: array of content blocks
+        if (\is_array($content)) {
+            // Check if it's an array of content blocks (has 'type' key in first element)
+            if (isset($content[0]['type'])) {
+                return \array_map($this->deserializeContentBlock(...), $content);
+            }
+
+            // Empty array
+            if ($content === []) {
+                return null;
+            }
+        }
+
+        // Fallback: treat as string and convert to TextContent
+        return new TextContent((string) $content);
+    }
+
+    /**
+     * Deserialize a single content block from array format.
+     *
+     * @param array<string, mixed> $block
+     */
+    protected function deserializeContentBlock(array $block): ContentBlock
+    {
+        $type = ContentBlockType::from($block['type']);
+
+        return match ($type) {
+            ContentBlockType::TEXT => new TextContent(
+                text: $block['text']
+            ),
+            ContentBlockType::REASONING => new ReasoningContent(
+                text: $block['text'],
+                id: $block['id'] ?? null
+            ),
+            ContentBlockType::IMAGE => new ImageContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+            ContentBlockType::FILE => new FileContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null,
+                filename: $block['filename'] ?? null
+            ),
+            ContentBlockType::AUDIO => new AudioContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+            ContentBlockType::VIDEO => new VideoContent(
+                source: $block['source'],
+                sourceType: SourceType::from($block['source_type']),
+                mediaType: $block['media_type'] ?? null
+            ),
+        };
     }
 
     /**
@@ -385,39 +405,16 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 );
                 continue;
             }
-            if ($key === 'attachments') {
-                foreach ($message['attachments'] as $attachment) {
-                    switch (AttachmentType::from($attachment['type'])) {
-                        case AttachmentType::IMAGE:
-                            $item->addAttachment(
-                                new Image(
-                                    $attachment['content'],
-                                    AttachmentContentType::from($attachment['content_type']),
-                                    $attachment['media_type'] ?? null
-                                )
-                            );
-                            break;
-                        case AttachmentType::DOCUMENT:
-                            $item->addAttachment(
-                                new Document(
-                                    $attachment['content'],
-                                    AttachmentContentType::from($attachment['content_type']),
-                                    $attachment['media_type'] ?? null
-                                )
-                            );
-                            break;
-                    }
-
-                }
+            if ($key === 'citations' && \is_array($value)) {
+                // Deserialize citations from array back to Citation objects
+                $citations = \array_map(
+                    Citation::fromArray(...),
+                    $value
+                );
+                $item->addMetadata($key, $citations);
                 continue;
             }
             $item->addMetadata($key, $value);
         }
-    }
-
-    public function setTokenCounter(TokenCounterInterface $tokenCounter): ChatHistoryInterface
-    {
-        $this->tokenCounter = $tokenCounter;
-        return $this;
     }
 }
