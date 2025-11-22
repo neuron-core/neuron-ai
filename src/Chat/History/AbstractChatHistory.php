@@ -165,11 +165,48 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function ensureValidMessageSequence(): void
     {
+        if ($this->history === []) {
+            return;
+        }
+
+        // Drop leading tool_call / tool_call_result messages
+        $this->dropLeadingToolMessages();
+
+        if ($this->history === []) {
+            return;
+        }
+
         // Ensure it starts with a UserMessage
         $this->ensureStartsWithUser();
 
+        if ($this->history === []) {
+            return;
+        }
+
         // Ensure it ends with an AssistantMessage
         $this->ensureValidAlternation();
+    }
+
+    /**
+     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
+     */
+    protected function dropLeadingToolMessages(): void
+    {
+        $start = 0;
+
+        foreach ($this->history as $index => $message) {
+            if ($message instanceof ToolCallMessage || $message instanceof ToolResultMessage) {
+                $start = $index + 1;
+                continue;
+            }
+
+            // First non-tool message reached, stop advancing
+            break;
+        }
+
+        if ($start > 0) {
+            $this->history = \array_slice($this->history, $start);
+        }
     }
 
     /**
@@ -208,7 +245,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function ensureValidAlternation(): void
     {
         $result = [];
-        $expectingRole = [MessageRole::USER->value]; // Should start with user
+        $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
+        $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
+        $expectingRoles = $userRoles; // Should start with user
 
         foreach ($this->history as $message) {
             $messageRole = $message->getRole();
@@ -219,17 +258,17 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             if ($message instanceof ToolResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
-                $expectingRole = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
+                $expectingRoles = $assistantRoles;
                 continue;
             }
 
             // Check if this message has the expected role
-            if (\in_array($messageRole, $expectingRole, true)) {
+            if (\in_array($messageRole, $expectingRoles, true)) {
                 $result[] = $message;
                 // Toggle the expected role
-                $expectingRole = ($expectingRole === [MessageRole::USER->value])
-                    ? [MessageRole::ASSISTANT->value, MessageRole::MODEL->value]
-                    : [MessageRole::USER->value];
+                $expectingRoles = ($expectingRoles === $userRoles)
+                    ? $assistantRoles
+                    : $userRoles;
             }
             // If not the expected role, we have an invalid alternation
             // Skip this message to maintain a valid sequence
@@ -416,5 +455,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             }
             $item->addMetadata($key, $value);
         }
+    }
+
+    public function setTokenCounter(TokenCounterInterface $tokenCounter): ChatHistoryInterface
+    {
+        $this->tokenCounter = $tokenCounter;
+        return $this;
     }
 }

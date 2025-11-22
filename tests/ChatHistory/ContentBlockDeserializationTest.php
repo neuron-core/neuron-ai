@@ -88,7 +88,7 @@ class ContentBlockDeserializationTest extends TestCase
         $history2 = new FileChatHistory($this->testDir, $key);
         $messages2 = $history2->getMessages();
 
-        $this->assertCount(3, $messages2);
+        $this->assertCount(2, $messages2);
 
         // Verify original messages still have content blocks
         $this->assertInstanceOf(TextContent::class, $messages2[0]->getContentBlocks()[0]);

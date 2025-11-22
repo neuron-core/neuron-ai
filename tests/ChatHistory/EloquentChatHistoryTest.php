@@ -217,9 +217,9 @@ class EloquentChatHistoryTest extends TestCase
         // The setMessages method is used internally by addMessage
         // Verify that in-memory and database are in sync
         $messages = $this->history->getMessages();
-        $dbRecords = ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->get();
+        $dbRecords = ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->count();
 
-        $this->assertCount(\count($messages), $dbRecords);
+        $this->assertEquals(\count($messages), $dbRecords);
     }
 
     public function test_handles_empty_thread_id(): void
