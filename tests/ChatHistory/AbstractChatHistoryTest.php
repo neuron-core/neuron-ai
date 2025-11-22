@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\History\TokenCounterInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
@@ -17,11 +18,11 @@ use PHPUnit\Framework\TestCase;
 
 class AbstractChatHistoryTest extends TestCase
 {
-    private TestChatHistory $history;
+    private InMemoryChatHistory $history;
 
     protected function setUp(): void
     {
-        $this->history = new TestChatHistory(
+        $this->history = new InMemoryChatHistory(
             contextWindow: 500,
             tokenCounter: new DummyTokenCounter()
         );
@@ -31,14 +32,10 @@ class AbstractChatHistoryTest extends TestCase
     {
         $tool = Tool::make('test_tool', 'Test tool')->setInputs([]);
 
-        $this->history->setMessages([
-            new ToolCallMessage('call', [$tool]),
-            new ToolCallResultMessage([$tool->setResult(['x' => 1])]),
-            new UserMessage('Hello'),
-            new AssistantMessage('Hi'),
-        ]);
-
-        $this->history->ensureValidMessageSequencePublic();
+        $this->history->addMessage(new ToolCallMessage('call', [$tool]))
+            ->addMessage(new ToolCallResultMessage([$tool->setResult(['x' => 1])]))
+            ->addMessage(new UserMessage('Hello'))
+            ->addMessage(new AssistantMessage('Hi'));
 
         $messages = $this->history->getMessages();
 
@@ -51,12 +48,8 @@ class AbstractChatHistoryTest extends TestCase
     {
         $tool = Tool::make('test_tool', 'Test tool')->setInputs([]);
 
-        $this->history->setMessages([
-            new ToolCallMessage('call', [$tool]),
-            new ToolCallResultMessage([$tool]),
-        ]);
-
-        $this->history->ensureValidMessageSequencePublic();
+        $this->history->addMessage(new ToolCallMessage('call', [$tool]));
+        $this->history->addMessage(new ToolCallResultMessage([$tool]));
 
         $this->assertCount(0, $this->history->getMessages());
     }
@@ -69,13 +62,9 @@ class AbstractChatHistoryTest extends TestCase
 
         // This simulates the DB snapshot scenario from issue #372:
         // history effectively starts with a tool_call_result entry.
-        $this->history->setMessages([
-            new ToolCallResultMessage([$tool]),
-            new UserMessage('Hello'),
-            new AssistantMessage('Hi'),
-        ]);
-
-        $this->history->ensureValidMessageSequencePublic();
+        $this->history->addMessage(new ToolCallResultMessage([$tool]));
+        $this->history->addMessage(new UserMessage('Hello'));
+        $this->history->addMessage(new AssistantMessage('Hi'));
 
         $messages = $this->history->getMessages();
 
@@ -96,14 +85,10 @@ class AbstractChatHistoryTest extends TestCase
 
         // Valid sequence:
         // user -> tool_call -> tool_call_result -> assistant
-        $this->history->setMessages([
-            new UserMessage('Use the tool'),
-            new ToolCallMessage(null, [$tool]),
-            new ToolCallResultMessage([$toolWithResult]),
-            new AssistantMessage('Here is the result'),
-        ]);
-
-        $this->history->ensureValidMessageSequencePublic();
+        $this->history->addMessage(new UserMessage('Use the tool'));
+        $this->history->addMessage(new ToolCallMessage(null, [$tool]));
+        $this->history->addMessage(new ToolCallResultMessage([$toolWithResult]));
+        $this->history->addMessage(new AssistantMessage('Here is the result'));
 
         $messages = $this->history->getMessages();
 
@@ -118,14 +103,10 @@ class AbstractChatHistoryTest extends TestCase
 
     public function test_role_alternation_is_enforced(): void
     {
-        $this->history->setMessages([
-            new UserMessage('U1'),
-            new AssistantMessage('A1'),
-            new AssistantMessage('A2 INVALID'),
-            new UserMessage('U2'),
-        ]);
-
-        $this->history->ensureValidMessageSequencePublic();
+        $this->history->addMessage(new UserMessage('U1'));
+        $this->history->addMessage(new AssistantMessage('A1'));
+        $this->history->addMessage(new AssistantMessage('A2 INVALID'));
+        $this->history->addMessage(new UserMessage('U2'));
 
         $messages = $this->history->getMessages();
 
@@ -133,35 +114,6 @@ class AbstractChatHistoryTest extends TestCase
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
         $this->assertInstanceOf(UserMessage::class, $messages[2]);
-    }
-}
-
-/**
- * Minimal concrete implementation of AbstractChatHistory for testing
- * the sequence normalization logic in isolation.
- */
-class TestChatHistory extends AbstractChatHistory
-{
-    /**
-     * @param array<int, Message> $messages
-     */
-    public function setMessages(array $messages): ChatHistoryInterface
-    {
-        $this->history = $messages;
-
-        return $this;
-    }
-
-    protected function clear(): ChatHistoryInterface
-    {
-        $this->history = [];
-
-        return $this;
-    }
-
-    public function ensureValidMessageSequencePublic(): void
-    {
-        $this->ensureValidMessageSequence();
     }
 }
 
