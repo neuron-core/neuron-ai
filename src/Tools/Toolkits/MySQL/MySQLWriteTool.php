@@ -97,7 +97,7 @@ class MySQLWriteTool extends Tool
         return "Query executed successfully. {$rowCount} row(s) affected.";
     }
 
-    protected function validate($query): bool
+    protected function validate(string $query): bool
     {
         // Check for forbidden keywords that might be in subqueries
         foreach ($this->forbiddenStatements as $forbidden) {
