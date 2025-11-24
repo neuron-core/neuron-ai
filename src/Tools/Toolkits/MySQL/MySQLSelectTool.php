@@ -100,7 +100,7 @@ This the tool to use only to gather information from the MySQL database.'
 
         // Check for forbidden keywords that might be in subqueries
         foreach ($this->forbiddenStatements as $forbidden) {
-            if (self::containsKeyword($cleanQuery, $forbidden)) {
+            if ($this->containsKeyword($cleanQuery, $forbidden)) {
                 return false;
             }
         }
