@@ -65,7 +65,7 @@ class MySQLWriteTool extends Tool
     public function __invoke(string $query, ?array $parameters = []): string
     {
         if (!$this->validate($query)) {
-            return "Invalid query: Contains forbidden statements.";
+            return "The query was rejected for security reasons: it contains forbidden statements (".\implode(', ', $this->forbiddenStatements).").";
         }
 
         $statement = $this->pdo->prepare($query);
