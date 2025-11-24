@@ -23,7 +23,7 @@ class MySQLSelectTool extends Tool
     protected array $forbiddenStatements = [
         'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
         'TRUNCATE', 'REPLACE', 'MERGE', 'CALL', 'EXECUTE',
-        'INTO', 'OUTFILE', 'DUMPFILE', 'LOAD_FILE'
+        'INTO', 'OUTFILE', 'DUMPFILE', 'LOAD_FILE',
     ];
 
     public function __construct(protected PDO $pdo)
