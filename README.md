@@ -60,6 +60,7 @@ using the Symfony service container. Watch how it works in a real project.
 - [Structured Output](#structured)
 - [RAG](#rag)
 - [Workflow](#workflow)
+- [Security Vulnerabilities](#security)
 - [Official Documentation](#documentation)
 
 <a name="install">
@@ -414,6 +415,12 @@ large language model (LLM)-driven applications where model output may require va
 or additional context to complete the task.
 
 Learn more about Workflow on the [documentation](https://docs.neuron-ai.dev/workflow/getting-started).
+
+<a name="security">
+
+## Security Vulnerabilities
+If you discover a security vulnerability within Neuron, please send an e-mail to the Inspector team via support@inspector.dev.
+All security vulnerabilities will be promptly addressed.
 
 <a name="documentation">
 
