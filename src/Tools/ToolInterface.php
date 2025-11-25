@@ -11,10 +11,14 @@ interface ToolInterface extends \JsonSerializable
      */
     public function getName(): string;
 
+    public function setName(string $name): ToolInterface;
+
     /**
      * Get a description of the tool's functionality.
      */
     public function getDescription(): ?string;
+
+    public function setDescription(?string $description): ToolInterface;
 
     /**
      * Add a Property with a name, type, description, and optional required constraint.
