@@ -69,9 +69,21 @@ class Tool implements ToolInterface
         return $this->name;
     }
 
+    public function setName(string $name): ToolInterface
+    {
+        $this->name = $name;
+        return $this;
+    }
+
     public function getDescription(): ?string
     {
         return $this->description;
+    }
+
+    public function setDescription(?string $description): ToolInterface
+    {
+        $this->description = $description;
+        return $this;
     }
 
     public function addProperty(ToolPropertyInterface $property): ToolInterface
