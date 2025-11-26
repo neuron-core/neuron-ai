@@ -24,7 +24,7 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $indexUrl,
         protected int $topK = 4,
         string $version = '2025-04',
-        protected string $namespace = '' // Default namespace
+        protected string $namespace = '__default__' // Default namespace
     ) {
         $this->client = new Client([
             'base_uri' => \trim($this->indexUrl, '/').'/',
