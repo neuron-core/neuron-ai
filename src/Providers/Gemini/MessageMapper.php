@@ -96,13 +96,19 @@ class MessageMapper implements MessageMapperInterface
             $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
-        foreach ($message->getTools() as $tool) {
-            $parts[] = [
+        foreach ($message->getTools() as $index => $tool) {
+            $part = [
                 'functionCall' => [
                     'name' => $tool->getName(),
                     'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
                 ]
             ];
+
+            if ($index === 0 && $signature = $message->getMetadata('thoughtSignature')) {
+                $part['thoughtSignature'] = $signature;
+            }
+
+            $parts[] = $part;
         }
 
         return [

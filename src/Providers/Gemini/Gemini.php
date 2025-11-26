@@ -94,7 +94,13 @@ class Gemini implements AIProviderInterface
             ->setInputs($item['functionCall']['args'])
             ->setCallId($item['functionCall']['name']), $toolCalls);
 
-        return new ToolCallMessage($blocks, $tools);
+        $message = new ToolCallMessage($blocks, $tools);
+
+        if (isset($toolCalls[0]['thoughtSignature'])) {
+            $message->addMetadata('thoughtSignature', $toolCalls[0]['thoughtSignature']);
+        }
+
+        return $message;
     }
 
     /**

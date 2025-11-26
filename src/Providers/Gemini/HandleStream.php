@@ -61,7 +61,7 @@ trait HandleStream
                 continue;
             }
 
-            // Capture usage information
+            // Save usage information
             if (\array_key_exists('usageMetadata', $line)) {
                 $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
                 $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
@@ -71,15 +71,24 @@ trait HandleStream
             if ($this->hasToolCalls($line)) {
                 $this->streamState->composeToolCalls($line);
 
-                // Handle tool calls when finished
+                // Gemini 2.5 includes the finish reason in the tool call message. Gemini 3 uses a separate message instead.
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    return $this->createToolCallMessage(
-                        $this->streamState->getContentBlocks(),
-                        $this->streamState->getToolCalls()
-                    )->setUsage($this->streamState->getUsage());
+                    goto toolcall;
                 }
-
                 continue;
+            }
+
+            // Handle tool calls when finished
+            if (
+                isset($line['candidates'][0]['finishReason']) &&
+                $line['candidates'][0]['finishReason'] === 'STOP' &&
+                $this->streamState->hasToolCalls()
+            ) {
+                toolcall:
+                return $this->createToolCallMessage(
+                    $this->streamState->getContentBlocks(),
+                    $this->streamState->getToolCalls()
+                )->setUsage($this->streamState->getUsage());
             }
 
             // Process content
