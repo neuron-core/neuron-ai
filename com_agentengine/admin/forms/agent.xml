@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fieldset>
+        <field
+            name="id"
+            type="hidden"
+        />
+        <field
+            name="name"
+            type="text"
+            label="COM_AGENTENGINE_AGENT_NAME_LABEL"
+            description="COM_AGENTENGINE_AGENT_NAME_DESC"
+            required="true"
+        />
+        <field
+            name="description"
+            type="textarea"
+            label="COM_AGENTENGINE_AGENT_DESCRIPTION_LABEL"
+            description="COM_AGENTENGINE_AGENT_DESCRIPTION_DESC"
+            rows="5"
+        />
+        <field
+            name="provider"
+            type="list"
+            label="COM_AGENTENGINE_AGENT_PROVIDER_LABEL"
+            description="COM_AGENTENGINE_AGENT_PROVIDER_DESC"
+            >
+            <option value="OpenAI">OpenAI</option>
+            <option value="Gemini">Gemini</option>
+            <option value="Ollama">Ollama</option>
+            <option value="LMStudio">LM Studio</option>
+            <option value="LocalAI">LocalAI</option>
+        </field>
+        <field
+            name="model"
+            type="text"
+            label="COM_AGENTENGINE_AGENT_MODEL_LABEL"
+            description="COM_AGENTENGINE_AGENT_MODEL_DESC"
+        />
+        <field
+            name="system_prompt"
+            type="textarea"
+            label="COM_AGENTENGINE_AGENT_SYSTEM_PROMPT_LABEL"
+            description="COM_AGENTENGINE_AGENT_SYSTEM_PROMPT_DESC"
+            rows="5"
+        />
+        <field
+            name="tools"
+            type="textarea"
+            label="COM_AGENTENGINE_AGENT_TOOLS_LABEL"
+            description="COM_AGENTENGINE_AGENT_TOOLS_DESC"
+            rows="5"
+            hint="Enter tool names, one per line"
+        />
+    </fieldset>
+</form>

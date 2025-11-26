@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="component" method="upgrade">
+  <name>com_agentengine</name>
+  <creationDate>2024-07-26</creationDate>
+  <author>Jules</author>
+  <version>1.0.0</version>
+  <description>Agent creation and deployment engine for Joomla 5</description>
+
+  <!-- PSR-4: Joomla will map Administrator/Site to the src folder -->
+  <namespace path="src">Jules\Component\AgentEngine</namespace>
+
+  <administration>
+    <menu>Agent Engine</menu>
+    <files folder="admin">
+      <folder>forms</folder>
+      <folder>language</folder>
+      <folder>services</folder>
+      <folder>src</folder>
+      <folder>tmpl</folder>
+    </files>
+    <languages folder="admin/language">
+        <language tag="en-GB">en-GB/en-GB.com_agentengine.ini</language>
+    </languages>
+  </administration>
+
+  <install>
+    <sql>
+      <file driver="mysql" charset="utf8">sql/install.mysql.utf8.sql</file>
+    </sql>
+  </install>
+  <uninstall>
+    <sql>
+      <file driver="mysql" charset="utf8">sql/uninstall.mysql.utf8.sql</file>
+    </sql>
+  </uninstall>
+</extension>
