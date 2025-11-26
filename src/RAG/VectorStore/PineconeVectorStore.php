@@ -24,7 +24,7 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $indexUrl,
         protected int $topK = 4,
         string $version = '2025-04',
-        protected string $namespace = '__default__'
+        protected string $namespace = '__default__' // Default namespace
     ) {
         $this->client = new Client([
             'base_uri' => \trim($this->indexUrl, '/').'/',
@@ -80,15 +80,21 @@ class PineconeVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
+        $queryParams = [
+            'namespace' => $this->namespace,
+            'includeMetadata' => true,
+            'includeValues' => true,
+            'vector' => $embedding,
+            'topK' => $this->topK,
+        ];
+
+        // Only include filter parameter if filters are not empty
+        if (!empty($this->filters)) {
+            $queryParams['filter'] = $this->filters;
+        }
+
         $result = $this->client->post("query", [
-            RequestOptions::JSON => [
-                'namespace' => $this->namespace,
-                'includeMetadata' => true,
-                'includeValues' => true,
-                'vector' => $embedding,
-                'topK' => $this->topK,
-                'filter' => $this->filters, // Hybrid search
-            ]
+            RequestOptions::JSON => $queryParams
         ])->getBody()->getContents();
 
         $result = \json_decode($result, true);
