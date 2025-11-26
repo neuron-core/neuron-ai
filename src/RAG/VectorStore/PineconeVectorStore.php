@@ -89,7 +89,7 @@ class PineconeVectorStore implements VectorStoreInterface
         ];
 
         // Only include filter parameter if filters are not empty
-        if (!empty($this->filters)) {
+        if ($this->filters !== []) {
             $queryParams['filter'] = $this->filters;
         }
 
