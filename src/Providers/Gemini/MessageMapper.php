@@ -24,6 +24,9 @@ use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper implements MessageMapperInterface
 {
+    /**
+     * @throws ProviderException
+     */
     public function map(array $messages): array
     {
         $mapping = [];
