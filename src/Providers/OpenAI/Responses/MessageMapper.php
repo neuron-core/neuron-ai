@@ -60,8 +60,6 @@ class MessageMapper implements MessageMapperInterface
 
     /**
      * @param ContentBlockInterface[] $blocks
-     * @param bool $isUser
-     * @return array
      * @throws ProviderException
      */
     protected function mapContentBlocks(array $blocks, bool $isUser): array

@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI;
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\HasGuzzleClient;
@@ -87,7 +86,7 @@ class OpenAI implements AIProviderInterface
      *
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface $blocks = null): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface|null $blocks = null): ToolCallMessage
     {
         $tools = \array_map(
             fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
@@ -99,8 +98,9 @@ class OpenAI implements AIProviderInterface
         );
 
         $result = new ToolCallMessage($blocks, $tools);
+        $result->addMetadata('tool_calls', $toolCalls);
 
-        return $result->addMetadata('tool_calls', $toolCalls);
+        return $result;
     }
 
     /**

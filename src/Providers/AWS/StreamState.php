@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\AWS;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;

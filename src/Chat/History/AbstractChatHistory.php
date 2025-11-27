@@ -414,7 +414,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 filename: $block['filename'] ?? null
             ),
             ContentBlockType::AUDIO => new AudioContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),

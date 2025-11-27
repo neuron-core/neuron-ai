@@ -85,7 +85,7 @@ class Mistral implements AIProviderInterface
      *
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface $blocks = null): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface|null $blocks = null): ToolCallMessage
     {
         $tools = \array_map(
             fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
@@ -97,7 +97,8 @@ class Mistral implements AIProviderInterface
         );
 
         $result = new ToolCallMessage($blocks, $tools);
+        $result->addMetadata('tool_calls', $toolCalls);
 
-        return $result->addMetadata('tool_calls', $toolCalls);
+        return $result;
     }
 }

@@ -1,12 +1,14 @@
 <?php
 
-namespace NeuronAI\Chat\Messages\ContentBlocks;
+declare(strict_types=1);
 
-use NeuronAI\Chat\Enums\ContentBlockType;
+namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 abstract class ContentBlock implements ContentBlockInterface
 {
-    public function __construct(public string $content) {}
+    public function __construct(public string $content)
+    {
+    }
 
     public function accumulateContent(string $content): void
     {

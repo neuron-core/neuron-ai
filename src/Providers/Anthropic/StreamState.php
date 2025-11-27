@@ -4,10 +4,26 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Providers\BasicStreamState;
 
 class StreamState extends BasicStreamState
 {
+    public function addContentBlock(int $index, ContentBlockInterface $block): void
+    {
+        $this->blocks[$index] = $block;
+    }
+
+    public function updateContentBlock(int $index, string $content): void
+    {
+        $this->blocks[$index]->accumulateContent($content);
+    }
+
+    public function getContentBlock(int $index): ContentBlockInterface
+    {
+        return $this->blocks[$index];
+    }
+
     /**
      * Recreate the tool_call format of anthropic API from streaming.
      *

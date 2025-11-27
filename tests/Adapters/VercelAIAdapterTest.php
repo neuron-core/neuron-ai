@@ -49,7 +49,7 @@ class VercelAIAdapterTest extends TestCase
     {
         // Create fresh adapter to ensure clean state
         $adapter = new VercelAIAdapter();
-        $chunk = new TextChunk('Hello world');
+        $chunk = new TextChunk('msg_123', 'Hello world');
 
         // Manually collect results to preserve order
         $result = [];
@@ -72,9 +72,9 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_reasoning_chunk(): void
     {
         // Initialize with a text chunk first to set message ID
-        $this->adapter->transform(new TextChunk('init'));
+        $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
-        $chunk = new ReasoningChunk('Thinking...');
+        $chunk = new ReasoningChunk('sig_123', 'Thinking...');
         $result = \iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
@@ -85,7 +85,7 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_tool_call_chunk(): void
     {
         // Initialize with a text chunk first
-        $this->adapter->transform(new TextChunk('init'));
+        $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $chunk = new ToolCallChunk([$tool]);
@@ -101,7 +101,7 @@ class VercelAIAdapterTest extends TestCase
     public function test_transform_tool_result_chunk(): void
     {
         // Initialize and call tool first
-        $this->adapter->transform(new TextChunk('init'));
+        $this->adapter->transform(new TextChunk('msg_123', 'init'));
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $this->adapter->transform(new ToolCallChunk([$tool]));
 
@@ -121,13 +121,13 @@ class VercelAIAdapterTest extends TestCase
         // Use fresh adapter to test state persistence
         $adapter = new VercelAIAdapter();
 
-        $chunk1 = new TextChunk('Hello');
+        $chunk1 = new TextChunk('msg_123', 'Hello');
         $result1 = [];
         foreach ($adapter->transform($chunk1) as $item) {
             $result1[] = $item;
         }
 
-        $chunk2 = new TextChunk(' world');
+        $chunk2 = new TextChunk('msg_123', ' world');
         $result2 = [];
         foreach ($adapter->transform($chunk2) as $item) {
             $result2[] = $item;
@@ -148,7 +148,7 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_sse_format_is_correct(): void
     {
-        $chunk = new TextChunk('Test');
+        $chunk = new TextChunk('msg_123', 'Test');
         $result = \iterator_to_array($this->adapter->transform($chunk));
 
         foreach ($result as $line) {

@@ -50,7 +50,7 @@ class AgUIAdapterTest extends TestCase
         \iterator_to_array($this->adapter->start());
 
         // Start a message (consume the generator)
-        \iterator_to_array($this->adapter->transform(new TextChunk('Hello')));
+        \iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'Hello')));
 
         $result = \iterator_to_array($this->adapter->end());
 
@@ -65,7 +65,7 @@ class AgUIAdapterTest extends TestCase
     public function test_transform_text_chunk_emits_start_and_content(): void
     {
         $adapter = new AGUIAdapter();
-        $chunk = new TextChunk('Hello world');
+        $chunk = new TextChunk('msg_123', 'Hello world');
 
         $result = [];
         foreach ($adapter->transform($chunk) as $item) {
@@ -89,8 +89,8 @@ class AgUIAdapterTest extends TestCase
     {
         $adapter = new AGUIAdapter();
 
-        $result1 = \iterator_to_array($adapter->transform(new TextChunk('Hello')));
-        $result2 = \iterator_to_array($adapter->transform(new TextChunk(' world')));
+        $result1 = \iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Hello')));
+        $result2 = \iterator_to_array($adapter->transform(new TextChunk('msg_123', ' world')));
 
         // Extract message ID from first result (TextMessageStart)
         \preg_match('/"messageId":"([^"]+)"/', $result1[0], $matches1);
@@ -107,7 +107,7 @@ class AgUIAdapterTest extends TestCase
 
     public function test_transform_reasoning_chunk(): void
     {
-        $chunk = new ReasoningChunk('Analyzing the problem...');
+        $chunk = new ReasoningChunk('sig_123', 'Analyzing the problem...');
         $result = \iterator_to_array($this->adapter->transform($chunk));
 
         // Should emit ReasoningStart and ReasoningMessageContent
@@ -122,7 +122,7 @@ class AgUIAdapterTest extends TestCase
     public function test_transform_tool_call_chunk(): void
     {
         // Initialize with a text chunk first
-        $this->adapter->transform(new TextChunk('init'));
+        $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add', 'x' => 5, 'y' => 3]);
         $chunk = new ToolCallChunk([$tool]);
@@ -145,7 +145,7 @@ class AgUIAdapterTest extends TestCase
     public function test_transform_tool_result_chunk(): void
     {
         // Initialize and call tool first
-        $this->adapter->transform(new TextChunk('init'));
+        $this->adapter->transform(new TextChunk('msg_123', 'init'));
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $this->adapter->transform(new ToolCallChunk([$tool]));
 
@@ -164,7 +164,7 @@ class AgUIAdapterTest extends TestCase
     public function test_tool_call_ids_are_consistent(): void
     {
         $adapter = new AGUIAdapter();
-        $adapter->transform(new TextChunk('init'));
+        $adapter->transform(new TextChunk('msg_123', 'init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
 
@@ -186,7 +186,7 @@ class AgUIAdapterTest extends TestCase
 
     public function test_sse_format_is_correct(): void
     {
-        $chunk = new TextChunk('Test');
+        $chunk = new TextChunk('msg_123', 'Test');
         $result = \iterator_to_array($this->adapter->transform($chunk));
 
         foreach ($result as $line) {
@@ -223,12 +223,12 @@ class AgUIAdapterTest extends TestCase
         }
 
         // Text message
-        foreach ($adapter->transform(new TextChunk('Hello')) as $event) {
+        foreach ($adapter->transform(new TextChunk('msg_123', 'Hello')) as $event) {
             $allEvents[] = $event;
         }
 
         // Reasoning
-        foreach ($adapter->transform(new ReasoningChunk('Thinking...')) as $event) {
+        foreach ($adapter->transform(new ReasoningChunk('sig_123', 'Thinking...')) as $event) {
             $allEvents[] = $event;
         }
 

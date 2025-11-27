@@ -122,7 +122,7 @@ class Message implements \JsonSerializable
     /**
      * @param string|array<int, mixed>|null $value
      */
-    public function addMetadata(string $key, string|array|null $value): Message
+    public function addMetadata(string $key, string|array|null $value): self
     {
         $this->meta[$key] = $value;
         return $this;

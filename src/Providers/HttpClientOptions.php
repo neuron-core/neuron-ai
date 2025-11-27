@@ -17,7 +17,7 @@ class HttpClientOptions
         public readonly ?float $connectTimeout = null,
         public readonly ?array $headers = null,
         public readonly ?HandlerStack $handler = null,
-        public readonly ?array $proxy = null,
+        public readonly array|string|null $proxy = null,
     ) {
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Mistral;
 
 use GuzzleHttp\Promise\PromiseInterface;
