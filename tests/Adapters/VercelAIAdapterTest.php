@@ -138,7 +138,7 @@ class VercelAIAdapterTest extends TestCase
         $messageId1 = $matches1[1] ?? null;
 
         // Extract message ID from second result (text-delta uses "id" field)
-        \preg_match('/"id":"([^"]+)"/', $result2[0], $matches2);
+        \preg_match('/"messageId":"([^"]+)"/', $result2[0], $matches2);
         $messageId2 = $matches2[1] ?? null;
 
         $this->assertNotNull($messageId1);

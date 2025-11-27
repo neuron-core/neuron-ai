@@ -607,7 +607,7 @@ class AnthropicTest extends TestCase
     {
         // Mock SSE streaming response with text content
         $streamBody = "event: message_start\n";
-        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_123\",\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n";
         $streamBody .= "event: content_block_start\n";
         $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n";
         $streamBody .= "event: content_block_delta\n";
@@ -655,7 +655,7 @@ class AnthropicTest extends TestCase
     {
         // Mock SSE streaming response with thinking and text content
         $streamBody = "event: message_start\n";
-        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":15,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_123\",\"usage\":{\"input_tokens\":15,\"output_tokens\":0}}}\n\n";
         $streamBody .= "event: content_block_start\n";
         $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\"}}\n\n";
         $streamBody .= "event: content_block_delta\n";

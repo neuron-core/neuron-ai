@@ -92,9 +92,10 @@ trait HandleStream
             }
 
             // Process regular content
-            $content = $choice['delta']['content'] ?? '';
-            $this->streamState->updateContentBlock($choice['index'], $content);
-            yield new TextChunk($this->streamState->messageId(), $content);
+            if ($content = $choice['delta']['content'] ?? null) {
+                $this->streamState->updateContentBlock($choice['index'], $content);
+                yield new TextChunk($this->streamState->messageId(), $content);
+            }
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
