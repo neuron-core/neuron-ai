@@ -22,8 +22,7 @@ class Mistral extends OpenAI
 
     /**
      * Stream response from the LLM.
-     *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
+     * https://docs.mistral.ai/api/endpoint/chat
      *
      * @throws ProviderException
      * @throws GuzzleException
