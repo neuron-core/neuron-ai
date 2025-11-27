@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
 
 trait HasGuzzleClient
 {
@@ -33,8 +34,11 @@ trait HasGuzzleClient
         if ($options->connectTimeout !== null) {
             $config['connect_timeout'] = $options->connectTimeout;
         }
-        if ($options->handler instanceof \GuzzleHttp\HandlerStack) {
+        if ($options->handler instanceof HandlerStack) {
             $config['handler'] = $options->handler;
+        }
+        if ($options->proxy !== null) {
+            $config['proxy'] = $options->proxy;
         }
 
         return $config;
