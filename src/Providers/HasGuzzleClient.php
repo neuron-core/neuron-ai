@@ -36,6 +36,9 @@ trait HasGuzzleClient
         if ($options->handler instanceof \GuzzleHttp\HandlerStack) {
             $config['handler'] = $options->handler;
         }
+        if ($options->proxy !== null) {
+            $config['proxy'] = $options->proxy;
+        }
 
         return $config;
     }
