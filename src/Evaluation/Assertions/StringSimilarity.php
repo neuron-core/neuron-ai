@@ -9,6 +9,9 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorSimilarity;
 
+use function gettype;
+use function is_string;
+
 class StringSimilarity extends AbstractAssertion
 {
     public function __construct(
@@ -23,10 +26,10 @@ class StringSimilarity extends AbstractAssertion
      */
     public function evaluate(mixed $actual): AssertionResult
     {
-        if (!\is_string($actual)) {
+        if (!is_string($actual)) {
             return AssertionResult::fail(
                 0.0,
-                'Expected actual value to be a string, got ' . \gettype($actual),
+                'Expected actual value to be a string, got ' . gettype($actual),
             );
         }
 

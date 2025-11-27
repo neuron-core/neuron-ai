@@ -9,6 +9,17 @@ use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
+use ReflectionException;
+use stdClass;
+
+use function array_key_exists;
+use function array_map;
+use function array_reduce;
+use function call_user_func;
+use function is_array;
+use function is_callable;
+use function json_encode;
+use function method_exists;
 
 /**
  * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $annotations = [])
@@ -124,7 +135,7 @@ class Tool implements ToolInterface
 
     public function getRequiredProperties(): array
     {
-        return \array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
+        return array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
             if ($property->isRequired()) {
                 $carry[] = $property->getName();
             }
@@ -168,7 +179,7 @@ class Tool implements ToolInterface
 
     public function setResult(mixed $result): self
     {
-        $this->result = \is_array($result) ? \json_encode($result) : (string) $result;
+        $this->result = is_array($result) ? json_encode($result) : (string) $result;
 
         return $this;
     }
@@ -190,28 +201,28 @@ class Tool implements ToolInterface
      * @throws MissingCallbackParameter
      * @throws ToolCallableNotSet
      * @throws DeserializerException
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public function execute(): void
     {
-        if (!\is_callable($this->callback) && !\method_exists($this, '__invoke')) {
+        if (!is_callable($this->callback) && !method_exists($this, '__invoke')) {
             throw new ToolCallableNotSet('No function defined for tool execution.');
         }
 
         // Validate required parameters
         foreach ($this->getProperties() as $property) {
-            if ($property->isRequired() && !\array_key_exists($property->getName(), $this->getInputs())) {
+            if ($property->isRequired() && !array_key_exists($property->getName(), $this->getInputs())) {
                 throw new MissingCallbackParameter("Missing required parameter: {$property->getName()}");
             }
         }
 
-        $parameters = \array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
+        $parameters = array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
             $propertyName = $property->getName();
             $inputs = $this->getInputs();
 
             // Normalize missing optional properties by assigning them a null value
             // Treat it as explicitly null to ensure a consistent structure
-            if (!\array_key_exists($propertyName, $inputs)) {
+            if (!array_key_exists($propertyName, $inputs)) {
                 $carry[$propertyName] = null;
                 return $carry;
             }
@@ -222,7 +233,7 @@ class Tool implements ToolInterface
             // If there is an object property with a class definition,
             // deserialize the tool input into an instance of that class
             if ($property instanceof ObjectProperty && $property->getClass()) {
-                $carry[$propertyName] = Deserializer::make()->fromJson(\json_encode($inputValue), $property->getClass());
+                $carry[$propertyName] = Deserializer::make()->fromJson(json_encode($inputValue), $property->getClass());
                 return $carry;
             }
 
@@ -232,7 +243,7 @@ class Tool implements ToolInterface
                 $items = $property->getItems();
                 if ($items instanceof ObjectProperty && $items->getClass()) {
                     $class = $items->getClass();
-                    $carry[$propertyName] = \array_map(fn (array|object $input): object => Deserializer::make()->fromJson(\json_encode($input), $class), $inputValue);
+                    $carry[$propertyName] = array_map(fn (array|object $input): object => Deserializer::make()->fromJson(json_encode($input), $class), $inputValue);
                     return $carry;
                 }
             }
@@ -244,8 +255,8 @@ class Tool implements ToolInterface
         }, []);
 
         $this->setResult(
-            \method_exists($this, '__invoke') ? $this->__invoke(...$parameters)
-                : \call_user_func($this->callback, ...$parameters)
+            method_exists($this, '__invoke') ? $this->__invoke(...$parameters)
+                : call_user_func($this->callback, ...$parameters)
         );
     }
 
@@ -255,7 +266,7 @@ class Tool implements ToolInterface
             'callId' => $this->callId,
             'name' => $this->name,
             'description' => $this->description,
-            'inputs' => $this->inputs === [] ? new \stdClass() : $this->inputs,
+            'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
             'result' => $this->result,
         ];
     }

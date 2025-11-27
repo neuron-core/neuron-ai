@@ -18,6 +18,19 @@ use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use Generator;
+use Throwable;
+
+use function array_chunk;
+use function array_keys;
+use function array_values;
+use function end;
+use function explode;
+use function is_array;
+use function md5;
+use function trim;
+
+use const PHP_EOL;
 
 /**
  * @method RAG withProvider(AIProviderInterface $provider)
@@ -42,7 +55,7 @@ class RAG extends Agent
     {
         $this->notify('chat-rag-start');
 
-        $question = \is_array($messages) ? \end($messages) : $messages;
+        $question = is_array($messages) ? end($messages) : $messages;
 
         $this->withDocumentsContext(
             $this->retrieveDocuments($question)
@@ -55,11 +68,11 @@ class RAG extends Agent
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
-    public function stream(Message|array $messages): \Generator
+    public function stream(Message|array $messages): Generator
     {
-        $question = \is_array($messages) ? \end($messages) : $messages;
+        $question = is_array($messages) ? end($messages) : $messages;
 
         $this->notify('stream-rag-start');
 
@@ -76,7 +89,7 @@ class RAG extends Agent
 
     public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed
     {
-        $question = \is_array($messages) ? \end($messages) : $messages;
+        $question = is_array($messages) ? end($messages) : $messages;
 
         $this->notify('structured-rag-start');
 
@@ -105,13 +118,13 @@ class RAG extends Agent
 
         $newInstructions .= '<EXTRA-CONTEXT>';
         foreach ($documents as $document) {
-            $newInstructions .= "Source Type: ".$document->getSourceType().\PHP_EOL.
-                "Source Name: ".$document->getSourceName().\PHP_EOL.
-                "Content: ".$document->getContent().\PHP_EOL.\PHP_EOL;
+            $newInstructions .= "Source Type: ".$document->getSourceType().PHP_EOL.
+                "Source Name: ".$document->getSourceName().PHP_EOL.
+                "Content: ".$document->getContent().PHP_EOL.PHP_EOL;
         }
         $newInstructions .= '</EXTRA-CONTEXT>';
 
-        $this->setInstructions(\trim($newInstructions));
+        $this->setInstructions(trim($newInstructions));
 
         return $this;
     }
@@ -133,10 +146,10 @@ class RAG extends Agent
 
         foreach ($documents as $document) {
             //md5 for removing duplicates
-            $retrievedDocs[\md5($document->getContent())] = $document;
+            $retrievedDocs[md5($document->getContent())] = $document;
         }
 
-        $retrievedDocs = \array_values($retrievedDocs);
+        $retrievedDocs = array_values($retrievedDocs);
 
         $this->notify('rag-retrieved', new Retrieved($question, $retrievedDocs));
 
@@ -183,7 +196,7 @@ class RAG extends Agent
      */
     public function addDocuments(array $documents, int $chunkSize = 50): void
     {
-        foreach (\array_chunk($documents, $chunkSize) as $chunk) {
+        foreach (array_chunk($documents, $chunkSize) as $chunk) {
             $this->resolveVectorStore()->addDocuments(
                 $this->resolveEmbeddingsProvider()->embedDocuments($chunk)
             );
@@ -207,8 +220,8 @@ class RAG extends Agent
             $grouped[$key][] = $document;
         }
 
-        foreach (\array_keys($grouped) as $key) {
-            [$sourceType, $sourceName] = \explode(':', $key);
+        foreach (array_keys($grouped) as $key) {
+            [$sourceType, $sourceName] = explode(':', $key);
             $this->resolveVectorStore()->deleteBySource($sourceType, $sourceName);
             $this->addDocuments($grouped[$key], $chunkSize);
         }

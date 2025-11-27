@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\GetDaysInMonthTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class GetDaysInMonthToolTest extends TestCase
 {
     private GetDaysInMonthTool $tool;
@@ -21,7 +24,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(1, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(1, $data['month']);
         $this->assertEquals('January', $data['month_name']);
@@ -36,7 +39,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(2, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2, $data['month']);
         $this->assertEquals('February', $data['month_name']);
@@ -51,7 +54,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(2, 2024);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2, $data['month']);
         $this->assertEquals('February', $data['month_name']);
@@ -66,7 +69,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(3, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(3, $data['month']);
         $this->assertEquals('March', $data['month_name']);
@@ -80,7 +83,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(4, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(4, $data['month']);
         $this->assertEquals('April', $data['month_name']);
@@ -109,7 +112,7 @@ class GetDaysInMonthToolTest extends TestCase
 
         foreach ($expectedDays as $month => [$expectedDaysCount, $expectedName]) {
             $result = ($this->tool)($month, 2023);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
 
             $this->assertEquals($expectedDaysCount, $data['days_in_month'], "Failed for month $month");
             $this->assertEquals($expectedName, $data['month_name'], "Failed for month $month");
@@ -136,7 +139,7 @@ class GetDaysInMonthToolTest extends TestCase
 
         foreach ($expectedDays as $month => [$expectedDaysCount, $expectedName]) {
             $result = ($this->tool)($month, 2024);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
 
             $this->assertEquals($expectedDaysCount, $data['days_in_month'], "Failed for month $month in leap year");
             $this->assertEquals($expectedName, $data['month_name'], "Failed for month $month in leap year");
@@ -148,7 +151,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(12, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(12, $data['month']);
         $this->assertEquals('December', $data['month_name']);
@@ -164,8 +167,8 @@ class GetDaysInMonthToolTest extends TestCase
         $result1900 = ($this->tool)(2, 1900);
         $result2000 = ($this->tool)(2, 2000);
 
-        $data1900 = \json_decode($result1900, true);
-        $data2000 = \json_decode($result2000, true);
+        $data1900 = json_decode($result1900, true);
+        $data2000 = json_decode($result2000, true);
 
         $this->assertEquals(28, $data1900['days_in_month']);
         $this->assertFalse($data1900['is_leap_year']);
@@ -178,7 +181,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         // Test single digit months get zero-padded
         $result = ($this->tool)(5, 2023);
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
 
         $this->assertEquals('2023-05-01', $data['first_day']);
         $this->assertEquals('2023-05-31', $data['last_day']);
@@ -188,7 +191,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(6, 2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
 
         // Check all required keys are present
@@ -232,7 +235,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(7, 1776);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(7, $data['month']);
         $this->assertEquals('July', $data['month_name']);
@@ -245,7 +248,7 @@ class GetDaysInMonthToolTest extends TestCase
     {
         $result = ($this->tool)(2, 2100);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2, $data['month']);
         $this->assertEquals('February', $data['month_name']);
@@ -262,7 +265,7 @@ class GetDaysInMonthToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(2, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('month', $propertyNames);
         $this->assertContains('year', $propertyNames);
     }

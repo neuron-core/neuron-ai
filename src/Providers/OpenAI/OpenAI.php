@@ -16,6 +16,10 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_map;
+use function json_decode;
+use function trim;
+
 class OpenAI implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -48,7 +52,7 @@ class OpenAI implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->baseUri, '/').'/',
+            'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -85,10 +89,10 @@ class OpenAI implements AIProviderInterface
      */
     protected function createToolCallMessage(array $message): Message
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
                 ->setInputs(
-                    \json_decode((string) $item['function']['arguments'], true)
+                    json_decode((string) $item['function']['arguments'], true)
                 )
                 ->setCallId($item['id']),
             $message['tool_calls']

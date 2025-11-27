@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
 
 class IsWeekendTool extends Tool
 {
@@ -43,24 +48,24 @@ class IsWeekendTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            if (\is_numeric($date)) {
+            if (is_numeric($date)) {
                 // Handle timestamp
-                $dateTime = (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz);
+                $dateTime = (new DateTime())->setTimestamp((int) $date)->setTimezone($tz);
             } else {
                 // Handle date string - always parse as UTC first, then convert to the target timezone
-                $dateTime = new \DateTime($date, new DateTimeZone('UTC'));
+                $dateTime = new DateTime($date, new DateTimeZone('UTC'));
                 $dateTime->setTimezone($tz);
             }
 
             $dayOfWeek = (int) $dateTime->format('N');
             $isWeekend = $dayOfWeek >= 6;
 
-            return \json_encode([
+            return json_encode([
                 'is_weekend' => $isWeekend,
                 'day_of_week' => $dateTime->format('l'),
                 'day_number' => $dayOfWeek,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

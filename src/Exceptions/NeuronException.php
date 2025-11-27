@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Exceptions;
 
-class NeuronException extends \Exception
+use Exception;
+
+class NeuronException extends Exception
 {
 }

@@ -9,6 +9,9 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
+use stdClass;
+
+use function array_fill;
 
 class StringSimilarityTest extends TestCase
 {
@@ -106,7 +109,7 @@ class StringSimilarityTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
@@ -182,10 +185,10 @@ class StringSimilarityTest extends TestCase
 
     public function testPassesWithHighDimensionalVectors(): void
     {
-        $highDimVector1 = \array_fill(0, 384, 0.1);
+        $highDimVector1 = array_fill(0, 384, 0.1);
         $highDimVector1[0] = 1.0;
 
-        $highDimVector2 = \array_fill(0, 384, 0.1);
+        $highDimVector2 = array_fill(0, 384, 0.1);
         $highDimVector2[0] = 0.9;
 
         $this->embeddingsProvider

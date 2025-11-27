@@ -9,13 +9,20 @@ use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\NodeInterface;
+use Exception;
+use SplSubject;
+
+use function array_key_exists;
+use function array_keys;
+use function array_map;
+use function array_values;
 
 trait HandleWorkflowEvents
 {
     /**
-     * @throws \Exception
+     * @throws Exception
      */
-    public function workflowStart(\SplSubject $workflow, string $event, WorkflowStart $data): void
+    public function workflowStart(SplSubject $workflow, string $event, WorkflowStart $data): void
     {
         if (!$this->inspector->isRecording()) {
             return;
@@ -24,18 +31,18 @@ trait HandleWorkflowEvents
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
                 ->setType('neuron-workflow')
-                ->addContext('Mapping', \array_map(fn (string $eventClass, NodeInterface $node): array => [
+                ->addContext('Mapping', array_map(fn (string $eventClass, NodeInterface $node): array => [
                     $eventClass => $node::class,
-                ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)));
+                ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)));
         } elseif ($this->inspector->canAddSegments()) {
             $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($workflow::class))
                 ->setColor(self::STANDARD_COLOR);
         }
     }
 
-    public function workflowEnd(\SplSubject $workflow, string $event, WorkflowEnd $data): void
+    public function workflowEnd(SplSubject $workflow, string $event, WorkflowEnd $data): void
     {
-        if (\array_key_exists($workflow::class, $this->segments)) {
+        if (array_key_exists($workflow::class, $this->segments)) {
             $this->segments[$workflow::class]
                 ->end()
                 ->addContext('State', $data->state->all());
@@ -46,7 +53,7 @@ trait HandleWorkflowEvents
         }
     }
 
-    public function workflowNodeStart(\SplSubject $workflow, string $event, WorkflowNodeStart $data): void
+    public function workflowNodeStart(SplSubject $workflow, string $event, WorkflowNodeStart $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -59,9 +66,9 @@ trait HandleWorkflowEvents
         $this->segments[$data->node] = $segment;
     }
 
-    public function workflowNodeEnd(\SplSubject $workflow, string $event, WorkflowNodeEnd $data): void
+    public function workflowNodeEnd(SplSubject $workflow, string $event, WorkflowNodeEnd $data): void
     {
-        if (\array_key_exists($data->node, $this->segments)) {
+        if (array_key_exists($data->node, $this->segments)) {
             $segment = $this->segments[$data->node]->end();
             $segment->addContext('After', $data->state->all());
         }

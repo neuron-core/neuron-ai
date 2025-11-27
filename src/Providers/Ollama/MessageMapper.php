@@ -15,6 +15,10 @@ use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use stdClass;
+
+use function array_key_exists;
+use function array_map;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -45,7 +49,7 @@ class MessageMapper implements MessageMapperInterface
     {
         $payload = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $payload)) {
+        if (array_key_exists('usage', $payload)) {
             unset($payload['usage']);
         }
 
@@ -76,14 +80,14 @@ class MessageMapper implements MessageMapperInterface
     {
         $message = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $message)) {
+        if (array_key_exists('usage', $message)) {
             unset($message['usage']);
         }
 
-        if (\array_key_exists('tool_calls', $message)) {
-            $message['tool_calls'] = \array_map(function (array $toolCall): array {
+        if (array_key_exists('tool_calls', $message)) {
+            $message['tool_calls'] = array_map(function (array $toolCall): array {
                 if (empty($toolCall['function']['arguments'])) {
-                    $toolCall['function']['arguments'] = new \stdClass();
+                    $toolCall['function']['arguments'] = new stdClass();
                 }
                 return $toolCall;
             }, $message['tool_calls']);

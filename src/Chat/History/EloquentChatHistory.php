@@ -7,6 +7,10 @@ namespace NeuronAI\Chat\History;
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
 
+use function array_merge;
+
+use const PHP_INT_MAX;
+
 class EloquentChatHistory extends AbstractChatHistory
 {
     /**
@@ -64,7 +68,7 @@ class EloquentChatHistory extends AbstractChatHistory
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
             ->offset($index)
-            ->limit(\PHP_INT_MAX)
+            ->limit(PHP_INT_MAX)
             ->pluck('id')
             ->toArray();
 
@@ -108,7 +112,7 @@ class EloquentChatHistory extends AbstractChatHistory
 
         // Merge meta fields if present
         if ($meta = $record->getAttribute('meta')) {
-            return \array_merge($data, (array) $meta);
+            return array_merge($data, (array) $meta);
         }
 
         return $data;

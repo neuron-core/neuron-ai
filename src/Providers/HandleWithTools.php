@@ -8,6 +8,8 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_filter;
+
 trait HandleWithTools
 {
     /**
@@ -26,7 +28,7 @@ trait HandleWithTools
     public function findTool(string $name): ToolInterface
     {
         // Remove provider tools
-        $tools = \array_filter($this->tools, fn (ToolInterface|ProviderToolInterface $tool): bool => $tool instanceof ToolInterface);
+        $tools = array_filter($this->tools, fn (ToolInterface|ProviderToolInterface $tool): bool => $tool instanceof ToolInterface);
 
         foreach ($tools as $tool) {
             if ($tool->getName() === $name) {

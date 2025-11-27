@@ -6,6 +6,10 @@ namespace NeuronAI\Evaluation;
 
 use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
+use function debug_backtrace;
+
+use const DEBUG_BACKTRACE_IGNORE_ARGS;
+
 class RuleExecutor
 {
     private int $passedCount = 0;
@@ -82,7 +86,7 @@ class RuleExecutor
     private function recordFailure(AssertionInterface $rule, AssertionResult $result): void
     {
         // Get the calling line from backtrace (skip execute() and recordFailure())
-        $backtrace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS, 4);
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4);
         $lineNumber = $backtrace[3]['line'] ?? 0;
         $evaluatorClass = $backtrace[3]['class'] ?? 'Unknown';
 

@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+use InvalidArgumentException;
+
+use function is_numeric;
 
 class EndOfPeriodTool extends Tool
 {
@@ -56,25 +61,25 @@ class EndOfPeriodTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $dateTime = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz)
-                : new \DateTime($date, $tz);
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($tz)
+                : new DateTime($date, $tz);
 
             match ($period) {
                 'week' => $dateTime->modify('sunday this week')->setTime(23, 59, 59),
                 'month' => $dateTime->modify('last day of this month')->setTime(23, 59, 59),
                 'quarter' => $this->setEndOfQuarter($dateTime),
                 'year' => $dateTime->setDate((int) $dateTime->format('Y'), 12, 31)->setTime(23, 59, 59),
-                default => throw new \InvalidArgumentException("Unsupported period: {$period}"),
+                default => throw new InvalidArgumentException("Unsupported period: {$period}"),
             };
 
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }
 
-    private function setEndOfQuarter(\DateTime $dateTime): void
+    private function setEndOfQuarter(DateTime $dateTime): void
     {
         $month = (int) $dateTime->format('n');
         $quarterEndMonth = match (true) {

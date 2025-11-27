@@ -6,6 +6,8 @@ namespace NeuronAI\Observability;
 
 use SplObserver;
 
+use function array_merge;
+
 trait Observable
 {
     /**
@@ -39,7 +41,7 @@ trait Observable
         $group = $this->observers[$event];
         $all = $this->observers["*"] ?? [];
 
-        return \array_merge($group, $all);
+        return array_merge($group, $all);
     }
 
     public function observe(SplObserver $observer, string $event = "*"): self

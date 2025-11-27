@@ -7,6 +7,11 @@ namespace NeuronAI\Chat\History;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 
+use function ceil;
+use function is_string;
+use function json_encode;
+use function strlen;
+
 class TokenCounter implements TokenCounterInterface
 {
     public function __construct(
@@ -24,20 +29,20 @@ class TokenCounter implements TokenCounterInterface
 
             // Count content characters
             $content = $message->getContent();
-            if (\is_string($content)) {
-                $messageChars += \strlen($content);
+            if (is_string($content)) {
+                $messageChars += strlen($content);
             } elseif ($content !== null) {
                 // For arrays and other types, use JSON representation
-                $messageChars += \strlen(\json_encode($content));
+                $messageChars += strlen(json_encode($content));
             }
 
             // Handle tool calls
             if ($message instanceof ToolCallMessage) {
                 foreach ($message->getTools() as $tool) {
-                    $messageChars += \strlen(\json_encode($tool->getInputs()));
+                    $messageChars += strlen(json_encode($tool->getInputs()));
 
                     if ($tool->getCallId() !== null) {
-                        $messageChars += \strlen($tool->getCallId());
+                        $messageChars += strlen($tool->getCallId());
                     }
                 }
             }
@@ -45,25 +50,25 @@ class TokenCounter implements TokenCounterInterface
             // Handle tool call results
             if ($message instanceof ToolCallResultMessage) {
                 foreach ($message->getTools() as $tool) {
-                    $messageChars += \strlen($tool->getResult());
+                    $messageChars += strlen($tool->getResult());
 
                     if ($tool->getCallId() !== null) {
-                        $messageChars += \strlen($tool->getCallId());
+                        $messageChars += strlen($tool->getCallId());
                     }
                 }
             }
 
             // Count role characters
-            $messageChars += \strlen($message->getRole());
+            $messageChars += strlen($message->getRole());
 
             // Round up per message to ensure individual counts add up correctly
-            $tokenCount += \ceil($messageChars / $this->charsPerToken);
+            $tokenCount += ceil($messageChars / $this->charsPerToken);
 
             // Add extra tokens per message
             $tokenCount += $this->extraTokensPerMessage;
         }
 
         // Final round up in case extraTokensPerMessage is a float
-        return (int) \ceil($tokenCount);
+        return (int) ceil($tokenCount);
     }
 }

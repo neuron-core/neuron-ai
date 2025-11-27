@@ -8,6 +8,15 @@ use NeuronAI\UniqueIdGenerator;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
+use function array_unique;
+use function count;
+use function max;
+use function microtime;
+use function sort;
+use function usleep;
+
+use const PHP_INT_MAX;
+
 class UniqueIdGeneratorTest extends TestCase
 {
     protected function setUp(): void
@@ -66,7 +75,7 @@ class UniqueIdGeneratorTest extends TestCase
         }
 
         // All IDs should be unique
-        $this->assertCount($count, \array_unique($ids));
+        $this->assertCount($count, array_unique($ids));
 
         // All IDs should be positive integers
         foreach ($ids as $id) {
@@ -82,7 +91,7 @@ class UniqueIdGeneratorTest extends TestCase
         $id1 = UniqueIdGenerator::generateId();
 
         // Small delay to ensure different timestamp
-        \usleep(1000); // 1ms
+        usleep(1000); // 1ms
 
         $id2 = UniqueIdGenerator::generateId();
 
@@ -122,7 +131,7 @@ class UniqueIdGeneratorTest extends TestCase
         }
 
         // Should have at least some non-zero sequences if we hit same millisecond
-        $this->assertTrue(\max($sequences) > 0 || \count(\array_unique($sequences)) > 1);
+        $this->assertTrue(max($sequences) > 0 || count(array_unique($sequences)) > 1);
     }
 
     /**
@@ -147,7 +156,7 @@ class UniqueIdGeneratorTest extends TestCase
         $id = UniqueIdGenerator::generateId();
 
         // Verify ID fits in 64-bit signed integer
-        $this->assertLessThanOrEqual(\PHP_INT_MAX, $id);
+        $this->assertLessThanOrEqual(PHP_INT_MAX, $id);
 
         // Extract components
         $timestamp = $id >> 22; // 41 bits
@@ -180,7 +189,7 @@ class UniqueIdGeneratorTest extends TestCase
 
         // Set last timestamp to current time
         $lastTimestampProperty = $reflection->getProperty('lastTimestamp');
-        $currentTime = (int)(\microtime(true) * 1000);
+        $currentTime = (int)(microtime(true) * 1000);
         $lastTimestampProperty->setValue(null, $currentTime);
 
         // Generate IDs - should handle overflow gracefully
@@ -203,27 +212,27 @@ class UniqueIdGeneratorTest extends TestCase
 
             // Occasionally add tiny delays to simulate varying timing
             if ($i % 100 === 0) {
-                \usleep(50);
+                usleep(50);
             }
         }
 
         // All should be unique
-        $this->assertCount($iterations, \array_unique($ids));
+        $this->assertCount($iterations, array_unique($ids));
 
         // Should be generally sorted (allowing for some same-millisecond variations)
         $sortedIds = $ids;
-        \sort($sortedIds);
+        sort($sortedIds);
 
         // Calculate how many are in correct order
         $correctOrder = 0;
-        for ($i = 0; $i < \count($ids) - 1; $i++) {
+        for ($i = 0; $i < count($ids) - 1; $i++) {
             if ($ids[$i] <= $ids[$i + 1]) {
                 $correctOrder++;
             }
         }
 
         // Should be mostly in order (>90%)
-        $orderPercentage = $correctOrder / (\count($ids) - 1);
+        $orderPercentage = $correctOrder / (count($ids) - 1);
         $this->assertGreaterThan(0.9, $orderPercentage);
     }
 
@@ -232,9 +241,9 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testTimestampExtraction(): void
     {
-        $beforeTime = (int)(\microtime(true) * 1000);
+        $beforeTime = (int)(microtime(true) * 1000);
         $id = UniqueIdGenerator::generateId();
-        $afterTime = (int)(\microtime(true) * 1000);
+        $afterTime = (int)(microtime(true) * 1000);
 
         $extractedTimestamp = $id >> 22;
 
@@ -247,14 +256,14 @@ class UniqueIdGeneratorTest extends TestCase
      */
     public function testPerformance(): void
     {
-        $startTime = \microtime(true);
+        $startTime = microtime(true);
         $count = 1000;
 
         for ($i = 0; $i < $count; $i++) {
             UniqueIdGenerator::generateId();
         }
 
-        $endTime = \microtime(true);
+        $endTime = microtime(true);
         $duration = $endTime - $startTime;
 
         // Should generate 1000 IDs in less than 1 second

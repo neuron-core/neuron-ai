@@ -8,6 +8,20 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+use Throwable;
+
+use function array_key_exists;
+use function array_map;
+use function end;
+use function json_decode;
+use function json_encode;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
 
 trait HandleStream
 {
@@ -17,7 +31,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages, callable $executeToolsCallback): Generator
     {
         $json = [
             'stream' => true,
@@ -48,12 +62,12 @@ trait HandleStream
 
             // https://docs.anthropic.com/en/api/messages-streaming
             if ($line['type'] === 'message_start') {
-                yield \json_encode(['usage' => $line['message']['usage']]);
+                yield json_encode(['usage' => $line['message']['usage']]);
                 continue;
             }
 
             if ($line['type'] === 'message_delta') {
-                yield \json_encode(['usage' => $line['usage']]);
+                yield json_encode(['usage' => $line['usage']]);
                 continue;
             }
 
@@ -69,13 +83,13 @@ trait HandleStream
             // Handle tool call
             if ($line['type'] === 'content_block_stop' && !empty($toolCalls)) {
                 // Restore the input field as an array
-                $toolCalls = \array_map(function (array $call): array {
-                    $call['input'] = \json_decode((string) $call['input'], true);
+                $toolCalls = array_map(function (array $call): array {
+                    $call['input'] = json_decode((string) $call['input'], true);
                     return $call;
                 }, $toolCalls);
 
                 yield from $executeToolsCallback(
-                    $this->createToolCallMessage(\end($toolCalls), $text)
+                    $this->createToolCallMessage(end($toolCalls), $text)
                 );
 
                 return;
@@ -98,7 +112,7 @@ trait HandleStream
      */
     protected function composeToolCalls(array $line, array $toolCalls): array
     {
-        if (!\array_key_exists($line['index'], $toolCalls)) {
+        if (!array_key_exists($line['index'], $toolCalls)) {
             $toolCalls[$line['index']] = [
                 'type' => 'tool_use',
                 'id' => $line['content_block']['id'],
@@ -116,15 +130,15 @@ trait HandleStream
     {
         $line = $this->readLine($stream);
 
-        if (! \str_starts_with((string) $line, 'data:')) {
+        if (! str_starts_with((string) $line, 'data:')) {
             return null;
         }
 
-        $line = \trim(\substr((string) $line, \strlen('data: ')));
+        $line = trim(substr((string) $line, strlen('data: ')));
 
         try {
-            return \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
+            return json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
             throw new ProviderException('Anthropic streaming error - '.$exception->getMessage());
         }
     }

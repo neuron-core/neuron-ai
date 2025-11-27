@@ -14,13 +14,17 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+use PDO;
+
+use function json_decode;
+use function uniqid;
 
 class SQLChatHistoryTest extends TestCase
 {
     use CheckOpenPort;
 
     protected ChatHistoryInterface $history;
-    protected \PDO $pdo;
+    protected PDO $pdo;
     protected string $threadId;
 
     public function setUp(): void
@@ -29,8 +33,8 @@ class SQLChatHistoryTest extends TestCase
             $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
         }
 
-        $this->pdo = new \PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
-        $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->pdo = new PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->exec("CREATE TABLE IF NOT EXISTS chat_history (
           id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           thread_id VARCHAR(255) NOT NULL,
@@ -42,7 +46,7 @@ class SQLChatHistoryTest extends TestCase
           INDEX idx_thread_id (thread_id)
         );");
 
-        $this->threadId =  \uniqid('test-thread-');
+        $this->threadId =  uniqid('test-thread-');
 
         $this->history = new SQLChatHistory($this->threadId, $this->pdo);
     }
@@ -62,7 +66,7 @@ class SQLChatHistoryTest extends TestCase
     {
         $stmt = $this->pdo->prepare("SELECT * FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $this->assertNotFalse($row, 'Thread should exist in database');
         $this->assertEquals($this->threadId, $row['thread_id']);
@@ -77,10 +81,10 @@ class SQLChatHistoryTest extends TestCase
         // Verify in database
         $stmt = $this->pdo->prepare("SELECT messages FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $this->assertNotFalse($result);
-        $messages = \json_decode((string) $result['messages'], true);
+        $messages = json_decode((string) $result['messages'], true);
         $this->assertIsArray($messages);
         $this->assertCount(1, $messages);
         $this->assertEquals('user', $messages[0]['role']);
@@ -108,15 +112,15 @@ class SQLChatHistoryTest extends TestCase
 
         $stmt = $this->pdo->prepare("SELECT messages FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $messages1 = \json_decode((string) $result['messages'], true);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $messages1 = json_decode((string) $result['messages'], true);
         $this->assertCount(1, $messages1);
 
         $this->history->addMessage(new AssistantMessage('Message 2'));
 
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $messages2 = \json_decode((string) $result['messages'], true);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $messages2 = json_decode((string) $result['messages'], true);
         $this->assertCount(2, $messages2);
     }
 
@@ -127,7 +131,7 @@ class SQLChatHistoryTest extends TestCase
         // Verify thread exists
         $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
         $this->assertEquals(1, $result['count']);
 
         // Flush
@@ -135,7 +139,7 @@ class SQLChatHistoryTest extends TestCase
 
         // Verify thread is removed
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
         $this->assertEquals(0, $result['count']);
     }
 
@@ -207,16 +211,16 @@ class SQLChatHistoryTest extends TestCase
         // Verify in database
         $stmt = $this->pdo->prepare("SELECT messages FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $storedMessages = \json_decode((string) $result['messages'], true);
+        $storedMessages = json_decode((string) $result['messages'], true);
         $this->assertCount(2, $storedMessages);
     }
 
     public function test_multiple_threads_are_isolated(): void
     {
-        $thread1 = 'thread-1-' . \uniqid();
-        $thread2 = 'thread-2-' . \uniqid();
+        $thread1 = 'thread-1-' . uniqid();
+        $thread2 = 'thread-2-' . uniqid();
 
         $history1 = new SQLChatHistory($thread1, $this->pdo);
         $history2 = new SQLChatHistory($thread2, $this->pdo);

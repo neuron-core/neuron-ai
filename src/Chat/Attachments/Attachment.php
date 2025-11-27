@@ -7,8 +7,11 @@ namespace NeuronAI\Chat\Attachments;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\StaticConstructor;
+use JsonSerializable;
 
-class Attachment implements \JsonSerializable
+use function array_filter;
+
+class Attachment implements JsonSerializable
 {
     use StaticConstructor;
 
@@ -26,7 +29,7 @@ class Attachment implements \JsonSerializable
      */
     public function jsonSerialize(): array
     {
-        return \array_filter([
+        return array_filter([
             'type' => $this->type->value,
             'content' => $this->content,
             'content_type' => $this->contentType->value,

@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\GetTimestampTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function time;
+
 class GetTimestampToolTest extends TestCase
 {
     private GetTimestampTool $tool;
@@ -19,9 +22,9 @@ class GetTimestampToolTest extends TestCase
 
     public function testGetCurrentTimestamp(): void
     {
-        $before = \time();
+        $before = time();
         $result = ($this->tool)();
-        $after = \time();
+        $after = time();
 
         $timestamp = (int) $result;
         $this->assertGreaterThanOrEqual($before, $timestamp);
@@ -77,7 +80,7 @@ class GetTimestampToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(2, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('timezone', $propertyNames);
     }

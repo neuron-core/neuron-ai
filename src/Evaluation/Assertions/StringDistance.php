@@ -6,6 +6,10 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
+use function gettype;
+use function is_string;
+use function levenshtein;
+
 class StringDistance extends AbstractAssertion
 {
     public function __construct(
@@ -17,14 +21,14 @@ class StringDistance extends AbstractAssertion
 
     public function evaluate(mixed $actual): AssertionResult
     {
-        if (!\is_string($actual)) {
+        if (!is_string($actual)) {
             return AssertionResult::fail(
                 0.0,
-                'Expected actual value to be a string, got ' . \gettype($actual),
+                'Expected actual value to be a string, got ' . gettype($actual),
             );
         }
 
-        $distance = \levenshtein($actual, $this->reference);
+        $distance = levenshtein($actual, $this->reference);
 
         if ($distance <= $this->maxDistance) {
             $score = 1.0 - ($distance / $this->maxDistance);

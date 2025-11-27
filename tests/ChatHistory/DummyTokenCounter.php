@@ -7,6 +7,8 @@ namespace NeuronAI\Tests\ChatHistory;
 use NeuronAI\Chat\History\TokenCounterInterface;
 use NeuronAI\Chat\Messages\Message;
 
+use function count;
+
 class DummyTokenCounter implements TokenCounterInterface
 {
     /**
@@ -15,6 +17,6 @@ class DummyTokenCounter implements TokenCounterInterface
     public function count(array $messages): int
     {
         // 10 "tokens" per message, arbitrary but stable
-        return \count($messages) * 10;
+        return count($messages) * 10;
     }
 }

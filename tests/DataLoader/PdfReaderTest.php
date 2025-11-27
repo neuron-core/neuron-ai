@@ -9,6 +9,10 @@ use NeuronAI\RAG\DataLoader\PdfReader;
 use NeuronAI\RAG\DataLoader\ReaderInterface;
 use PHPUnit\Framework\TestCase;
 
+use function is_executable;
+
+use const PHP_EOL;
+
 class PdfReaderTest extends TestCase
 {
     public function skipIfPdfToTextNotFound(): void
@@ -22,7 +26,7 @@ class PdfReaderTest extends TestCase
         ];
 
         foreach ($commonPaths as $path) {
-            if (\is_executable($path)) {
+            if (is_executable($path)) {
                 return;
             }
         }
@@ -61,7 +65,7 @@ class PdfReaderTest extends TestCase
         $this->skipIfPdfToTextNotFound();
         $instance = new PdfReader();
         $text = $instance->getText(__DIR__ . '/test.pdf');
-        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . \PHP_EOL);
+        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . PHP_EOL);
     }
 
     public function test_get_text_with_image(): void
@@ -69,7 +73,7 @@ class PdfReaderTest extends TestCase
         $this->skipIfPdfToTextNotFound();
         $instance = new PdfReader();
         $text = $instance->getText(__DIR__ . '/test-with-image.pdf');
-        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . \PHP_EOL);
+        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . PHP_EOL);
     }
 
     public function test_get_text_exception(): void

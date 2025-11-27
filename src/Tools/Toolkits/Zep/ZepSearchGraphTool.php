@@ -9,6 +9,9 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_map;
+use function json_decode;
+
 /**
  * https://help.getzep.com/sdk-reference/graph/search
  *
@@ -61,7 +64,7 @@ Use this tool if you need to retrieve user information that can help you provide
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return match ($search_scope) {
             'nodes' => $this->mapNodes($response['nodes'] ?? []),
@@ -71,7 +74,7 @@ Use this tool if you need to retrieve user information that can help you provide
 
     protected function mapEdges(array $edges): array
     {
-        return \array_map(fn (array $edge): array => [
+        return array_map(fn (array $edge): array => [
             'fact' => $edge['fact'],
             'created_at' => $edge['created_at'],
         ], $edges);
@@ -79,7 +82,7 @@ Use this tool if you need to retrieve user information that can help you provide
 
     protected function mapNodes(array $nodes): array
     {
-        return \array_map(fn (array $node): array => [
+        return array_map(fn (array $node): array => [
             'name' => $node['name'],
             'summary' => $node['summary'],
         ], $nodes);

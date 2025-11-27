@@ -9,6 +9,11 @@ use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_filter;
+use function array_map;
+use function implode;
+use function json_decode;
+
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
  */
@@ -39,14 +44,14 @@ trait HandleResponses
 
         return $this->client->postAsync('responses', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response) {
-                $response = \json_decode($response->getBody()->getContents(), true);
+                $response = json_decode($response->getBody()->getContents(), true);
 
-                $toolCalls = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
+                $toolCalls = array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
                 if ($toolCalls !== []) {
                     // Extract text content from output_text items
-                    $textItems = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'output_text');
-                    $text = \implode('', \array_map(fn (array $item): string => $item['text'] ?? '', $textItems));
+                    $textItems = array_filter($response['output'], fn (array $item): bool => $item['type'] == 'output_text');
+                    $text = implode('', array_map(fn (array $item): string => $item['text'] ?? '', $textItems));
 
                     return $this->createToolCallMessage($toolCalls, $text, $response['usage'] ?? null);
                 }

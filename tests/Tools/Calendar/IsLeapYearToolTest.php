@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\IsLeapYearTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class IsLeapYearToolTest extends TestCase
 {
     private IsLeapYearTool $tool;
@@ -21,7 +24,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2020);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2020, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -33,7 +36,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2024);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2024, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -45,7 +48,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2021);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2021, $data['year']);
         $this->assertFalse($data['is_leap_year']);
@@ -57,7 +60,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2022);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2022, $data['year']);
         $this->assertFalse($data['is_leap_year']);
@@ -69,7 +72,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2023);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2023, $data['year']);
         $this->assertFalse($data['is_leap_year']);
@@ -82,7 +85,7 @@ class IsLeapYearToolTest extends TestCase
         // 1900 is divisible by 4 and 100, but not by 400, so it's not a leap year
         $result = ($this->tool)(1900);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(1900, $data['year']);
         $this->assertFalse($data['is_leap_year']);
@@ -95,7 +98,7 @@ class IsLeapYearToolTest extends TestCase
         // 1800 is divisible by 4 and 100, but not by 400, so it's not a leap year
         $result = ($this->tool)(1800);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(1800, $data['year']);
         $this->assertFalse($data['is_leap_year']);
@@ -108,7 +111,7 @@ class IsLeapYearToolTest extends TestCase
         // 2000 is divisible by 400, so it's a leap year
         $result = ($this->tool)(2000);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2000, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -121,7 +124,7 @@ class IsLeapYearToolTest extends TestCase
         // 1600 is divisible by 400, so it's a leap year
         $result = ($this->tool)(1600);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(1600, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -133,7 +136,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2028);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(2028, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -145,7 +148,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(1996);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals(1996, $data['year']);
         $this->assertTrue($data['is_leap_year']);
@@ -167,7 +170,7 @@ class IsLeapYearToolTest extends TestCase
 
         foreach ($testCases as $year => $expectedLeap) {
             $result = ($this->tool)($year);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
 
             $this->assertEquals($expectedLeap, $data['is_leap_year'], "Failed for year $year");
             $this->assertEquals($expectedLeap ? 366 : 365, $data['days_in_year'], "Failed for year $year");
@@ -179,7 +182,7 @@ class IsLeapYearToolTest extends TestCase
     {
         $result = ($this->tool)(2020);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
 
         // Check all required keys are present
@@ -203,13 +206,13 @@ class IsLeapYearToolTest extends TestCase
 
         foreach ($leapYears as $year) {
             $result = ($this->tool)($year);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
             $this->assertTrue($data['is_leap_year'], "Year $year should be a leap year");
         }
 
         foreach ($nonLeapYears as $year) {
             $result = ($this->tool)($year);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
             $this->assertFalse($data['is_leap_year'], "Year $year should not be a leap year");
         }
     }
@@ -222,7 +225,7 @@ class IsLeapYearToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(1, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('year', $propertyNames);
     }
 }

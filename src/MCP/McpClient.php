@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
+use Exception;
+use stdClass;
+
+use function array_filter;
+use function array_merge;
+use function is_null;
+
 class McpClient
 {
     private McpTransportInterface $transport;
@@ -45,7 +52,7 @@ class McpClient
             "params"  => [
                 'protocolVersion' => '2024-11-05',
                 'capabilities'    => (object)[
-                    'sampling' => new \stdClass(),
+                    'sampling' => new stdClass(),
                 ],
                 'clientInfo'      => (object)[
                     'name'    => 'neuron-ai',
@@ -71,7 +78,7 @@ class McpClient
      * List all available tools from the MCP server
      *
      * @return array<string, mixed>
-     * @throws \Exception
+     * @throws Exception
      */
     public function listTools(): array
     {
@@ -96,7 +103,7 @@ class McpClient
                 throw new McpException('Invalid response ID');
             }
 
-            $tools = \array_merge($tools, $response['result']['tools']);
+            $tools = array_merge($tools, $response['result']['tools']);
         } while (isset($response['result']['nextCursor']));
 
         return $tools;
@@ -107,11 +114,11 @@ class McpClient
      *
      * @param array<string, mixed> $arguments
      * @return array<string, mixed>
-     * @throws \Exception
+     * @throws Exception
      */
     public function callTool(string $toolName, array $arguments = []): array
     {
-        $arguments = \array_filter($arguments, fn (mixed $value): bool => ! \is_null($value));
+        $arguments = array_filter($arguments, fn (mixed $value): bool => ! is_null($value));
 
         $request = [
             "jsonrpc" => "2.0",
@@ -119,7 +126,7 @@ class McpClient
             "method" => "tools/call",
             "params" => [
                 "name" => $toolName,
-                ...($arguments !== [] ? ['arguments' => $arguments] : ['arguments' => new \stdClass()])
+                ...($arguments !== [] ? ['arguments' => $arguments] : ['arguments' => new stdClass()])
             ]
         ];
 

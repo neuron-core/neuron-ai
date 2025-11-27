@@ -6,6 +6,11 @@ namespace NeuronAI\Tools\Toolkits;
 
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ToolInterface;
+use Closure;
+
+use function array_filter;
+use function array_map;
+use function in_array;
 
 abstract class AbstractToolkit implements ToolkitInterface
 {
@@ -38,7 +43,7 @@ abstract class AbstractToolkit implements ToolkitInterface
         return $this;
     }
 
-    public function with(string $class, \Closure $callback): ToolkitInterface
+    public function with(string $class, Closure $callback): ToolkitInterface
     {
         $this->with[$class] = $callback;
         return $this;
@@ -58,15 +63,15 @@ abstract class AbstractToolkit implements ToolkitInterface
         $tools = $this->provide();
 
         if ($this->exclude !== [] || $this->only !== []) {
-            $tools = \array_filter(
+            $tools = array_filter(
                 $tools,
-                fn (ToolInterface $tool): bool => !\in_array($tool::class, $this->exclude)
-                    && ($this->only === [] || \in_array($tool::class, $this->only))
+                fn (ToolInterface $tool): bool => !in_array($tool::class, $this->exclude)
+                    && ($this->only === [] || in_array($tool::class, $this->only))
             );
         }
 
         if ($this->with !== []) {
-            return \array_map(fn (ToolInterface $tool): ToolInterface => $this->with[$tool::class]($tool) ?? $tool, $tools);
+            return array_map(fn (ToolInterface $tool): ToolInterface => $this->with[$tool::class]($tool) ?? $tool, $tools);
         }
 
         return $tools;

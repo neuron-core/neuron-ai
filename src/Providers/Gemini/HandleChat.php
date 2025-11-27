@@ -12,6 +12,10 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_key_exists;
+use function json_decode;
+use function trim;
+
 trait HandleChat
 {
     public function chat(array $messages): Message
@@ -38,9 +42,9 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync(\trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
+        return $this->client->postAsync(trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response): Message {
-                $result = \json_decode($response->getBody()->getContents(), true);
+                $result = json_decode($response->getBody()->getContents(), true);
 
                 $content = $result['candidates'][0]['content'];
 
@@ -50,18 +54,18 @@ trait HandleChat
 
                 $parts = $content['parts'];
 
-                if (\array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
+                if (array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
                     $response = $this->createToolCallMessage($content);
                 } else {
                     $response = new AssistantMessage($parts[0]['text'] ?? '');
                 }
 
-                if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
+                if (array_key_exists('groundingMetadata', $result['candidates'][0])) {
                     $response->addMetadata('groundingMetadata', $result['candidates'][0]['groundingMetadata']);
                 }
 
                 // Attach the usage for the current interaction
-                if (\array_key_exists('usageMetadata', $result)) {
+                if (array_key_exists('usageMetadata', $result)) {
                     $response->setUsage(
                         new Usage(
                             $result['usageMetadata']['promptTokenCount'],

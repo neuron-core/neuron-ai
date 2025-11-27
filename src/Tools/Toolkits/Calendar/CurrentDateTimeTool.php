@@ -8,6 +8,8 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
 
 class CurrentDateTimeTool extends Tool
 {
@@ -41,9 +43,9 @@ class CurrentDateTimeTool extends Tool
         $format ??= 'Y-m-d H:i:s';
 
         try {
-            $dateTime = new \DateTime('now', new DateTimeZone($timezone));
+            $dateTime = new DateTime('now', new DateTimeZone($timezone));
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

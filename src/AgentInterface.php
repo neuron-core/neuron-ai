@@ -11,8 +11,11 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use Generator;
+use SplObserver;
+use SplSubject;
 
-interface AgentInterface extends \SplSubject
+interface AgentInterface extends SplSubject
 {
     public function withProvider(AIProviderInterface $provider): AgentInterface;
 
@@ -41,7 +44,7 @@ interface AgentInterface extends \SplSubject
 
     public function resolveChatHistory(): ChatHistoryInterface;
 
-    public function observe(\SplObserver $observer, string $event = "*"): self;
+    public function observe(SplObserver $observer, string $event = "*"): self;
 
     /**
      * @param Message|Message[] $messages
@@ -56,7 +59,7 @@ interface AgentInterface extends \SplSubject
     /**
      * @param Message|Message[] $messages
      */
-    public function stream(Message|array $messages): \Generator;
+    public function stream(Message|array $messages): Generator;
 
     /**
      * @param Message|Message[] $messages

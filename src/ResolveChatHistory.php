@@ -10,6 +10,8 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
+use function is_array;
+
 trait ResolveChatHistory
 {
     protected ChatHistoryInterface $chatHistory;
@@ -33,7 +35,7 @@ trait ResolveChatHistory
 
     public function addToChatHistory(Message|array $messages): void
     {
-        $messages = \is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? $messages : [$messages];
 
         foreach ($messages as $message) {
             $this->notify('message-saving', new MessageSaving($message));

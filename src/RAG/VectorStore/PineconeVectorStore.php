@@ -8,6 +8,11 @@ use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
 
+use function array_map;
+use function in_array;
+use function json_decode;
+use function trim;
+
 class PineconeVectorStore implements VectorStoreInterface
 {
     protected Client $client;
@@ -27,7 +32,7 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $namespace = '__default__' // Default namespace
     ) {
         $this->client = new Client([
-            'base_uri' => \trim($this->indexUrl, '/').'/',
+            'base_uri' => trim($this->indexUrl, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -47,7 +52,7 @@ class PineconeVectorStore implements VectorStoreInterface
         $this->client->post("vectors/upsert", [
             RequestOptions::JSON => [
                 'namespace' => $this->namespace,
-                'vectors' => \array_map(fn (Document $document): array => [
+                'vectors' => array_map(fn (Document $document): array => [
                     'id' => (string) $document->getId(),
                     'values' => $document->getEmbedding(),
                     'metadata' => [
@@ -97,9 +102,9 @@ class PineconeVectorStore implements VectorStoreInterface
             RequestOptions::JSON => $queryParams
         ])->getBody()->getContents();
 
-        $result = \json_decode($result, true);
+        $result = json_decode($result, true);
 
-        return \array_map(function (array $item): Document {
+        return array_map(function (array $item): Document {
             $document = new Document();
             $document->id = $item['id'];
             $document->embedding = $item['values'];
@@ -109,7 +114,7 @@ class PineconeVectorStore implements VectorStoreInterface
             $document->score = $item['score'];
 
             foreach ($item['metadata'] as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName'])) {
                     $document->addMetadata($name, $value);
                 }
             }

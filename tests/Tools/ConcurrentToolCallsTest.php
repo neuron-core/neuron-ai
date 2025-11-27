@@ -13,12 +13,14 @@ use NeuronAI\Tools\ParallelToolCalls;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function extension_loaded;
+
 class ConcurrentToolCallsTest extends TestCase
 {
     public function test_concurrent_tool_execution_with_multiple_tools(): void
     {
         // Skip test if the pcntl extension is not available (e.g., on Windows)
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             $this->markTestSkipped('pcntl extension is required for concurrent tool calls');
         }
 
@@ -65,7 +67,7 @@ class ConcurrentToolCallsTest extends TestCase
     public function test_concurrent_tool_execution_with_single_tool(): void
     {
         // Skip test if the pcntl extension is not available
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             $this->markTestSkipped('pcntl extension is required for concurrent tool calls');
         }
 
@@ -97,7 +99,7 @@ class ConcurrentToolCallsTest extends TestCase
     public function test_concurrent_tool_execution_handles_errors(): void
     {
         // Skip test if the pcntl extension is not available
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             $this->markTestSkipped('pcntl extension is required for concurrent tool calls');
         }
 
@@ -134,7 +136,7 @@ class ConcurrentToolCallsTest extends TestCase
     public function test_concurrent_tool_execution_respects_max_tries(): void
     {
         // Skip test if the pcntl extension is not available
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             $this->markTestSkipped('pcntl extension is required for concurrent tool calls');
         }
 
@@ -175,7 +177,7 @@ class ConcurrentToolCallsTest extends TestCase
     public function test_concurrent_tool_execution_with_different_result_types(): void
     {
         // Skip test if the pcntl extension is not available
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             $this->markTestSkipped('pcntl extension is required for concurrent tool calls');
         }
 

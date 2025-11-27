@@ -12,6 +12,12 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PDO;
+use ReflectionException;
+
+use function implode;
+use function preg_match;
+use function preg_quote;
+use function str_starts_with;
 
 /**
  * @method static static make(PDO $pdo)
@@ -31,7 +37,7 @@ class MySQLWriteTool extends Tool
     }
 
     /**
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ArrayPropertyException
      * @throws ToolException
      */
@@ -65,14 +71,14 @@ class MySQLWriteTool extends Tool
     public function __invoke(string $query, ?array $parameters = []): string
     {
         if (!$this->validate($query)) {
-            return "The query was rejected for security reasons: it contains forbidden statements (".\implode(', ', $this->forbiddenStatements).").";
+            return "The query was rejected for security reasons: it contains forbidden statements (".implode(', ', $this->forbiddenStatements).").";
         }
 
         $statement = $this->pdo->prepare($query);
 
         // Bind parameters if provided
         foreach ($parameters as $parameter) {
-            $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
+            $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
         }
 
@@ -87,7 +93,7 @@ class MySQLWriteTool extends Tool
         $rowCount = $statement->rowCount();
 
         // For INSERT operations, also return the last insert ID if available
-        if (\str_starts_with($query, 'INSERT')) {
+        if (str_starts_with($query, 'INSERT')) {
             $lastInsertId = $this->pdo->lastInsertId();
             if ($lastInsertId > 0) {
                 return "Query executed successfully. {$rowCount} row(s) affected. Last insert ID: {$lastInsertId}";
@@ -112,6 +118,6 @@ class MySQLWriteTool extends Tool
     protected function containsKeyword(string $query, string $keyword): bool
     {
         // Use word boundaries to avoid false positives
-        return \preg_match('/\b' . \preg_quote($keyword, '/') . '\b/i', $query) === 1;
+        return preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $query) === 1;
     }
 }

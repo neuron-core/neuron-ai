@@ -11,6 +11,13 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
+use function array_merge;
+use function filter_var;
+use function json_decode;
+use function trim;
+
+use const FILTER_VALIDATE_URL;
+
 /**
  * @method static static make(string $key)
  */
@@ -47,18 +54,18 @@ class TavilyExtractTool extends Tool
 
     public function __invoke(string $url): array
     {
-        if (!\filter_var($url, \FILTER_VALIDATE_URL)) {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
             throw new ToolException('Invalid URL.');
         }
 
         $result = $this->getClient()->post('extract', [
-            RequestOptions::JSON => \array_merge(
+            RequestOptions::JSON => array_merge(
                 $this->options,
                 ['urls' => [$url]]
             )
         ])->getBody()->getContents();
 
-        $result = \json_decode($result, true);
+        $result = json_decode($result, true);
 
         return $result['results'][0];
     }
@@ -67,7 +74,7 @@ class TavilyExtractTool extends Tool
     protected function getClient(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->url, '/').'/',
+            'base_uri' => trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',

@@ -9,6 +9,10 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use Generator;
+
+use function array_unshift;
+use function json_encode;
 
 class Mistral extends OpenAI
 {
@@ -18,11 +22,11 @@ class Mistral extends OpenAI
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages, callable $executeToolsCallback): Generator
     {
         // Attach the system prompt
         if ($this->system !== null) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
+            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
         $json = [
@@ -52,7 +56,7 @@ class Mistral extends OpenAI
 
             // Inform the agent about usage when stream
             if (empty($line['choices']) && !empty($line['usage'])) {
-                yield \json_encode(['usage' => [
+                yield json_encode(['usage' => [
                     'input_tokens' => $line['usage']['prompt_tokens'],
                     'output_tokens' => $line['usage']['completion_tokens'],
                 ]]);

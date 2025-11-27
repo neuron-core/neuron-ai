@@ -9,6 +9,12 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
 
+use function array_map;
+use function in_array;
+use function is_null;
+use function json_decode;
+use function trim;
+
 class QdrantVectorStore implements VectorStoreInterface
 {
     protected Client $client;
@@ -31,7 +37,7 @@ class QdrantVectorStore implements VectorStoreInterface
     protected function initialize(): void
     {
         $response = $this->client()->get('exists')->getBody()->getContents();
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         if ($response['result']['exists']) {
             return;
@@ -71,7 +77,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $points = \array_map(fn (Document $document): array => [
+        $points = array_map(fn (Document $document): array => [
             'id' => $document->getId(),
             'payload' => [
                 'content' => $document->getContent(),
@@ -130,9 +136,9 @@ class QdrantVectorStore implements VectorStoreInterface
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
-        return \array_map(function (array $item): Document {
+        return array_map(function (array $item): Document {
             $document = new Document($item['payload']['content']);
             $document->id = $item['id'];
             $document->embedding = $item['vector'];
@@ -141,7 +147,7 @@ class QdrantVectorStore implements VectorStoreInterface
             $document->score = $item['score'];
 
             foreach ($item['payload'] as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
                     $document->addMetadata($name, $value);
                 }
             }
@@ -153,10 +159,10 @@ class QdrantVectorStore implements VectorStoreInterface
     protected function client(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->collectionUrl, '/').'/',
+            'base_uri' => trim($this->collectionUrl, '/').'/',
             'headers' => [
                 'Content-Type' => 'application/json',
-                ...(!\is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
+                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
             ],
         ]);
     }

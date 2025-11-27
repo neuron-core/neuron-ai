@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use Closure;
+use Generator;
+
+use function array_key_exists;
+use function call_user_func;
+use function is_callable;
+use function is_null;
 
 abstract class Node implements NodeInterface
 {
@@ -18,7 +25,7 @@ abstract class Node implements NodeInterface
      */
     protected array $checkpoints = [];
 
-    public function run(Event $event, WorkflowState $state): \Generator|Event
+    public function run(Event $event, WorkflowState $state): Generator|Event
     {
         /** @phpstan-ignore method.notFound */
         return $this->__invoke($event, $state);
@@ -38,7 +45,7 @@ abstract class Node implements NodeInterface
 
     protected function consumeInterruptFeedback(): mixed
     {
-        if ($this->isResuming && !\is_null($this->feedback)) {
+        if ($this->isResuming && !is_null($this->feedback)) {
             $feedback = $this->feedback;
             // Clear both feedback and resuming state after use to allow subsequent interrupts
             $this->feedback = null;
@@ -49,15 +56,15 @@ abstract class Node implements NodeInterface
         return null;
     }
 
-    protected function checkpoint(string $name, \Closure $closure): mixed
+    protected function checkpoint(string $name, Closure $closure): mixed
     {
-        if (\array_key_exists($name, $this->checkpoints)) {
+        if (array_key_exists($name, $this->checkpoints)) {
             $result = $this->checkpoints[$name];
             unset($this->checkpoints[$name]);
             return $result;
         }
 
-        $result = \call_user_func($closure);
+        $result = call_user_func($closure);
         $this->checkpoints[$name] = $result;
         return $result;
     }
@@ -81,7 +88,7 @@ abstract class Node implements NodeInterface
             return $feedback;
         }
 
-        $shouldInterrupt = \is_callable($condition) ? $condition() : $condition;
+        $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
 
         if ($shouldInterrupt) {
             throw new WorkflowInterrupt($data, $this, $this->currentState, $this->currentEvent);

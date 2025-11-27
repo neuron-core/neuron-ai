@@ -13,6 +13,9 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function end;
+use function sort;
+
 class InMemoryChatHistoryTest extends TestCase
 {
     private InMemoryChatHistory $chatHistory;
@@ -122,8 +125,8 @@ class InMemoryChatHistoryTest extends TestCase
             }
         }
 
-        \sort($toolCallNames);
-        \sort($toolResultNames);
+        sort($toolCallNames);
+        sort($toolResultNames);
 
         $this->assertEquals($toolCallNames, $toolResultNames, 'Tool call names should match tool result names');
     }
@@ -180,7 +183,7 @@ class InMemoryChatHistoryTest extends TestCase
 
         $messages = $this->chatHistory->getMessages();
 
-        $this->assertInstanceOf(ToolCallResultMessage::class, \end($messages));
+        $this->assertInstanceOf(ToolCallResultMessage::class, end($messages));
         $this->chatHistory->flushAll();
     }
 
@@ -198,8 +201,8 @@ class InMemoryChatHistoryTest extends TestCase
         $messages = $this->chatHistory->getMessages();
 
         $this->assertCount(2, $messages);
-        $this->assertInstanceOf(AssistantMessage::class, \end($messages));
-        $this->assertEquals('Assistant message 1', \end($messages)->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, end($messages));
+        $this->assertEquals('Assistant message 1', end($messages)->getContent());
         ;
         $this->chatHistory->flushAll();
     }

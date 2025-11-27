@@ -10,6 +10,10 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use function file_get_contents;
+use function json_decode;
+use function sleep;
+
 class MeiliSearchTest extends TestCase
 {
     use CheckOpenPort;
@@ -23,7 +27,7 @@ class MeiliSearchTest extends TestCase
         }
 
         // embedding "Hello World!"
-        $this->embedding = \json_decode(\file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
+        $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
     }
 
     public function test_meilisearchsearch_instance(): void
@@ -43,7 +47,7 @@ class MeiliSearchTest extends TestCase
         $store->addDocument($document);
 
         // Wait for Meilisearch to index the document
-        \sleep(5);
+        sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
 
@@ -58,7 +62,7 @@ class MeiliSearchTest extends TestCase
         $store->deleteBySource('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
-        \sleep(5);
+        sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);

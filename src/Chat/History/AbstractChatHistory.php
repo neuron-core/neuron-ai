@@ -18,6 +18,12 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
 
+use function array_map;
+use function array_slice;
+use function count;
+use function end;
+use function in_array;
+
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
     /**
@@ -75,7 +81,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function getLastMessage(): Message
     {
-        $message = \end($this->history);
+        $message = end($this->history);
 
         if ($message === false) {
             throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large a message.');
@@ -113,7 +119,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Binary search to find how many messages to skip from the beginning
         $skipFrom = $this->findMaxFittingMessages();
 
-        $this->history = \array_slice($this->history, $skipFrom);
+        $this->history = array_slice($this->history, $skipFrom);
 
         // Ensure valid message sequence
         $this->ensureValidMessageSequence();
@@ -128,13 +134,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     private function findMaxFittingMessages(): int
     {
-        $totalMessages = \count($this->history);
+        $totalMessages = count($this->history);
         $left = 0;
         $right = $totalMessages;
 
         while ($left < $right) {
             $mid = (int) (($left + $right) / 2);
-            $subset = \array_slice($this->history, $mid);
+            $subset = array_slice($this->history, $mid);
 
             if ($this->tokenCounter->count($subset) <= $this->contextWindow) {
                 // Fits! Try including more messages (skip fewer)
@@ -197,7 +203,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         }
 
         if ($start > 0) {
-            $this->history = \array_slice($this->history, $start);
+            $this->history = array_slice($this->history, $start);
         }
     }
 
@@ -216,7 +222,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         foreach ($this->history as $index => $message) {
             $role = $message->getRole();
 
-            if (\in_array($role, [
+            if (in_array($role, [
                 MessageRole::USER->value,
                 MessageRole::DEVELOPER->value,
             ], true)) {
@@ -232,7 +238,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         }
 
         if ($firstIndex > 0) {
-            $this->history = \array_slice($this->history, $firstIndex);
+            $this->history = array_slice($this->history, $firstIndex);
         }
     }
 
@@ -266,7 +272,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             if (
                 $message instanceof ToolCallResultMessage
                 && $result !== []
-                && $result[\count($result) - 1] instanceof ToolCallMessage
+                && $result[count($result) - 1] instanceof ToolCallMessage
             ) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
@@ -275,7 +281,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             }
 
             // Check if this message has the expected role
-            if (\in_array($messageRole, $expectingRole, true)) {
+            if (in_array($messageRole, $expectingRole, true)) {
                 $result[] = $message;
 
                 $expectingRole = $messageRole === MessageRole::USER->value
@@ -303,7 +309,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMessages(array $messages): array
     {
-        return \array_map(
+        return array_map(
             fn (array $message): Message => match ($message['type'] ?? null) {
                 'tool_call' => $this->deserializeToolCall($message),
                 'tool_call_result' => $this->deserializeToolCallResult($message),
@@ -337,7 +343,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $tool) => Tool::make($tool['name'], $tool['description'])
                 ->setInputs($tool['inputs'])
                 ->setCallId($tool['callId'] ?? null),
@@ -356,7 +362,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolCallResultMessage
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $tool) => Tool::make($tool['name'], $tool['description'])
                 ->setInputs($tool['inputs'])
                 ->setCallId($tool['callId'])

@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
 
 class IsDateInRangeTool extends Tool
 {
@@ -62,24 +67,24 @@ class IsDateInRangeTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $checkDate = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz)
-                : new \DateTime($date, $tz);
+            $checkDate = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($tz)
+                : new DateTime($date, $tz);
 
-            $startDate = \is_numeric($start_date)
-                ? (new \DateTime())->setTimestamp((int) $start_date)->setTimezone($tz)
-                : new \DateTime($start_date, $tz);
+            $startDate = is_numeric($start_date)
+                ? (new DateTime())->setTimestamp((int) $start_date)->setTimezone($tz)
+                : new DateTime($start_date, $tz);
 
-            $endDate = \is_numeric($end_date)
-                ? (new \DateTime())->setTimestamp((int) $end_date)->setTimezone($tz)
-                : new \DateTime($end_date, $tz);
+            $endDate = is_numeric($end_date)
+                ? (new DateTime())->setTimestamp((int) $end_date)->setTimezone($tz)
+                : new DateTime($end_date, $tz);
 
             $this->normalizeDateTimes($checkDate, $startDate, $endDate, $precision);
 
             $isInRange = $checkDate >= $startDate && $checkDate <= $endDate;
             $daysDifference = $checkDate->diff($startDate)->days * ($checkDate >= $startDate ? 1 : -1);
 
-            return \json_encode([
+            return json_encode([
                 'date' => $checkDate->format('Y-m-d H:i:s'),
                 'start_date' => $startDate->format('Y-m-d H:i:s'),
                 'end_date' => $endDate->format('Y-m-d H:i:s'),
@@ -89,12 +94,12 @@ class IsDateInRangeTool extends Tool
                 'days_from_start' => $daysDifference,
                 'precision' => $precision,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }
 
-    private function normalizeDateTimes(\DateTime $checkDate, \DateTime $startDate, \DateTime $endDate, string $precision): void
+    private function normalizeDateTimes(DateTime $checkDate, DateTime $startDate, DateTime $endDate, string $precision): void
     {
         match ($precision) {
             'year' => [

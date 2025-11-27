@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-interface ToolPropertyInterface extends \JsonSerializable
+use JsonSerializable;
+
+interface ToolPropertyInterface extends JsonSerializable
 {
     public function getName(): string;
 
