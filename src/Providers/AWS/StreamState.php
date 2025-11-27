@@ -2,12 +2,12 @@
 
 namespace NeuronAI\Providers\AWS;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Providers\BasicStreamState;
 
 class StreamState extends BasicStreamState
 {
-    public function updateContentBlock(int $index, ContentBlockInterface $block): void
+    public function updateContentBlock(int $index, ContentBlock $block): void
     {
         if (!isset($this->blocks[$index])) {
             $this->blocks[$index] = $block;
