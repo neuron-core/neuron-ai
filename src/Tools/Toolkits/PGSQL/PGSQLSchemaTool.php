@@ -6,6 +6,16 @@ namespace NeuronAI\Tools\Toolkits\PGSQL;
 
 use NeuronAI\Tools\Tool;
 use PDO;
+use Exception;
+
+use function array_map;
+use function count;
+use function explode;
+use function implode;
+use function in_array;
+use function preg_match;
+use function str_contains;
+use function strtolower;
 
 /**
  * @method static static make(PDO $pdo, ?array $tables = null)
@@ -46,7 +56,7 @@ and performance optimization. If you already know the database structure, you ca
                 $placeholders[] = '?';
                 $params[] = $table;
             }
-            $whereClause .= " AND t.table_name = ANY(ARRAY[" . \implode(',', $placeholders) . "])";
+            $whereClause .= " AND t.table_name = ANY(ARRAY[" . implode(',', $placeholders) . "])";
         }
 
         $stmt = $this->pdo->prepare("
@@ -133,7 +143,7 @@ and performance optimization. If you already know the database structure, you ca
                     'full_type' => $fullType,
                     'nullable' => $row['is_nullable'] === 'YES',
                     'default' => $row['column_default'],
-                    'auto_increment' => \str_contains((string) $row['extra'], 'auto_increment'),
+                    'auto_increment' => str_contains((string) $row['extra'], 'auto_increment'),
                     'comment' => $row['column_comment']
                 ];
 
@@ -171,7 +181,7 @@ and performance optimization. If you already know the database structure, you ca
             $stmt->execute([$tableName]);
             $result = $stmt->fetchColumn();
             return $result !== false ? (string)$result : 'N/A';
-        } catch (\Exception) {
+        } catch (Exception) {
             return 'N/A';
         }
     }
@@ -215,7 +225,7 @@ and performance optimization. If you already know the database structure, you ca
                 ...$params,
             ];
 
-            $whereClause .= " AND (tc.table_name = ANY(ARRAY[" . \implode(',', $placeholders) . "]) OR ccu.table_name = ANY(ARRAY[" . \implode(',', $placeholders) . "]))";
+            $whereClause .= " AND (tc.table_name = ANY(ARRAY[" . implode(',', $placeholders) . "]) OR ccu.table_name = ANY(ARRAY[" . implode(',', $placeholders) . "]))";
         }
 
         $stmt = $this->pdo->prepare("
@@ -257,7 +267,7 @@ and performance optimization. If you already know the database structure, you ca
                 $placeholders[] = '?';
                 $params[] = $table;
             }
-            $whereClause .= " AND tablename = ANY(ARRAY[" . \implode(',', $placeholders) . "])";
+            $whereClause .= " AND tablename = ANY(ARRAY[" . implode(',', $placeholders) . "])";
         }
 
         $stmt = $this->pdo->prepare("
@@ -277,15 +287,15 @@ and performance optimization. If you already know the database structure, you ca
         $indexes = [];
         foreach ($results as $row) {
             // Parse column names from index definition
-            \preg_match('/\((.*?)\)/', (string) $row['indexdef'], $matches);
+            preg_match('/\((.*?)\)/', (string) $row['indexdef'], $matches);
             $columnList = $matches[1] ?? '';
-            $columns = \array_map(trim(...), \explode(',', $columnList));
+            $columns = array_map(trim(...), explode(',', $columnList));
 
             // Clean up column names (remove function calls, etc.)
             $cleanColumns = [];
             foreach ($columns as $col) {
                 // Extract just the column name if it's wrapped in functions
-                if (\preg_match('/([a-zA-Z_]\w*)/', $col, $colMatches)) {
+                if (preg_match('/([a-zA-Z_]\w*)/', $col, $colMatches)) {
                     $cleanColumns[] = $colMatches[1];
                 }
             }
@@ -293,7 +303,7 @@ and performance optimization. If you already know the database structure, you ca
             $indexes[] = [
                 'table' => $row['tablename'],
                 'name' => $row['indexname'],
-                'unique' => \str_contains((string) $row['indexdef'], 'UNIQUE'),
+                'unique' => str_contains((string) $row['indexdef'], 'UNIQUE'),
                 'type' => $this->extractIndexType($row['indexdef']),
                 'columns' => $cleanColumns === [] ? $columns : $cleanColumns
             ];
@@ -304,16 +314,16 @@ and performance optimization. If you already know the database structure, you ca
 
     protected function extractIndexType(string $indexDef): string
     {
-        if (\str_contains($indexDef, 'USING gin')) {
+        if (str_contains($indexDef, 'USING gin')) {
             return 'GIN';
         }
-        if (\str_contains($indexDef, 'USING gist')) {
+        if (str_contains($indexDef, 'USING gist')) {
             return 'GIST';
         }
-        if (\str_contains($indexDef, 'USING hash')) {
+        if (str_contains($indexDef, 'USING hash')) {
             return 'HASH';
         }
-        if (\str_contains($indexDef, 'USING brin')) {
+        if (str_contains($indexDef, 'USING brin')) {
             return 'BRIN';
         }
         return 'BTREE';
@@ -332,7 +342,7 @@ and performance optimization. If you already know the database structure, you ca
                 $placeholders[] = '?';
                 $params[] = $table;
             }
-            $whereClause .= " AND table_name = ANY(ARRAY[" . \implode(',', $placeholders) . "])";
+            $whereClause .= " AND table_name = ANY(ARRAY[" . implode(',', $placeholders) . "])";
         }
 
         $stmt = $this->pdo->prepare("
@@ -351,16 +361,16 @@ and performance optimization. If you already know the database structure, you ca
     protected function formatForLLM(array $structure): string
     {
         $output = "# PostgreSQL Database Schema Analysis\n\n";
-        $output .= "This PostgreSQL database contains " . \count($structure['tables']) . " tables with the following structure:\n\n";
+        $output .= "This PostgreSQL database contains " . count($structure['tables']) . " tables with the following structure:\n\n";
 
         // Tables overview
         $output .= "## Tables Overview\n";
-        $tableCount = \count($structure['tables']);
+        $tableCount = count($structure['tables']);
         $filteredNote = $this->tables !== null ? " (filtered to specified tables)" : "";
         $output .= "Analyzing {$tableCount} tables{$filteredNote}:\n";
 
         foreach ($structure['tables'] as $table) {
-            $pkColumns = empty($table['primary_key']) ? 'None' : \implode(', ', $table['primary_key']);
+            $pkColumns = empty($table['primary_key']) ? 'None' : implode(', ', $table['primary_key']);
             $output .= "- **{$table['name']}**: {$table['estimated_rows']} rows, Primary Key: {$pkColumns}";
             if ($table['comment']) {
                 $output .= " - {$table['comment']}";
@@ -392,11 +402,11 @@ and performance optimization. If you already know the database structure, you ca
             }
 
             if (!empty($table['primary_key'])) {
-                $output .= "\n**Primary Key**: " . \implode(', ', $table['primary_key']) . "\n";
+                $output .= "\n**Primary Key**: " . implode(', ', $table['primary_key']) . "\n";
             }
 
             if (!empty($table['unique_keys'])) {
-                $output .= "**Unique Keys**: " . \implode(', ', $table['unique_keys']) . "\n";
+                $output .= "**Unique Keys**: " . implode(', ', $table['unique_keys']) . "\n";
             }
 
             $output .= "\n";
@@ -421,7 +431,7 @@ and performance optimization. If you already know the database structure, you ca
 
             foreach ($structure['indexes'] as $index) {
                 $unique = $index['unique'] ? 'UNIQUE ' : '';
-                $columns = \implode(', ', $index['columns']);
+                $columns = implode(', ', $index['columns']);
                 $output .= "- {$unique}{$index['type']} INDEX `{$index['name']}` on `{$index['table']}` ({$columns})\n";
             }
             $output .= "\n";
@@ -454,9 +464,9 @@ and performance optimization. If you already know the database structure, you ca
         // Find tables with timestamps for temporal queries
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\in_array($column['type'], ['timestamp without time zone', 'timestamp with time zone', 'timestamptz', 'date', 'time']) &&
-                    (\str_contains(\strtolower((string) $column['name']), 'created') ||
-                     \str_contains(\strtolower((string) $column['name']), 'updated'))) {
+                if (in_array($column['type'], ['timestamp without time zone', 'timestamp with time zone', 'timestamptz', 'date', 'time']) &&
+                    (str_contains(strtolower((string) $column['name']), 'created') ||
+                     str_contains(strtolower((string) $column['name']), 'updated'))) {
                     $output .= "- For temporal queries on `{$table['name']}`, use `{$column['name']}` column\n";
                     break;
                 }
@@ -466,10 +476,10 @@ and performance optimization. If you already know the database structure, you ca
         // Find potential text search columns
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\in_array($column['type'], ['character varying', 'varchar', 'text', 'character']) &&
-                    (\str_contains(\strtolower((string) $column['name']), 'name') ||
-                     \str_contains(\strtolower((string) $column['name']), 'title') ||
-                     \str_contains(\strtolower((string) $column['name']), 'description'))) {
+                if (in_array($column['type'], ['character varying', 'varchar', 'text', 'character']) &&
+                    (str_contains(strtolower((string) $column['name']), 'name') ||
+                     str_contains(strtolower((string) $column['name']), 'title') ||
+                     str_contains(strtolower((string) $column['name']), 'description'))) {
                     $output .= "- For text searches on `{$table['name']}`, consider using `{$column['name']}` with ILIKE, ~ (regex), or full-text search\n";
                     break;
                 }
@@ -479,7 +489,7 @@ and performance optimization. If you already know the database structure, you ca
         // Find JSON/JSONB columns
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\in_array($column['type'], ['json', 'jsonb'])) {
+                if (in_array($column['type'], ['json', 'jsonb'])) {
                     $output .= "- Table `{$table['name']}` has {$column['type']} column `{$column['name']}` - use JSON operators like ->, ->>, @>, ? for querying\n";
                 }
             }
@@ -488,7 +498,7 @@ and performance optimization. If you already know the database structure, you ca
         // Find array columns
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\str_contains((string) $column['full_type'], '[]')) {
+                if (str_contains((string) $column['full_type'], '[]')) {
                     $output .= "- Table `{$table['name']}` has array column `{$column['name']}` ({$column['full_type']}) - use array operators like ANY, ALL, @>\n";
                 }
             }

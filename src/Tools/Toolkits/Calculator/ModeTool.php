@@ -9,6 +9,13 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_count_values;
+use function array_filter;
+use function array_keys;
+use function array_map;
+use function max;
+use function sort;
+
 class ModeTool extends Tool
 {
     public function __construct()
@@ -50,25 +57,25 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
         // Convert to float values
-        $numericData = \array_map(floatval(...), $numericData);
+        $numericData = array_map(floatval(...), $numericData);
 
         // Count frequency of each value
-        $frequencies = \array_count_values($numericData);
-        $maxFrequency = \max($frequencies);
+        $frequencies = array_count_values($numericData);
+        $maxFrequency = max($frequencies);
 
         // Find all values with maximum frequency
-        $modes = \array_keys($frequencies, $maxFrequency);
+        $modes = array_keys($frequencies, $maxFrequency);
 
         // Convert back to numeric values and sort
-        $modes = \array_map(floatval(...), $modes);
-        \sort($modes);
+        $modes = array_map(floatval(...), $modes);
+        sort($modes);
 
         return $modes;
     }

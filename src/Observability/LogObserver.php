@@ -34,6 +34,12 @@ use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
+use function array_keys;
+use function array_map;
+use function array_values;
+use function is_array;
+use function is_object;
+
 /**
  * Credits: https://github.com/sixty-nine
  */
@@ -58,11 +64,11 @@ class LogObserver implements ObserverInterface
             return [];
         }
 
-        if (\is_array($data)) {
+        if (is_array($data)) {
             return $data;
         }
 
-        if (!\is_object($data)) {
+        if (!is_object($data)) {
             return ['data' => $data];
         }
 
@@ -141,9 +147,9 @@ class LogObserver implements ObserverInterface
                 'question' => $data->question->jsonSerialize(),
                 'documents' => $data->documents,
             ],
-            WorkflowStart::class => \array_map(fn (string $eventClass, NodeInterface $node): array => [
+            WorkflowStart::class => array_map(fn (string $eventClass, NodeInterface $node): array => [
                 $eventClass => $node::class,
-            ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)),
+            ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)),
             WorkflowNodeStart::class => [
                 'node' => $data->node,
             ],

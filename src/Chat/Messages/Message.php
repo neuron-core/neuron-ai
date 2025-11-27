@@ -9,11 +9,16 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
+use JsonSerializable;
+
+use function array_map;
+use function array_merge;
+use function is_string;
 
 /**
  * @method static static make(MessageRole $role, string|ContentBlockInterface|ContentBlockInterface[]|null $content = null)
  */
-class Message implements \JsonSerializable
+class Message implements JsonSerializable
 {
     use StaticConstructor;
 
@@ -69,7 +74,7 @@ class Message implements \JsonSerializable
      */
     public function setContents(string|ContentBlockInterface|array $content): Message
     {
-        if (\is_string($content)) {
+        if (is_string($content)) {
             $this->contents = [new TextContent($content)];
         } elseif ($content instanceof ContentBlockInterface) {
             $this->contents = [$content];
@@ -140,13 +145,13 @@ class Message implements \JsonSerializable
     {
         $data = [
             'role' => $this->getRole(),
-            'content' => \array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->contents)
+            'content' => array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->contents)
         ];
 
         if ($this->getUsage() instanceof Usage) {
             $data['usage'] = $this->getUsage()->jsonSerialize();
         }
 
-        return \array_merge($this->meta, $data);
+        return array_merge($this->meta, $data);
     }
 }

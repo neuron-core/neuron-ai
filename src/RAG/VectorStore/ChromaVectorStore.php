@@ -10,6 +10,13 @@ use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
 
+use function count;
+use function in_array;
+use function is_null;
+use function json_decode;
+use function trim;
+use function uniqid;
+
 class ChromaVectorStore implements VectorStoreInterface
 {
     protected Client $client;
@@ -37,23 +44,23 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     protected function initialize(): void
     {
-        $response = $this->client()->post(\trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections", [
+        $response = $this->client()->post(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections", [
             RequestOptions::JSON => [
                 'name' => $this->collection,
                 'get_or_create' => true,
             ]
         ])->getBody()->getContents();
 
-        $this->collectionId = \json_decode($response, true)['id'];
+        $this->collectionId = json_decode($response, true)['id'];
     }
 
     protected function client(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/",
+            'base_uri' => trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/",
             'headers' => [
                 'Content-Type' => 'application/json',
-                ...(!\is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
+                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
             ]
         ]);
     }
@@ -120,14 +127,14 @@ class ChromaVectorStore implements VectorStoreInterface
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         // Map the result
-        $size = \count($response['ids'][0] ?? []);
+        $size = count($response['ids'][0] ?? []);
         $result = [];
         for ($i = 0; $i < $size; $i++) {
             $document = new Document();
-            $document->id = $response['ids'][0][$i] ?? \uniqid();
+            $document->id = $response['ids'][0][$i] ?? uniqid();
             //$document->embedding = $response['embeddings'][0][$i] ?? null;
             $document->content = $response['documents'][0][$i];
             $document->sourceType = $response['metadatas'][0][$i]['sourceType'] ?? null;
@@ -135,7 +142,7 @@ class ChromaVectorStore implements VectorStoreInterface
             $document->score = VectorSimilarity::similarityFromDistance($response['distances'][0][$i] ?? 0.0);
 
             foreach (($response['metadatas'][0][$i] ?? []) as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
                     $document->addMetadata($name, $value);
                 }
             }

@@ -20,6 +20,12 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_map;
+use function array_merge;
+use function json_decode;
+use function trim;
+use function uniqid;
+
 class OpenAIResponses implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -52,7 +58,7 @@ class OpenAIResponses implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->baseUri, '/').'/',
+            'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -94,7 +100,7 @@ class OpenAIResponses implements AIProviderInterface
                 $blocks[] = new TextContent($content['text']);
 
                 if (isset($content['annotations'])) {
-                    $citations = \array_merge($citations, $this->extractCitations($content['text'], $content['annotations']));
+                    $citations = array_merge($citations, $this->extractCitations($content['text'], $content['annotations']));
                 }
             }
 
@@ -119,10 +125,10 @@ class OpenAIResponses implements AIProviderInterface
      */
     protected function createToolCallMessage(array $toolCalls, array|null $content = null): ToolCallMessage
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $item): ToolInterface => $this->findTool($item['name'])
                 ->setInputs(
-                    \json_decode((string) $item['arguments'], true)
+                    json_decode((string) $item['arguments'], true)
                 )
                 ->setCallId($item['call_id']),
             $toolCalls
@@ -147,7 +153,7 @@ class OpenAIResponses implements AIProviderInterface
             if ($type === 'file_citation') {
                 $fileCitation = $annotation['file_citation'] ?? [];
                 $citations[] = new Citation(
-                    id: $fileCitation['file_id'] ?? \uniqid('openai_responses_file_'),
+                    id: $fileCitation['file_id'] ?? uniqid('openai_responses_file_'),
                     source: $fileCitation['file_id'] ?? '',
                     startIndex: $annotation['start_index'] ?? null,
                     endIndex: $annotation['end_index'] ?? null,
@@ -161,7 +167,7 @@ class OpenAIResponses implements AIProviderInterface
             } elseif ($type === 'file_path') {
                 $filePath = $annotation['file_path'] ?? [];
                 $citations[] = new Citation(
-                    id: $filePath['file_id'] ?? \uniqid('openai_responses_path_'),
+                    id: $filePath['file_id'] ?? uniqid('openai_responses_path_'),
                     source: $filePath['file_id'] ?? '',
                     startIndex: $annotation['start_index'] ?? null,
                     endIndex: $annotation['end_index'] ?? null,

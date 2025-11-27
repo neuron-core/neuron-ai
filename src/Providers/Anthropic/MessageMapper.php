@@ -19,6 +19,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
+use function array_map;
+use function array_values;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -46,7 +50,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
@@ -116,7 +120,7 @@ class MessageMapper implements MessageMapperInterface
 
         // Add text content if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
+            $parts = array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
         // Add tool call blocks from the tool array
@@ -125,7 +129,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'tool_use',
                 'id' => $tool->getCallId(),
                 'name' => $tool->getName(),
-                'input' => $tool->getInputs() ?: new \stdClass(),
+                'input' => $tool->getInputs() ?: new stdClass(),
             ];
         }
 
@@ -137,19 +141,19 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
-        $parts = \array_map(fn (ToolInterface $tool): array => [
+        $parts = array_map(fn (ToolInterface $tool): array => [
             'type' => 'tool_result',
             'tool_use_id' => $tool->getCallId(),
             'content' => $tool->getResult(),
         ], $message->getTools());
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = [...$parts, ...\array_map($this->mapContentBlock(...), $contentBlocks)];
+            $parts = [...$parts, ...array_map($this->mapContentBlock(...), $contentBlocks)];
         }
 
         return [
             'role' => MessageRole::USER,
-            'content' => \array_values($parts),
+            'content' => array_values($parts),
         ];
     }
 }

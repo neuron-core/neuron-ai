@@ -7,6 +7,8 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 
+use function array_filter;
+
 class AudioContent extends ContentBlock
 {
     public function __construct(
@@ -27,7 +29,7 @@ class AudioContent extends ContentBlock
      */
     public function toArray(): array
     {
-        return \array_filter([
+        return array_filter([
             'type' => $this->getType()->value,
             'source' => $this->content,
             'source_type' => $this->sourceType->value,

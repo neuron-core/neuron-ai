@@ -6,6 +6,8 @@ namespace NeuronAI\RAG\Embeddings;
 
 use GuzzleHttp\Client;
 
+use function json_decode;
+
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     protected Client $client;
@@ -38,7 +40,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return $response['data'][0]['embedding'];
     }

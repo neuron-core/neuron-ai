@@ -8,6 +8,12 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateInterval;
+use DateTime;
+use Exception;
+use InvalidArgumentException;
+
+use function is_numeric;
 
 class AddTimeTool extends Tool
 {
@@ -62,9 +68,9 @@ class AddTimeTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $dateTime = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz)
-                : new \DateTime($date, $tz);
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($tz)
+                : new DateTime($date, $tz);
 
             $intervalSpec = match ($unit) {
                 'seconds' => "PT" . (int) $amount . "S",
@@ -74,7 +80,7 @@ class AddTimeTool extends Tool
                 'weeks' => "P" . ((int) $amount * 7) . "D",
                 'months' => "P" . (int) $amount . "M",
                 'years' => "P" . (int) $amount . "Y",
-                default => throw new \InvalidArgumentException("Unsupported unit: {$unit}"),
+                default => throw new InvalidArgumentException("Unsupported unit: {$unit}"),
             };
 
             // Handle fractional amounts by adding additional smaller units
@@ -88,19 +94,19 @@ class AddTimeTool extends Tool
                 };
 
                 if ($additionalSeconds > 0) {
-                    $interval = new \DateInterval($intervalSpec);
+                    $interval = new DateInterval($intervalSpec);
                     $dateTime->add($interval);
-                    $interval = new \DateInterval("PT{$additionalSeconds}S");
+                    $interval = new DateInterval("PT{$additionalSeconds}S");
                     $dateTime->add($interval);
                     return $dateTime->format($format);
                 }
             }
 
-            $interval = new \DateInterval($intervalSpec);
+            $interval = new DateInterval($intervalSpec);
             $dateTime->add($interval);
 
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

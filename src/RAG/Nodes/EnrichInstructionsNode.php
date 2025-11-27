@@ -10,6 +10,8 @@ use NeuronAI\HandleContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
+use const PHP_EOL;
+
 /**
  * Enriches instructions with retrieved documents as context.
  *
@@ -43,9 +45,9 @@ class EnrichInstructionsNode extends Node
         // Add document context
         $instructions .= '<EXTRA-CONTEXT>';
         foreach ($documents as $document) {
-            $instructions .= "Source Type: " . $document->getSourceType() . \PHP_EOL .
-                "Source Name: " . $document->getSourceName() . \PHP_EOL .
-                "Content: " . $document->getContent() . \PHP_EOL . \PHP_EOL;
+            $instructions .= "Source Type: " . $document->getSourceType() . PHP_EOL .
+                "Source Name: " . $document->getSourceName() . PHP_EOL .
+                "Content: " . $document->getContent() . PHP_EOL . PHP_EOL;
         }
         $instructions .= '</EXTRA-CONTEXT>';
 

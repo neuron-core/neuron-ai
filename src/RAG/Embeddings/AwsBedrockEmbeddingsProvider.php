@@ -6,6 +6,9 @@ namespace NeuronAI\RAG\Embeddings;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 
+use function json_decode;
+use function json_encode;
+
 class AwsBedrockEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     public function __construct(
@@ -19,12 +22,12 @@ class AwsBedrockEmbeddingsProvider extends AbstractEmbeddingsProvider
         $response = $this->bedrockRuntimeClient->invokeModel([
             'modelId' => $this->model,
             'contentType' => 'application/json',
-            'body' => \json_encode([
+            'body' => json_encode([
                 'inputText' => $text,
             ]),
         ]);
 
-        $response = \json_decode((string) $response['body'], true);
+        $response = json_decode((string) $response['body'], true);
 
         return $response['embedding'];
     }

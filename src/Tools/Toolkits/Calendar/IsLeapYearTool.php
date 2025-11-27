@@ -8,6 +8,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function json_encode;
+
 class IsLeapYearTool extends Tool
 {
     public function __construct()
@@ -34,7 +36,7 @@ class IsLeapYearTool extends Tool
     {
         $isLeapYear = ($year % 4 === 0 && $year % 100 !== 0) || ($year % 400 === 0);
 
-        return \json_encode([
+        return json_encode([
             'year' => $year,
             'is_leap_year' => $isLeapYear,
             'days_in_year' => $isLeapYear ? 366 : 365,

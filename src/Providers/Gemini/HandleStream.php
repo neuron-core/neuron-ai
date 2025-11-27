@@ -15,6 +15,13 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+
+use function array_key_exists;
+use function json_decode;
+use function rtrim;
+use function strlen;
+use function trim;
 
 trait HandleStream
 {
@@ -28,7 +35,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $json = [
             'contents' => $this->messageMapper()->map($messages),
@@ -47,7 +54,7 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post(\trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [
+        $stream = $this->client->post(trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [
             'stream' => true,
             RequestOptions::JSON => $json
         ])->getBody();
@@ -57,12 +64,12 @@ trait HandleStream
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
 
-            if (($line = \json_decode((string) $line, true)) === null) {
+            if (($line = json_decode((string) $line, true)) === null) {
                 continue;
             }
 
             // Save usage information
-            if (\array_key_exists('usageMetadata', $line)) {
+            if (array_key_exists('usageMetadata', $line)) {
                 $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
                 $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
             }
@@ -125,7 +132,7 @@ trait HandleStream
         return $message;
     }
 
-    protected function handleTextData(array $part): \Generator
+    protected function handleTextData(array $part): Generator
     {
         if ($part['thought'] ?? false) {
             // Accumulate the reasoning text
@@ -164,15 +171,15 @@ trait HandleStream
         while (! $stream->eof()) {
             $buffer .= $stream->read(1);
 
-            if (\strlen($buffer) === 1 && $buffer !== '{') {
+            if (strlen($buffer) === 1 && $buffer !== '{') {
                 $buffer = '';
             }
 
-            if (\json_decode($buffer) !== null) {
+            if (json_decode($buffer) !== null) {
                 return $buffer;
             }
         }
 
-        return \rtrim($buffer, ']');
+        return rtrim($buffer, ']');
     }
 }

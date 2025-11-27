@@ -6,10 +6,11 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Generator;
 
 interface NodeInterface
 {
-    public function run(Event $event, WorkflowState $state): \Generator|Event;
+    public function run(Event $event, WorkflowState $state): Generator|Event;
 
     public function setWorkflowContext(
         WorkflowState $currentState,

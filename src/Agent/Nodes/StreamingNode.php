@@ -18,6 +18,8 @@ use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
+use Generator;
+use Throwable;
 
 class StreamingNode extends Node
 {
@@ -29,9 +31,9 @@ class StreamingNode extends Node
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): \Generator|ToolCallEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent
     {
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
@@ -75,7 +77,7 @@ class StreamingNode extends Node
 
             return new StopEvent();
 
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->emit('error', new AgentError($exception));
             throw $exception;
         }

@@ -7,6 +7,8 @@ namespace NeuronAI\Evaluation\Runner;
 use NeuronAI\Evaluation\BaseEvaluator;
 use Throwable;
 
+use function microtime;
+
 class EvaluatorRunner
 {
     public function run(BaseEvaluator $evaluator): EvaluatorSummary
@@ -19,7 +21,7 @@ class EvaluatorRunner
         $totalTime = 0.0;
 
         foreach ($data as $index => $item) {
-            $startTime = \microtime(true);
+            $startTime = microtime(true);
             $error = null;
             $output = null;
 
@@ -30,7 +32,7 @@ class EvaluatorRunner
                 $error = $e->getMessage();
             }
 
-            $executionTime = \microtime(true) - $startTime;
+            $executionTime = microtime(true) - $startTime;
             $totalTime += $executionTime;
 
             // Capture assertion counts and failures

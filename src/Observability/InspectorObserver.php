@@ -12,6 +12,13 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
+use Exception;
+
+use function array_key_exists;
+use function array_map;
+use function explode;
+use function strrchr;
+use function substr;
 
 /**
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
@@ -118,14 +125,14 @@ class InspectorObserver implements ObserverInterface
 
     public function onEvent(string $event, object $source, mixed $data = null): void
     {
-        if (\array_key_exists($event, $this->methodsMap)) {
+        if (array_key_exists($event, $this->methodsMap)) {
             $method = $this->methodsMap[$event];
             $this->$method($source, $event, $data);
         }
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function reportError(object $source, string $event, AgentError $data): void
     {
@@ -141,19 +148,19 @@ class InspectorObserver implements ObserverInterface
 
     public function getEventPrefix(string $event): string
     {
-        return \explode('-', $event)[0];
+        return explode('-', $event)[0];
     }
 
     protected function getBaseClassName(string $class): string
     {
-        return \substr(\strrchr($class, '\\'), 1);
+        return substr(strrchr($class, '\\'), 1);
     }
 
     protected function prepareMessageItem(Message $item): array
     {
         $item = $item->jsonSerialize();
         if (isset($item['content'])) {
-            $item['content'] = \array_map(function (array $block): array {
+            $item['content'] = array_map(function (array $block): array {
                 if (isset($block['source_type']) && $block['source_type'] === SourceType::BASE64->value) {
                     unset($block['source']);
                 }

@@ -11,6 +11,15 @@ use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
 use ReflectionException;
 use Throwable;
+use RuntimeException;
+
+use function array_merge;
+use function array_shift;
+use function count;
+use function end;
+use function explode;
+use function str_starts_with;
+use function substr;
 
 class EvaluationCommand
 {
@@ -64,16 +73,16 @@ class EvaluationCommand
         ];
 
         // Skip script name
-        \array_shift($args);
+        array_shift($args);
 
         foreach ($args as $arg) {
             if ($arg === '--help' || $arg === '-h') {
                 $options['help'] = true;
             } elseif ($arg === '--verbose' || $arg === '-v') {
                 $options['verbose'] = true;
-            } elseif (\str_starts_with($arg, '--path=')) {
-                $options['path'] = \substr($arg, 7); // Remove '--path='
-            } elseif (!\str_starts_with($arg, '-') && empty($options['path'])) {
+            } elseif (str_starts_with($arg, '--path=')) {
+                $options['path'] = substr($arg, 7); // Remove '--path='
+            } elseif (!str_starts_with($arg, '-') && empty($options['path'])) {
                 $options['path'] = $arg;
             }
         }
@@ -95,7 +104,7 @@ class EvaluationCommand
 
         $totalFailures = 0;
         $evaluatorCount = 1;
-        $totalEvaluators = \count($evaluatorClasses);
+        $totalEvaluators = count($evaluatorClasses);
 
         foreach ($evaluatorClasses as $evaluatorClass) {
             $this->formatter->printProgress(
@@ -141,21 +150,21 @@ class EvaluationCommand
                 return $reflection->newInstance();
             }
 
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "Evaluator {$className} requires constructor parameters. " .
                 "Please ensure evaluators can be instantiated without arguments."
             );
 
         } catch (ReflectionException $e) {
-            throw new \RuntimeException("Cannot instantiate evaluator {$className}: " . $e->getMessage(), $e->getCode(), $e);
+            throw new RuntimeException("Cannot instantiate evaluator {$className}: " . $e->getMessage(), $e->getCode(), $e);
         }
     }
 
 
     private function getShortClassName(string $fullClassName): string
     {
-        $parts = \explode('\\', $fullClassName);
-        return \end($parts);
+        $parts = explode('\\', $fullClassName);
+        return end($parts);
     }
 
     private function createOverallSummary(array $evaluatorClasses): EvaluatorSummary
@@ -170,7 +179,7 @@ class EvaluationCommand
                 $evaluator = $this->createEvaluator($evaluatorClass);
                 $summary = $this->runner->run($evaluator);
 
-                $results = \array_merge($results, $summary->getResults());
+                $results = array_merge($results, $summary->getResults());
                 $totalTime += $summary->getTotalExecutionTime();
             } catch (Throwable) {
                 // Skip failed evaluators for overall summary

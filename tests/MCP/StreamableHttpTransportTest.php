@@ -8,6 +8,7 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\MCP\McpException;
 use NeuronAI\MCP\StreamableHttpTransport;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
 class StreamableHttpTransportTest extends TestCase
 {
@@ -54,7 +55,7 @@ class StreamableHttpTransportTest extends TestCase
     public function testParseSSEResponseExtractsJsonData(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
-        $reflection = new \ReflectionClass($transport);
+        $reflection = new ReflectionClass($transport);
         $method = $reflection->getMethod('parseSSEResponse');
 
         $sseResponse = "event: message\ndata: {\"test\":\"value\"}\n\n";
@@ -66,7 +67,7 @@ class StreamableHttpTransportTest extends TestCase
     public function testParseSSEResponseWithNoDataThrowsException(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
-        $reflection = new \ReflectionClass($transport);
+        $reflection = new ReflectionClass($transport);
         $method = $reflection->getMethod('parseSSEResponse');
 
         $this->expectException(McpException::class);
@@ -80,7 +81,7 @@ class StreamableHttpTransportTest extends TestCase
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
 
         // Set some state via reflection
-        $reflection = new \ReflectionClass($transport);
+        $reflection = new ReflectionClass($transport);
         $sessionProperty = $reflection->getProperty('sessionId');
         $sessionProperty->setValue($transport, 'test-session');
 

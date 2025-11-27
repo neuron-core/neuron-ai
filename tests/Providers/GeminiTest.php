@@ -19,6 +19,8 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
+use function json_decode;
+
 class GeminiTest extends TestCase
 {
     protected string $body = '{
@@ -67,7 +69,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -111,7 +113,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -155,7 +157,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -199,7 +201,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -243,7 +245,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -309,6 +311,6 @@ class GeminiTest extends TestCase
             ]
         ];
 
-        $this->assertSame($expectedRequest, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 }

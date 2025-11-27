@@ -8,6 +8,8 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\UniqueIdGenerator;
 
+use function array_values;
+
 class BasicStreamState
 {
     protected string $messageId;
@@ -59,7 +61,7 @@ class BasicStreamState
      */
     public function getContentBlocks(): array
     {
-        return \array_values($this->blocks);
+        return array_values($this->blocks);
     }
 
     public function hasToolCalls(): bool

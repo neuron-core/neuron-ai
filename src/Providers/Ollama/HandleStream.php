@@ -13,6 +13,10 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+
+use function array_unshift;
+use function json_decode;
 
 trait HandleStream
 {
@@ -24,11 +28,11 @@ trait HandleStream
      * @throws GuzzleException
      * @throws ProviderException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         // Include the system prompt
         if (isset($this->system)) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
+            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
         $json = [
@@ -96,7 +100,7 @@ trait HandleStream
             return null;
         }
 
-        $json = \json_decode($line, true);
+        $json = json_decode($line, true);
 
         if ($json['done']) {
             return null;

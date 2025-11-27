@@ -6,6 +6,7 @@ namespace Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringLengthBetween;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class StringLengthBetweenTest extends TestCase
 {
@@ -128,7 +129,7 @@ class StringLengthBetweenTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringLengthBetween(5, 15);
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);

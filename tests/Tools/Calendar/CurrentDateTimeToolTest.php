@@ -7,6 +7,10 @@ namespace NeuronAI\Tests\Tools\Calendar;
 use NeuronAI\Tools\Toolkits\Calendar\CurrentDateTimeTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
+use DateTime;
+use DateTimeZone;
+
+use function array_map;
 
 class CurrentDateTimeToolTest extends TestCase
 {
@@ -23,8 +27,8 @@ class CurrentDateTimeToolTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $result);
 
-        $dateTime = \DateTime::createFromFormat('Y-m-d H:i:s', $result, new \DateTimeZone('UTC'));
-        $this->assertInstanceOf(\DateTime::class, $dateTime);
+        $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $result, new DateTimeZone('UTC'));
+        $this->assertInstanceOf(DateTime::class, $dateTime);
     }
 
     public function testGetCurrentDateTimeWithCustomTimezone(): void
@@ -40,8 +44,8 @@ class CurrentDateTimeToolTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $result);
 
-        $dateTime = \DateTime::createFromFormat('Y-m-d', $result);
-        $this->assertInstanceOf(\DateTime::class, $dateTime);
+        $dateTime = DateTime::createFromFormat('Y-m-d', $result);
+        $this->assertInstanceOf(DateTime::class, $dateTime);
     }
 
     public function testGetCurrentDateTimeWithBothCustomOptions(): void
@@ -66,7 +70,7 @@ class CurrentDateTimeToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(2, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('timezone', $propertyNames);
         $this->assertContains('format', $propertyNames);
     }

@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+use InvalidArgumentException;
+
+use function is_numeric;
 
 class StartOfPeriodTool extends Tool
 {
@@ -56,25 +61,25 @@ class StartOfPeriodTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $dateTime = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz)
-                : new \DateTime($date, $tz);
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($tz)
+                : new DateTime($date, $tz);
 
             match ($period) {
                 'week' => $dateTime->modify('monday this week')->setTime(0, 0, 0),
                 'month' => $dateTime->modify('first day of this month')->setTime(0, 0, 0),
                 'quarter' => $this->setStartOfQuarter($dateTime),
                 'year' => $dateTime->setDate((int) $dateTime->format('Y'), 1, 1)->setTime(0, 0, 0),
-                default => throw new \InvalidArgumentException("Unsupported period: {$period}"),
+                default => throw new InvalidArgumentException("Unsupported period: {$period}"),
             };
 
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }
 
-    private function setStartOfQuarter(\DateTime $dateTime): void
+    private function setStartOfQuarter(DateTime $dateTime): void
     {
         $month = (int) $dateTime->format('n');
         $quarterStartMonth = match (true) {

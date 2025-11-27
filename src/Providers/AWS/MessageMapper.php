@@ -13,6 +13,9 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
+use function array_map;
+use function array_merge;
+
 class MessageMapper implements MessageMapperInterface
 {
     public function map(array $messages): array
@@ -68,11 +71,11 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        $blocks = \array_map($this->mapContentBlock(...), $message->getContentBlocks());
+        $blocks = array_map($this->mapContentBlock(...), $message->getContentBlocks());
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_merge($blocks, $toolCallContents),
+            'content' => array_merge($blocks, $toolCallContents),
         ];
     }
 
@@ -82,7 +85,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 

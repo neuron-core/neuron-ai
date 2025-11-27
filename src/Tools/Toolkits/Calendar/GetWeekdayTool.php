@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
 
 class GetWeekdayTool extends Tool
 {
@@ -49,11 +54,11 @@ class GetWeekdayTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            if (\is_numeric($date)) {
-                $dateTime = (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz);
+            if (is_numeric($date)) {
+                $dateTime = (new DateTime())->setTimestamp((int) $date)->setTimezone($tz);
             } else {
                 // First create the DateTime object, then convert to the target timezone
-                $dateTime = new \DateTime($date);
+                $dateTime = new DateTime($date);
                 $dateTime->setTimezone($tz);
             }
 
@@ -61,7 +66,7 @@ class GetWeekdayTool extends Tool
                 'name' => $dateTime->format('l'),
                 'short' => $dateTime->format('D'),
                 'number' => $dateTime->format('N'),
-                'all' => \json_encode([
+                'all' => json_encode([
                     'name' => $dateTime->format('l'),
                     'short' => $dateTime->format('D'),
                     'number' => (int) $dateTime->format('N'),
@@ -70,7 +75,7 @@ class GetWeekdayTool extends Tool
                 ]),
                 default => $dateTime->format('l'),
             };
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

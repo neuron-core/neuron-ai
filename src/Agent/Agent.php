@@ -21,6 +21,10 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
+use Generator;
+use Throwable;
+
+use function is_array;
 
 /**
  * @method AgentState resolveState()
@@ -81,7 +85,7 @@ class Agent extends Workflow implements AgentInterface
             return;
         }
 
-        $nodes = \is_array($nodes) ? $nodes : [$nodes];
+        $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls()
@@ -105,7 +109,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowInterrupt
      * @throws InspectorException
      * @throws WorkflowException
@@ -114,7 +118,7 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->emit('chat-start');
 
-        $messages = \is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
             $this->addToChatHistory($this->resolveState(), $message);
         }
@@ -142,16 +146,16 @@ class Agent extends Workflow implements AgentInterface
      * @throws WorkflowInterrupt
      * @throws InspectorException
      * @throws WorkflowException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function stream(
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null,
         ?StreamAdapterInterface $adapter = null,
-    ): \Generator {
+    ): Generator {
         $this->emit('stream-start');
 
-        $messages = \is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
             $this->addToChatHistory($this->resolveState(), $message);
         }
@@ -176,7 +180,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[]  $messages
-     * @throws \Throwable
+     * @throws Throwable
      * @throws AgentException
      * @throws WorkflowInterrupt
      * @throws InspectorException
@@ -186,7 +190,7 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->emit('structured-start');
 
-        $messages = \is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
             $this->addToChatHistory($this->resolveState(), $message);
         }

@@ -7,6 +7,11 @@ namespace NeuronAI\Providers\Deepseek;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
+use function array_merge;
+use function json_encode;
+
+use const PHP_EOL;
+
 class Deepseek extends OpenAI
 {
     protected string $baseUri = "https://api.deepseek.com/v1";
@@ -20,14 +25,14 @@ class Deepseek extends OpenAI
         array $response_format,
         bool $strict = false,
     ): Message {
-        $this->parameters = \array_merge($this->parameters, [
+        $this->parameters = array_merge($this->parameters, [
             'response_format' => [
                 'type' => 'json_object',
             ]
         ]);
 
-        $this->system .= \PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".\PHP_EOL
-            .'Generate a json respecting this schema: '.\json_encode($response_format);
+        $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL
+            .'Generate a json respecting this schema: '.json_encode($response_format);
 
         return $this->chat($messages);
     }

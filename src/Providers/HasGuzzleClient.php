@@ -7,6 +7,8 @@ namespace NeuronAI\Providers;
 use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 
+use function array_merge;
+
 trait HasGuzzleClient
 {
     protected Client $client;
@@ -24,7 +26,7 @@ trait HasGuzzleClient
     protected function mergeHttpOptions(array $config, HttpClientOptions $options): array
     {
         if ($options->headers !== null && $options->headers !== []) {
-            $config['headers'] = \array_merge($config['headers'], $options->headers);
+            $config['headers'] = array_merge($config['headers'], $options->headers);
         }
 
         // Handle individual options

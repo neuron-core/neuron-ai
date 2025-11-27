@@ -6,6 +6,7 @@ namespace Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\IsValidJson;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class IsValidJsonTest extends TestCase
 {
@@ -187,7 +188,7 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new IsValidJson();
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);

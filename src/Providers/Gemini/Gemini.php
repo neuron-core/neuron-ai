@@ -18,6 +18,9 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_map;
+use function uniqid;
+
 class Gemini implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -88,7 +91,7 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $blocks, array $toolCalls): Message
     {
-        $tools = \array_map(fn (array $item): ToolInterface =>
+        $tools = array_map(fn (array $item): ToolInterface =>
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
             $this->findTool($item['functionCall']['name'])
             ->setInputs($item['functionCall']['args'])
@@ -142,7 +145,7 @@ class Gemini implements AIProviderInterface
 
                     if ($sourceChunk && isset($sourceChunk['web'])) {
                         $citations[] = new Citation(
-                            id: 'gemini_support_'.\uniqid(),
+                            id: 'gemini_support_'.uniqid(),
                             source: $sourceChunk['web']['uri'] ?? '',
                             title: $sourceChunk['web']['title'] ?? null,
                             startIndex: $segment['startIndex'] ?? null,

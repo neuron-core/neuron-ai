@@ -8,6 +8,8 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Providers\BasicStreamState;
 
+use function array_values;
+
 class StreamState extends BasicStreamState
 {
     public function addContentBlock(string $id, ContentBlockInterface $block): void
@@ -39,6 +41,6 @@ class StreamState extends BasicStreamState
 
     public function getToolCalls(): array
     {
-        return \array_values($this->toolCalls);
+        return array_values($this->toolCalls);
     }
 }

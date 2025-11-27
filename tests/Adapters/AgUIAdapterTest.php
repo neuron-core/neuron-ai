@@ -12,6 +12,13 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+use function implode;
+use function iterator_to_array;
+use function json_decode;
+use function preg_match;
+use function substr;
+
 class AgUIAdapterTest extends TestCase
 {
     private AGUIAdapter $adapter;
@@ -35,7 +42,7 @@ class AgUIAdapterTest extends TestCase
 
     public function test_start_emits_run_started_event(): void
     {
-        $result = \iterator_to_array($this->adapter->start());
+        $result = iterator_to_array($this->adapter->start());
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"RunStarted"', $result[0]);
@@ -47,17 +54,17 @@ class AgUIAdapterTest extends TestCase
     public function test_end_emits_text_message_end_and_run_finished(): void
     {
         // Start the run first (consume the generator)
-        \iterator_to_array($this->adapter->start());
+        iterator_to_array($this->adapter->start());
 
         // Start a message (consume the generator)
-        \iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'Hello')));
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'Hello')));
 
-        $result = \iterator_to_array($this->adapter->end());
+        $result = iterator_to_array($this->adapter->end());
 
-        $this->assertGreaterThanOrEqual(1, \count($result));
+        $this->assertGreaterThanOrEqual(1, count($result));
 
         // Should contain TextMessageEnd
-        $endEvent = \implode('', $result);
+        $endEvent = implode('', $result);
         $this->assertStringContainsString('"type":"TextMessageEnd"', $endEvent);
         $this->assertStringContainsString('"type":"RunFinished"', $endEvent);
     }
@@ -89,15 +96,15 @@ class AgUIAdapterTest extends TestCase
     {
         $adapter = new AGUIAdapter();
 
-        $result1 = \iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Hello')));
-        $result2 = \iterator_to_array($adapter->transform(new TextChunk('msg_123', ' world')));
+        $result1 = iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Hello')));
+        $result2 = iterator_to_array($adapter->transform(new TextChunk('msg_123', ' world')));
 
         // Extract message ID from first result (TextMessageStart)
-        \preg_match('/"messageId":"([^"]+)"/', $result1[0], $matches1);
+        preg_match('/"messageId":"([^"]+)"/', $result1[0], $matches1);
         $messageId1 = $matches1[1] ?? null;
 
         // Extract message ID from second result (TextMessageContent)
-        \preg_match('/"messageId":"([^"]+)"/', $result2[0], $matches2);
+        preg_match('/"messageId":"([^"]+)"/', $result2[0], $matches2);
         $messageId2 = $matches2[1] ?? null;
 
         $this->assertNotNull($messageId1);
@@ -108,12 +115,12 @@ class AgUIAdapterTest extends TestCase
     public function test_transform_reasoning_chunk(): void
     {
         $chunk = new ReasoningChunk('sig_123', 'Analyzing the problem...');
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         // Should emit ReasoningStart and ReasoningMessageContent
-        $this->assertGreaterThanOrEqual(2, \count($result));
+        $this->assertGreaterThanOrEqual(2, count($result));
 
-        $output = \implode('', $result);
+        $output = implode('', $result);
         $this->assertStringContainsString('"type":"ReasoningStart"', $output);
         $this->assertStringContainsString('"type":"ReasoningMessageContent"', $output);
         $this->assertStringContainsString('"delta":"Analyzing the problem..."', $output);
@@ -127,12 +134,12 @@ class AgUIAdapterTest extends TestCase
         $tool = $this->createMockTool('calculator', ['operation' => 'add', 'x' => 5, 'y' => 3]);
         $chunk = new ToolCallChunk([$tool]);
 
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         // Should emit: ToolCallStart, ToolCallArgs, ToolCallEnd
-        $this->assertGreaterThanOrEqual(3, \count($result));
+        $this->assertGreaterThanOrEqual(3, count($result));
 
-        $output = \implode('', $result);
+        $output = implode('', $result);
         $this->assertStringContainsString('"type":"ToolCallStart"', $output);
         $this->assertStringContainsString('"toolCallName":"calculator"', $output);
         $this->assertStringContainsString('"type":"ToolCallArgs"', $output);
@@ -153,7 +160,7 @@ class AgUIAdapterTest extends TestCase
         $tool->setResult('42');
         $chunk = new ToolResultChunk([$tool]);
 
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"ToolCallResult"', $result[0]);
@@ -169,14 +176,14 @@ class AgUIAdapterTest extends TestCase
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
 
         // Call the tool
-        $callResult = \iterator_to_array($adapter->transform(new ToolCallChunk([$tool])));
-        \preg_match('/"toolCallId":"([^"]+)"/', $callResult[0], $callMatches);
+        $callResult = iterator_to_array($adapter->transform(new ToolCallChunk([$tool])));
+        preg_match('/"toolCallId":"([^"]+)"/', $callResult[0], $callMatches);
         $toolCallId = $callMatches[1] ?? null;
 
         // Return result for the same tool
         $tool->setResult('42');
-        $resultResult = \iterator_to_array($adapter->transform(new ToolResultChunk([$tool])));
-        \preg_match('/"toolCallId":"([^"]+)"/', $resultResult[0], $resultMatches);
+        $resultResult = iterator_to_array($adapter->transform(new ToolResultChunk([$tool])));
+        preg_match('/"toolCallId":"([^"]+)"/', $resultResult[0], $resultMatches);
         $resultToolCallId = $resultMatches[1] ?? null;
 
         $this->assertNotNull($toolCallId);
@@ -187,15 +194,15 @@ class AgUIAdapterTest extends TestCase
     public function test_sse_format_is_correct(): void
     {
         $chunk = new TextChunk('msg_123', 'Test');
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         foreach ($result as $line) {
             $this->assertStringStartsWith('data: ', $line);
             $this->assertStringEndsWith("\n\n", $line);
 
             // Extract JSON and validate
-            $json = \substr($line, 6, -2); // Remove "data: " and "\n\n"
-            $decoded = \json_decode($json, true);
+            $json = substr($line, 6, -2); // Remove "data: " and "\n\n"
+            $decoded = json_decode($json, true);
             $this->assertNotNull($decoded);
             $this->assertArrayHasKey('type', $decoded);
             $this->assertArrayHasKey('timestamp', $decoded);
@@ -205,7 +212,7 @@ class AgUIAdapterTest extends TestCase
     public function test_constructor_accepts_custom_thread_id(): void
     {
         $adapter = new AGUIAdapter('custom_thread_123');
-        $result = \iterator_to_array($adapter->start());
+        $result = iterator_to_array($adapter->start());
 
         $this->assertStringContainsString('"threadId":"custom_thread_123"', $result[0]);
     }
@@ -250,7 +257,7 @@ class AgUIAdapterTest extends TestCase
         }
 
         // Verify we have all expected event types
-        $output = \implode('', $allEvents);
+        $output = implode('', $allEvents);
         $this->assertStringContainsString('"type":"RunStarted"', $output);
         $this->assertStringContainsString('"type":"TextMessageStart"', $output);
         $this->assertStringContainsString('"type":"TextMessageContent"', $output);

@@ -11,6 +11,10 @@ use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\Observability\Events\Retrieved;
 use NeuronAI\Observability\Events\Retrieving;
 
+use function array_key_exists;
+use function count;
+use function md5;
+
 trait HandleRagEvents
 {
     public function ragRetrieving(object $source, string $event, Retrieving $data): void
@@ -20,7 +24,7 @@ trait HandleRagEvents
         }
 
         $questionText = $data->question->getContent();
-        $id = \md5($questionText.$data->question->getRole());
+        $id = md5($questionText.$data->question->getRole());
 
         $this->segments[$id] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$questionText} )")
@@ -30,13 +34,13 @@ trait HandleRagEvents
     public function ragRetrieved(object $source, string $event, Retrieved $data): void
     {
         $questionText = $data->question->getContent();
-        $id = \md5($questionText.$data->question->getRole());
+        $id = md5($questionText.$data->question->getRole());
 
-        if (\array_key_exists($id, $this->segments)) {
+        if (array_key_exists($id, $this->segments)) {
             $segment = $this->segments[$id];
             $segment->addContext('Data', [
                     'question' => $questionText,
-                    'documents' => \count($data->documents)
+                    'documents' => count($data->documents)
                 ]);
             $segment->end();
         }
@@ -59,7 +63,7 @@ trait HandleRagEvents
 
     public function preProcessed(object $source, string $event, PreProcessed $data): void
     {
-        if (\array_key_exists($data->processor, $this->segments)) {
+        if (array_key_exists($data->processor, $this->segments)) {
             $this->segments[$data->processor]
                 ->end()
                 ->addContext('Processed', $data->processed->jsonSerialize());
@@ -84,7 +88,7 @@ trait HandleRagEvents
 
     public function postProcessed(object $source, string $event, PostProcessed $data): void
     {
-        if (\array_key_exists($data->processor, $this->segments)) {
+        if (array_key_exists($data->processor, $this->segments)) {
             $this->segments[$data->processor]
                 ->end()
                 ->addContext('PostProcess', $data->documents);

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI;
 
+use function microtime;
+use function mt_rand;
+use function usleep;
+
 /**
  * Timestamp (41 bits) + Machine ID (10 bits) + Sequence (12 bits) = 64 bits PHP integer limit
  */
@@ -17,7 +21,7 @@ class UniqueIdGenerator
     {
         // Initialize machine ID once (you can set this based on server/process)
         if (self::$machineId === null) {
-            self::$machineId = \mt_rand(1, 1023); // 10 bits
+            self::$machineId = mt_rand(1, 1023); // 10 bits
         }
 
         $timestamp = self::getCurrentTimestamp();
@@ -44,14 +48,14 @@ class UniqueIdGenerator
 
     protected static function getCurrentTimestamp(): int
     {
-        return (int)(\microtime(true) * 1000);
+        return (int)(microtime(true) * 1000);
     }
 
     protected static function waitForNextTimestamp(int $lastTimestamp): int
     {
         $timestamp = self::getCurrentTimestamp();
         while ($timestamp <= $lastTimestamp) {
-            \usleep(100); // Wait 0.1ms
+            usleep(100); // Wait 0.1ms
             $timestamp = self::getCurrentTimestamp();
         }
         return $timestamp;

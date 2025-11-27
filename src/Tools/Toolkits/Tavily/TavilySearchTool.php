@@ -10,6 +10,12 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
+use function array_map;
+use function array_merge;
+use function implode;
+use function json_decode;
+use function trim;
+
 /**
  * @method static static make(string $key, array $topics = [])
  */
@@ -37,7 +43,7 @@ class TavilySearchTool extends Tool
         parent::__construct(
             'web_search',
             'Use this tool to search the web for additional information '.
-            ($this->topics === [] ? '' : 'about '.\implode(', ', $this->topics).', or ').
+            ($this->topics === [] ? '' : 'about '.implode(', ', $this->topics).', or ').
             'if the question is outside the scope of the context you have.'
         );
 
@@ -78,7 +84,7 @@ class TavilySearchTool extends Tool
     protected function getClient(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->url, '/').'/',
+            'base_uri' => trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
@@ -102,19 +108,19 @@ class TavilySearchTool extends Tool
         $days ??= 7;
 
         $result = $this->getClient()->post('search', [
-            RequestOptions::JSON => \array_merge(
+            RequestOptions::JSON => array_merge(
                 ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
                 $this->options,
                 ['query' => $search_query]
             )
         ])->getBody()->getContents();
 
-        $result = \json_decode($result, true);
+        $result = json_decode($result, true);
 
         return [
             'answer' => $result['answer'],
             'images' => $result['images'] ?? [],
-            'results' => \array_map(fn (array $item): array => [
+            'results' => array_map(fn (array $item): array => [
                 'title' => $item['title'],
                 'url' => $item['url'],
                 'content' => $item['content'],

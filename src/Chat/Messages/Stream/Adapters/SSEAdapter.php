@@ -6,6 +6,9 @@ namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use NeuronAI\UniqueIdGenerator;
 
+use function date;
+use function json_encode;
+
 /**
  * Base adapter for Server-Sent Events (SSE) streaming.
  *
@@ -25,7 +28,7 @@ abstract class SSEAdapter implements StreamAdapterInterface
      */
     protected function sse(array $data): string
     {
-        return 'data: ' . \json_encode($data) . "\n\n";
+        return 'data: ' . json_encode($data) . "\n\n";
     }
 
     /**
@@ -48,7 +51,7 @@ abstract class SSEAdapter implements StreamAdapterInterface
      */
     protected function timestamp(): string
     {
-        return \date('c');
+        return date('c');
     }
 
     public function getHeaders(): array

@@ -11,6 +11,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Generator;
 
 interface AgentInterface
 {
@@ -42,7 +43,7 @@ interface AgentInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null, ?StreamAdapterInterface $adapter = null): \Generator;
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null, ?StreamAdapterInterface $adapter = null): Generator;
 
     /**
      * @param Message|Message[] $messages

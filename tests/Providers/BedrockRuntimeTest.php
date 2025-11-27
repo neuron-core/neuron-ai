@@ -15,6 +15,9 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
+use stdClass;
+
+use function json_encode;
 
 class BedrockRuntimeTest extends TestCase
 {
@@ -208,6 +211,6 @@ class BedrockRuntimeTest extends TestCase
         $this->assertSame('empty_tool', $toolSpec['name']);
         $this->assertSame('object', $toolSpec['inputSchema']['json']['type']);
         $this->assertSame([], $toolSpec['inputSchema']['json']['required']);
-        $this->assertSame(\json_encode(new \stdClass()), \json_encode($toolSpec['inputSchema']['json']['properties']));
+        $this->assertSame(json_encode(new stdClass()), json_encode($toolSpec['inputSchema']['json']['properties']));
     }
 }

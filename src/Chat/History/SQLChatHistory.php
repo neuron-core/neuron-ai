@@ -7,6 +7,12 @@ namespace NeuronAI\Chat\History;
 use NeuronAI\Exceptions\ChatHistoryException;
 use PDO;
 
+use function in_array;
+use function json_decode;
+use function json_encode;
+use function preg_match;
+use function trim;
+
 /**
  *
  * CREATE TABLE chat_history (
@@ -46,14 +52,14 @@ class SQLChatHistory extends AbstractChatHistory
             $stmt = $this->pdo->prepare("INSERT INTO {$this->table} (thread_id, messages) VALUES (:thread_id, :messages)");
             $stmt->execute(['thread_id' => $this->thread_id, 'messages' => '[]']);
         } else {
-            $this->history = $this->deserializeMessages(\json_decode((string) $history[0]['messages'], true));
+            $this->history = $this->deserializeMessages(json_decode((string) $history[0]['messages'], true));
         }
     }
 
     public function setMessages(array $messages): ChatHistoryInterface
     {
         $stmt = $this->pdo->prepare("UPDATE {$this->table} SET messages = :messages WHERE thread_id = :thread_id");
-        $stmt->execute(['thread_id' => $this->thread_id, 'messages' => \json_encode($this->jsonSerialize())]);
+        $stmt->execute(['thread_id' => $this->thread_id, 'messages' => json_encode($this->jsonSerialize())]);
         return $this;
     }
 
@@ -66,7 +72,7 @@ class SQLChatHistory extends AbstractChatHistory
 
     protected function sanitizeTableName(string $tableName): string
     {
-        $tableName = \trim($tableName);
+        $tableName = trim($tableName);
 
         // Whitelist validation
         if (!$this->tableExists($tableName)) {
@@ -74,7 +80,7 @@ class SQLChatHistory extends AbstractChatHistory
         }
 
         // Format validation as backup
-        if (\in_array(\preg_match('/^[a-zA-Z_]\w*$/', $tableName), [0, false], true)) {
+        if (in_array(preg_match('/^[a-zA-Z_]\w*$/', $tableName), [0, false], true)) {
             throw new ChatHistoryException('Invalid table name format');
         }
 

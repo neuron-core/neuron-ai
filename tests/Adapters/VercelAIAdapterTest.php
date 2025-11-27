@@ -12,6 +12,11 @@ use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+use function json_decode;
+use function preg_match;
+use function substr;
+
 class VercelAIAdapterTest extends TestCase
 {
     private VercelAIAdapter $adapter;
@@ -38,7 +43,7 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_end_returns_finish_and_done_messages(): void
     {
-        $result = \iterator_to_array($this->adapter->end());
+        $result = iterator_to_array($this->adapter->end());
 
         $this->assertCount(2, $result);
         $this->assertStringContainsString('"type":"finish"', $result[0]);
@@ -75,7 +80,7 @@ class VercelAIAdapterTest extends TestCase
         $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
         $chunk = new ReasoningChunk('sig_123', 'Thinking...');
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"reasoning-delta"', $result[0]);
@@ -90,7 +95,7 @@ class VercelAIAdapterTest extends TestCase
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $chunk = new ToolCallChunk([$tool]);
 
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"tool-input-available"', $result[0]);
@@ -109,7 +114,7 @@ class VercelAIAdapterTest extends TestCase
         $tool->setResult('42');
         $chunk = new ToolResultChunk([$tool]);
 
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"tool-output-available"', $result[0]);
@@ -134,11 +139,11 @@ class VercelAIAdapterTest extends TestCase
         }
 
         // Extract message ID from first result (start message)
-        \preg_match('/"messageId":"([^"]+)"/', $result1[0], $matches1);
+        preg_match('/"messageId":"([^"]+)"/', $result1[0], $matches1);
         $messageId1 = $matches1[1] ?? null;
 
         // Extract message ID from second result (text-delta uses "id" field)
-        \preg_match('/"messageId":"([^"]+)"/', $result2[0], $matches2);
+        preg_match('/"messageId":"([^"]+)"/', $result2[0], $matches2);
         $messageId2 = $matches2[1] ?? null;
 
         $this->assertNotNull($messageId1);
@@ -149,15 +154,15 @@ class VercelAIAdapterTest extends TestCase
     public function test_sse_format_is_correct(): void
     {
         $chunk = new TextChunk('msg_123', 'Test');
-        $result = \iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk));
 
         foreach ($result as $line) {
             $this->assertStringStartsWith('data: ', $line);
             $this->assertStringEndsWith("\n\n", $line);
 
             // Extract JSON and validate
-            $json = \substr($line, 6, -2); // Remove "data: " and "\n\n"
-            $decoded = \json_decode($json, true);
+            $json = substr($line, 6, -2); // Remove "data: " and "\n\n"
+            $decoded = json_decode($json, true);
             $this->assertNotNull($decoded);
             $this->assertArrayHasKey('type', $decoded);
         }

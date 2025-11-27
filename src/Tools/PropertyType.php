@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use NeuronAI\Exceptions\ToolException;
+use Throwable;
+
+use function is_string;
 
 enum PropertyType: string
 {
@@ -22,14 +25,14 @@ enum PropertyType: string
      */
     public static function fromSchema(array|string $schema): PropertyType
     {
-        if (\is_string($schema)) {
+        if (is_string($schema)) {
             return PropertyType::from($schema);
         }
 
         foreach ($schema as $type) {
             try {
                 return PropertyType::from($type);
-            } catch (\Throwable) {
+            } catch (Throwable) {
             }
         }
 

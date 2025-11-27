@@ -7,6 +7,10 @@ namespace NeuronAI\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use JsonSerializable;
+
+use function serialize;
+use function unserialize;
 
 /**
  * Exception thrown when a workflow needs human input.
@@ -17,7 +21,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * - Workflow state: Current state
  * - Event: The event being processed when interrupted
  */
-class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
+class WorkflowInterrupt extends WorkflowException implements JsonSerializable
 {
     public function __construct(
         protected InterruptRequest $request,
@@ -55,10 +59,10 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     {
         return [
             'message' => $this->message,
-            'request' => \serialize($this->request),
-            'node' => \serialize($this->node),
-            'state' => \serialize($this->state),
-            'currentEvent' => \serialize($this->event),
+            'request' => serialize($this->request),
+            'node' => serialize($this->node),
+            'state' => serialize($this->state),
+            'currentEvent' => serialize($this->event),
         ];
     }
 
@@ -70,9 +74,9 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     public function __unserialize(array $data): void
     {
         $this->message = $data['message'];
-        $this->request = \unserialize($data['request']);
-        $this->node = \unserialize($data['node']);
-        $this->state = \unserialize($data['state']);
-        $this->event = \unserialize($data['currentEvent']);
+        $this->request = unserialize($data['request']);
+        $this->node = unserialize($data['node']);
+        $this->state = unserialize($data['state']);
+        $this->event = unserialize($data['currentEvent']);
     }
 }

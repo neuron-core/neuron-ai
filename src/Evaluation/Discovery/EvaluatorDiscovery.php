@@ -9,6 +9,13 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
 use ReflectionException;
+use InvalidArgumentException;
+
+use function class_exists;
+use function file_get_contents;
+use function is_dir;
+use function preg_match;
+use function preg_match_all;
 
 class EvaluatorDiscovery
 {
@@ -18,8 +25,8 @@ class EvaluatorDiscovery
      */
     public function discover(string $path): array
     {
-        if (!\is_dir($path)) {
-            throw new \InvalidArgumentException("Directory not found: {$path}");
+        if (!is_dir($path)) {
+            throw new InvalidArgumentException("Directory not found: {$path}");
         }
 
         $evaluators = [];
@@ -62,7 +69,7 @@ class EvaluatorDiscovery
      */
     private function getClassesFromFile(string $filePath): array
     {
-        $content = \file_get_contents($filePath);
+        $content = file_get_contents($filePath);
         if ($content === false) {
             return [];
         }
@@ -71,12 +78,12 @@ class EvaluatorDiscovery
         $namespace = '';
 
         // Extract namespace
-        if (\preg_match('/^namespace\s+([^;]+);/m', $content, $matches)) {
+        if (preg_match('/^namespace\s+([^;]+);/m', $content, $matches)) {
             $namespace = $matches[1];
         }
 
         // Extract class names
-        if (\preg_match_all('/^class\s+(\w+)/m', $content, $matches)) {
+        if (preg_match_all('/^class\s+(\w+)/m', $content, $matches)) {
             foreach ($matches[1] as $className) {
                 $fullClassName = $namespace !== '' && $namespace !== '0' ? "{$namespace}\\{$className}" : $className;
                 $classes[] = $fullClassName;
@@ -90,7 +97,7 @@ class EvaluatorDiscovery
     {
         try {
             // Check if class exists (autoload it)
-            if (!\class_exists($className)) {
+            if (!class_exists($className)) {
                 return false;
             }
 

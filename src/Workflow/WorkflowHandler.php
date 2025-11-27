@@ -7,6 +7,8 @@ namespace NeuronAI\Workflow;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Generator;
+use Throwable;
 
 class WorkflowHandler
 {
@@ -23,11 +25,11 @@ class WorkflowHandler
      * Stream workflow events, optionally through a protocol adapter.
      *
      * @param StreamAdapterInterface|null $adapter Optional protocol adapter
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function streamEvents(?StreamAdapterInterface $adapter = null): \Generator
+    public function streamEvents(?StreamAdapterInterface $adapter = null): Generator
     {
         // Protocol start (if adapter provided)
         if ($adapter instanceof StreamAdapterInterface) {
@@ -66,7 +68,7 @@ class WorkflowHandler
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */

@@ -8,6 +8,11 @@ use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
 
+use function array_chunk;
+use function array_map;
+use function array_merge;
+use function json_decode;
+
 class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     protected Client $client;
@@ -39,31 +44,31 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return $response['data'][0]['embedding'];
     }
 
     public function embedDocuments(array $documents): array
     {
-        $chunks = \array_chunk($documents, 100);
+        $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
             $response = $this->client->post('', [
                 RequestOptions::JSON => [
                     'model' => $this->model,
-                    'input' => \array_map(fn (Document $document): string => $document->getContent(), $chunk),
+                    'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
                     'output_dimension' => $this->dimensions,
                 ]
             ])->getBody()->getContents();
 
-            $response = \json_decode($response, true);
+            $response = json_decode($response, true);
 
             foreach ($response['data'] as $index => $item) {
                 $chunk[$index]->embedding = $item['embedding'];
             }
         }
 
-        return \array_merge(...$chunks);
+        return array_merge(...$chunks);
     }
 }

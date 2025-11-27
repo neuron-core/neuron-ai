@@ -18,6 +18,13 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use stdClass;
+
+use function array_filter;
+use function array_map;
+use function array_merge;
+use function json_encode;
+use function uniqid;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -64,8 +71,8 @@ class MessageMapper implements MessageMapperInterface
      */
     protected function mapContentBlocks(array $blocks, bool $isUser): array
     {
-        $blocks = \array_filter($blocks, fn (ContentBlockInterface $block): bool => !$block instanceof ReasoningContent);
-        return \array_map(fn (ContentBlockInterface $block): array => match ($block::class) {
+        $blocks = array_filter($blocks, fn (ContentBlockInterface $block): bool => !$block instanceof ReasoningContent);
+        return array_map(fn (ContentBlockInterface $block): array => match ($block::class) {
             TextContent::class => $this->mapTextBlock($block, $isUser),
             FileContent::class => $this->mapFileBlock($block),
             ImageContent::class => $this->mapImageBlock($block),
@@ -86,7 +93,7 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
+                'filename' => $block->filename ?? "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
@@ -115,7 +122,7 @@ class MessageMapper implements MessageMapperInterface
     {
         // Add content blocks if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $this->mapping = \array_merge($this->mapping, $this->mapContentBlocks($contentBlocks, false));
+            $this->mapping = array_merge($this->mapping, $this->mapContentBlocks($contentBlocks, false));
         }
 
         // Add function call items
@@ -124,7 +131,7 @@ class MessageMapper implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => \json_encode($inputs !== [] ? $inputs : new \stdClass()),
+                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }

@@ -17,6 +17,12 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_map;
+use function is_array;
+use function mb_strlen;
+use function trim;
+use function uniqid;
+
 class Anthropic implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -51,7 +57,7 @@ class Anthropic implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->baseUri, '/').'/',
+            'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->key,
@@ -88,7 +94,7 @@ class Anthropic implements AIProviderInterface
      */
     public function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
-        $tools = \array_map(fn (array $tool): ToolInterface => $this->findTool($tool['name'])
+        $tools = array_map(fn (array $tool): ToolInterface => $this->findTool($tool['name'])
             ->setInputs($tool['input'])
             ->setCallId($tool['id']), $toolCalls);
 
@@ -111,13 +117,13 @@ class Anthropic implements AIProviderInterface
 
             if ($type === 'text') {
                 $text = $block['text'] ?? '';
-                $textLength = \mb_strlen($text);
+                $textLength = mb_strlen($text);
 
                 // Check if this text block has citations metadata
-                if (isset($block['citations']) && \is_array($block['citations'])) {
+                if (isset($block['citations']) && is_array($block['citations'])) {
                     foreach ($block['citations'] as $citation) {
                         $citations[] = new Citation(
-                            id: $citation['id'] ?? \uniqid('anthropic_'),
+                            id: $citation['id'] ?? uniqid('anthropic_'),
                             source: $citation['source'] ?? '',
                             title: $citation['title'] ?? null,
                             startIndex: ($citation['start_index'] ?? 0) + $textOffset,

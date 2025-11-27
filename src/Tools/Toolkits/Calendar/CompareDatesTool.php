@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
 
 class CompareDatesTool extends Tool
 {
@@ -57,19 +62,19 @@ class CompareDatesTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $dateTime1 = \is_numeric($date1)
-                ? (new \DateTime())->setTimestamp((int) $date1)->setTimezone($tz)
-                : new \DateTime($date1, $tz);
+            $dateTime1 = is_numeric($date1)
+                ? (new DateTime())->setTimestamp((int) $date1)->setTimezone($tz)
+                : new DateTime($date1, $tz);
 
-            $dateTime2 = \is_numeric($date2)
-                ? (new \DateTime())->setTimestamp((int) $date2)->setTimezone($tz)
-                : new \DateTime($date2, $tz);
+            $dateTime2 = is_numeric($date2)
+                ? (new DateTime())->setTimestamp((int) $date2)->setTimezone($tz)
+                : new DateTime($date2, $tz);
 
             $this->normalizeDateTimes($dateTime1, $dateTime2, $precision);
 
             $comparison = $dateTime1 <=> $dateTime2;
 
-            return \json_encode([
+            return json_encode([
                 'date1' => $dateTime1->format('Y-m-d H:i:s'),
                 'date2' => $dateTime2->format('Y-m-d H:i:s'),
                 'comparison' => match ($comparison) {
@@ -82,12 +87,12 @@ class CompareDatesTool extends Tool
                 'is_equal' => $comparison === 0,
                 'precision' => $precision,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }
 
-    private function normalizeDateTimes(\DateTime $dateTime1, \DateTime $dateTime2, string $precision): void
+    private function normalizeDateTimes(DateTime $dateTime1, DateTime $dateTime2, string $precision): void
     {
         match ($precision) {
             'year' => [

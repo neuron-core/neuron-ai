@@ -6,6 +6,12 @@ namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 
+use function array_filter;
+use function array_map;
+use function array_merge;
+use function array_sum;
+use function count;
+
 class EvaluatorSummary
 {
     /**
@@ -27,12 +33,12 @@ class EvaluatorSummary
 
     public function getTotalCount(): int
     {
-        return \count($this->results);
+        return count($this->results);
     }
 
     public function getPassedCount(): int
     {
-        return \count(\array_filter($this->results, fn (EvaluatorResult $result): bool => $result->isPassed()));
+        return count(array_filter($this->results, fn (EvaluatorResult $result): bool => $result->isPassed()));
     }
 
     public function getFailedCount(): int
@@ -68,7 +74,7 @@ class EvaluatorSummary
      */
     public function getFailedResults(): array
     {
-        return \array_filter($this->results, fn (EvaluatorResult $result): bool => !$result->isPassed());
+        return array_filter($this->results, fn (EvaluatorResult $result): bool => !$result->isPassed());
     }
 
     public function hasFailures(): bool
@@ -78,12 +84,12 @@ class EvaluatorSummary
 
     public function getTotalAssertionsPassed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsPassed(), $this->results));
+        return array_sum(array_map(fn (EvaluatorResult $result): int => $result->getAssertionsPassed(), $this->results));
     }
 
     public function getTotalAssertionsFailed(): int
     {
-        return \array_sum(\array_map(fn (EvaluatorResult $result): int => $result->getAssertionsFailed(), $this->results));
+        return array_sum(array_map(fn (EvaluatorResult $result): int => $result->getAssertionsFailed(), $this->results));
     }
 
     public function getTotalAssertions(): int
@@ -108,7 +114,7 @@ class EvaluatorSummary
     {
         $failures = [];
         foreach ($this->results as $result) {
-            $failures = \array_merge($failures, $result->getAssertionFailures());
+            $failures = array_merge($failures, $result->getAssertionFailures());
         }
         return $failures;
     }

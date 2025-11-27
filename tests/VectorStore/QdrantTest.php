@@ -10,6 +10,8 @@ use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use function sprintf;
+
 class QdrantTest extends TestCase
 {
     use CheckOpenPort;
@@ -32,7 +34,7 @@ class QdrantTest extends TestCase
         }
 
         $this->store = new QdrantVectorStore(
-            collectionUrl: \sprintf("http://127.0.0.1:%d/collections/%s", self::SERVICE_PORT, self::COLLECTION_NAME),
+            collectionUrl: sprintf("http://127.0.0.1:%d/collections/%s", self::SERVICE_PORT, self::COLLECTION_NAME),
             dimension: 3,
         );
     }

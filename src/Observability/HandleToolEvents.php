@@ -12,6 +12,9 @@ use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_key_exists;
+use function array_reduce;
+
 trait HandleToolEvents
 {
     protected Segment $toolBootstrap;
@@ -39,7 +42,7 @@ trait HandleToolEvents
     {
         if (isset($this->toolBootstrap)) {
             $this->toolBootstrap->end();
-            $this->toolBootstrap->addContext('Tools', \array_reduce($data->tools, function (array $carry, ToolInterface|ProviderToolInterface $tool): array {
+            $this->toolBootstrap->addContext('Tools', array_reduce($data->tools, function (array $carry, ToolInterface|ProviderToolInterface $tool): array {
                 if ($tool instanceof ProviderToolInterface) {
                     $carry[$tool->getType()] = $tool->getOptions();
                 } else {
@@ -67,7 +70,7 @@ trait HandleToolEvents
 
     public function toolCalled(object $source, string $event, ToolCalled $data): void
     {
-        if (!\array_key_exists($data->tool::class, $this->toolCalls)) {
+        if (!array_key_exists($data->tool::class, $this->toolCalls)) {
             return;
         }
 

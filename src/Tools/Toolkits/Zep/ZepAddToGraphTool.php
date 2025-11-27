@@ -9,6 +9,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function json_decode;
+
 /**
  * @method static static make(string $key, string $user_id)
  */
@@ -58,7 +60,7 @@ Look for facts, news or any relevant information in the conversation that you th
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return $response['content'];
     }

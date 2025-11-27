@@ -15,6 +15,17 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+use Throwable;
+
+use function json_decode;
+use function str_contains;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Originally inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -29,7 +40,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $json = [
             'stream' => true,
@@ -143,19 +154,19 @@ trait HandleStream
     {
         $line = $this->readLine($stream);
 
-        if (! \str_starts_with((string) $line, 'data:')) {
+        if (! str_starts_with((string) $line, 'data:')) {
             return null;
         }
 
-        $line = \trim(\substr((string) $line, \strlen('data: ')));
+        $line = trim(substr((string) $line, strlen('data: ')));
 
-        if (\str_contains($line, 'DONE')) {
+        if (str_contains($line, 'DONE')) {
             return null;
         }
 
         try {
-            $event = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
+            $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
             throw new ProviderException('OpenAI streaming JSON decode error: ' . $exception->getMessage());
         }
 

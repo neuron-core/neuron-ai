@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
+use Generator;
 
 trait HandleStream
 {
@@ -27,7 +28,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $json = [
             'stream' => true,
@@ -116,7 +117,7 @@ trait HandleStream
         }
     }
 
-    protected function handleBlockDelta(array $event): \Generator
+    protected function handleBlockDelta(array $event): Generator
     {
         $index = $event['index'];
         $delta = $event['delta'];

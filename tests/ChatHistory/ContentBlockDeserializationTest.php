@@ -15,6 +15,17 @@ use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use PHPUnit\Framework\TestCase;
 
+use function file_put_contents;
+use function glob;
+use function is_dir;
+use function is_file;
+use function json_encode;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
+
 class ContentBlockDeserializationTest extends TestCase
 {
     private string $testDir;
@@ -22,22 +33,22 @@ class ContentBlockDeserializationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->testDir = \sys_get_temp_dir() . '/neuron_test_' . \uniqid();
-        \mkdir($this->testDir);
+        $this->testDir = sys_get_temp_dir() . '/neuron_test_' . uniqid();
+        mkdir($this->testDir);
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
         // Clean up test directory
-        if (\is_dir($this->testDir)) {
-            $files = \glob($this->testDir . '/*');
+        if (is_dir($this->testDir)) {
+            $files = glob($this->testDir . '/*');
             foreach ($files as $file) {
-                if (\is_file($file)) {
-                    \unlink($file);
+                if (is_file($file)) {
+                    unlink($file);
                 }
             }
-            \rmdir($this->testDir);
+            rmdir($this->testDir);
         }
     }
 
@@ -58,7 +69,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($legacyData));
+        file_put_contents($filePath, json_encode($legacyData));
 
         // Load with FileChatHistory - should automatically migrate
         $history = new FileChatHistory($this->testDir, $key);
@@ -119,7 +130,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($newData));
+        file_put_contents($filePath, json_encode($newData));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();
@@ -183,7 +194,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($data));
+        file_put_contents($filePath, json_encode($data));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();
@@ -234,7 +245,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($mixedData));
+        file_put_contents($filePath, json_encode($mixedData));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();

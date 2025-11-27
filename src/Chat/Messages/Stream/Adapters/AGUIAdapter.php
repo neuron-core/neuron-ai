@@ -9,6 +9,8 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 
+use function json_encode;
+
 /**
  * Adapter for AG-UI Protocol.
  *
@@ -130,7 +132,7 @@ class AGUIAdapter extends SSEAdapter
                 yield $this->sse([
                     'type' => 'ToolCallArgs',
                     'toolCallId' => $toolCallId,
-                    'delta' => \json_encode($args),
+                    'delta' => json_encode($args),
                     'timestamp' => $this->timestamp(),
                 ]);
             }

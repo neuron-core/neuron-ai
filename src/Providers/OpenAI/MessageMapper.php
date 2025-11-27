@@ -18,6 +18,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
+use function array_key_exists;
+use function array_map;
+use function uniqid;
+
 class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
@@ -46,7 +50,7 @@ class MessageMapper implements MessageMapperInterface
 
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
@@ -90,7 +94,7 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
+                'filename' => $block->filename ?? "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
@@ -102,7 +106,7 @@ class MessageMapper implements MessageMapperInterface
 
         $result['content'] = $message->getContent();
 
-        if (\array_key_exists('usage', $result)) {
+        if (array_key_exists('usage', $result)) {
             unset($result['usage']);
         }
 

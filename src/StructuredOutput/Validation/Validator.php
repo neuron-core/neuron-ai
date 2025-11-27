@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation;
 
+use ReflectionClass;
+use ReflectionException;
+use ReflectionProperty;
+
 class Validator
 {
     /**
      * Validate an object
      *
      * @return array<int, string>
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public static function validate(mixed $obj): array
     {
-        $reflection = new \ReflectionClass($obj);
+        $reflection = new ReflectionClass($obj);
         $violations = [];
 
-        foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
+        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             // Get all attributes for this property
             $attributes = $property->getAttributes();
 

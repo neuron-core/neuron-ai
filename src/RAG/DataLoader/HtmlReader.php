@@ -6,6 +6,8 @@ namespace NeuronAI\RAG\DataLoader;
 
 use Html2Text\Html2Text;
 
+use function file_get_contents;
+
 class HtmlReader implements ReaderInterface
 {
     /**
@@ -13,7 +15,7 @@ class HtmlReader implements ReaderInterface
      */
     public static function getText(string $filePath, array $options = []): string
     {
-        $html = new Html2Text(\file_get_contents($filePath));
+        $html = new Html2Text(file_get_contents($filePath));
 
         return $html->getText();
     }

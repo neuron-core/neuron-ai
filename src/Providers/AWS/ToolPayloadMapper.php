@@ -9,6 +9,9 @@ use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
+use stdClass;
+
+use function array_reduce;
 
 class ToolPayloadMapper implements ToolPayloadMapperInterface
 {
@@ -36,14 +39,14 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
                 'inputSchema' => [
                     'json' => [
                         'type' => 'object',
-                        'properties' => new \stdClass(),
+                        'properties' => new stdClass(),
                         'required' => [],
                     ]
                 ],
             ],
         ];
 
-        $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
+        $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
             $carry[$property->getName()] = $property->getJsonSchema();
             return $carry;
         }, []);

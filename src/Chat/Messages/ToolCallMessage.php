@@ -6,11 +6,16 @@ namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Tools\ToolInterface;
+use Stringable;
+
+use function array_map;
+use function array_merge;
+use function json_encode;
 
 /**
  * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content, ToolInterface[] $tools)
  */
-class ToolCallMessage extends AssistantMessage implements \Stringable
+class ToolCallMessage extends AssistantMessage implements Stringable
 {
     /**
      * @param ToolInterface[] $tools
@@ -32,17 +37,17 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
 
     public function jsonSerialize(): array
     {
-        return \array_merge(
+        return array_merge(
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call',
-                'tools' => \array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools)
+                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools)
             ]
         );
     }
 
     public function __toString(): string
     {
-        return (string) \json_encode($this->getTools());
+        return (string) json_encode($this->getTools());
     }
 }

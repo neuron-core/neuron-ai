@@ -15,6 +15,7 @@ use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
+use Throwable;
 
 /**
  * Node responsible for executing tool calls.
@@ -28,7 +29,7 @@ class ToolNode extends Node
 
     /**
      * @throws ToolMaxTriesException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent
     {
@@ -43,7 +44,7 @@ class ToolNode extends Node
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      * @throws ToolMaxTriesException
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
@@ -59,7 +60,7 @@ class ToolNode extends Node
      * Execute a single tool with proper error handling and retry logic.
      *
      * @throws ToolMaxTriesException If the tool exceeds its maximum retry attempts
-     * @throws \Throwable If the tool execution fails
+     * @throws Throwable If the tool execution fails
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
     {
@@ -75,7 +76,7 @@ class ToolNode extends Node
             }
 
             $tool->execute();
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->emit('error', new AgentError($exception));
             throw $exception;
         }

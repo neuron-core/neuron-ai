@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-class Usage implements \JsonSerializable
+use JsonSerializable;
+
+class Usage implements JsonSerializable
 {
     public function __construct(
         public int $inputTokens,

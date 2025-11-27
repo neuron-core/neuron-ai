@@ -9,6 +9,13 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_filter;
+use function array_map;
+use function array_sum;
+use function count;
+use function round;
+use function sqrt;
+
 class StandardDeviationTool extends Tool
 {
     public function __construct(protected int $precision = 2, protected bool $sample = true)
@@ -49,21 +56,21 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
-        if (\count($numericData) === 1 && $this->sample) {
+        if (count($numericData) === 1 && $this->sample) {
             return ['error' => 'Cannot calculate sample standard deviation with only one data point'];
         }
 
         // Convert to float values
-        $numericData = \array_map(floatval(...), $numericData);
+        $numericData = array_map(floatval(...), $numericData);
 
         // Calculate mean
-        $mean = \array_sum($numericData) / \count($numericData);
+        $mean = array_sum($numericData) / count($numericData);
 
         // Calculate the sum of squared differences
         $sumSquaredDifferences = 0;
@@ -72,12 +79,12 @@ DESC
         }
 
         // Calculate variance
-        $divisor = $this->sample ? \count($numericData) - 1 : \count($numericData);
+        $divisor = $this->sample ? count($numericData) - 1 : count($numericData);
         $variance = $sumSquaredDifferences / $divisor;
 
         // Calculate standard deviation
-        $standardDeviation = \sqrt($variance);
+        $standardDeviation = sqrt($variance);
 
-        return \round($standardDeviation, $this->precision);
+        return round($standardDeviation, $this->precision);
     }
 }

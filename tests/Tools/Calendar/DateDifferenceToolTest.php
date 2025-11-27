@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\DateDifferenceTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class DateDifferenceToolTest extends TestCase
 {
     private DateDifferenceTool $tool;
@@ -70,7 +73,7 @@ class DateDifferenceToolTest extends TestCase
     {
         $result = ($this->tool)('2022-01-15 10:30:45', '2023-03-20 14:45:30', 'all');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertArrayHasKey('years', $data);
         $this->assertArrayHasKey('months', $data);
@@ -147,7 +150,7 @@ class DateDifferenceToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(4, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('start_date', $propertyNames);
         $this->assertContains('end_date', $propertyNames);
         $this->assertContains('unit', $propertyNames);

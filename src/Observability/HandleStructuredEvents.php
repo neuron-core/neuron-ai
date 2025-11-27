@@ -14,6 +14,8 @@ use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
 
+use function json_decode;
+
 trait HandleStructuredEvents
 {
     protected Segment $schema;
@@ -100,7 +102,7 @@ trait HandleStructuredEvents
     {
         if (isset($this->validate)) {
             $this->validate->end();
-            $this->validate->addContext('Json', \json_decode($data->json));
+            $this->validate->addContext('Json', json_decode($data->json));
             if ($data->violations !== []) {
                 $this->validate->addContext('Violations', $data->violations);
             }

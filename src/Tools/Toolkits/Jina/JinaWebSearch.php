@@ -10,6 +10,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
+use function implode;
+
 /**
  * @method static make(string $key, array $topics)
  */
@@ -24,7 +26,7 @@ class JinaWebSearch extends Tool
         parent::__construct(
             'web_search',
             'Use this tool to search the web for additional information '.
-            ($topics === [] ? '' : 'about '.\implode(', ', $topics).', or ').
+            ($topics === [] ? '' : 'about '.implode(', ', $topics).', or ').
             'if the question is outside the scope of the context you have.'
         );
     }

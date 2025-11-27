@@ -5,8 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\StructuredOutputException;
+use Attribute;
+use Stringable;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY)]
+use function is_null;
+use function is_string;
+use function mb_strlen;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
 class Length extends AbstractValidationRule
 {
     public function __construct(
@@ -26,19 +32,19 @@ class Length extends AbstractValidationRule
             throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "Length"');
         }
 
-        if (\is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
+        if (is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
             $violations[] = $this->buildMessage($name, '{name} cannot be empty');
             return;
         }
 
-        if (!\is_string($value) && !$value instanceof \Stringable) {
+        if (!is_string($value) && !$value instanceof Stringable) {
             $violations[] = $this->buildMessage($name, '{name} must be a scalar or a stringable object');
             return;
         }
 
         $stringValue = (string) $value;
 
-        $length = \mb_strlen($stringValue);
+        $length = mb_strlen($stringValue);
 
         if (null !== $this->max && $length > $this->max) {
             $shouldExact = $this->min == $this->max;

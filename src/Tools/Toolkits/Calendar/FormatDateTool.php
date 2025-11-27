@@ -8,6 +8,10 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
 
 class FormatDateTool extends Tool
 {
@@ -53,12 +57,12 @@ class FormatDateTool extends Tool
         $output_timezone ??= $input_timezone;
 
         try {
-            if (\is_numeric($date)) {
-                $dateTime = new \DateTime();
+            if (is_numeric($date)) {
+                $dateTime = new DateTime();
                 $dateTime->setTimestamp((int) $date);
                 $dateTime->setTimezone(new DateTimeZone($input_timezone));
             } else {
-                $dateTime = new \DateTime($date, new DateTimeZone($input_timezone));
+                $dateTime = new DateTime($date, new DateTimeZone($input_timezone));
             }
 
             if ($output_timezone !== $input_timezone) {
@@ -66,7 +70,7 @@ class FormatDateTool extends Tool
             }
 
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

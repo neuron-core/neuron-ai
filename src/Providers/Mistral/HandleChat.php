@@ -14,6 +14,9 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_unshift;
+use function json_decode;
+
 trait HandleChat
 {
     public function chat(array $messages): Message
@@ -25,7 +28,7 @@ trait HandleChat
     {
         // Include the system prompt
         if (isset($this->system)) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
+            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
         $json = [
@@ -41,7 +44,7 @@ trait HandleChat
 
         return $this->client->postAsync('chat/completions', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response): AssistantMessage|ToolCallMessage {
-                $result = \json_decode($response->getBody()->getContents(), true);
+                $result = json_decode($response->getBody()->getContents(), true);
 
                 if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
                     $response = $this->createToolCallMessage(

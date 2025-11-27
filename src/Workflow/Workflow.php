@@ -23,6 +23,17 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
 use ReflectionException;
+use ReflectionNamedType;
+use ReflectionType;
+use ReflectionUnionType;
+use Throwable;
+
+use function array_merge;
+use function count;
+use function is_a;
+use function is_array;
+use function is_null;
+use function uniqid;
 
 /**
  * @method static static make(?WorkflowState $state = null, ?PersistenceInterface $persistence = null, ?string $workflowId = null)
@@ -60,22 +71,22 @@ class Workflow implements WorkflowInterface
     ) {
         $this->exporter = new ConsoleExporter();
 
-        if (\is_null($persistence) && !\is_null($workflowId)) {
+        if (is_null($persistence) && !is_null($workflowId)) {
             throw new WorkflowException('Persistence must be defined when workflowId is defined');
         }
 
-        if (!\is_null($persistence) && \is_null($workflowId)) {
+        if (!is_null($persistence) && is_null($workflowId)) {
             throw new WorkflowException('WorkflowId must be defined when persistence is defined');
         }
 
         $this->persistence = $persistence ?? new InMemoryPersistence();
-        $this->workflowId = $workflowId ?? \uniqid('workflow_');
+        $this->workflowId = $workflowId ?? uniqid('workflow_');
 
         // Register the node middleware
         $global = $this->globalMiddleware();
         foreach ($this->middleware() as $node => $middleware) {
-            $middleware = \is_array($middleware) ? $middleware : [$middleware];
-            $this->addMiddleware($node, \array_merge($middleware, $global));
+            $middleware = is_array($middleware) ? $middleware : [$middleware];
+            $this->addMiddleware($node, array_merge($middleware, $global));
         }
     }
 
@@ -147,9 +158,9 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowInterrupt|WorkflowException|\Throwable
+     * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
-    public function run(): \Generator|WorkflowState
+    public function run(): Generator|WorkflowState
     {
         $this->emit('workflow-start', new WorkflowStart($this->eventNodeMap));
 
@@ -169,9 +180,9 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowInterrupt|WorkflowException|\Throwable
+     * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
-    public function resume(InterruptRequest $resumeRequest): \Generator|WorkflowState
+    public function resume(InterruptRequest $resumeRequest): Generator|WorkflowState
     {
         $this->emit('workflow-resume', new WorkflowStart($this->eventNodeMap));
 
@@ -198,14 +209,14 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowInterrupt|WorkflowException|\Throwable
+     * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
     protected function execute(
         Event $currentEvent,
         NodeInterface $currentNode,
         bool $resuming = false,
         ?Interrupt\InterruptRequest $resumeRequest = null
-    ): \Generator {
+    ): Generator {
         try {
             while (!($currentEvent instanceof StopEvent)) {
                 $currentNode->setWorkflowContext(
@@ -220,7 +231,7 @@ class Workflow implements WorkflowInterface
                     // Execute node through the middleware pipeline
                     $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->resolveState());
 
-                    if ($result instanceof \Generator) {
+                    if ($result instanceof Generator) {
                         foreach ($result as $event) {
                             yield $event;
                         }
@@ -232,7 +243,7 @@ class Workflow implements WorkflowInterface
                 } catch (WorkflowInterrupt $interrupt) {
                     // Interruptions are intentional, not errors - let them bubble to outer catch
                     throw $interrupt;
-                } catch (\Throwable $exception) {
+                } catch (Throwable $exception) {
                     // Only notify for actual errors
                     $this->emit('error', new AgentError($exception));
                     throw $exception;
@@ -297,7 +308,7 @@ class Workflow implements WorkflowInterface
      */
     protected function getNodes(): array
     {
-        return \array_merge($this->nodes(), $this->nodes);
+        return array_merge($this->nodes(), $this->nodes);
     }
 
     /**
@@ -330,7 +341,7 @@ class Workflow implements WorkflowInterface
                 $firstParam = $parameters[0];
                 $firstParamType = $firstParam->getType();
 
-                if ($firstParamType instanceof \ReflectionNamedType) {
+                if ($firstParamType instanceof ReflectionNamedType) {
                     $eventClass = $firstParamType->getName();
 
                     if (isset($this->eventNodeMap[$eventClass])) {
@@ -378,49 +389,49 @@ class Workflow implements WorkflowInterface
             $method = $reflection->getMethod('__invoke');
             $parameters = $method->getParameters();
 
-            if (\count($parameters) !== 2) {
+            if (count($parameters) !== 2) {
                 throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must have exactly 2 parameters');
             }
 
             $firstParam = $parameters[0];
             $secondParam = $parameters[1];
 
-            if (!$firstParam->hasType() || !$firstParam->getType() instanceof \ReflectionType) {
+            if (!$firstParam->hasType() || !$firstParam->getType() instanceof ReflectionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must have a type declaration');
             }
 
-            if (!$secondParam->hasType() || !$secondParam->getType() instanceof \ReflectionType) {
+            if (!$secondParam->hasType() || !$secondParam->getType() instanceof ReflectionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must have a type declaration');
             }
 
             $firstParamType = $firstParam->getType();
             $secondParamType = $secondParam->getType();
 
-            if ($firstParamType instanceof \ReflectionUnionType) {
+            if ($firstParamType instanceof ReflectionUnionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Nodes can handle only one event type.');
             }
 
-            if (!($firstParamType instanceof \ReflectionNamedType) || !\is_a($firstParamType->getName(), Event::class, true)) {
+            if (!($firstParamType instanceof ReflectionNamedType) || !is_a($firstParamType->getName(), Event::class, true)) {
                 throw new WorkflowException('Failed to validate '.$node::class.': First parameter of __invoke method must be a type that implements ' . Event::class);
             }
 
-            if (!($secondParamType instanceof \ReflectionNamedType) || !\is_a($secondParamType->getName(), WorkflowState::class, true)) {
+            if (!($secondParamType instanceof ReflectionNamedType) || !is_a($secondParamType->getName(), WorkflowState::class, true)) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Second parameter of __invoke method must be ' . WorkflowState::class);
             }
 
             $returnType = $method->getReturnType();
 
-            if ($returnType instanceof \ReflectionNamedType) {
+            if ($returnType instanceof ReflectionNamedType) {
                 // Handle single return types
-                if (!\is_a($returnType->getName(), Event::class, true) && !\is_a($returnType->getName(), \Generator::class, true)) {
+                if (!is_a($returnType->getName(), Event::class, true) && !is_a($returnType->getName(), Generator::class, true)) {
                     throw new WorkflowException('Failed to validate '.$node::class.': __invoke method must return a type that implements ' . Event::class);
                 }
-            } elseif ($returnType instanceof \ReflectionUnionType) {
+            } elseif ($returnType instanceof ReflectionUnionType) {
                 // Handle union return type - all types must implement Event interface or be a Generator
                 foreach ($returnType->getTypes() as $type) {
                     if (
-                        !($type instanceof \ReflectionNamedType) ||
-                        (!\is_a($type->getName(), Event::class, true) && !\is_a($type->getName(), \Generator::class, true))
+                        !($type instanceof ReflectionNamedType) ||
+                        (!is_a($type->getName(), Event::class, true) && !is_a($type->getName(), Generator::class, true))
                     ) {
                         throw new WorkflowException('Failed to validate '.$node::class.': All return types in union must implement ' . Event::class);
                     }

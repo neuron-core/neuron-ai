@@ -6,6 +6,8 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 
+use function array_merge;
+
 class ReasoningContent extends TextContent
 {
     public function __construct(
@@ -22,6 +24,6 @@ class ReasoningContent extends TextContent
 
     public function toArray(): array
     {
-        return \array_merge(parent::toArray(), ['id' => $this->id]);
+        return array_merge(parent::toArray(), ['id' => $this->id]);
     }
 }

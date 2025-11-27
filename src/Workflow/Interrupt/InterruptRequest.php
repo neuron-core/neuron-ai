@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
-class InterruptRequest implements \JsonSerializable
+use JsonSerializable;
+
+use function array_filter;
+use function array_map;
+use function array_values;
+
+class InterruptRequest implements JsonSerializable
 {
     /**
      * @var array<string, Action> $actions
@@ -43,7 +49,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getActions(): array
     {
-        return \array_values($this->actions);
+        return array_values($this->actions);
     }
 
     /**
@@ -64,7 +70,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getPendingActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a): bool => $a->isPending());
+        return array_filter($this->actions, fn (Action $a): bool => $a->isPending());
     }
 
     /**
@@ -74,7 +80,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getApprovedActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a): bool => $a->isApproved());
+        return array_filter($this->actions, fn (Action $a): bool => $a->isApproved());
     }
 
     /**
@@ -84,7 +90,7 @@ class InterruptRequest implements \JsonSerializable
      */
     public function getRejectedActions(): array
     {
-        return \array_filter($this->actions, fn (Action $a): bool => $a->isRejected());
+        return array_filter($this->actions, fn (Action $a): bool => $a->isRejected());
     }
 
     /**
@@ -96,7 +102,7 @@ class InterruptRequest implements \JsonSerializable
     {
         return [
             'reason' => $this->message,
-            'actions' => \array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
+            'actions' => array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
         ];
     }
 

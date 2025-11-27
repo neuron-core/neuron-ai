@@ -7,10 +7,11 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\WorkflowState;
+use Generator;
 
 class NodeTwo extends Node
 {
-    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent|StopEvent|\Generator
+    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent|StopEvent|Generator
     {
         $state->set('node_two_executed', true);
         $state->set('first_message', $event->message);

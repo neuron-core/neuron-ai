@@ -7,6 +7,21 @@ namespace NeuronAI\RAG\DataLoader;
 use NeuronAI\Exceptions\DataReaderException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
+use Exception;
+
+use function array_key_exists;
+use function array_map;
+use function array_merge;
+use function array_reduce;
+use function dirname;
+use function explode;
+use function is_executable;
+use function is_null;
+use function is_readable;
+use function preg_match;
+use function trim;
+
+use const DIRECTORY_SEPARATOR;
 
 /**
  * Requires pdftotext php extension.
@@ -37,14 +52,14 @@ class PdfReader implements ReaderInterface
      */
     public function __construct(?string $binPath = null)
     {
-        if (!\is_null($binPath)) {
+        if (!is_null($binPath)) {
             $this->setBinPath($binPath);
         }
     }
 
     public function setBinPath(string $binPath): self
     {
-        if (!\is_executable($binPath)) {
+        if (!is_executable($binPath)) {
             throw new DataReaderException("The provided path is not executable.");
         }
         $this->binPath = $binPath;
@@ -54,16 +69,16 @@ class PdfReader implements ReaderInterface
     protected function findBinary(string $binaryName): string
     {
         if (isset($this->binPath)) {
-            $basePath = \dirname($this->binPath);
-            $candidatePath = $basePath . \DIRECTORY_SEPARATOR . $binaryName;
-            if (\is_executable($candidatePath)) {
+            $basePath = dirname($this->binPath);
+            $candidatePath = $basePath . DIRECTORY_SEPARATOR . $binaryName;
+            if (is_executable($candidatePath)) {
                 return $candidatePath;
             }
         }
 
         foreach ($this->commonBasePaths as $basePath) {
-            $candidatePath = $basePath . \DIRECTORY_SEPARATOR . $binaryName;
-            if (\is_executable($candidatePath)) {
+            $candidatePath = $basePath . DIRECTORY_SEPARATOR . $binaryName;
+            if (is_executable($candidatePath)) {
                 return $candidatePath;
             }
         }
@@ -89,7 +104,7 @@ class PdfReader implements ReaderInterface
 
     public function setPdf(string $pdf): self
     {
-        if (!\is_readable($pdf)) {
+        if (!is_readable($pdf)) {
             throw new DataReaderException("Could not read `{$pdf}`");
         }
 
@@ -107,7 +122,7 @@ class PdfReader implements ReaderInterface
 
     public function addOptions(array $options): self
     {
-        $this->options = \array_merge(
+        $this->options = array_merge(
             $this->options,
             $this->parseOptions($options)
         );
@@ -118,17 +133,17 @@ class PdfReader implements ReaderInterface
     protected function parseOptions(array $options): array
     {
         $mapper = function (string $content): array {
-            $content = \trim($content);
+            $content = trim($content);
             if ('-' !== ($content[0] ?? '')) {
                 $content = '-' . $content;
             }
 
-            return \explode(' ', $content, 2);
+            return explode(' ', $content, 2);
         };
 
         $reducer = \array_merge(...);
 
-        return \array_reduce(\array_map($mapper, $options), $reducer, []);
+        return array_reduce(array_map($mapper, $options), $reducer, []);
     }
 
     public function setTimeout(int $timeout): self
@@ -152,10 +167,10 @@ class PdfReader implements ReaderInterface
 
     public function text(): string
     {
-        $command = \array_merge([$this->findPdfToText()], $this->options, [$this->pdf, '-']);
+        $command = array_merge([$this->findPdfToText()], $this->options, [$this->pdf, '-']);
         $output = $this->executeProcess($command);
 
-        return \trim($output, " \t\n\r\0\x0B\x0C");
+        return trim($output, " \t\n\r\0\x0B\x0C");
     }
 
     /**
@@ -168,7 +183,7 @@ class PdfReader implements ReaderInterface
         $pdfinfoPath = $this->findPdfInfo();
         $output = $this->executeProcess([$pdfinfoPath, $pdfPath]);
 
-        if (\preg_match('/Pages:\s+(\d+)/', $output, $matches)) {
+        if (preg_match('/Pages:\s+(\d+)/', $output, $matches)) {
             return (int) $matches[1];
         }
 
@@ -176,7 +191,7 @@ class PdfReader implements ReaderInterface
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public static function getText(
         string $filePath,
@@ -186,15 +201,15 @@ class PdfReader implements ReaderInterface
         $instance = new static();
         $instance->setPdf($filePath);
 
-        if (\array_key_exists('binPath', $options)) {
+        if (array_key_exists('binPath', $options)) {
             $instance->setBinPath($options['binPath']);
         }
 
-        if (\array_key_exists('options', $options)) {
+        if (array_key_exists('options', $options)) {
             $instance->setOptions($options['options']);
         }
 
-        if (\array_key_exists('timeout', $options)) {
+        if (array_key_exists('timeout', $options)) {
             $instance->setTimeout($options['timeout']);
         }
 

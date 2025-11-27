@@ -8,6 +8,15 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function abs;
+use function floor;
+use function is_numeric;
+use function json_encode;
+use function sprintf;
+use function str_contains;
 
 class GetTimezoneInfoTool extends Tool
 {
@@ -42,37 +51,37 @@ class GetTimezoneInfoTool extends Tool
             $tz = new DateTimeZone($timezone);
 
             if ($reference_date === null) {
-                $date = new \DateTime('now', $tz);
+                $date = new DateTime('now', $tz);
             } else {
-                $date = \is_numeric($reference_date)
-                    ? (new \DateTime())->setTimestamp((int) $reference_date)->setTimezone($tz)
-                    : new \DateTime($reference_date, $tz);
+                $date = is_numeric($reference_date)
+                    ? (new DateTime())->setTimestamp((int) $reference_date)->setTimezone($tz)
+                    : new DateTime($reference_date, $tz);
             }
 
             $offset = $tz->getOffset($date);
             $offsetHours = $offset / 3600;
-            $offsetFormatted = \sprintf('%+03d:%02d', \floor($offsetHours), \abs($offset % 3600) / 60);
+            $offsetFormatted = sprintf('%+03d:%02d', floor($offsetHours), abs($offset % 3600) / 60);
 
             $transitions = $tz->getTransitions($date->getTimestamp(), $date->getTimestamp() + (365 * 24 * 3600));
             $isDst = !empty($transitions) && $transitions[0]['isdst'];
 
             $location = $tz->getLocation();
 
-            return \json_encode([
+            return json_encode([
                 'timezone' => $timezone,
                 'offset_seconds' => $offset,
                 'offset_hours' => $offsetHours,
                 'offset_formatted' => $offsetFormatted,
                 'is_dst' => $isDst,
                 'abbreviation' => $date->format('T'),
-                'location' => ($location !== false && !\str_contains($location['country_code'], '?')) ? [
+                'location' => ($location !== false && !str_contains($location['country_code'], '?')) ? [
                     'country_code' => $location['country_code'],
                     'latitude' => $location['latitude'],
                     'longitude' => $location['longitude'],
                 ] : null,
                 'reference_time' => $date->format('Y-m-d H:i:s T'),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-interface ToolInterface extends \JsonSerializable
+use JsonSerializable;
+
+interface ToolInterface extends JsonSerializable
 {
     /**
      * Get the unique name of the tool.

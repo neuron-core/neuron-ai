@@ -19,6 +19,9 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
+use Error;
+
+use function count;
 
 class ToolTest extends TestCase
 {
@@ -125,7 +128,7 @@ class ToolTest extends TestCase
     {
         $tool = Tool::make('test', 'Test tool');
 
-        $this->expectException(\Error::class);
+        $this->expectException(Error::class);
 
         $tool->setCallable(fn (): object => new class () {})->execute();
     }
@@ -415,7 +418,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_method_and_constructor_without_parent_constructor(): void
     {
         $tool = new TestToolClassWithoutParentConstructorMixed('test');
-        $this->assertEquals(1, \count($tool->getProperties()));
+        $this->assertEquals(1, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -424,7 +427,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_method_without_parent_constructor(): void
     {
         $tool = new TestToolClassWithoutParentConstructor('test');
-        $this->assertEquals(2, \count($tool->getProperties()));
+        $this->assertEquals(2, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -433,7 +436,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_method_and_constructor_with_parent_constructor(): void
     {
         $tool = new TestToolClassWithParentConstructorMixed('test');
-        $this->assertEquals(1, \count($tool->getProperties()));
+        $this->assertEquals(1, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -442,7 +445,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_method_with_parent_constructor(): void
     {
         $tool = new TestToolClassWithParentConstructor('test');
-        $this->assertEquals(1, \count($tool->getProperties()));
+        $this->assertEquals(1, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -451,7 +454,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_constructor_with_parent_constructor(): void
     {
         $tool = new TestToolClassOnlyParentConstructor('test');
-        $this->assertEquals(2, \count($tool->getProperties()));
+        $this->assertEquals(2, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -460,7 +463,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_constructor_with_parent_constructor_fluent(): void
     {
         $tool = new TestToolClassOnlyParentConstructorFluent('test');
-        $this->assertEquals(2, \count($tool->getProperties()));
+        $this->assertEquals(2, count($tool->getProperties()));
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());

@@ -11,6 +11,9 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
+use Generator;
+
+use function count;
 
 trait HandleStream
 {
@@ -22,7 +25,7 @@ trait HandleStream
      *
      * @throws ProviderException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $payload = $this->createPayLoad($messages);
         $result = $this->bedrockRuntimeClient->converseStream($payload);
@@ -82,7 +85,7 @@ trait HandleStream
         }
 
         // Build final message
-        if ($stopReason === 'tool_use' && \count($tools) > 0) {
+        if ($stopReason === 'tool_use' && count($tools) > 0) {
             $message = new ToolCallMessage($this->streamState->getContentBlocks(), $tools);
         } else {
             $message = new AssistantMessage($this->streamState->getContentBlocks());

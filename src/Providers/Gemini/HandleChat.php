@@ -15,6 +15,11 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_filter;
+use function array_key_exists;
+use function json_decode;
+use function trim;
+
 trait HandleChat
 {
     public function chat(array $messages): Message
@@ -41,9 +46,9 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync(\trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
+        return $this->client->postAsync(trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response): Message {
-                $result = \json_decode($response->getBody()->getContents(), true);
+                $result = json_decode($response->getBody()->getContents(), true);
 
                 $content = $result['candidates'][0]['content'];
 
@@ -68,7 +73,7 @@ trait HandleChat
                     }
 
                     if (isset($part['functionCall'])) {
-                        $toolCalls = \array_filter($content['parts'], fn (array $item): bool => isset($item['functionCall']));
+                        $toolCalls = array_filter($content['parts'], fn (array $item): bool => isset($item['functionCall']));
                         $message = $this->createToolCallMessage($blocks, $toolCalls);
                         break;
                     }
@@ -78,7 +83,7 @@ trait HandleChat
                     $message = new AssistantMessage($blocks);
                 }
 
-                if (\array_key_exists('groundingMetadata', $result['candidates'][0])) {
+                if (array_key_exists('groundingMetadata', $result['candidates'][0])) {
                     // Extract citations from groundingMetadata
                     $citations = $this->extractCitations($result['candidates'][0]['groundingMetadata']);
                     if (!empty($citations)) {
@@ -87,7 +92,7 @@ trait HandleChat
                 }
 
                 // Attach the usage for the current interaction
-                if (\array_key_exists('usageMetadata', $result)) {
+                if (array_key_exists('usageMetadata', $result)) {
                     $message->setUsage(
                         new Usage(
                             $result['usageMetadata']['promptTokenCount'],

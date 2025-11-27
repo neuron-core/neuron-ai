@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\GetTimezoneInfoTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class GetTimezoneInfoToolTest extends TestCase
 {
     private GetTimezoneInfoTool $tool;
@@ -21,7 +24,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('UTC');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('UTC', $data['timezone']);
         $this->assertEquals(0, $data['offset_seconds']);
@@ -35,7 +38,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('America/New_York', '2023-06-15 12:00:00');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('America/New_York', $data['timezone']);
         $this->assertEquals(-14400, $data['offset_seconds']); // EDT is UTC-4
@@ -49,7 +52,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('America/New_York', '2023-01-15 12:00:00');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('America/New_York', $data['timezone']);
         $this->assertEquals(-18000, $data['offset_seconds']); // EST is UTC-5
@@ -62,7 +65,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('Europe/London', '2023-06-15 12:00:00');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('Europe/London', $data['timezone']);
         $this->assertEquals(3600, $data['offset_seconds']); // BST is UTC+1
@@ -77,7 +80,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('Asia/Tokyo');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('Asia/Tokyo', $data['timezone']);
         $this->assertEquals(32400, $data['offset_seconds']); // JST is UTC+9
@@ -93,7 +96,7 @@ class GetTimezoneInfoToolTest extends TestCase
         $timestamp = '1686834000'; // 2023-06-15 14:00:00 UTC
         $result = ($this->tool)('Europe/Berlin', $timestamp);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('Europe/Berlin', $data['timezone']);
         $this->assertEquals(7200, $data['offset_seconds']); // CEST is UTC+2
@@ -104,7 +107,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('America/Chicago');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('America/Chicago', $data['timezone']);
         $this->assertArrayHasKey('offset_seconds', $data);
@@ -122,7 +125,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('Australia/Sydney');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('Australia/Sydney', $data['timezone']);
         $this->assertArrayHasKey('location', $data);
@@ -136,7 +139,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('UTC');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('UTC', $data['timezone']);
         $this->assertNull($data['location']);
@@ -146,7 +149,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = ($this->tool)('Europe/Paris', '2023-07-01 12:00:00');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
 
         // Check all expected fields are present
@@ -195,7 +198,7 @@ class GetTimezoneInfoToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(2, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('timezone', $propertyNames);
         $this->assertContains('reference_date', $propertyNames);
     }

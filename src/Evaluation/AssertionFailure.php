@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
+use function end;
+use function explode;
+use function sprintf;
+
 class AssertionFailure
 {
     public function __construct(
@@ -45,13 +49,13 @@ class AssertionFailure
 
     public function getShortEvaluatorClass(): string
     {
-        $parts = \explode('\\', $this->evaluatorClass);
-        return \end($parts);
+        $parts = explode('\\', $this->evaluatorClass);
+        return end($parts);
     }
 
     public function getFullDescription(): string
     {
-        return \sprintf(
+        return sprintf(
             '%s:%d -> %s: %s',
             $this->getShortEvaluatorClass(),
             $this->lineNumber,
