@@ -6,7 +6,9 @@ namespace NeuronAI\Providers\AWS;
 
 use Aws\Api\Parser\EventParsingIterator;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -14,10 +16,11 @@ use NeuronAI\Exceptions\ProviderException;
 
 trait HandleStream
 {
+    protected StreamState $streamState;
+
     /**
      * Stream response from the LLM.
-     *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
+     * https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html#API_runtime_ConverseStream_ResponseSyntax
      *
      * @throws ProviderException
      */
@@ -26,9 +29,9 @@ trait HandleStream
         $payload = $this->createPayLoad($messages);
         $result = $this->bedrockRuntimeClient->converseStream($payload);
 
+        $this->streamState = new StreamState();
+
         $tools = [];
-        $text = '';
-        $usage = new Usage(0, 0);
         $stopReason = null;
 
         foreach ($result as $eventParserIterator) {
@@ -40,8 +43,8 @@ trait HandleStream
             foreach ($eventParserIterator as $event) {
 
                 if (isset($event['metadata'])) {
-                    $usage->inputTokens += $event['metadata']['usage']['inputTokens'] ?? 0;
-                    $usage->outputTokens += $event['metadata']['usage']['outputTokens'] ?? 0;
+                    $this->streamState->addInputTokens($event['metadata']['usage']['inputTokens'] ?? 0);
+                    $this->streamState->addOutputTokens($event['metadata']['usage']['outputTokens'] ?? 0);
                 }
 
                 if (isset($event['messageStop']['stopReason'])) {
@@ -54,15 +57,24 @@ trait HandleStream
                     continue;
                 }
 
-                if ($toolContent !== null && isset($event['contentBlockDelta']['delta']['toolUse'])) {
-                    $toolContent['toolUse']['input'] .= $event['contentBlockDelta']['delta']['toolUse']['input'];
+                if (isset($event['contentBlockDelta']['delta']['text'])) {
+                    $textChunk = $event['contentBlockDelta']['delta']['text'];
+                    $this->streamState->updateContentBlock($event['contentBlockDelta']['contentBlockIndex'], $textChunk);
+                    yield new TextChunk($this->streamState->messageId(), $textChunk);
+                }
+
+                if (isset($event['contentBlockDelta']['delta']['reasoningContent'])) {
+                    $reasoningChunk = $event['contentBlockDelta']['delta']['reasoningContent']['text'];
+                    $this->streamState->updateContentBlock(
+                        $event['contentBlockDelta']['contentBlockIndex'],
+                        new ReasoningContent($reasoningChunk, $event['contentBlockDelta']['delta']['reasoningContent']['signature'])
+                    );
+                    yield new ReasoningChunk($this->streamState->messageId(), $reasoningChunk);
                     continue;
                 }
 
-                if (isset($event['contentBlockDelta']['delta']['text'])) {
-                    $textChunk = $event['contentBlockDelta']['delta']['text'];
-                    $text .= $textChunk;
-                    yield new TextChunk($textChunk);
+                if ($toolContent !== null && isset($event['contentBlockDelta']['delta']['toolUse'])) {
+                    $toolContent['toolUse']['input'] .= $event['contentBlockDelta']['delta']['toolUse']['input'];
                 }
             }
 
@@ -73,16 +85,12 @@ trait HandleStream
 
         // Build final message
         if ($stopReason === 'tool_use' && \count($tools) > 0) {
-            $message = new ToolCallMessage($text !== '' ? $text : null, $tools);
+            $message = new ToolCallMessage($this->streamState->getContentBlocks(), $tools);
         } else {
-            $blocks = [];
-            if ($text !== '') {
-                $blocks[] = new TextContent($text);
-            }
-            $message = new AssistantMessage($blocks);
+            $message = new AssistantMessage($this->streamState->getContentBlocks());
         }
 
-        $message->setUsage($usage);
+        $message->setUsage($this->streamState->getUsage());
 
         return $message;
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -57,8 +58,6 @@ class MessageMapper implements MessageMapperInterface
     {
         $toolCallContents = [];
 
-        // todo: add the text eventually attached to the tool call message
-
         foreach ($message->getTools() as $tool) {
             $toolCallContents[] = [
                 'toolUse' => [
@@ -69,15 +68,14 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
+        $blocks = \array_map($this->mapContentBlock(...), $message->getContentBlocks());
+
         return [
             'role' => $message->getRole(),
-            'content' => $toolCallContents,
+            'content' => \array_merge($blocks, $toolCallContents),
         ];
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapMessage(Message $message): array
     {
         $contentBlocks = $message->getContentBlocks();
@@ -88,12 +86,19 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapContentBlock(ContentBlockInterface $block): array
     {
+        if ($block instanceof ReasoningContent) {
+            return ['text' => $block->content, 'signature' => $block->id];
+        }
+
         if ($block instanceof TextContent) {
             return ['text' => $block->content];
         }
 
-        throw new \NeuronAI\Exceptions\ProviderException('Unsupported content block type: '.$block::class);
+        throw new ProviderException('Unsupported content block type: '.$block::class);
     }
 }

@@ -94,7 +94,7 @@ class Mistral extends OpenAI
             $text .= $content;
 
             if ($content !== '') {
-                yield new TextChunk($content);
+                yield new TextChunk($line['id'], $content);
             }
         }
 
