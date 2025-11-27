@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\OpenAI\StreamState;
 use NeuronAI\Providers\SSEParser;
 
 class Mistral extends OpenAI
@@ -51,9 +52,7 @@ class Mistral extends OpenAI
             ...['json' => $json]
         ])->getBody();
 
-        $text = '';
-        $toolCalls = [];
-        $usage = new Usage(0, 0);
+        $this->streamState = new StreamState();
 
         while (! $stream->eof()) {
             if (($line = SSEParser::parseNextSSEEvent($stream)) === null) {
@@ -62,8 +61,8 @@ class Mistral extends OpenAI
 
             // Capture usage information
             if (empty($line['choices']) && !empty($line['usage'])) {
-                $usage->inputTokens += $line['usage']['prompt_tokens'] ?? 0;
-                $usage->outputTokens += $line['usage']['completion_tokens'] ?? 0;
+                $this->streamState->addInputTokens($line['usage']['prompt_tokens'] ?? 0);
+                $this->streamState->addOutputTokens($line['usage']['completion_tokens'] ?? 0);
                 continue;
             }
 
@@ -71,41 +70,31 @@ class Mistral extends OpenAI
                 continue;
             }
 
+            $choice = $line['choices'][0];
+
             // Compile tool calls
             if ($this->isToolCallPart($line)) {
-                $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                $this->streamState->composeToolCalls($line);
 
                 // Handle tool calls
-                if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
-                    $message = $this->createToolCallMessage([
-                        'content' => $text,
-                        'tool_calls' => $toolCalls
-                    ]);
-                    $message->setUsage($usage);
-
-                    return $message;
+                if ($choice['finish_reason'] === 'tool_calls') {
+                    return $this->createToolCallMessage(
+                        $this->streamState->getToolCalls(),
+                        $this->streamState->getContentBlocks()
+                    )->setUsage($this->streamState->getUsage());
                 }
 
                 continue;
             }
 
             // Process regular content
-            $content = $line['choices'][0]['delta']['content'] ?? '';
-            $text .= $content;
-
-            if ($content !== '') {
-                yield new TextChunk($line['id'], $content);
-            }
+            $content = $choice['delta']['content'] ?? '';
+            $this->streamState->updateContentBlock($choice['index'], $content);
+            yield new TextChunk($this->streamState->messageId(), $content);
         }
 
-        // Build final message
-        $blocks = [];
-        if ($text !== '') {
-            $blocks[] = new TextContent($text);
-        }
-
-        $message = new AssistantMessage($blocks);
-        $message->setUsage($usage);
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        $message->setUsage($this->streamState->getUsage());
 
         return $message;
     }
