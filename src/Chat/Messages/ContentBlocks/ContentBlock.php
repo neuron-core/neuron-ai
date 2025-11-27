@@ -1,17 +1,23 @@
 <?php
 
-declare(strict_types=1);
-
 namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 
-interface ContentBlock extends \JsonSerializable
+abstract class ContentBlock implements ContentBlockInterface
 {
-    public function getType(): ContentBlockType;
+    public function __construct(public string $content) {}
+
+    public function accumulateContent(string $content): void
+    {
+        $this->content .= $content;
+    }
 
     /**
      * @return array<string, mixed>
      */
-    public function toArray(): array;
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
 }

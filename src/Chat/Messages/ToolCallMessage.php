@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Tools\ToolInterface;
 
 /**
- * @method static static make(string|ContentBlock|array<int, ContentBlock>|null $content, ToolInterface[] $tools)
+ * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content, ToolInterface[] $tools)
  */
 class ToolCallMessage extends AssistantMessage implements \Stringable
 {
@@ -16,8 +16,8 @@ class ToolCallMessage extends AssistantMessage implements \Stringable
      * @param ToolInterface[] $tools
      */
     public function __construct(
-        string|ContentBlock|array|null $content = null,
-        protected array $tools = []
+        string|ContentBlockInterface|array|null $content = null,
+        protected array                         $tools = []
     ) {
         parent::__construct($content);
     }

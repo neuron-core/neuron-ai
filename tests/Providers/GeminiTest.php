@@ -87,7 +87,7 @@ class GeminiTest extends TestCase
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
-                source: '/test.png',
+                content: '/test.png',
                 sourceType: SourceType::URL,
                 mediaType: 'image/png'
             ));
@@ -131,7 +131,7 @@ class GeminiTest extends TestCase
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
-                source: 'base64_encoded_image_data',
+                content: 'base64_encoded_image_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'image/png'
             ));
@@ -175,7 +175,7 @@ class GeminiTest extends TestCase
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(
-                source: '/test.pdf',
+                content: '/test.pdf',
                 sourceType: SourceType::URL,
                 mediaType: 'application/pdf'
             ));
@@ -219,7 +219,7 @@ class GeminiTest extends TestCase
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new ImageContent(
-                source: 'base64_encoded_document_data',
+                content: 'base64_encoded_document_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'application/pdf'
             ));

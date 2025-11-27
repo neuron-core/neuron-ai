@@ -49,12 +49,12 @@ class MessageMapper implements MessageMapperInterface
 
         foreach ($contentBlocks as $block) {
             if ($block instanceof TextContent) {
-                $textContent .= $block->text;
+                $textContent .= $block->content;
             } elseif ($block instanceof ImageContent) {
                 if ($block->sourceType === SourceType::URL) {
                     throw new ProviderException('Ollama supports only base64 image type.');
                 }
-                $images[] = $block->source;
+                $images[] = $block->content;
             } else {
                 throw new ProviderException('This provider does not support '.$block::class.' content blocks.');
             }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -53,12 +53,12 @@ class MessageMapper implements MessageMapperInterface
     /**
      * @throws ProviderException
      */
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
                 'type' => 'text',
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),
@@ -69,8 +69,8 @@ class MessageMapper implements MessageMapperInterface
     protected function mapImageBlock(ImageContent $block): array
     {
         $url = match ($block->sourceType) {
-            SourceType::URL => $block->source,
-            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+            SourceType::URL => $block->content,
+            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
         };
 
         return [
@@ -91,7 +91,7 @@ class MessageMapper implements MessageMapperInterface
             'type' => 'file',
             'file' => [
                 'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
     }

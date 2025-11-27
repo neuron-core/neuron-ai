@@ -84,7 +84,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'https://example.com/image.png', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $response = $provider->chat([$message]);
 
@@ -125,7 +125,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
+            ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
 
         $response = $provider->chat([$message]);
 
@@ -166,7 +166,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContent(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);
@@ -187,7 +187,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new ImageContent(source: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
+            ->addContent(new ImageContent(content: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
 
         $response = $provider->chat([$message]);
 

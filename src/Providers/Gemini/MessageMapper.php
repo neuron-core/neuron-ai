@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -52,15 +52,15 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ReasoningContent::class => [
                 'thought' => true,
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ImageContent::class,
             FileContent::class,
@@ -75,13 +75,13 @@ class MessageMapper implements MessageMapperInterface
         return match ($block->sourceType) {
             SourceType::URL => [
                 'file_data' => [
-                    'file_uri' => $block->source,
+                    'file_uri' => $block->content,
                     'mime_type' => $block->mediaType,
                 ],
             ],
             SourceType::BASE64 => [
                 'inline_data' => [
-                    'data' => $block->source,
+                    'data' => $block->content,
                     'mime_type' => $block->mediaType,
                 ]
             ]

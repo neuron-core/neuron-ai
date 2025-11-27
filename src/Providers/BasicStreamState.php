@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Usage;
@@ -17,7 +17,7 @@ class BasicStreamState
     protected array $toolCalls = [];
 
     /**
-     * @var array<string, ContentBlock|TextContent|ReasoningContent>
+     * @var array<string, ContentBlockInterface>
      */
     protected array $blocks = [];
 
@@ -57,7 +57,7 @@ class BasicStreamState
     }
 
     /**
-     * @return ContentBlock[]
+     * @return ContentBlockInterface[]
      */
     public function getContentBlocks(): array
     {

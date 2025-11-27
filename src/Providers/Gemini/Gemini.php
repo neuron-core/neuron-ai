@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -82,7 +82,7 @@ class Gemini implements AIProviderInterface
     }
 
     /**
-     * @param ContentBlock[] $blocks
+     * @param ContentBlockInterface[] $blocks
      * @param array<int, array> $toolCalls
      * @throws ProviderException
      */

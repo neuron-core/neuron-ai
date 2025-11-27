@@ -187,8 +187,8 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(2, $contentBlocks);
         $this->assertInstanceOf(TextContent::class, $contentBlocks[0]);
         $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
-        $this->assertEquals('First text block', $contentBlocks[0]->text);
-        $this->assertEquals('Second text block', $contentBlocks[1]->text);
+        $this->assertEquals('First text block', $contentBlocks[0]->content);
+        $this->assertEquals('Second text block', $contentBlocks[1]->content);
     }
 
     public function test_truncates_history_when_context_window_exceeded(): void

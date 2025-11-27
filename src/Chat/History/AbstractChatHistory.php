@@ -10,7 +10,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -352,9 +352,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      * Handles both legacy string format and new content block array format.
      * Legacy formats are automatically converted to ContentBlocks for migration.
      *
-     * @return string|ContentBlock|ContentBlock[]|null
+     * @return string|ContentBlockInterface|ContentBlockInterface[]|null
      */
-    protected function deserializeContent(mixed $content): string|ContentBlock|array|null
+    protected function deserializeContent(mixed $content): string|ContentBlockInterface|array|null
     {
         if ($content === null) {
             return null;
@@ -390,25 +390,25 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      *
      * @param array<string, mixed> $block
      */
-    protected function deserializeContentBlock(array $block): ContentBlock
+    protected function deserializeContentBlock(array $block): ContentBlockInterface
     {
         $type = ContentBlockType::from($block['type']);
 
         return match ($type) {
             ContentBlockType::TEXT => new TextContent(
-                text: $block['text']
+                content: $block['text']
             ),
             ContentBlockType::REASONING => new ReasoningContent(
-                text: $block['text'],
+                content: $block['text'],
                 id: $block['id'] ?? null
             ),
             ContentBlockType::IMAGE => new ImageContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::FILE => new FileContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null,
                 filename: $block['filename'] ?? null
@@ -419,7 +419,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::VIDEO => new VideoContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),

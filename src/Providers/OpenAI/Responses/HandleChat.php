@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -43,11 +44,13 @@ trait HandleChat
 
                 $toolCalls = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
+                $usage = new Usage($response['usage']['input_tokens']??0, $response['usage']['output_tokens']??0);
+
                 if ($toolCalls !== []) {
-                    return $this->createToolCallMessage($toolCalls, null, $response['usage'] ?? null);
+                    return $this->createToolCallMessage($toolCalls)->setUsage($usage);
                 }
 
-                return $this->createAssistantMessage($response);
+                return $this->createAssistantMessage($response)->setUsage($usage);
             });
     }
 }

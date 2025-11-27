@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -29,7 +29,7 @@ class TokenCounter implements TokenCounterInterface
 
             $messageChars += \strlen(
                 \json_encode(
-                    \array_map(fn (ContentBlock $block): array => $block->toArray(), $message->getContentBlocks())
+                    \array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $message->getContentBlocks())
                 )
             );
 

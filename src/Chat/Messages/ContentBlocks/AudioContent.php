@@ -7,7 +7,7 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 
-class AudioContent implements ContentBlock
+class AudioContent implements ContentBlockInterface
 {
     public function __construct(
         public readonly string $source,

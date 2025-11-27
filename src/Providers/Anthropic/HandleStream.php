@@ -123,14 +123,14 @@ trait HandleStream
 
         if ($delta['type'] === 'text_delta') {
             $text = $delta['text'];
-            $this->streamState->blocks[$index]->text .= $text;
+            $this->streamState->blocks[$index]->content .= $text;
             yield new TextChunk($this->streamState->messageId(), $text);
             return;
         }
 
         if ($delta['type'] === 'thinking_delta') {
             $thinking = $delta['thinking'];
-            $this->streamState->blocks[$index]->text .= $thinking;
+            $this->streamState->blocks[$index]->content .= $thinking;
             yield new ReasoningChunk($this->streamState->messageId(), $thinking);
             return;
         }

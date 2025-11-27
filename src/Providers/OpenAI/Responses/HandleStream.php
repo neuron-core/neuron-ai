@@ -6,7 +6,9 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
@@ -19,6 +21,8 @@ use Psr\Http\Message\StreamInterface;
  */
 trait HandleStream
 {
+    protected StreamState $streamState;
+
     /**
      * Stream response from the LLM.
      *
@@ -49,8 +53,7 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
-        $toolCalls = [];
-        $blocks = [];
+        $this->streamState = new StreamState();
 
         while (! $stream->eof()) {
             if (!$event = $this->parseNextDataLine($stream)) {
@@ -58,50 +61,67 @@ trait HandleStream
             }
 
             switch ($event['type']) {
-                // Initialize the tool call
+                // Initialize tool or text items
                 case 'response.output_item.added':
                     if ($event['item']['type'] === 'function_call') {
-                        $toolCalls[$event['item']['id']] = [
-                            'name' => $event['item']['name'],
-                            'arguments' => $event['item']['arguments'] ?? null,
-                            'call_id' => $event['item']['call_id'],
-                        ];
+                        $this->streamState->composeToolCalls($event);
                     }
                     if ($event['item']['type'] === 'message') {
-                        $blocks[$event['item']['id']] = new TextContent($event['item']['content'][0]['text'] ?? '');
+                        $this->streamState->addContentBlock($event['item']['id'], new TextContent($event['item']['content'][0]['text'] ?? ''));
                     }
                     break;
 
                     // Collect tool call arguments
                 case 'response.function_call_arguments.done':
-                    $toolCalls[$event['item_id']]['arguments'] = $event['arguments'];
+                    $this->streamState->composeToolCalls($event);
                     break;
 
                     // Stream delta text
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
-                    $blocks[$event['item_id']]->text .= $content;
-                    yield new TextChunk($content);
+                    $this->streamState->updateContentBlock($event['item_id'], $content);
+                    yield new TextChunk($event['item_id'], $content);
                     break;
 
+                    /*
+                     * Reasoning
+                     */
                 case 'response.reasoning_summary_part.added':
                     $content = $event['part']['text'] ?? '';
-                    $blocks[$event['item_id']] = new ReasoningContent($content);
-                    yield new ReasoningChunk($content);
+                    $this->streamState->addContentBlock($event['item_id'], new ReasoningContent($content));
+                    yield new ReasoningChunk($event['item_id'], $content);
                     break;
-
                 case 'response.reasoning_summary_text.delta':
                     $content = $event['delta'] ?? '';
-                    $blocks[$event['item_id']]->text .= $content;
-                    yield new ReasoningChunk($content);
+                    $this->streamState->updateContentBlock($event['item_id'], $content);
+                    yield new ReasoningChunk($event['item_id'], $content);
                     break;
 
-                    // Return the final message
+                    /*
+                     * Image
+                     */
+                case 'response.image_generation_call.generating':
+                    $this->streamState->addContentBlock($event['item_id'], new ImageContent('', SourceType::BASE64));
+                    break;
+                case 'response.image_generation_call.partial_image':
+                    $this->streamState->updateContentBlock($event['item_id'], $event['partial_image_b64']);
+                    break;
+
+                    /*
+                     * Return the final message
+                     */
                 case 'response.completed':
-                    if ($toolCalls !== []) {
-                        return $this->createToolCallMessage($toolCalls, $blocks, $event['response']['usage'] ?? null);
+                    $usage = $event['response']['usage'] ?? null;
+                    $this->streamState->addInputTokens($usage['input_tokens'] ?? 0);
+                    $this->streamState->addOutputTokens($usage['output_tokens'] ?? 0);
+
+                    if ($this->streamState->hasToolCalls()) {
+                        return $this->createToolCallMessage(
+                            $this->streamState->getToolCalls(),
+                            $this->streamState->getContentBlocks(),
+                        )->setUsage($this->streamState->getUsage());
                     }
-                    return $this->createAssistantMessage($event['response']);
+                    return $this->createAssistantMessage($event['response'])->setUsage($usage);
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
@@ -113,7 +133,7 @@ trait HandleStream
         }
 
         // If we reach here without a response.completed event, return an assistant message
-        return new AssistantMessage($blocks);
+        return new AssistantMessage($this->streamState->getContentBlocks());
     }
 
     /**

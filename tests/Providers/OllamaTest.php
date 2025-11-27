@@ -80,7 +80,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::BASE64));
+            ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64));
 
         $response = $provider->chat([$message]);
 
@@ -123,7 +123,7 @@ class OllamaTest extends TestCase
         ))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'base_64_encoded_image', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
         $provider->chat([$message]);

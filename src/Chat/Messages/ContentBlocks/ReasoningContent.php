@@ -9,10 +9,10 @@ use NeuronAI\Chat\Enums\ContentBlockType;
 class ReasoningContent extends TextContent
 {
     public function __construct(
-        public string $text,
+        string $content,
         public ?string $id = null,
     ) {
-        parent::__construct($text);
+        parent::__construct($content);
     }
 
     public function getType(): ContentBlockType

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -50,16 +50,16 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
                 'type' => 'text',
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ReasoningContent::class => [
                 'type' => 'thinking',
-                'thinking' => $block->text,
+                'thinking' => $block->content,
                 'signature' => $block->id,
             ],
             ImageContent::class => $this->mapImageBlock($block),
@@ -75,7 +75,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'image',
                 'source' => [
                     'type' => 'url',
-                    'url' => $block->source,
+                    'url' => $block->content,
                 ],
             ],
             SourceType::BASE64 => [
@@ -83,7 +83,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'base64',
                     'media_type' => $block->mediaType,
-                    'data' => $block->source,
+                    'data' => $block->content,
                 ],
             ],
         };
@@ -96,7 +96,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'document',
                 'source' => [
                     'type' => 'url',
-                    'url' => $block->source,
+                    'url' => $block->content,
                 ],
             ],
             SourceType::BASE64 => [
@@ -104,7 +104,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'base64',
                     'media_type' => $block->mediaType,
-                    'data' => $block->source,
+                    'data' => $block->content,
                 ],
             ],
         };

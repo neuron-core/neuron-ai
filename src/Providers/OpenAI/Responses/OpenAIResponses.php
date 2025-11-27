@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -109,20 +110,15 @@ class OpenAIResponses implements AIProviderInterface
             $message->addMetadata('citations', $citations);
         }
 
-        if (\array_key_exists('usage', $response)) {
-            $message->setUsage(
-                new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
-            );
-        }
-
         return $message;
     }
 
     /**
      * @param array<string, mixed> $toolCalls
+     * @param ContentBlockInterface[]|null $content
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $toolCalls, string|array|null $content = null, ?array $usage = null): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, array|null $content = null): ToolCallMessage
     {
         $tools = \array_map(
             fn (array $item): ToolInterface => $this->findTool($item['name'])
@@ -133,15 +129,7 @@ class OpenAIResponses implements AIProviderInterface
             $toolCalls
         );
 
-        $message = new ToolCallMessage($content, $tools);
-
-        if (!\is_null($usage)) {
-            $message->setUsage(
-                new Usage($usage['input_tokens'], $usage['output_tokens'])
-            );
-        }
-
-        return $message;
+        return new ToolCallMessage($content, $tools);
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\AWS;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -88,10 +88,10 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         if ($block instanceof TextContent) {
-            return ['text' => $block->text];
+            return ['text' => $block->content];
         }
 
         throw new \NeuronAI\Exceptions\ProviderException('Unsupported content block type: '.$block::class);

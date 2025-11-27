@@ -6,13 +6,8 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 
-class TextContent implements ContentBlock
+class TextContent extends ContentBlock
 {
-    public function __construct(
-        public string $text
-    ) {
-    }
-
     public function getType(): ContentBlockType
     {
         return ContentBlockType::TEXT;
@@ -25,15 +20,7 @@ class TextContent implements ContentBlock
     {
         return [
             'type' => $this->getType()->value,
-            'text' => $this->text,
+            'text' => $this->content,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

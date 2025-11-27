@@ -75,7 +75,7 @@ class MessageMapper implements MessageMapperInterface
     {
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
-            'text' => $block->text,
+            'text' => $block->content,
         ];
     }
 
@@ -85,7 +85,7 @@ class MessageMapper implements MessageMapperInterface
             'type' => 'file',
             'file' => [
                 'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
     }
@@ -95,8 +95,8 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'input_image',
             'image_url' => match ($block->sourceType) {
-                SourceType::URL => $block->source,
-                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+                SourceType::URL => $block->content,
+                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
             },
         ];
     }

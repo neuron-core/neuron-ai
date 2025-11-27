@@ -88,7 +88,7 @@ class AnthropicTest extends TestCase
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
-                source: 'base64_encoded_image_data',
+                content: 'base64_encoded_image_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'image/png'
             ));
@@ -141,7 +141,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'https://example.com/image.png', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 
@@ -191,7 +191,7 @@ class AnthropicTest extends TestCase
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(
-                source: 'base64_encoded_document_data',
+                content: 'base64_encoded_document_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'pdf'
             ));
@@ -244,7 +244,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContent(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 
@@ -707,9 +707,9 @@ class AnthropicTest extends TestCase
         $this->assertCount(2, $contentBlocks);
         $this->assertInstanceOf(ReasoningContent::class, $contentBlocks[0]);
         $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
-        $this->assertSame('Let me think about this', $contentBlocks[0]->text);
+        $this->assertSame('Let me think about this', $contentBlocks[0]->content);
         $this->assertSame('sig123', $contentBlocks[0]->id);
-        $this->assertSame('The answer', $contentBlocks[1]->text);
+        $this->assertSame('The answer', $contentBlocks[1]->content);
         $this->assertSame(15, $message->getUsage()->inputTokens);
         $this->assertSame(8, $message->getUsage()->outputTokens);
     }
