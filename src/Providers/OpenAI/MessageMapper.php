@@ -90,7 +90,7 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                'filename' => $document->filename,
+                'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$document->mediaType};base64,{$document->content}",
             ]
         ];
