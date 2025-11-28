@@ -127,11 +127,10 @@ class MessageMapper implements MessageMapperInterface
 
         // Add function call items
         foreach ($message->getTools() as $tool) {
-            $inputs = $tool->getInputs();
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
+                'arguments' => json_encode($tool->getInputs() ?: new stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }

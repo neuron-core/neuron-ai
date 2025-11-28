@@ -17,10 +17,11 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
-
 use NeuronAI\Tools\ToolInterface;
+
 use function array_map;
 use function uniqid;
+use function json_encode;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -109,13 +110,13 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    'arguments' => $tool->getInputs(),
+                    ...($tool->getInputs() === [] ? [] : ['arguments' => json_encode($tool->getInputs())]),
                 ],
             ], $message->getTools())
         ];
 
         $content = array_map($this->mapContentBlock(...), $message->getContentBlocks());
-        if (!empty($content)) {
+        if ($content !== []) {
             $item['content'] = $content;
         }
 
