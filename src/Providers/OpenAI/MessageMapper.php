@@ -105,12 +105,14 @@ class MessageMapper implements MessageMapperInterface
             $this->mapping[] = [
                 'role' => MessageRole::ASSISTANT,
                 'tool_calls' => [
-                    'id' => $tool->getCallId(),
-                    'type' => 'function',
-                    'function' => [
-                        'name' => $tool->getName(),
-                        'arguments' => $tool->getInputs(),
-                    ],
+                    [
+                        'id' => $tool->getCallId(),
+                        'type' => 'function',
+                        'function' => [
+                            'name' => $tool->getName(),
+                            'arguments' => $tool->getInputs(),
+                        ],
+                    ]
                 ]
             ];
         }
