@@ -13,7 +13,7 @@ use function count;
 use function explode;
 use function implode;
 use function min;
-use function strlen;
+use function mb_strlen;
 use function trim;
 
 class DelimiterTextSplitter extends AbstractSplitter
@@ -33,7 +33,7 @@ class DelimiterTextSplitter extends AbstractSplitter
             return [];
         }
 
-        if (strlen($text) <= $this->maxLength) {
+        if (mb_strlen($text) <= $this->maxLength) {
             return [$document];
         }
 
@@ -66,7 +66,7 @@ class DelimiterTextSplitter extends AbstractSplitter
                 continue;
             }
 
-            if ($currentChunkLength + strlen($this->separator.$word) <= $this->maxLength || $currentChunk === []) {
+            if ($currentChunkLength + mb_strlen($this->separator.$word) <= $this->maxLength || $currentChunk === []) {
                 $currentChunk[] = $word;
                 $currentChunkLength = $this->calculateChunkLength($currentChunk);
             } else {
@@ -96,6 +96,6 @@ class DelimiterTextSplitter extends AbstractSplitter
      */
     private function calculateChunkLength(array $chunk): int
     {
-        return array_sum(array_map(strlen(...), $chunk)) + count($chunk) * strlen($this->separator) - 1;
+        return array_sum(array_map(mb_strlen(...), $chunk)) + count($chunk) * mb_strlen($this->separator) - 1;
     }
 }

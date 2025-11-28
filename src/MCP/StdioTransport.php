@@ -24,7 +24,7 @@ use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
-use function strlen;
+use function mb_strlen;
 use function time;
 use function usleep;
 
@@ -125,7 +125,7 @@ class StdioTransport implements McpTransportInterface
         }
 
         $bytesWritten = fwrite($this->pipes[0], $jsonData . "\n");
-        if ($bytesWritten === false || $bytesWritten < strlen($jsonData) + 1) {
+        if ($bytesWritten === false || $bytesWritten < mb_strlen($jsonData) + 1) {
             throw new McpException("Failed to write complete request to MCP server");
         }
 

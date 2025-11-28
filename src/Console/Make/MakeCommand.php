@@ -27,7 +27,7 @@ use function mkdir;
 use function rtrim;
 use function str_replace;
 use function str_starts_with;
-use function strlen;
+use function mb_strlen;
 use function substr;
 
 use const PHP_EOL;
@@ -157,7 +157,7 @@ abstract class MakeCommand
         foreach ($psr4Config as $namespacePrefix => $directory) {
             if (str_starts_with($namespace . '\\', $namespacePrefix)) {
                 // Remove the namespace prefix and convert to file path
-                $relativePath = substr($namespace, strlen(rtrim($namespacePrefix, '\\')));
+                $relativePath = substr($namespace, mb_strlen(rtrim($namespacePrefix, '\\')));
                 $relativePath = str_replace('\\', '/', ltrim($relativePath, '\\'));
 
                 $basePath = getcwd() . '/' . rtrim($directory, '/');

@@ -143,10 +143,13 @@ class Agent extends Workflow implements AgentInterface
      * Stream agent responses, optionally through a protocol adapter.
      *
      * @param Message|Message[] $messages
-     * @throws WorkflowInterrupt
+     * @param InterruptRequest|null $interrupt
+     * @param StreamAdapterInterface|null $adapter
+     * @return Generator
      * @throws InspectorException
-     * @throws WorkflowException
      * @throws Throwable
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     public function stream(
         Message|array $messages = [],
@@ -179,12 +182,16 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param Message|Message[]  $messages
-     * @throws Throwable
+     * @param Message|Message[] $messages
+     * @param string|null $class
+     * @param int $maxRetries
+     * @param InterruptRequest|null $interrupt
+     * @return mixed
      * @throws AgentException
-     * @throws WorkflowInterrupt
      * @throws InspectorException
+     * @throws Throwable
      * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {

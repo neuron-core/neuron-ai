@@ -25,7 +25,7 @@ use function count;
 use function implode;
 use function max;
 use function sprintf;
-use function strlen;
+use function mb_strlen;
 use function strtoupper;
 
 class Summarization implements WorkflowMiddleware
@@ -286,7 +286,7 @@ PROMPT;
             } else {
                 // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 $contentStr = $message->getContent();
-                $totalTokens += (int) ceil(strlen($contentStr) / 4);
+                $totalTokens += (int) ceil(mb_strlen($contentStr) / 4);
             }
         }
 

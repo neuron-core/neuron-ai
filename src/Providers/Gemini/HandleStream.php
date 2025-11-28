@@ -20,7 +20,7 @@ use Generator;
 use function array_key_exists;
 use function json_decode;
 use function rtrim;
-use function strlen;
+use function mb_strlen;
 use function trim;
 
 trait HandleStream
@@ -171,7 +171,7 @@ trait HandleStream
         while (! $stream->eof()) {
             $buffer .= $stream->read(1);
 
-            if (strlen($buffer) === 1 && $buffer !== '{') {
+            if (mb_strlen($buffer) === 1 && $buffer !== '{') {
                 $buffer = '';
             }
 
