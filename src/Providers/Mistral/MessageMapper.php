@@ -115,7 +115,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    'arguments' => $tool->getInputs(),
+                    'arguments' => $tool->getInputs() ?: new \stdClass(),
                 ],
             ], $message->getTools())
         ];
