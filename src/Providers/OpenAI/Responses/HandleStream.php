@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\OpenAI\StreamState;
 use Psr\Http\Message\StreamInterface;
 
 /**
@@ -19,6 +20,7 @@ use Psr\Http\Message\StreamInterface;
  */
 trait HandleStream
 {
+    protected StreamState $streamState;
     /**
      * Stream response from the LLM.
      *
@@ -49,6 +51,7 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
+        $this->streamState = new StreamState();
         $toolCalls = [];
         $blocks = [];
 
@@ -81,19 +84,19 @@ trait HandleStream
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
                     $blocks[$event['item_id']]->text .= $content;
-                    yield new TextChunk($content);
+                    yield new TextChunk($this->streamState->messageId(), $content);
                     break;
 
                 case 'response.reasoning_summary_part.added':
                     $content = $event['part']['text'] ?? '';
                     $blocks[$event['item_id']] = new ReasoningContent($content);
-                    yield new ReasoningChunk($content);
+                    yield new ReasoningChunk($this->streamState->messageId(), $content);
                     break;
 
                 case 'response.reasoning_summary_text.delta':
                     $content = $event['delta'] ?? '';
                     $blocks[$event['item_id']]->text .= $content;
-                    yield new ReasoningChunk($content);
+                    yield new ReasoningChunk($this->streamState->messageId(), $content);
                     break;
 
                     // Return the final message

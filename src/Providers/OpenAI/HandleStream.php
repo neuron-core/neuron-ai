@@ -18,6 +18,7 @@ use Psr\Http\Message\StreamInterface;
 
 trait HandleStream
 {
+    protected StreamState $streamState;
     /**
      * Stream response from the LLM.
      *
@@ -51,9 +52,9 @@ trait HandleStream
             RequestOptions::JSON => $json
         ])->getBody();
 
+        $this->streamState = new StreamState();
         $toolCalls = [];
         $text = '';
-        $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
@@ -62,8 +63,8 @@ trait HandleStream
 
             // Capture usage information
             if (!empty($line['usage'])) {
-                $usage->inputTokens += $line['usage']['prompt_tokens'] ?? 0;
-                $usage->outputTokens += $line['usage']['completion_tokens'] ?? 0;
+                $this->streamState->addInputTokens($line['usage']['prompt_tokens'] ?? 0);
+                $this->streamState->addOutputTokens($line['usage']['completion_tokens'] ?? 0);
             }
 
             if (empty($line['choices'])) {
@@ -74,7 +75,9 @@ trait HandleStream
 
             // Compile tool calls
             if (isset($choice['delta']['tool_calls'])) {
-                $toolCalls = $this->composeToolCalls($line, $toolCalls);
+                // accumulate tool calls via stream state
+                $this->streamState->composeToolCalls($line);
+                $toolCalls = $this->streamState->getToolCalls();
 
                 if ($this->finishForToolCall($choice)) {
                     goto finish;
@@ -91,7 +94,7 @@ trait HandleStream
                     'content' => $text,
                     'tool_calls' => $toolCalls
                 ]);
-                $message->setUsage($usage);
+                $message->setUsage($this->streamState->getUsage());
 
                 return $message;
             }
@@ -101,7 +104,7 @@ trait HandleStream
             $text .= $content;
 
             if ($content !== '') {
-                yield new TextChunk($content);
+                yield new TextChunk($this->streamState->messageId(), $content);
             }
         }
 
@@ -112,7 +115,7 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($blocks);
-        $message->setUsage($usage);
+        $message->setUsage($this->streamState->getUsage());
 
         return $message;
     }
@@ -120,35 +123,6 @@ trait HandleStream
     protected function finishForToolCall(array $choice): bool
     {
         return isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls';
-    }
-
-    /**
-     * Recreate the tool_calls format from streaming OpenAI API.
-     *
-     * @param  array<string, mixed>  $line
-     * @param  array<int, array<string, mixed>>  $toolCalls
-     * @return array<int, array<string, mixed>>
-     */
-    protected function composeToolCalls(array $line, array $toolCalls): array
-    {
-        foreach ($line['choices'][0]['delta']['tool_calls'] as $call) {
-            $index = $call['index'];
-
-            if (!\array_key_exists($index, $toolCalls)) {
-                if ($name = $call['function']['name'] ?? null) {
-                    $toolCalls[$index]['function'] = ['name' => $name, 'arguments' => $call['function']['arguments'] ?? ''];
-                    $toolCalls[$index]['id'] = $call['id'];
-                    $toolCalls[$index]['type'] = 'function';
-                }
-            } else {
-                $arguments = $call['function']['arguments'] ?? null;
-                if ($arguments !== null) {
-                    $toolCalls[$index]['function']['arguments'] .= $arguments;
-                }
-            }
-        }
-
-        return $toolCalls;
     }
 
     /*protected function parseNextDataLine(StreamInterface $stream): ?array
