@@ -109,7 +109,9 @@ class Gemini implements AIProviderInterface
             array_filter($tools)
         );
 
-        $result->addMetadata('thoughtSignature', $signature);
+        if ($signature !== null) {
+            $result->addMetadata('thoughtSignature', $signature);
+        }
 
         return $result;
     }
