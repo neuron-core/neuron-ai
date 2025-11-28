@@ -102,8 +102,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $this->mapping[] = [
-            'content' => array_map($this->mapContentBlock(...), $message->getContentBlocks()),
+        $item = [
             'role' => MessageRole::ASSISTANT,
             'tool_calls' => array_map(fn (ToolInterface $tool): array => [
                 'id' => $tool->getCallId(),
@@ -114,6 +113,13 @@ class MessageMapper implements MessageMapperInterface
                 ],
             ], $message->getTools())
         ];
+
+        $content = array_map($this->mapContentBlock(...), $message->getContentBlocks());
+        if (!empty($content)) {
+            $item['content'] = $content;
+        }
+
+        $this->mapping[] = $item;
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void
