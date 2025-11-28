@@ -22,7 +22,7 @@ trait HandleStructured
         $tk = explode('\\', $class);
         $className = end($tk);
 
-        $this->parameters = array_merge($this->parameters, [
+        $this->parameters = array_replace_recursive($this->parameters, [
             'text' => [
                 'format' => [
                     'type' => 'json_schema',
@@ -32,6 +32,8 @@ trait HandleStructured
                 ],
             ]
         ]);
+
+        echo "\n\n".json_encode($this->parameters)."\n\n";
 
         return $this->chat($messages);
     }
