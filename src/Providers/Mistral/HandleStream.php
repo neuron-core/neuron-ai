@@ -100,9 +100,10 @@ trait HandleStream
             $content = $choice['delta']['content'] ?? '';
 
             if (is_array($content)) {
+                $content = $content[0];
                 $block = match ($content['type']) {
                     'text' => new TextContent($content['text'] ?? ''),
-                    'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
+                    'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry .= $item['text'], '')),
                     'image_url' => new ImageContent(
                         $content['image_url']['url'] ?? '',
                         SourceType::BASE64
@@ -119,11 +120,11 @@ trait HandleStream
                 $block = new TextContent($content);
             }
 
-            $this->streamState->updateContentBlock($choice['index'], $content);
+            $this->streamState->updateContentBlock($choice['index'], $block);
 
             $chunk = match ($block::class) {
-                TextContent::class => new TextChunk($this->streamState->messageId(), $content),
-                ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $content),
+                TextContent::class => new TextChunk($this->streamState->messageId(), $block->getContent()),
+                ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $block->getContent()),
                 default => null,
             };
 
