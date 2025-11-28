@@ -14,7 +14,6 @@ use NeuronAI\Providers\HasGuzzleClient;
 use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\HandleStructured;
-use NeuronAI\Providers\OpenAI\MessageMapper;
 use NeuronAI\Providers\OpenAI\ToolPayloadMapper;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
