@@ -33,8 +33,6 @@ trait HandleStructured
             ]
         ]);
 
-        echo "\n\n".json_encode($this->parameters)."\n\n";
-
         return $this->chat($messages);
     }
 
