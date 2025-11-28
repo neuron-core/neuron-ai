@@ -108,10 +108,10 @@ class MessageMapper implements MessageMapperInterface
             'role' => MessageRole::ASSISTANT,
             'tool_calls' => array_map(fn (ToolInterface $tool): array => [
                 'id' => $tool->getCallId(),
-                'type' => 'function_call',
+                'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    'arguments' => json_encode($tool->getInputs() ?: new stdClass()),
+                    ...(empty($tool->getInputs()) ? [] : ['arguments' => json_encode($tool->getInputs())]),
                 ],
             ], $message->getTools())
         ];
