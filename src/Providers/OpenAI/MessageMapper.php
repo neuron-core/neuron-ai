@@ -18,6 +18,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
+use NeuronAI\Tools\ToolInterface;
 use function array_map;
 use function uniqid;
 
@@ -101,21 +102,18 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        foreach ($message->getTools() as $tool) {
-            $this->mapping[] = [
-                'role' => MessageRole::ASSISTANT,
-                'tool_calls' => [
-                    [
-                        'id' => $tool->getCallId(),
-                        'type' => 'function',
-                        'function' => [
-                            'name' => $tool->getName(),
-                            'arguments' => $tool->getInputs(),
-                        ],
-                    ]
-                ]
-            ];
-        }
+        $this->mapping[] = [
+            'content' => array_map($this->mapContentBlock(...), $message->getContentBlocks()),
+            'role' => MessageRole::ASSISTANT,
+            'tool_calls' => array_map(fn (ToolInterface $tool): array => [
+                'id' => $tool->getCallId(),
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool->getName(),
+                    'arguments' => $tool->getInputs(),
+                ],
+            ], $message->getTools())
+        ];
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void
