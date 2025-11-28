@@ -28,7 +28,7 @@ class StreamState extends BasicStreamState
 
     public function composeToolCalls(array $event): void
     {
-        if (!isset($event['item']['id'])) {
+        if (isset($event['item']['id'])) {
             $this->toolCalls[$event['item']['id']] = [
                 'name' => $event['item']['name'],
                 'arguments' => $event['item']['arguments'] ?? null,

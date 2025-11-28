@@ -132,7 +132,7 @@ trait HandleStream
                             $this->streamState->getContentBlocks(),
                         )->setUsage($this->streamState->getUsage());
                     }
-                    return $this->createAssistantMessage($event['response'])->setUsage($usage);
+                    return $this->createAssistantMessage($event['response'])->setUsage($this->streamState->getUsage());
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
