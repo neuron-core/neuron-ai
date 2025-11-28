@@ -22,6 +22,9 @@ use NeuronAI\Providers\SSEParser;
 use Generator;
 
 use function array_unshift;
+use function array_filter;
+use function array_reduce;
+use function is_array;
 
 trait HandleStream
 {
@@ -96,10 +99,10 @@ trait HandleStream
             // Process regular content
             $content = $choice['delta']['content'] ?? '';
 
-            if (\is_array($content)) {
+            if (is_array($content)) {
                 $block = match ($content['type']) {
                     'text' => new TextContent($content['text'] ?? ''),
-                    'thinking' => new ReasoningContent(\array_reduce(\array_filter($content['thinking'], fn(array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
+                    'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
                     'image_url' => new ImageContent(
                         $content['image_url']['url'] ?? '',
                         SourceType::BASE64
@@ -110,6 +113,7 @@ trait HandleStream
                         filename: $content['document_name'] ?? null
                     ),
                     'input_audio' => new AudioContent($content['input_audio'], SourceType::BASE64),
+                    default => new TextContent(''),
                 };
             } else {
                 $block = new TextContent($content);
@@ -117,10 +121,15 @@ trait HandleStream
 
             $this->streamState->updateContentBlock($choice['index'], $content);
 
-            yield match ($block::class) {
+            $chunk = match ($block::class) {
                 TextContent::class => new TextChunk($this->streamState->messageId(), $content),
                 ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $content),
+                default => null,
             };
+
+            if ($chunk !== null) {
+                yield $chunk;
+            }
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());

@@ -15,6 +15,11 @@ abstract class ContentBlock implements ContentBlockInterface
         $this->content .= $content;
     }
 
+    public function getContent(): string
+    {
+        return $this->content;
+    }
+
     /**
      * @return array<string, mixed>
      */

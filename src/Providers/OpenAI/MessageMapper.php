@@ -18,7 +18,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
-use function array_key_exists;
 use function array_map;
 use function uniqid;
 

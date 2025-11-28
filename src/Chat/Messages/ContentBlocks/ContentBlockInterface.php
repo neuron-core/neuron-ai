@@ -11,6 +11,8 @@ interface ContentBlockInterface extends JsonSerializable
 {
     public function accumulateContent(string $content): void;
 
+    public function getContent(): string;
+
     public function getType(): ContentBlockType;
 
     /**

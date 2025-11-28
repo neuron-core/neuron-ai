@@ -21,6 +21,9 @@ use Psr\Http\Message\ResponseInterface;
 
 use function array_unshift;
 use function json_decode;
+use function array_filter;
+use function array_reduce;
+use function is_string;
 
 trait HandleChat
 {
@@ -58,14 +61,14 @@ trait HandleChat
                         $choice['message']['tool_calls'],
                         new TextContent($choice['message']['content'])
                     );
-                } elseif (\is_string($choice['message']['content'])) {
+                } elseif (is_string($choice['message']['content'])) {
                     $response = new AssistantMessage($choice['message']['content']);
                 } else {
                     $blocks = [];
                     foreach ($choice['content'] as $content) {
                         $blocks[] = match ($content['type']) {
                             'text' => new TextContent($content['text'] ?? ''),
-                            'thinking' => new ReasoningContent(\array_reduce(\array_filter($content['thinking'], fn(array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
+                            'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
                             'image_url' => new ImageContent(
                                 $content['image_url']['url'] ?? '',
                                 SourceType::BASE64
@@ -76,9 +79,10 @@ trait HandleChat
                                 filename: $content['document_name'] ?? null
                             ),
                             'input_audio' => new AudioContent($content['input_audio'], SourceType::BASE64),
+                            default => null
                         };
                     }
-                    $response = new AssistantMessage($blocks);
+                    $response = new AssistantMessage(array_filter($blocks));
                 }
 
                 if (isset($result['usage'])) {

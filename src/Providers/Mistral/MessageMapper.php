@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -20,7 +19,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
-use function array_key_exists;
 use function array_map;
 use function uniqid;
 
@@ -111,7 +109,7 @@ class MessageMapper implements MessageMapperInterface
     {
         foreach ($message->getTools() as $tool) {
             $this->mapping[] = [
-                'content' => \array_map($this->mapContentBlock(...), $message->getContentBlocks()),
+                'content' => array_map($this->mapContentBlock(...), $message->getContentBlocks()),
                 'role' => MessageRole::ASSISTANT,
                 'tool_calls' => [
                     'id' => $tool->getCallId(),

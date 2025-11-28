@@ -16,7 +16,7 @@ class StreamState extends BasicStreamState
         if (!isset($this->blocks[$index])) {
             $this->blocks[$index] = $block;
         } else {
-            $this->blocks[$index]->accumulateContent($block->content);
+            $this->blocks[$index]->accumulateContent($block->getContent());
         }
     }
 
