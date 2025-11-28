@@ -19,10 +19,17 @@ class SSEParser
 
         $line = \trim(\substr($line, \strlen('data: ')));
 
+        // Handle SSE end-of-stream sentinel used by some providers (e.g., OpenAI): [DONE]
+        // This is not JSON and should be ignored by the parser.
+        if ($line === '[DONE]') {
+            return null;
+        }
+
         try {
             return \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
         } catch (\Throwable $exception) {
-            throw new ProviderException('Anthropic streaming error - '.$exception->getMessage());
+            // Generic message because the parser is used by multiple providers
+            throw new ProviderException('SSE streaming JSON decode error - '.$exception->getMessage());
         }
     }
 
