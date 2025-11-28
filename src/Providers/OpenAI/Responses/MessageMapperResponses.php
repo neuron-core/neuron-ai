@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Chat\Attachments\Attachment;
+use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Enums\MessageRole;
@@ -65,7 +66,7 @@ class MessageMapperResponses implements MessageMapperInterface
             ];
         }
         foreach ($message->getAttachments() as $attachment) {
-            if ($attachment->type === AttachmentType::DOCUMENT) {
+            if ($attachment instanceof Document) {
                 if ($attachment->contentType === AttachmentContentType::URL) {
                     // OpenAI does not support URL type
                     throw new ProviderException('This provider does not support URL document attachments.');
@@ -85,17 +86,17 @@ class MessageMapperResponses implements MessageMapperInterface
         return $message instanceof UserMessage || $message->getRole() === MessageRole::USER->value;
     }
 
-    public function mapDocumentAttachment(Attachment $attachment): array
+    public function mapDocumentAttachment(Document $document): array
     {
-        return match ($attachment->contentType) {
+        return match ($document->contentType) {
             AttachmentContentType::URL => [
                 'type' => 'input_file',
-                'file_url' => $attachment->content,
+                'file_url' => $document->content,
             ],
             AttachmentContentType::BASE64 => [
                 'type' => 'input_file',
-                'filename' => "attachment-".uniqid().".pdf",
-                'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
+                'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
+                'file_data' => "data:{$document->mediaType};base64,{$document->content}",
             ]
         };
     }
