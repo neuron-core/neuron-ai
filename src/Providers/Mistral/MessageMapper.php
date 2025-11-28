@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
 
 use function array_map;
 use function uniqid;
@@ -115,13 +116,13 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    'arguments' => $tool->getInputs() ?: new \stdClass(),
+                    'arguments' => $tool->getInputs() ?: new stdClass(),
                 ],
             ], $message->getTools())
         ];
 
         $content = array_map($this->mapContentBlock(...), $message->getContentBlocks());
-        if (!empty($content)) {
+        if ($content !== []) {
             $item['content'] = $content;
         }
 

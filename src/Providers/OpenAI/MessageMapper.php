@@ -17,10 +17,12 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
-
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
 use function array_map;
 use function uniqid;
+use function json_encode;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -102,24 +104,14 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $item = [
-            'role' => MessageRole::ASSISTANT,
-            'tool_calls' => array_map(fn (ToolInterface $tool): array => [
-                'id' => $tool->getCallId(),
-                'type' => 'function',
-                'function' => [
-                    'name' => $tool->getName(),
-                    'arguments' => $tool->getInputs() ?: new \stdClass(),
-                ],
-            ], $message->getTools())
-        ];
-
-        $content = array_map($this->mapContentBlock(...), $message->getContentBlocks());
-        if (!empty($content)) {
-            $item['content'] = $content;
+        foreach ($message->getTools() as $tool) {
+            $this->mapping[] = [
+                'role' => 'function',
+                'name' => $tool->getName(),
+                'arguments' => json_encode($tool->getInputs() ?: new stdClass()),
+                'call_id' => $tool->getCallId(),
+            ];
         }
-
-        $this->mapping[] = $item;
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void
