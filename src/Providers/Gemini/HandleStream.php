@@ -112,6 +112,12 @@ trait HandleStream
             if (isset($part['functionCall'])) {
                 $toolCalls[$index]['functionCall'] = $part['functionCall'];
             }
+
+            // Preserve thoughtSignature for Gemini 3 Pro compatibility
+            // Gemini 3 Pro includes thoughtSignature in streaming responses
+            if (isset($part['thoughtSignature'])) {
+                $toolCalls[$index]['thoughtSignature'] = $part['thoughtSignature'];
+            }
         }
 
         return $toolCalls;
