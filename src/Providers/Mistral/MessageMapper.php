@@ -113,7 +113,7 @@ class MessageMapper implements MessageMapperInterface
             'role' => MessageRole::ASSISTANT,
             'tool_calls' => array_map(fn (ToolInterface $tool): array => [
                 'id' => $tool->getCallId(),
-                'type' => 'function',
+                'type' => 'function_call',
                 'function' => [
                     'name' => $tool->getName(),
                     'arguments' => $tool->getInputs() ?: new stdClass(),
