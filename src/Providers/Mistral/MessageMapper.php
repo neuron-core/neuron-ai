@@ -112,11 +112,13 @@ class MessageMapper implements MessageMapperInterface
                 'content' => array_map($this->mapContentBlock(...), $message->getContentBlocks()),
                 'role' => MessageRole::ASSISTANT,
                 'tool_calls' => [
-                    'id' => $tool->getCallId(),
-                    'type' => 'function',
-                    'function' => [
-                        'name' => $tool->getName(),
-                        'arguments' => $tool->getInputs(),
+                    [
+                        'id' => $tool->getCallId(),
+                        'type' => 'function',
+                        'function' => [
+                            'name' => $tool->getName(),
+                            'arguments' => $tool->getInputs(),
+                        ],
                     ]
                 ]
             ];

@@ -61,13 +61,13 @@ class StreamingNode extends Node
             // Get the final message from the generator return value
             $message = $stream->getReturn();
 
-            // Add the message to the chat history
-            $this->addToChatHistory($state, $message);
-
             $this->emit(
                 'inference-stop',
                 new InferenceStop($lastMessage, $message)
             );
+
+            // Add the message to the chat history
+            $this->addToChatHistory($state, $message);
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
