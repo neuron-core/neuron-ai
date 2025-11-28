@@ -92,7 +92,7 @@ class MessageMapper implements MessageMapperInterface
             'type' => 'file',
             'file' => [
                 // The filename is required, but the Document class does not have a filename property.
-                'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
+                'filename' => $document->filename,
                 'file_data' => "data:{$document->mediaType};base64,{$document->content}",
             ]
         ];
