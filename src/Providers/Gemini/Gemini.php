@@ -91,12 +91,14 @@ class Gemini implements AIProviderInterface
     {
         $signature = null;
 
-        $tools = array_map(function (array $item) use ($signature): ?ToolInterface {
+        $tools = array_map(function (array $item) use (&$signature): ?ToolInterface {
             if (!isset($item['functionCall'])) {
                 return null;
             }
 
-            $signature = $item['thoughtSignature'] ?? null;
+            if ($item['thoughtSignature'] ?? false) {
+                $signature = $item['thoughtSignature'];
+            }
 
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
             return $this->findTool($item['functionCall']['name'])
