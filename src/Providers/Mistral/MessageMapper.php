@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Mistral;
 
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -37,7 +39,7 @@ class MessageMapper implements MessageMapperInterface
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 ToolResultMessage::class => $this->mapToolsResult($message),
-                default => throw new ProviderException('Could not map message type '.$message::class),
+                default => throw new ProviderException('Unknown message type '.$message::class),
             };
         }
 
@@ -64,56 +66,63 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'text',
                 'text' => $block->content,
             ],
+            ReasoningContent::class => [
+                'type' => 'thinking',
+                'thinking' => [
+                    'type' => 'text',
+                    'text' => $block->content,
+                ],
+            ],
             ImageContent::class => $this->mapImageBlock($block),
-            FileContent::class => $this->mapFileBlock($block),
-            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            FileContent::class => $this->mapDocumentBlock($block), // File map DocumentChunk on Mistral API
+            AudioContent::class => $this->mapAudioBlock($block),
+            default => throw new ProviderException('Mistral does not support content block type: '.$block::class),
         };
     }
 
     protected function mapImageBlock(ImageContent $block): array
     {
-        $url = match ($block->sourceType) {
-            SourceType::URL => $block->content,
-            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
-        };
-
         return [
             'type' => 'image_url',
             'image_url' => [
-                'url' => $url,
+                'url' => $block->content,
             ],
         ];
     }
 
-    protected function mapFileBlock(FileContent $block): array
+    protected function mapDocumentBlock(FileContent $block): array
     {
-        if ($block->sourceType === SourceType::URL) {
-            throw new ProviderException('This provider does not support URL document attachments.');
-        }
-
         return [
-            'type' => 'file',
-            'file' => [
-                'filename' => $block->filename ?? "attachment-".uniqid().".pdf",
-                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
-            ]
+            'type' => 'document_url',
+            'document_url' => $block->content,
+            'document_name' => $block->filename ?? "attachment-".uniqid().".pdf",
+        ];
+    }
+
+    protected function mapAudioBlock(AudioContent $block): array
+    {
+        return [
+            'type' => 'input_audio',
+            'input_audio' => $block->content,
         ];
     }
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $result = $message->jsonSerialize();
-
-        $result['content'] = $message->getContent();
-
-        if (array_key_exists('usage', $result)) {
-            unset($result['usage']);
+        foreach ($message->getTools() as $tool) {
+            $this->mapping[] = [
+                'content' => \array_map($this->mapContentBlock(...), $message->getContentBlocks()),
+                'role' => MessageRole::ASSISTANT,
+                'tool_calls' => [
+                    'id' => $tool->getCallId(),
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $tool->getName(),
+                        'arguments' => $tool->getInputs(),
+                    ]
+                ]
+            ];
         }
-
-        unset($result['type']);
-        unset($result['tools']);
-
-        $this->mapping[] = $result;
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void

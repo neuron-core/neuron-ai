@@ -44,7 +44,7 @@ class MessageMapper implements MessageMapperInterface
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 ToolResultMessage::class => $this->mapToolsResult($message),
-                default => throw new ProviderException('Could not map message type '.$message::class),
+                default => throw new ProviderException('Unknown message type '.$message::class),
             };
         }
 
@@ -76,7 +76,7 @@ class MessageMapper implements MessageMapperInterface
             TextContent::class => $this->mapTextBlock($block, $isUser),
             FileContent::class => $this->mapFileBlock($block),
             ImageContent::class => $this->mapImageBlock($block),
-            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            default => throw new ProviderException('OpenAI does not support content block type: '.$block::class),
         }, $blocks);
     }
 

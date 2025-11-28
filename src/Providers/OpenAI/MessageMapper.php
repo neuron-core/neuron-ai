@@ -102,18 +102,19 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $result = $message->jsonSerialize();
-
-        $result['content'] = $message->getContent();
-
-        if (array_key_exists('usage', $result)) {
-            unset($result['usage']);
+        foreach ($message->getTools() as $tool) {
+            $this->mapping[] = [
+                'role' => MessageRole::ASSISTANT,
+                'tool_calls' => [
+                    'id' => $tool->getCallId(),
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $tool->getName(),
+                        'arguments' => $tool->getInputs(),
+                    ],
+                ]
+            ];
         }
-
-        unset($result['type']);
-        unset($result['tools']);
-
-        $this->mapping[] = $result;
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void
