@@ -21,7 +21,6 @@ use stdClass;
 use function is_array;
 use function is_string;
 use function json_encode;
-use function uniqid;
 
 class MessageMapperResponses implements MessageMapperInterface
 {
