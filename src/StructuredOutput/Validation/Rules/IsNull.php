@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY)]
+use Attribute;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
 class IsNull extends AbstractValidationRule
 {
     protected string $message = '{name} must be null';

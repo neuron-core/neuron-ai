@@ -10,7 +10,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -23,6 +23,16 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
+
+use function array_map;
+use function array_slice;
+use function count;
+use function end;
+use function in_array;
+use function intval;
+use function is_array;
+use function is_string;
+use function json_decode;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
@@ -81,7 +91,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function getLastMessage(): Message
     {
-        $message = \end($this->history);
+        $message = end($this->history);
 
         if ($message === false) {
             throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large a message.');
@@ -122,7 +132,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Binary search to find how many messages to skip from the beginning
         $skipFrom = $this->findMaxFittingMessages();
 
-        $this->history = \array_slice($this->history, $skipFrom);
+        $this->history = array_slice($this->history, $skipFrom);
 
         // Ensure valid message sequence
         $this->ensureValidMessageSequence();
@@ -137,13 +147,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     private function findMaxFittingMessages(): int
     {
-        $totalMessages = \count($this->history);
+        $totalMessages = count($this->history);
         $left = 0;
         $right = $totalMessages;
 
         while ($left < $right) {
-            $mid = \intval(($left + $right) / 2);
-            $subset = \array_slice($this->history, $mid);
+            $mid = intval(($left + $right) / 2);
+            $subset = array_slice($this->history, $mid);
 
             if ($this->tokenCounter->count($subset) <= $this->contextWindow) {
                 // Fits! Try including more messages (skip fewer)
@@ -165,11 +175,48 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function ensureValidMessageSequence(): void
     {
+        if ($this->history === []) {
+            return;
+        }
+
+        // Drop leading tool_call / tool_call_result messages
+        $this->dropLeadingToolMessages();
+
+        if ($this->history === []) {
+            return;
+        }
+
         // Ensure it starts with a UserMessage
         $this->ensureStartsWithUser();
 
+        if ($this->history === []) {
+            return;
+        }
+
         // Ensure it ends with an AssistantMessage
         $this->ensureValidAlternation();
+    }
+
+    /**
+     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
+     */
+    protected function dropLeadingToolMessages(): void
+    {
+        $start = 0;
+
+        foreach ($this->history as $index => $message) {
+            if ($message instanceof ToolCallMessage || $message instanceof ToolResultMessage) {
+                $start = $index + 1;
+                continue;
+            }
+
+            // First non-tool message reached, stop advancing
+            break;
+        }
+
+        if ($start > 0) {
+            $this->history = array_slice($this->history, $start);
+        }
     }
 
     /**
@@ -198,7 +245,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         if ($firstUserIndex > 0) {
             // Remove messages before the first user message
-            $this->history = \array_slice($this->history, $firstUserIndex);
+            $this->history = array_slice($this->history, $firstUserIndex);
         }
     }
 
@@ -208,7 +255,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function ensureValidAlternation(): void
     {
         $result = [];
-        $expectingRole = [MessageRole::USER->value]; // Should start with user
+        $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
+        $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
+        $expectingRoles = $userRoles; // Should start with user
 
         foreach ($this->history as $message) {
             $messageRole = $message->getRole();
@@ -216,20 +265,20 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             // Tool result messages have a special case - they're user messages
             // but can only follow tool call messages (assistant)
             // This is valid after a ToolCallMessage
-            if ($message instanceof ToolResultMessage && ($result !== [] && $result[\count($result) - 1] instanceof ToolCallMessage)) {
+            if ($message instanceof ToolResultMessage && ($result !== [] && $result[count($result) - 1] instanceof ToolCallMessage)) {
                 $result[] = $message;
                 // After the tool result, we expect assistant again
-                $expectingRole = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
+                $expectingRoles = $assistantRoles;
                 continue;
             }
 
             // Check if this message has the expected role
-            if (\in_array($messageRole, $expectingRole, true)) {
+            if (in_array($messageRole, $expectingRoles, true)) {
                 $result[] = $message;
                 // Toggle the expected role
-                $expectingRole = ($expectingRole === [MessageRole::USER->value])
-                    ? [MessageRole::ASSISTANT->value, MessageRole::MODEL->value]
-                    : [MessageRole::USER->value];
+                $expectingRoles = ($expectingRoles === $userRoles)
+                    ? $assistantRoles
+                    : $userRoles;
             }
             // If not the expected role, we have an invalid alternation
             // Skip this message to maintain a valid sequence
@@ -252,7 +301,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMessages(array $messages): array
     {
-        return \array_map(fn (array $message): Message => match ($message['type'] ?? null) {
+        return array_map(fn (array $message): Message => match ($message['type'] ?? null) {
             'tool_call' => $this->deserializeToolCall($message),
             'tool_call_result' => $this->deserializeToolCallResult($message),
             default => $this->deserializeMessage($message),
@@ -283,7 +332,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+        $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'] ?? null), $message['tools']);
 
@@ -299,7 +348,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = \array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+        $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'])
             ->setResult($tool['result']), $message['tools']);
@@ -313,27 +362,27 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      * Handles both legacy string format and new content block array format.
      * Legacy formats are automatically converted to ContentBlocks for migration.
      *
-     * @return string|ContentBlock|ContentBlock[]|null
+     * @return string|ContentBlockInterface|ContentBlockInterface[]|null
      */
-    protected function deserializeContent(mixed $content): string|ContentBlock|array|null
+    protected function deserializeContent(mixed $content): string|ContentBlockInterface|array|null
     {
         if ($content === null) {
             return null;
         }
 
         // Legacy format: simple string - convert to TextContent for migration
-        if (\is_string($content)) {
-            if ($json = \json_decode($content, true)) {
+        if (is_string($content)) {
+            if ($json = json_decode($content, true)) {
                 return $this->deserializeContent($json);
             }
             return new TextContent($content);
         }
 
         // New format: array of content blocks
-        if (\is_array($content)) {
+        if (is_array($content)) {
             // Check if it's an array of content blocks (has 'type' key in first element)
             if (isset($content[0]['type'])) {
-                return \array_map($this->deserializeContentBlock(...), $content);
+                return array_map($this->deserializeContentBlock(...), $content);
             }
 
             // Empty array
@@ -351,36 +400,36 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      *
      * @param array<string, mixed> $block
      */
-    protected function deserializeContentBlock(array $block): ContentBlock
+    protected function deserializeContentBlock(array $block): ContentBlockInterface
     {
         $type = ContentBlockType::from($block['type']);
 
         return match ($type) {
             ContentBlockType::TEXT => new TextContent(
-                text: $block['text']
+                content: $block['text']
             ),
             ContentBlockType::REASONING => new ReasoningContent(
-                text: $block['text'],
+                content: $block['text'],
                 id: $block['id'] ?? null
             ),
             ContentBlockType::IMAGE => new ImageContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::FILE => new FileContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null,
                 filename: $block['filename'] ?? null
             ),
             ContentBlockType::AUDIO => new AudioContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::VIDEO => new VideoContent(
-                source: $block['source'],
+                content: $block['source'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
@@ -405,9 +454,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 );
                 continue;
             }
-            if ($key === 'citations' && \is_array($value)) {
+            if ($key === 'citations' && is_array($value)) {
                 // Deserialize citations from array back to Citation objects
-                $citations = \array_map(
+                $citations = array_map(
                     Citation::fromArray(...),
                     $value
                 );
@@ -416,5 +465,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             }
             $item->addMetadata($key, $value);
         }
+    }
+
+    public function setTokenCounter(TokenCounterInterface $tokenCounter): ChatHistoryInterface
+    {
+        $this->tokenCounter = $tokenCounter;
+        return $this;
     }
 }

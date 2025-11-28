@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Providers;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+
+use function array_merge;
 
 trait HasGuzzleClient
 {
@@ -23,7 +26,7 @@ trait HasGuzzleClient
     protected function mergeHttpOptions(array $config, HttpClientOptions $options): array
     {
         if ($options->headers !== null && $options->headers !== []) {
-            $config['headers'] = \array_merge($config['headers'], $options->headers);
+            $config['headers'] = array_merge($config['headers'], $options->headers);
         }
 
         // Handle individual options
@@ -33,8 +36,11 @@ trait HasGuzzleClient
         if ($options->connectTimeout !== null) {
             $config['connect_timeout'] = $options->connectTimeout;
         }
-        if ($options->handler instanceof \GuzzleHttp\HandlerStack) {
+        if ($options->handler instanceof HandlerStack) {
             $config['handler'] = $options->handler;
+        }
+        if ($options->proxy !== null) {
+            $config['proxy'] = $options->proxy;
         }
 
         return $config;

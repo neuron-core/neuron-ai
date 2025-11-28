@@ -13,6 +13,9 @@ use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\Workflow\Node;
 
+use function array_values;
+use function md5;
+
 /**
  * Retrieves relevant documents from vector store.
  *
@@ -42,10 +45,10 @@ class RetrieveDocumentsNode extends Node
         // Deduplicate documents by content hash
         $retrievedDocs = [];
         foreach ($documents as $document) {
-            $hash = \md5($document->getContent());
+            $hash = md5($document->getContent());
             $retrievedDocs[$hash] = $document;
         }
-        $retrievedDocs = \array_values($retrievedDocs);
+        $retrievedDocs = array_values($retrievedDocs);
 
         $this->emit('rag-retrieved', new Retrieved($query, $retrievedDocs));
 

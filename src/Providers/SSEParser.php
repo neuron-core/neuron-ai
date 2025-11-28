@@ -6,6 +6,16 @@ namespace NeuronAI\Providers;
 
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Throwable;
+
+use function json_decode;
+use function str_contains;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
 
 class SSEParser
 {
@@ -13,16 +23,20 @@ class SSEParser
     {
         $line = static::readLine($stream);
 
-        if (! \str_starts_with($line, 'data:')) {
+        if (! str_starts_with($line, 'data:')) {
             return null;
         }
 
-        $line = \trim(\substr($line, \strlen('data: ')));
+        $line = trim(substr($line, strlen('data: ')));
+
+        if (str_contains($line, 'DONE')) {
+            return null;
+        }
 
         try {
-            return \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
-            throw new ProviderException('Anthropic streaming error - '.$exception->getMessage());
+            return json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            throw new ProviderException('Streaming error - '.$exception->getMessage());
         }
     }
 

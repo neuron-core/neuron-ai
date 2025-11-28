@@ -8,6 +8,11 @@ use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\RAG\Document;
 
+use function array_map;
+use function in_array;
+use function json_decode;
+use function trim;
+
 class PineconeVectorStore implements VectorStoreInterface
 {
     protected Client $client;
@@ -24,10 +29,10 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $indexUrl,
         protected int $topK = 4,
         string $version = '2025-04',
-        protected string $namespace = '__default__'
+        protected string $namespace = '__default__' // Default namespace
     ) {
         $this->client = new Client([
-            'base_uri' => \trim($this->indexUrl, '/').'/',
+            'base_uri' => trim($this->indexUrl, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -47,7 +52,7 @@ class PineconeVectorStore implements VectorStoreInterface
         $this->client->post("vectors/upsert", [
             RequestOptions::JSON => [
                 'namespace' => $this->namespace,
-                'vectors' => \array_map(fn (Document $document): array => [
+                'vectors' => array_map(fn (Document $document): array => [
                     'id' => (string) $document->getId(),
                     'values' => $document->getEmbedding(),
                     'metadata' => [
@@ -80,20 +85,26 @@ class PineconeVectorStore implements VectorStoreInterface
 
     public function similaritySearch(array $embedding): iterable
     {
+        $queryParams = [
+            'namespace' => $this->namespace,
+            'includeMetadata' => true,
+            'includeValues' => true,
+            'vector' => $embedding,
+            'topK' => $this->topK,
+        ];
+
+        // Only include filter parameter if filters are not empty
+        if ($this->filters !== []) {
+            $queryParams['filter'] = $this->filters;
+        }
+
         $result = $this->client->post("query", [
-            RequestOptions::JSON => [
-                'namespace' => $this->namespace,
-                'includeMetadata' => true,
-                'includeValues' => true,
-                'vector' => $embedding,
-                'topK' => $this->topK,
-                'filter' => $this->filters, // Hybrid search
-            ]
+            RequestOptions::JSON => $queryParams
         ])->getBody()->getContents();
 
-        $result = \json_decode($result, true);
+        $result = json_decode($result, true);
 
-        return \array_map(function (array $item): Document {
+        return array_map(function (array $item): Document {
             $document = new Document();
             $document->id = $item['id'];
             $document->embedding = $item['values'];
@@ -103,7 +114,7 @@ class PineconeVectorStore implements VectorStoreInterface
             $document->score = $item['score'];
 
             foreach ($item['metadata'] as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName'])) {
                     $document->addMetadata($name, $value);
                 }
             }

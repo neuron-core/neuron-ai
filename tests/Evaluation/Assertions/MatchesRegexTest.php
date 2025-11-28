@@ -6,6 +6,7 @@ namespace Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\MatchesRegex;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class MatchesRegexTest extends TestCase
 {
@@ -117,7 +118,7 @@ class MatchesRegexTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new MatchesRegex('/test/');
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);

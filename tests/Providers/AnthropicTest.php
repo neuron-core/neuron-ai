@@ -27,6 +27,8 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
+use function json_decode;
+
 class AnthropicTest extends TestCase
 {
     public function test_chat_request(): void
@@ -66,7 +68,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('How can I assist you today?', $response->getContent());
     }
 
@@ -88,7 +90,7 @@ class AnthropicTest extends TestCase
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
-                source: 'base64_encoded_image_data',
+                content: 'base64_encoded_image_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'image/png'
             ));
@@ -121,7 +123,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_url_image(): void
@@ -141,7 +143,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this image'))
-            ->addContent(new ImageContent(source: 'https://example.com/image.png', sourceType: SourceType::URL));
+            ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 
@@ -170,7 +172,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_base64_document(): void
@@ -191,7 +193,7 @@ class AnthropicTest extends TestCase
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(
-                source: 'base64_encoded_document_data',
+                content: 'base64_encoded_document_data',
                 sourceType: SourceType::BASE64,
                 mediaType: 'pdf'
             ));
@@ -224,7 +226,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_url_document(): void
@@ -244,7 +246,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContent(source: 'https://example.com/document.pdf', sourceType: SourceType::URL));
+            ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
         $provider->chat([$message]);
 
@@ -273,7 +275,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload(): void
@@ -337,7 +339,7 @@ class AnthropicTest extends TestCase
             ]
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_properties(): void
@@ -415,7 +417,7 @@ class AnthropicTest extends TestCase
             ]
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_mapped_class(): void
@@ -494,7 +496,7 @@ class AnthropicTest extends TestCase
             ]
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_array_properties(): void
@@ -600,14 +602,14 @@ class AnthropicTest extends TestCase
             ]
         ];
 
-        $this->assertSame($expectedResponse, \json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
 
     public function test_stream_returns_message_with_text_chunks(): void
     {
         // Mock SSE streaming response with text content
         $streamBody = "event: message_start\n";
-        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_123\",\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n";
         $streamBody .= "event: content_block_start\n";
         $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n";
         $streamBody .= "event: content_block_delta\n";
@@ -655,7 +657,7 @@ class AnthropicTest extends TestCase
     {
         // Mock SSE streaming response with thinking and text content
         $streamBody = "event: message_start\n";
-        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":15,\"output_tokens\":0}}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_123\",\"usage\":{\"input_tokens\":15,\"output_tokens\":0}}}\n\n";
         $streamBody .= "event: content_block_start\n";
         $streamBody .= "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\"}}\n\n";
         $streamBody .= "event: content_block_delta\n";
@@ -707,9 +709,9 @@ class AnthropicTest extends TestCase
         $this->assertCount(2, $contentBlocks);
         $this->assertInstanceOf(ReasoningContent::class, $contentBlocks[0]);
         $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
-        $this->assertSame('Let me think about this', $contentBlocks[0]->text);
+        $this->assertSame('Let me think about this', $contentBlocks[0]->content);
         $this->assertSame('sig123', $contentBlocks[0]->id);
-        $this->assertSame('The answer', $contentBlocks[1]->text);
+        $this->assertSame('The answer', $contentBlocks[1]->content);
         $this->assertSame(15, $message->getUsage()->inputTokens);
         $this->assertSame(8, $message->getUsage()->outputTokens);
     }

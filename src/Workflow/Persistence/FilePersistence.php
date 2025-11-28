@@ -7,6 +7,17 @@ namespace NeuronAI\Workflow\Persistence;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\WorkflowInterrupt;
 
+use function file_exists;
+use function file_get_contents;
+use function file_put_contents;
+use function is_dir;
+use function is_file;
+use function serialize;
+use function unlink;
+use function unserialize;
+
+use const DIRECTORY_SEPARATOR;
+
 class FilePersistence implements PersistenceInterface
 {
     public function __construct(
@@ -14,34 +25,34 @@ class FilePersistence implements PersistenceInterface
         protected string $prefix = 'neuron_workflow_',
         protected string $ext = '.store'
     ) {
-        if (!\is_dir($this->directory)) {
+        if (!is_dir($this->directory)) {
             throw new WorkflowException("Directory '{$this->directory}' does not exist");
         }
     }
 
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
-        \file_put_contents($this->getFilePath($workflowId), \serialize($interrupt));
+        file_put_contents($this->getFilePath($workflowId), serialize($interrupt));
     }
 
     public function load(string $workflowId): WorkflowInterrupt
     {
-        if (!\is_file($this->getFilePath($workflowId))) {
+        if (!is_file($this->getFilePath($workflowId))) {
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        return \unserialize(\file_get_contents($this->getFilePath($workflowId)));
+        return unserialize(file_get_contents($this->getFilePath($workflowId)));
     }
 
     public function delete(string $workflowId): void
     {
-        if (\file_exists($this->getFilePath($workflowId))) {
-            \unlink($this->getFilePath($workflowId));
+        if (file_exists($this->getFilePath($workflowId))) {
+            unlink($this->getFilePath($workflowId));
         }
     }
 
     protected function getFilePath(string $workflowId): string
     {
-        return $this->directory.\DIRECTORY_SEPARATOR.$this->prefix.$workflowId.$this->ext;
+        return $this->directory.DIRECTORY_SEPARATOR.$this->prefix.$workflowId.$this->ext;
     }
 }

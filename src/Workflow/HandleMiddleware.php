@@ -7,6 +7,9 @@ namespace NeuronAI\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
+use function array_merge;
+use function is_array;
+
 trait HandleMiddleware
 {
     /**
@@ -51,7 +54,7 @@ trait HandleMiddleware
      */
     public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): self
     {
-        $middlewareArray = \is_array($middleware) ? $middleware : [$middleware];
+        $middlewareArray = is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($middlewareArray as $m) {
             if (! $m instanceof WorkflowMiddleware) {
@@ -76,8 +79,8 @@ trait HandleMiddleware
      */
     public function addMiddleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
     {
-        $nodeClasses = \is_array($nodeClass) ? $nodeClass : [$nodeClass];
-        $middlewareList = \is_array($middleware) ? $middleware : [$middleware];
+        $nodeClasses = is_array($nodeClass) ? $nodeClass : [$nodeClass];
+        $middlewareList = is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($nodeClasses as $class) {
             if (!isset($this->nodeMiddleware[$class])) {
@@ -110,6 +113,6 @@ trait HandleMiddleware
         $middlewares = $this->nodeMiddleware[$nodeClass] ?? [];
 
         // Combine global and node-specific middleware
-        return \array_merge($this->globalMiddleware, $middlewares);
+        return array_merge($this->globalMiddleware, $middlewares);
     }
 }

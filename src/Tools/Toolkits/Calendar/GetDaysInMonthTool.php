@@ -7,6 +7,17 @@ namespace NeuronAI\Tools\Toolkits\Calendar;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use Exception;
+use InvalidArgumentException;
+
+use function cal_days_in_month;
+use function date;
+use function json_encode;
+use function mktime;
+use function str_pad;
+
+use const CAL_GREGORIAN;
+use const STR_PAD_LEFT;
 
 class GetDaysInMonthTool extends Tool
 {
@@ -40,23 +51,23 @@ class GetDaysInMonthTool extends Tool
     {
         try {
             if ($month < 1 || $month > 12) {
-                throw new \InvalidArgumentException('Month must be between 1 and 12');
+                throw new InvalidArgumentException('Month must be between 1 and 12');
             }
 
-            $daysInMonth = \cal_days_in_month(\CAL_GREGORIAN, $month, $year);
-            $monthName = \date('F', \mktime(0, 0, 0, $month, 1, $year));
+            $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+            $monthName = date('F', mktime(0, 0, 0, $month, 1, $year));
             $isLeapYear = ($year % 4 === 0 && $year % 100 !== 0) || ($year % 400 === 0);
 
-            return \json_encode([
+            return json_encode([
                 'month' => $month,
                 'month_name' => $monthName,
                 'year' => $year,
                 'days_in_month' => $daysInMonth,
                 'is_leap_year' => $isLeapYear,
-                'first_day' => "{$year}-" . \str_pad((string) $month, 2, '0', \STR_PAD_LEFT) . "-01",
-                'last_day' => "{$year}-" . \str_pad((string) $month, 2, '0', \STR_PAD_LEFT) . "-" . \str_pad((string) $daysInMonth, 2, '0', \STR_PAD_LEFT),
+                'first_day' => "{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . "-01",
+                'last_day' => "{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . "-" . str_pad((string) $daysInMonth, 2, '0', STR_PAD_LEFT),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

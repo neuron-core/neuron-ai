@@ -7,6 +7,21 @@ namespace NeuronAI\Console\Evaluation;
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 
+use function array_map;
+use function array_unique;
+use function count;
+use function implode;
+use function is_array;
+use function is_bool;
+use function is_object;
+use function is_string;
+use function json_encode;
+use function round;
+use function sprintf;
+use function str_repeat;
+
+use const JSON_PRETTY_PRINT;
+
 class OutputFormatter
 {
     public function __construct(private readonly bool $verbose = false)
@@ -41,9 +56,9 @@ class OutputFormatter
         $totalCount = $summary->getTotalCount();
         $passedCount = $summary->getPassedCount();
         $failedCount = $summary->getFailedCount();
-        $successRate = \round($summary->getSuccessRate() * 100, 1);
-        $totalTime = \round($summary->getTotalExecutionTime(), 3);
-        $avgTime = \round($summary->getAverageExecutionTime(), 3);
+        $successRate = round($summary->getSuccessRate() * 100, 1);
+        $totalTime = round($summary->getTotalExecutionTime(), 3);
+        $avgTime = round($summary->getAverageExecutionTime(), 3);
 
         if ($summary->hasFailures()) {
             $this->printFailures($summary);
@@ -51,7 +66,7 @@ class OutputFormatter
 
         $this->printAssertionFailureSummary($summary);
 
-        echo \sprintf(
+        echo sprintf(
             "Time: %s seconds, Average: %s seconds per test\n\n",
             $totalTime,
             $avgTime
@@ -66,9 +81,9 @@ class OutputFormatter
         $totalAssertions = $summary->getTotalAssertions();
         $passedAssertions = $summary->getTotalAssertionsPassed();
         $failedAssertions = $summary->getTotalAssertionsFailed();
-        $assertionSuccessRate = \round($summary->getAssertionSuccessRate() * 100, 1);
+        $assertionSuccessRate = round($summary->getAssertionSuccessRate() * 100, 1);
 
-        echo \sprintf(
+        echo sprintf(
             "Tests: %d, Passed: %d, Failed: %d, Success Rate: %s%%\n",
             $totalCount,
             $passedCount,
@@ -76,7 +91,7 @@ class OutputFormatter
             $successRate
         );
 
-        echo \sprintf(
+        echo sprintf(
             "Assertions: %d, Passed: %d, Failed: %d, Success Rate: %s%%\n",
             $totalAssertions,
             $passedAssertions,
@@ -98,35 +113,35 @@ class OutputFormatter
             } else {
                 echo "   Evaluation failed\n";
                 if ($this->verbose) {
-                    echo "   Input: " . \json_encode($result->getInput(), \JSON_PRETTY_PRINT) . "\n";
+                    echo "   Input: " . json_encode($result->getInput(), JSON_PRETTY_PRINT) . "\n";
                     echo "   Output: " . $this->formatOutput($result->getOutput()) . "\n";
                 }
             }
 
             if ($result->getTotalAssertions() > 0) {
-                echo \sprintf(
+                echo sprintf(
                     "   Assertions: %d passed, %d failed\n",
                     $result->getAssertionsPassed(),
                     $result->getAssertionsFailed()
                 );
             }
 
-            echo "   Execution Time: " . \round($result->getExecutionTime(), 3) . "s\n\n";
+            echo "   Execution Time: " . round($result->getExecutionTime(), 3) . "s\n\n";
             $failureCount++;
         }
     }
 
     private function formatOutput(mixed $output): string
     {
-        if (\is_string($output)) {
+        if (is_string($output)) {
             return '"' . $output . '"';
         }
 
-        if (\is_array($output) || \is_object($output)) {
-            return \json_encode($output, \JSON_PRETTY_PRINT) ?: 'Unable to serialize output';
+        if (is_array($output) || is_object($output)) {
+            return json_encode($output, JSON_PRETTY_PRINT) ?: 'Unable to serialize output';
         }
 
-        if (\is_bool($output)) {
+        if (is_bool($output)) {
             return $output ? 'true' : 'false';
         }
 
@@ -151,23 +166,23 @@ class OutputFormatter
         }
 
         echo "Assertion Failure Summary:\n";
-        echo \str_repeat('-', 50) . "\n";
+        echo str_repeat('-', 50) . "\n";
 
         foreach ($failuresByLocation as $location => $failures) {
-            $failureCount = \count($failures);
-            $uniqueAssertions = \array_unique(\array_map(fn (AssertionFailure $f): string => $f->getAssertionMethod(), $failures));
+            $failureCount = count($failures);
+            $uniqueAssertions = array_unique(array_map(fn (AssertionFailure $f): string => $f->getAssertionMethod(), $failures));
 
-            echo \sprintf(
+            echo sprintf(
                 "%s - %d failure%s in %s\n",
                 $location,
                 $failureCount,
                 $failureCount === 1 ? '' : 's',
-                \implode(', ', $uniqueAssertions)
+                implode(', ', $uniqueAssertions)
             );
 
             if ($this->verbose) {
                 foreach ($failures as $failure) {
-                    echo \sprintf("  - %s: %s\n", $failure->getAssertionMethod(), $failure->getMessage());
+                    echo sprintf("  - %s: %s\n", $failure->getAssertionMethod(), $failure->getMessage());
                 }
             }
         }

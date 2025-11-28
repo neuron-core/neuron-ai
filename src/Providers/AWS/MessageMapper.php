@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\AWS;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+
+use function array_map;
+use function array_merge;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -57,8 +61,6 @@ class MessageMapper implements MessageMapperInterface
     {
         $toolCallContents = [];
 
-        // todo: add the text eventually attached to the tool call message
-
         foreach ($message->getTools() as $tool) {
             $toolCallContents[] = [
                 'toolUse' => [
@@ -69,31 +71,37 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
+        $blocks = array_map($this->mapContentBlock(...), $message->getContentBlocks());
+
         return [
             'role' => $message->getRole(),
-            'content' => $toolCallContents,
+            'content' => array_merge($blocks, $toolCallContents),
         ];
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapMessage(Message $message): array
     {
         $contentBlocks = $message->getContentBlocks();
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    /**
+     * @throws ProviderException
+     */
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
-        if ($block instanceof TextContent) {
-            return ['text' => $block->text];
+        if ($block instanceof ReasoningContent) {
+            return ['text' => $block->content, 'signature' => $block->id];
         }
 
-        throw new \NeuronAI\Exceptions\ProviderException('Unsupported content block type: '.$block::class);
+        if ($block instanceof TextContent) {
+            return ['text' => $block->content];
+        }
+
+        throw new ProviderException('Unsupported content block type: '.$block::class);
     }
 }

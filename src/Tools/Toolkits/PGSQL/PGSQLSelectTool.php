@@ -13,6 +13,16 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PDO;
+use ReflectionException;
+
+use function array_filter;
+use function array_map;
+use function explode;
+use function preg_match;
+use function preg_replace;
+use function str_starts_with;
+use function stripos;
+use function trim;
 
 /**
  * @method static static make(PDO $pdo)
@@ -53,7 +63,7 @@ This the tool to use only to gather information from the PostgreSQL database.'
     }
 
     /**
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ArrayPropertyException
      * @throws ToolException
      */
@@ -98,7 +108,7 @@ It looks like you are trying to run a write query using the read-only query tool
         // Bind parameters if provided
         $parameters ??= [];
         foreach ($parameters as $parameter) {
-            $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
+            $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
         }
 
@@ -124,7 +134,7 @@ It looks like you are trying to run a write query using the read-only query tool
         // Check if the query starts with an allowed read operation
         $isAllowed = false;
         foreach ($this->allowedPatterns as $pattern) {
-            if (\preg_match($pattern, $cleanQuery)) {
+            if (preg_match($pattern, $cleanQuery)) {
                 $isAllowed = true;
                 break;
             }
@@ -136,7 +146,7 @@ It looks like you are trying to run a write query using the read-only query tool
 
         // Check for forbidden write operations
         foreach ($this->forbiddenPatterns as $pattern) {
-            if (\preg_match($pattern, $cleanQuery)) {
+            if (preg_match($pattern, $cleanQuery)) {
                 return false;
             }
         }
@@ -148,10 +158,10 @@ It looks like you are trying to run a write query using the read-only query tool
     protected function removeComments(string $query): string
     {
         // Remove single-line comments (-- style)
-        $query = \preg_replace('/--.*$/m', '', $query);
+        $query = preg_replace('/--.*$/m', '', $query);
 
         // Remove multi-line comments (/* */ style)
-        $query = \preg_replace('/\/\*.*?\*\//s', '', (string) $query);
+        $query = preg_replace('/\/\*.*?\*\//s', '', (string) $query);
 
         return $query;
     }
@@ -159,11 +169,11 @@ It looks like you are trying to run a write query using the read-only query tool
     protected function performAdditionalSecurityChecks(string $query): bool
     {
         // Check for semicolon followed by potential write operations
-        if (\preg_match('/;\s*(?!$)/i', $query)) {
+        if (preg_match('/;\s*(?!$)/i', $query)) {
             // Multiple statements detected - need to validate each one
             $statements = $this->splitStatements($query);
             foreach ($statements as $statement) {
-                if (\trim((string) $statement) !== '' && !$this->validateSingleStatement(\trim((string) $statement))) {
+                if (trim((string) $statement) !== '' && !$this->validateSingleStatement(trim((string) $statement))) {
                     return false;
                 }
             }
@@ -181,7 +191,7 @@ It looks like you are trying to run a write query using the read-only query tool
         ];
 
         foreach ($dangerousFunctions as $func) {
-            if (\stripos($query, $func) !== false) {
+            if (stripos($query, $func) !== false) {
                 return false;
             }
         }
@@ -195,8 +205,8 @@ It looks like you are trying to run a write query using the read-only query tool
     protected function splitStatements(string $query): array
     {
         // Simple split on semicolons (this could be enhanced for more complex cases)
-        return \array_filter(
-            \array_map(trim(...), \explode(';', $query)),
+        return array_filter(
+            array_map(trim(...), explode(';', $query)),
             fn (string $stmt): bool => $stmt !== ''
         );
     }
@@ -210,7 +220,7 @@ It looks like you are trying to run a write query using the read-only query tool
     {
         $isAllowed = false;
         foreach ($this->allowedPatterns as $pattern) {
-            if (\preg_match($pattern, $statement)) {
+            if (preg_match($pattern, $statement)) {
                 $isAllowed = true;
                 break;
             }

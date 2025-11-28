@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
+use Generator;
 
 trait HandleStream
 {
@@ -27,7 +28,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $json = [
             'stream' => true,
@@ -82,7 +83,7 @@ trait HandleStream
         if ($this->streamState->hasToolCalls()) {
             return $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
-                $this->streamState->blocks
+                $this->streamState->getContentBlocks()
             )->setUsage($this->streamState->getUsage());
         }
 
@@ -108,35 +109,38 @@ trait HandleStream
         $type = $event['content_block']['type'] ?? null;
 
         if ($type === 'text') {
-            $this->streamState->blocks[$index] = new TextContent('');
+            $this->streamState->addContentBlock($index, new TextContent(''));
         } elseif ($type === 'thinking') {
-            $this->streamState->blocks[$index] = new ReasoningContent('');
+            $this->streamState->addContentBlock($index, new ReasoningContent(''));
         } elseif ($type === 'tool_use') {
             $this->streamState->composeToolCalls($event);
         }
     }
 
-    protected function handleBlockDelta(array $event): \Generator
+    protected function handleBlockDelta(array $event): Generator
     {
         $index = $event['index'];
         $delta = $event['delta'];
 
         if ($delta['type'] === 'text_delta') {
             $text = $delta['text'];
-            $this->streamState->blocks[$index]->text .= $text;
+            $this->streamState->updateContentBlock($index, $text);
             yield new TextChunk($this->streamState->messageId(), $text);
             return;
         }
 
         if ($delta['type'] === 'thinking_delta') {
             $thinking = $delta['thinking'];
-            $this->streamState->blocks[$index]->text .= $thinking;
+            $this->streamState->updateContentBlock($index, $thinking);
             yield new ReasoningChunk($this->streamState->messageId(), $thinking);
             return;
         }
 
         if ($delta['type'] === 'signature_delta') {
-            $this->streamState->blocks[$index]->id = $delta['signature'];
+            $block = $this->streamState->getContentBlock($index);
+            if ($block instanceof ReasoningContent) {
+                $block->id = $delta['signature'];
+            }
             return;
         }
 

@@ -17,6 +17,12 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 
+use function array_chunk;
+use function array_keys;
+use function array_merge;
+use function explode;
+use function is_array;
+
 /**
  * @method static static make(?AIProviderInterface $aiProvider = null, ?string $workflowId = null)
  */
@@ -46,9 +52,9 @@ class RAG extends Agent
      */
     protected function compose(array|Node $nodes): void
     {
-        $nodes = \is_array($nodes) ? $nodes : [$nodes];
+        $nodes = is_array($nodes) ? $nodes : [$nodes];
 
-        $nodes = \array_merge($nodes, [
+        $nodes = array_merge($nodes, [
             new PreProcessQueryNode($this->preProcessors()),
             new RetrieveDocumentsNode($this->resolveRetrieval()),
             new PostProcessDocumentsNode($this->postProcessors()),
@@ -65,7 +71,7 @@ class RAG extends Agent
      */
     public function addDocuments(array $documents, int $chunkSize = 50): void
     {
-        foreach (\array_chunk($documents, $chunkSize) as $chunk) {
+        foreach (array_chunk($documents, $chunkSize) as $chunk) {
             $this->resolveVectorStore()->addDocuments(
                 $this->resolveEmbeddingsProvider()->embedDocuments($chunk)
             );
@@ -91,8 +97,8 @@ class RAG extends Agent
             $grouped[$key][] = $document;
         }
 
-        foreach (\array_keys($grouped) as $key) {
-            [$sourceType, $sourceName] = \explode(':', $key);
+        foreach (array_keys($grouped) as $key) {
+            [$sourceType, $sourceName] = explode(':', $key);
             $this->resolveVectorStore()->deleteBySource($sourceType, $sourceName);
             $this->addDocuments($grouped[$key], $chunkSize);
         }

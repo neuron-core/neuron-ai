@@ -11,6 +11,13 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use Exception;
+
+use function count;
+use function filter_var;
+use function strip_tags;
+
+use const FILTER_VALIDATE_EMAIL;
 
 /**
  * @method static make(SesClient $sesClient, string $fromEmail)
@@ -87,10 +94,10 @@ DESC
                 'success' => true,
                 'message_id' => $result['MessageId'] ?? null,
                 'status' => 'sent',
-                'recipients_count' => \count($to),
+                'recipients_count' => count($to),
                 'aws_request_id' => $result['@metadata']['requestId'] ?? null
             ];
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -107,7 +114,7 @@ DESC
     protected function validateRecipients(array $to): void
     {
         foreach ($to as $recipient) {
-            if (\filter_var($recipient, \FILTER_VALIDATE_EMAIL) === false) {
+            if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
                 throw new ToolException('Invalid email address: ' . $recipient . '.');
             }
         }
@@ -143,7 +150,7 @@ DESC
                     'Charset' => 'UTF-8'
                 ],
                 'Text' => [
-                    'Data' => \strip_tags($body),
+                    'Data' => strip_tags($body),
                     'Charset' => 'UTF-8'
                 ]
             ]

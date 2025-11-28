@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI;
 
+use function preg_quote;
+use function preg_replace;
+
 trait HandleContent
 {
     /**
@@ -11,10 +14,10 @@ trait HandleContent
      */
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
     {
-        $escapedOpenTag = \preg_quote($openTag, '/');
-        $escapedCloseTag = \preg_quote($closeTag, '/');
+        $escapedOpenTag = preg_quote($openTag, '/');
+        $escapedCloseTag = preg_quote($closeTag, '/');
         $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
 
-        return \preg_replace($pattern, '', $text);
+        return preg_replace($pattern, '', $text);
     }
 }

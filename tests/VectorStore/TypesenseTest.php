@@ -11,6 +11,9 @@ use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 use Typesense\Client;
 
+use function file_get_contents;
+use function json_decode;
+
 class TypesenseTest extends TestCase
 {
     use CheckOpenPort;
@@ -42,7 +45,7 @@ class TypesenseTest extends TestCase
         ]);
 
         // embedding "Hello World!"
-        $this->embedding = \json_decode(\file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
+        $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
     }
 
     public function test_typesense_instance(): void

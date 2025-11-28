@@ -9,6 +9,15 @@ use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use ReflectionClass;
+
+use function array_map;
+use function array_merge;
+use function implode;
+use function in_array;
+use function is_array;
+
+use const PHP_EOL;
 
 trait HandleTools
 {
@@ -50,7 +59,7 @@ trait HandleTools
      */
     public function getTools(): array
     {
-        return \array_merge($this->tools, $this->tools());
+        return array_merge($this->tools, $this->tools());
     }
 
     /**
@@ -73,19 +82,19 @@ trait HandleTools
             if ($tool instanceof ToolkitInterface) {
                 $kitGuidelines = $tool->guidelines();
                 if ($kitGuidelines !== null && $kitGuidelines !== '') {
-                    $name = (new \ReflectionClass($tool))->getShortName();
-                    $kitGuidelines = '# '.$name.\PHP_EOL.$kitGuidelines;
+                    $name = (new ReflectionClass($tool))->getShortName();
+                    $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
                 }
 
                 // Merge the tools
                 $innerTools = $tool->tools();
-                $this->toolsBootstrapCache = \array_merge($this->toolsBootstrapCache, $innerTools);
+                $this->toolsBootstrapCache = array_merge($this->toolsBootstrapCache, $innerTools);
 
                 // Add guidelines to the system prompt
-                if (!\in_array($kitGuidelines, [null, '', '0'], true)) {
-                    $kitGuidelines .= \PHP_EOL.\implode(
-                        \PHP_EOL.'- ',
-                        \array_map(
+                if (!in_array($kitGuidelines, [null, '', '0'], true)) {
+                    $kitGuidelines .= PHP_EOL.implode(
+                        PHP_EOL.'- ',
+                        array_map(
                             fn (ToolInterface $tool): string => "{$tool->getName()}: {$tool->getDescription()}",
                             $innerTools
                         )
@@ -102,7 +111,7 @@ trait HandleTools
         $instructions = $this->removeDelimitedContent($this->resolveInstructions(), '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
         if ($guidelines !== []) {
             $this->setInstructions(
-                $instructions.\PHP_EOL.'<TOOLS-GUIDELINES>'.\PHP_EOL.\implode(\PHP_EOL.\PHP_EOL, $guidelines).\PHP_EOL.'</TOOLS-GUIDELINES>'
+                $instructions.PHP_EOL.'<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
             );
         }
 
@@ -119,7 +128,7 @@ trait HandleTools
      */
     public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): AgentInterface
     {
-        $tools = \is_array($tools) ? $tools : [$tools];
+        $tools = is_array($tools) ? $tools : [$tools];
 
         foreach ($tools as $t) {
             if (! $t instanceof ToolInterface && ! $t instanceof ToolkitInterface && ! $t instanceof ProviderToolInterface) {

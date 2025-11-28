@@ -8,6 +8,8 @@ use NeuronAI\Tools\Toolkits\Calendar\FormatDateTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+
 class FormatDateToolTest extends TestCase
 {
     private FormatDateTool $tool;
@@ -108,7 +110,7 @@ class FormatDateToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(4, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('format', $propertyNames);
         $this->assertContains('input_timezone', $propertyNames);

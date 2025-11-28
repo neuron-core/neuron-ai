@@ -7,7 +7,11 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
+
+use function array_filter;
+use function json_decode;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -39,15 +43,17 @@ trait HandleChat
 
         return $this->client->postAsync('responses', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response) {
-                $response = \json_decode($response->getBody()->getContents(), true);
+                $response = json_decode($response->getBody()->getContents(), true);
 
-                $toolCalls = \array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
+                $toolCalls = array_filter($response['output'], fn (array $item): bool => $item['type'] == 'function_call');
+
+                $usage = new Usage($response['usage']['input_tokens'] ?? 0, $response['usage']['output_tokens'] ?? 0);
 
                 if ($toolCalls !== []) {
-                    return $this->createToolCallMessage($toolCalls, null, $response['usage'] ?? null);
+                    return $this->createToolCallMessage($toolCalls)->setUsage($usage);
                 }
 
-                return $this->createAssistantMessage($response);
+                return $this->createAssistantMessage($response)->setUsage($usage);
             });
     }
 }

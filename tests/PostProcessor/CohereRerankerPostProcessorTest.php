@@ -14,6 +14,8 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 
+use function json_encode;
+
 class CohereRerankerPostProcessorTest extends TestCase
 {
     public function test_post_process_reranks_documents(): void
@@ -23,7 +25,7 @@ class CohereRerankerPostProcessorTest extends TestCase
         $mockHandler = new MockHandler([
             new Response(
                 status: 200,
-                body: \json_encode([
+                body: json_encode([
                     'results' => [
                         ['index' => 1, 'relevance_score' => 0.9],
                         ['index' => 0, 'relevance_score' => 0.2],
@@ -74,7 +76,7 @@ class CohereRerankerPostProcessorTest extends TestCase
         $mockHandler = new MockHandler([
             new Response(
                 status: 200,
-                body: \json_encode([
+                body: json_encode([
                     'results' => [
                         ['index' => 1, 'relevance_score' => 0.9],
                         ['index' => 0, 'relevance_score' => 0.2]

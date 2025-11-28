@@ -9,6 +9,14 @@ use Elastic\Elasticsearch\Exception\ServerResponseException;
 use NeuronAI\RAG\Document;
 use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\Response\Elasticsearch;
+use Exception;
+
+use function array_key_exists;
+use function array_keys;
+use function array_map;
+use function count;
+use function in_array;
+use function max;
 
 class ElasticsearchVectorStore implements VectorStoreInterface
 {
@@ -31,7 +39,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         if ($existStatusCode === 200) {
             // Map vector embeddings dimension on the fly adding a document.
-            $this->mapVectorDimension(\count($document->getEmbedding()));
+            $this->mapVectorDimension(count($document->getEmbedding()));
             return;
         }
 
@@ -48,7 +56,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         ];
 
         // Map metadata
-        foreach (\array_keys($document->metadata) as $name) {
+        foreach (array_keys($document->metadata) as $name) {
             $properties[$name] = [
                 'type' => 'keyword',
             ];
@@ -65,12 +73,12 @@ class ElasticsearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
         if ($document->embedding === []) {
-            throw new \Exception('Document embedding must be set before adding a document');
+            throw new Exception('Document embedding must be set before adding a document');
         }
 
         $this->checkIndexStatus($document);
@@ -94,7 +102,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
     /**
      * @param  Document[]  $documents
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -103,7 +111,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         }
 
         if (empty($documents[0]->getEmbedding())) {
-            throw new \Exception('Document embedding must be set before adding a document');
+            throw new Exception('Document embedding must be set before adding a document');
         }
 
         $this->checkIndexStatus($documents[0]);
@@ -159,7 +167,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
                     'field' => 'embedding',
                     'query_vector' => $embedding,
                     'k' => $this->topK,
-                    'num_candidates' => \max(50, $this->topK * 4),
+                    'num_candidates' => max(50, $this->topK * 4),
                 ],
                 'sort' => [
                     '_score' => [
@@ -176,7 +184,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         $response = $this->client->search($searchParams);
 
-        return \array_map(function (array $item): Document {
+        return array_map(function (array $item): Document {
             $document = new Document($item['_source']['content']);
             //$document->embedding = $item['_source']['embedding']; // avoid carrying large data
             $document->sourceType = $item['_source']['sourceType'];
@@ -184,7 +192,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
             $document->score = $item['_score'];
 
             foreach ($item['_source'] as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
                     $document->addMetadata($name, $value);
                 }
             }
@@ -209,7 +217,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         $mappings = $response[$this->index]['mappings'];
         if (
-            \array_key_exists('embedding', $mappings)
+            array_key_exists('embedding', $mappings)
             && $mappings['embedding']['mapping']['embedding']['dims'] === $dimension
         ) {
             return;

@@ -9,6 +9,12 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_filter;
+use function array_map;
+use function array_sum;
+use function count;
+use function round;
+
 class MeanTool extends Tool
 {
     public function __construct(protected int $precision = 2)
@@ -49,16 +55,16 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
         // Convert to float values
-        $numericData = \array_map(floatval(...), $numericData);
-        $mean = \array_sum($numericData) / \count($numericData);
+        $numericData = array_map(floatval(...), $numericData);
+        $mean = array_sum($numericData) / count($numericData);
 
-        return \round($mean, $this->precision);
+        return round($mean, $this->precision);
     }
 }

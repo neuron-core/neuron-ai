@@ -9,6 +9,8 @@ use NeuronAI\RAG\DataLoader\StringDataLoader;
 use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_EOL;
+
 class DataLoaderTest extends TestCase
 {
     public function test_string_data_loader(): void
@@ -24,7 +26,7 @@ class DataLoaderTest extends TestCase
             ->withSplitter(
                 new DelimiterTextSplitter(
                     10,
-                    \PHP_EOL
+                    PHP_EOL
                 )
             )
             ->getDocuments();

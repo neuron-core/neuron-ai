@@ -4,6 +4,35 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console\Make;
 
+use Throwable;
+
+use function array_key_first;
+use function array_keys;
+use function array_pop;
+use function array_shift;
+use function dirname;
+use function explode;
+use function file_exists;
+use function file_get_contents;
+use function file_put_contents;
+use function fwrite;
+use function getcwd;
+use function implode;
+use function in_array;
+use function is_array;
+use function is_dir;
+use function json_decode;
+use function ltrim;
+use function mkdir;
+use function rtrim;
+use function str_replace;
+use function str_starts_with;
+use function strlen;
+use function substr;
+
+use const PHP_EOL;
+use const STDERR;
+
 abstract class MakeCommand
 {
     public function __construct(protected string $resourceType)
@@ -30,7 +59,7 @@ abstract class MakeCommand
 
         try {
             return $this->generateClass($options['name']);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->printError($e->getMessage());
             return 1;
         }
@@ -48,12 +77,12 @@ abstract class MakeCommand
         ];
 
         // Skip script name
-        \array_shift($args);
+        array_shift($args);
 
         foreach ($args as $arg) {
             if ($arg === '--help' || $arg === '-h') {
                 $options['help'] = true;
-            } elseif (!\str_starts_with($arg, '-') && empty($options['name'])) {
+            } elseif (!str_starts_with($arg, '-') && empty($options['name'])) {
                 $options['name'] = $arg;
             }
         }
@@ -73,20 +102,20 @@ abstract class MakeCommand
 
         $filePath = $this->getFilePath($namespace, $className);
 
-        if (\file_exists($filePath)) {
+        if (file_exists($filePath)) {
             $this->printError("File already exists: {$filePath}");
             return 1;
         }
 
-        $directory = \dirname($filePath);
-        if (!\is_dir($directory) && !\mkdir($directory, 0755, true)) {
+        $directory = dirname($filePath);
+        if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
             $this->printError("Failed to create directory: {$directory}");
             return 1;
         }
 
         $content = $this->getStubContent($namespace, $className);
 
-        if (\in_array(\file_put_contents($filePath, $content), [0, false], true)) {
+        if (in_array(file_put_contents($filePath, $content), [0, false], true)) {
             $this->printError("Failed to create file: {$filePath}");
             return 1;
         }
@@ -100,10 +129,10 @@ abstract class MakeCommand
      */
     private function parseNamespaceAndClass(string $name): array
     {
-        $parts = \explode('\\', $name);
-        $className = \array_pop($parts);
+        $parts = explode('\\', $name);
+        $className = array_pop($parts);
 
-        $namespace = $parts === [] ? $this->getDefaultNamespace() : \implode('\\', $parts);
+        $namespace = $parts === [] ? $this->getDefaultNamespace() : implode('\\', $parts);
 
         return [$namespace, $className];
     }
@@ -117,8 +146,8 @@ abstract class MakeCommand
         }
 
         // Get the first PSR-4 namespace and remove trailing backslash
-        $firstNamespace = \array_key_first($psr4Config);
-        return \rtrim($firstNamespace, '\\');
+        $firstNamespace = array_key_first($psr4Config);
+        return rtrim($firstNamespace, '\\');
     }
 
     private function getFilePath(string $namespace, string $className): string
@@ -126,20 +155,20 @@ abstract class MakeCommand
         $psr4Config = $this->loadPsr4Config();
 
         foreach ($psr4Config as $namespacePrefix => $directory) {
-            if (\str_starts_with($namespace . '\\', $namespacePrefix)) {
+            if (str_starts_with($namespace . '\\', $namespacePrefix)) {
                 // Remove the namespace prefix and convert to file path
-                $relativePath = \substr($namespace, \strlen(\rtrim($namespacePrefix, '\\')));
-                $relativePath = \str_replace('\\', '/', \ltrim($relativePath, '\\'));
+                $relativePath = substr($namespace, strlen(rtrim($namespacePrefix, '\\')));
+                $relativePath = str_replace('\\', '/', ltrim($relativePath, '\\'));
 
-                $basePath = \getcwd() . '/' . \rtrim($directory, '/');
+                $basePath = getcwd() . '/' . rtrim($directory, '/');
 
                 return $basePath . ($relativePath !== '' && $relativePath !== '0' ? '/' . $relativePath : '') . '/' . $className . '.php';
             }
         }
 
         // Fallback: create in current directory if no PSR-4 match found
-        $namespacePath = \str_replace('\\', '/', $namespace);
-        return \getcwd() . '/' . $namespacePath . '/' . $className . '.php';
+        $namespacePath = str_replace('\\', '/', $namespace);
+        return getcwd() . '/' . $namespacePath . '/' . $className . '.php';
     }
 
     /**
@@ -147,19 +176,19 @@ abstract class MakeCommand
      */
     private function loadPsr4Config(): array
     {
-        $composerPath = \getcwd() . '/composer.json';
+        $composerPath = getcwd() . '/composer.json';
 
-        if (!\file_exists($composerPath)) {
+        if (!file_exists($composerPath)) {
             return [];
         }
 
-        $composerContent = \file_get_contents($composerPath);
+        $composerContent = file_get_contents($composerPath);
         if ($composerContent === false) {
             return [];
         }
 
-        $composerData = \json_decode($composerContent, true);
-        if (!\is_array($composerData) || !isset($composerData['autoload']['psr-4'])) {
+        $composerData = json_decode($composerContent, true);
+        if (!is_array($composerData) || !isset($composerData['autoload']['psr-4'])) {
             return [];
         }
 
@@ -170,8 +199,8 @@ abstract class MakeCommand
     {
         $psr4Config = $this->loadPsr4Config();
 
-        foreach (\array_keys($psr4Config) as $namespacePrefix) {
-            if (\str_starts_with($namespace . '\\', $namespacePrefix)) {
+        foreach (array_keys($psr4Config) as $namespacePrefix) {
+            if (str_starts_with($namespace . '\\', $namespacePrefix)) {
                 return true;
             }
         }
@@ -187,11 +216,11 @@ abstract class MakeCommand
             return;
         }
 
-        echo "Available PSR-4 namespaces:" . \PHP_EOL;
+        echo "Available PSR-4 namespaces:" . PHP_EOL;
         foreach ($psr4Config as $namespace => $directory) {
-            echo "  {$namespace} -> {$directory}" . \PHP_EOL;
+            echo "  {$namespace} -> {$directory}" . PHP_EOL;
         }
-        echo \PHP_EOL;
+        echo PHP_EOL;
     }
 
     abstract protected function getStubContent(string $namespace, string $className): string;
@@ -217,21 +246,21 @@ If no namespace is provided, the default PSR-4 namespace from composer.json will
 
 USAGE;
 
-        echo $usage . \PHP_EOL;
+        echo $usage . PHP_EOL;
     }
 
     protected function printError(string $message): void
     {
-        \fwrite(\STDERR, "Error: {$message}" . \PHP_EOL);
+        fwrite(STDERR, "Error: {$message}" . PHP_EOL);
     }
 
     protected function printWarning(string $message): void
     {
-        echo "Warning: {$message}" . \PHP_EOL;
+        echo "Warning: {$message}" . PHP_EOL;
     }
 
     protected function printSuccess(string $message): void
     {
-        echo "Success: {$message}" . \PHP_EOL;
+        echo "Success: {$message}" . PHP_EOL;
     }
 }

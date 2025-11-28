@@ -36,6 +36,8 @@ use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
 use NeuronAI\Tests\Stubs\StructuredOutput\TagProperties;
 use PHPUnit\Framework\TestCase;
 
+use function range;
+
 class ValidationTest extends TestCase
 {
     public function test_not_blank_validation(): void
@@ -272,11 +274,11 @@ class ValidationTest extends TestCase
         $this->assertCount(1, $violations);
 
 
-        $class->tags = \range(1, 10);
+        $class->tags = range(1, 10);
         $violations = Validator::validate($class);
         $this->assertCount(0, $violations);
 
-        $class->tags = \range(1, 11);
+        $class->tags = range(1, 11);
         $violations = Validator::validate($class);
         $this->assertCount(1, $violations);
 

@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\HasGuzzleClient;
@@ -16,6 +16,11 @@ use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+
+use function array_map;
+use function json_decode;
+use function trim;
+use function uniqid;
 
 class OpenAI implements AIProviderInterface
 {
@@ -49,7 +54,7 @@ class OpenAI implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->baseUri, '/').'/',
+            'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -81,26 +86,26 @@ class OpenAI implements AIProviderInterface
     }
 
     /**
-     * @param array<string, mixed> $message
+     * @param array<int, array> $toolCalls
+     * @param ContentBlockInterface|ContentBlockInterface[]|null $blocks
+     *
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $message): Message
+    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface|null $blocks = null): ToolCallMessage
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
                 ->setInputs(
-                    \json_decode((string) $item['function']['arguments'], true)
+                    json_decode((string) $item['function']['arguments'], true)
                 )
                 ->setCallId($item['id']),
-            $message['tool_calls']
+            $toolCalls
         );
 
-        $result = new ToolCallMessage(
-            $message['content'] ?? '',
-            $tools
-        );
+        $result = new ToolCallMessage($blocks, $tools);
+        $result->addMetadata('tool_calls', $toolCalls);
 
-        return $result->addMetadata('tool_calls', $message['tool_calls']);
+        return $result;
     }
 
     /**
@@ -119,7 +124,7 @@ class OpenAI implements AIProviderInterface
             if ($type === 'file_citation') {
                 $fileCitation = $annotation['file_citation'] ?? [];
                 $citations[] = new Citation(
-                    id: $fileCitation['file_id'] ?? \uniqid('openai_file_'),
+                    id: $fileCitation['file_id'] ?? uniqid('openai_file_'),
                     source: $fileCitation['file_id'] ?? '',
                     startIndex: $annotation['start_index'] ?? null,
                     endIndex: $annotation['end_index'] ?? null,
@@ -133,7 +138,7 @@ class OpenAI implements AIProviderInterface
             } elseif ($type === 'file_path') {
                 $filePath = $annotation['file_path'] ?? [];
                 $citations[] = new Citation(
-                    id: $filePath['file_id'] ?? \uniqid('openai_path_'),
+                    id: $filePath['file_id'] ?? uniqid('openai_path_'),
                     source: $filePath['file_id'] ?? '',
                     startIndex: $annotation['start_index'] ?? null,
                     endIndex: $annotation['end_index'] ?? null,

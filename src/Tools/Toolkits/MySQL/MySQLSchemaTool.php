@@ -7,6 +7,15 @@ namespace NeuronAI\Tools\Toolkits\MySQL;
 use NeuronAI\Tools\Tool;
 use PDO;
 
+use function array_merge;
+use function array_values;
+use function count;
+use function implode;
+use function in_array;
+use function str_contains;
+use function str_repeat;
+use function strtolower;
+
 /**
  * @method static static make(PDO $pdo, ?array $tables = null)
  */
@@ -38,12 +47,12 @@ class MySQLSchemaTool extends Tool
     protected function formatForLLM(array $structure): string
     {
         $output = "# MySQL Database Schema Analysis\n\n";
-        $output .= "This database contains " . \count($structure['tables']) . " tables with the following structure:\n\n";
+        $output .= "This database contains " . count($structure['tables']) . " tables with the following structure:\n\n";
 
         // Tables overview
         $output .= "## Tables Overview\n";
         foreach ($structure['tables'] as $table) {
-            $pkColumns = empty($table['primary_key']) ? 'None' : \implode(', ', $table['primary_key']);
+            $pkColumns = empty($table['primary_key']) ? 'None' : implode(', ', $table['primary_key']);
             $output .= "- **{$table['name']}**: {$table['estimated_rows']} rows, Primary Key: {$pkColumns}";
             if ($table['comment']) {
                 $output .= " - {$table['comment']}";
@@ -75,11 +84,11 @@ class MySQLSchemaTool extends Tool
             }
 
             if (!empty($table['primary_key'])) {
-                $output .= "\n**Primary Key**: " . \implode(', ', $table['primary_key']) . "\n";
+                $output .= "\n**Primary Key**: " . implode(', ', $table['primary_key']) . "\n";
             }
 
             if (!empty($table['unique_keys'])) {
-                $output .= "**Unique Keys**: " . \implode(', ', $table['unique_keys']) . "\n";
+                $output .= "**Unique Keys**: " . implode(', ', $table['unique_keys']) . "\n";
             }
 
             $output .= "\n";
@@ -104,7 +113,7 @@ class MySQLSchemaTool extends Tool
 
             foreach ($structure['indexes'] as $index) {
                 $unique = $index['unique'] ? 'UNIQUE ' : '';
-                $columns = \implode(', ', $index['columns']);
+                $columns = implode(', ', $index['columns']);
                 $output .= "- {$unique}INDEX `{$index['name']}` on `{$index['table']}` ({$columns})\n";
             }
             $output .= "\n";
@@ -133,7 +142,7 @@ class MySQLSchemaTool extends Tool
 
         // Add table filtering if specific tables are requested
         if ($this->tables !== null && $this->tables !== []) {
-            $placeholders = \str_repeat('?,', \count($this->tables) - 1) . '?';
+            $placeholders = str_repeat('?,', count($this->tables) - 1) . '?';
             $whereClause .= " AND t.TABLE_NAME IN ($placeholders)";
             $params = $this->tables;
         }
@@ -190,7 +199,7 @@ class MySQLSchemaTool extends Tool
                     'full_type' => $row['COLUMN_TYPE'],
                     'nullable' => $row['IS_NULLABLE'] === 'YES',
                     'default' => $row['COLUMN_DEFAULT'],
-                    'auto_increment' => \str_contains((string) $row['EXTRA'], 'auto_increment'),
+                    'auto_increment' => str_contains((string) $row['EXTRA'], 'auto_increment'),
                     'comment' => $row['COLUMN_COMMENT']
                 ];
 
@@ -226,9 +235,9 @@ class MySQLSchemaTool extends Tool
 
         // Add table filtering if specific tables are requested
         if ($this->tables !== null && $this->tables !== []) {
-            $placeholders = \str_repeat('?,', \count($this->tables) - 1) . '?';
+            $placeholders = str_repeat('?,', count($this->tables) - 1) . '?';
             $whereClause .= " AND (kcu.TABLE_NAME IN ($placeholders) OR kcu.REFERENCED_TABLE_NAME IN ($placeholders))";
-            $params = \array_merge($this->tables, $this->tables);
+            $params = array_merge($this->tables, $this->tables);
         }
 
         $stmt = $this->pdo->prepare("
@@ -287,7 +296,7 @@ class MySQLSchemaTool extends Tool
             $indexes[$key]['columns'][] = $row['COLUMN_NAME'];
         }
 
-        return \array_values($indexes);
+        return array_values($indexes);
     }
 
     protected function getConstraints(): array
@@ -297,7 +306,7 @@ class MySQLSchemaTool extends Tool
 
         // Add table filtering if specific tables are requested
         if ($this->tables !== null && $this->tables !== []) {
-            $placeholders = \str_repeat('?,', \count($this->tables) - 1) . '?';
+            $placeholders = str_repeat('?,', count($this->tables) - 1) . '?';
             $whereClause .= " AND TABLE_NAME IN ($placeholders)";
             $params = $this->tables;
         }
@@ -320,9 +329,9 @@ class MySQLSchemaTool extends Tool
         // Find tables with timestamps for temporal queries
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\in_array($column['type'], ['timestamp', 'datetime', 'date']) &&
-                    (\str_contains(\strtolower((string) $column['name']), 'created') ||
-                        \str_contains(\strtolower((string) $column['name']), 'updated'))) {
+                if (in_array($column['type'], ['timestamp', 'datetime', 'date']) &&
+                    (str_contains(strtolower((string) $column['name']), 'created') ||
+                        str_contains(strtolower((string) $column['name']), 'updated'))) {
                     $output .= "- For temporal queries on `{$table['name']}`, use `{$column['name']}` column\n";
                     break;
                 }
@@ -332,10 +341,10 @@ class MySQLSchemaTool extends Tool
         // Find potential text search columns
         foreach ($tables as $table) {
             foreach ($table['columns'] as $column) {
-                if (\in_array($column['type'], ['varchar', 'text', 'longtext']) &&
-                    (\str_contains(\strtolower((string) $column['name']), 'name') ||
-                        \str_contains(\strtolower((string) $column['name']), 'title') ||
-                        \str_contains(\strtolower((string) $column['name']), 'description'))) {
+                if (in_array($column['type'], ['varchar', 'text', 'longtext']) &&
+                    (str_contains(strtolower((string) $column['name']), 'name') ||
+                        str_contains(strtolower((string) $column['name']), 'title') ||
+                        str_contains(strtolower((string) $column['name']), 'description'))) {
                     $output .= "- For text searches on `{$table['name']}`, consider using `{$column['name']}` with LIKE or FULLTEXT\n";
                     break;
                 }

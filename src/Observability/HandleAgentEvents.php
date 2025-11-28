@@ -11,6 +11,12 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
+use Exception;
+
+use function array_key_exists;
+use function array_map;
+use function array_reverse;
+use function uniqid;
 
 /**
  * Handle Agent and RAG events.
@@ -23,7 +29,7 @@ trait HandleAgentEvents
     protected array $agentSegments = [];
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function start(Agent|RAG $source, string $event, mixed $data = null): void
     {
@@ -41,8 +47,8 @@ trait HandleAgentEvents
         } elseif ($this->inspector->canAddSegments()) {
             $key = $class.$method;
 
-            if (\array_key_exists($key, $this->segments)) {
-                $key .= '-'.\uniqid();
+            if (array_key_exists($key, $this->segments)) {
+                $key .= '-'.uniqid();
             }
 
             $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
@@ -53,7 +59,7 @@ trait HandleAgentEvents
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function stop(Agent|RAG $agent, string $event, mixed $data = null): void
     {
@@ -62,8 +68,8 @@ trait HandleAgentEvents
 
         $key = $class.$method;
 
-        if (\array_key_exists($key, $this->agentSegments)) {
-            foreach (\array_reverse($this->agentSegments) as $key => $segment) {
+        if (array_key_exists($key, $this->agentSegments)) {
+            foreach (array_reverse($this->agentSegments) as $key => $segment) {
                 if ($key === $class.$method) {
                     $segment->setContext($this->getAgentContext($agent));
                     $segment->end();
@@ -89,7 +95,7 @@ trait HandleAgentEvents
         $mapTool = fn (ToolInterface $tool): array => [
             $tool->getName() => [
                 'description' => $tool->getDescription(),
-                'properties' => \array_map(
+                'properties' => array_map(
                     fn (ToolPropertyInterface $property) => $property->jsonSerialize(),
                     $tool->getProperties()
                 )
@@ -101,9 +107,9 @@ trait HandleAgentEvents
                 'provider' => $agent->resolveProvider()::class,
                 'instructions' => $agent->resolveInstructions(),
             ],
-            'Tools' => \array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
+            'Tools' => array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
                 $tool instanceof ToolInterface => $mapTool($tool),
-                $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
+                $tool instanceof ToolkitInterface => [$tool::class => array_map($mapTool, $tool->tools())],
                 default => $tool->jsonSerialize(),
             }, $agent->getTools()),
         ];

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Enums\MessageRole;
 
 /**
- * @method static static make(string|ContentBlock|array<int, ContentBlock>|null $content = null)
+ * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content = null)
  */
 class UserMessage extends Message
 {
     /**
-     * @param string|ContentBlock|ContentBlock[]|null $content
+     * @param string|ContentBlockInterface|ContentBlockInterface[]|null $content
      */
-    public function __construct(string|ContentBlock|array|null $content)
+    public function __construct(string|ContentBlockInterface|array|null $content)
     {
         parent::__construct(MessageRole::USER, $content);
     }

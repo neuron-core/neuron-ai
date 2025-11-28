@@ -15,6 +15,13 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+
+use function array_key_exists;
+use function json_decode;
+use function rtrim;
+use function strlen;
+use function trim;
 
 trait HandleStream
 {
@@ -28,7 +35,7 @@ trait HandleStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages): \Generator
+    public function stream(array|string $messages): Generator
     {
         $json = [
             'contents' => $this->messageMapper()->map($messages),
@@ -47,7 +54,7 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post(\trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [
+        $stream = $this->client->post(trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [
             'stream' => true,
             RequestOptions::JSON => $json
         ])->getBody();
@@ -57,12 +64,12 @@ trait HandleStream
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
 
-            if (($line = \json_decode((string) $line, true)) === null) {
+            if (($line = json_decode((string) $line, true)) === null) {
                 continue;
             }
 
-            // Capture usage information
-            if (\array_key_exists('usageMetadata', $line)) {
+            // Save usage information
+            if (array_key_exists('usageMetadata', $line)) {
                 $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
                 $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
             }
@@ -71,15 +78,24 @@ trait HandleStream
             if ($this->hasToolCalls($line)) {
                 $this->streamState->composeToolCalls($line);
 
-                // Handle tool calls when finished
+                // Gemini 2.5 includes the finish reason in the tool call message. Gemini 3 uses a separate message instead.
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    return $this->createToolCallMessage(
-                        $this->streamState->getContentBlocks(),
-                        $this->streamState->getToolCalls()
-                    )->setUsage($this->streamState->getUsage());
+                    goto toolcall;
                 }
-
                 continue;
+            }
+
+            // Handle tool calls when finished
+            if (
+                isset($line['candidates'][0]['finishReason']) &&
+                $line['candidates'][0]['finishReason'] === 'STOP' &&
+                $this->streamState->hasToolCalls()
+            ) {
+                toolcall:
+                return $this->createToolCallMessage(
+                    $this->streamState->getContentBlocks(),
+                    $this->streamState->getToolCalls()
+                )->setUsage($this->streamState->getUsage());
             }
 
             // Process content
@@ -116,7 +132,7 @@ trait HandleStream
         return $message;
     }
 
-    protected function handleTextData(array $part): \Generator
+    protected function handleTextData(array $part): Generator
     {
         if ($part['thought'] ?? false) {
             // Accumulate the reasoning text
@@ -155,15 +171,15 @@ trait HandleStream
         while (! $stream->eof()) {
             $buffer .= $stream->read(1);
 
-            if (\strlen($buffer) === 1 && $buffer !== '{') {
+            if (strlen($buffer) === 1 && $buffer !== '{') {
                 $buffer = '';
             }
 
-            if (\json_decode($buffer) !== null) {
+            if (json_decode($buffer) !== null) {
                 return $buffer;
             }
         }
 
-        return \rtrim($buffer, ']');
+        return rtrim($buffer, ']');
     }
 }

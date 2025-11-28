@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
-class Action implements \JsonSerializable
+use JsonSerializable;
+
+class Action implements JsonSerializable
 {
     /**
      * @param string $id Unique identifier for this action

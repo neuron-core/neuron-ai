@@ -4,10 +4,30 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Providers\BasicStreamState;
+
+use function array_key_exists;
+use function array_map;
+use function json_decode;
 
 class StreamState extends BasicStreamState
 {
+    public function addContentBlock(int $index, ContentBlockInterface $block): void
+    {
+        $this->blocks[$index] = $block;
+    }
+
+    public function updateContentBlock(int $index, string $content): void
+    {
+        $this->blocks[$index]->accumulateContent($content);
+    }
+
+    public function getContentBlock(int $index): ContentBlockInterface
+    {
+        return $this->blocks[$index];
+    }
+
     /**
      * Recreate the tool_call format of anthropic API from streaming.
      *
@@ -15,7 +35,7 @@ class StreamState extends BasicStreamState
      */
     public function composeToolCalls(array $line): void
     {
-        if (!\array_key_exists($line['index'], $this->toolCalls)) {
+        if (!array_key_exists($line['index'], $this->toolCalls)) {
             $this->toolCalls[$line['index']] = [
                 'type' => 'tool_use',
                 'id' => $line['content_block']['id'],
@@ -30,8 +50,8 @@ class StreamState extends BasicStreamState
     public function getToolCalls(): array
     {
         // Decode the input and return
-        return \array_map(function (array $call): array {
-            $call['input'] = \json_decode((string) $call['input'], true);
+        return array_map(function (array $call): array {
+            $call['input'] = json_decode((string) $call['input'], true);
             return $call;
         }, $this->toolCalls);
     }

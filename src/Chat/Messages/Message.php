@@ -4,23 +4,28 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
+use JsonSerializable;
+
+use function array_map;
+use function array_merge;
+use function is_string;
 
 /**
- * @method static static make(MessageRole $role, string|ContentBlock|ContentBlock[]|null $content = null)
+ * @method static static make(MessageRole $role, string|ContentBlockInterface|ContentBlockInterface[]|null $content = null)
  */
-class Message implements \JsonSerializable
+class Message implements JsonSerializable
 {
     use StaticConstructor;
 
     protected ?Usage $usage = null;
 
     /**
-     * @var ContentBlock[]
+     * @var ContentBlockInterface[]
      */
     protected array $contents = [];
 
@@ -30,11 +35,11 @@ class Message implements \JsonSerializable
     protected array $meta = [];
 
     /**
-     * @param string|ContentBlock|ContentBlock[]|null $content
+     * @param string|ContentBlockInterface|ContentBlockInterface[]|null $content
      */
     public function __construct(
         protected MessageRole $role,
-        string|ContentBlock|array|null $content = null
+        string|ContentBlockInterface|array|null $content = null
     ) {
         if ($content !== null) {
             $this->setContents($content);
@@ -57,7 +62,7 @@ class Message implements \JsonSerializable
     }
 
     /**
-     * @return ContentBlock[]
+     * @return ContentBlockInterface[]
      */
     public function getContentBlocks(): array
     {
@@ -65,13 +70,13 @@ class Message implements \JsonSerializable
     }
 
     /**
-     * @param string|ContentBlock|ContentBlock[] $content
+     * @param string|ContentBlockInterface|ContentBlockInterface[] $content
      */
-    public function setContents(string|ContentBlock|array $content): Message
+    public function setContents(string|ContentBlockInterface|array $content): Message
     {
-        if (\is_string($content)) {
+        if (is_string($content)) {
             $this->contents = [new TextContent($content)];
-        } elseif ($content instanceof ContentBlock) {
+        } elseif ($content instanceof ContentBlockInterface) {
             $this->contents = [$content];
         } else {
             // Assume it's an array
@@ -83,7 +88,7 @@ class Message implements \JsonSerializable
         return $this;
     }
 
-    public function addContent(ContentBlock $block): Message
+    public function addContent(ContentBlockInterface $block): Message
     {
         $this->contents[] = $block;
 
@@ -98,10 +103,10 @@ class Message implements \JsonSerializable
         $text = '';
         foreach ($this->contents as $index => $block) {
             if ($block instanceof TextContent) {
-                $text .= ($index > 0 ? " " : '').$block->text;
+                $text .= ($index > 0 ? " " : '').$block->content;
             }
             if ($block instanceof ReasoningContent) {
-                $text .= ($index > 0 ? "\n\n" : '').$block->text."\n\n";
+                $text .= ($index > 0 ? "\n\n" : '').$block->content."\n\n";
             }
         }
 
@@ -122,7 +127,7 @@ class Message implements \JsonSerializable
     /**
      * @param string|array<int, mixed>|null $value
      */
-    public function addMetadata(string $key, string|array|null $value): Message
+    public function addMetadata(string $key, string|array|null $value): self
     {
         $this->meta[$key] = $value;
         return $this;
@@ -140,13 +145,13 @@ class Message implements \JsonSerializable
     {
         $data = [
             'role' => $this->getRole(),
-            'content' => \array_map(fn (ContentBlock $block): array => $block->toArray(), $this->contents)
+            'content' => array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->contents)
         ];
 
         if ($this->getUsage() instanceof Usage) {
             $data['usage'] = $this->getUsage()->jsonSerialize();
         }
 
-        return \array_merge($this->meta, $data);
+        return array_merge($this->meta, $data);
     }
 }

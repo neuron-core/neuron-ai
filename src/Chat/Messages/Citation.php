@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-class Citation implements \JsonSerializable
+use JsonSerializable;
+
+class Citation implements JsonSerializable
 {
     public function __construct(
         public readonly string $id,

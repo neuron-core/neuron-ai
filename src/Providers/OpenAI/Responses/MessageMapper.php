@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -17,6 +18,13 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use stdClass;
+
+use function array_filter;
+use function array_map;
+use function array_merge;
+use function json_encode;
+use function uniqid;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -36,7 +44,7 @@ class MessageMapper implements MessageMapperInterface
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 ToolResultMessage::class => $this->mapToolsResult($message),
-                default => throw new ProviderException('Could not map message type '.$message::class),
+                default => throw new ProviderException('Unknown message type '.$message::class),
             };
         }
 
@@ -52,30 +60,31 @@ class MessageMapper implements MessageMapperInterface
         $contentBlocks = $message->getContentBlocks();
 
         // Map content blocks to the provider format
-        $payload['content'] = [];
-        foreach ($contentBlocks as $block) {
-            // ReasoningContent blocks are intentionally filtered out as they are
-            // output-only from the API and should not be sent back in subsequent requests
-            if ($block instanceof ReasoningContent) {
-                continue;
-            }
-
-            $payload['content'][] = match ($block::class) {
-                TextContent::class => $this->mapTextBlock($block, $this->isUserMessage($message)),
-                FileContent::class => $this->mapFileBlock($block),
-                ImageContent::class => $this->mapImageBlock($block),
-                default => throw new ProviderException('Unsupported content block type: '.$block::class),
-            };
-        }
+        $payload['content'] = $this->mapContentBlocks($contentBlocks, $this->isUserMessage($message));
 
         $this->mapping[] = $payload;
+    }
+
+    /**
+     * @param ContentBlockInterface[] $blocks
+     * @throws ProviderException
+     */
+    protected function mapContentBlocks(array $blocks, bool $isUser): array
+    {
+        $blocks = array_filter($blocks, fn (ContentBlockInterface $block): bool => !$block instanceof ReasoningContent);
+        return array_map(fn (ContentBlockInterface $block): array => match ($block::class) {
+            TextContent::class => $this->mapTextBlock($block, $isUser),
+            FileContent::class => $this->mapFileBlock($block),
+            ImageContent::class => $this->mapImageBlock($block),
+            default => throw new ProviderException('OpenAI does not support content block type: '.$block::class),
+        }, $blocks);
     }
 
     protected function mapTextBlock(TextContent $block, bool $forUser): array
     {
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
-            'text' => $block->text,
+            'text' => $block->content,
         ];
     }
 
@@ -84,8 +93,8 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+                'filename' => $block->filename ?? "attachment-".uniqid().".pdf",
+                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
     }
@@ -95,8 +104,8 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'input_image',
             'image_url' => match ($block->sourceType) {
-                SourceType::URL => $block->source,
-                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+                SourceType::URL => $block->content,
+                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
             },
         ];
     }
@@ -106,16 +115,14 @@ class MessageMapper implements MessageMapperInterface
         return $message instanceof UserMessage || $message->getRole() === MessageRole::USER->value;
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        // Add text if present
-        $text = $message->getContent();
-        // Add text if present
-        if ($text !== '' && $text !== '0') {
-            $this->mapping[] = [
-                'role' => $message->getRole(),
-                'content' => $text,
-            ];
+        // Add content blocks if present
+        if ($contentBlocks = $message->getContentBlocks()) {
+            $this->mapping = array_merge($this->mapping, $this->mapContentBlocks($contentBlocks, false));
         }
 
         // Add function call items
@@ -124,7 +131,7 @@ class MessageMapper implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => \json_encode($inputs !== [] ? $inputs : new \stdClass()),
+                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }

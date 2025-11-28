@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\GetWeekdayTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class GetWeekdayToolTest extends TestCase
 {
     private GetWeekdayTool $tool;
@@ -42,7 +45,7 @@ class GetWeekdayToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-18', 'all'); // Sunday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertEquals('Sunday', $data['name']);
         $this->assertEquals('Sun', $data['short']);
@@ -184,7 +187,7 @@ class GetWeekdayToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(3, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('format', $propertyNames);
         $this->assertContains('timezone', $propertyNames);

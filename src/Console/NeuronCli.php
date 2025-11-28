@@ -11,6 +11,13 @@ use NeuronAI\Console\Make\MakeNodeCommand;
 use NeuronAI\Console\Make\MakeRagCommand;
 use NeuronAI\Console\Make\MakeToolCommand;
 use NeuronAI\Console\Make\MakeWorkflowCommand;
+use Throwable;
+
+use function array_shift;
+use function fwrite;
+
+use const PHP_EOL;
+use const STDERR;
 
 class NeuronCli
 {
@@ -30,14 +37,14 @@ class NeuronCli
     public function run(array $args): int
     {
         // Skip script name
-        \array_shift($args);
+        array_shift($args);
 
         if ($args === []) {
             $this->printUsage();
             return 1;
         }
 
-        $commandName = \array_shift($args);
+        $commandName = array_shift($args);
 
         if ($commandName === '--help' || $commandName === '-h') {
             $this->printUsage();
@@ -59,7 +66,7 @@ class NeuronCli
             $subCommandArgs = ['neuron', ...$args];
 
             return $command->run($subCommandArgs);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->printError("Error executing command '{$commandName}': " . $e->getMessage());
             return 1;
         }
@@ -96,11 +103,11 @@ For command-specific help, use:
 
 USAGE;
 
-        echo $usage . \PHP_EOL;
+        echo $usage . PHP_EOL;
     }
 
     private function printError(string $message): void
     {
-        \fwrite(\STDERR, "Error: {$message}" . \PHP_EOL);
+        fwrite(STDERR, "Error: {$message}" . PHP_EOL);
     }
 }

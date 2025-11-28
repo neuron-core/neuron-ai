@@ -19,6 +19,15 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 
+use function array_filter;
+use function count;
+use function in_array;
+use function json_encode;
+use function sprintf;
+use function uniqid;
+
+use const JSON_PRETTY_PRINT;
+
 class ToolApproval implements WorkflowMiddleware
 {
     /**
@@ -66,9 +75,9 @@ class ToolApproval implements WorkflowMiddleware
             $actions[] = $this->createAction($tool);
         }
 
-        $count = \count($actions);
+        $count = count($actions);
         $interruptRequest = new InterruptRequest(
-            message: \sprintf(
+            message: sprintf(
                 '%d tool call%s require%s human approval before execution',
                 $count,
                 $count === 1 ? '' : 's',
@@ -103,9 +112,9 @@ class ToolApproval implements WorkflowMiddleware
             return $tools;
         }
 
-        return \array_filter(
+        return array_filter(
             $tools,
-            fn (ToolInterface $tool): bool => \in_array($tool->getName(), $this->tools, true)
+            fn (ToolInterface $tool): bool => in_array($tool->getName(), $this->tools, true)
         );
     }
 
@@ -117,12 +126,12 @@ class ToolApproval implements WorkflowMiddleware
         $inputs = $tool->getInputs();
         $inputsDescription = $inputs === []
             ? '(no arguments)'
-            : \json_encode($inputs, \JSON_PRETTY_PRINT);
+            : json_encode($inputs, JSON_PRETTY_PRINT);
 
         return new Action(
-            id: $tool->getCallId() ?? \uniqid('tool_'),
+            id: $tool->getCallId() ?? uniqid('tool_'),
             name: $tool->getName(),
-            description: \sprintf(
+            description: sprintf(
                 "Description: %s\nInputs: %s",
                 $tool->getDescription() ?? 'No description',
                 $inputsDescription
@@ -175,7 +184,7 @@ class ToolApproval implements WorkflowMiddleware
      */
     protected function handleRejectedTool(ToolInterface $tool, Action $action): void
     {
-        $rejectionMessage = \sprintf(
+        $rejectionMessage = sprintf(
             "The user rejected the tool '%s' execution. Reason: %s",
             $tool->getName(),
             $action->feedback ?? 'No reason provided'

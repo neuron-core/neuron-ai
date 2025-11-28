@@ -13,6 +13,9 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_key_exists;
+use function json_decode;
+
 trait HandleChat
 {
     public function chat(array $messages): Message
@@ -39,7 +42,7 @@ trait HandleChat
 
         return $this->client->postAsync('messages', [RequestOptions::JSON => $json])
             ->then(onFulfilled: function (ResponseInterface $response): Message {
-                $result = \json_decode($response->getBody()->getContents(), true);
+                $result = json_decode($response->getBody()->getContents(), true);
 
                 $blocks = [];
                 $toolCalls = [];
@@ -70,7 +73,7 @@ trait HandleChat
                 }
 
                 // Attach the usage for the current interaction
-                if (\array_key_exists('usage', $result)) {
+                if (array_key_exists('usage', $result)) {
                     $message->setUsage(
                         new Usage(
                             $result['usage']['input_tokens'],

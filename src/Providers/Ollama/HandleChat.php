@@ -12,6 +12,9 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\ResponseInterface;
 
+use function array_unshift;
+use function json_decode;
+
 trait HandleChat
 {
     public function chat(array $messages): Message
@@ -23,7 +26,7 @@ trait HandleChat
     {
         // Include the system prompt
         if (isset($this->system)) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
+            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
         $json = [
@@ -43,7 +46,7 @@ trait HandleChat
                     throw new ProviderException("Ollama chat error: {$response->getBody()->getContents()}");
                 }
 
-                $response = \json_decode($response->getBody()->getContents(), true);
+                $response = json_decode($response->getBody()->getContents(), true);
                 $message = $response['message'];
 
                 if (isset($message['tool_calls'])) {

@@ -4,122 +4,104 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Mistral;
 
-use GuzzleHttp\Exception\GuzzleException;
-use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
+use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\Providers\SSEParser;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\HandleWithTools;
+use NeuronAI\Providers\HasGuzzleClient;
+use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\OpenAI\HandleStructured;
+use NeuronAI\Providers\OpenAI\ToolPayloadMapper;
+use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Tools\ToolInterface;
 
-class Mistral extends OpenAI
+use function array_map;
+use function json_decode;
+use function trim;
+
+class Mistral implements AIProviderInterface
 {
+    use HasGuzzleClient;
+    use HandleWithTools;
+    use HandleChat;
+    use HandleStream;
+    use HandleStructured; // From OpenAI
+
     protected string $baseUri = 'https://api.mistral.ai/v1';
 
     /**
-     * Stream response from the LLM.
-     *
-     * Yields intermediate chunks during streaming and returns the final complete Message.
-     *
-     * @throws ProviderException
-     * @throws GuzzleException
+     * System instructions.
      */
-    public function stream(array|string $messages): \Generator
-    {
-        // Attach the system prompt
-        if ($this->system !== null) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
-        }
+    protected ?string $system = null;
 
-        $json = [
-            'stream' => true,
-            'model' => $this->model,
-            'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
+    protected MessageMapperInterface $messageMapper;
+    protected ToolPayloadMapperInterface $toolPayloadMapper;
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    public function __construct(
+        protected string $key,
+        protected string $model,
+        protected array $parameters = [],
+        protected bool $strict_response = false,
+        protected ?HttpClientOptions $httpOptions = null,
+    ) {
+        $config = [
+            'base_uri' => trim($this->baseUri, '/').'/',
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $this->key,
+            ]
         ];
 
-        // Attach tools
-        if ($this->tools !== []) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+        if ($this->httpOptions instanceof HttpClientOptions) {
+            $config = $this->mergeHttpOptions($config, $this->httpOptions);
         }
 
-        $stream = $this->client->post('chat/completions', [
-            'stream' => true,
-            ...['json' => $json]
-        ])->getBody();
-
-        $text = '';
-        $toolCalls = [];
-        $usage = new Usage(0, 0);
-
-        while (! $stream->eof()) {
-            if (($line = SSEParser::parseNextSSEEvent($stream)) === null) {
-                continue;
-            }
-
-            // Capture usage information
-            if (empty($line['choices']) && !empty($line['usage'])) {
-                $usage->inputTokens += $line['usage']['prompt_tokens'] ?? 0;
-                $usage->outputTokens += $line['usage']['completion_tokens'] ?? 0;
-                continue;
-            }
-
-            if (empty($line['choices'])) {
-                continue;
-            }
-
-            // Compile tool calls
-            if ($this->isToolCallPart($line)) {
-                $toolCalls = $this->composeToolCalls($line, $toolCalls);
-
-                // Handle tool calls
-                if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
-                    $message = $this->createToolCallMessage([
-                        'content' => $text,
-                        'tool_calls' => $toolCalls
-                    ]);
-                    $message->setUsage($usage);
-
-                    return $message;
-                }
-
-                continue;
-            }
-
-            // Process regular content
-            $content = $line['choices'][0]['delta']['content'] ?? '';
-            $text .= $content;
-
-            if ($content !== '') {
-                yield new TextChunk($content);
-            }
-        }
-
-        // Build final message
-        $blocks = [];
-        if ($text !== '') {
-            $blocks[] = new TextContent($text);
-        }
-
-        $message = new AssistantMessage($blocks);
-        $message->setUsage($usage);
-
-        return $message;
+        $this->client = new Client($config);
     }
 
-    protected function isToolCallPart(array $line): bool
+    public function systemPrompt(?string $prompt): AIProviderInterface
     {
-        $calls = $line['choices'][0]['delta']['tool_calls'] ?? [];
+        $this->system = $prompt;
+        return $this;
+    }
 
-        foreach ($calls as $call) {
-            if (isset($call['function'])) {
-                return true;
-            }
-        }
+    public function messageMapper(): MessageMapperInterface
+    {
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+    }
 
-        return false;
+    public function toolPayloadMapper(): ToolPayloadMapperInterface
+    {
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
+    }
+
+    /**
+     * @param array<int, array> $toolCalls
+     * @param ContentBlockInterface|ContentBlockInterface[]|null $blocks
+     *
+     * @throws ProviderException
+     */
+    protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface|null $blocks = null): ToolCallMessage
+    {
+        $tools = array_map(
+            fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
+                ->setInputs(
+                    json_decode((string) $item['function']['arguments'], true)
+                )
+                ->setCallId($item['id']),
+            $toolCalls
+        );
+
+        $result = new ToolCallMessage($blocks, $tools);
+        $result->addMetadata('tool_calls', $toolCalls);
+
+        return $result;
     }
 }

@@ -15,6 +15,17 @@ use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use PHPUnit\Framework\TestCase;
 
+use function file_put_contents;
+use function glob;
+use function is_dir;
+use function is_file;
+use function json_encode;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
+
 class ContentBlockDeserializationTest extends TestCase
 {
     private string $testDir;
@@ -22,22 +33,22 @@ class ContentBlockDeserializationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->testDir = \sys_get_temp_dir() . '/neuron_test_' . \uniqid();
-        \mkdir($this->testDir);
+        $this->testDir = sys_get_temp_dir() . '/neuron_test_' . uniqid();
+        mkdir($this->testDir);
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
         // Clean up test directory
-        if (\is_dir($this->testDir)) {
-            $files = \glob($this->testDir . '/*');
+        if (is_dir($this->testDir)) {
+            $files = glob($this->testDir . '/*');
             foreach ($files as $file) {
-                if (\is_file($file)) {
-                    \unlink($file);
+                if (is_file($file)) {
+                    unlink($file);
                 }
             }
-            \rmdir($this->testDir);
+            rmdir($this->testDir);
         }
     }
 
@@ -58,7 +69,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($legacyData));
+        file_put_contents($filePath, json_encode($legacyData));
 
         // Load with FileChatHistory - should automatically migrate
         $history = new FileChatHistory($this->testDir, $key);
@@ -74,12 +85,12 @@ class ContentBlockDeserializationTest extends TestCase
         $userContentBlocks = $messages[0]->getContentBlocks();
         $this->assertCount(1, $userContentBlocks);
         $this->assertInstanceOf(TextContent::class, $userContentBlocks[0]);
-        $this->assertEquals('Hello, this is a legacy message!', $userContentBlocks[0]->text);
+        $this->assertEquals('Hello, this is a legacy message!', $userContentBlocks[0]->content);
 
         $assistantContentBlocks = $messages[1]->getContentBlocks();
         $this->assertCount(1, $assistantContentBlocks);
         $this->assertInstanceOf(TextContent::class, $assistantContentBlocks[0]);
-        $this->assertEquals('This is a legacy response.', $assistantContentBlocks[0]->text);
+        $this->assertEquals('This is a legacy response.', $assistantContentBlocks[0]->content);
 
         // Now save it back - should be in new format
         $history->addMessage(new UserMessage('New message'));
@@ -92,7 +103,7 @@ class ContentBlockDeserializationTest extends TestCase
 
         // Verify original messages still have content blocks
         $this->assertInstanceOf(TextContent::class, $messages2[0]->getContentBlocks()[0]);
-        $this->assertEquals('Hello, this is a legacy message!', $messages2[0]->getContentBlocks()[0]->text);
+        $this->assertEquals('Hello, this is a legacy message!', $messages2[0]->getContentBlocks()[0]->content);
     }
 
     public function test_new_content_block_format_deserializes_correctly(): void
@@ -119,7 +130,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($newData));
+        file_put_contents($filePath, json_encode($newData));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();
@@ -132,11 +143,11 @@ class ContentBlockDeserializationTest extends TestCase
 
         // Verify text block
         $this->assertInstanceOf(TextContent::class, $contentBlocks[0]);
-        $this->assertEquals('Analyze this image:', $contentBlocks[0]->text);
+        $this->assertEquals('Analyze this image:', $contentBlocks[0]->content);
 
         // Verify image block
         $this->assertInstanceOf(ImageContent::class, $contentBlocks[1]);
-        $this->assertEquals('https://example.com/image.jpg', $contentBlocks[1]->source);
+        $this->assertEquals('https://example.com/image.jpg', $contentBlocks[1]->content);
         $this->assertEquals(SourceType::URL, $contentBlocks[1]->sourceType);
         $this->assertEquals('image/jpeg', $contentBlocks[1]->mediaType);
     }
@@ -183,7 +194,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($data));
+        file_put_contents($filePath, json_encode($data));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();
@@ -195,21 +206,21 @@ class ContentBlockDeserializationTest extends TestCase
 
         // Verify all block types
         $this->assertInstanceOf(TextContent::class, $contentBlocks[0]);
-        $this->assertEquals('Text content', $contentBlocks[0]->text);
+        $this->assertEquals('Text content', $contentBlocks[0]->content);
 
         $this->assertInstanceOf(ImageContent::class, $contentBlocks[1]);
-        $this->assertEquals('base64data', $contentBlocks[1]->source);
+        $this->assertEquals('base64data', $contentBlocks[1]->content);
         $this->assertEquals(SourceType::BASE64, $contentBlocks[1]->sourceType);
 
         $this->assertInstanceOf(FileContent::class, $contentBlocks[2]);
-        $this->assertEquals('https://example.com/doc.pdf', $contentBlocks[2]->source);
+        $this->assertEquals('https://example.com/doc.pdf', $contentBlocks[2]->content);
         $this->assertEquals('document.pdf', $contentBlocks[2]->filename);
 
         $this->assertInstanceOf(AudioContent::class, $contentBlocks[3]);
-        $this->assertEquals('https://example.com/audio.mp3', $contentBlocks[3]->source);
+        $this->assertEquals('https://example.com/audio.mp3', $contentBlocks[3]->content);
 
         $this->assertInstanceOf(VideoContent::class, $contentBlocks[4]);
-        $this->assertEquals('https://example.com/video.mp4', $contentBlocks[4]->source);
+        $this->assertEquals('https://example.com/video.mp4', $contentBlocks[4]->content);
     }
 
     public function test_mixed_messages_with_content_blocks(): void
@@ -234,7 +245,7 @@ class ContentBlockDeserializationTest extends TestCase
             ],
         ];
 
-        \file_put_contents($filePath, \json_encode($mixedData));
+        file_put_contents($filePath, json_encode($mixedData));
 
         $history = new FileChatHistory($this->testDir, $key);
         $messages = $history->getMessages();
@@ -245,11 +256,11 @@ class ContentBlockDeserializationTest extends TestCase
         $userBlocks = $messages[0]->getContentBlocks();
         $this->assertCount(1, $userBlocks);
         $this->assertInstanceOf(TextContent::class, $userBlocks[0]);
-        $this->assertEquals('Legacy string message', $userBlocks[0]->text);
+        $this->assertEquals('Legacy string message', $userBlocks[0]->content);
 
         $assistantBlocks = $messages[1]->getContentBlocks();
         $this->assertCount(1, $assistantBlocks);
         $this->assertInstanceOf(TextContent::class, $assistantBlocks[0]);
-        $this->assertEquals('Modern content block message', $assistantBlocks[0]->text);
+        $this->assertEquals('Modern content block message', $assistantBlocks[0]->content);
     }
 }

@@ -15,6 +15,17 @@ use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
+use Closure;
+use Throwable;
+
+use function array_map;
+use function class_exists;
+use function count;
+use function extension_loaded;
+use function is_array;
+use function is_subclass_of;
+use function serialize;
+use function unserialize;
 
 class ParallelToolNode extends ToolNode
 {
@@ -22,24 +33,24 @@ class ParallelToolNode extends ToolNode
      * @throws InspectorException
      * @throws ToolException
      * @throws ToolMaxTriesException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
     {
         // Fallback to sequential execution if pcntl is not available (e.g., Windows)
-        if (!\extension_loaded('pcntl')) {
+        if (!extension_loaded('pcntl')) {
             return parent::executeTools($toolCallMessage, $state);
         }
 
         // Fallback to sequential execution if spatie/fork is not installed
-        if (!\class_exists(Fork::class)) {
+        if (!class_exists(Fork::class)) {
             return parent::executeTools($toolCallMessage, $state);
         }
 
         $tools = $toolCallMessage->getTools();
 
         // If there's only one tool, no need for concurrency
-        if (\count($tools) === 1) {
+        if (count($tools) === 1) {
             $this->executeSingleTool($tools[0], $state);
             return new ToolResultMessage($toolCallMessage->getTools());
         }
@@ -59,17 +70,17 @@ class ParallelToolNode extends ToolNode
 
         // Execute tools concurrently and collect serialized tool states
         $serializedTools = Fork::new()->run(
-            ...\array_map(
-                fn (ToolInterface $tool): \Closure => function () use ($tool): string {
+            ...array_map(
+                fn (ToolInterface $tool): Closure => function () use ($tool): string {
                     try {
                         // Execute the tool - this mutates the tool's internal state
                         $tool->execute();
 
                         // Serialize the entire tool object with its new state
-                        return \serialize($tool);
-                    } catch (\Throwable $exception) {
+                        return serialize($tool);
+                    } catch (Throwable $exception) {
                         // Wrap the exception info with the tool for proper error handling
-                        return \serialize([
+                        return serialize([
                             'error' => true,
                             'exception_class' => $exception::class,
                             'exception_message' => $exception->getMessage(),
@@ -85,15 +96,15 @@ class ParallelToolNode extends ToolNode
         // Unserialize and replace tools with their executed state
         $executedTools = [];
         foreach ($serializedTools as $index => $serializedTool) {
-            $data = \unserialize($serializedTool);
+            $data = unserialize($serializedTool);
 
             // Check if this is an error response
-            if (\is_array($data) && isset($data['error']) && $data['error'] === true) {
+            if (is_array($data) && isset($data['error']) && $data['error'] === true) {
                 $exceptionClass = $data['exception_class'];
                 $exception = null;
 
                 // Recreate the exception
-                if (\class_exists($exceptionClass) && \is_subclass_of($exceptionClass, \Throwable::class)) {
+                if (class_exists($exceptionClass) && is_subclass_of($exceptionClass, Throwable::class)) {
                     $exception = new $exceptionClass($data['exception_message'], (int) $data['exception_code']);
                 } else {
                     $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);

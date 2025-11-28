@@ -8,6 +8,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function bcmul;
+
 class FactorialTool extends Tool
 {
     public function __construct()
@@ -69,7 +71,7 @@ DESC
         $result = '1';
 
         for ($i = 2; $i <= $number; $i++) {
-            $result = \bcmul($result, (string)$i);
+            $result = bcmul($result, (string)$i);
         }
 
         return (float)$result;

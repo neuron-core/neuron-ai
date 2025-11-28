@@ -15,6 +15,10 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use stdClass;
+
+use function array_key_exists;
+use function array_map;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -49,12 +53,12 @@ class MessageMapper implements MessageMapperInterface
 
         foreach ($contentBlocks as $block) {
             if ($block instanceof TextContent) {
-                $textContent .= $block->text;
+                $textContent .= $block->content;
             } elseif ($block instanceof ImageContent) {
                 if ($block->sourceType === SourceType::URL) {
                     throw new ProviderException('Ollama supports only base64 image type.');
                 }
-                $images[] = $block->source;
+                $images[] = $block->content;
             } else {
                 throw new ProviderException('This provider does not support '.$block::class.' content blocks.');
             }
@@ -79,11 +83,11 @@ class MessageMapper implements MessageMapperInterface
             'content' => $message->getContent(),
         ];
 
-        if (\array_key_exists('tool_calls', $message->jsonSerialize())) {
+        if (array_key_exists('tool_calls', $message->jsonSerialize())) {
             $toolCalls = $message->jsonSerialize()['tool_calls'];
-            $payload['tool_calls'] = \array_map(function (array $toolCall): array {
+            $payload['tool_calls'] = array_map(function (array $toolCall): array {
                 if (empty($toolCall['function']['arguments'])) {
-                    $toolCall['function']['arguments'] = new \stdClass();
+                    $toolCall['function']['arguments'] = new stdClass();
                 }
                 return $toolCall;
             }, $toolCalls);

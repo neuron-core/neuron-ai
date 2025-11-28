@@ -6,11 +6,14 @@ namespace NeuronAI\RAG;
 
 use NeuronAI\Exceptions\VectorStoreException;
 
+use function count;
+use function sqrt;
+
 class VectorSimilarity
 {
     public static function cosineSimilarity(array $vector1, array $vector2): float|int
     {
-        if (\count($vector1) !== \count($vector2)) {
+        if (count($vector1) !== count($vector2)) {
             throw new VectorStoreException('Vectors must have the same length to apply cosine similarity.');
         }
 
@@ -33,7 +36,7 @@ class VectorSimilarity
             return 0.0;
         }
 
-        return $dotProduct / (\sqrt($magnitude1) * \sqrt($magnitude2));
+        return $dotProduct / (sqrt($magnitude1) * sqrt($magnitude2));
     }
 
     /**

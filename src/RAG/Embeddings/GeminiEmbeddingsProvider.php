@@ -7,6 +7,9 @@ namespace NeuronAI\RAG\Embeddings;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 
+use function json_decode;
+use function trim;
+
 class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     protected Client $client;
@@ -29,7 +32,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     public function embedText(string $text): array
     {
-        $response = $this->client->post(\trim($this->baseUri, '/')."/{$this->model}:embedContent", [
+        $response = $this->client->post(trim($this->baseUri, '/')."/{$this->model}:embedContent", [
             RequestOptions::JSON => [
                 'content' => [
                     'parts' => [['text' => $text]]
@@ -38,7 +41,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]
         ])->getBody()->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return $response['embedding']['values'];
     }

@@ -8,6 +8,8 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 use PHPUnit\Framework\TestCase;
 
+use function unlink;
+
 class FileVectorStoreTest extends TestCase
 {
     public function test_store_documents(): void
@@ -38,7 +40,7 @@ class FileVectorStoreTest extends TestCase
         $this->assertEquals($document->sourceName, $results[0]->getSourceName());
         $this->assertEquals($document->metadata, $results[0]->metadata);
 
-        \unlink(__DIR__.'/neuron.store');
+        unlink(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
     }
 
@@ -58,7 +60,7 @@ class FileVectorStoreTest extends TestCase
         $results = $store->similaritySearch([1, 2, 3]);
         $this->assertCount(0, $results);
 
-        \unlink(__DIR__.'/neuron.store');
+        unlink(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron_tmp.store');
     }

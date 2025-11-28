@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -19,6 +19,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
+use function array_map;
+use function array_values;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -46,20 +50,20 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
                 'type' => 'text',
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ReasoningContent::class => [
                 'type' => 'thinking',
-                'thinking' => $block->text,
+                'thinking' => $block->content,
                 'signature' => $block->id,
             ],
             ImageContent::class => $this->mapImageBlock($block),
@@ -75,7 +79,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'image',
                 'source' => [
                     'type' => 'url',
-                    'url' => $block->source,
+                    'url' => $block->content,
                 ],
             ],
             SourceType::BASE64 => [
@@ -83,7 +87,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'base64',
                     'media_type' => $block->mediaType,
-                    'data' => $block->source,
+                    'data' => $block->content,
                 ],
             ],
         };
@@ -96,7 +100,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'document',
                 'source' => [
                     'type' => 'url',
-                    'url' => $block->source,
+                    'url' => $block->content,
                 ],
             ],
             SourceType::BASE64 => [
@@ -104,7 +108,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'base64',
                     'media_type' => $block->mediaType,
-                    'data' => $block->source,
+                    'data' => $block->content,
                 ],
             ],
         };
@@ -116,7 +120,7 @@ class MessageMapper implements MessageMapperInterface
 
         // Add text content if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
+            $parts = array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
         // Add tool call blocks from the tool array
@@ -125,7 +129,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'tool_use',
                 'id' => $tool->getCallId(),
                 'name' => $tool->getName(),
-                'input' => $tool->getInputs() ?: new \stdClass(),
+                'input' => $tool->getInputs() ?: new stdClass(),
             ];
         }
 
@@ -137,19 +141,19 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
-        $parts = \array_map(fn (ToolInterface $tool): array => [
+        $parts = array_map(fn (ToolInterface $tool): array => [
             'type' => 'tool_result',
             'tool_use_id' => $tool->getCallId(),
             'content' => $tool->getResult(),
         ], $message->getTools());
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = [...$parts, ...\array_map($this->mapContentBlock(...), $contentBlocks)];
+            $parts = [...$parts, ...array_map($this->mapContentBlock(...), $contentBlocks)];
         }
 
         return [
             'role' => MessageRole::USER,
-            'content' => \array_values($parts),
+            'content' => array_values($parts),
         ];
     }
 }

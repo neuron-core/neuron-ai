@@ -6,6 +6,8 @@ namespace NeuronAI\Observability;
 
 use Inspector\Exceptions\InspectorException;
 
+use function method_exists;
+
 trait Observable
 {
     private bool $monitoringInitialized = false;
@@ -61,7 +63,7 @@ trait Observable
      */
     protected function propagateObservers(object $component): void
     {
-        if (!\method_exists($component, 'observe')) {
+        if (!method_exists($component, 'observe')) {
             return;
         }
 

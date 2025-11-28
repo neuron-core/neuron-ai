@@ -4,6 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput;
 
+use JsonException;
+use Throwable;
+
+use function in_array;
+use function is_string;
+use function json_decode;
+use function json_encode;
+use function strlen;
+use function strpos;
+use function strrpos;
+use function substr;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Inspired by: https://github.com/cognesy/instructor-php
  */
@@ -32,26 +47,26 @@ class JsonExtractor
             if (empty($candidates)) {
                 continue;
             }
-            if (\is_string($candidates)) {
+            if (is_string($candidates)) {
                 $candidates = [$candidates];
             }
 
             foreach ($candidates as $candidate) {
-                if (!\is_string($candidate)) {
+                if (!is_string($candidate)) {
                     continue;
                 }
-                if (\trim($candidate) === '') {
+                if (trim($candidate) === '') {
                     continue;
                 }
                 try {
                     $data = $this->tryParse($candidate);
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     continue;
                 }
 
                 if ($data !== null) {
                     // Re-encode in canonical JSON form
-                    $result = \json_encode($data);
+                    $result = json_encode($data);
                     if ($result !== false) {
                         return $result;
                     }
@@ -65,13 +80,13 @@ class JsonExtractor
     /**
      * Returns an associative array on success, or null if the parsing fails.
      *
-     * @throws \JsonException
+     * @throws JsonException
      */
     private function tryParse(string $maybeJson): ?array
     {
-        $data = \json_decode($maybeJson, true, 512, \JSON_THROW_ON_ERROR);
+        $data = json_decode($maybeJson, true, 512, JSON_THROW_ON_ERROR);
 
-        if (\in_array($data, [false, null, ''], true)) {
+        if (in_array($data, [false, null, ''], true)) {
             return null;
         }
 
@@ -85,7 +100,7 @@ class JsonExtractor
      */
     private function findByMarkdown(string $text): array
     {
-        if (\trim($text) === '') {
+        if (trim($text) === '') {
             return [];
         }
 
@@ -93,26 +108,26 @@ class JsonExtractor
         $offset = 0;
         $fenceTag = '```json';
 
-        while (($startFence = \strpos($text, $fenceTag, $offset)) !== false) {
+        while (($startFence = strpos($text, $fenceTag, $offset)) !== false) {
             // Find the next triple-backtick fence AFTER the "```json"
-            $closeFence = \strpos($text, '```', $startFence + \strlen($fenceTag));
+            $closeFence = strpos($text, '```', $startFence + strlen($fenceTag));
             if ($closeFence === false) {
                 // No closing fence found, stop scanning
                 break;
             }
 
             // Substring that represents the code block between "```json" and "```"
-            $codeBlock = \substr(
+            $codeBlock = substr(
                 $text,
-                $startFence + \strlen($fenceTag),
-                $closeFence - ($startFence + \strlen($fenceTag))
+                $startFence + strlen($fenceTag),
+                $closeFence - ($startFence + strlen($fenceTag))
             );
 
             // Now find the first '{' and last '}' within this code block
-            $firstBrace = \strpos($codeBlock, '{');
-            $lastBrace = \strrpos($codeBlock, '}');
+            $firstBrace = strpos($codeBlock, '{');
+            $lastBrace = strrpos($codeBlock, '}');
             if ($firstBrace !== false && $lastBrace !== false && $firstBrace < $lastBrace) {
-                $jsonCandidate = \substr($codeBlock, $firstBrace, $lastBrace - $firstBrace + 1);
+                $jsonCandidate = substr($codeBlock, $firstBrace, $lastBrace - $firstBrace + 1);
                 $candidates[] = $jsonCandidate;
             }
 
@@ -128,21 +143,21 @@ class JsonExtractor
      */
     private function findByBrackets(string $text): ?string
     {
-        $trimmed = \trim($text);
+        $trimmed = trim($text);
         if ($trimmed === '') {
             return null;
         }
-        $firstOpen = \strpos($trimmed, '{');
+        $firstOpen = strpos($trimmed, '{');
         if ($firstOpen === 0 || $firstOpen === false) {
             return null;
         }
 
-        $lastClose = \strrpos($trimmed, '}');
+        $lastClose = strrpos($trimmed, '}');
         if ($lastClose === false || $lastClose < $firstOpen) {
             return null;
         }
 
-        return \substr($trimmed, $firstOpen, $lastClose - $firstOpen + 1);
+        return substr($trimmed, $firstOpen, $lastClose - $firstOpen + 1);
     }
 
     /**
@@ -152,7 +167,7 @@ class JsonExtractor
      */
     private function findJSONLikeStrings(string $text): array
     {
-        $text = \trim($text);
+        $text = trim($text);
         if ($text === '') {
             return [];
         }
@@ -162,7 +177,7 @@ class JsonExtractor
         $bracketCount = 0;
         $inString = false;
         $escape = false;
-        $len = \strlen($text);
+        $len = strlen($text);
 
         for ($i = 0; $i < $len; $i++) {
             $char = $text[$i];

@@ -8,6 +8,10 @@ use NeuronAI\Tools\Toolkits\Calendar\CalculateAgeTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function date;
+use function json_decode;
+
 class CalculateAgeToolTest extends TestCase
 {
     private CalculateAgeTool $tool;
@@ -56,7 +60,7 @@ class CalculateAgeToolTest extends TestCase
     {
         $result = ($this->tool)('1990-03-15', '2023-07-20', 'all');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertArrayHasKey('years', $data);
         $this->assertArrayHasKey('months', $data);
@@ -76,7 +80,7 @@ class CalculateAgeToolTest extends TestCase
         $result = ($this->tool)($birthdate); // No reference date = current date
 
         $age = (int) $result;
-        $currentYear = (int) \date('Y');
+        $currentYear = (int) date('Y');
         $expectedAge = $currentYear - 2020;
 
         // Age should be either expectedAge or expectedAge-1 depending on if birthday has passed
@@ -158,7 +162,7 @@ class CalculateAgeToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(4, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('birthdate', $propertyNames);
         $this->assertContains('reference_date', $propertyNames);
         $this->assertContains('unit', $propertyNames);

@@ -5,8 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\StructuredOutputException;
+use Attribute;
+use Countable;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY)]
+use function count;
+use function is_array;
+use function is_null;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
 class Count extends AbstractValidationRule
 {
     public function __construct(
@@ -26,17 +32,17 @@ class Count extends AbstractValidationRule
             throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "Length"');
         }
 
-        if (\is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
+        if (is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
             $violations[] = $this->buildMessage($name, '{name} cannot be empty');
             return;
         }
 
-        if (!\is_array($value) && !$value instanceof \Countable) {
+        if (!is_array($value) && !$value instanceof Countable) {
             throw new StructuredOutputException($name. ' must be an array or a Countable object');
         }
 
 
-        $count = \count($value);
+        $count = count($value);
 
         if (null !== $this->max && $count > $this->max) {
             $shouldExact = $this->min === $this->max;

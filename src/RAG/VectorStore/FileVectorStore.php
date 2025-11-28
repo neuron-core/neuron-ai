@@ -7,6 +7,27 @@ namespace NeuronAI\RAG\VectorStore;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use Generator;
+use RuntimeException;
+
+use function array_map;
+use function array_slice;
+use function count;
+use function fclose;
+use function fgets;
+use function file_put_contents;
+use function fopen;
+use function fwrite;
+use function implode;
+use function is_dir;
+use function json_decode;
+use function rename;
+use function unlink;
+use function usort;
+
+use const DIRECTORY_SEPARATOR;
+use const FILE_APPEND;
+use const PHP_EOL;
 
 class FileVectorStore implements VectorStoreInterface
 {
@@ -16,14 +37,14 @@ class FileVectorStore implements VectorStoreInterface
         protected string $name = 'neuron',
         protected string $ext = '.store'
     ) {
-        if (!\is_dir($this->directory)) {
+        if (!is_dir($this->directory)) {
             throw new VectorStoreException("Directory '{$this->directory}' does not exist");
         }
     }
 
     protected function getFilePath(): string
     {
-        return $this->directory . \DIRECTORY_SEPARATOR . $this->name.$this->ext;
+        return $this->directory . DIRECTORY_SEPARATOR . $this->name.$this->ext;
     }
 
     public function addDocument(Document $document): VectorStoreInterface
@@ -34,7 +55,7 @@ class FileVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->appendToFile(
-            \array_map(fn (Document $document): array => $document->jsonSerialize(), $documents)
+            array_map(fn (Document $document): array => $document->jsonSerialize(), $documents)
         );
         return $this;
     }
@@ -42,29 +63,29 @@ class FileVectorStore implements VectorStoreInterface
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
         // Temporary file
-        $tmpFile = $this->directory . \DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
+        $tmpFile = $this->directory . DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
 
         // Create a temporary file handle
-        $tempHandle = \fopen($tmpFile, 'w');
+        $tempHandle = fopen($tmpFile, 'w');
         if (!$tempHandle) {
-            throw new \RuntimeException("Cannot create temporary file: {$tmpFile}");
+            throw new RuntimeException("Cannot create temporary file: {$tmpFile}");
         }
 
         try {
             foreach ($this->getLine($this->getFilePath()) as $line) {
-                $document = \json_decode((string) $line, true);
+                $document = json_decode((string) $line, true);
 
                 if ($document['sourceType'] !== $sourceType || $document['sourceName'] !== $sourceName) {
-                    \fwrite($tempHandle, (string) $line);
+                    fwrite($tempHandle, (string) $line);
                 }
             }
         } finally {
-            \fclose($tempHandle);
+            fclose($tempHandle);
         }
 
         // Replace the original file with the filtered version
-        \unlink($this->getFilePath());
-        if (!\rename($tmpFile, $this->getFilePath())) {
+        unlink($this->getFilePath());
+        if (!rename($tmpFile, $this->getFilePath())) {
             throw new VectorStoreException(self::class." failed to replace original file.");
         }
 
@@ -76,7 +97,7 @@ class FileVectorStore implements VectorStoreInterface
         $topItems = [];
 
         foreach ($this->getLine($this->getFilePath()) as $document) {
-            $document = \json_decode((string) $document, true);
+            $document = json_decode((string) $document, true);
 
             if (empty($document['embedding'])) {
                 throw new VectorStoreException("Document with the following content has no embedding: {$document['content']}");
@@ -85,14 +106,14 @@ class FileVectorStore implements VectorStoreInterface
 
             $topItems[] = ['dist' => $dist, 'document' => $document];
 
-            \usort($topItems, fn (array $a, array $b): int => $a['dist'] <=> $b['dist']);
+            usort($topItems, fn (array $a, array $b): int => $a['dist'] <=> $b['dist']);
 
-            if (\count($topItems) > $this->topK) {
-                $topItems = \array_slice($topItems, 0, $this->topK, true);
+            if (count($topItems) > $this->topK) {
+                $topItems = array_slice($topItems, 0, $this->topK, true);
             }
         }
 
-        return \array_map(function (array $item): Document {
+        return array_map(function (array $item): Document {
             $itemDoc = $item['document'];
             $document = new Document($itemDoc['content']);
             $document->embedding = $itemDoc['embedding'];
@@ -108,23 +129,23 @@ class FileVectorStore implements VectorStoreInterface
 
     protected function appendToFile(array $documents): void
     {
-        \file_put_contents(
+        file_put_contents(
             $this->getFilePath(),
-            \implode(\PHP_EOL, \array_map(\json_encode(...), $documents)).\PHP_EOL,
-            \FILE_APPEND
+            implode(PHP_EOL, array_map(\json_encode(...), $documents)).PHP_EOL,
+            FILE_APPEND
         );
     }
 
-    protected function getLine(string $filename): \Generator
+    protected function getLine(string $filename): Generator
     {
-        $f = \fopen($filename, 'r');
+        $f = fopen($filename, 'r');
 
         try {
-            while ($line = \fgets($f)) {
+            while ($line = fgets($f)) {
                 yield $line;
             }
         } finally {
-            \fclose($f);
+            fclose($f);
         }
     }
 }

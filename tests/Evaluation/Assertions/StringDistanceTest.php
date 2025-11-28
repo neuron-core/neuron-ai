@@ -6,6 +6,9 @@ namespace Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringDistance;
 use PHPUnit\Framework\TestCase;
+use stdClass;
+
+use function str_repeat;
 
 class StringDistanceTest extends TestCase
 {
@@ -91,7 +94,7 @@ class StringDistanceTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
@@ -182,8 +185,8 @@ class StringDistanceTest extends TestCase
 
     public function testHandlesLongStrings(): void
     {
-        $longString1 = \str_repeat('a', 100);
-        $longString2 = \str_repeat('a', 99) . 'b';
+        $longString1 = str_repeat('a', 100);
+        $longString2 = str_repeat('a', 99) . 'b';
 
         $assertion = new StringDistance($longString1, 0.95, 50);
         $result = $assertion->evaluate($longString2);

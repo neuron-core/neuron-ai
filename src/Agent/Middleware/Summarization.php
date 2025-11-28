@@ -16,6 +16,17 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
+use Exception;
+
+use function array_map;
+use function array_slice;
+use function ceil;
+use function count;
+use function implode;
+use function max;
+use function sprintf;
+use function strlen;
+use function strtoupper;
 
 class Summarization implements WorkflowMiddleware
 {
@@ -58,7 +69,7 @@ class Summarization implements WorkflowMiddleware
         $messages = $chatHistory->getMessages();
 
         // Not enough messages to warrant summarization
-        if (\count($messages) <= $this->messagesToKeep) {
+        if (count($messages) <= $this->messagesToKeep) {
             return;
         }
 
@@ -97,8 +108,8 @@ class Summarization implements WorkflowMiddleware
         }
 
         // Split messages into old (to summarize) and recent (to keep)
-        $oldMessages = \array_slice($messages, 0, $cutoffIndex);
-        $recentMessages = \array_slice($messages, $cutoffIndex);
+        $oldMessages = array_slice($messages, 0, $cutoffIndex);
+        $recentMessages = array_slice($messages, $cutoffIndex);
 
         // Generate summary of old messages
         $summary = $this->generateSummary($oldMessages);
@@ -124,8 +135,8 @@ class Summarization implements WorkflowMiddleware
      */
     protected function findSafeCutoffIndex(array $messages): ?int
     {
-        $totalMessages = \count($messages);
-        $targetCutoff = \max(0, $totalMessages - $this->messagesToKeep);
+        $totalMessages = count($messages);
+        $targetCutoff = max(0, $totalMessages - $this->messagesToKeep);
 
         // If target cutoff is at the beginning, nothing to summarize
         if ($targetCutoff <= 0) {
@@ -186,11 +197,11 @@ class Summarization implements WorkflowMiddleware
                 ->chat($summaryRequest);
 
             return $response->getContent();
-        } catch (\Exception) {
+        } catch (Exception) {
             // If summarization fails, return a basic fallback summary
-            return \sprintf(
+            return sprintf(
                 'Previous conversation contained %d messages covering various topics.',
-                \count($messages)
+                count($messages)
             );
         }
     }
@@ -227,32 +238,32 @@ PROMPT;
             $role = $message->getRole();
 
             if ($message instanceof ToolCallMessage) {
-                $toolNames = \array_map(
+                $toolNames = array_map(
                     fn (\NeuronAI\Tools\ToolInterface $tool): string => $tool->getName(),
                     $message->getTools()
                 );
-                $formatted[] = \sprintf(
+                $formatted[] = sprintf(
                     '[%s]: Called tools: %s',
-                    \strtoupper($role),
-                    \implode(', ', $toolNames)
+                    strtoupper($role),
+                    implode(', ', $toolNames)
                 );
             } elseif ($message instanceof ToolResultMessage) {
-                $formatted[] = \sprintf(
+                $formatted[] = sprintf(
                     '[%s]: Tool results received',
-                    \strtoupper($role)
+                    strtoupper($role)
                 );
             } else {
                 // Regular message - extract text content from blocks
                 $contentStr = $message->getContent();
-                $formatted[] = \sprintf(
+                $formatted[] = sprintf(
                     '[%s]: %s',
-                    \strtoupper($role),
+                    strtoupper($role),
                     $contentStr
                 );
             }
         }
 
-        return \implode("\n", $formatted);
+        return implode("\n", $formatted);
     }
 
     /**
@@ -275,7 +286,7 @@ PROMPT;
             } else {
                 // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 $contentStr = $message->getContent();
-                $totalTokens += (int) \ceil(\strlen($contentStr) / 4);
+                $totalTokens += (int) ceil(strlen($contentStr) / 4);
             }
         }
 

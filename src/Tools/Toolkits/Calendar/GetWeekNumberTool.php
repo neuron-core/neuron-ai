@@ -8,6 +8,14 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
+use function str_pad;
+
+use const STR_PAD_LEFT;
 
 class GetWeekNumberTool extends Tool
 {
@@ -43,23 +51,23 @@ class GetWeekNumberTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $dateTime = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($tz)
-                : new \DateTime($date, $tz);
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($tz)
+                : new DateTime($date, $tz);
 
             $weekNumber = (int) $dateTime->format('W');
             $year = (int) $dateTime->format('o');
             $dayOfWeek = (int) $dateTime->format('N');
 
-            return \json_encode([
+            return json_encode([
                 'week_number' => $weekNumber,
                 'iso_year' => $year,
                 'day_of_week' => $dayOfWeek,
                 'week_start' => $dateTime->modify('monday this week')->format('Y-m-d'),
                 'week_end' => $dateTime->modify('sunday this week')->format('Y-m-d'),
-                'formatted' => "{$year}-W" . \str_pad((string) $weekNumber, 2, '0', \STR_PAD_LEFT),
+                'formatted' => "{$year}-W" . str_pad((string) $weekNumber, 2, '0', STR_PAD_LEFT),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

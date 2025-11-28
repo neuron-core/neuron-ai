@@ -8,6 +8,12 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Observable;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Closure;
+use Generator;
+
+use function array_key_exists;
+use function call_user_func;
+use function is_callable;
 
 abstract class Node implements NodeInterface
 {
@@ -23,7 +29,7 @@ abstract class Node implements NodeInterface
      */
     protected array $checkpoints = [];
 
-    public function run(Event $event, WorkflowState $state): \Generator|Event
+    public function run(Event $event, WorkflowState $state): Generator|Event
     {
         /** @phpstan-ignore method.notFound */
         return $this->__invoke($event, $state);
@@ -58,15 +64,15 @@ abstract class Node implements NodeInterface
         return null;
     }
 
-    protected function checkpoint(string $name, \Closure $closure): mixed
+    protected function checkpoint(string $name, Closure $closure): mixed
     {
-        if (\array_key_exists($name, $this->checkpoints)) {
+        if (array_key_exists($name, $this->checkpoints)) {
             $result = $this->checkpoints[$name];
             unset($this->checkpoints[$name]);
             return $result;
         }
 
-        $result = \call_user_func($closure);
+        $result = call_user_func($closure);
         $this->checkpoints[$name] = $result;
         return $result;
     }
@@ -90,7 +96,7 @@ abstract class Node implements NodeInterface
             return $feedback;
         }
 
-        $shouldInterrupt = \is_callable($condition) ? $condition() : $condition;
+        $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
 
         if ($shouldInterrupt) {
             throw new WorkflowInterrupt(

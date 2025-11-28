@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -17,6 +17,9 @@ use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+
+use function array_map;
+use function uniqid;
 
 class Gemini implements AIProviderInterface
 {
@@ -82,19 +85,25 @@ class Gemini implements AIProviderInterface
     }
 
     /**
-     * @param ContentBlock[] $blocks
+     * @param ContentBlockInterface[] $blocks
      * @param array<int, array> $toolCalls
      * @throws ProviderException
      */
     protected function createToolCallMessage(array $blocks, array $toolCalls): Message
     {
-        $tools = \array_map(fn (array $item): ToolInterface =>
+        $tools = array_map(fn (array $item): ToolInterface =>
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
             $this->findTool($item['functionCall']['name'])
             ->setInputs($item['functionCall']['args'])
             ->setCallId($item['functionCall']['name']), $toolCalls);
 
-        return new ToolCallMessage($blocks, $tools);
+        $message = new ToolCallMessage($blocks, $tools);
+
+        if (isset($toolCalls[0]['thoughtSignature'])) {
+            $message->addMetadata('thoughtSignature', $toolCalls[0]['thoughtSignature']);
+        }
+
+        return $message;
     }
 
     /**
@@ -136,7 +145,7 @@ class Gemini implements AIProviderInterface
 
                     if ($sourceChunk && isset($sourceChunk['web'])) {
                         $citations[] = new Citation(
-                            id: 'gemini_support_'.\uniqid(),
+                            id: 'gemini_support_'.uniqid(),
                             source: $sourceChunk['web']['uri'] ?? '',
                             title: $sourceChunk['web']['title'] ?? null,
                             startIndex: $segment['startIndex'] ?? null,

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Providers\BasicStreamState;
 
 class StreamState extends BasicStreamState
 {
-    public function addContentBlock(string $type, ContentBlock $block): void
+    public function addContentBlock(string $type, ContentBlockInterface $block): void
     {
         $this->blocks[$type] = $block;
     }
@@ -22,7 +22,7 @@ class StreamState extends BasicStreamState
             $this->blocks[$type] = $type === 'text' ? new TextContent('') : new ReasoningContent('');
         }
 
-        $this->blocks[$type]->text .= $content;
+        $this->blocks[$type]->accumulateContent($content);
     }
 
     /**
@@ -35,6 +35,10 @@ class StreamState extends BasicStreamState
         foreach ($parts as $index => $part) {
             if (isset($part['functionCall'])) {
                 $this->toolCalls[$index]['functionCall'] = $part['functionCall'];
+
+                if ($index === 0 && $signature = $part['thoughtSignature'] ?? null) {
+                    $this->toolCalls[$index]['thoughtSignature'] = $signature;
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ trait HandleChat
                         }
                     }
 
-                    $toolCallMessage = new ToolCallMessage(null, $tools);
+                    $toolCallMessage = new ToolCallMessage(tools: $tools);
                     $toolCallMessage->setUsage($usage);
                     return $toolCallMessage;
                 }

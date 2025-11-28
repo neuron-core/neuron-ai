@@ -8,6 +8,13 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
 
+use function array_filter;
+use function array_keys;
+use function array_merge;
+use function array_reduce;
+use function array_slice;
+use function asort;
+
 class MemoryVectorStore implements VectorStoreInterface
 {
     /**
@@ -27,13 +34,13 @@ class MemoryVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->documents = \array_merge($this->documents, $documents);
+        $this->documents = array_merge($this->documents, $documents);
         return $this;
     }
 
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->documents = \array_filter($this->documents, fn (Document $document): bool => $document->getSourceType() !== $sourceType || $document->getSourceName() !== $sourceName);
+        $this->documents = array_filter($this->documents, fn (Document $document): bool => $document->getSourceType() !== $sourceType || $document->getSourceName() !== $sourceName);
         return $this;
     }
 
@@ -49,11 +56,11 @@ class MemoryVectorStore implements VectorStoreInterface
             $distances[$index] = $dist;
         }
 
-        \asort($distances); // Sort by distance (ascending).
+        asort($distances); // Sort by distance (ascending).
 
-        $topKIndices = \array_slice(\array_keys($distances), 0, $this->topK, true);
+        $topKIndices = array_slice(array_keys($distances), 0, $this->topK, true);
 
-        return \array_reduce($topKIndices, function (array $carry, int $index) use ($distances): array {
+        return array_reduce($topKIndices, function (array $carry, int $index) use ($distances): array {
             $document = $this->documents[$index];
             $document->setScore(VectorSimilarity::similarityFromDistance($distances[$index]));
             $carry[] = $document;

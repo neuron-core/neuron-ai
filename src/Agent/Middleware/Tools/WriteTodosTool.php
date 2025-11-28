@@ -10,6 +10,9 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function count;
+use function in_array;
+
 /**
  * Tool for agents to write and manage their todo list.
  *
@@ -62,7 +65,7 @@ class WriteTodosTool extends Tool
                 return "Error: Todo at index {$index} must have 'content' and 'status' fields.";
             }
 
-            if (!\in_array($todo['status'], ['pending', 'in_progress', 'completed'], true)) {
+            if (!in_array($todo['status'], ['pending', 'in_progress', 'completed'], true)) {
                 return "Error: Todo at index {$index} has invalid status '{$todo['status']}'. Must be one of: pending, in_progress, completed.";
             }
         }
@@ -81,7 +84,7 @@ class WriteTodosTool extends Tool
             };
         }
 
-        $total = \count($todos);
+        $total = count($todos);
 
         return "Todo list updated: {$total} total tasks ({$completed} completed, {$inProgress} in progress, {$pending} pending)";
     }

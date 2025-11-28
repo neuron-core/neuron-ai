@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -17,6 +17,9 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+
+use function array_map;
+use function uniqid;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -46,19 +49,19 @@ class MessageMapper implements MessageMapperInterface
 
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
     /**
      * @throws ProviderException
      */
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
                 'type' => 'text',
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),
@@ -69,8 +72,8 @@ class MessageMapper implements MessageMapperInterface
     protected function mapImageBlock(ImageContent $block): array
     {
         $url = match ($block->sourceType) {
-            SourceType::URL => $block->source,
-            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->source,
+            SourceType::URL => $block->content,
+            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
         };
 
         return [
@@ -90,33 +93,34 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                'filename' => $block->filename ?? "attachment-".\uniqid().".pdf",
-                'file_data' => "data:{$block->mediaType};base64,{$block->source}",
+                'filename' => $block->filename ?? "attachment-".uniqid().".pdf",
+                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ]
         ];
     }
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $result = $message->jsonSerialize();
-
-        $result['content'] = $message->getContent();
-
-        if (\array_key_exists('usage', $result)) {
-            unset($result['usage']);
+        foreach ($message->getTools() as $tool) {
+            $this->mapping[] = [
+                'role' => MessageRole::ASSISTANT,
+                'tool_calls' => [
+                    'id' => $tool->getCallId(),
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $tool->getName(),
+                        'arguments' => $tool->getInputs(),
+                    ],
+                ]
+            ];
         }
-
-        unset($result['type']);
-        unset($result['tools']);
-
-        $this->mapping[] = $result;
     }
 
     protected function mapToolsResult(ToolResultMessage $message): void
     {
         foreach ($message->getTools() as $tool) {
             $this->mapping[] = [
-                'role' => MessageRole::TOOL->value,
+                'role' => MessageRole::TOOL,
                 'tool_call_id' => $tool->getCallId(),
                 'content' => $tool->getResult()
             ];

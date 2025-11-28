@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -21,9 +21,16 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
+use function array_map;
+use function array_values;
 
 class MessageMapper implements MessageMapperInterface
 {
+    /**
+     * @throws ProviderException
+     */
     public function map(array $messages): array
     {
         $mapping = [];
@@ -48,19 +55,19 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL : $message->getRole(),
-            'parts' => \array_map($this->mapContentBlock(...), $contentBlocks)
+            'parts' => array_map($this->mapContentBlock(...), $contentBlocks)
         ];
     }
 
-    protected function mapContentBlock(ContentBlock $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): array
     {
         return match ($block::class) {
             TextContent::class => [
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ReasoningContent::class => [
                 'thought' => true,
-                'text' => $block->text,
+                'text' => $block->content,
             ],
             ImageContent::class,
             FileContent::class,
@@ -75,13 +82,13 @@ class MessageMapper implements MessageMapperInterface
         return match ($block->sourceType) {
             SourceType::URL => [
                 'file_data' => [
-                    'file_uri' => $block->source,
+                    'file_uri' => $block->content,
                     'mime_type' => $block->mediaType,
                 ],
             ],
             SourceType::BASE64 => [
                 'inline_data' => [
-                    'data' => $block->source,
+                    'data' => $block->content,
                     'mime_type' => $block->mediaType,
                 ]
             ]
@@ -93,16 +100,22 @@ class MessageMapper implements MessageMapperInterface
         $parts = [];
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = \array_map($this->mapContentBlock(...), $contentBlocks);
+            $parts = array_map($this->mapContentBlock(...), $contentBlocks);
         }
 
-        foreach ($message->getTools() as $tool) {
-            $parts[] = [
+        foreach ($message->getTools() as $index => $tool) {
+            $part = [
                 'functionCall' => [
                     'name' => $tool->getName(),
-                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
+                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new stdClass(),
                 ]
             ];
+
+            if ($index === 0 && $signature = $message->getMetadata('thoughtSignature')) {
+                $part['thoughtSignature'] = $signature;
+            }
+
+            $parts[] = $part;
         }
 
         return [
@@ -113,7 +126,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
-        $parts = \array_map(fn (ToolInterface $tool): array => [
+        $parts = array_map(fn (ToolInterface $tool): array => [
             'functionResponse' => [
                 'name' => $tool->getName(),
                 'response' => [
@@ -124,12 +137,12 @@ class MessageMapper implements MessageMapperInterface
         ], $message->getTools());
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = [...$parts, ...\array_map($this->mapContentBlock(...), $contentBlocks)];
+            $parts = [...$parts, ...array_map($this->mapContentBlock(...), $contentBlocks)];
         }
 
         return [
             'role' => MessageRole::USER,
-            'parts' => \array_values($parts),
+            'parts' => array_values($parts),
         ];
     }
 }

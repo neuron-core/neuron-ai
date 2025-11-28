@@ -6,6 +6,10 @@ namespace NeuronAI\Providers\AWS;
 
 use NeuronAI\Chat\Messages\Message;
 
+use function json_encode;
+
+use const PHP_EOL;
+
 trait HandleStructured
 {
     public function structured(
@@ -13,9 +17,9 @@ trait HandleStructured
         string $class,
         array $response_format
     ): Message {
-        $this->system .= \PHP_EOL."# OUTPUT CONSTRAINTS".\PHP_EOL.
-            "Your response should be a JSON string following this schema: ".\PHP_EOL.
-            \json_encode($response_format);
+        $this->system .= PHP_EOL."# OUTPUT CONSTRAINTS".PHP_EOL.
+            "Your response should be a JSON string following this schema: ".PHP_EOL.
+            json_encode($response_format);
 
         return $this->chat($messages);
     }

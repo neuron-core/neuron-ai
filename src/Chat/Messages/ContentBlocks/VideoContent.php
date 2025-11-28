@@ -7,13 +7,16 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 
-class VideoContent implements ContentBlock
+use function array_filter;
+
+class VideoContent extends ContentBlock
 {
     public function __construct(
-        public readonly string $source,
+        string $content,
         public readonly SourceType $sourceType,
         public readonly ?string $mediaType = null
     ) {
+        parent::__construct($content);
     }
 
     public function getType(): ContentBlockType
@@ -26,19 +29,11 @@ class VideoContent implements ContentBlock
      */
     public function toArray(): array
     {
-        return \array_filter([
+        return array_filter([
             'type' => $this->getType()->value,
-            'source' => $this->source,
+            'source' => $this->content,
             'source_type' => $this->sourceType->value,
             'media_type' => $this->mediaType,
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

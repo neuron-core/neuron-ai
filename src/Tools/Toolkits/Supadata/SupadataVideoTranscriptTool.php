@@ -8,6 +8,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function json_decode;
+
 /**
  * @method static static make(string $key)
  */
@@ -42,7 +44,7 @@ class SupadataVideoTranscriptTool extends Tool
             ->getBody()
             ->getContents();
 
-        $response = \json_decode($response, true);
+        $response = json_decode($response, true);
 
         return $response['content'];
     }

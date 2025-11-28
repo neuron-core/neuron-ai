@@ -12,6 +12,9 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use function file_get_contents;
+use function json_decode;
+
 class ElasticsearchTest extends TestCase
 {
     use CheckOpenPort;
@@ -29,7 +32,7 @@ class ElasticsearchTest extends TestCase
         $this->client = ClientBuilder::create()->build();
 
         // embedding "Hello World!"
-        $this->embedding = \json_decode(\file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
+        $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
     }
 
     public function test_elasticsearch_instance(): void

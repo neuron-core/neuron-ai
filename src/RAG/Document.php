@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use NeuronAI\UniqueIdGenerator;
+use JsonSerializable;
 
-class Document implements \JsonSerializable
+class Document implements JsonSerializable
 {
     public string|int $id;
 

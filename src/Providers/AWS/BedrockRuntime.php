@@ -13,6 +13,10 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function count;
+use function is_string;
+use function json_decode;
+
 class BedrockRuntime implements AIProviderInterface
 {
     use HandleWithTools;
@@ -58,7 +62,7 @@ class BedrockRuntime implements AIProviderInterface
             ]],
         ];
 
-        if (\count($this->inferenceConfig) > 0) {
+        if (count($this->inferenceConfig) > 0) {
             $payload['inferenceConfig'] = $this->inferenceConfig;
         }
 
@@ -79,8 +83,8 @@ class BedrockRuntime implements AIProviderInterface
         $toolUse = $toolContent['toolUse'];
         $tool = $this->findTool($toolUse['name']);
         $tool->setCallId($toolUse['toolUseId']);
-        if (\is_string($toolUse['input'])) {
-            $toolUse['input'] = \json_decode($toolUse['input'], true);
+        if (is_string($toolUse['input'])) {
+            $toolUse['input'] = json_decode($toolUse['input'], true);
         }
         $tool->setInputs($toolUse['input'] ?? []);
         return $tool;
