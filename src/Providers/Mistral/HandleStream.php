@@ -6,8 +6,15 @@ namespace NeuronAI\Providers\Mistral;
 
 use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\StreamState;
@@ -88,8 +95,32 @@ trait HandleStream
 
             // Process regular content
             $content = $choice['delta']['content'] ?? '';
+
+            if (\is_array($content)) {
+                $block = match ($content['type']) {
+                    'text' => new TextContent($content['text'] ?? ''),
+                    'thinking' => new ReasoningContent(\array_reduce(\array_filter($content['thinking'], fn(array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
+                    'image_url' => new ImageContent(
+                        $content['image_url']['url'] ?? '',
+                        SourceType::BASE64
+                    ),
+                    'document_url' => new FileContent(
+                        content: $content['document_url'] ?? '',
+                        sourceType: SourceType::BASE64,
+                        filename: $content['document_name'] ?? null
+                    ),
+                    'input_audio' => new AudioContent($content['input_audio'], SourceType::BASE64),
+                };
+            } else {
+                $block = new TextContent($content);
+            }
+
             $this->streamState->updateContentBlock($choice['index'], $content);
-            yield new TextChunk($this->streamState->messageId(), $content);
+
+            yield match ($block::class) {
+                TextContent::class => new TextChunk($this->streamState->messageId(), $content),
+                ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $content),
+            };
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());

@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
@@ -96,7 +97,7 @@ trait HandleStream
 
             // Process regular content
             if ($content = $choice['delta']['content'] ?? null) {
-                $this->streamState->updateContentBlock($choice['index'], $content);
+                $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
                 yield new TextChunk($this->streamState->messageId(), $content);
             }
         }

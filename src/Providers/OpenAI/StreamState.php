@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Providers\BasicStreamState;
 
 use function array_key_exists;
 
 class StreamState extends BasicStreamState
 {
-    public function updateContentBlock(int $index, string $content): void
+    public function updateContentBlock(int $index, ContentBlockInterface $block): void
     {
         if (!isset($this->blocks[$index])) {
-            $this->blocks[$index] = new TextContent('');
+            $this->blocks[$index] = $block;
+        } else {
+            $this->blocks[$index]->accumulateContent($block->content);
         }
-
-        $this->blocks[$index]->accumulateContent($content);
     }
 
     public function composeToolCalls(array $event): void
