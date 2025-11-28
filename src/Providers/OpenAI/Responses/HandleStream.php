@@ -21,7 +21,7 @@ use Throwable;
 use function json_decode;
 use function str_contains;
 use function str_starts_with;
-use function strlen;
+use function mb_strlen;
 use function substr;
 use function trim;
 
@@ -158,7 +158,7 @@ trait HandleStream
             return null;
         }
 
-        $line = trim(substr((string) $line, strlen('data: ')));
+        $line = trim(substr((string) $line, mb_strlen('data: ')));
 
         if (str_contains($line, 'DONE')) {
             return null;

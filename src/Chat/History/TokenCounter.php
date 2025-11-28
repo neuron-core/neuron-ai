@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use function array_map;
 use function ceil;
 use function json_encode;
-use function strlen;
+use function mb_strlen;
 
 class TokenCounter implements TokenCounterInterface
 {
@@ -32,7 +32,7 @@ class TokenCounter implements TokenCounterInterface
         foreach ($messages as $message) {
             $messageChars = 0;
 
-            $messageChars += strlen(
+            $messageChars += mb_strlen(
                 json_encode(
                     array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $message->getContentBlocks())
                 )
@@ -41,10 +41,10 @@ class TokenCounter implements TokenCounterInterface
             // Handle tool calls
             if ($message instanceof ToolCallMessage) {
                 foreach ($message->getTools() as $tool) {
-                    $messageChars += strlen(json_encode($tool->getInputs()));
+                    $messageChars += mb_strlen(json_encode($tool->getInputs()));
 
                     if ($tool->getCallId() !== null) {
-                        $messageChars += strlen($tool->getCallId());
+                        $messageChars += mb_strlen($tool->getCallId());
                     }
                 }
             }
@@ -52,16 +52,16 @@ class TokenCounter implements TokenCounterInterface
             // Handle tool call results
             if ($message instanceof ToolResultMessage) {
                 foreach ($message->getTools() as $tool) {
-                    $messageChars += strlen($tool->getResult());
+                    $messageChars += mb_strlen($tool->getResult());
 
                     if ($tool->getCallId() !== null) {
-                        $messageChars += strlen($tool->getCallId());
+                        $messageChars += mb_strlen($tool->getCallId());
                     }
                 }
             }
 
             // Count role characters
-            $messageChars += strlen($message->getRole());
+            $messageChars += mb_strlen($message->getRole());
 
             // Round up per message to ensure individual counts add up correctly
             $tokenCount += ceil($messageChars / $this->charsPerToken);

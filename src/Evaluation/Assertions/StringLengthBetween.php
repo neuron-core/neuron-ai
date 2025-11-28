@@ -8,7 +8,7 @@ use NeuronAI\Evaluation\AssertionResult;
 
 use function gettype;
 use function is_string;
-use function strlen;
+use function mb_strlen;
 
 class StringLengthBetween extends AbstractAssertion
 {
@@ -25,7 +25,7 @@ class StringLengthBetween extends AbstractAssertion
             );
         }
 
-        $length = strlen($actual);
+        $length = mb_strlen($actual);
         $result = $length >= $this->min && $length <= $this->max;
 
         if ($result) {

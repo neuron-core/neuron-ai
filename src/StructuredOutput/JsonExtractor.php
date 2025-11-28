@@ -11,7 +11,7 @@ use function in_array;
 use function is_string;
 use function json_decode;
 use function json_encode;
-use function strlen;
+use function mb_strlen;
 use function strpos;
 use function strrpos;
 use function substr;
@@ -110,7 +110,7 @@ class JsonExtractor
 
         while (($startFence = strpos($text, $fenceTag, $offset)) !== false) {
             // Find the next triple-backtick fence AFTER the "```json"
-            $closeFence = strpos($text, '```', $startFence + strlen($fenceTag));
+            $closeFence = strpos($text, '```', $startFence + mb_strlen($fenceTag));
             if ($closeFence === false) {
                 // No closing fence found, stop scanning
                 break;
@@ -119,8 +119,8 @@ class JsonExtractor
             // Substring that represents the code block between "```json" and "```"
             $codeBlock = substr(
                 $text,
-                $startFence + strlen($fenceTag),
-                $closeFence - ($startFence + strlen($fenceTag))
+                $startFence + mb_strlen($fenceTag),
+                $closeFence - ($startFence + mb_strlen($fenceTag))
             );
 
             // Now find the first '{' and last '}' within this code block
@@ -177,7 +177,7 @@ class JsonExtractor
         $bracketCount = 0;
         $inString = false;
         $escape = false;
-        $len = strlen($text);
+        $len = mb_strlen($text);
 
         for ($i = 0; $i < $len; $i++) {
             $char = $text[$i];
