@@ -6,11 +6,11 @@ namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\Message;
 
-use function array_merge;
 use function end;
 use function explode;
 use function preg_match;
 use function preg_replace;
+use function array_replace_recursive;
 
 trait HandleStructured
 {
@@ -22,7 +22,7 @@ trait HandleStructured
         $tk = explode('\\', $class);
         $className = end($tk);
 
-        $this->parameters = array_merge($this->parameters, [
+        $this->parameters = array_replace_recursive($this->parameters, [
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
