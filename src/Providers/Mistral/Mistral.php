@@ -13,6 +13,7 @@ use Generator;
 
 use function array_unshift;
 use function json_encode;
+use function is_array;
 
 class Mistral extends OpenAI
 {
@@ -88,7 +89,7 @@ class Mistral extends OpenAI
 
             // Process regular content
             $content = $choice['delta']['content'] ?? '';
-            if (\is_array($content) && $content['type'] === 'text') {
+            if (is_array($content) && $content['type'] === 'text') {
                 $text .= $content['text'];
             } else {
                 $text .= $content;
