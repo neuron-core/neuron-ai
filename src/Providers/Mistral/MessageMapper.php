@@ -19,10 +19,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
-use stdClass;
 
 use function array_map;
 use function uniqid;
+use function json_encode;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -116,7 +116,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    ...(empty($tool->getInputs()) ? [] : ['arguments' => json_encode($tool->getInputs())]),
+                    ...($tool->getInputs() === [] ? [] : ['arguments' => json_encode($tool->getInputs())]),
                 ],
             ], $message->getTools())
         ];
