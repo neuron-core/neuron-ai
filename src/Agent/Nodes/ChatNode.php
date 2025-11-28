@@ -50,13 +50,13 @@ class ChatNode extends Node
             ->setTools($event->tools)
             ->chat($chatHistory->getMessages());
 
-        // Add the response to chat history
-        $this->addToChatHistory($state, $response);
-
         $this->emit(
             'inference-stop',
             new InferenceStop($lastMessage, $response)
         );
+
+        // Add the response to chat history
+        $this->addToChatHistory($state, $response);
 
         // If the response is a tool call, route to tool execution
         if ($response instanceof ToolCallMessage) {
