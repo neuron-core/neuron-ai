@@ -91,7 +91,6 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'file',
             'file' => [
-                // The filename is required, but the Document class does not have a filename property.
                 'filename' => $document->filename,
                 'file_data' => "data:{$document->mediaType};base64,{$document->content}",
             ]
