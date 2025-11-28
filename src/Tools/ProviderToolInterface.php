@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-interface ProviderToolInterface extends \JsonSerializable
+use JsonSerializable;
+
+interface ProviderToolInterface extends JsonSerializable
 {
     public function getType(): string;
 

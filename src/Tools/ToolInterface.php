@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-interface ToolInterface extends \JsonSerializable
+use JsonSerializable;
+
+interface ToolInterface extends JsonSerializable
 {
     /**
      * Get the unique name of the tool.
      */
     public function getName(): string;
 
+    public function setName(string $name): ToolInterface;
+
     /**
      * Get a description of the tool's functionality.
      */
     public function getDescription(): ?string;
+
+    public function setDescription(?string $description): ToolInterface;
 
     /**
      * Add a Property with a name, type, description, and optional required constraint.

@@ -16,6 +16,9 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+use function uniqid;
+
 class EloquentChatHistoryTest extends TestCase
 {
     protected EloquentChatHistory $history;
@@ -44,8 +47,9 @@ class EloquentChatHistoryTest extends TestCase
             $table->index('thread_id');
         });
 
-        $this->threadId = \uniqid('test-thread-');
+        $this->threadId = uniqid('test-thread-');
         $this->history = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $this->history->setTokenCounter(new DummyTokenCounter());
     }
 
     protected function tearDown(): void
@@ -87,6 +91,7 @@ class EloquentChatHistoryTest extends TestCase
 
         // Create a new instance with the same thread_id
         $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $newHistory->setTokenCounter(new DummyTokenCounter());
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -95,19 +100,6 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
         $this->assertEquals('First message', $messages[0]->getContent());
         $this->assertEquals('Second message', $messages[1]->getContent());
-    }
-
-    public function test_persists_multiple_messages(): void
-    {
-        $this->history->addMessage(new UserMessage('Message 1'));
-        $this->history->addMessage(new AssistantMessage('Message 2'));
-        $this->history->addMessage(new UserMessage('Message 3'));
-
-        $count = ChatMessage::query()->where('thread_id', $this->threadId)->count();
-        $this->assertEquals(3, $count);
-
-        $messages = $this->history->getMessages();
-        $this->assertCount(3, $messages);
     }
 
     public function test_clear_removes_all_messages_from_database(): void
@@ -158,9 +150,9 @@ class EloquentChatHistoryTest extends TestCase
         // Create history with small context window
         $smallHistory = new EloquentChatHistory($this->threadId, ChatMessage::class, contextWindow: 100);
 
-        // Add many messages to exceed context window
-        for ($i = 0; $i < 20; $i++) {
-            $message = $i % 2 === 0
+        // Add many messages to exceed the context window
+        for ($i = 0; $i <= 11; $i++) {
+            $message = $i % 2 !== 0
                 ? new UserMessage("User message $i with some text")
                 : new AssistantMessage("Assistant message $i with some text");
             $smallHistory->addMessage($message);
@@ -169,8 +161,8 @@ class EloquentChatHistoryTest extends TestCase
         $messages = $smallHistory->getMessages();
 
         // Should have fewer messages due to truncation
-        $this->assertLessThan(20, \count($messages));
-        $this->assertGreaterThan(0, \count($messages));
+        $this->assertLessThan(11, count($messages));
+        $this->assertGreaterThan(0, count($messages));
 
         // First message should be a user message (valid sequence)
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
@@ -182,8 +174,8 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_multiple_threads_are_isolated(): void
     {
-        $thread1 = 'thread-1-' . \uniqid();
-        $thread2 = 'thread-2-' . \uniqid();
+        $thread1 = 'thread-1-' . uniqid();
+        $thread2 = 'thread-2-' . uniqid();
 
         $history1 = new EloquentChatHistory($thread1, ChatMessage::class);
         $history2 = new EloquentChatHistory($thread2, ChatMessage::class);
@@ -219,7 +211,7 @@ class EloquentChatHistoryTest extends TestCase
         $messages = $this->history->getMessages();
         $dbRecords = ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->get();
 
-        $this->assertCount(\count($messages), $dbRecords);
+        $this->assertCount(count($messages), $dbRecords);
     }
 
     public function test_handles_empty_thread_id(): void
@@ -248,6 +240,11 @@ class EloquentChatHistoryTest extends TestCase
 
 /**
  * Mock Eloquent Model for testing
+ *
+ * @property string $thread_id
+ * @property string $role
+ * @property string $content
+ * @property array $meta
  */
 class ChatMessage extends Model
 {

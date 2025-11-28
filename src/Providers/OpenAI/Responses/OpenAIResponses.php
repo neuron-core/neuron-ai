@@ -18,6 +18,14 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_filter;
+use function array_key_exists;
+use function array_map;
+use function array_values;
+use function is_null;
+use function json_decode;
+use function trim;
+
 class OpenAIResponses implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -50,7 +58,7 @@ class OpenAIResponses implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->baseUri, '/').'/',
+            'base_uri' => trim($this->baseUri, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -83,8 +91,8 @@ class OpenAIResponses implements AIProviderInterface
 
     protected function createAssistantMessage(array $response): AssistantMessage
     {
-        $messages = \array_values(
-            \array_filter(
+        $messages = array_values(
+            array_filter(
                 $response['output'],
                 fn (array $message): bool => $message['type'] === 'message' && $message['role'] == MessageRole::ASSISTANT->value
             )
@@ -98,7 +106,7 @@ class OpenAIResponses implements AIProviderInterface
             $message->addMetadata('annotations', $content['annotations']);
         }
 
-        if (\array_key_exists('usage', $response)) {
+        if (array_key_exists('usage', $response)) {
             $message->setUsage(
                 new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
             );
@@ -113,10 +121,10 @@ class OpenAIResponses implements AIProviderInterface
      */
     protected function createToolCallMessage(array $toolCalls, string $text = '', ?array $usage = null): ToolCallMessage
     {
-        $tools = \array_map(
+        $tools = array_map(
             fn (array $item): ToolInterface => $this->findTool($item['name'])
                 ->setInputs(
-                    \json_decode((string) $item['arguments'], true)
+                    json_decode((string) $item['arguments'], true)
                 )
                 ->setCallId($item['call_id']),
             $toolCalls
@@ -124,7 +132,7 @@ class OpenAIResponses implements AIProviderInterface
 
         $message = new ToolCallMessage($text, $tools);
 
-        if (!\is_null($usage)) {
+        if (!is_null($usage)) {
             $message->setUsage(
                 new Usage($usage['input_tokens'], $usage['output_tokens'])
             );

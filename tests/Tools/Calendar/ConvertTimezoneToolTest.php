@@ -8,6 +8,8 @@ use NeuronAI\Tools\Toolkits\Calendar\ConvertTimezoneTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+
 class ConvertTimezoneToolTest extends TestCase
 {
     private ConvertTimezoneTool $tool;
@@ -143,7 +145,7 @@ class ConvertTimezoneToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(4, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('from_timezone', $propertyNames);
         $this->assertContains('to_timezone', $propertyNames);

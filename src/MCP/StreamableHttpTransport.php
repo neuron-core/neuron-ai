@@ -8,6 +8,19 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Request;
 use Psr\Http\Message\ResponseInterface;
+use JsonException;
+
+use function array_merge;
+use function explode;
+use function filter_var;
+use function json_decode;
+use function json_encode;
+use function str_starts_with;
+use function substr;
+use function trim;
+
+use const FILTER_VALIDATE_URL;
+use const JSON_THROW_ON_ERROR;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
@@ -44,7 +57,7 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         // Validate URL format
-        if (!\filter_var($this->config['url'], \FILTER_VALIDATE_URL)) {
+        if (!filter_var($this->config['url'], FILTER_VALIDATE_URL)) {
             throw new McpException('Invalid URL format');
         }
 
@@ -65,7 +78,7 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         try {
-            $headers = \array_merge($this->getAuthHeaders(), [
+            $headers = array_merge($this->getAuthHeaders(), [
                 'Content-Type' => 'application/json',
             ]);
 
@@ -74,7 +87,7 @@ class StreamableHttpTransport implements McpTransportInterface
                 $headers['Mcp-Session-Id'] = $this->sessionId;
             }
 
-            $jsonData = \json_encode($data, \JSON_THROW_ON_ERROR);
+            $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
 
             $request = new Request('POST', $this->config['url'], $headers, $jsonData);
             $response = $this->httpClient->send($request);
@@ -97,7 +110,7 @@ class StreamableHttpTransport implements McpTransportInterface
 
         } catch (GuzzleException $e) {
             throw new McpException('HTTP request failed: ' . $e->getMessage());
-        } catch (\JsonException $e) {
+        } catch (JsonException $e) {
             throw new McpException('Failed to encode JSON: ' . $e->getMessage());
         }
     }
@@ -123,15 +136,15 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
             try {
-                return \json_decode($response, true, 512, \JSON_THROW_ON_ERROR);
-            } catch (\JsonException $e) {
+                return json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException $e) {
                 // If the response from the server is not a valid JSON
                 // try to parse the SSE format to extract JSON data
                 $json = $this->parseSSEResponse($response);
-                return \json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+                return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
             }
 
-        } catch (\JsonException $e) {
+        } catch (JsonException $e) {
             throw new McpException('Invalid JSON response: ' . $e->getMessage());
         }
     }
@@ -170,21 +183,21 @@ class StreamableHttpTransport implements McpTransportInterface
      */
     protected function parseSSEResponse(string $sseResponse): string
     {
-        $lines = \explode("\n", $sseResponse);
+        $lines = explode("\n", $sseResponse);
 
         foreach ($lines as $line) {
-            $line = \trim($line);
+            $line = trim($line);
             // Skip empty lines and comments
             if ($line === '') {
                 continue;
             }
-            if (\str_starts_with($line, ':')) {
+            if (str_starts_with($line, ':')) {
                 continue;
             }
 
             // Extract data from SSE format
-            if (\str_starts_with($line, 'data: ')) {
-                return \substr($line, 6);
+            if (str_starts_with($line, 'data: ')) {
+                return substr($line, 6);
             }
         }
 

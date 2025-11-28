@@ -26,6 +26,15 @@ use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
+use Exception;
+use ReflectionException;
+use Throwable;
+
+use function count;
+use function implode;
+use function trim;
+
+use const PHP_EOL;
 
 trait HandleStructured
 {
@@ -33,8 +42,8 @@ trait HandleStructured
      * Enforce a structured response.
      *
      * @throws AgentException
-     * @throws \ReflectionException
-     * @throws \Throwable
+     * @throws ReflectionException
+     * @throws Throwable
      */
     public function structured(Message|array $messages, ?string $class = null, int $maxRetries = 1): mixed
     {
@@ -54,10 +63,10 @@ trait HandleStructured
         do {
             try {
                 // If something goes wrong, retry informing the model about the error
-                if (\trim($error) !== '') {
+                if (trim($error) !== '') {
                     $correctionMessage = new UserMessage(
                         "There was a problem in your previous response that generated the following errors".
-                        \PHP_EOL.\PHP_EOL.'- '.$error.\PHP_EOL.\PHP_EOL.
+                        PHP_EOL.PHP_EOL.'- '.$error.PHP_EOL.PHP_EOL.
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
                     $this->addToChatHistory($correctionMessage);
@@ -96,7 +105,7 @@ trait HandleStructured
             } catch (ToolMaxTriesException $ex) {
                 // If the problem is a tool max tries exception, we don't want to retry
                 throw $ex;
-            } catch (\Exception $ex) {
+            } catch (Exception $ex) {
                 $exception = $ex;
                 $error = $ex->getMessage();
                 $this->notify('error', new AgentError($ex, false));
@@ -112,7 +121,7 @@ trait HandleStructured
      * @param array<string, mixed> $schema
      * @throws AgentException
      * @throws DeserializerException
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     protected function processResponse(
         Message $response,
@@ -135,9 +144,9 @@ trait HandleStructured
         // Validate if the object fields respect the validation attributes
         $this->notify('structured-validating', new Validating($class, $json));
         $violations = Validator::validate($obj);
-        if (\count($violations) > 0) {
+        if (count($violations) > 0) {
             $this->notify('structured-validated', new Validated($class, $json, $violations));
-            throw new AgentException(\PHP_EOL.'- '.\implode(\PHP_EOL.'- ', $violations));
+            throw new AgentException(PHP_EOL.'- '.implode(PHP_EOL.'- ', $violations));
         }
         $this->notify('structured-validated', new Validated($class, $json));
 

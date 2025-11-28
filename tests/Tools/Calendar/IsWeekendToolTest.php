@@ -8,6 +8,9 @@ use NeuronAI\Tools\Toolkits\Calendar\IsWeekendTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function json_decode;
+
 class IsWeekendToolTest extends TestCase
 {
     private IsWeekendTool $tool;
@@ -21,7 +24,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-17'); // Saturday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertTrue($data['is_weekend']);
         $this->assertEquals('Saturday', $data['day_of_week']);
@@ -32,7 +35,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-18'); // Sunday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertTrue($data['is_weekend']);
         $this->assertEquals('Sunday', $data['day_of_week']);
@@ -43,7 +46,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-12'); // Monday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertFalse($data['is_weekend']);
         $this->assertEquals('Monday', $data['day_of_week']);
@@ -54,7 +57,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-13'); // Tuesday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertFalse($data['is_weekend']);
         $this->assertEquals('Tuesday', $data['day_of_week']);
@@ -65,7 +68,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-14'); // Wednesday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertFalse($data['is_weekend']);
         $this->assertEquals('Wednesday', $data['day_of_week']);
@@ -76,7 +79,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-15'); // Thursday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertFalse($data['is_weekend']);
         $this->assertEquals('Thursday', $data['day_of_week']);
@@ -87,7 +90,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-16'); // Friday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertFalse($data['is_weekend']);
         $this->assertEquals('Friday', $data['day_of_week']);
@@ -108,7 +111,7 @@ class IsWeekendToolTest extends TestCase
 
         foreach ($weekdays as $date => [$expectedDay, $expectedNumber, $expectedWeekend]) {
             $result = ($this->tool)($date);
-            $data = \json_decode($result, true);
+            $data = json_decode($result, true);
 
             $this->assertEquals($expectedWeekend, $data['is_weekend'], "Failed for $date");
             $this->assertEquals($expectedDay, $data['day_of_week'], "Failed for $date");
@@ -121,7 +124,7 @@ class IsWeekendToolTest extends TestCase
         $timestamp = '1687017600'; // 2023-06-17 20:00:00 UTC (Saturday)
         $result = ($this->tool)($timestamp);
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertTrue($data['is_weekend']);
         $this->assertEquals('Saturday', $data['day_of_week']);
@@ -131,7 +134,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-17 14:30:45'); // Saturday
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
         $this->assertTrue($data['is_weekend']);
         $this->assertEquals('Saturday', $data['day_of_week']);
@@ -143,8 +146,8 @@ class IsWeekendToolTest extends TestCase
         $utcResult = ($this->tool)('2023-06-16 23:00:00', 'UTC');
         $tokyoResult = ($this->tool)('2023-06-16 23:00:00', 'Asia/Tokyo');
 
-        $utcData = \json_decode($utcResult, true);
-        $tokyoData = \json_decode($tokyoResult, true);
+        $utcData = json_decode($utcResult, true);
+        $tokyoData = json_decode($tokyoResult, true);
 
         $this->assertFalse($utcData['is_weekend']); // Friday in UTC
         $this->assertTrue($tokyoData['is_weekend']); // Saturday in Tokyo (UTC+9)
@@ -156,8 +159,8 @@ class IsWeekendToolTest extends TestCase
         $result1 = ($this->tool)('2023-06-17 00:00:00', 'UTC'); // Saturday midnight UTC
         $result2 = ($this->tool)('2023-06-16 15:00:00', 'America/Los_Angeles'); // Friday 3PM PDT = Saturday 22:00 UTC
 
-        $data1 = \json_decode($result1, true);
-        $data2 = \json_decode($result2, true);
+        $data1 = json_decode($result1, true);
+        $data2 = json_decode($result2, true);
 
         $this->assertTrue($data1['is_weekend']); // Saturday in UTC
         $this->assertFalse($data2['is_weekend']); // Friday in PDT
@@ -167,7 +170,7 @@ class IsWeekendToolTest extends TestCase
     {
         $result = ($this->tool)('2023-06-17');
 
-        $data = \json_decode($result, true);
+        $data = json_decode($result, true);
         $this->assertIsArray($data);
 
         // Check all required keys are present
@@ -204,7 +207,7 @@ class IsWeekendToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(2, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('timezone', $propertyNames);
     }

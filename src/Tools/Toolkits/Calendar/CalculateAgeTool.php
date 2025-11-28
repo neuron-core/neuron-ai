@@ -8,6 +8,11 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
+use function json_encode;
 
 class CalculateAgeTool extends Tool
 {
@@ -56,16 +61,16 @@ class CalculateAgeTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            $birth = \is_numeric($birthdate)
-                ? (new \DateTime())->setTimestamp((int) $birthdate)->setTimezone($tz)
-                : new \DateTime($birthdate, $tz);
+            $birth = is_numeric($birthdate)
+                ? (new DateTime())->setTimestamp((int) $birthdate)->setTimezone($tz)
+                : new DateTime($birthdate, $tz);
 
             if ($reference_date === null) {
-                $reference = new \DateTime('now', $tz);
+                $reference = new DateTime('now', $tz);
             } else {
-                $reference = \is_numeric($reference_date)
-                    ? (new \DateTime())->setTimestamp((int) $reference_date)->setTimezone($tz)
-                    : new \DateTime($reference_date, $tz);
+                $reference = is_numeric($reference_date)
+                    ? (new DateTime())->setTimestamp((int) $reference_date)->setTimezone($tz)
+                    : new DateTime($reference_date, $tz);
             }
 
             $interval = $birth->diff($reference);
@@ -74,7 +79,7 @@ class CalculateAgeTool extends Tool
                 'years' => (string) $interval->y,
                 'months' => (string) ($interval->y * 12 + $interval->m),
                 'days' => (string) $interval->days,
-                'all' => \json_encode([
+                'all' => json_encode([
                     'years' => $interval->y,
                     'months' => $interval->m,
                     'days' => $interval->d,
@@ -83,7 +88,7 @@ class CalculateAgeTool extends Tool
                 ]),
                 default => (string) $interval->y,
             };
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

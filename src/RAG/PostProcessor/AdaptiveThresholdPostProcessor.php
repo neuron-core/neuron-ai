@@ -7,6 +7,15 @@ namespace NeuronAI\RAG\PostProcessor;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Document;
 
+use function abs;
+use function array_filter;
+use function array_map;
+use function array_values;
+use function count;
+use function floor;
+use function max;
+use function sort;
+
 class AdaptiveThresholdPostProcessor implements PostProcessorInterface
 {
     /**
@@ -31,11 +40,11 @@ class AdaptiveThresholdPostProcessor implements PostProcessorInterface
      */
     public function process(Message $question, array $documents): array
     {
-        if (\count($documents) < 2) {
+        if (count($documents) < 2) {
             return $documents;
         }
 
-        $scores = \array_map(fn (Document $document): float => $document->getScore(), $documents);
+        $scores = array_map(fn (Document $document): float => $document->getScore(), $documents);
         $median = $this->calculateMedian($scores);
         $mad = $this->calculateMAD($scores, $median);
 
@@ -48,9 +57,9 @@ class AdaptiveThresholdPostProcessor implements PostProcessorInterface
         $threshold = $median - ($this->multiplier * $mad);
 
         // Ensure a threshold is not negative
-        $threshold = \max(0, $threshold);
+        $threshold = max(0, $threshold);
 
-        return \array_values(\array_filter($documents, fn (Document $document): bool => $document->getScore() >= $threshold));
+        return array_values(array_filter($documents, fn (Document $document): bool => $document->getScore() >= $threshold));
     }
 
     /**
@@ -60,9 +69,9 @@ class AdaptiveThresholdPostProcessor implements PostProcessorInterface
      */
     protected function calculateMedian(array $values): float
     {
-        \sort($values);
-        $n = \count($values);
-        $mid = (int) \floor(($n - 1) / 2);
+        sort($values);
+        $n = count($values);
+        $mid = (int) floor(($n - 1) / 2);
 
         if ($n % 2 !== 0) {
             return $values[$mid];
@@ -79,7 +88,7 @@ class AdaptiveThresholdPostProcessor implements PostProcessorInterface
      */
     protected function calculateMAD(array $values, float $median): float
     {
-        $deviations = \array_map(fn (float$v): float => \abs($v - $median), $values);
+        $deviations = array_map(fn (float$v): float => abs($v - $median), $values);
 
         // MAD is the median of deviations
         return $this->calculateMedian($deviations);

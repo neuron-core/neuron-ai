@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Tools\ToolInterface;
+use Generator;
 
 interface AIProviderInterface
 {
@@ -50,7 +51,7 @@ interface AIProviderInterface
     /**
      * @param Message[]|string $messages
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator;
+    public function stream(array|string $messages, callable $executeToolsCallback): Generator;
 
     /**
      * @param Message[] $messages

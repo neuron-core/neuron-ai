@@ -6,12 +6,17 @@ namespace NeuronAI\Workflow\Exporter;
 
 use NeuronAI\Workflow\NodeInterface;
 use ReflectionClass;
+use ReflectionException;
+use ReflectionNamedType;
+use ReflectionUnionType;
+
+use function in_array;
 
 class MermaidExporter implements ExporterInterface
 {
     /**
      * @param array<string, NodeInterface> $eventNodeMap
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public function export(array $eventNodeMap): string
     {
@@ -24,7 +29,7 @@ class MermaidExporter implements ExporterInterface
 
             // Add connection from event to node
             $connection = "{$eventName} --> {$nodeName}";
-            if (!\in_array($connection, $processedConnections)) {
+            if (!in_array($connection, $processedConnections)) {
                 $output .= "    {$connection}\n";
                 $processedConnections[] = $connection;
             }
@@ -37,11 +42,11 @@ class MermaidExporter implements ExporterInterface
             if ($returnType) {
                 $returnEventClasses = [];
 
-                if ($returnType instanceof \ReflectionNamedType && !$returnType->isBuiltin()) {
+                if ($returnType instanceof ReflectionNamedType && !$returnType->isBuiltin()) {
                     $returnEventClasses[] = $returnType->getName();
-                } elseif ($returnType instanceof \ReflectionUnionType) {
+                } elseif ($returnType instanceof ReflectionUnionType) {
                     foreach ($returnType->getTypes() as $type) {
-                        if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                        if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
                             $returnEventClasses[] = $type->getName();
                         }
                     }
@@ -52,7 +57,7 @@ class MermaidExporter implements ExporterInterface
 
                     // Add connection from node to produced event
                     $connection = "{$nodeName} --> {$returnEventName}";
-                    if (!\in_array($connection, $processedConnections)) {
+                    if (!in_array($connection, $processedConnections)) {
                         $output .= "    {$connection}\n";
                         $processedConnections[] = $connection;
                     }

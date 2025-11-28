@@ -10,13 +10,14 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
+use Throwable;
 
 trait HandleChat
 {
     /**
      * Execute the chat.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function chat(Message|array $messages): Message
     {
@@ -56,7 +57,7 @@ trait HandleChat
 
                 $this->notify('chat-stop');
                 return $response;
-            }, function (\Throwable $exception): void {
+            }, function (Throwable $exception): void {
                 $this->notify('error', new AgentError($exception));
                 throw $exception;
             });

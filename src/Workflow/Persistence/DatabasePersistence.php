@@ -6,11 +6,15 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\WorkflowInterrupt;
+use PDO;
+
+use function serialize;
+use function unserialize;
 
 class DatabasePersistence implements PersistenceInterface
 {
     public function __construct(
-        protected \PDO $pdo,
+        protected PDO $pdo,
         protected string $table = 'workflow_interrupts'
     ) {
     }
@@ -25,7 +29,7 @@ class DatabasePersistence implements PersistenceInterface
 
         $stmt->execute([
             'id' => $workflowId,
-            'data' => \serialize($interrupt),
+            'data' => serialize($interrupt),
         ]);
     }
 
@@ -39,7 +43,7 @@ class DatabasePersistence implements PersistenceInterface
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        return \unserialize($result['data']);
+        return unserialize($result['data']);
     }
 
     public function delete(string $workflowId): void

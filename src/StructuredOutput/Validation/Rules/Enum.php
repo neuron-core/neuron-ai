@@ -5,8 +5,16 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\StructuredOutputException;
+use Attribute;
+use BackedEnum;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY)]
+use function array_map;
+use function enum_exists;
+use function implode;
+use function in_array;
+use function is_subclass_of;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
 class Enum extends AbstractValidationRule
 {
     protected string $message = '{name} must be one of the following allowed values: {choices}.';
@@ -36,10 +44,10 @@ class Enum extends AbstractValidationRule
 
     public function validate(string $name, mixed $value, array &$violations): void
     {
-        $value = $value instanceof \BackedEnum ? $value->value : $value;
+        $value = $value instanceof BackedEnum ? $value->value : $value;
 
-        if (!\in_array($value, $this->values, true)) {
-            $violations[] = $this->buildMessage($name, $this->message, ['choices' => \implode(", ", $this->values)]);
+        if (!in_array($value, $this->values, true)) {
+            $violations[] = $this->buildMessage($name, $this->message, ['choices' => implode(", ", $this->values)]);
         }
     }
 
@@ -48,14 +56,14 @@ class Enum extends AbstractValidationRule
      */
     private function handleEnum(): void
     {
-        if (!\enum_exists($this->class)) {
+        if (!enum_exists($this->class)) {
             throw new StructuredOutputException("Enum '{$this->class}' does not exist.");
         }
 
-        if (!\is_subclass_of($this->class, \BackedEnum::class)) {
+        if (!is_subclass_of($this->class, BackedEnum::class)) {
             throw new StructuredOutputException("Enum '{$this->class}' must implement BackedEnum.");
         }
 
-        $this->values = \array_map(fn (\BackedEnum $case): int|string => $case->value, $this->class::cases());
+        $this->values = array_map(fn (BackedEnum $case): int|string => $case->value, $this->class::cases());
     }
 }

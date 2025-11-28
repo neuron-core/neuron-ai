@@ -6,6 +6,12 @@ namespace NeuronAI\Workflow\Exporter;
 
 use NeuronAI\Workflow\NodeInterface;
 use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionUnionType;
+
+use function array_map;
+use function in_array;
+use function str_repeat;
 
 class ConsoleExporter implements ExporterInterface
 {
@@ -15,7 +21,7 @@ class ConsoleExporter implements ExporterInterface
     public function export(array $eventNodeMap): string
     {
         $output = "Workflow Structure:\n";
-        $output .= \str_repeat("=", 50) . "\n\n";
+        $output .= str_repeat("=", 50) . "\n\n";
 
         $connections = $this->buildConnections($eventNodeMap);
 
@@ -57,17 +63,17 @@ class ConsoleExporter implements ExporterInterface
 
         $returnEventClasses = [];
 
-        if ($returnType instanceof \ReflectionNamedType && !$returnType->isBuiltin()) {
+        if ($returnType instanceof ReflectionNamedType && !$returnType->isBuiltin()) {
             $returnEventClasses[] = $returnType->getName();
-        } elseif ($returnType instanceof \ReflectionUnionType) {
+        } elseif ($returnType instanceof ReflectionUnionType) {
             foreach ($returnType->getTypes() as $type) {
-                if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
                     $returnEventClasses[] = $type->getName();
                 }
             }
         }
 
-        return \array_map($this->getShortClassName(...), $returnEventClasses);
+        return array_map($this->getShortClassName(...), $returnEventClasses);
     }
 
     private function renderFlow(array $connections): string
@@ -99,8 +105,8 @@ class ConsoleExporter implements ExporterInterface
 
         // Render any unvisited connections (orphaned nodes)
         foreach ($connections as $connection) {
-            if (!\in_array($connection['event'], $visited)) {
-                $output .= "\n" . \str_repeat("─", 30) . "\n";
+            if (!in_array($connection['event'], $visited)) {
+                $output .= "\n" . str_repeat("─", 30) . "\n";
                 $output .= "Orphaned Node:\n";
                 $output .= $this->renderConnection($connection, $eventToConnection, $visited, 0);
             }
@@ -111,12 +117,12 @@ class ConsoleExporter implements ExporterInterface
 
     private function renderConnection(array $connection, array $eventToConnection, array &$visited, int $depth): string
     {
-        if (\in_array($connection['event'], $visited)) {
-            return \str_repeat("  ", $depth) . "↻ [Cycle detected]\n";
+        if (in_array($connection['event'], $visited)) {
+            return str_repeat("  ", $depth) . "↻ [Cycle detected]\n";
         }
 
         $visited[] = $connection['event'];
-        $indent = \str_repeat("  ", $depth);
+        $indent = str_repeat("  ", $depth);
         $output = "";
 
         // Render current step

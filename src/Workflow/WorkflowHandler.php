@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use Generator;
+use Throwable;
 
 class WorkflowHandler
 {
@@ -18,11 +20,11 @@ class WorkflowHandler
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function streamEvents(): \Generator
+    public function streamEvents(): Generator
     {
         $generator = $this->resume ? $this->workflow->resume($this->externalFeedback) : $this->workflow->run();
 
@@ -36,7 +38,7 @@ class WorkflowHandler
     }
 
     /**
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */

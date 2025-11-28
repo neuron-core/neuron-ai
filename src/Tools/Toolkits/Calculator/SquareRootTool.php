@@ -8,6 +8,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function sqrt;
+
 class SquareRootTool extends Tool
 {
     public function __construct()
@@ -38,6 +40,6 @@ DESC
 
     public function __invoke(float|int $number): float|int
     {
-        return \sqrt($number);
+        return sqrt($number);
     }
 }

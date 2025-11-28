@@ -14,6 +14,12 @@ use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use Exception;
+
+use function json_decode;
+use function json_encode;
+use function serialize;
+use function unserialize;
 
 class WorkflowInterruptTest extends TestCase
 {
@@ -170,7 +176,7 @@ class WorkflowInterruptTest extends TestCase
             workflowId: 'empty-workflow'
         );
 
-        $this->expectException(\Exception::class); // Should fail when trying to load non-existent interrupt
+        $this->expectException(Exception::class); // Should fail when trying to load non-existent interrupt
 
         $workflow->start(true, 'feedback')->getResult();
     }
@@ -222,17 +228,17 @@ class WorkflowInterruptTest extends TestCase
             $workflow->start()->getResult();
         } catch (WorkflowInterrupt $interrupt) {
             // Test JSON serialization
-            $json = \json_encode($interrupt);
+            $json = json_encode($interrupt);
             $this->assertIsString($json);
 
-            $decoded = \json_decode($json, true);
+            $decoded = json_decode($json, true);
             $this->assertEquals('Workflow interrupted for human input', $decoded['message']);
             $this->assertEquals(['message' => 'Need human input'], $decoded['data']);
-            $this->assertInstanceOf(InterruptableNode::class, \unserialize($decoded['currentNode']));
+            $this->assertInstanceOf(InterruptableNode::class, unserialize($decoded['currentNode']));
 
             // Test PHP serialization
-            $serialized = \serialize($interrupt);
-            $unserialized = \unserialize($serialized);
+            $serialized = serialize($interrupt);
+            $unserialized = unserialize($serialized);
 
             $this->assertInstanceOf(WorkflowInterrupt::class, $unserialized);
             $this->assertEquals($interrupt->getData(), $unserialized->getData());

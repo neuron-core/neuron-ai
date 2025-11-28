@@ -8,6 +8,17 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\StreamInterface;
+use Generator;
+use Throwable;
+
+use function json_decode;
+use function str_contains;
+use function str_starts_with;
+use function strlen;
+use function substr;
+use function trim;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -18,7 +29,7 @@ trait HandleResponsesStream
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages, callable $executeToolsCallback): Generator
     {
         $json = [
             'stream' => true,
@@ -99,7 +110,7 @@ trait HandleResponsesStream
                     break;
 
                 case 'response.failed':
-                    throw new ProviderException('OpenAI streaming error: ' . $event['error']['message']);
+                    throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
 
                 default:
                     // Ignore other events like response.start, metadata, etc.
@@ -115,19 +126,19 @@ trait HandleResponsesStream
     {
         $line = $this->readLine($stream);
 
-        if (! \str_starts_with((string) $line, 'data:')) {
+        if (! str_starts_with((string) $line, 'data:')) {
             return null;
         }
 
-        $line = \trim(\substr((string) $line, \strlen('data: ')));
+        $line = trim(substr((string) $line, strlen('data: ')));
 
-        if (\str_contains($line, 'DONE')) {
+        if (str_contains($line, 'DONE')) {
             return null;
         }
 
         try {
-            $event = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
+            $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
             throw new ProviderException('OpenAI streaming JSON decode error: ' . $exception->getMessage());
         }
 

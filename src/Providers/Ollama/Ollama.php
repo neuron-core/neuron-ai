@@ -16,6 +16,9 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use function array_map;
+use function trim;
+
 class Ollama implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -39,7 +42,7 @@ class Ollama implements AIProviderInterface
         protected ?HttpClientOptions $httpOptions = null,
     ) {
         $config = [
-            'base_uri' => \trim($this->url, '/').'/',
+            'base_uri' => trim($this->url, '/').'/',
             'headers' => [],
         ];
 
@@ -73,7 +76,7 @@ class Ollama implements AIProviderInterface
      */
     protected function createToolCallMessage(array $message): Message
     {
-        $tools = \array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
+        $tools = array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
             ->setInputs($item['function']['arguments']), $message['tool_calls']);
 
         $result = new ToolCallMessage(

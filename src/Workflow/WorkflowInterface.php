@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
-interface WorkflowInterface extends \SplSubject
+use SplSubject;
+
+interface WorkflowInterface extends SplSubject
 {
     public function start(bool $resume = false, mixed $externalFeedback = null): WorkflowHandler;
 

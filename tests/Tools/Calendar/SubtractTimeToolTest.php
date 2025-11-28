@@ -8,6 +8,8 @@ use NeuronAI\Tools\Toolkits\Calendar\SubtractTimeTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+
 class SubtractTimeToolTest extends TestCase
 {
     private SubtractTimeTool $tool;
@@ -152,7 +154,7 @@ class SubtractTimeToolTest extends TestCase
         $properties = $this->tool->getProperties();
         $this->assertCount(5, $properties);
 
-        $propertyNames = \array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
+        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('date', $propertyNames);
         $this->assertContains('amount', $propertyNames);
         $this->assertContains('unit', $propertyNames);

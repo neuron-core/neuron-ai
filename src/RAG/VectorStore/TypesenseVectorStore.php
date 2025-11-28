@@ -10,6 +10,17 @@ use NeuronAI\RAG\VectorSimilarity;
 use Typesense\Client;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
+use JsonException;
+
+use function array_key_exists;
+use function array_map;
+use function count;
+use function gettype;
+use function implode;
+use function in_array;
+use function intval;
+use function json_encode;
+use function max;
 
 class TypesenseVectorStore implements VectorStoreInterface
 {
@@ -29,7 +40,7 @@ class TypesenseVectorStore implements VectorStoreInterface
     {
         try {
             $this->client->collections[$this->collection]->retrieve();
-            $this->checkVectorDimension(\count($document->getEmbedding()));
+            $this->checkVectorDimension(count($document->getEmbedding()));
             return;
         } catch (ObjectNotFound) {
             $fields = [
@@ -58,7 +69,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             foreach ($document->metadata as $name => $value) {
                 $fields[] = [
                     'name' => $name,
-                    'type' => \gettype($value),
+                    'type' => gettype($value),
                     'facet' => true,
                 ];
             }
@@ -104,7 +115,7 @@ class TypesenseVectorStore implements VectorStoreInterface
      *
      * @param Document[] $documents
      * @throws Exception
-     * @throws \JsonException
+     * @throws JsonException
      * @throws TypesenseClientError
      */
     public function addDocuments(array $documents): VectorStoreInterface
@@ -121,7 +132,7 @@ class TypesenseVectorStore implements VectorStoreInterface
 
         $lines = [];
         foreach ($documents as $document) {
-            $lines[] = \json_encode([
+            $lines[] = json_encode([
                 'id' => (string) $document->getId(), // Unique ID is required
                 'embedding' => $document->getEmbedding(),
                 'content' => $document->getContent(),
@@ -131,7 +142,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             ]);
         }
 
-        $ndjson = \implode("\n", $lines);
+        $ndjson = implode("\n", $lines);
 
         $this->client->collections[$this->collection]->documents->import($ndjson);
 
@@ -143,16 +154,16 @@ class TypesenseVectorStore implements VectorStoreInterface
         $params = [
             'collection' => $this->collection,
             'q' => '*',
-            'vector_query' => 'embedding:(' . \json_encode($embedding) . ')',
+            'vector_query' => 'embedding:(' . json_encode($embedding) . ')',
             'exclude_fields' => 'embedding',
             'per_page' => $this->topK,
-            'num_candidates' => \max(50, \intval($this->topK) * 4),
+            'num_candidates' => max(50, intval($this->topK) * 4),
         ];
 
         $searchRequests = ['searches' => [$params]];
 
         $response = $this->client->multiSearch->perform($searchRequests);
-        return \array_map(function (array $hit): Document {
+        return array_map(function (array $hit): Document {
             $item = $hit['document'];
             $document = new Document($item['content']);
             //$document->embedding = $item['embedding']; // avoid carrying large data
@@ -161,7 +172,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             $document->score = VectorSimilarity::similarityFromDistance($hit['vector_distance']);
 
             foreach ($item as $name => $value) {
-                if (!\in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id', 'vector_distance'])) {
+                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id', 'vector_distance'])) {
                     $document->addMetadata($name, $value);
                 }
             }
@@ -184,7 +195,7 @@ class TypesenseVectorStore implements VectorStoreInterface
         }
 
         if (
-            \array_key_exists('num_dim', $embeddingField)
+            array_key_exists('num_dim', $embeddingField)
             && $embeddingField['num_dim'] === $dimension
         ) {
             return;
@@ -192,7 +203,7 @@ class TypesenseVectorStore implements VectorStoreInterface
 
         throw new \Exception(
             "Vector embeddings dimension {$dimension} must be the same as the initial setup {$this->vectorDimension} - ".
-            \json_encode($embeddingField)
+            json_encode($embeddingField)
         );
     }
 }

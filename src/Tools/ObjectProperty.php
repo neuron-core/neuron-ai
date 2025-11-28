@@ -8,6 +8,15 @@ use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\JsonSchema;
+use ReflectionException;
+
+use function array_filter;
+use function array_map;
+use function array_reduce;
+use function array_values;
+use function class_exists;
+use function in_array;
+use function is_null;
 
 /**
  * @method static static make(string $name, string $description, bool $required = false, ?string $class = null, array $properties = [])
@@ -21,7 +30,7 @@ class ObjectProperty implements ToolPropertyInterface
     /**
      * @param string|null $class The associated class name, or null if not applicable.
      * @param ToolPropertyInterface[] $properties An array of additional properties.
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
      */
@@ -32,7 +41,7 @@ class ObjectProperty implements ToolPropertyInterface
         protected ?string $class = null,
         protected array $properties = [],
     ) {
-        if ($this->properties === [] && !\is_null($this->class) && \class_exists($this->class)) {
+        if ($this->properties === [] && !is_null($this->class) && class_exists($this->class)) {
             $schema = (new JsonSchema())->generate($this->class);
             $this->properties = $this->buildPropertiesFromClass($schema);
         }
@@ -42,7 +51,7 @@ class ObjectProperty implements ToolPropertyInterface
      * Recursively build properties from a class schema
      *
      * @return ToolPropertyInterface[]
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
      */
@@ -52,7 +61,7 @@ class ObjectProperty implements ToolPropertyInterface
         $properties = [];
 
         foreach ($schema['properties'] as $propertyName => $propertyData) {
-            $isRequired = \in_array($propertyName, $required);
+            $isRequired = in_array($propertyName, $required);
             $property = $this->createPropertyFromSchema($propertyName, $propertyData, $isRequired);
 
             if ($property instanceof ToolPropertyInterface) {
@@ -66,7 +75,7 @@ class ObjectProperty implements ToolPropertyInterface
     /**
      * Create a property from schema data recursively
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
      */
@@ -92,7 +101,7 @@ class ObjectProperty implements ToolPropertyInterface
     /**
      * Create an object property recursively
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
      */
@@ -107,7 +116,7 @@ class ObjectProperty implements ToolPropertyInterface
         // If no class is specified, but we have nested properties, build them recursively
         if (!$className && isset($propertyData['properties'])) {
             foreach ($propertyData['properties'] as $nestedPropertyName => $nestedPropertyData) {
-                $nestedIsRequired = \in_array($nestedPropertyName, $nestedRequired);
+                $nestedIsRequired = in_array($nestedPropertyName, $nestedRequired);
                 $nestedProperty = $this->createPropertyFromSchema($nestedPropertyName, $nestedPropertyData, $nestedIsRequired);
 
                 if ($nestedProperty instanceof ToolPropertyInterface) {
@@ -128,7 +137,7 @@ class ObjectProperty implements ToolPropertyInterface
     /**
      * Create an array property with recursive item handling
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
      */
@@ -174,7 +183,7 @@ class ObjectProperty implements ToolPropertyInterface
     {
         return [
             'name' => $this->name,
-            ...(\is_null($this->description) ? [] : ['description' => $this->description]),
+            ...(is_null($this->description) ? [] : ['description' => $this->description]),
             'type' => $this->type,
             'properties' => $this->getJsonSchema(),
             'required' => $this->required,
@@ -184,7 +193,7 @@ class ObjectProperty implements ToolPropertyInterface
     // The mapped class required properties and required properties are merged
     public function getRequiredProperties(): array
     {
-        return \array_values(\array_filter(\array_map(fn (
+        return array_values(array_filter(array_map(fn (
             ToolPropertyInterface $property
         ): ?string => $property->isRequired() ? $property->getName() : null, $this->properties)));
     }
@@ -195,11 +204,11 @@ class ObjectProperty implements ToolPropertyInterface
             'type' => $this->type->value,
         ];
 
-        if (!\is_null($this->description)) {
+        if (!is_null($this->description)) {
             $schema['description'] = $this->description;
         }
 
-        $properties = \array_reduce($this->properties, function (array $carry, ToolPropertyInterface $property): array {
+        $properties = array_reduce($this->properties, function (array $carry, ToolPropertyInterface $property): array {
             $carry[$property->getName()] = $property->getJsonSchema();
             return $carry;
         }, []);

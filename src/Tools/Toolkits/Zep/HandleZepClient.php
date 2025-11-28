@@ -6,6 +6,9 @@ namespace NeuronAI\Tools\Toolkits\Zep;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
+use Exception;
+
+use function trim;
 
 trait HandleZepClient
 {
@@ -16,7 +19,7 @@ trait HandleZepClient
     protected function getClient(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => \trim($this->url, '/').'/',
+            'base_uri' => trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => "Api-Key {$this->key}",
                 'Content-Type' => 'application/json',
@@ -30,7 +33,7 @@ trait HandleZepClient
         // Create the user if it doesn't exist
         try {
             $this->getClient()->get('users/'.$this->user_id);
-        } catch (\Exception) {
+        } catch (Exception) {
             $this->getClient()->post('users', [
                 RequestOptions::JSON => ['user_id' => $this->user_id]
             ]);

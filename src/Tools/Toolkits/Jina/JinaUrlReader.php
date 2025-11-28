@@ -11,6 +11,10 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
+use function filter_var;
+
+use const FILTER_VALIDATE_URL;
+
 /**
  * @method static make(string $key)
  */
@@ -52,7 +56,7 @@ class JinaUrlReader extends Tool
 
     public function __invoke(string $url): string
     {
-        if (!\filter_var($url, \FILTER_VALIDATE_URL)) {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
             throw new ToolException('Invalid URL.');
         }
 

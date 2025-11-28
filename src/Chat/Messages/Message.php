@@ -7,11 +7,15 @@ namespace NeuronAI\Chat\Messages;
 use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
+use JsonSerializable;
+
+use function array_map;
+use function array_merge;
 
 /**
  * @method static static make(MessageRole $role, array<int, mixed>|string|int|float|null $content = null)
  */
-class Message implements \JsonSerializable
+class Message implements JsonSerializable
 {
     use StaticConstructor;
 
@@ -116,9 +120,9 @@ class Message implements \JsonSerializable
         }
 
         if ($this->getAttachments() !== []) {
-            $data['attachments'] = \array_map(fn (Attachment $attachment): array => $attachment->jsonSerialize(), $this->getAttachments());
+            $data['attachments'] = array_map(fn (Attachment $attachment): array => $attachment->jsonSerialize(), $this->getAttachments());
         }
 
-        return \array_merge($this->meta, $data);
+        return array_merge($this->meta, $data);
     }
 }

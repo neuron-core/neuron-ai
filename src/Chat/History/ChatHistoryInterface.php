@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Messages\Message;
+use JsonSerializable;
 
-interface ChatHistoryInterface extends \JsonSerializable
+interface ChatHistoryInterface extends JsonSerializable
 {
     public function addMessage(Message $message): ChatHistoryInterface;
 

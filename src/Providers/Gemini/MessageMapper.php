@@ -15,6 +15,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
+use function array_map;
+use function is_string;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -78,17 +82,17 @@ class MessageMapper implements MessageMapperInterface
 
         // Include text content if present (Gemini supports mixed text and functionCall in parts array)
         $content = $message->getContent();
-        if (\is_string($content) && $content !== '') {
+        if (is_string($content) && $content !== '') {
             $parts[] = ['text' => $content];
         }
 
         // Add function calls
         $parts = [
             ...$parts,
-            ...\array_map(fn (ToolInterface $tool): array => [
+            ...array_map(fn (ToolInterface $tool): array => [
                 'functionCall' => [
                     'name' => $tool->getName(),
-                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new \stdClass(),
+                    'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new stdClass(),
                 ]
             ], $message->getTools())
         ];
@@ -103,7 +107,7 @@ class MessageMapper implements MessageMapperInterface
     {
         return [
             'role' => MessageRole::USER->value,
-            'parts' => \array_map(fn (ToolInterface $tool): array => [
+            'parts' => array_map(fn (ToolInterface $tool): array => [
                 'functionResponse' => [
                     'name' => $tool->getName(),
                     'response' => [

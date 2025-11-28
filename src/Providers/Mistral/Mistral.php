@@ -9,6 +9,11 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use Generator;
+
+use function array_unshift;
+use function json_encode;
+use function is_array;
 
 class Mistral extends OpenAI
 {
@@ -18,11 +23,11 @@ class Mistral extends OpenAI
      * @throws ProviderException
      * @throws GuzzleException
      */
-    public function stream(array|string $messages, callable $executeToolsCallback): \Generator
+    public function stream(array|string $messages, callable $executeToolsCallback): Generator
     {
         // Attach the system prompt
         if ($this->system !== null) {
-            \array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
+            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
         $json = [
@@ -52,7 +57,7 @@ class Mistral extends OpenAI
 
             // Inform the agent about usage when stream
             if (empty($line['choices']) && !empty($line['usage'])) {
-                yield \json_encode(['usage' => [
+                yield json_encode(['usage' => [
                     'input_tokens' => $line['usage']['prompt_tokens'],
                     'output_tokens' => $line['usage']['completion_tokens'],
                 ]]);
@@ -63,12 +68,14 @@ class Mistral extends OpenAI
                 continue;
             }
 
+            $choice = $line['choices'][0];
+
             // Compile tool calls
             if ($this->isToolCallPart($line)) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
 
                 // Handle tool calls
-                if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
+                if ($choice['finish_reason'] === 'tool_calls') {
                     yield from $executeToolsCallback(
                         $this->createToolCallMessage([
                             'content' => $text,
@@ -81,8 +88,12 @@ class Mistral extends OpenAI
             }
 
             // Process regular content
-            $content = $line['choices'][0]['delta']['content'] ?? '';
-            $text .= $content;
+            $content = $choice['delta']['content'] ?? '';
+            if (is_array($content) && $content['type'] === 'text') {
+                $text .= $content['text'];
+            } else {
+                $text .= $content;
+            }
 
             yield $content;
         }

@@ -9,6 +9,10 @@ use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
+use stdClass;
+
+use function array_reduce;
+use function is_string;
 
 class ToolPayloadMapperResponses implements ToolPayloadMapperInterface
 {
@@ -38,12 +42,12 @@ class ToolPayloadMapperResponses implements ToolPayloadMapperInterface
             'description' => $tool->getDescription(),
             'parameters' => [
                 'type' => 'object',
-                'properties' => new \stdClass(),
+                'properties' => new stdClass(),
                 'required' => [],
             ],
         ];
 
-        $properties = \array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
+        $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
             $carry[$property->getName()] = $property->getJsonSchema();
             return $carry;
         }, []);
@@ -66,7 +70,7 @@ class ToolPayloadMapperResponses implements ToolPayloadMapperInterface
             ...$tool->getOptions()
         ];
 
-        if (\is_string($tool->getName())) {
+        if (is_string($tool->getName())) {
             $payload['name'] = $tool->getName();
         }
 

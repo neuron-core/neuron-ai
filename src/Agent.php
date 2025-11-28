@@ -6,6 +6,9 @@ namespace NeuronAI;
 
 use NeuronAI\Observability\Observable;
 
+use function preg_quote;
+use function preg_replace;
+
 class Agent implements AgentInterface
 {
     use StaticConstructor;
@@ -50,13 +53,13 @@ class Agent implements AgentInterface
     protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
     {
         // Escape special regex characters in the tags
-        $escapedOpenTag = \preg_quote($openTag, '/');
-        $escapedCloseTag = \preg_quote($closeTag, '/');
+        $escapedOpenTag = preg_quote($openTag, '/');
+        $escapedCloseTag = preg_quote($closeTag, '/');
 
         // Create the regex pattern to match content between tags
         $pattern = '/' . $escapedOpenTag . '.*?' . $escapedCloseTag . '/s';
 
         // Remove all occurrences of the delimited content
-        return \preg_replace($pattern, '', $text);
+        return preg_replace($pattern, '', $text);
     }
 }

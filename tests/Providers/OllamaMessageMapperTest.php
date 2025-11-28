@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\Ollama\MessageMapper;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class OllamaMessageMapperTest extends TestCase
 {
@@ -22,7 +23,7 @@ class OllamaMessageMapperTest extends TestCase
             'role' => 'assistant',
             'content' => '',
             'tool_calls' => [
-                ['function' => ['name' => 'test', 'arguments' => new \stdClass()]],
+                ['function' => ['name' => 'test', 'arguments' => new stdClass()]],
             ]
         ]], $mapper->map([$message]));
     }

@@ -9,6 +9,13 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_filter;
+use function array_map;
+use function count;
+use function floor;
+use function round;
+use function sort;
+
 class MedianTool extends Tool
 {
     public function __construct(protected int $precision = 2)
@@ -49,18 +56,18 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = \array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, \is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
         // Convert to float values and sort
-        $numericData = \array_map(floatval(...), $numericData);
-        \sort($numericData);
+        $numericData = array_map(floatval(...), $numericData);
+        sort($numericData);
 
-        $count = \count($numericData);
-        $middle = (int) \floor($count / 2);
+        $count = count($numericData);
+        $middle = (int) floor($count / 2);
 
         if ($count % 2 === 0) {
             // Even number of elements - average of two middle values
@@ -70,6 +77,6 @@ DESC
             $median = $numericData[$middle];
         }
 
-        return \round($median, $this->precision);
+        return round($median, $this->precision);
     }
 }

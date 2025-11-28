@@ -15,6 +15,11 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
+
+use function array_key_exists;
+use function array_map;
+use function is_string;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -40,13 +45,13 @@ class MessageMapper implements MessageMapperInterface
     {
         $payload = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $payload)) {
+        if (array_key_exists('usage', $payload)) {
             unset($payload['usage']);
         }
 
         $attachments = $message->getAttachments();
 
-        if (\is_string($payload['content']) && $attachments) {
+        if (is_string($payload['content']) && $attachments) {
             $payload['content'] = [
                 [
                     'type' => 'text',
@@ -91,7 +96,7 @@ class MessageMapper implements MessageMapperInterface
 
         // Add text content if present (Anthropic supports text + tool_use in content array)
         $content = $message->getContent();
-        if (\is_string($content) && $content !== '') {
+        if (is_string($content) && $content !== '') {
             $parts[] = [
                 'type' => 'text',
                 'text' => $content,
@@ -104,7 +109,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'tool_use',
                 'id' => $tool->getCallId(),
                 'name' => $tool->getName(),
-                'input' => $tool->getInputs() ?: new \stdClass(),
+                'input' => $tool->getInputs() ?: new stdClass(),
             ];
         }
 
@@ -118,7 +123,7 @@ class MessageMapper implements MessageMapperInterface
     {
         return [
             'role' => MessageRole::USER,
-            'content' => \array_map(fn (ToolInterface $tool): array => [
+            'content' => array_map(fn (ToolInterface $tool): array => [
                 'type' => 'tool_result',
                 'tool_use_id' => $tool->getCallId(),
                 'content' => $tool->getResult(),

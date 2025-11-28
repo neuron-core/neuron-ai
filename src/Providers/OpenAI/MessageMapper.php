@@ -16,6 +16,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
+use function array_key_exists;
+use function is_string;
+use function uniqid;
+
 class MessageMapper implements MessageMapperInterface
 {
     protected array $mapping = [];
@@ -48,13 +52,13 @@ class MessageMapper implements MessageMapperInterface
     {
         $payload = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $payload)) {
+        if (array_key_exists('usage', $payload)) {
             unset($payload['usage']);
         }
 
         $attachments = $message->getAttachments();
 
-        if (\is_string($payload['content']) && $attachments) {
+        if (is_string($payload['content']) && $attachments) {
             $payload['content'] = [
                 [
                     'type' => 'text',
@@ -87,7 +91,7 @@ class MessageMapper implements MessageMapperInterface
             'type' => 'file',
             'file' => [
                 // The filename is required, but the Document class does not have a filename property.
-                'filename' => "attachment-".\uniqid().".pdf",
+                'filename' => "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
             ]
         ];
@@ -115,7 +119,7 @@ class MessageMapper implements MessageMapperInterface
     {
         $message = $message->jsonSerialize();
 
-        if (\array_key_exists('usage', $message)) {
+        if (array_key_exists('usage', $message)) {
             unset($message['usage']);
         }
 

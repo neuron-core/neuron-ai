@@ -12,6 +12,15 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PDO;
+use ReflectionException;
+
+use function in_array;
+use function preg_match;
+use function preg_quote;
+use function preg_replace;
+use function str_starts_with;
+use function strtoupper;
+use function trim;
 
 /**
  * @method static static make(PDO $pdo)
@@ -22,7 +31,8 @@ class MySQLSelectTool extends Tool
 
     protected array $forbiddenStatements = [
         'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
-        'TRUNCATE', 'REPLACE', 'MERGE', 'CALL', 'EXECUTE'
+        'TRUNCATE', 'REPLACE', 'MERGE', 'CALL', 'EXECUTE',
+        'INTO', 'OUTFILE', 'DUMPFILE', 'LOAD_FILE',
     ];
 
     public function __construct(protected PDO $pdo)
@@ -35,7 +45,7 @@ This the tool to use only to gather information from the MySQL database.'
     }
 
     /**
-     * @throws \ReflectionException
+     * @throws ReflectionException
      * @throws ArrayPropertyException
      * @throws ToolException
      */
@@ -78,7 +88,7 @@ This the tool to use only to gather information from the MySQL database.'
         // Bind parameters if provided
         $parameters ??= [];
         foreach ($parameters as $parameter) {
-            $paramName = \str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
+            $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
         }
 
@@ -93,13 +103,13 @@ This the tool to use only to gather information from the MySQL database.'
 
         // Check if it starts with allowed statements
         $firstKeyword = $this->getFirstKeyword($cleanQuery);
-        if (!\in_array($firstKeyword, $this->allowedStatements)) {
+        if (!in_array($firstKeyword, $this->allowedStatements)) {
             return false;
         }
 
         // Check for forbidden keywords that might be in subqueries
         foreach ($this->forbiddenStatements as $forbidden) {
-            if (self::containsKeyword($cleanQuery, $forbidden)) {
+            if ($this->containsKeyword($cleanQuery, $forbidden)) {
                 return false;
             }
         }
@@ -110,17 +120,17 @@ This the tool to use only to gather information from the MySQL database.'
     protected function sanitizeQuery(string $query): string
     {
         // Remove SQL comments
-        $query = \preg_replace('/--.*$/m', '', $query);
-        $query = \preg_replace('/\/\*.*?\*\//s', '', (string) $query);
+        $query = preg_replace('/--.*$/m', '', $query);
+        $query = preg_replace('/\/\*.*?\*\//s', '', (string) $query);
 
         // Normalize whitespace
-        return \preg_replace('/\s+/', ' ', \trim((string) $query));
+        return preg_replace('/\s+/', ' ', trim((string) $query));
     }
 
     protected function getFirstKeyword(string $query): string
     {
-        if (\preg_match('/^\s*(\w+)/i', $query, $matches)) {
-            return \strtoupper($matches[1]);
+        if (preg_match('/^\s*(\w+)/i', $query, $matches)) {
+            return strtoupper($matches[1]);
         }
         return '';
     }
@@ -128,6 +138,6 @@ This the tool to use only to gather information from the MySQL database.'
     protected function containsKeyword(string $query, string $keyword): bool
     {
         // Use word boundaries to avoid false positives
-        return \preg_match('/\b' . \preg_quote($keyword, '/') . '\b/i', $query) === 1;
+        return preg_match('/\b' . preg_quote($keyword, '/') . '\b/i', $query) === 1;
     }
 }

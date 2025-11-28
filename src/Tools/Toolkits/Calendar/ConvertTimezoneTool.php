@@ -8,6 +8,10 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function is_numeric;
 
 class ConvertTimezoneTool extends Tool
 {
@@ -56,14 +60,14 @@ class ConvertTimezoneTool extends Tool
             $fromTz = new DateTimeZone($from_timezone);
             $toTz = new DateTimeZone($to_timezone);
 
-            $dateTime = \is_numeric($date)
-                ? (new \DateTime())->setTimestamp((int) $date)->setTimezone($fromTz)
-                : new \DateTime($date, $fromTz);
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)->setTimezone($fromTz)
+                : new DateTime($date, $fromTz);
 
             $dateTime->setTimezone($toTz);
 
             return $dateTime->format($format);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

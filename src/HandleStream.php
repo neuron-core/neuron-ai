@@ -9,10 +9,16 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\AgentError;
+use Generator;
+use Throwable;
+
+use function array_key_exists;
+use function is_array;
+use function json_decode;
 
 trait HandleStream
 {
-    public function stream(Message|array $messages): \Generator
+    public function stream(Message|array $messages): Generator
     {
         try {
             $this->notify('stream-start');
@@ -43,8 +49,8 @@ trait HandleStream
                 }
 
                 // Catch usage when streaming
-                $decoded = \json_decode((string) $chunk, true);
-                if (\is_array($decoded) && \array_key_exists('usage', $decoded)) {
+                $decoded = json_decode((string) $chunk, true);
+                if (is_array($decoded) && array_key_exists('usage', $decoded)) {
                     $usage->inputTokens += $decoded['usage']['input_tokens'] ?? 0;
                     $usage->outputTokens += $decoded['usage']['output_tokens'] ?? 0;
                     continue;
@@ -67,7 +73,7 @@ trait HandleStream
             $this->notify('stream-stop');
 
             return $response;
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->notify('error', new AgentError($exception));
             throw $exception;
         }

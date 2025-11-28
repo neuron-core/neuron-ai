@@ -5,8 +5,16 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use NeuronAI\StructuredOutput\Validation\Validator;
+use Attribute;
+use ReflectionException;
 
-#[\Attribute(\Attribute::TARGET_PROPERTY)]
+use function implode;
+use function in_array;
+use function is_array;
+use function is_object;
+use function strtolower;
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
 class ArrayOf extends AbstractValidationRule
 {
     protected string $message = '{name} must be an array of {types}';
@@ -42,11 +50,11 @@ class ArrayOf extends AbstractValidationRule
         string|array $type,
         protected bool $allowEmpty = false,
     ) {
-        $this->types = \is_array($type) ? $type : [$type];
+        $this->types = is_array($type) ? $type : [$type];
     }
 
     /**
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public function validate(string $name, mixed $value, array &$violations): void
     {
@@ -55,11 +63,11 @@ class ArrayOf extends AbstractValidationRule
         }
 
         if (!$this->allowEmpty && empty($value)) {
-            $violations[] = $this->buildMessage($name, $this->message, ['types' => \implode(', ', $this->types)]);
+            $violations[] = $this->buildMessage($name, $this->message, ['types' => implode(', ', $this->types)]);
             return;
         }
 
-        if (!\is_array($value)) {
+        if (!is_array($value)) {
             $violations[] = $this->buildMessage($name, $this->message);
             return;
         }
@@ -68,13 +76,13 @@ class ArrayOf extends AbstractValidationRule
         foreach ($value as $item) {
             foreach ($this->types as $type) {
                 // Check scalar types.
-                if (isset(self::VALIDATION_FUNCTIONS[\strtolower((string) $type)]) && self::VALIDATION_FUNCTIONS[\strtolower((string) $type)]($item)) {
+                if (isset(self::VALIDATION_FUNCTIONS[strtolower((string) $type)]) && self::VALIDATION_FUNCTIONS[strtolower((string) $type)]($item)) {
                     continue 2;
                 }
 
                 // Check object types.
                 // It's like a recursive call.
-                if (\is_object($item) && \in_array($item::class, $this->types) && Validator::validate($item) === []) {
+                if (is_object($item) && in_array($item::class, $this->types) && Validator::validate($item) === []) {
                     continue 2;
                 }
 
@@ -84,7 +92,7 @@ class ArrayOf extends AbstractValidationRule
         }
 
         if ($error) {
-            $violations[] = $this->buildMessage($name, $this->message, ['types' => \implode(', ', $this->types)]);
+            $violations[] = $this->buildMessage($name, $this->message, ['types' => implode(', ', $this->types)]);
         }
     }
 }

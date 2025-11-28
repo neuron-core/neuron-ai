@@ -11,18 +11,26 @@ use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use SplObserver;
+use SplSubject;
+
+use function array_keys;
+use function array_map;
+use function array_values;
+use function is_array;
+use function is_object;
 
 /**
  * Credits: https://github.com/sixty-nine
  */
-class LogObserver implements \SplObserver
+class LogObserver implements SplObserver
 {
     public function __construct(
         private readonly LoggerInterface $logger
     ) {
     }
 
-    public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
+    public function update(SplSubject $subject, ?string $event = null, mixed $data = null): void
     {
         if ($event !== null) {
             $this->logger->log(LogLevel::INFO, $event, $this->serializeData($data));
@@ -38,11 +46,11 @@ class LogObserver implements \SplObserver
             return [];
         }
 
-        if (\is_array($data)) {
+        if (is_array($data)) {
             return $data;
         }
 
-        if (!\is_object($data)) {
+        if (!is_object($data)) {
             return ['data' => $data];
         }
 
@@ -113,9 +121,9 @@ class LogObserver implements \SplObserver
                 'question' => $data->question->jsonSerialize(),
                 'documents' => $data->documents,
             ],
-            Events\WorkflowStart::class => \array_map(fn (string $eventClass, NodeInterface $node): array => [
+            Events\WorkflowStart::class => array_map(fn (string $eventClass, NodeInterface $node): array => [
                 $eventClass => $node::class,
-            ], \array_keys($data->eventNodeMap), \array_values($data->eventNodeMap)),
+            ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)),
             Events\WorkflowNodeStart::class => [
                 'node' => $data->node,
             ],

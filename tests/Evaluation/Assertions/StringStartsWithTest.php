@@ -6,6 +6,7 @@ namespace Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringStartsWith;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class StringStartsWithTest extends TestCase
 {
@@ -81,7 +82,7 @@ class StringStartsWithTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringStartsWith('test');
-        $result = $assertion->evaluate(new \stdClass());
+        $result = $assertion->evaluate(new stdClass());
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);

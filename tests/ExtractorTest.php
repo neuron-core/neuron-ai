@@ -7,6 +7,8 @@ namespace NeuronAI\Tests;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_EOL;
+
 class ExtractorTest extends TestCase
 {
     protected JsonExtractor $extractor;
@@ -31,11 +33,11 @@ class ExtractorTest extends TestCase
         $result = $this->extractor->getJson($text);
         $this->assertEquals($this->json, $result);
 
-        $text = '```json'.\PHP_EOL.$this->json.\PHP_EOL.'```';
+        $text = '```json'.PHP_EOL.$this->json.PHP_EOL.'```';
         $result = $this->extractor->getJson($text);
         $this->assertEquals($this->json, $result);
 
-        $text = 'Here is the corresponding json structure:  ```json'.\PHP_EOL.$this->json.\PHP_EOL.'```';
+        $text = 'Here is the corresponding json structure:  ```json'.PHP_EOL.$this->json.PHP_EOL.'```';
         $result = $this->extractor->getJson($text);
         $this->assertEquals($this->json, $result);
     }

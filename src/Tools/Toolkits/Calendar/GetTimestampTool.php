@@ -8,6 +8,10 @@ use DateTimeZone;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use DateTime;
+use Exception;
+
+use function time;
 
 class GetTimestampTool extends Tool
 {
@@ -41,12 +45,12 @@ class GetTimestampTool extends Tool
 
         try {
             if ($date === null) {
-                return (string) \time();
+                return (string) time();
             }
 
-            $dateTime = new \DateTime($date, new DateTimeZone($timezone));
+            $dateTime = new DateTime($date, new DateTimeZone($timezone));
             return (string) $dateTime->getTimestamp();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return "Error: {$e->getMessage()}";
         }
     }

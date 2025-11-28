@@ -6,6 +6,8 @@ namespace NeuronAI\Tools;
 
 use NeuronAI\StaticConstructor;
 
+use function is_null;
+
 /**
  * @method static static make(string $name, PropertyType $type, string $description, bool $required = false, array $enum = [])
  */
@@ -64,7 +66,7 @@ class ToolProperty implements ToolPropertyInterface
             'type' => $this->type->value,
         ];
 
-        if (!\is_null($this->description)) {
+        if (!is_null($this->description)) {
             $schema['description'] = $this->description;
         }
 

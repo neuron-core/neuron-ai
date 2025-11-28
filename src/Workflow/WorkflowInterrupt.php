@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use JsonSerializable;
 
-class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
+use function serialize;
+use function unserialize;
+
+class WorkflowInterrupt extends WorkflowException implements JsonSerializable
 {
     public function __construct(
         protected array $data,
@@ -42,10 +46,10 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
         return [
             'message' => $this->message,
             'data' => $this->data,
-            'currentNode' => \serialize($this->currentNode),
+            'currentNode' => serialize($this->currentNode),
             'state' => $this->state->all(),
             'state_class' => $this->state::class,
-            'currentEvent' => \serialize($this->currentEvent),
+            'currentEvent' => serialize($this->currentEvent),
         ];
     }
 
@@ -58,8 +62,8 @@ class WorkflowInterrupt extends WorkflowException implements \JsonSerializable
     {
         $this->message = $data['message'];
         $this->data = $data['data'];
-        $this->currentNode = \unserialize($data['currentNode']);
+        $this->currentNode = unserialize($data['currentNode']);
         $this->state = new $data['state_class']($data['state']);
-        $this->currentEvent = \unserialize($data['currentEvent']);
+        $this->currentEvent = unserialize($data['currentEvent']);
     }
 }

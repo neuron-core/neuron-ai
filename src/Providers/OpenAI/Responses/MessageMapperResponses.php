@@ -15,6 +15,12 @@ use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use stdClass;
+
+use function is_array;
+use function is_string;
+use function json_encode;
+use function uniqid;
 
 class MessageMapperResponses implements MessageMapperInterface
 {
@@ -48,7 +54,7 @@ class MessageMapperResponses implements MessageMapperInterface
     {
         $payload['role'] = $message->getRole();
 
-        if (\is_array($message->getContent())) {
+        if (is_array($message->getContent())) {
             $payload['content'] = $message->getContent();
         } else {
             $payload['content'] = [
@@ -88,7 +94,7 @@ class MessageMapperResponses implements MessageMapperInterface
             ],
             AttachmentContentType::BASE64 => [
                 'type' => 'input_file',
-                'filename' => "attachment-".\uniqid().".pdf",
+                'filename' => "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$attachment->mediaType};base64,{$attachment->content}",
             ]
         };
@@ -112,7 +118,7 @@ class MessageMapperResponses implements MessageMapperInterface
     {
         // Add text content if present (OpenAI Responses supports text + function_call)
         $text = $message->getContent();
-        if (\is_string($text) && $text !== '') {
+        if (is_string($text) && $text !== '') {
             $this->mapping[] = [
                 'role' => $message->getRole(),
                 'content' => $text,
@@ -125,7 +131,7 @@ class MessageMapperResponses implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => \json_encode($inputs !== [] ? $inputs : new \stdClass()),
+                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }

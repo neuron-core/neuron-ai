@@ -17,6 +17,18 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
+use Exception;
+use SplObserver;
+use SplSubject;
+
+use function array_key_exists;
+use function array_map;
+use function array_reverse;
+use function explode;
+use function is_null;
+use function strrchr;
+use function substr;
+use function uniqid;
 
 /**
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
@@ -24,7 +36,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
  * Getting started with observability:
  * https://docs.neuron-ai.dev/components/observability
  */
-class AgentMonitoring implements \SplObserver
+class AgentMonitoring implements SplObserver
 {
     use HandleToolEvents;
     use HandleRagEvents;
@@ -121,16 +133,16 @@ class AgentMonitoring implements \SplObserver
         return self::$instance;
     }
 
-    public function update(\SplSubject $subject, ?string $event = null, mixed $data = null): void
+    public function update(SplSubject $subject, ?string $event = null, mixed $data = null): void
     {
-        if (!\is_null($event) && \array_key_exists($event, $this->methodsMap)) {
+        if (!is_null($event) && array_key_exists($event, $this->methodsMap)) {
             $method = $this->methodsMap[$event];
             $this->$method($subject, $event, $data);
         }
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function start(Agent $agent, string $event, mixed $data = null): void
     {
@@ -148,8 +160,8 @@ class AgentMonitoring implements \SplObserver
         } elseif ($this->inspector->canAddSegments() && !$agent instanceof RAG) { // do not add "parent" agent segments on RAG
             $key = $class.$method;
 
-            if (\array_key_exists($key, $this->segments)) {
-                $key .= '-'.\uniqid();
+            if (array_key_exists($key, $this->segments)) {
+                $key .= '-'.uniqid();
             }
 
             $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
@@ -160,16 +172,16 @@ class AgentMonitoring implements \SplObserver
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function stop(Agent $agent, string $event, mixed $data = null): void
     {
         $method = $this->getPrefix($event);
         $class = $agent::class;
 
-        if (\array_key_exists($class.$method, $this->segments)) {
+        if (array_key_exists($class.$method, $this->segments)) {
             // End the last segment for the given method and agent class
-            foreach (\array_reverse($this->segments, true) as $key => $segment) {
+            foreach (array_reverse($this->segments, true) as $key => $segment) {
                 if ($key === $class.$method) {
                     $segment->setContext($this->getContext($agent));
                     $segment->end();
@@ -188,9 +200,9 @@ class AgentMonitoring implements \SplObserver
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
-    public function reportError(\SplSubject $subject, string $event, AgentError $data): void
+    public function reportError(SplSubject $subject, string $event, AgentError $data): void
     {
         $this->inspector->reportException($data->exception, !$data->unhandled);
 
@@ -204,7 +216,7 @@ class AgentMonitoring implements \SplObserver
 
     public function getPrefix(string $event): string
     {
-        return \explode('-', $event)[0];
+        return explode('-', $event)[0];
     }
 
     /**
@@ -215,7 +227,7 @@ class AgentMonitoring implements \SplObserver
         $mapTool = fn (ToolInterface $tool): array => [
             $tool->getName() => [
                 'description' => $tool->getDescription(),
-                'properties' => \array_map(
+                'properties' => array_map(
                     fn (ToolPropertyInterface $property) => $property->jsonSerialize(),
                     $tool->getProperties()
                 )
@@ -227,9 +239,9 @@ class AgentMonitoring implements \SplObserver
                 'provider' => $agent->resolveProvider()::class,
                 'instructions' => $agent->resolveInstructions(),
             ],
-            'Tools' => \array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
+            'Tools' => array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
                 $tool instanceof ToolInterface => $mapTool($tool),
-                $tool instanceof ToolkitInterface => [$tool::class => \array_map($mapTool, $tool->tools())],
+                $tool instanceof ToolkitInterface => [$tool::class => array_map($mapTool, $tool->tools())],
                 default => $tool->jsonSerialize(),
             }, $agent->getTools()),
             //'Messages' => $agent->resolveChatHistory()->getMessages(),
@@ -238,14 +250,14 @@ class AgentMonitoring implements \SplObserver
 
     protected function getBaseClassName(string $class): string
     {
-        return \substr(\strrchr($class, '\\'), 1);
+        return substr(strrchr($class, '\\'), 1);
     }
 
     protected function prepareMessageItem(Message $item): array
     {
         $item = $item->jsonSerialize();
         if (isset($item['attachments'])) {
-            $item['attachments'] = \array_map(function (array $attachment): array {
+            $item['attachments'] = array_map(function (array $attachment): array {
                 if ($attachment['content_type'] === AttachmentContentType::BASE64->value) {
                     unset($attachment['content']);
                 }

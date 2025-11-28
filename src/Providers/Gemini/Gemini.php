@@ -16,6 +16,9 @@ use NeuronAI\Providers\HttpClientOptions;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 
+use function array_filter;
+use function array_map;
+
 class Gemini implements AIProviderInterface
 {
     use HasGuzzleClient;
@@ -85,7 +88,7 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $message): Message
     {
-        $tools = \array_map(function (array $item): ?\NeuronAI\Tools\ToolInterface {
+        $tools = array_map(function (array $item): ?\NeuronAI\Tools\ToolInterface {
             if (!isset($item['functionCall'])) {
                 return null;
             }
@@ -98,7 +101,7 @@ class Gemini implements AIProviderInterface
 
         $result = new ToolCallMessage(
             $message['content'] ?? null,
-            \array_filter($tools)
+            array_filter($tools)
         );
         $result->setRole(MessageRole::MODEL);
 

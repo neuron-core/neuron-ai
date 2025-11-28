@@ -17,6 +17,8 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_EOL;
+
 class NeuronAITest extends TestCase
 {
     /**
@@ -41,7 +43,7 @@ class NeuronAITest extends TestCase
     public function test_system_instructions(): void
     {
         $system = new SystemPrompt(["Agent"]);
-        $this->assertEquals("# IDENTITY AND PURPOSE".\PHP_EOL."Agent", $system);
+        $this->assertEquals("# IDENTITY AND PURPOSE".PHP_EOL."Agent", $system);
 
         $agent = new class () extends Agent {
             public function instructions(): string

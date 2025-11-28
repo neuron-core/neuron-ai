@@ -6,6 +6,12 @@ namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\Message;
 
+use function array_merge;
+use function end;
+use function explode;
+use function preg_match;
+use function preg_replace;
+
 trait HandleStructured
 {
     public function structured(
@@ -13,10 +19,10 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): Message {
-        $tk = \explode('\\', $class);
-        $className = \end($tk);
+        $tk = explode('\\', $class);
+        $className = end($tk);
 
-        $this->parameters = \array_merge($this->parameters, [
+        $this->parameters = array_merge($this->parameters, [
             'response_format' => [
                 'type' => 'json_schema',
                 'json_schema' => [
@@ -33,11 +39,11 @@ trait HandleStructured
     protected function sanitizeClassName(string $name): string
     {
         // Remove anonymous class markers and special characters
-        $name = \preg_replace('/class@anonymous.*$/', 'anonymous', $name);
+        $name = preg_replace('/class@anonymous.*$/', 'anonymous', $name);
         // Replace any non-alphanumeric characters with underscore
-        $name = \preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) $name);
+        $name = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) $name);
         // Ensure it starts with a letter
-        if (\preg_match('/^[^a-zA-Z]/', (string) $name)) {
+        if (preg_match('/^[^a-zA-Z]/', (string) $name)) {
             return 'class_' . $name;
         }
         return $name;
