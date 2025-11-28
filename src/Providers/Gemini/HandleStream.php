@@ -69,19 +69,28 @@ trait HandleStream
             if ($this->hasToolCalls($line)) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
 
-                // Handle tool calls
+                // Gemini 2.5 includes the finish reason in the tool call message. Gemini 3 uses a separate message instead.
                 if (isset($line['candidates'][0]['finishReason']) && $line['candidates'][0]['finishReason'] === 'STOP') {
-                    yield from $executeToolsCallback(
-                        $this->createToolCallMessage([
-                            'content' => $text,
-                            'parts' => $toolCalls
-                        ])
-                    );
-
-                    return;
+                    goto toolcall;
                 }
 
                 continue;
+            }
+
+            if (
+                $toolCalls !== [] &&
+                isset($line['candidates'][0]['finishReason']) &&
+                $line['candidates'][0]['finishReason'] === 'STOP'
+            ) {
+                toolcall:
+                yield from $executeToolsCallback(
+                    $this->createToolCallMessage([
+                        'content' => $text,
+                        'parts' => $toolCalls
+                    ])
+                );
+
+                return;
             }
 
             // Process regular content

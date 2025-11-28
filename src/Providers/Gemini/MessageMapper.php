@@ -86,27 +86,35 @@ class MessageMapper implements MessageMapperInterface
             $parts[] = ['text' => $content];
         }
 
-        // Add function calls
-        $parts = [
-            ...$parts,
-            ...array_map(fn (ToolInterface $tool): array => [
+        $functionCalls = [];
+        foreach ($message->getTools() as $index => $tool) {
+            $part = [
                 'functionCall' => [
                     'name' => $tool->getName(),
                     'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new stdClass(),
                 ]
-            ], $message->getTools())
-        ];
+            ];
+
+            if ($index === 0 && $message->getMetadata('thoughtSignature')) {
+                $part['thoughtSignature'] = $message->getMetadata('thoughtSignature');
+            }
+
+            $functionCalls[] = $part;
+        }
 
         return [
-            'role' => MessageRole::MODEL->value,
-            'parts' => $parts
+            'role' => MessageRole::MODEL,
+            'parts' => [
+                ...$parts,
+                ...$functionCalls
+            ],
         ];
     }
 
     protected function mapToolsResult(ToolCallResultMessage $message): array
     {
         return [
-            'role' => MessageRole::USER->value,
+            'role' => MessageRole::USER,
             'parts' => array_map(fn (ToolInterface $tool): array => [
                 'functionResponse' => [
                     'name' => $tool->getName(),
