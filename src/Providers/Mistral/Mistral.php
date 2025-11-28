@@ -67,12 +67,14 @@ class Mistral extends OpenAI
                 continue;
             }
 
+            $choice = $line['choices'][0];
+
             // Compile tool calls
             if ($this->isToolCallPart($line)) {
                 $toolCalls = $this->composeToolCalls($line, $toolCalls);
 
                 // Handle tool calls
-                if ($line['choices'][0]['finish_reason'] === 'tool_calls') {
+                if ($choice['finish_reason'] === 'tool_calls') {
                     yield from $executeToolsCallback(
                         $this->createToolCallMessage([
                             'content' => $text,
@@ -85,8 +87,12 @@ class Mistral extends OpenAI
             }
 
             // Process regular content
-            $content = $line['choices'][0]['delta']['content'] ?? '';
-            $text .= $content;
+            $content = $choice['delta']['content'] ?? '';
+            if (\is_array($content) && $content['type'] === 'text') {
+                $text .= $content['text'];
+            } else {
+                $text .= $content;
+            }
 
             yield $content;
         }
