@@ -6,11 +6,11 @@ namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\Message;
 
-use function array_merge;
 use function end;
 use function explode;
 use function preg_match;
 use function preg_replace;
+use function array_replace_recursive;
 
 trait HandleStructured
 {

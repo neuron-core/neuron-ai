@@ -59,8 +59,6 @@ class MessageMapper implements MessageMapperInterface
                     throw new ProviderException('Ollama supports only base64 image type.');
                 }
                 $images[] = $block->content;
-            } else {
-                throw new ProviderException('This provider does not support '.$block::class.' content blocks.');
             }
         }
 
