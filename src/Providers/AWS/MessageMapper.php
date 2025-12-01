@@ -10,11 +10,11 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
 use function array_map;
 use function array_merge;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -71,28 +71,29 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        $blocks = array_map($this->mapContentBlock(...), $message->getContentBlocks());
-
         return [
             'role' => $message->getRole(),
-            'content' => array_merge($blocks, $toolCallContents),
+            'content' => array_merge($this->mapBlocks($message->getContentBlocks()), $toolCallContents),
         ];
     }
 
     protected function mapMessage(Message $message): array
     {
-        $contentBlocks = $message->getContentBlocks();
-
         return [
             'role' => $message->getRole(),
-            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
     }
 
     /**
-     * @throws ProviderException
+     * @param ContentBlockInterface[] $blocks
      */
-    protected function mapContentBlock(ContentBlockInterface $block): array
+    protected function mapBlocks(array $blocks): array
+    {
+        return array_filter(array_map($this->mapContentBlock(...), $blocks));
+    }
+
+    protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         if ($block instanceof ReasoningContent) {
             return ['text' => $block->content, 'signature' => $block->id];
@@ -102,6 +103,6 @@ class MessageMapper implements MessageMapperInterface
             return ['text' => $block->content];
         }
 
-        throw new ProviderException('Unsupported content block type: '.$block::class);
+        return null;
     }
 }

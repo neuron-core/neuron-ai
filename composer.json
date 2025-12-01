@@ -46,6 +46,10 @@
             "vendor/bin/phpstan analyse --memory-limit=1G -v"
         ],
         "format": [
+            "php-cs-fixer fix --allow-risky=yes",
+            "vendor/bin/rector"
+        ],
+        "style": [
             "php-cs-fixer fix --allow-risky=yes"
         ],
         "refactor": [

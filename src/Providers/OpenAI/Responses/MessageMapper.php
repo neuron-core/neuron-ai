@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -24,7 +23,6 @@ use function array_filter;
 use function array_map;
 use function array_merge;
 use function json_encode;
-use function uniqid;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -51,33 +49,33 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapMessage(Message $message): void
     {
-        $payload['role'] = $message->getRole();
-        $contentBlocks = $message->getContentBlocks();
-
-        // Map content blocks to the provider format
-        $payload['content'] = $this->mapContentBlocks($contentBlocks, $this->isUserMessage($message));
-
-        $this->mapping[] = $payload;
+        $this->mapping[] = [
+            'role' => $message->getRole(),
+            'content' => $this->mapBlocks($message->getContentBlocks(), $this->isUserMessage($message)),
+        ];
     }
 
     /**
      * @param ContentBlockInterface[] $blocks
-     * @throws ProviderException
      */
-    protected function mapContentBlocks(array $blocks, bool $isUser): array
+    protected function mapBlocks(array $blocks, bool $isUser): array
     {
-        $blocks = array_filter($blocks, fn (ContentBlockInterface $block): bool => !$block instanceof ReasoningContent);
-        return array_map(fn (ContentBlockInterface $block): array => match ($block::class) {
+        return array_filter(array_map(
+            fn(ContentBlockInterface $item): ?array => $this->mapContentBlock($item, $isUser),
+            $blocks
+        ));
+    }
+
+    protected function mapContentBlock(ContentBlockInterface $block, bool $isUser): ?array
+    {
+        return match ($block::class) {
             TextContent::class => $this->mapTextBlock($block, $isUser),
             FileContent::class => $this->mapFileBlock($block),
             ImageContent::class => $this->mapImageBlock($block),
-            default => throw new ProviderException('OpenAI does not support content block type: '.$block::class),
-        }, $blocks);
+            default => null
+        };
     }
 
     protected function mapTextBlock(TextContent $block, bool $forUser): array
@@ -115,14 +113,11 @@ class MessageMapper implements MessageMapperInterface
         return $message instanceof UserMessage || $message->getRole() === MessageRole::USER->value;
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapToolCall(ToolCallMessage $message): void
     {
         // Add content blocks if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $this->mapping = array_merge($this->mapping, $this->mapContentBlocks($contentBlocks, false));
+            $this->mapping = array_merge($this->mapping, $this->mapBlocks($contentBlocks, false));
         }
 
         // Add function call items

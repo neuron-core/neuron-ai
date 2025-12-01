@@ -23,6 +23,7 @@ use NeuronAI\Tools\ToolInterface;
 use function array_map;
 use function uniqid;
 use function json_encode;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -48,12 +49,15 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): void
     {
-        $contentBlocks = $message->getContentBlocks();
-
         $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
+    }
+
+    protected function mapBlocks(array $blocks): array
+    {
+        return array_filter(array_map($this->mapContentBlock(...), $blocks));
     }
 
     /**
@@ -121,9 +125,9 @@ class MessageMapper implements MessageMapperInterface
             ], $message->getTools())
         ];
 
-        $content = array_map($this->mapContentBlock(...), $message->getContentBlocks());
-        if ($content !== []) {
-            $item['content'] = $content;
+        $contents = $this->mapBlocks($message->getContentBlocks());
+        if ($contents !== []) {
+            $item['content'] = $contents;
         }
 
         $this->mapping[] = $item;

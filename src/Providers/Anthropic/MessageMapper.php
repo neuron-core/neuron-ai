@@ -23,6 +23,7 @@ use stdClass;
 
 use function array_map;
 use function array_values;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -46,15 +47,18 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): array
     {
-        $contentBlocks = $message->getContentBlocks();
-
         return [
             'role' => $message->getRole(),
-            'content' => array_map($this->mapContentBlock(...), $contentBlocks)
+            'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
     }
 
-    protected function mapContentBlock(ContentBlockInterface $block): array
+    protected function mapBlocks(array $blocks): array
+    {
+        return array_filter(array_map($this->mapSingleBlock(...), $blocks));
+    }
+
+    protected function mapSingleBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
             TextContent::class => [
@@ -68,7 +72,7 @@ class MessageMapper implements MessageMapperInterface
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),
-            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            default => null,
         };
     }
 
@@ -120,7 +124,7 @@ class MessageMapper implements MessageMapperInterface
 
         // Add text content if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = array_map($this->mapContentBlock(...), $contentBlocks);
+            $parts = array_map($this->mapSingleBlock(...), $contentBlocks);
         }
 
         // Add tool call blocks from the tool array
@@ -148,7 +152,7 @@ class MessageMapper implements MessageMapperInterface
         ], $message->getTools());
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = [...$parts, ...array_map($this->mapContentBlock(...), $contentBlocks)];
+            $parts = [...$parts, ...$this->mapBlocks($contentBlocks)];
         }
 
         return [

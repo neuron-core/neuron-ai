@@ -143,9 +143,6 @@ class Agent extends Workflow implements AgentInterface
      * Stream agent responses, optionally through a protocol adapter.
      *
      * @param Message|Message[] $messages
-     * @param InterruptRequest|null $interrupt
-     * @param StreamAdapterInterface|null $adapter
-     * @return Generator
      * @throws InspectorException
      * @throws Throwable
      * @throws WorkflowException
@@ -183,10 +180,6 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @param string|null $class
-     * @param int $maxRetries
-     * @param InterruptRequest|null $interrupt
-     * @return mixed
      * @throws AgentException
      * @throws InspectorException
      * @throws Throwable

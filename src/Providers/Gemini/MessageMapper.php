@@ -24,7 +24,7 @@ use NeuronAI\Tools\ToolInterface;
 use stdClass;
 
 use function array_map;
-use function array_values;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -51,15 +51,18 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessage(Message $message): array
     {
-        $contentBlocks = $message->getContentBlocks();
-
         return [
             'role' => $message->getRole() === MessageRole::ASSISTANT->value ? MessageRole::MODEL : $message->getRole(),
-            'parts' => array_map($this->mapContentBlock(...), $contentBlocks)
+            'parts' => $this->mapBlocks($message->getContentBlocks()),
         ];
     }
 
-    protected function mapContentBlock(ContentBlockInterface $block): array
+    protected function mapBlocks(array $blocks): array
+    {
+        return array_filter(array_map($this->mapContentBlock(...), $blocks));
+    }
+
+    protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
             TextContent::class => [
@@ -73,7 +76,7 @@ class MessageMapper implements MessageMapperInterface
             FileContent::class,
             AudioContent::class,
             VideoContent::class => $this->mapMediaBlock($block),
-            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            default => null
         };
     }
 
@@ -100,7 +103,7 @@ class MessageMapper implements MessageMapperInterface
         $parts = [];
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = array_map($this->mapContentBlock(...), $contentBlocks);
+            $parts = $this->mapBlocks($contentBlocks);
         }
 
         foreach ($message->getTools() as $index => $tool) {
@@ -137,12 +140,12 @@ class MessageMapper implements MessageMapperInterface
         ], $message->getTools());
 
         if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = [...$parts, ...array_map($this->mapContentBlock(...), $contentBlocks)];
+            $parts = [...$parts, ...$this->mapBlocks($contentBlocks)];
         }
 
         return [
             'role' => MessageRole::USER,
-            'parts' => array_values($parts),
+            'parts' => $parts,
         ];
     }
 }
