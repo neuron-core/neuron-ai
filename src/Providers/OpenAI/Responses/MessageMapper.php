@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -64,9 +63,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapBlocks(array $blocks, bool $isUser): array
     {
         return array_filter(array_map(
-            function (ContentBlockInterface $item) use ($isUser): ?array {
-                return $this->mapContentBlock($item, $isUser);
-            },
+            fn(ContentBlockInterface $item): ?array => $this->mapContentBlock($item, $isUser),
             $blocks
         ));
     }

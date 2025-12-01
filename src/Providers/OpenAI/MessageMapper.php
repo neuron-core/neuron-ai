@@ -21,6 +21,7 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function json_encode;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {

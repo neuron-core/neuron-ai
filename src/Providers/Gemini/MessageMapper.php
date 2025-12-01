@@ -24,7 +24,7 @@ use NeuronAI\Tools\ToolInterface;
 use stdClass;
 
 use function array_map;
-use function array_values;
+use function array_filter;
 
 class MessageMapper implements MessageMapperInterface
 {
