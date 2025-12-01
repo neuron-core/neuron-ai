@@ -63,7 +63,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapBlocks(array $blocks, bool $isUser): array
     {
         return array_filter(array_map(
-            fn(ContentBlockInterface $item): ?array => $this->mapContentBlock($item, $isUser),
+            fn (ContentBlockInterface $item): ?array => $this->mapContentBlock($item, $isUser),
             $blocks
         ));
     }
