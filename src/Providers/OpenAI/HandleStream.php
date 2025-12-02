@@ -78,6 +78,7 @@ trait HandleStream
             // Compile tool calls
             if (isset($choice['delta']['tool_calls'])) {
                 $this->streamState->composeToolCalls($line);
+                $this->processToolCallDelta($choice);
 
                 if ($this->finishForToolCall($choice)) {
                     goto toolcall;
@@ -89,10 +90,16 @@ trait HandleStream
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
                 toolcall:
-                return $this->createToolCallMessage(
+                $this->processToolCallDelta($choice);
+                $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()
-                )->setUsage($this->streamState->getUsage());
+                );
+                $message->setUsage($this->streamState->getUsage());
+
+                $this->addMessageMetadata($message);
+
+                return $message;
             }
 
             // Process regular content
@@ -100,10 +107,15 @@ trait HandleStream
                 $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
                 yield new TextChunk($this->streamState->messageId(), $content);
             }
+
+            // Process provider-specific delta content
+            $this->processContentDelta($choice);
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
+
+        $this->addMessageMetadata($message);
 
         return $message;
     }
@@ -111,5 +123,32 @@ trait HandleStream
     protected function finishForToolCall(array $choice): bool
     {
         return isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls';
+    }
+
+    /**
+     * Streaming Hook. Override in child classes to handle provider-specific fields.
+     *
+     * @param array $choice The current choice from the stream
+     */
+    protected function processToolCallDelta(array $choice): void
+    {
+        // ...
+    }
+
+    /**
+     * Streaming Hook. Override in child classes to handle provider-specific fields.
+     *
+     * @param array $choice The current choice from the stream
+     */
+    protected function processContentDelta(array $choice): void
+    {
+        // ...
+    }
+
+    protected function addMessageMetadata(Message $message): void
+    {
+        foreach ($this->streamState->getMetadata() as $key => $value) {
+            $message->addMetadata($key, $value);
+        }
     }
 }

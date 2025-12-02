@@ -54,4 +54,24 @@ class Deepseek extends OpenAI
 
         return $message;
     }
+
+    /**
+     * Process Deepseek-specific delta content for tool calls (reasoning_content).
+     */
+    protected function processToolCallDelta(array $choice): void
+    {
+        if (isset($choice['delta']['reasoning_content'])) {
+            $this->streamState->accumulateMetadata('reasoning_content', $choice['delta']['reasoning_content']);
+        }
+    }
+
+    /**
+     * Process Deepseek-specific delta content for assistant messages (reasoning_content).
+     */
+    protected function processContentDelta(array $choice): void
+    {
+        if (isset($choice['delta']['reasoning_content'])) {
+            $this->streamState->accumulateMetadata('reasoning_content', $choice['delta']['reasoning_content']);
+        }
+    }
 }
