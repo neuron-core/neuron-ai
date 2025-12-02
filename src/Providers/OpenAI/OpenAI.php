@@ -113,10 +113,6 @@ class OpenAI implements AIProviderInterface
     /**
      * Hook for enriching messages with provider-specific data.
      * Override in child classes to add metadata like reasoning_content.
-     *
-     * Context available:
-     * - For chat: `$this->lastApiResponse` contains the full API response
-     * - For streaming: `$this->streamState->getMetadata()` contains accumulated metadata
      */
     protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
     {

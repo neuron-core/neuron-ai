@@ -54,10 +54,7 @@ trait HandleChat
                         new TextContent($result['choices'][0]['message']['content'])
                     );
                 } else {
-                    $response = $this->enrichMessage(
-                        new AssistantMessage($result['choices'][0]['message']['content']),
-                        $result
-                    );
+                    $response = new AssistantMessage($result['choices'][0]['message']['content']);
                 }
 
                 if (isset($result['usage'])) {
@@ -79,7 +76,7 @@ trait HandleChat
                     }
                 }
 
-                return $response;
+                return $this->enrichMessage($response, $result);
             });
     }
 }
