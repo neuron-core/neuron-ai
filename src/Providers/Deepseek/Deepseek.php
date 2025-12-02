@@ -41,13 +41,13 @@ class Deepseek extends OpenAI
 
     protected function createToolCallMessage(array $message): ToolCallMessage
     {
-        $message = parent::createToolCallMessage($message);
+        $result = parent::createToolCallMessage($message);
 
         if (isset($message['reasoning_content'])) {
-            $message->addMetadata('reasoning_content', $message['reasoning_content']);
+            $result->addMetadata('reasoning_content', $message['reasoning_content']);
         }
 
-        return $message;
+        return $result;
     }
 
     protected function createAssistantMessage(array $response): AssistantMessage

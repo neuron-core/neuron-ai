@@ -58,6 +58,7 @@ trait HandleStream
 
         $text = '';
         $toolCalls = [];
+        $reasoning = '';
 
         while (! $stream->eof()) {
             if (!$line = $this->parseNextDataLine($stream)) {
@@ -106,7 +107,14 @@ trait HandleStream
             $content = $choice['delta']['content'] ?? '';
             $text .= $content;
 
-            yield $content;
+            // Deepseek reasoner compatibility
+            // https://api-docs.deepseek.com/api/create-chat-completion
+            if (empty($content) && isset($choice['delta']['reasoning_content'])) {
+                $reasoning .= $choice['delta']['reasoning_content'];
+                yield $reasoning;
+            } else {
+                yield $content;
+            }
         }
     }
 
