@@ -32,15 +32,4 @@ class MessageMapper extends OpenAIMessageMapper
 
         return $result;
     }
-
-    protected function mapToolsResult(ToolCallResultMessage $message): array
-    {
-        $result = parent::mapToolsResult($message);
-
-        if ($message->getMetadata('reasoning_content')) {
-            $result['reasoning_content'] = $message->getMetadata('reasoning_content');
-        }
-
-        return $result;
-    }
 }
