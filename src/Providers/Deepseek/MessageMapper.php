@@ -6,7 +6,6 @@ namespace NeuronAI\Providers\Deepseek;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
 class MessageMapper extends OpenAIMessageMapper
