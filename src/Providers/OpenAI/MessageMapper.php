@@ -20,6 +20,8 @@ use NeuronAI\Providers\MessageMapperInterface;
 use function array_key_exists;
 use function is_string;
 use function uniqid;
+use function array_is_list;
+use function array_merge;
 
 class MessageMapper implements MessageMapperInterface
 {

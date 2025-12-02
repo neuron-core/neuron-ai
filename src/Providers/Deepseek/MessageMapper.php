@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Deepseek;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
-use \NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
+use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
 class MessageMapper extends OpenAIMessageMapper
 {

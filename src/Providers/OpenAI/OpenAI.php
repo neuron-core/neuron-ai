@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\HasGuzzleClient;
