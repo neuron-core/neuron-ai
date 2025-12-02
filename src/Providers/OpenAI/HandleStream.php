@@ -112,10 +112,9 @@ trait HandleStream
             // https://api-docs.deepseek.com/api/create-chat-completion
             if (empty($content) && isset($choice['delta']['reasoning_content'])) {
                 $reasoning .= $choice['delta']['reasoning_content'];
-                yield $reasoning;
-            } else {
-                yield $content;
             }
+
+            yield $content;
         }
     }
 
