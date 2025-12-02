@@ -33,7 +33,7 @@ class MessageMapper implements MessageMapperInterface
         $this->mapping = [];
 
         foreach ($messages as $message) {
-            match ($message::class) {
+            $item = match ($message::class) {
                 Message::class,
                 UserMessage::class,
                 AssistantMessage::class => $this->mapMessage($message),
@@ -41,6 +41,12 @@ class MessageMapper implements MessageMapperInterface
                 ToolCallResultMessage::class => $this->mapToolsResult($message),
                 default => throw new ProviderException('Could not map message type '.$message::class),
             };
+
+            if (array_is_list($item)) {
+                $this->mapping = array_merge($this->mapping, $item);
+            } else {
+                $this->mapping[] = $item;
+            }
         }
 
         return $this->mapping;
@@ -49,7 +55,7 @@ class MessageMapper implements MessageMapperInterface
     /**
      * @throws ProviderException
      */
-    protected function mapMessage(Message $message): void
+    protected function mapMessage(Message $message): array
     {
         $payload = $message->jsonSerialize();
 
@@ -59,7 +65,7 @@ class MessageMapper implements MessageMapperInterface
 
         $attachments = $message->getAttachments();
 
-        if (is_string($payload['content']) && $attachments) {
+        if (is_string($payload['content'])) {
             $payload['content'] = [
                 [
                     'type' => 'text',
@@ -72,7 +78,7 @@ class MessageMapper implements MessageMapperInterface
             if ($attachment instanceof Document) {
                 if ($attachment->contentType === AttachmentContentType::URL) {
                     // OpenAI does not support URL type
-                    throw new ProviderException('This provider does not support URL document attachments.');
+                    throw new ProviderException('OpenAI does not support URL document attachments.');
                 }
 
                 $payload['content'][] = $this->mapDocumentAttachment($attachment);
@@ -83,7 +89,7 @@ class MessageMapper implements MessageMapperInterface
 
         unset($payload['attachments']);
 
-        $this->mapping[] = $payload;
+        return $payload;
     }
 
     public function mapDocumentAttachment(Document $document): array
@@ -115,7 +121,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapToolCall(ToolCallMessage $message): void
+    protected function mapToolCall(ToolCallMessage $message): array
     {
         $message = $message->jsonSerialize();
 
@@ -126,17 +132,21 @@ class MessageMapper implements MessageMapperInterface
         unset($message['type']);
         unset($message['tools']);
 
-        $this->mapping[] = $message;
+        return $message;
     }
 
-    protected function mapToolsResult(ToolCallResultMessage $message): void
+    protected function mapToolsResult(ToolCallResultMessage $message): array
     {
+        $items = [];
+
         foreach ($message->getTools() as $tool) {
-            $this->mapping[] = [
+            $items[] = [
                 'role' => MessageRole::TOOL->value,
                 'tool_call_id' => $tool->getCallId(),
                 'content' => $tool->getResult()
             ];
         }
+
+        return $items;
     }
 }

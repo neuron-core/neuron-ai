@@ -48,7 +48,7 @@ trait HandleChat
                 if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
                     $response = $this->createToolCallMessage($result['choices'][0]['message']);
                 } else {
-                    $response = new AssistantMessage($result['choices'][0]['message']['content']);
+                    $response = $this->createAssistantMessage($result);
                 }
 
                 if (array_key_exists('usage', $result)) {
@@ -59,5 +59,10 @@ trait HandleChat
 
                 return $response;
             });
+    }
+
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        return new AssistantMessage($response['choices'][0]['message']['content']);
     }
 }

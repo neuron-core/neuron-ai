@@ -87,7 +87,7 @@ class OpenAI implements AIProviderInterface
      * @param array<string, mixed> $message
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $message): Message
+    protected function createToolCallMessage(array $message): ToolCallMessage
     {
         $tools = array_map(
             fn (array $item): ToolInterface => $this->findTool($item['function']['name'])

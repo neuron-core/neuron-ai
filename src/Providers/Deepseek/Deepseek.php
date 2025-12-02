@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Deepseek;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 use function array_merge;
@@ -35,5 +37,27 @@ class Deepseek extends OpenAI
             .'Generate a json respecting this schema: '.json_encode($response_format);
 
         return $this->chat($messages);
+    }
+
+    protected function createToolCallMessage(array $message): ToolCallMessage
+    {
+        $message = parent::createToolCallMessage($message);
+
+        if (isset($message['reasoning_content'])) {
+            $message->addMetadata('reasoning_content', $message['reasoning_content']);
+        }
+
+        return $message;
+    }
+
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        $message = parent::createAssistantMessage($response);
+
+        if (isset($response['choices'][0]['message']['reasoning_content'])) {
+            $message->addMetadata('reasoning_content', $response['choices'][0]['message']['reasoning_content']);
+        }
+
+        return $message;
     }
 }
