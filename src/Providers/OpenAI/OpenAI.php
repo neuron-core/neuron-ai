@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -104,8 +105,31 @@ class OpenAI implements AIProviderInterface
 
         $result = new ToolCallMessage($blocks, $tools);
         $result->addMetadata('tool_calls', $toolCalls);
+        $this->enrichMessage($result);
 
         return $result;
+    }
+
+    /**
+     * Hook for enriching messages with provider-specific data.
+     * Override in child classes to add metadata like reasoning_content.
+     *
+     * Context available:
+     * - For chat: `$this->lastApiResponse` contains the full API response
+     * - For streaming: `$this->streamState->getMetadata()` contains accumulated metadata
+     */
+    protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
+    {
+        // Apply any accumulated streaming metadata if available
+        if (isset($this->streamState)) {
+            foreach ($this->streamState->getMetadata() as $key => $value) {
+                if ($message->getMetadata($key) === null) {
+                    $message->addMetadata($key, $value);
+                }
+            }
+        }
+
+        return $message;
     }
 
     /**
@@ -114,7 +138,7 @@ class OpenAI implements AIProviderInterface
      * @param array<int, array<string, mixed>> $annotations
      * @return Citation[]
      */
-    protected function extractCitations(string $text, array $annotations): array
+    protected function extractCitations(array $annotations): array
     {
         $citations = [];
 

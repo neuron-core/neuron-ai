@@ -48,12 +48,16 @@ trait HandleChat
                 $result = json_decode($response->getBody()->getContents(), true);
 
                 if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
+                    // createToolCallMessage already calls enrichMessage
                     $response = $this->createToolCallMessage(
                         $result['choices'][0]['message']['tool_calls'],
                         new TextContent($result['choices'][0]['message']['content'])
                     );
                 } else {
-                    $response = new AssistantMessage($result['choices'][0]['message']['content']);
+                    $response = $this->enrichMessage(
+                        new AssistantMessage($result['choices'][0]['message']['content']),
+                        $result
+                    );
                 }
 
                 if (isset($result['usage'])) {
@@ -67,7 +71,7 @@ trait HandleChat
                 if (isset($message['content']) && is_array($message['content'])) {
                     foreach ($message['content'] as $contentBlock) {
                         if (isset($contentBlock['annotations']) && is_array($contentBlock['annotations'])) {
-                            $citations = $this->extractCitations($contentBlock['text'] ?? '', $contentBlock['annotations']);
+                            $citations = $this->extractCitations($contentBlock['annotations']);
                             if (!empty($citations)) {
                                 $response->addMetadata('citations', $citations);
                             }

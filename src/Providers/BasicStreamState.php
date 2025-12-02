@@ -21,6 +21,11 @@ class BasicStreamState
      */
     protected array $blocks = [];
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $metadata = [];
+
     public function __construct(
         protected Usage $usage = new Usage(0, 0),
     ) {
@@ -72,5 +77,35 @@ class BasicStreamState
     public function getToolCalls(): array
     {
         return $this->toolCalls;
+    }
+
+    public function addMetadata(string $key, mixed $value): self
+    {
+        $this->metadata[$key] = $value;
+        return $this;
+    }
+
+    public function accumulateMetadata(string $key, string $value): self
+    {
+        if (!isset($this->metadata[$key])) {
+            $this->metadata[$key] = '';
+        }
+
+        $this->metadata[$key] .= $value;
+        return $this;
+    }
+
+    public function getMetadata(?string $key = null): mixed
+    {
+        if ($key === null) {
+            return $this->metadata;
+        }
+
+        return $this->metadata[$key] ?? null;
+    }
+
+    public function hasMetadata(string $key): bool
+    {
+        return isset($this->metadata[$key]);
     }
 }

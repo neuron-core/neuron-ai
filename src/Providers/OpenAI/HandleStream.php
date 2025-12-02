@@ -78,6 +78,7 @@ trait HandleStream
             // Compile tool calls
             if (isset($choice['delta']['tool_calls'])) {
                 $this->streamState->composeToolCalls($line);
+                $this->processToolCallDelta($choice);
 
                 if ($this->finishForToolCall($choice)) {
                     goto toolcall;
@@ -89,10 +90,14 @@ trait HandleStream
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
                 toolcall:
-                return $this->createToolCallMessage(
+                $this->processToolCallDelta($choice);
+                $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()
-                )->setUsage($this->streamState->getUsage());
+                );
+                $message->setUsage($this->streamState->getUsage());
+
+                return $message;
             }
 
             // Process regular content
@@ -100,9 +105,13 @@ trait HandleStream
                 $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
                 yield new TextChunk($this->streamState->messageId(), $content);
             }
+
+            // Process provider-specific delta content
+            $this->processContentDelta($choice);
         }
 
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        // "enrichMessage" applies streamState metadata
+        $message = $this->enrichMessage(new AssistantMessage($this->streamState->getContentBlocks()));
         $message->setUsage($this->streamState->getUsage());
 
         return $message;
@@ -111,5 +120,25 @@ trait HandleStream
     protected function finishForToolCall(array $choice): bool
     {
         return isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls';
+    }
+
+    /**
+     * Streaming Hook. Override in child classes to handle provider-specific fields.
+     * Called when processing tool call deltas. Use streamState->accumulateMetadata()
+     * to store provider-specific data that will be available in enrichMessage().
+     */
+    protected function processToolCallDelta(array $choice): void
+    {
+        // ...
+    }
+
+    /**
+     * Streaming Hook. Override in child classes to handle provider-specific fields.
+     * Called when processing content deltas. Use streamState->accumulateMetadata()
+     * to store provider-specific data that will be available in enrichMessage().
+     */
+    protected function processContentDelta(array $choice): void
+    {
+        // ...
     }
 }

@@ -22,6 +22,8 @@ use NeuronAI\Tools\ToolInterface;
 use function array_map;
 use function json_encode;
 use function array_filter;
+use function array_is_list;
+use function array_merge;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -32,22 +34,28 @@ class MessageMapper implements MessageMapperInterface
         $this->mapping = [];
 
         foreach ($messages as $message) {
-            match ($message::class) {
+            $item = match ($message::class) {
                 Message::class,
                 UserMessage::class,
                 AssistantMessage::class => $this->mapMessage($message),
                 ToolCallMessage::class => $this->mapToolCall($message),
                 ToolResultMessage::class => $this->mapToolsResult($message),
-                default => throw new ProviderException('Could not map message type '.$message::class),
+                default => throw new ProviderException('Unknown message type '.$message::class),
             };
+
+            if (array_is_list($item)) {
+                $this->mapping = array_merge($this->mapping, $item);
+            } else {
+                $this->mapping[] = $item;
+            }
         }
 
         return $this->mapping;
     }
 
-    protected function mapMessage(Message $message): void
+    protected function mapMessage(Message $message): array
     {
-        $this->mapping[] = [
+        return [
             'role' => $message->getRole(),
             'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
@@ -61,7 +69,7 @@ class MessageMapper implements MessageMapperInterface
     /**
      * @throws ProviderException
      */
-    protected function mapContentBlock(ContentBlockInterface $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
             TextContent::class => [
@@ -70,7 +78,7 @@ class MessageMapper implements MessageMapperInterface
             ],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),
-            default => throw new ProviderException('Unsupported content block type: '.$block::class),
+            default => null,
         };
     }
 
@@ -92,7 +100,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapFileBlock(FileContent $block): array
     {
         if ($block->sourceType === SourceType::URL) {
-            throw new ProviderException('This provider does not support URL document attachments.');
+            throw new ProviderException('OpenAI does not support URL document attachments.');
         }
 
         return [
@@ -104,7 +112,7 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapToolCall(ToolCallMessage $message): void
+    protected function mapToolCall(ToolCallMessage $message): array
     {
         $item = [
             'role' => MessageRole::ASSISTANT,
@@ -123,17 +131,15 @@ class MessageMapper implements MessageMapperInterface
             $item['content'] = $content;
         }
 
-        $this->mapping[] = $item;
+        return $item;
     }
 
-    protected function mapToolsResult(ToolResultMessage $message): void
+    protected function mapToolsResult(ToolResultMessage $message): array
     {
-        foreach ($message->getTools() as $tool) {
-            $this->mapping[] = [
-                'role' => MessageRole::TOOL,
-                'tool_call_id' => $tool->getCallId(),
-                'content' => $tool->getResult()
-            ];
-        }
+        return array_map(fn (ToolInterface $tool): array => [
+            'role' => MessageRole::TOOL,
+            'tool_call_id' => $tool->getCallId(),
+            'content' => $tool->getResult()
+        ], $message->getTools());
     }
 }
