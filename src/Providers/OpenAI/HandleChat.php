@@ -48,11 +48,10 @@ trait HandleChat
                 $result = json_decode($response->getBody()->getContents(), true);
 
                 if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
-                    // createToolCallMessage already calls enrichMessage
-                    $response = $this->createToolCallMessage(
-                        $result['choices'][0]['message']['tool_calls'],
-                        new TextContent($result['choices'][0]['message']['content'])
-                    );
+                    $block = isset($result['choices'][0]['message']['content'])
+                        ? new TextContent($result['choices'][0]['message']['content'])
+                        : null;
+                    $response = $this->createToolCallMessage($result['choices'][0]['message']['tool_calls'], $block);
                 } else {
                     $response = new AssistantMessage($result['choices'][0]['message']['content']);
                 }
