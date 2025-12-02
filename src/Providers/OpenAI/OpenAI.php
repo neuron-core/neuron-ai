@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use GuzzleHttp\Client;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\HasGuzzleClient;
@@ -118,7 +118,7 @@ class OpenAI implements AIProviderInterface
      * - For chat: `$this->lastApiResponse` contains the full API response
      * - For streaming: `$this->streamState->getMetadata()` contains accumulated metadata
      */
-    protected function enrichMessage(Message $message, ?array $response = null): Message
+    protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
     {
         // Apply any accumulated streaming metadata if available
         if (isset($this->streamState)) {

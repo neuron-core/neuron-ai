@@ -48,7 +48,7 @@ class Deepseek extends OpenAI
      * Enrich messages with Deepseek-specific reasoning_content.
      * Works for both chat and streaming contexts.
      */
-    protected function enrichMessage(Message $message, ?array $response = null): Message
+    protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
     {
         // First apply parent enrichMessage (handles streaming metadata)
         $message = parent::enrichMessage($message);
