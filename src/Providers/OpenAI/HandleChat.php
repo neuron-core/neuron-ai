@@ -55,7 +55,7 @@ trait HandleChat
                     );
                 } else {
                     $response = $this->enrichMessage(
-                        new AssistantMessage($response['choices'][0]['message']['content']),
+                        new AssistantMessage($result['choices'][0]['message']['content']),
                         $result
                     );
                 }
