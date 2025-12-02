@@ -55,7 +55,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi']
+                    ],
                 ],
             ],
         ];
@@ -246,7 +248,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi']
+                    ],
                 ],
             ],
             'tools' => [
@@ -315,7 +319,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi']
+                    ],
                 ],
             ],
             'tools' => [
@@ -383,7 +389,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi']
+                    ],
                 ],
             ],
             'tools' => [
@@ -457,7 +465,9 @@ class OpenAITest extends TestCase
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Hi',
+                    'content' => [
+                        ['type' => 'text', 'text' => 'Hi']
+                    ],
                 ],
             ],
             'tools' => [
