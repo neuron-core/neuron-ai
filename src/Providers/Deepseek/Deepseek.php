@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Deepseek;
 
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 use function array_merge;
@@ -15,6 +16,11 @@ use const PHP_EOL;
 class Deepseek extends OpenAI
 {
     protected string $baseUri = "https://api.deepseek.com/v1";
+
+    public function messageMapper(): MessageMapperInterface
+    {
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+    }
 
     /**
      * @param array<string, mixed> $response_format

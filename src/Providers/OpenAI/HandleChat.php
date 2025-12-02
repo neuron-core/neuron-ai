@@ -53,7 +53,7 @@ trait HandleChat
                         new TextContent($result['choices'][0]['message']['content'])
                     );
                 } else {
-                    $response = new AssistantMessage($result['choices'][0]['message']['content']);
+                    $response = $this->createAssistantMessage($result);
                 }
 
                 if (isset($result['usage'])) {
@@ -77,5 +77,10 @@ trait HandleChat
 
                 return $response;
             });
+    }
+
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        return new AssistantMessage($response['choices'][0]['message']['content']);
     }
 }
