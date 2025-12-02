@@ -44,13 +44,25 @@ class Deepseek extends OpenAI
         return $this->chat($messages);
     }
 
-    protected function createAssistantMessage(array $response): AssistantMessage
+    /**
+     * Enrich messages with Deepseek-specific reasoning_content.
+     * Works for both chat and streaming contexts.
+     */
+    protected function enrichMessage(Message $message, ?array $response = null): Message
     {
-        $message = parent::createAssistantMessage($response);
+        // First apply parent enrichMessage (handles streaming metadata)
+        $message = parent::enrichMessage($message);
 
+        // For chat context: extract reasoning_content from API response
         if (isset($response['choices'][0]['message']['reasoning_content'])) {
-            $message->addMetadata('reasoning_content', $response['choices'][0]['message']['reasoning_content']);
+            $reasoningContent = $response['choices'][0]['message']['reasoning_content'];
+            if ($message->getMetadata('reasoning_content') === null) {
+                $message->addMetadata('reasoning_content', $reasoningContent);
+            }
         }
+
+        // For streaming: metadata is already applied by parent::enrichMessage()
+        // via processContentDelta() and processToolCallDelta()
 
         return $message;
     }

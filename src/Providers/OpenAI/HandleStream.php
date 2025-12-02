@@ -97,8 +97,6 @@ trait HandleStream
                 );
                 $message->setUsage($this->streamState->getUsage());
 
-                $this->addMessageMetadata($message);
-
                 return $message;
             }
 
@@ -112,10 +110,9 @@ trait HandleStream
             $this->processContentDelta($choice);
         }
 
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        // "enrichMessage" applies streamState metadata
+        $message = $this->enrichMessage(new AssistantMessage($this->streamState->getContentBlocks()));
         $message->setUsage($this->streamState->getUsage());
-
-        $this->addMessageMetadata($message);
 
         return $message;
     }
@@ -127,8 +124,8 @@ trait HandleStream
 
     /**
      * Streaming Hook. Override in child classes to handle provider-specific fields.
-     *
-     * @param array $choice The current choice from the stream
+     * Called when processing tool call deltas. Use streamState->accumulateMetadata()
+     * to store provider-specific data that will be available in enrichMessage().
      */
     protected function processToolCallDelta(array $choice): void
     {
@@ -137,18 +134,11 @@ trait HandleStream
 
     /**
      * Streaming Hook. Override in child classes to handle provider-specific fields.
-     *
-     * @param array $choice The current choice from the stream
+     * Called when processing content deltas. Use streamState->accumulateMetadata()
+     * to store provider-specific data that will be available in enrichMessage().
      */
     protected function processContentDelta(array $choice): void
     {
         // ...
-    }
-
-    protected function addMessageMetadata(Message $message): void
-    {
-        foreach ($this->streamState->getMetadata() as $key => $value) {
-            $message->addMetadata($key, $value);
-        }
     }
 }
