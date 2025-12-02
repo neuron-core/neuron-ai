@@ -96,6 +96,7 @@ trait HandleStream
                     $this->streamState->getContentBlocks()
                 );
                 $message->setUsage($this->streamState->getUsage());
+                $this->enrichMessage($message);
 
                 return $message;
             }
@@ -111,8 +112,9 @@ trait HandleStream
         }
 
         // "enrichMessage" applies streamState metadata
-        $message = $this->enrichMessage(new AssistantMessage($this->streamState->getContentBlocks()));
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
+        $this->enrichMessage($message);
 
         return $message;
     }
