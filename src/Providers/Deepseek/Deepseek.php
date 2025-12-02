@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Deepseek;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
@@ -41,5 +42,16 @@ class Deepseek extends OpenAI
             .'Generate a json respecting this schema: '.json_encode($response_format);
 
         return $this->chat($messages);
+    }
+
+    protected function createAssistantMessage(array $response): AssistantMessage
+    {
+        $message = parent::createAssistantMessage($response);
+
+        if (isset($response['choices'][0]['message']['reasoning_content'])) {
+            $message->addMetadata('reasoning_content', $response['choices'][0]['message']['reasoning_content']);
+        }
+
+        return $message;
     }
 }
