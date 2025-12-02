@@ -96,6 +96,7 @@ trait HandleStream
                 yield from $executeToolsCallback(
                     $this->createToolCallMessage([
                         'content' => $text,
+                        'reasoning_content' => $reasoning,
                         'tool_calls' => $toolCalls
                     ])
                 );
