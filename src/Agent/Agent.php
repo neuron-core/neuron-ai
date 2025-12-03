@@ -43,7 +43,7 @@ class Agent extends Workflow implements AgentInterface
 
     protected function instructions(): string
     {
-        return 'Your are a helpful and friendly AI agent built with Neuron PHP framework.';
+        return 'Your are a helpful and friendly AI agent built with Neuron AI PHP agentic framework.';
     }
 
     public function setInstructions(string $instructions): self
