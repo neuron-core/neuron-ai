@@ -7,8 +7,10 @@ namespace NeuronAI\Providers\Deepseek;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use Generator;
 
 use function array_merge;
 use function json_encode;
@@ -62,9 +64,6 @@ class Deepseek extends OpenAI
             }
         }
 
-        // For streaming: metadata is already applied by parent::enrichMessage()
-        // via processContentDelta() and processToolCallDelta()
-
         return $message;
     }
 
@@ -72,9 +71,9 @@ class Deepseek extends OpenAI
      * Process Deepseek-specific delta content for tool calls (reasoning_content).
      * Accumulates metadata and yields ReasoningChunk for real-time streaming.
      *
-     * @return \Generator<ReasoningChunk>
+     * @return Generator<StreamChunk>
      */
-    protected function processToolCallDelta(array $choice): \Generator
+    protected function processToolCallDelta(array $choice): Generator
     {
         if (isset($choice['delta']['reasoning_content'])) {
             $reasoningContent = $choice['delta']['reasoning_content'];
@@ -91,9 +90,9 @@ class Deepseek extends OpenAI
      * Process Deepseek-specific delta content for assistant messages (reasoning_content).
      * Accumulates metadata and yields ReasoningChunk for real-time streaming.
      *
-     * @return \Generator<ReasoningChunk>
+     * @return Generator<StreamChunk>
      */
-    protected function processContentDelta(array $choice): \Generator
+    protected function processContentDelta(array $choice): Generator
     {
         yield from parent::processContentDelta($choice);
 

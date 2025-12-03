@@ -17,7 +17,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
 use Generator;
 
-use Psr\Http\Message\StreamInterface;
 use function array_unshift;
 
 trait HandleStream
@@ -127,9 +126,9 @@ trait HandleStream
      *
      * Can yield custom chunk types (e.g., ReasoningChunk) for real-time streaming.
      *
-     * @return \Generator<StreamChunk>
+     * @return Generator<StreamChunk>
      */
-    protected function processToolCallDelta(array $choice): \Generator
+    protected function processToolCallDelta(array $choice): Generator
     {
         yield;
     }
@@ -141,9 +140,9 @@ trait HandleStream
      *
      * Can yield custom chunk types (e.g., ReasoningChunk) for real-time streaming.
      *
-     * @return \Generator<StreamChunk>
+     * @return Generator<StreamChunk>
      */
-    protected function processContentDelta(array $choice): \Generator
+    protected function processContentDelta(array $choice): Generator
     {
         if ($content = $choice['delta']['content'] ?? null) {
             $this->streamState->updateContentBlock($choice['index'], new TextContent($content));

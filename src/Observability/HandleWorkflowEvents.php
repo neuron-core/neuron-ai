@@ -10,8 +10,8 @@ use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\NodeInterface;
 use Exception;
-
 use NeuronAI\Workflow\Workflow;
+
 use function array_key_exists;
 use function array_keys;
 use function array_map;
