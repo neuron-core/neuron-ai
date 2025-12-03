@@ -10,6 +10,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
@@ -102,12 +103,6 @@ trait HandleStream
                 return $message;
             }
 
-            // Process regular content
-            if ($content = $choice['delta']['content'] ?? null) {
-                $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
-                yield new TextChunk($this->streamState->messageId(), $content);
-            }
-
             // Process provider-specific delta content and yield custom chunks
             yield from $this->processContentDelta($choice);
         }
@@ -136,8 +131,7 @@ trait HandleStream
      */
     protected function processToolCallDelta(array $choice): \Generator
     {
-        return;
-        yield; // Make this a generator
+        yield;
     }
 
     /**
@@ -151,7 +145,9 @@ trait HandleStream
      */
     protected function processContentDelta(array $choice): \Generator
     {
-        return;
-        yield; // Make this a generator
+        if ($content = $choice['delta']['content'] ?? null) {
+            $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
+            yield new TextChunk($this->streamState->messageId(), $content);
+        }
     }
 }
