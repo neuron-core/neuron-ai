@@ -23,8 +23,8 @@ use function substr;
 /**
  * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
  *
- * Getting started with observability:
- * https://docs.neuron-ai.dev/components/observability
+ * Getting started with monitoring:
+ * https://docs.neuron-ai.dev/the-basics/observability
  */
 class InspectorObserver implements ObserverInterface
 {
@@ -93,9 +93,6 @@ class InspectorObserver implements ObserverInterface
 
     protected static ?InspectorObserver $instance = null;
 
-    /**
-     * @param Inspector $inspector The monitoring instance
-     */
     public function __construct(
         protected Inspector $inspector,
         protected bool $autoFlush = false,
