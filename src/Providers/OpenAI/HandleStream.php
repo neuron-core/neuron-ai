@@ -16,6 +16,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\SSEParser;
 use Generator;
 
+use Psr\Http\Message\StreamInterface;
 use function array_unshift;
 
 trait HandleStream
