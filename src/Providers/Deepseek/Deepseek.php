@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Deepseek;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
@@ -69,21 +70,39 @@ class Deepseek extends OpenAI
 
     /**
      * Process Deepseek-specific delta content for tool calls (reasoning_content).
+     * Accumulates metadata and yields ReasoningChunk for real-time streaming.
+     *
+     * @return \Generator<ReasoningChunk>
      */
-    protected function processToolCallDelta(array $choice): void
+    protected function processToolCallDelta(array $choice): \Generator
     {
         if (isset($choice['delta']['reasoning_content'])) {
-            $this->streamState->accumulateMetadata('reasoning_content', $choice['delta']['reasoning_content']);
+            $reasoningContent = $choice['delta']['reasoning_content'];
+
+            // Accumulate in metadata for final message
+            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
+
+            // Yield chunk for real-time streaming
+            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
         }
     }
 
     /**
      * Process Deepseek-specific delta content for assistant messages (reasoning_content).
+     * Accumulates metadata and yields ReasoningChunk for real-time streaming.
+     *
+     * @return \Generator<ReasoningChunk>
      */
-    protected function processContentDelta(array $choice): void
+    protected function processContentDelta(array $choice): \Generator
     {
         if (isset($choice['delta']['reasoning_content'])) {
-            $this->streamState->accumulateMetadata('reasoning_content', $choice['delta']['reasoning_content']);
+            $reasoningContent = $choice['delta']['reasoning_content'];
+
+            // Accumulate in metadata for the final message
+            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
+
+            // Yield chunk for real-time streaming
+            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
         }
     }
 }

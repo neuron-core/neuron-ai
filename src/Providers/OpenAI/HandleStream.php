@@ -79,7 +79,7 @@ trait HandleStream
             // Compile tool calls
             if (isset($choice['delta']['tool_calls'])) {
                 $this->streamState->composeToolCalls($line);
-                $this->processToolCallDelta($choice);
+                yield from $this->processToolCallDelta($choice);
 
                 if ($this->finishForToolCall($choice)) {
                     goto toolcall;
@@ -91,7 +91,7 @@ trait HandleStream
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
                 toolcall:
-                $this->processToolCallDelta($choice);
+                yield from $this->processToolCallDelta($choice);
                 $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()
@@ -108,8 +108,8 @@ trait HandleStream
                 yield new TextChunk($this->streamState->messageId(), $content);
             }
 
-            // Process provider-specific delta content
-            $this->processContentDelta($choice);
+            // Process provider-specific delta content and yield custom chunks
+            yield from $this->processContentDelta($choice);
         }
 
         // "enrichMessage" applies streamState metadata
@@ -129,19 +129,29 @@ trait HandleStream
      * Streaming Hook. Override in child classes to handle provider-specific fields.
      * Called when processing tool call deltas. Use streamState->accumulateMetadata()
      * to store provider-specific data that will be available in enrichMessage().
+     *
+     * Can yield custom chunk types (e.g., ReasoningChunk) for real-time streaming.
+     *
+     * @return \Generator<StreamChunk>
      */
-    protected function processToolCallDelta(array $choice): void
+    protected function processToolCallDelta(array $choice): \Generator
     {
-        // ...
+        return;
+        yield; // Make this a generator
     }
 
     /**
      * Streaming Hook. Override in child classes to handle provider-specific fields.
      * Called when processing content deltas. Use streamState->accumulateMetadata()
      * to store provider-specific data that will be available in enrichMessage().
+     *
+     * Can yield custom chunk types (e.g., ReasoningChunk) for real-time streaming.
+     *
+     * @return \Generator<StreamChunk>
      */
-    protected function processContentDelta(array $choice): void
+    protected function processContentDelta(array $choice): \Generator
     {
-        // ...
+        return;
+        yield; // Make this a generator
     }
 }
