@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -65,7 +66,7 @@ class ParallelToolNode extends ToolNode
                 throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
-            $this->emit('tool-calling', new ToolCalling($tool));
+            EventBus::emit('tool-calling', $this, new ToolCalling($tool));
         }
 
         // Execute tools concurrently and collect serialized tool states
@@ -110,7 +111,7 @@ class ParallelToolNode extends ToolNode
                     $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
                 }
 
-                $this->emit('error', new AgentError($exception));
+                EventBus::emit('error', $this, new AgentError($exception));
                 throw $exception;
             }
 
@@ -118,7 +119,7 @@ class ParallelToolNode extends ToolNode
             $executedTools[$index] = $data;
 
             // Notify that tool was called successfully
-            $this->emit('tool-called', new ToolCalled($data));
+            EventBus::emit('tool-called', $this, new ToolCalled($data));
         }
 
         // Return a new ToolCallResultMessage with the executed tools

@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
@@ -39,9 +40,9 @@ class PostProcessDocumentsNode extends Node
         $documents = $event->documents;
 
         foreach ($this->postProcessors as $processor) {
-            $this->emit('rag-postprocessing', new PostProcessing($processor::class, $query, $documents));
+            EventBus::emit('rag-postprocessing', $this, new PostProcessing($processor::class, $query, $documents));
             $documents = $processor->process($query, $documents);
-            $this->emit('rag-postprocessed', new PostProcessed($processor::class, $query, $documents));
+            EventBus::emit('rag-postprocessed', $this, new PostProcessed($processor::class, $query, $documents));
         }
 
         return new DocumentsProcessedEvent($query, $documents);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -76,7 +77,7 @@ trait HandleTools
             return $this->toolsBootstrapCache;
         }
 
-        $this->emit('tools-bootstrapping');
+        EventBus::emit('tools-bootstrapping', $this);
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
@@ -115,7 +116,7 @@ trait HandleTools
             );
         }
 
-        $this->emit('tools-bootstrapped', new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines));
+        EventBus::emit('tools-bootstrapped', $this, new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines));
 
         return $this->toolsBootstrapCache;
     }

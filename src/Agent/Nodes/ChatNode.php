@@ -10,6 +10,7 @@ use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
@@ -39,8 +40,9 @@ class ChatNode extends Node
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit(
+        EventBus::emit(
             'inference-start',
+            $this,
             new InferenceStart($lastMessage)
         );
 
@@ -50,8 +52,9 @@ class ChatNode extends Node
             ->setTools($event->tools)
             ->chat($chatHistory->getMessages());
 
-        $this->emit(
+        EventBus::emit(
             'inference-stop',
+            $this,
             new InferenceStop($lastMessage, $response)
         );
 

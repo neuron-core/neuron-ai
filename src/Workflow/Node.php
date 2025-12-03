@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\Observable;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Closure;
@@ -17,8 +16,6 @@ use function is_callable;
 
 abstract class Node implements NodeInterface
 {
-    use Observable;
-
     protected WorkflowState $state;
     protected Event $event;
     protected bool $isResuming = false;

@@ -17,9 +17,6 @@ trait ResolveProvider
     {
         $this->provider = $provider;
 
-        // Propagate callbacks to the provider so it can emit events
-        $this->propagateObservers($provider);
-
         return $this;
     }
 
@@ -35,9 +32,6 @@ trait ResolveProvider
     {
         if (!isset($this->provider)) {
             $this->provider = $this->provider();
-
-            // Propagate callbacks to the provider so it can emit events
-            $this->propagateObservers($this->provider);
         }
 
         return $this->provider;

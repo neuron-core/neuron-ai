@@ -61,9 +61,6 @@ trait HandleMiddleware
                 throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
             }
 
-            // If it is observable, propagate the callbacks to the middleware
-            $this->propagateObservers($m);
-
             $this->globalMiddleware[] = $m;
         }
 
@@ -91,9 +88,6 @@ trait HandleMiddleware
                 if (! $m instanceof WorkflowMiddleware) {
                     throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
                 }
-
-                // If it is observable, propagate the callbacks to the middleware
-                $this->propagateObservers($m);
 
                 $this->nodeMiddleware[$class][] = $m;
             }

@@ -16,6 +16,7 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
@@ -116,7 +117,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
     {
-        $this->emit('chat-start');
+        EventBus::emit('chat-start', $this);
 
         $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -134,7 +135,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
-        $this->emit('chat-stop');
+        EventBus::emit('chat-stop', $this);
 
         return $finalState->getChatHistory()->getLastMessage();
     }
@@ -153,7 +154,7 @@ class Agent extends Workflow implements AgentInterface
         ?InterruptRequest $interrupt = null,
         ?StreamAdapterInterface $adapter = null,
     ): Generator {
-        $this->emit('stream-start');
+        EventBus::emit('stream-start', $this);
 
         $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -173,7 +174,7 @@ class Agent extends Workflow implements AgentInterface
             yield $event;
         }
 
-        $this->emit('stream-stop');
+        EventBus::emit('stream-stop', $this);
 
         return $this->resolveState()->getChatHistory()->getLastMessage();
     }
@@ -188,7 +189,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
     {
-        $this->emit('structured-start');
+        EventBus::emit('structured-start', $this);
 
         $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
@@ -209,7 +210,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();
 
-        $this->emit('structured-stop');
+        EventBus::emit('structured-stop', $this);
 
         // Return the structured output object
         return $finalState->get('structured_output');

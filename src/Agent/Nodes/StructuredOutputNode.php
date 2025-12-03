@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
@@ -71,9 +72,9 @@ class StructuredOutputNode extends Node
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
-            $this->emit('schema-generation', new SchemaGeneration($this->outputClass));
+            EventBus::emit('schema-generation', $this, new SchemaGeneration($this->outputClass));
             $schema = JsonSchema::make()->generate($this->outputClass);
-            $this->emit('schema-generated', new SchemaGenerated($this->outputClass, $schema));
+            EventBus::emit('schema-generated', $this, new SchemaGenerated($this->outputClass, $schema));
             $state->set('structured_schema', $schema);
         }
 
@@ -95,8 +96,9 @@ class StructuredOutputNode extends Node
                 $messages = $chatHistory->getMessages();
 
                 $last = clone $chatHistory->getLastMessage();
-                $this->emit(
+                EventBus::emit(
                     'inference-start',
+                    $this,
                     new InferenceStart($last)
                 );
 
@@ -106,8 +108,9 @@ class StructuredOutputNode extends Node
                     ->setTools($event->tools)
                     ->structured($messages, $this->outputClass, $schema);
 
-                $this->emit(
+                EventBus::emit(
                     'inference-stop',
+                    $this,
                     new InferenceStop($last, $response)
                 );
 
@@ -129,14 +132,14 @@ class StructuredOutputNode extends Node
             } catch (RequestException $ex) {
                 $exception = $ex;
                 $error = $ex->getResponse()?->getBody()->getContents() ?? $ex->getMessage();
-                $this->emit('error', new AgentError($ex, false));
+                EventBus::emit('error', $this, new AgentError($ex, false));
             } catch (ToolMaxTriesException $ex) {
                 // If the problem is a tool max tries exception, we don't want to retry
                 throw $ex;
             } catch (Exception $ex) {
                 $exception = $ex;
                 $error = $ex->getMessage();
-                $this->emit('error', new AgentError($ex, false));
+                EventBus::emit('error', $this, new AgentError($ex, false));
             }
 
             $this->maxTries--;
@@ -160,26 +163,26 @@ class StructuredOutputNode extends Node
         string $class,
     ): object {
         // Try to extract a valid JSON object from the LLM response
-        $this->emit('structured-extracting', new Extracting($response));
+        EventBus::emit('structured-extracting', $this, new Extracting($response));
         $json = (new JsonExtractor())->getJson($response->getContent());
-        $this->emit('structured-extracted', new Extracted($response, $schema, $json));
+        EventBus::emit('structured-extracted', $this, new Extracted($response, $schema, $json));
         if ($json === null || $json === '') {
             throw new AgentException("The response does not contains a valid JSON Object.");
         }
 
         // Deserialize the JSON response from the LLM into an instance of the response model
-        $this->emit('structured-deserializing', new Deserializing($class));
+        EventBus::emit('structured-deserializing', $this, new Deserializing($class));
         $obj = Deserializer::make()->fromJson($json, $class);
-        $this->emit('structured-deserialized', new Deserialized($class));
+        EventBus::emit('structured-deserialized', $this, new Deserialized($class));
 
         // Validate if the object fields respect the validation attributes
-        $this->emit('structured-validating', new Validating($class, $json));
+        EventBus::emit('structured-validating', $this, new Validating($class, $json));
         $violations = Validator::validate($obj);
         if (count($violations) > 0) {
-            $this->emit('structured-validated', new Validated($class, $json, $violations));
+            EventBus::emit('structured-validated', $this, new Validated($class, $json, $violations));
             throw new AgentException(PHP_EOL.'- '.implode(PHP_EOL.'- ', $violations));
         }
-        $this->emit('structured-validated', new Validated($class, $json));
+        EventBus::emit('structured-validated', $this, new Validated($class, $json));
 
         return $obj;
     }

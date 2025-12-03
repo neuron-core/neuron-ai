@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
@@ -38,8 +39,9 @@ class StreamingNode extends Node
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit(
+        EventBus::emit(
             'inference-start',
+            $this,
             new InferenceStart($lastMessage)
         );
 
@@ -61,8 +63,9 @@ class StreamingNode extends Node
             // Get the final message from the generator return value
             $message = $stream->getReturn();
 
-            $this->emit(
+            EventBus::emit(
                 'inference-stop',
+                $this,
                 new InferenceStop($lastMessage, $message)
             );
 
@@ -78,7 +81,7 @@ class StreamingNode extends Node
             return new StopEvent();
 
         } catch (Throwable $exception) {
-            $this->emit('error', new AgentError($exception));
+            EventBus::emit('error', $this, new AgentError($exception));
             throw $exception;
         }
     }

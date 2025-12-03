@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
@@ -16,8 +17,8 @@ trait ChatHistoryHelper
      */
     protected function addToChatHistory(AgentState $state, Message $message): void
     {
-        $this->emit('message-saving', new MessageSaving($message));
+        EventBus::emit('message-saving', $this, new MessageSaving($message));
         $state->getChatHistory()->addMessage($message);
-        $this->emit('message-saved', new MessageSaved($message));
+        EventBus::emit('message-saved', $this, new MessageSaved($message));
     }
 }
