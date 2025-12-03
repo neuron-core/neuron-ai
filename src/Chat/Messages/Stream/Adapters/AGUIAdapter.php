@@ -36,8 +36,6 @@ class AGUIAdapter extends SSEAdapter
     /** @var array<string, bool> Track which tool calls have started */
     protected array $toolCallStarted = [];
 
-    protected ?string $reasoningId = null;
-
     protected bool $reasoningStarted = false;
 
     /**
