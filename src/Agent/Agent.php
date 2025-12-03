@@ -166,7 +166,7 @@ class Agent extends Workflow implements AgentInterface
             new StreamingNode($this->resolveProvider()),
         );
 
-        // Start workflow execution (Agent IS the workflow)
+        // Start workflow execution
         $handler = parent::start($interrupt);
 
         // Stream events, optionally through adapter

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Exceptions\InspectorException;
+
 class EventBus
 {
     /**
@@ -25,6 +27,9 @@ class EventBus
         self::$defaultObserver = $observer;
     }
 
+    /**
+     * @throws InspectorException
+     */
     public static function emit(string $event, object $source, mixed $data = null): void
     {
         if (!self::$initialized) {

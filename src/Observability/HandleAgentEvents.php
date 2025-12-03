@@ -51,7 +51,7 @@ trait HandleAgentEvents
                 $key .= '-'.uniqid();
             }
 
-            $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, "{$class}::{$method}")
+            $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.'.$method, $this->getBaseClassName($class))
                 ->setColor(self::STANDARD_COLOR);
             $segment->setContext($this->getAgentContext($source));
             $this->agentSegments[$key] = $segment;

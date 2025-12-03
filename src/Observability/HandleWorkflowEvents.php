@@ -11,6 +11,7 @@ use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\NodeInterface;
 use Exception;
 
+use NeuronAI\Workflow\Workflow;
 use function array_key_exists;
 use function array_keys;
 use function array_map;
@@ -21,7 +22,7 @@ trait HandleWorkflowEvents
     /**
      * @throws Exception
      */
-    public function workflowStart(object $workflow, string $event, WorkflowStart $data): void
+    public function workflowStart(Workflow $workflow, string $event, WorkflowStart $data): void
     {
         if (!$this->inspector->isRecording()) {
             return;
@@ -39,7 +40,7 @@ trait HandleWorkflowEvents
         }
     }
 
-    public function workflowEnd(object $workflow, string $event, WorkflowEnd $data): void
+    public function workflowEnd(Workflow $workflow, string $event, WorkflowEnd $data): void
     {
         if (array_key_exists($workflow::class, $this->segments)) {
             $this->segments[$workflow::class]
