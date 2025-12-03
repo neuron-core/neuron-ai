@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\ResponseInterface;
 
 use function array_filter;
@@ -53,6 +54,9 @@ trait HandleChat
             });
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function processChatResult(array $result): AssistantMessage
     {
         $content = $result['candidates'][0]['content'];

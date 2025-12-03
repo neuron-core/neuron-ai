@@ -89,7 +89,7 @@ class Gemini implements AIProviderInterface
      * @param array<int, array> $toolCalls
      * @throws ProviderException
      */
-    protected function createToolCallMessage(array $blocks, array $toolCalls): Message
+    protected function createToolCallMessage(array $blocks, array $toolCalls): ToolCallMessage
     {
         $tools = array_map(fn (array $item): ToolInterface =>
             // Gemini does not use ID. It uses the tool's name as a unique identifier.
