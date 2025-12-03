@@ -47,7 +47,6 @@ trait HandleChat
         return $this->client->postAsync('chat/completions', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response): AssistantMessage|ToolCallMessage {
                 $result = json_decode($response->getBody()->getContents(), true);
-
                 return $this->processChatResult($result);
             });
     }

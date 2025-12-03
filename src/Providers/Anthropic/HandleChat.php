@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\ResponseInterface;
 
 use function array_key_exists;
@@ -43,46 +44,53 @@ trait HandleChat
         return $this->client->postAsync('messages', [RequestOptions::JSON => $json])
             ->then(onFulfilled: function (ResponseInterface $response): Message {
                 $result = json_decode($response->getBody()->getContents(), true);
-
-                $blocks = [];
-                $toolCalls = [];
-                foreach ($result['content'] as $content) {
-                    if ($content['type'] === 'thinking') {
-                        $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
-                        continue;
-                    }
-
-                    if ($content['type'] === 'text') {
-                        $blocks[] = new TextContent($content['text']);
-                        continue;
-                    }
-
-                    if ($content['type'] === 'tool_use') {
-                        $toolCalls[] = $content;
-                    }
-                }
-
-                if ($toolCalls !== []) {
-                    $message = $this->createToolCallMessage($toolCalls, $blocks);
-                } else {
-                    $message = new AssistantMessage($blocks);
-                    $citations = $this->extractCitations($result['content']);
-                    if (!empty($citations)) {
-                        $message->addMetadata('citations', $citations);
-                    }
-                }
-
-                // Attach the usage for the current interaction
-                if (array_key_exists('usage', $result)) {
-                    $message->setUsage(
-                        new Usage(
-                            $result['usage']['input_tokens'],
-                            $result['usage']['output_tokens']
-                        )
-                    );
-                }
-
-                return $message;
+                return $this->processChatResult($result);
             });
+    }
+
+    /**
+     * @throws ProviderException
+     */
+    protected function processChatResult(array $result): AssistantMessage
+    {
+        $blocks = [];
+        $toolCalls = [];
+        foreach ($result['content'] as $content) {
+            if ($content['type'] === 'thinking') {
+                $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
+                continue;
+            }
+
+            if ($content['type'] === 'text') {
+                $blocks[] = new TextContent($content['text']);
+                continue;
+            }
+
+            if ($content['type'] === 'tool_use') {
+                $toolCalls[] = $content;
+            }
+        }
+
+        if ($toolCalls !== []) {
+            $message = $this->createToolCallMessage($toolCalls, $blocks);
+        } else {
+            $message = new AssistantMessage($blocks);
+            $citations = $this->extractCitations($result['content']);
+            if (!empty($citations)) {
+                $message->addMetadata('citations', $citations);
+            }
+        }
+
+        // Attach the usage for the current interaction
+        if (array_key_exists('usage', $result)) {
+            $message->setUsage(
+                new Usage(
+                    $result['usage']['input_tokens'],
+                    $result['usage']['output_tokens']
+                )
+            );
+        }
+
+        return $message;
     }
 }

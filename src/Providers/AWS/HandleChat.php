@@ -24,36 +24,36 @@ trait HandleChat
 
         return $this->bedrockRuntimeClient
             ->converseAsync($payload)
-            ->then(function (ResultInterface $response): ToolCallMessage|AssistantMessage {
+            ->then(function (ResultInterface $result): ToolCallMessage|AssistantMessage {
                 $usage = new Usage(
-                    $response['usage']['inputTokens'] ?? 0,
-                    $response['usage']['outputTokens'] ?? 0,
+                    $result['usage']['inputTokens'] ?? 0,
+                    $result['usage']['outputTokens'] ?? 0,
                 );
 
-                $stopReason = $response['stopReason'] ?? '';
+                $stopReason = $result['stopReason'] ?? '';
                 if ($stopReason === 'tool_use') {
                     $tools = [];
-                    foreach ($response['output']['message']['content'] ?? [] as $toolContent) {
+                    foreach ($result['output']['message']['content'] ?? [] as $toolContent) {
                         if (isset($toolContent['toolUse'])) {
                             $tools[] = $this->createTool($toolContent);
                         }
                     }
 
-                    $toolCallMessage = new ToolCallMessage(tools: $tools);
-                    $toolCallMessage->setUsage($usage);
-                    return $toolCallMessage;
+                    $message = new ToolCallMessage(tools: $tools);
+                    $message->setUsage($usage);
+                    return $message;
                 }
 
-                $responseText = '';
-                foreach ($response['output']['message']['content'] ?? [] as $content) {
+                $text = '';
+                foreach ($result['output']['message']['content'] ?? [] as $content) {
                     if (isset($content['text'])) {
-                        $responseText .= $content['text'];
+                        $text .= $content['text'];
                     }
                 }
 
-                $assistantMessage = new AssistantMessage($responseText);
-                $assistantMessage->setUsage($usage);
-                return $assistantMessage;
+                $message = new AssistantMessage($text);
+                $message->setUsage($usage);
+                return $message;
             });
     }
 }

@@ -49,59 +49,63 @@ trait HandleChat
         return $this->client->postAsync(trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response): Message {
                 $result = json_decode($response->getBody()->getContents(), true);
-
-                $content = $result['candidates'][0]['content'];
-
-                if (!isset($content['parts']) && isset($result['candidates'][0]['finishReason']) && $result['candidates'][0]['finishReason'] === 'MAX_TOKENS') {
-                    return new AssistantMessage('');
-                }
-
-                $blocks = [];
-                foreach ($content['parts'] as $part) {
-                    if (isset($part['text'])) {
-                        $blocks[] = $part['thought'] ?? false
-                            ? new ReasoningContent($part['text'])
-                            : new TextContent($part['text']);
-                    }
-
-                    if (isset($part['inlineData'])) {
-                        $blocks[] = new ImageContent(
-                            $part['inlineData']['data'],
-                            SourceType::BASE64,
-                            $part['inlineData']['mimeType']
-                        );
-                    }
-
-                    if (isset($part['functionCall'])) {
-                        $toolCalls = array_filter($content['parts'], fn (array $item): bool => isset($item['functionCall']));
-                        $message = $this->createToolCallMessage($blocks, $toolCalls);
-                        break;
-                    }
-                }
-
-                if (!isset($message)) {
-                    $message = new AssistantMessage($blocks);
-                }
-
-                if (array_key_exists('groundingMetadata', $result['candidates'][0])) {
-                    // Extract citations from groundingMetadata
-                    $citations = $this->extractCitations($result['candidates'][0]['groundingMetadata']);
-                    if (!empty($citations)) {
-                        $message->addMetadata('citations', $citations);
-                    }
-                }
-
-                // Attach the usage for the current interaction
-                if (array_key_exists('usageMetadata', $result)) {
-                    $message->setUsage(
-                        new Usage(
-                            $result['usageMetadata']['promptTokenCount'],
-                            $result['usageMetadata']['candidatesTokenCount'] ?? 0
-                        )
-                    );
-                }
-
-                return $message;
+                return $this->processChatResult($result);
             });
+    }
+
+    protected function processChatResult(array $result): AssistantMessage
+    {
+        $content = $result['candidates'][0]['content'];
+
+        if (!isset($content['parts']) && isset($result['candidates'][0]['finishReason']) && $result['candidates'][0]['finishReason'] === 'MAX_TOKENS') {
+            return new AssistantMessage('');
+        }
+
+        $blocks = [];
+        foreach ($content['parts'] as $part) {
+            if (isset($part['text'])) {
+                $blocks[] = $part['thought'] ?? false
+                    ? new ReasoningContent($part['text'])
+                    : new TextContent($part['text']);
+            }
+
+            if (isset($part['inlineData'])) {
+                $blocks[] = new ImageContent(
+                    $part['inlineData']['data'],
+                    SourceType::BASE64,
+                    $part['inlineData']['mimeType']
+                );
+            }
+
+            if (isset($part['functionCall'])) {
+                $toolCalls = array_filter($content['parts'], fn (array $item): bool => isset($item['functionCall']));
+                $message = $this->createToolCallMessage($blocks, $toolCalls);
+                break;
+            }
+        }
+
+        if (!isset($message)) {
+            $message = new AssistantMessage($blocks);
+        }
+
+        if (array_key_exists('groundingMetadata', $result['candidates'][0])) {
+            // Extract citations from groundingMetadata
+            $citations = $this->extractCitations($result['candidates'][0]['groundingMetadata']);
+            if (!empty($citations)) {
+                $message->addMetadata('citations', $citations);
+            }
+        }
+
+        // Attach the usage for the current interaction
+        if (array_key_exists('usageMetadata', $result)) {
+            $message->setUsage(
+                new Usage(
+                    $result['usageMetadata']['promptTokenCount'],
+                    $result['usageMetadata']['candidatesTokenCount'] ?? 0
+                )
+            );
+        }
+
+        return $message;
     }
 }
