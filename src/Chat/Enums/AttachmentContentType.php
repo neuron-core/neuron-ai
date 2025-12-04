@@ -8,4 +8,5 @@ enum AttachmentContentType: string
 {
     case URL = 'url';
     case BASE64 = 'base64';
+    case FILE_ID = 'file_id';
 }

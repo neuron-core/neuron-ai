@@ -97,7 +97,11 @@ class MessageMapperResponses implements MessageMapperInterface
                 'type' => 'input_file',
                 'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
                 'file_data' => "data:{$document->mediaType};base64,{$document->content}",
-            ]
+            ],
+            AttachmentContentType::FILE_ID => [
+                'type' => 'input_file',
+                'file_id' => $document->content,
+            ],
         };
     }
 
@@ -111,6 +115,10 @@ class MessageMapperResponses implements MessageMapperInterface
             AttachmentContentType::BASE64 => [
                 'type' => 'input_image',
                 'image_url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
+            ],
+            AttachmentContentType::FILE_ID => [
+                'type' => 'input_image',
+                'image_id' => $attachment->content,
             ]
         };
     }
