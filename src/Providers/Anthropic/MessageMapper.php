@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
@@ -85,6 +86,13 @@ class MessageMapper implements MessageMapperInterface
                     'type' => 'base64',
                     'media_type' => $attachment->mediaType,
                     'data' => $attachment->content,
+                ],
+            ],
+            AttachmentContentType::FILE_ID => [
+                'type' => AttachmentType::DOCUMENT->value,
+                'source' => [
+                    'type' => 'file',
+                    'file_id' => $attachment->content,
                 ],
             ],
         };
