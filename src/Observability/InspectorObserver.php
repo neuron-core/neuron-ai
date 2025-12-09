@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use Exception;
 
+use NeuronAI\Workflow\WorkflowInterrupt;
 use function array_key_exists;
 use function array_map;
 use function explode;
@@ -137,9 +138,14 @@ class InspectorObserver implements ObserverInterface
 
         if ($data->unhandled) {
             $this->inspector->transaction()->setResult('error');
-            if ($source instanceof Agent) {
-                $this->inspector->transaction()->setContext($this->getAgentContext($source));
-            }
+        }
+
+        if ($source instanceof Agent) {
+            $this->inspector->transaction()->setContext($this->getAgentContext($source));
+        }
+
+        if ($data->exception instanceof WorkflowInterrupt) {
+            $this->inspector->transaction()->addContext("Interrupt", $data->exception->getRequest()->jsonSerialize());
         }
     }
 
