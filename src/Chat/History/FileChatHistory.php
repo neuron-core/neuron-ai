@@ -14,6 +14,7 @@ use function is_file;
 use function json_decode;
 use function json_encode;
 use function unlink;
+use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
 use const LOCK_EX;
@@ -29,12 +30,10 @@ class FileChatHistory extends AbstractChatHistory
     ) {
         parent::__construct($contextWindow);
 
-        if (!is_dir($this->directory)) {
-            if (!@mkdir($this->directory, 0755, true)) {
-                throw new ChatHistoryException(
-                    "Directory '{$this->directory}' does not exist and could not be created"
-                );
-            }
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0755, true)) {
+            throw new ChatHistoryException(
+                "Directory '{$this->directory}' does not exist and could not be created"
+            );
         }
 
         $this->load();

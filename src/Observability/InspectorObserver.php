@@ -13,8 +13,8 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use Exception;
-
 use NeuronAI\Workflow\WorkflowInterrupt;
+
 use function array_key_exists;
 use function array_map;
 use function explode;

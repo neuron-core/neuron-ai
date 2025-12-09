@@ -27,7 +27,7 @@ class ToolNodeStreamingTest extends TestCase
             ->setInputs([]);
 
         $tool2 = Tool::make('greeter', 'Greets a person')
-            ->setCallable(fn(): string => "Hello, World!")
+            ->setCallable(fn (): string => "Hello, World!")
             ->setInputs([]);
 
         // Create the ToolCallMessage
