@@ -32,7 +32,7 @@ class FileChatHistory extends AbstractChatHistory
 
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0755, true)) {
             throw new ChatHistoryException(
-                "Directory '{$this->directory}' does not exist and could not be created"
+                "Directory '{$this->directory}' does not exist and could not be created."
             );
         }
 

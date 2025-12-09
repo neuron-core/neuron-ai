@@ -37,8 +37,8 @@ class FileVectorStore implements VectorStoreInterface
         protected string $name = 'neuron',
         protected string $ext = '.store'
     ) {
-        if (!is_dir($this->directory)) {
-            throw new VectorStoreException("Directory '{$this->directory}' does not exist");
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0755, true)) {
+            throw new VectorStoreException("Directory '{$this->directory}' does not exist and could not be created.");
         }
     }
 
