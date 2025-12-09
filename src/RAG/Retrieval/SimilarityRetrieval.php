@@ -11,8 +11,8 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 class SimilarityRetrieval implements RetrievalInterface
 {
     public function __construct(
-        private readonly VectorStoreInterface $vectorStore,
-        private readonly EmbeddingsProviderInterface $embeddingProvider,
+        protected readonly VectorStoreInterface $vectorStore,
+        protected readonly EmbeddingsProviderInterface $embeddingProvider,
     ) {
     }
 

@@ -43,16 +43,16 @@ class RetrieveDocumentsNode extends Node
 
         $documents = $this->retrieval->retrieve($query);
 
-        // Deduplicate documents by content hash
-        $retrievedDocs = [];
+        // Remove duplicates by content hash
+        $docs = [];
         foreach ($documents as $document) {
             $hash = md5($document->getContent());
-            $retrievedDocs[$hash] = $document;
+            $docs[$hash] = $document;
         }
-        $retrievedDocs = array_values($retrievedDocs);
+        $docs = array_values($docs);
 
-        EventBus::emit('rag-retrieved', $this, new Retrieved($query, $retrievedDocs));
+        EventBus::emit('rag-retrieved', $this, new Retrieved($query, $docs));
 
-        return new DocumentsRetrievedEvent($query, $retrievedDocs);
+        return new DocumentsRetrievedEvent($query, $docs);
     }
 }
