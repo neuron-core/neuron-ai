@@ -8,10 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -45,12 +42,6 @@ class StreamingNode extends Node
             new InferenceStart($lastMessage)
         );
 
-        if ($lastMessage instanceof ToolResultMessage) {
-            foreach ($lastMessage->getTools() as $tool) {
-                yield new ToolResultChunk($tool);
-            }
-        }
-
         try {
             $stream = $this->provider
                 ->systemPrompt($event->instructions)
@@ -76,9 +67,6 @@ class StreamingNode extends Node
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
-                foreach ($message->getTools() as $tool) {
-                    yield new ToolCallChunk($tool);
-                }
                 return new ToolCallEvent($message, $event);
             }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -36,7 +37,7 @@ class ParallelToolNode extends ToolNode
      * @throws ToolMaxTriesException
      * @throws Throwable
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
+    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
     {
         // Fallback to sequential execution if pcntl is not available (e.g., Windows)
         if (!extension_loaded('pcntl')) {

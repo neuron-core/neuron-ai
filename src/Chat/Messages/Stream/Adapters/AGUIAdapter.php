@@ -125,7 +125,7 @@ class AGUIAdapter extends SSEAdapter
 
         // Stream tool arguments as JSON
         $args = $chunk->tool->getInputs();
-        if (! empty($args)) {
+        if ($args !== []) {
             yield $this->sse([
                 'type' => 'ToolCallArgs',
                 'toolCallId' => $toolCallId,

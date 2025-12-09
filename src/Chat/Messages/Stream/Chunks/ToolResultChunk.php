@@ -8,9 +8,6 @@ use NeuronAI\Tools\ToolInterface;
 
 class ToolResultChunk extends StreamChunk
 {
-    /**
-     * @param ToolInterface $tool
-     */
     public function __construct(
         public readonly ToolInterface $tool,
     ) {

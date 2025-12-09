@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Generator;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolMaxTriesException;
@@ -32,9 +34,9 @@ class ToolNode extends Node
      * @throws ToolMaxTriesException
      * @throws Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent
+    public function __invoke(ToolCallEvent $event, AgentState $state): Generator
     {
-        $toolCallResult = $this->executeTools($event->toolCallMessage, $state);
+        $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
         // Note: ToolCallMessage is already in chat history from ChatNode
         // Only add the tool result message
@@ -48,10 +50,12 @@ class ToolNode extends Node
      * @throws Throwable
      * @throws ToolMaxTriesException
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): ToolResultMessage
+    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
     {
         foreach ($toolCallMessage->getTools() as $tool) {
+            yield new ToolCallChunk($tool);
             $this->executeSingleTool($tool, $state);
+            yield new ToolResultChunk($tool);
         }
 
         return new ToolResultMessage($toolCallMessage->getTools());
