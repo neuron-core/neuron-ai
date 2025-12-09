@@ -14,6 +14,7 @@ use function in_array;
 use function is_null;
 use function json_decode;
 use function trim;
+use function array_chunk;
 
 class QdrantVectorStore implements VectorStoreInterface
 {
@@ -88,9 +89,13 @@ class QdrantVectorStore implements VectorStoreInterface
             'vector' => $document->getEmbedding(),
         ], $documents);
 
-        $this->client()->put('points', [
-            RequestOptions::JSON => ['points' => $points]
-        ]);
+        $chunks = array_chunk($points, 100);
+
+        foreach ($chunks as $chunk) {
+            $this->client()->put('points', [
+                RequestOptions::JSON => ['points' => $chunk]
+            ]);
+        }
 
         return $this;
     }

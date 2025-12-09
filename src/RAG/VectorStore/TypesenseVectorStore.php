@@ -21,6 +21,7 @@ use function in_array;
 use function intval;
 use function json_encode;
 use function max;
+use function array_chunk;
 
 class TypesenseVectorStore implements VectorStoreInterface
 {
@@ -142,9 +143,12 @@ class TypesenseVectorStore implements VectorStoreInterface
             ]);
         }
 
-        $ndjson = implode("\n", $lines);
+        $chunks = array_chunk($lines, 100);
 
-        $this->client->collections[$this->collection]->documents->import($ndjson);
+        foreach ($chunks as $chunk) {
+            $ndjson = implode("\n", $chunk);
+            $this->client->collections[$this->collection]->documents->import($ndjson);
+        }
 
         return $this;
     }

@@ -12,6 +12,7 @@ use function array_map;
 use function in_array;
 use function json_decode;
 use function trim;
+use function array_chunk;
 
 class PineconeVectorStore implements VectorStoreInterface
 {
@@ -49,21 +50,25 @@ class PineconeVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->client->post("vectors/upsert", [
-            RequestOptions::JSON => [
-                'namespace' => $this->namespace,
-                'vectors' => array_map(fn (Document $document): array => [
-                    'id' => (string) $document->getId(),
-                    'values' => $document->getEmbedding(),
-                    'metadata' => [
-                        'content' => $document->getContent(),
-                        'sourceType' => $document->getSourceType(),
-                        'sourceName' => $document->getSourceName(),
-                        ...$document->metadata,
-                    ],
-                ], $documents)
-            ]
-        ]);
+        $chunks = array_chunk($documents, 100);
+
+        foreach ($chunks as $chunk) {
+            $this->client->post("vectors/upsert", [
+                RequestOptions::JSON => [
+                    'namespace' => $this->namespace,
+                    'vectors' => array_map(fn (Document $document): array => [
+                        'id' => (string) $document->getId(),
+                        'values' => $document->getEmbedding(),
+                        'metadata' => [
+                            'content' => $document->getContent(),
+                            'sourceType' => $document->getSourceType(),
+                            'sourceName' => $document->getSourceName(),
+                            ...$document->metadata,
+                        ],
+                    ], $chunk)
+                ]
+            ]);
+        }
 
         return $this;
     }

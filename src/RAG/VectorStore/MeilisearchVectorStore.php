@@ -19,6 +19,7 @@ use function range;
 use function sleep;
 use function trim;
 use function uniqid;
+use function array_chunk;
 
 class MeilisearchVectorStore implements VectorStoreInterface
 {
@@ -63,21 +64,25 @@ class MeilisearchVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->client->put('documents', [
-            RequestOptions::JSON => array_map(fn (Document $document): array => [
-                'id' => $document->getId(),
-                'content' => $document->getContent(),
-                'sourceType' => $document->getSourceType(),
-                'sourceName' => $document->getSourceName(),
-                ...$document->metadata,
-                '_vectors' => [
-                    'default' => [
-                        'embeddings' => $document->getEmbedding(),
-                        'regenerate' => false,
-                    ],
-                ]
-            ], $documents),
-        ]);
+        $chunks = array_chunk($documents, 100);
+
+        foreach ($chunks as $chunk) {
+            $this->client->put('documents', [
+                RequestOptions::JSON => array_map(fn (Document $document): array => [
+                    'id' => $document->getId(),
+                    'content' => $document->getContent(),
+                    'sourceType' => $document->getSourceType(),
+                    'sourceName' => $document->getSourceName(),
+                    ...$document->metadata,
+                    '_vectors' => [
+                        'default' => [
+                            'embeddings' => $document->getEmbedding(),
+                            'regenerate' => false,
+                        ],
+                    ]
+                ], $chunk),
+            ]);
+        }
 
         return $this;
     }

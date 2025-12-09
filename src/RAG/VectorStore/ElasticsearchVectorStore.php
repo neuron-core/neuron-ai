@@ -17,6 +17,7 @@ use function array_map;
 use function count;
 use function in_array;
 use function max;
+use function array_chunk;
 
 class ElasticsearchVectorStore implements VectorStoreInterface
 {
@@ -116,26 +117,31 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         $this->checkIndexStatus($documents[0]);
 
+        $chunks = array_chunk($documents, 100);
+
         /*
          * Generate a bulk payload
          */
         $params = ['body' => []];
-        foreach ($documents as $document) {
-            $params['body'][] = [
-                'index' => [
-                    '_index' => $this->index,
-                ],
-            ];
-            $params['body'][] = [
-                'embedding' => $document->getEmbedding(),
-                'content' => $document->getContent(),
-                'sourceType' => $document->getSourceType(),
-                'sourceName' => $document->getSourceName(),
-                ...$document->metadata,
-            ];
+        foreach ($chunks as $chunk) {
+            foreach ($chunk as $document) {
+                $params['body'][] = [
+                    'index' => [
+                        '_index' => $this->index,
+                    ],
+                ];
+                $params['body'][] = [
+                    'embedding' => $document->getEmbedding(),
+                    'content' => $document->getContent(),
+                    'sourceType' => $document->getSourceType(),
+                    'sourceName' => $document->getSourceName(),
+                    ...$document->metadata,
+                ];
+            }
+            $this->client->bulk($params);
+            $this->client->indices()->refresh(['index' => $this->index]);
         }
-        $this->client->bulk($params);
-        $this->client->indices()->refresh(['index' => $this->index]);
+
         return $this;
     }
 
