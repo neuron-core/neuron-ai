@@ -93,7 +93,7 @@ class VercelAIAdapterTest extends TestCase
         $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        $chunk = new ToolCallChunk([$tool]);
+        $chunk = new ToolCallChunk($tool);
 
         $result = iterator_to_array($this->adapter->transform($chunk));
 
@@ -108,11 +108,11 @@ class VercelAIAdapterTest extends TestCase
         // Initialize and call tool first
         $this->adapter->transform(new TextChunk('msg_123', 'init'));
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        $this->adapter->transform(new ToolCallChunk([$tool]));
+        $this->adapter->transform(new ToolCallChunk($tool));
 
         // Now send result
         $tool->setResult('42');
-        $chunk = new ToolResultChunk([$tool]);
+        $chunk = new ToolResultChunk($tool);
 
         $result = iterator_to_array($this->adapter->transform($chunk));
 

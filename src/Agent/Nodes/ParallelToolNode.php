@@ -7,6 +7,8 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
@@ -53,8 +55,7 @@ class ParallelToolNode extends ToolNode
 
         // If there's only one tool, no need for concurrency
         if (count($tools) === 1) {
-            $this->executeSingleTool($tools[0], $state);
-            return new ToolResultMessage($toolCallMessage->getTools());
+            return parent::executeTools($toolCallMessage, $state);
         }
 
         // Check max tries and notify before execution
@@ -68,6 +69,8 @@ class ParallelToolNode extends ToolNode
             }
 
             EventBus::emit('tool-calling', $this, new ToolCalling($tool));
+
+            yield new ToolCallChunk($tool);
         }
 
         // Execute tools concurrently and collect serialized tool states
@@ -118,6 +121,7 @@ class ParallelToolNode extends ToolNode
 
             // Collect the executed tool with its new state
             $executedTools[$index] = $data;
+            yield new ToolResultChunk($data);
 
             // Notify that tool was called successfully
             EventBus::emit('tool-called', $this, new ToolCalled($data));

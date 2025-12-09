@@ -132,7 +132,7 @@ class AgUIAdapterTest extends TestCase
         $this->adapter->transform(new TextChunk('msg_123', 'init'));
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add', 'x' => 5, 'y' => 3]);
-        $chunk = new ToolCallChunk([$tool]);
+        $chunk = new ToolCallChunk($tool);
 
         $result = iterator_to_array($this->adapter->transform($chunk));
 
@@ -154,11 +154,11 @@ class AgUIAdapterTest extends TestCase
         // Initialize and call tool first
         $this->adapter->transform(new TextChunk('msg_123', 'init'));
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        $this->adapter->transform(new ToolCallChunk([$tool]));
+        $this->adapter->transform(new ToolCallChunk($tool));
 
         // Now send result
         $tool->setResult('42');
-        $chunk = new ToolResultChunk([$tool]);
+        $chunk = new ToolResultChunk($tool);
 
         $result = iterator_to_array($this->adapter->transform($chunk));
 
@@ -176,13 +176,13 @@ class AgUIAdapterTest extends TestCase
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
 
         // Call the tool
-        $callResult = iterator_to_array($adapter->transform(new ToolCallChunk([$tool])));
+        $callResult = iterator_to_array($adapter->transform(new ToolCallChunk($tool)));
         preg_match('/"toolCallId":"([^"]+)"/', $callResult[0], $callMatches);
         $toolCallId = $callMatches[1] ?? null;
 
         // Return result for the same tool
         $tool->setResult('42');
-        $resultResult = iterator_to_array($adapter->transform(new ToolResultChunk([$tool])));
+        $resultResult = iterator_to_array($adapter->transform(new ToolResultChunk($tool)));
         preg_match('/"toolCallId":"([^"]+)"/', $resultResult[0], $resultMatches);
         $resultToolCallId = $resultMatches[1] ?? null;
 
@@ -241,13 +241,13 @@ class AgUIAdapterTest extends TestCase
 
         // Tool call
         $tool = $this->createMockTool('search', ['query' => 'test']);
-        foreach ($adapter->transform(new ToolCallChunk([$tool])) as $event) {
+        foreach ($adapter->transform(new ToolCallChunk($tool)) as $event) {
             $allEvents[] = $event;
         }
 
         // Tool result
         $tool->setResult('Found 5 results');
-        foreach ($adapter->transform(new ToolResultChunk([$tool])) as $event) {
+        foreach ($adapter->transform(new ToolResultChunk($tool)) as $event) {
             $allEvents[] = $event;
         }
 
