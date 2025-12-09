@@ -45,16 +45,6 @@ class FileVectorStore implements VectorStoreInterface
                 );
             }
         }
-
-        // Try to create file if it doesn't exist
-        $filePath = $this->getFilePath();
-        if (!file_exists($filePath)) {
-            if (@file_put_contents($filePath, '') === false) {
-                throw new VectorStoreException(
-                    "File '{$filePath}' does not exist and could not be created"
-                );
-            }
-        }
     }
 
     protected function getFilePath(): string

@@ -81,32 +81,8 @@ class FileVectorStoreTest extends TestCase
         // Verify directory was created
         $this->assertDirectoryExists($testDir);
 
-        // Verify file was created
-        $this->assertFileExists($testDir . '/neuron.store');
-
         // Cleanup
-        unlink($testDir . '/neuron.store');
         rmdir($testDir);
-    }
-
-    public function test_creates_file_if_not_exists(): void
-    {
-        // Directory exists but file doesn't (since we clean up after each test)
-        $store = new FileVectorStore(__DIR__, 4, 'test_new_file');
-
-        // Verify file was created
-        $this->assertFileExists(__DIR__ . '/test_new_file.store');
-
-        // Verify we can use the store
-        $document = new Document('Test content');
-        $document->embedding = [1, 2, 3];
-        $store->addDocuments([$document]);
-
-        $results = $store->similaritySearch([1, 2, 3]);
-        $this->assertCount(1, $results);
-
-        // Cleanup
-        unlink(__DIR__ . '/test_new_file.store');
     }
 
     public function test_works_with_existing_directory_and_file(): void
