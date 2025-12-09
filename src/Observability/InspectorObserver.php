@@ -138,10 +138,9 @@ class InspectorObserver implements ObserverInterface
 
         if ($data->unhandled) {
             $this->inspector->transaction()->setResult('error');
-        }
-
-        if ($source instanceof Agent) {
-            $this->inspector->transaction()->setContext($this->getAgentContext($source));
+            if ($source instanceof Agent) {
+                $this->inspector->transaction()->setContext($this->getAgentContext($source));
+            }
         }
 
         if ($data->exception instanceof WorkflowInterrupt) {
