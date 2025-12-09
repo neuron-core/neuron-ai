@@ -8,10 +8,10 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 use PHPUnit\Framework\TestCase;
 
-use function is_dir;
 use function rmdir;
 use function sys_get_temp_dir;
 use function unlink;
+use function uniqid;
 
 class FileVectorStoreTest extends TestCase
 {
@@ -76,7 +76,7 @@ class FileVectorStoreTest extends TestCase
         $this->assertDirectoryDoesNotExist($testDir);
 
         // Create store with non-existent directory
-        $store = new FileVectorStore($testDir);
+        new FileVectorStore($testDir);
 
         // Verify directory was created
         $this->assertDirectoryExists($testDir);
@@ -88,7 +88,7 @@ class FileVectorStoreTest extends TestCase
     public function test_works_with_existing_directory_and_file(): void
     {
         // First create a store to ensure directory and file exist
-        $store1 = new FileVectorStore(__DIR__, 4, 'existing_test');
+        new FileVectorStore(__DIR__, 4, 'existing_test');
         $this->assertFileExists(__DIR__ . '/existing_test.store');
 
         // Create another store with same path - should not throw exception
