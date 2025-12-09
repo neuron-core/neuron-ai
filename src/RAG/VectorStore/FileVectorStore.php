@@ -24,6 +24,7 @@ use function json_decode;
 use function rename;
 use function unlink;
 use function usort;
+use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
 use const FILE_APPEND;
