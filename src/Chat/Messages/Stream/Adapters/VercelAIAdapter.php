@@ -61,30 +61,26 @@ class VercelAIAdapter extends SSEAdapter
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
-        foreach ($chunk->tools as $tool) {
-            $callId = $this->generateId('call');
-            $this->toolCallIds[$tool->getName()] = $callId;
+        $callId = $this->generateId('call');
+        $this->toolCallIds[$chunk->tool->getName()] = $callId;
 
-            yield $this->sse([
-                'type' => 'tool-input-available',
-                'toolCallId' => $callId,
-                'toolName' => $tool->getName(),
-                'input' => $tool->getInputs(),
-            ]);
-        }
+        yield $this->sse([
+            'type' => 'tool-input-available',
+            'toolCallId' => $callId,
+            'toolName' => $chunk->tool->getName(),
+            'input' => $chunk->tool->getInputs(),
+        ]);
     }
 
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
-        foreach ($chunk->tools as $tool) {
-            $callId = $this->toolCallIds[$tool->getName()] ?? $this->generateId('call');
+        $callId = $this->toolCallIds[$chunk->tool->getName()] ?? $this->generateId('call');
 
-            yield $this->sse([
-                'type' => 'tool-output-available',
-                'toolCallId' => $callId,
-                'output' => $tool->getResult(),
-            ]);
-        }
+        yield $this->sse([
+            'type' => 'tool-output-available',
+            'toolCallId' => $callId,
+            'output' => $chunk->tool->getResult(),
+        ]);
     }
 
     public function getHeaders(): array

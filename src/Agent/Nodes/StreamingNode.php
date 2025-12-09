@@ -46,7 +46,9 @@ class StreamingNode extends Node
         );
 
         if ($lastMessage instanceof ToolResultMessage) {
-            yield new ToolResultChunk($lastMessage->getTools());
+            foreach ($lastMessage->getTools() as $tool) {
+                yield new ToolResultChunk($tool);
+            }
         }
 
         try {
@@ -74,7 +76,9 @@ class StreamingNode extends Node
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
-                yield new ToolCallChunk($message->getTools());
+                foreach ($message->getTools() as $tool) {
+                    yield new ToolCallChunk($tool);
+                }
                 return new ToolCallEvent($message, $event);
             }
 

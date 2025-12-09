@@ -106,59 +106,55 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
-        foreach ($chunk->tools as $tool) {
-            $toolName = $tool->getName();
-            $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
-            $this->toolCallIds[$toolName] = $toolCallId;
+        $toolName = $chunk->tool->getName();
+        $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
+        $this->toolCallIds[$toolName] = $toolCallId;
 
-            // Emit ToolCallStart only once per tool
-            if (! isset($this->toolCallStarted[$toolCallId])) {
-                $this->toolCallStarted[$toolCallId] = true;
+        // Emit ToolCallStart only once per tool
+        if (! isset($this->toolCallStarted[$toolCallId])) {
+            $this->toolCallStarted[$toolCallId] = true;
 
-                yield $this->sse([
-                    'type' => 'ToolCallStart',
-                    'toolCallId' => $toolCallId,
-                    'toolCallName' => $toolName,
-                    'parentMessageId' => $this->currentMessageId,
-                    'timestamp' => $this->timestamp(),
-                ]);
-            }
-
-            // Stream tool arguments as JSON
-            $args = $tool->getInputs();
-            if (! empty($args)) {
-                yield $this->sse([
-                    'type' => 'ToolCallArgs',
-                    'toolCallId' => $toolCallId,
-                    'delta' => json_encode($args),
-                    'timestamp' => $this->timestamp(),
-                ]);
-            }
-
-            // Mark tool call arguments as complete
             yield $this->sse([
-                'type' => 'ToolCallEnd',
+                'type' => 'ToolCallStart',
                 'toolCallId' => $toolCallId,
+                'toolCallName' => $toolName,
+                'parentMessageId' => $this->currentMessageId,
                 'timestamp' => $this->timestamp(),
             ]);
         }
+
+        // Stream tool arguments as JSON
+        $args = $chunk->tool->getInputs();
+        if (! empty($args)) {
+            yield $this->sse([
+                'type' => 'ToolCallArgs',
+                'toolCallId' => $toolCallId,
+                'delta' => json_encode($args),
+                'timestamp' => $this->timestamp(),
+            ]);
+        }
+
+        // Mark tool call arguments as complete
+        yield $this->sse([
+            'type' => 'ToolCallEnd',
+            'toolCallId' => $toolCallId,
+            'timestamp' => $this->timestamp(),
+        ]);
     }
 
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
-        foreach ($chunk->tools as $tool) {
-            $toolName = $tool->getName();
-            $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
+        $toolName = $chunk->tool->getName();
+        $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
 
-            // Emit tool result
-            yield $this->sse([
-                'type' => 'ToolCallResult',
-                'toolCallId' => $toolCallId,
-                'content' => $tool->getResult(),
-                'role' => 'tool',
-                'timestamp' => $this->timestamp(),
-            ]);
-        }
+        // Emit tool result
+        yield $this->sse([
+            'type' => 'ToolCallResult',
+            'toolCallId' => $toolCallId,
+            'content' => $chunk->tool->getResult(),
+            'role' => 'tool',
+            'timestamp' => $this->timestamp(),
+        ]);
     }
 
     public function start(): iterable

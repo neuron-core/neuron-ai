@@ -9,10 +9,10 @@ use NeuronAI\Tools\ToolInterface;
 class ToolResultChunk extends StreamChunk
 {
     /**
-     * @param array<int, ToolInterface> $tools
+     * @param ToolInterface $tool
      */
     public function __construct(
-        public readonly array $tools,
+        public readonly ToolInterface $tool,
     ) {
         parent::__construct();
     }
@@ -21,7 +21,7 @@ class ToolResultChunk extends StreamChunk
     {
         return [
             'messageId' => $this->messageId,
-            'tools' => $this->tools,
+            'tools' => $this->tool->jsonSerialize(),
         ];
     }
 }
