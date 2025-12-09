@@ -8,6 +8,9 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 use PHPUnit\Framework\TestCase;
 
+use function is_dir;
+use function rmdir;
+use function sys_get_temp_dir;
 use function unlink;
 
 class FileVectorStoreTest extends TestCase
@@ -63,5 +66,44 @@ class FileVectorStoreTest extends TestCase
         unlink(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron_tmp.store');
+    }
+
+    public function test_creates_directory_if_not_exists(): void
+    {
+        $testDir = sys_get_temp_dir() . '/neuron_test_' . uniqid();
+
+        // Ensure directory doesn't exist
+        $this->assertDirectoryDoesNotExist($testDir);
+
+        // Create store with non-existent directory
+        $store = new FileVectorStore($testDir);
+
+        // Verify directory was created
+        $this->assertDirectoryExists($testDir);
+
+        // Cleanup
+        rmdir($testDir);
+    }
+
+    public function test_works_with_existing_directory_and_file(): void
+    {
+        // First create a store to ensure directory and file exist
+        $store1 = new FileVectorStore(__DIR__, 4, 'existing_test');
+        $this->assertFileExists(__DIR__ . '/existing_test.store');
+
+        // Create another store with same path - should not throw exception
+        $store2 = new FileVectorStore(__DIR__, 4, 'existing_test');
+        $this->assertFileExists(__DIR__ . '/existing_test.store');
+
+        // Both stores should work
+        $document = new Document('Test');
+        $document->embedding = [1, 2, 3];
+        $store2->addDocuments([$document]);
+
+        $results = $store2->similaritySearch([1, 2, 3]);
+        $this->assertCount(1, $results);
+
+        // Cleanup
+        unlink(__DIR__ . '/existing_test.store');
     }
 }
