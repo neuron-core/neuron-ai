@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Mistral;
 
-use NeuronAI\Chat\Attachments\Document;
+use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
@@ -12,7 +12,7 @@ use function uniqid;
 
 class MessageMapper extends OpenAIMessageMapper
 {
-    public function mapDocumentAttachment(Document $document): array
+    public function mapDocumentAttachment(Attachment $document): array
     {
         return match ($document->contentType) {
             AttachmentContentType::BASE64 => [

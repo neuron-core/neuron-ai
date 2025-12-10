@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Attachments\Attachment;
-use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Enums\MessageRole;
@@ -22,6 +21,7 @@ use function is_string;
 use function uniqid;
 use function array_is_list;
 use function array_merge;
+use function array_map;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -76,20 +76,29 @@ class MessageMapper implements MessageMapperInterface
             ];
         }
 
-        foreach ($attachments as $attachment) {
-            if ($attachment instanceof Document) {
-                $payload['content'][] = $this->mapDocumentAttachment($attachment);
-            } elseif ($attachment->type === AttachmentType::IMAGE) {
-                $payload['content'][] = $this->mapImageAttachment($attachment);
-            }
-        }
+        $payload['content'] = array_merge($payload['content'], $this->mapAttachments($attachments));
 
         unset($payload['attachments']);
 
         return $payload;
     }
 
-    public function mapDocumentAttachment(Document $document): array
+    /**
+     * @param Attachment[] $attachments
+     * @throws ProviderException
+     */
+    protected function mapAttachments(array $attachments): array
+    {
+        return array_map(function (Attachment $attachment): array {
+            if ($attachment->type === AttachmentType::DOCUMENT) {
+                return $this->mapDocumentAttachment($attachment);
+            }
+
+            return $this->mapImageAttachment($attachment);
+        }, $attachments);
+    }
+
+    public function mapDocumentAttachment(Attachment $document): array
     {
         return match ($document->contentType) {
             AttachmentContentType::BASE64 => [
@@ -105,7 +114,7 @@ class MessageMapper implements MessageMapperInterface
                     'file_id' => $document->content,
                 ]
             ],
-            default => throw new ProviderException('OpenAI does not support URL document attachments.')
+            default => throw new ProviderException('Could not map document attachment type '.$document->contentType->value),
         };
     }
 

@@ -45,6 +45,9 @@ class MessageMapper implements MessageMapperInterface
         return $this->mapping;
     }
 
+    /**
+     * @throws ProviderException
+     */
     public function mapMessage(Message $message): void
     {
         $payload = $message->jsonSerialize();
@@ -72,7 +75,7 @@ class MessageMapper implements MessageMapperInterface
     {
         return match ($attachment->contentType) {
             AttachmentContentType::BASE64 => $attachment->content,
-            AttachmentContentType::URL => throw new ProviderException('Ollama support only base64 attachment type.'),
+            default => throw new ProviderException('Ollama support only base64 attachment type.'),
         };
     }
 

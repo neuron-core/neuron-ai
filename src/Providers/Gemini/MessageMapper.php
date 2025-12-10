@@ -40,6 +40,9 @@ class MessageMapper implements MessageMapperInterface
         return $mapping;
     }
 
+    /**
+     * @throws ProviderException
+     */
     protected function mapMessage(Message $message): array
     {
         $payload = [
@@ -72,7 +75,8 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $attachment->content,
                     'mime_type' => $attachment->mediaType,
                 ]
-            ]
+            ],
+            default => throw new ProviderException('Could not map attachment type '.$attachment->contentType->value),
         };
     }
 
