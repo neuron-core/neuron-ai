@@ -78,11 +78,6 @@ class MessageMapper implements MessageMapperInterface
 
         foreach ($attachments as $attachment) {
             if ($attachment instanceof Document) {
-                if ($attachment->contentType === AttachmentContentType::URL) {
-                    // OpenAI does not support URL type
-                    throw new ProviderException('OpenAI does not support URL document attachments.');
-                }
-
                 $payload['content'][] = $this->mapDocumentAttachment($attachment);
             } elseif ($attachment->type === AttachmentType::IMAGE) {
                 $payload['content'][] = $this->mapImageAttachment($attachment);
@@ -110,6 +105,7 @@ class MessageMapper implements MessageMapperInterface
                     'file_id' => $document->content,
                 ]
             ],
+            default => throw new ProviderException('OpenAI does not support URL document attachments.')
         };
     }
 
