@@ -98,7 +98,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapFileBlock(FileContent $block): ?array
+    protected function mapFileBlock(FileContent $block): array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
