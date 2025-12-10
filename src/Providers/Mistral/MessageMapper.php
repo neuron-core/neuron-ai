@@ -98,7 +98,7 @@ class MessageMapper implements MessageMapperInterface
             SourceType::URL => [
                 'type' => 'document_url',
                 'document_url' => $block->content,
-                'document_name' => $block->filename ?? "attachment-".uniqid().".pdf",
+                'document_name' => $block->filename,
             ],
             SourceType::ID => [
                 'type' => 'file',
