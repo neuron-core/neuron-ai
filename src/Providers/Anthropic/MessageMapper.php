@@ -88,7 +88,7 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $attachment->content,
                 ],
             ],
-            AttachmentContentType::FILE_ID => [
+            AttachmentContentType::ID => [
                 'type' => AttachmentType::DOCUMENT->value,
                 'source' => [
                     'type' => 'file',

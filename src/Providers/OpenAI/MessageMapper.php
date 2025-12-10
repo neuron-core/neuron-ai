@@ -104,7 +104,7 @@ class MessageMapper implements MessageMapperInterface
                     'file_data' => "data:{$document->mediaType};base64,{$document->content}",
                 ]
             ],
-            AttachmentContentType::FILE_ID => [
+            AttachmentContentType::ID => [
                 'type' => 'file',
                 'file' => [
                     'file_id' => $document->content,
@@ -128,7 +128,7 @@ class MessageMapper implements MessageMapperInterface
                     'url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
                 ],
             ],
-            AttachmentContentType::FILE_ID => [
+            AttachmentContentType::ID => [
                 'type' => 'image_url',
                 'image_url' => [
                     'url' => $attachment->content,
