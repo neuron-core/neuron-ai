@@ -96,13 +96,21 @@ class MessageMapper implements MessageMapperInterface
 
     public function mapDocumentAttachment(Document $document): array
     {
-        return [
-            'type' => 'file',
-            'file' => [
-                'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
-                'file_data' => "data:{$document->mediaType};base64,{$document->content}",
-            ]
-        ];
+        return match ($document->contentType) {
+            AttachmentContentType::BASE64 => [
+                'type' => 'file',
+                'file' => [
+                    'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
+                    'file_data' => "data:{$document->mediaType};base64,{$document->content}",
+                ]
+            ],
+            AttachmentContentType::FILE_ID => [
+                'type' => 'file',
+                'file' => [
+                    'file_id' => $document->content,
+                ]
+            ],
+        };
     }
 
     protected function mapImageAttachment(Attachment $attachment): array
@@ -119,7 +127,13 @@ class MessageMapper implements MessageMapperInterface
                 'image_url' => [
                     'url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
                 ],
-            ]
+            ],
+            AttachmentContentType::FILE_ID => [
+                'type' => 'image_url',
+                'image_url' => [
+                    'url' => $attachment->content,
+                ],
+            ],
         };
     }
 
