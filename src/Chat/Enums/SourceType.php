@@ -8,4 +8,5 @@ enum SourceType: string
 {
     case URL = 'url';
     case BASE64 = 'base64';
+    case ID = 'id';
 }

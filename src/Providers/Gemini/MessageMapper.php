@@ -80,7 +80,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapMediaBlock(ImageContent|FileContent|AudioContent|VideoContent $block): array
+    protected function mapMediaBlock(ImageContent|FileContent|AudioContent|VideoContent $block): ?array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
@@ -94,7 +94,8 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $block->content,
                     'mime_type' => $block->mediaType,
                 ]
-            ]
+            ],
+            default => null
         };
     }
 

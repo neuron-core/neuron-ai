@@ -88,24 +88,39 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapFileBlock(FileContent $block): array
     {
-        return [
-            'type' => 'file',
-            'file' => [
+        return match ($block->sourceType) {
+            SourceType::BASE64 => [
+                'type' => 'file',
                 'filename' => $block->filename,
                 'file_data' => "data:{$block->mediaType};base64,{$block->content}",
-            ]
-        ];
+            ],
+            SourceType::URL => [
+                'type' => 'file',
+                'file_url' => $block->content,
+            ],
+            SourceType::ID => [
+                'type' => 'input_file',
+                'file_id' => $block->content,
+            ],
+        };
     }
 
     protected function mapImageBlock(ImageContent $block): array
     {
-        return [
-            'type' => 'input_image',
-            'image_url' => match ($block->sourceType) {
-                SourceType::URL => $block->content,
-                SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
-            },
-        ];
+        return match ($block->sourceType) {
+            SourceType::URL => [
+                'type' => 'input_image',
+                'image_url' => $block->content,
+            ],
+            SourceType::BASE64 => [
+                'type' => 'input_image',
+                'image_url' => 'data:'.$block->mediaType.';base64,'.$block->content,
+            ],
+            SourceType::ID => [
+                'type' => 'input_image',
+                'image_id' => $block->content,
+            ]
+        };
     }
 
     protected function isUserMessage(Message $message): bool

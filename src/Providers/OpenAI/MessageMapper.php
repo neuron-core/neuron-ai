@@ -66,9 +66,6 @@ class MessageMapper implements MessageMapperInterface
         return array_filter(array_map($this->mapContentBlock(...), $blocks));
     }
 
-    /**
-     * @throws ProviderException
-     */
     protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
@@ -84,32 +81,35 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapImageBlock(ImageContent $block): array
     {
-        $url = match ($block->sourceType) {
-            SourceType::URL => $block->content,
-            SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
-        };
-
         return [
             'type' => 'image_url',
             'image_url' => [
-                'url' => $url,
+                'url' => match ($block->sourceType) {
+                    SourceType::URL, SourceType::ID => $block->content,
+                    SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
+                },
             ],
         ];
     }
 
-    protected function mapFileBlock(FileContent $block): array
+    protected function mapFileBlock(FileContent $block): ?array
     {
-        if ($block->sourceType === SourceType::URL) {
-            throw new ProviderException('OpenAI does not support URL document attachments.');
-        }
-
-        return [
-            'type' => 'file',
-            'file' => [
-                'filename' => $block->filename,
-                'file_data' => "data:{$block->mediaType};base64,{$block->content}",
-            ]
-        ];
+        return match ($block->sourceType) {
+            SourceType::BASE64 => [
+                'type' => 'file',
+                'file' => [
+                    'filename' => $block->filename,
+                    'file_data' => "data:{$block->mediaType};base64,{$block->content}",
+                ]
+            ],
+            SourceType::ID => [
+                'type' => 'file',
+                'file' => [
+                    'file_id' => $block->content,
+                ]
+            ],
+            SourceType::URL => null
+        };
     }
 
     protected function mapToolCall(ToolCallMessage $message): array

@@ -76,7 +76,7 @@ class MessageMapper implements MessageMapperInterface
         };
     }
 
-    protected function mapImageBlock(ImageContent $block): array
+    protected function mapImageBlock(ImageContent $block): ?array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
@@ -94,10 +94,11 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $block->content,
                 ],
             ],
+            default => null
         };
     }
 
-    protected function mapFileBlock(FileContent $block): array
+    protected function mapFileBlock(FileContent $block): ?array
     {
         return match ($block->sourceType) {
             SourceType::URL => [
@@ -115,6 +116,7 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $block->content,
                 ],
             ],
+            default => null,
         };
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Mistral;
 
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
@@ -60,10 +61,7 @@ class MessageMapper implements MessageMapperInterface
         return array_filter(array_map($this->mapContentBlock(...), $blocks));
     }
 
-    /**
-     * @throws ProviderException
-     */
-    protected function mapContentBlock(ContentBlockInterface $block): array
+    protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
             TextContent::class => [
@@ -78,9 +76,9 @@ class MessageMapper implements MessageMapperInterface
                 ],
             ],
             ImageContent::class => $this->mapImageBlock($block),
-            FileContent::class => $this->mapDocumentBlock($block), // File map DocumentChunk on Mistral API
+            FileContent::class => $this->mapDocumentBlock($block),
             AudioContent::class => $this->mapAudioBlock($block),
-            default => throw new ProviderException('Mistral does not support content block type: '.$block::class),
+            default => null
         };
     }
 
@@ -94,13 +92,20 @@ class MessageMapper implements MessageMapperInterface
         ];
     }
 
-    protected function mapDocumentBlock(FileContent $block): array
+    protected function mapDocumentBlock(FileContent $block): ?array
     {
-        return [
-            'type' => 'document_url',
-            'document_url' => $block->content,
-            'document_name' => $block->filename ?? "attachment-".uniqid().".pdf",
-        ];
+        return match ($block->sourceType) {
+            SourceType::URL => [
+                'type' => 'document_url',
+                'document_url' => $block->content,
+                'document_name' => $block->filename ?? "attachment-".uniqid().".pdf",
+            ],
+            SourceType::ID => [
+                'type' => 'file',
+                'file_id' => $block->content,
+            ],
+            SourceType::BASE64 => null,
+        };
     }
 
     protected function mapAudioBlock(AudioContent $block): array
