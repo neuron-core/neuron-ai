@@ -74,14 +74,14 @@ class MessageMapper implements MessageMapperInterface
     {
         return match($attachment->contentType) {
             AttachmentContentType::URL => [
-                'type' => $attachment->type->value,
+                'type' => $attachment->type,
                 'source' => [
                     'type' => 'url',
                     'url' => $attachment->content,
                 ],
             ],
             AttachmentContentType::BASE64 => [
-                'type' => $attachment->type->value,
+                'type' => $attachment->type,
                 'source' => [
                     'type' => 'base64',
                     'media_type' => $attachment->mediaType,
@@ -89,7 +89,7 @@ class MessageMapper implements MessageMapperInterface
                 ],
             ],
             AttachmentContentType::ID => [
-                'type' => AttachmentType::DOCUMENT->value,
+                'type' => AttachmentType::DOCUMENT,
                 'source' => [
                     'type' => 'file',
                     'file_id' => $attachment->content,

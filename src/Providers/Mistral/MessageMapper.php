@@ -15,7 +15,7 @@ class MessageMapper extends OpenAIMessageMapper
     {
         return match ($document->contentType) {
             AttachmentContentType::URL => [
-                'type' => 'document',
+                'type' => 'document_url',
                 'document_url' => $document->content,
             ],
             AttachmentContentType::ID => [
@@ -23,6 +23,23 @@ class MessageMapper extends OpenAIMessageMapper
                 'file_id' => $document->content,
             ],
             default => throw new ProviderException('Could not map document attachment type '.$document->contentType->value),
+        };
+    }
+
+    protected function mapImageAttachment(Attachment $attachment): array
+    {
+        return match($attachment->contentType) {
+            AttachmentContentType::BASE64 => [
+                'type' => 'image_url',
+                'image_url' => [
+                    'url' => 'data:'.$attachment->mediaType.';base64,'.$attachment->content,
+                ],
+            ],
+            AttachmentContentType::ID => [
+                'type' => 'file',
+                'file_id' => $attachment->content,
+            ],
+            default => throw new ProviderException('Could not map document attachment type '.$attachment->contentType->value),
         };
     }
 }
