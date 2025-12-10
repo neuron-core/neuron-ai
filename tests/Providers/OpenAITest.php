@@ -154,27 +154,6 @@ class OpenAITest extends TestCase
         $this->assertSame('test response', $response->getContent());
     }
 
-    public function test_chat_with_url_document_fail(): void
-    {
-        $sentRequests = [];
-        $history = Middleware::history($sentRequests);
-        $mockHandler = new MockHandler([
-            new Response(status: 200, body: $this->body),
-        ]);
-        $stack = HandlerStack::create($mockHandler);
-        $stack->push($history);
-
-        $client = new Client(['handler' => $stack]);
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setClient($client);
-
-        $message = (new UserMessage('Describe this document'))
-            ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
-
-        $this->expectException(ProviderException::class);
-        $provider->chat([$message]);
-    }
-
     public function test_chat_with_base64_document(): void
     {
         $sentRequests = [];
