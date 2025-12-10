@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use Generator;
 
@@ -18,6 +19,11 @@ use function is_array;
 class Mistral extends OpenAI
 {
     protected string $baseUri = 'https://api.mistral.ai/v1';
+
+    public function messageMapper(): MessageMapperInterface
+    {
+        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+    }
 
     /**
      * @throws ProviderException
