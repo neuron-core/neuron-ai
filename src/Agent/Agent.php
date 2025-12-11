@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Amp\Future;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -17,14 +18,21 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Observability\EventBus;
+use NeuronAI\Workflow\Async\AmpWorkflowExecutor;
+use NeuronAI\Workflow\Async\AsyncWorkflowExecutor;
+use NeuronAI\Workflow\Async\ReactWorkflowExecutor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
+use React\EventLoop\Loop;
+use React\Promise\PromiseInterface;
 use Generator;
+use RuntimeException;
 use Throwable;
 
+use function Amp\async;
 use function is_array;
 
 /**
@@ -110,15 +118,10 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @throws Throwable
-     * @throws WorkflowInterrupt
      * @throws InspectorException
-     * @throws WorkflowException
      */
-    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): Message
+    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler
     {
-        EventBus::emit('chat-start', $this);
-
         $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
             $this->addToChatHistory($this->resolveState(), $message);
@@ -132,12 +135,7 @@ class Agent extends Workflow implements AgentInterface
         // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
 
-        /** @var AgentState $finalState */
-        $finalState = $handler->getResult();
-
-        EventBus::emit('chat-stop', $this);
-
-        return $finalState->getChatHistory()->getLastMessage();
+        return new AgentHandler($handler, $this);
     }
 
     /**
@@ -145,17 +143,12 @@ class Agent extends Workflow implements AgentInterface
      *
      * @param Message|Message[] $messages
      * @throws InspectorException
-     * @throws Throwable
-     * @throws WorkflowException
-     * @throws WorkflowInterrupt
      */
     public function stream(
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null,
         ?StreamAdapterInterface $adapter = null,
-    ): Generator {
-        EventBus::emit('stream-start', $this);
-
+    ): AgentHandler {
         $messages = is_array($messages) ? $messages : [$messages];
         foreach ($messages as $message) {
             $this->addToChatHistory($this->resolveState(), $message);
@@ -169,14 +162,7 @@ class Agent extends Workflow implements AgentInterface
         // Start workflow execution
         $handler = parent::start($interrupt);
 
-        // Stream events, optionally through adapter
-        foreach ($handler->streamEvents($adapter) as $event) {
-            yield $event;
-        }
-
-        EventBus::emit('stream-stop', $this);
-
-        return $this->resolveState()->getChatHistory()->getLastMessage();
+        return new AgentHandler($handler, $this);
     }
 
     /**
