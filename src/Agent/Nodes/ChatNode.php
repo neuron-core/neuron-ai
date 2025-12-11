@@ -20,8 +20,8 @@ use NeuronAI\Workflow\Node;
 /**
  * Node responsible for making requests to the AI provider.
  *
- * Receives an AIInferenceEvent containing instructions and tools that can be
- * modified by middleware before the actual inference call is made.
+ * Receives an AIInferenceEvent containing instructions and tools that middleware can
+ * modify before the actual inference call is made.
  */
 class ChatNode extends Node
 {
