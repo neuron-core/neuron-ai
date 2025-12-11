@@ -109,21 +109,14 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @throws InspectorException
      */
     public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-        foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveState(), $message);
-        }
-
-        // Prepare workflow nodes for chat mode
+        // Prepare the workflow for chat mode
         $this->compose(
-            new ChatNode($this->resolveProvider()),
+            new ChatNode($this->resolveProvider(), $messages),
         );
 
-        // Start workflow execution (Agent IS the workflow)
         $handler = parent::start($interrupt);
 
         return new AgentHandler($handler, $this);
@@ -133,24 +126,17 @@ class Agent extends Workflow implements AgentInterface
      * Stream agent responses, optionally through a protocol adapter.
      *
      * @param Message|Message[] $messages
-     * @throws InspectorException
      */
     public function stream(
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null,
         ?StreamAdapterInterface $adapter = null,
     ): AgentHandler {
-        $messages = is_array($messages) ? $messages : [$messages];
-        foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveState(), $message);
-        }
-
-        // Prepare workflow nodes for streaming mode
+        // Prepare the workflow for streaming mode
         $this->compose(
-            new StreamingNode($this->resolveProvider()),
+            new StreamingNode($this->resolveProvider(), $messages),
         );
 
-        // Start workflow execution
         $handler = parent::start($interrupt);
 
         return new AgentHandler($handler, $this);

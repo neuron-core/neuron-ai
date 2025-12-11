@@ -9,6 +9,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -27,8 +28,12 @@ class ChatNode extends Node
 {
     use ChatHistoryHelper;
 
+    /**
+     * @param Message[] $messages
+     */
     public function __construct(
         protected AIProviderInterface $provider,
+        protected array $messages
     ) {
     }
 

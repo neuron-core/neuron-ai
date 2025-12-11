@@ -10,15 +10,21 @@ use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
+use function is_array;
+
 trait ChatHistoryHelper
 {
     /**
      * @throws InspectorException
      */
-    protected function addToChatHistory(AgentState $state, Message $message): void
+    protected function addToChatHistory(AgentState $state, Message|array $messages): void
     {
-        EventBus::emit('message-saving', $this, new MessageSaving($message));
-        $state->getChatHistory()->addMessage($message);
-        EventBus::emit('message-saved', $this, new MessageSaved($message));
+        $messages = is_array($messages) ? $messages : [$messages];
+
+        foreach ($messages as $message) {
+            EventBus::emit('message-saving', $this, new MessageSaving($message));
+            $state->getChatHistory()->addMessage($message);
+            EventBus::emit('message-saved', $this, new MessageSaved($message));
+        }
     }
 }
