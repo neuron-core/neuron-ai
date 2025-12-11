@@ -42,6 +42,9 @@ class ChatNode extends Node
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
+        // Ensure initial messages are added to chat history only once
+        $this->addInitialMessagesOnce($state, $this->messages);
+
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
