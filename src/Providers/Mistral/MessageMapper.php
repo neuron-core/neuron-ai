@@ -22,7 +22,6 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
-use function uniqid;
 use function json_encode;
 use function array_filter;
 

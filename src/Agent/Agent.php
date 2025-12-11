@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Amp\Future;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -18,21 +17,13 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Observability\EventBus;
-use NeuronAI\Workflow\Async\AmpWorkflowExecutor;
-use NeuronAI\Workflow\Async\AsyncWorkflowExecutor;
-use NeuronAI\Workflow\Async\ReactWorkflowExecutor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterrupt;
-use React\EventLoop\Loop;
-use React\Promise\PromiseInterface;
-use Generator;
-use RuntimeException;
 use Throwable;
 
-use function Amp\async;
 use function is_array;
 
 /**

@@ -10,6 +10,7 @@ use NeuronAI\Workflow\WorkflowState;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
+use Throwable;
 
 /**
  * ReactPHP async framework adapter for workflow execution.
@@ -87,16 +88,16 @@ class ReactWorkflowExecutor implements AsyncWorkflowExecutor
 
         try {
             // Start workflow execution on next tick to ensure we're in event loop context
-            $this->loop->futureTick(function () use ($workflow, $resumeRequest, $deferred) {
+            $this->loop->futureTick(function () use ($workflow, $resumeRequest, $deferred): void {
                 try {
                     $handler = $workflow->start($resumeRequest);
                     $result = $handler->getResult();
                     $deferred->resolve($result);
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     $deferred->reject($e);
                 }
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $deferred->reject($e);
         }
 

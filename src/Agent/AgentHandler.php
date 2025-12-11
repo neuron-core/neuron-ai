@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Agent;
 
 use Generator;
@@ -9,6 +11,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\WorkflowHandler;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
+use Throwable;
 
 class AgentHandler extends WorkflowHandler
 {
@@ -33,7 +36,7 @@ class AgentHandler extends WorkflowHandler
     /**
      * Agent convenience method
      *
-     * @throws \Throwable
+     * @throws Throwable
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */

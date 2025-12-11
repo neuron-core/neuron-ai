@@ -16,6 +16,7 @@ use PHPUnit\Framework\TestCase;
 
 use function Amp\async;
 use function Amp\delay;
+use function microtime;
 
 class ProcessEvent implements Event
 {

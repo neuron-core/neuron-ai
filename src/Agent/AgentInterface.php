@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Amp\Future;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Workflow\Async\AsyncWorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use React\Promise\PromiseInterface;
-use Generator;
 
 interface AgentInterface
 {
