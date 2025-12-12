@@ -71,7 +71,7 @@ foreach ($messages as $index => $userMessage) {
 
     try {
         $response = $agent->chat(UserMessage::make($userMessage));
-        $content = $response->getContent();
+        $content = $response->getMessage()->getContent();
 
         echo "Assistant: " . \substr($content, 0, 200);
         if (\strlen($content) > 200) {

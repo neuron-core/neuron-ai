@@ -74,14 +74,14 @@ try {
     }
 
     echo "Agent Response:\n";
-    echo $response->getContent() . "\n";
+    echo $response->getMessage()->getContent() . "\n";
 
 } catch (WorkflowInterrupt $interrupt) {
     echo "Workflow interrupted for approval\n";
 
     // Handle approval flow
     $interruptRequest = $interrupt->getRequest();
-    foreach ($interruptRequest->actions as $action) {
+    foreach ($interruptRequest->getActions() as $action) {
         echo "Action: {$action->name} - {$action->description}\n";
         // In a real app, prompt user for approval
         $action->approve();

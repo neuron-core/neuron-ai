@@ -102,13 +102,13 @@ try {
         $response = $agent->chat(interrupt: $interruptRequest);
     }
 
-    echo "Agent: ".\json_encode($response->getContent())."\n\n";
+    echo "Agent: ".\json_encode($response->getMessage()->getContent())."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
     $interruptRequest = $interrupt->getRequest();
 
-    echo "Message: {$interruptRequest->getReason()}\n\n";
+    echo "Message: {$interruptRequest->getMessage()}\n\n";
     echo "Actions requiring approval:\n";
 
     foreach ($interruptRequest->getPendingActions() as $action) {

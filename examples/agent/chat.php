@@ -21,6 +21,7 @@ $result = \NeuronAI\Agent\Agent::make()
     )
     ->chat(
         new UserMessage('Hi, using the tool you have, calculate the square root of 16!')
-    );
+    )
+    ->getMessage();
 
 \var_dump($result);

@@ -28,12 +28,10 @@ $agent = \NeuronAI\Agent\Agent::make()
 function process_response($response): void
 {
     if ($response instanceof ToolCallChunk) {
-        echo \PHP_EOL.\PHP_EOL.\array_reduce($response->tools, function (string $carry, ToolInterface $tool): string {
-            return $carry . '- Calling ' . $tool->getName() . ' with: ' . \json_encode($tool->getInputs()) . \PHP_EOL;
-        }, '').\PHP_EOL;
+        echo "\n- Calling " . $response->tool->getName() . ' with: ' . \json_encode($response->tool->getInputs());
         return;
     } elseif ($response instanceof ToolResultChunk) {
-        return;
+        echo "\n";
     }
 
     echo $response->content;
@@ -59,9 +57,9 @@ try {
     $interruptRequest = $interrupt->getRequest();
 
     echo "\nAgent interruption\n";
-    echo $interrupt->getRequest()->getMessage()."\n\n";
+    echo $interruptRequest->getMessage()."\n\n";
 
-    foreach ($interrupt->getRequest()->getPendingActions() as $action) {
+    foreach ($interruptRequest->getPendingActions() as $action) {
         echo "- {$action->name}: {$action->description}\n";
         $action->reject('The user denied operation');
     }

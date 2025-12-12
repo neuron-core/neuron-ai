@@ -169,7 +169,7 @@ try {
     echo "\n";
     echo "Agent Response:\n";
     echo "───────────────\n";
-    echo \wordwrap($response->getContent(), 75) . "\n\n";
+    echo \wordwrap($response->getMessage()->getContent(), 75) . "\n\n";
 
     echo "Execution completed in {$duration} seconds.\n";
 } catch (\Exception $e) {
