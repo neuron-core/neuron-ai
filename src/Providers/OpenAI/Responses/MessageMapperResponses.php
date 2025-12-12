@@ -67,11 +67,6 @@ class MessageMapperResponses implements MessageMapperInterface
         }
         foreach ($message->getAttachments() as $attachment) {
             if ($attachment instanceof Document) {
-                if ($attachment->contentType === AttachmentContentType::URL) {
-                    // OpenAI does not support URL type
-                    throw new ProviderException('This provider does not support URL document attachments.');
-                }
-
                 $payload['content'][] = $this->mapDocumentAttachment($attachment);
             } elseif ($attachment->type === AttachmentType::IMAGE) {
                 $payload['content'][] = $this->mapImageAttachment($attachment);
@@ -95,7 +90,7 @@ class MessageMapperResponses implements MessageMapperInterface
             ],
             AttachmentContentType::BASE64 => [
                 'type' => 'input_file',
-                'filename' => $document->filename ?? "attachment-".uniqid().".pdf",
+                'filename' => $document->filename ?? 'attachment-'.uniqid().'.pdf',
                 'file_data' => "data:{$document->mediaType};base64,{$document->content}",
             ],
             AttachmentContentType::ID => [
@@ -107,7 +102,7 @@ class MessageMapperResponses implements MessageMapperInterface
 
     protected function mapImageAttachment(Attachment $attachment): array
     {
-        return match($attachment->contentType) {
+        return match ($attachment->contentType) {
             AttachmentContentType::URL => [
                 'type' => 'input_image',
                 'image_url' => $attachment->content,
@@ -140,7 +135,7 @@ class MessageMapperResponses implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
+                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass),
                 'call_id' => $tool->getCallId(),
             ];
         }

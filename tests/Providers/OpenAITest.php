@@ -15,6 +15,7 @@ use NeuronAI\Chat\Enums\AttachmentContentType;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\OpenAI\Responses\OpenAIResponses;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -56,7 +57,7 @@ class OpenAITest extends TestCase
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi']
+                        ['type' => 'text', 'text' => 'Hi'],
                     ],
                 ],
             ],
@@ -232,7 +233,7 @@ class OpenAITest extends TestCase
                             'description',
                             true
                         )
-                    )
+                    ),
             ])
             ->setClient($client);
 
@@ -249,7 +250,7 @@ class OpenAITest extends TestCase
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi']
+                        ['type' => 'text', 'text' => 'Hi'],
                     ],
                 ],
             ],
@@ -265,13 +266,13 @@ class OpenAITest extends TestCase
                                 'prop' => [
                                     'type' => 'string',
                                     'description' => 'description',
-                                ]
+                                ],
                             ],
                             'required' => ['prop'],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -303,7 +304,7 @@ class OpenAITest extends TestCase
                                 'description',
                             )
                         )
-                    )
+                    ),
             ])
             ->setClient($client);
 
@@ -320,7 +321,7 @@ class OpenAITest extends TestCase
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi']
+                        ['type' => 'text', 'text' => 'Hi'],
                     ],
                 ],
             ],
@@ -339,14 +340,14 @@ class OpenAITest extends TestCase
                                     'items' => [
                                         'type' => 'string',
                                         'description' => 'description',
-                                    ]
-                                ]
+                                    ],
+                                ],
                             ],
                             'required' => [],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -373,7 +374,7 @@ class OpenAITest extends TestCase
                             'description',
                             false
                         )
-                    )
+                    ),
             ])
             ->setClient($client);
 
@@ -390,7 +391,7 @@ class OpenAITest extends TestCase
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi']
+                        ['type' => 'text', 'text' => 'Hi'],
                     ],
                 ],
             ],
@@ -408,19 +409,18 @@ class OpenAITest extends TestCase
                                     'description' => 'description',
                                     'items' => [
                                         'type' => 'string',
-                                    ]
-                                ]
+                                    ],
+                                ],
                             ],
                             'required' => [],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
     }
-
 
     public function test_tools_payload_with_array_object_mapped(): void
     {
@@ -449,7 +449,7 @@ class OpenAITest extends TestCase
                                 Color::class
                             )
                         )
-                    )
+                    ),
             ])
             ->setClient($client);
 
@@ -466,7 +466,7 @@ class OpenAITest extends TestCase
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi']
+                        ['type' => 'text', 'text' => 'Hi'],
                     ],
                 ],
             ],
@@ -486,30 +486,73 @@ class OpenAITest extends TestCase
                                         'type' => 'object',
                                         'description' => 'Description for color',
                                         'properties' => [
-                                            "r" => [
+                                            'r' => [
                                                 'type' => 'number',
                                                 'description' => 'The RED',
                                             ],
-                                            "g" => [
+                                            'g' => [
                                                 'type' => 'number',
                                                 'description' => 'The GREEN',
                                             ],
-                                            "b" => [
+                                            'b' => [
                                                 'type' => 'number',
                                                 'description' => 'The BLUE',
-                                            ]
+                                            ],
                                         ],
-                                        "required" => ["r", "g", "b"]
-                                    ]
-                                ]
+                                        'required' => ['r', 'g', 'b'],
+                                    ],
+                                ],
                             ],
-                            'required' => ["array_prop"],
-                        ]
-                    ]
-                ]
-            ]
+                            'required' => ['array_prop'],
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_responses_with_url_document(): void
+    {
+        $responsesBody = '{"id": "resp_123", "model": "gpt-4o", "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "test response"}]}], "usage": {"input_tokens": 19, "output_tokens": 10}}';
+
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $responsesBody),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new OpenAIResponses('', 'gpt-4o'))->setClient($client);
+
+        $message = (new UserMessage('Describe this document'))
+            ->addAttachment(new Document('https://example.com/document.pdf'));
+
+        $response = $provider->chat([$message]);
+
+        // Ensure we sent one request
+        $this->assertCount(1, $sentRequests);
+        $request = $sentRequests[0];
+
+        // Ensure we have sent the expected request payload.
+        $expectedRequest = [
+            'model' => 'gpt-4o',
+            'input' => [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        ['type' => 'input_text', 'text' => 'Describe this document'],
+                        ['type' => 'input_file', 'file_url' => 'https://example.com/document.pdf'],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame('test response', $response->getContent());
     }
 }
