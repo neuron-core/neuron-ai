@@ -122,7 +122,7 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Stream agent responses, optionally through a protocol adapter.
+     * Stream agent response
      *
      * @param Message|Message[] $messages
      */
@@ -159,7 +159,6 @@ class Agent extends Workflow implements AgentInterface
             $this->addToChatHistory($this->resolveState(), $message);
         }
 
-        // Get the output class
         $class ??= $this->getOutputClass();
 
         // Prepare workflow nodes for structured output mode
@@ -167,7 +166,6 @@ class Agent extends Workflow implements AgentInterface
             new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
         );
 
-        // Start workflow execution (Agent IS the workflow)
         $handler = parent::init($interrupt);
 
         /** @var AgentState $finalState */
