@@ -41,20 +41,22 @@ require_once __DIR__ . '/../../vendor/autoload.php';
  */
 
 // Create agent with tools
-$agent = Agent::make()
+$handler = Agent::make()
     ->setAiProvider(
         new Anthropic(
             '',
             'claude-3-7-sonnet-latest'
         )
     )
-    ->addTool(CalculatorToolkit::make());
+    ->addTool(
+        CalculatorToolkit::make()
+    )
+    ->stream(
+        new UserMessage('What is the square root of 144?')
+    );
 
 // Initialize the streaming with the adapter
-$stream = $agent->stream(
-    messages: new UserMessage('What is the square root of 144?'),
-    adapter: new VercelAIAdapter()
-);
+$stream = $handler->streamEvents(new VercelAIAdapter());
 
 // Process the response
 foreach ($stream as $line) {

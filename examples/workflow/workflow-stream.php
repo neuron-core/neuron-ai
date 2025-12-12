@@ -21,7 +21,7 @@ $workflow->addNodes([
 // Draw the workflow graph
 echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
 
-$handler = $workflow->start();
+$handler = $workflow->init();
 
 foreach ($handler->streamEvents() as $event) {
     if ($event instanceof SecondEvent) {

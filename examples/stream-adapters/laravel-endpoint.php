@@ -25,21 +25,23 @@ Route::post('/chat', function (Request $request) {
     ]);
 
     // Create agent
-    $agent = Agent::make()
+    $handler = Agent::make()
         ->setAiProvider(
             new Anthropic(
                 config('services.anthropic.api_key'),
                 'claude-3-7-sonnet-latest'
             )
         )
-        ->addTool(CalculatorToolkit::make());
+        ->addTool(
+            CalculatorToolkit::make()
+        )
+        ->stream(
+            new UserMessage($validated['message'])
+        );
 
     $adapter = new VercelAIAdapter();
 
-    $stream = $agent->stream(
-        messages: new UserMessage($validated['message']),
-        adapter: $adapter
-    );
+    $stream = $handler->streamEvents($adapter);
 
     // Return streaming response
     return response()->stream(

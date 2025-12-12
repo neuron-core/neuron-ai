@@ -26,7 +26,7 @@ echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
 
 // Run the workflow and catch the interruption
 try {
-    $finalState = $workflow->start()->getResult();
+    $finalState = $workflow->init()->getResult();
 } catch (WorkflowInterrupt $interrupt) {
     // Verify interrupt was saved
     $savedInterrupt = $persistence->load('test_workflow');
@@ -34,7 +34,7 @@ try {
 }
 
 // Resume the workflow providing external data
-$finalState = $workflow->start($savedInterrupt->getRequest())->getResult();
+$finalState = $workflow->init($savedInterrupt->getRequest())->getResult();
 
 // It should print "approved"
 echo $finalState->get('received_feedback').\PHP_EOL;
