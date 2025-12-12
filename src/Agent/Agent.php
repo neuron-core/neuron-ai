@@ -13,14 +13,12 @@ use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use Throwable;
 
 use function is_array;
@@ -147,8 +145,6 @@ class Agent extends Workflow implements AgentInterface
      * @throws AgentException
      * @throws InspectorException
      * @throws Throwable
-     * @throws WorkflowException
-     * @throws WorkflowInterrupt
      */
     public function structured(
         Message|array $messages = [],
