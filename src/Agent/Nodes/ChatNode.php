@@ -19,8 +19,6 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
 /**
- * Node responsible for making requests to the AI provider.
- *
  * Receives an AIInferenceEvent containing instructions and tools that middleware can
  * modify before the actual inference call is made.
  */
@@ -29,11 +27,11 @@ class ChatNode extends Node
     use ChatHistoryHelper;
 
     /**
-     * @param Message[] $messages
+     * @param Message|Message[] $messages
      */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected array $messages
+        protected Message|array $messages
     ) {
     }
 
@@ -54,11 +52,7 @@ class ChatNode extends Node
             new InferenceStart($lastMessage)
         );
 
-        // Make the AI provider call using configuration from the event
-        $response = $this->provider
-            ->systemPrompt($event->instructions)
-            ->setTools($event->tools)
-            ->chat($chatHistory->getMessages());
+        $response = $this->inference($event, $chatHistory->getMessages());
 
         EventBus::emit(
             'inference-stop',
@@ -75,5 +69,25 @@ class ChatNode extends Node
         }
 
         return new StopEvent();
+    }
+
+    /**
+     * Perform the actual inference call to the AI provider.
+     *
+     * This method is extracted to allow easy customization of the inference behavior.
+     * Subclasses can override this method to:
+     * - Use async operations (chatAsync with Amp, ReactPHP, etc.)
+     * - Add custom retry logic
+     * - Implement caching
+     * - Add custom error handling
+     *
+     * @param Message[] $messages
+     */
+    protected function inference(AIInferenceEvent $event, array $messages): Message
+    {
+        return $this->provider
+            ->systemPrompt($event->instructions)
+            ->setTools($event->tools)
+            ->chat($messages);
     }
 }

@@ -33,15 +33,11 @@ trait ChatHistoryHelper
      * Adds the given messages to the chat history exactly once per node instance.
      * Uses a per-instance key in the AgentState to avoid duplicate additions when a node runs multiple times.
      *
-     * @param Message[] $messages
+     * @param Message|Message[] $messages
      * @throws InspectorException
      */
-    protected function addInitialMessagesOnce(AgentState $state, array $messages): void
+    protected function addInitialMessagesOnce(AgentState $state, Message|array $messages): void
     {
-        if ($messages === []) {
-            return;
-        }
-
         $initKey = 'chat_init_' . spl_object_hash($this);
         if (!$state->get($initKey, false)) {
             $this->addToChatHistory($state, $messages);
