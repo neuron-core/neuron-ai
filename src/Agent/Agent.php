@@ -15,7 +15,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\HandleContent;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -119,7 +118,7 @@ class Agent extends Workflow implements AgentInterface
             new ChatNode($this->resolveProvider(), $messages),
         );
 
-        $handler = parent::start($interrupt);
+        $handler = parent::init($interrupt);
 
         return new AgentHandler($handler);
     }
@@ -138,7 +137,7 @@ class Agent extends Workflow implements AgentInterface
             new StreamingNode($this->resolveProvider(), $messages),
         );
 
-        $handler = parent::start($interrupt);
+        $handler = parent::init($interrupt);
 
         return new AgentHandler($handler);
     }
@@ -173,7 +172,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         // Start workflow execution (Agent IS the workflow)
-        $handler = parent::start($interrupt);
+        $handler = parent::init($interrupt);
 
         /** @var AgentState $finalState */
         $finalState = $handler->getResult();

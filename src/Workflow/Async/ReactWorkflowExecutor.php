@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Async;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowHandler;
+use NeuronAI\Workflow\WorkflowHandlerInterface;
 use NeuronAI\Workflow\WorkflowState;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
@@ -22,7 +22,7 @@ class ReactWorkflowExecutor implements AsyncWorkflowExecutor
     /**
      * @return PromiseInterface Promise that resolves to WorkflowState
      */
-    public function execute(WorkflowHandler $handler): PromiseInterface
+    public function execute(WorkflowHandlerInterface $handler): PromiseInterface
     {
         $deferred = new Deferred();
 

@@ -21,7 +21,7 @@ class WorkflowStreamTest extends TestCase
             new NodeThree()
         ]);
 
-        $handler = $workflow->start();
+        $handler = $workflow->init();
 
         foreach ($handler->streamEvents() as $event) {
             $this->assertInstanceOf(Event::class, $event);

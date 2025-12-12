@@ -31,7 +31,7 @@ class WorkflowTest extends TestCase
                  new NodeThree(),
             ]);
 
-        $finalState = $workflow->start()->getResult();
+        $finalState = $workflow->init()->getResult();
 
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('node_two_executed'));
@@ -49,7 +49,7 @@ class WorkflowTest extends TestCase
                  new NodeThree(),
             ]);
 
-        $finalState = $workflow->start()->getResult();
+        $finalState = $workflow->init()->getResult();
 
         $this->assertEquals('test', $finalState->get('initial_data'));
         $this->assertTrue($finalState->get('node_one_executed'));
@@ -64,7 +64,7 @@ class WorkflowTest extends TestCase
                  new NodeThree(),
             ]);
 
-        $finalState = $workflow->start()->getResult();
+        $finalState = $workflow->init()->getResult();
 
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('node_two_executed'));
@@ -80,7 +80,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $workflow->start()->getResult();
+        $workflow->init()->getResult();
         $eventNodeMap = $workflow->getEventNodeMap();
 
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
@@ -99,7 +99,7 @@ class WorkflowTest extends TestCase
         $workflow = Workflow::make(new WorkflowState(['condition' => 'second']))
             ->addNodes($nodes);
 
-        $finalState = $workflow->start()->getResult();
+        $finalState = $workflow->init()->getResult();
 
         $this->assertTrue($finalState->get('conditional_node_executed'));
         $this->assertTrue($finalState->get('second_path_executed'));
@@ -109,7 +109,7 @@ class WorkflowTest extends TestCase
         // Test the third path
         $workflow = Workflow::make(new WorkflowState(['condition' => 'third']))
             ->addNodes($nodes);
-        $finalState = $workflow->start()->getResult();
+        $finalState = $workflow->init()->getResult();
 
         $this->assertTrue($finalState->get('conditional_node_executed'));
         $this->assertTrue($finalState->get('third_path_executed'));
@@ -128,7 +128,7 @@ class WorkflowTest extends TestCase
                  new NodeThree(),
             ]);
 
-        $workflow->start()->getResult();
+        $workflow->init()->getResult();
     }
 
     public function testWorkflowFailsWhenNoNodeHandlesEvent(): void
@@ -143,7 +143,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $workflow->start()->getResult();
+        $workflow->init()->getResult();
     }
 
     public function testWorkflowInterrupt(): void
@@ -159,7 +159,7 @@ class WorkflowTest extends TestCase
              new NodeThree(),
         ]);
 
-        $workflow->start()->getResult();
+        $workflow->init()->getResult();
     }
 
     public function testWorkflowResume(): void
@@ -174,7 +174,7 @@ class WorkflowTest extends TestCase
         ]);
 
         try {
-            $workflow->start()->getResult();
+            $workflow->init()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals('human input needed', $interrupt->getRequest()->getMessage());

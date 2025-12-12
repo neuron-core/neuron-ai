@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Async;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowHandler;
+use NeuronAI\Workflow\WorkflowHandlerInterface;
 
 /**
  * Interface for async workflow execution adapters.
@@ -25,5 +25,5 @@ interface AsyncWorkflowExecutor
      *
      * @return mixed Framework-specific promise/future that resolves to WorkflowState
      */
-    public function execute(WorkflowHandler $handler): mixed;
+    public function execute(WorkflowHandlerInterface $handler): mixed;
 }

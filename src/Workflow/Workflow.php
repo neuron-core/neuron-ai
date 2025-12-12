@@ -110,9 +110,18 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Start or resume the workflow.
+     * @deprecated Use init() instead.
      */
     public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
+    {
+        $isResume = $resumeRequest instanceof InterruptRequest;
+        return new WorkflowHandler($this, $isResume, $resumeRequest);
+    }
+
+    /**
+     * Initialize the workflow handler.
+     */
+    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
         $isResume = $resumeRequest instanceof InterruptRequest;
         return new WorkflowHandler($this, $isResume, $resumeRequest);

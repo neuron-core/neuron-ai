@@ -8,7 +8,12 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 interface WorkflowInterface
 {
-    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface;
+    /**
+     * @deprecated Use init() instead
+     */
+    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler;
+
+    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface;
 
     public function addNode(NodeInterface $node): Workflow;
 

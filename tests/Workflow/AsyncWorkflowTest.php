@@ -65,7 +65,7 @@ class AsyncWorkflowTest extends TestCase
             ]);
 
         $executor = new AmpWorkflowExecutor();
-        $future = $executor->execute($workflow->start());
+        $future = $executor->execute($workflow->init());
 
         $result = $future->await();
 
@@ -85,9 +85,9 @@ class AsyncWorkflowTest extends TestCase
         $startTime = microtime(true);
 
         // Execute three workflows concurrently
-        $future1 = $executor->execute($workflow1->start());
-        $future2 = $executor->execute($workflow2->start());
-        $future3 = $executor->execute($workflow3->start());
+        $future1 = $executor->execute($workflow1->init());
+        $future2 = $executor->execute($workflow2->init());
+        $future3 = $executor->execute($workflow3->init());
 
         [$result1, $result2, $result3] = Future\await([$future1, $future2, $future3]);
 
@@ -114,7 +114,7 @@ class AsyncWorkflowTest extends TestCase
             ]);
 
         $executor = new AmpWorkflowExecutor();
-        $result = $executor->execute($workflow->start())->await();
+        $result = $executor->execute($workflow->init())->await();
 
         $this->assertEquals('value', $result->get('initial'));
         $this->assertEquals('executed', $result->get('first'));
