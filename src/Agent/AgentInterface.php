@@ -42,7 +42,7 @@ interface AgentInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null, ?StreamAdapterInterface $adapter = null): AgentHandler;
+    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler;
 
     /**
      * @param Message|Message[] $messages

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
+
 interface WorkflowInterface
 {
-    public function start(?Interrupt\InterruptRequest $resumeRequest = null): WorkflowHandler;
+    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface;
 
     public function addNode(NodeInterface $node): Workflow;
 

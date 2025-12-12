@@ -8,26 +8,29 @@ use Generator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\WorkflowHandler;
+use NeuronAI\Workflow\WorkflowHandlerInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-class AgentHandler extends WorkflowHandler
+class AgentHandler implements WorkflowHandlerInterface
 {
     public function __construct(
-        protected WorkflowHandler $workflowHandler,
-        protected Agent $agent
+        protected WorkflowHandlerInterface $workflowHandler
     ) {
-        parent::__construct($this->agent);
     }
 
-    // Inherit WorkflowHandler methods
+    /**
+     * @throws Throwable
+     */
     public function getResult(): WorkflowState
     {
         return $this->workflowHandler->getResult();
     }
 
+    /**
+     * @throws Throwable
+     */
     public function streamEvents(?StreamAdapterInterface $adapter = null): Generator
     {
         return $this->workflowHandler->streamEvents($adapter);

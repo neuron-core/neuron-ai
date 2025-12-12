@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Generator;
 use Throwable;
 
-class WorkflowHandler
+class WorkflowHandler implements WorkflowHandlerInterface
 {
     protected WorkflowState $result;
 

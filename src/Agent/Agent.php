@@ -110,8 +110,10 @@ class Agent extends Workflow implements AgentInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler
-    {
+    public function chat(
+        Message|array $messages = [],
+        ?InterruptRequest $interrupt = null
+    ): AgentHandler {
         // Prepare the workflow for chat mode
         $this->compose(
             new ChatNode($this->resolveProvider(), $messages),
@@ -119,7 +121,7 @@ class Agent extends Workflow implements AgentInterface
 
         $handler = parent::start($interrupt);
 
-        return new AgentHandler($handler, $this);
+        return new AgentHandler($handler);
     }
 
     /**
@@ -129,8 +131,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function stream(
         Message|array $messages = [],
-        ?InterruptRequest $interrupt = null,
-        ?StreamAdapterInterface $adapter = null,
+        ?InterruptRequest $interrupt = null
     ): AgentHandler {
         // Prepare the workflow for streaming mode
         $this->compose(
@@ -139,7 +140,7 @@ class Agent extends Workflow implements AgentInterface
 
         $handler = parent::start($interrupt);
 
-        return new AgentHandler($handler, $this);
+        return new AgentHandler($handler);
     }
 
     /**
@@ -150,8 +151,12 @@ class Agent extends Workflow implements AgentInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed
-    {
+    public function structured(
+        Message|array $messages = [],
+        ?string $class = null,
+        int $maxRetries = 1,
+        ?InterruptRequest $interrupt = null
+    ): mixed {
         EventBus::emit('structured-start', $this);
 
         $messages = is_array($messages) ? $messages : [$messages];
