@@ -135,7 +135,6 @@ class AsyncAgentTest extends TestCase
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
 
-        // Create empty Amp client - provider will configure it
         $httpClient = new AmpHttpClient();
 
         $provider = new Anthropic(
