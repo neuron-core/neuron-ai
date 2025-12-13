@@ -38,8 +38,13 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $request = HttpRequest::post('chat', $json);
-        $response = $this->httpClient->request($request);
+        $response = $this->httpClient->request(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'chat',
+                body: $json
+            )
+        );
 
         if (!$response->isSuccessful()) {
             throw new ProviderException("Ollama chat error: {$response->body}");

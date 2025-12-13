@@ -44,11 +44,13 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $request = HttpRequest::post(
-            trim($this->baseUri, '/')."/{$this->model}:generateContent",
-            $json
+        $response = $this->httpClient->request(
+            new HttpRequest(
+                method: 'POST',
+                uri: trim($this->baseUri, '/')."/{$this->model}:generateContent",
+                body: $json
+            )
         );
-        $response = $this->httpClient->request($request);
 
         return $this->processChatResult($response->json());
     }

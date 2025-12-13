@@ -38,8 +38,13 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $request = HttpRequest::post('messages', $json);
-        $response = $this->httpClient->request($request);
+        $response = $this->httpClient->request(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'messages',
+                body: $json
+            )
+        );
 
         return $this->processChatResult($response->json());
     }
