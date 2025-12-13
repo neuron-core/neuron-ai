@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\HttpClient\AmpHttpClient;
-use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
 use NeuronAI\Workflow\Async\AmpWorkflowExecutor;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -118,6 +117,7 @@ class AsyncAgentTest extends TestCase
             return 'delay_completed';
         });
 
+        /** @var AgentState $agentResult */
         // Both should complete, with delay not blocking the agent
         [$agentResult, $delayResult] = Future\await([$agentFuture, $delayFuture]);
 
