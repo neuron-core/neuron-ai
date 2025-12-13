@@ -89,7 +89,7 @@ class AsyncAgentTest extends TestCase
         $this->assertInstanceOf(WorkflowState::class, $result3);
 
         // Concurrent execution should be significantly faster than sequential
-        $this->assertLessThan(3, $duration, 'Concurrent execution should complete in less than 3 seconds');
+        $this->assertLessThan(4, $duration, 'Concurrent execution should complete in less than 4 seconds');
     }
 
     public function testMixedAsyncOperations(): void

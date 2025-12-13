@@ -15,6 +15,6 @@
     </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
-        <env name="INSPECTOR_API_KEY" value="inspector-api-key"/>
+        <env name="INSPECTOR_API_KEY" value=""/>
     </php>
 </phpunit>
