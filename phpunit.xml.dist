@@ -16,6 +16,5 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="INSPECTOR_API_KEY" value="inspector-api-key"/>
-        <env name="ANTHROPIC_API_KEY" value="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"/>
     </php>
 </phpunit>

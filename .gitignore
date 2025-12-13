@@ -11,3 +11,4 @@ composer.lock
 .junie
 .env
 scripts
+phpunit.xml.local
