@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use Amp\Future;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\HttpClient\AmpHttpClient;
@@ -114,6 +115,7 @@ class AsyncAgentTest extends TestCase
         $handler = $agent->chat(new UserMessage('Say hello in one word'));
         $future = $executor->execute($handler);
 
+        /** @var AgentState $result */
         $result = $future->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);

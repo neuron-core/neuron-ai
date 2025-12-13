@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 class OpenAILike extends OpenAI
@@ -14,8 +15,8 @@ class OpenAILike extends OpenAI
         protected string $model,
         protected array $parameters = [],
         protected bool $strict_response = false,
-        protected ?HttpClientOptions $httpOptions = null
+        ?HttpClientInterface $httpClient = null,
     ) {
-        parent::__construct($key, $model, $parameters, $strict_response, $httpOptions);
+        parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
     }
 }

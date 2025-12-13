@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
@@ -39,9 +40,7 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
 
@@ -79,9 +78,7 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
@@ -120,9 +117,7 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
@@ -161,9 +156,7 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new ImageContent(content: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
@@ -202,8 +195,6 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -216,7 +207,7 @@ class OpenAITest extends TestCase
                         )
                     )
             ])
-            ->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -269,8 +260,6 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -287,7 +276,7 @@ class OpenAITest extends TestCase
                         )
                     )
             ])
-            ->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -344,8 +333,6 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -357,7 +344,7 @@ class OpenAITest extends TestCase
                         )
                     )
             ])
-            ->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -414,8 +401,6 @@ class OpenAITest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-
-
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -433,7 +418,7 @@ class OpenAITest extends TestCase
                         )
                     )
             ])
-            ->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -510,8 +495,7 @@ class OpenAITest extends TestCase
         ]);
         $stack = HandlerStack::create($mockHandler);
 
-
-        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
+        $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $generator = $provider->stream([new UserMessage('Hi')]);
 
