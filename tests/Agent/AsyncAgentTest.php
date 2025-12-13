@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Agent;
 use Amp\Future;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\HttpClient\AmpHttpClient;
@@ -20,78 +21,10 @@ use function Amp\delay;
 use function microtime;
 use function getenv;
 
-/**
- * Tests demonstrating async agent workflows using custom HTTP clients.
- *
- * This test showcases two clean usage patterns:
- * 1. Default - provider handles everything
- * 2. Custom client - for async or special HTTP behavior
- */
 class AsyncAgentTest extends TestCase
 {
-    /**
-     * Pattern 1: Default usage (no changes from previous versions).
-     *
-     * The provider automatically creates a Guzzle client with all necessary
-     * configuration (API key, base URI, headers).
-     */
-    public function testDefaultPattern(): void
-    {
-        $apiKey = getenv('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
-            $this->markTestSkipped('ANTHROPIC_API_KEY not set');
-        }
+    protected string $model = "claude-3-7-sonnet-20250219";
 
-        // Dead simple - provider handles everything
-        $provider = new Anthropic(
-            key: $apiKey,
-            model: 'claude-3-5-sonnet-20241022'
-        );
-
-        $agent = Agent::make()->setAiProvider($provider);
-
-        $handler = $agent->chat(new UserMessage('Say hello in one word'));
-        $result = $handler->getResult();
-
-        $this->assertInstanceOf(WorkflowState::class, $result);
-    }
-
-    /**
-     * Pattern 2a: Customize default Guzzle client using with*() methods.
-     *
-     * Pre-configure a client with custom settings, provider adds auth/URI.
-     */
-    public function testCustomizedGuzzlePattern(): void
-    {
-        $apiKey = getenv('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
-            $this->markTestSkipped('ANTHROPIC_API_KEY not set');
-        }
-
-        // Pre-configure Guzzle client with custom timeout/headers
-        $httpClient = (new GuzzleHttpClient())
-            ->withTimeout(60.0)
-            ->withHeaders(['X-Custom-Header' => 'my-value']);
-
-        $provider = new Anthropic(
-            key: $apiKey,
-            model: 'claude-3-5-sonnet-20241022',
-            httpClient: $httpClient  // Provider adds auth/URI on top
-        );
-
-        $agent = Agent::make()->setAiProvider($provider);
-
-        $handler = $agent->chat(new UserMessage('Say hello in one word'));
-        $result = $handler->getResult();
-
-        $this->assertInstanceOf(WorkflowState::class, $result);
-    }
-
-    /**
-     * Pattern 2b: Use async HTTP client for concurrent workflows.
-     *
-     * Pass empty async client, provider configures it with auth/URI.
-     */
     public function testAsyncClientPattern(): void
     {
         $apiKey = getenv('ANTHROPIC_API_KEY');
@@ -99,18 +32,15 @@ class AsyncAgentTest extends TestCase
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
 
-        // Create empty Amp client - provider will configure it
-        $httpClient = new AmpHttpClient();
-
         $provider = new Anthropic(
             key: $apiKey,
-            model: 'claude-3-5-sonnet-20241022',
-            httpClient: $httpClient  // Provider configures this internally
+            model: $this->model,
+            httpClient: new AmpHttpClient(),
         );
 
         $agent = Agent::make()->setAiProvider($provider);
 
-        // Execute within async workflow
+        // Execute within the async workflow executor
         $executor = new AmpWorkflowExecutor();
         $handler = $agent->chat(new UserMessage('Say hello in one word'));
         $future = $executor->execute($handler);
@@ -119,15 +49,9 @@ class AsyncAgentTest extends TestCase
         $result = $future->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
-        $this->assertNotEmpty($result->getChatHistory()->getMessages());
+        $this->assertInstanceOf(AssistantMessage::class, $result->getChatHistory()->getLastMessage());
     }
 
-    /**
-     * Demonstrates concurrent execution of multiple agents.
-     *
-     * This pattern enables true parallelism - multiple agents can process
-     * requests concurrently without blocking each other.
-     */
     public function testConcurrentAgentExecution(): void
     {
         $apiKey = getenv('ANTHROPIC_API_KEY');
@@ -135,12 +59,10 @@ class AsyncAgentTest extends TestCase
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
 
-        $httpClient = new AmpHttpClient();
-
         $provider = new Anthropic(
             key: $apiKey,
-            model: 'claude-3-5-sonnet-20241022',
-            httpClient: $httpClient
+            model: $this->model,
+            httpClient: new AmpHttpClient(),
         );
 
         // Create three agents with different prompts
@@ -168,13 +90,9 @@ class AsyncAgentTest extends TestCase
         $this->assertInstanceOf(WorkflowState::class, $result3);
 
         // Concurrent execution should be significantly faster than sequential
-        $this->assertLessThan(15, $duration, 'Concurrent execution should complete reasonably fast');
+        $this->assertLessThan(3, $duration, 'Concurrent execution should complete in less than 3 seconds');
     }
 
-    /**
-     * Demonstrates mixing async HTTP operations with other async operations
-     * like delays, database queries, file I/O, etc.
-     */
     public function testMixedAsyncOperations(): void
     {
         $apiKey = getenv('ANTHROPIC_API_KEY');
@@ -182,19 +100,16 @@ class AsyncAgentTest extends TestCase
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
 
-        $httpClient = new AmpHttpClient();
-
         $provider = new Anthropic(
             key: $apiKey,
-            model: 'claude-3-5-sonnet-20241022',
-            httpClient: $httpClient
+            model: $this->model,
+            httpClient: new AmpHttpClient(),
         );
 
         $agent = Agent::make()->setAiProvider($provider);
 
         $executor = new AmpWorkflowExecutor();
 
-        // Start agent execution
         $agentFuture = $executor->execute($agent->chat(new UserMessage('Hello')));
 
         // Perform other async operations concurrently
@@ -203,10 +118,11 @@ class AsyncAgentTest extends TestCase
             return 'delay_completed';
         });
 
-        // Both should complete, with delay not blocking agent
+        // Both should complete, with delay not blocking the agent
         [$agentResult, $delayResult] = Future\await([$agentFuture, $delayFuture]);
 
         $this->assertInstanceOf(WorkflowState::class, $agentResult);
         $this->assertEquals('delay_completed', $delayResult);
+        $this->assertInstanceOf(AssistantMessage::class, $agentResult->getChatHistory()->getLastMessage());
     }
 }
