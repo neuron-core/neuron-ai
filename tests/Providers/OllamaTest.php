@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -35,12 +34,12 @@ class OllamaTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
 
         $provider = (new Ollama(
             url: '',
             model: 'llama3.2',
-        ))->setClient($client);
+        ))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
 
@@ -74,12 +73,12 @@ class OllamaTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
 
         $provider = (new Ollama(
             url: '',
             model: 'llama3.2',
-        ))->setClient($client);
+        ))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64));
@@ -117,12 +116,12 @@ class OllamaTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
 
         $provider = (new Ollama(
             url: '',
             model: 'llama3.2',
-        ))->setClient($client);
+        ))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::URL));
@@ -141,7 +140,7 @@ class OllamaTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
 
         $provider = (new Ollama(
             url: '',
@@ -156,7 +155,7 @@ class OllamaTest extends TestCase
                         true
                     )
                 )
-        ])->setClient($client);
+        ])->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $provider->chat([new UserMessage('Hi')]);
 

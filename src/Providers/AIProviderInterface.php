@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\ToolInterface;
 use Generator;
 
@@ -42,13 +41,6 @@ interface AIProviderInterface
     public function chat(array $messages): Message;
 
     /**
-     * Send a prompt to the AI agent.
-     *
-     * @param Message[] $messages
-     */
-    public function chatAsync(array $messages): PromiseInterface;
-
-    /**
      * Stream response from the LLM.
      *
      * Yields intermediate chunks (TextChunk, ReasoningChunk, etc.) during streaming
@@ -66,5 +58,11 @@ interface AIProviderInterface
      */
     public function structured(array $messages, string $class, array $response_schema): Message;
 
-    public function setClient(Client $client): AIProviderInterface;
+    /**
+     * Set a custom HTTP client implementation.
+     *
+     * This allows developers to use async-friendly HTTP clients (Amp, ReactPHP)
+     * or customize HTTP behavior (retry logic, caching, etc.).
+     */
+    public function setHttpClient(HttpClientInterface $client): AIProviderInterface;
 }

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\SSEParser;
-use Psr\Http\Message\StreamInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
+use NeuronAI\Providers\HttpClient\StreamInterface;
 use Generator;
 
 use function array_unshift;
@@ -25,8 +25,8 @@ trait HandleStream
     /**
      * Stream response from the LLM.
      *
-     * @throws GuzzleException
      * @throws ProviderException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -46,10 +46,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post('chat', [
-            'stream' => true,
-            ...['json' => $json]
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'chat',
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 
@@ -94,7 +97,7 @@ trait HandleStream
 
     protected function parseNextJson(StreamInterface $stream): ?array
     {
-        $line = SSEParser::readLine($stream);
+        $line = $stream->readLine();
 
         if ($line === '' || $line === '0') {
             return null;

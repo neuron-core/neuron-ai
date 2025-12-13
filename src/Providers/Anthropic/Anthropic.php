@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HasGuzzleClient;
+use NeuronAI\Providers\HasHttpClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -25,7 +25,7 @@ use function uniqid;
 
 class Anthropic implements AIProviderInterface
 {
-    use HasGuzzleClient;
+    use HasHttpClient;
     use HandleWithTools;
     use HandleChat;
     use HandleStream;
@@ -54,22 +54,17 @@ class Anthropic implements AIProviderInterface
         protected string $version = '2023-06-01',
         protected int $max_tokens = 8192,
         protected array $parameters = [],
-        protected ?HttpClientOptions $httpOptions = null,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $config = [
-            'base_uri' => trim($this->baseUri, '/').'/',
-            'headers' => [
+        // Use provided client or create default Guzzle client
+        // Provider always configures authentication and base URI
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withHeaders([
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->key,
                 'anthropic-version' => $version,
-            ]
-        ];
-
-        if ($this->httpOptions instanceof HttpClientOptions) {
-            $config = $this->mergeHttpOptions($config, $this->httpOptions);
-        }
-
-        $this->client = new Client($config);
+            ]);
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

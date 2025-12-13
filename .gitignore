@@ -9,3 +9,5 @@ composer.lock
 .claude
 .artiforge
 .junie
+.env
+scripts

@@ -4,28 +4,25 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
-use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\ResponseInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 
 use function array_filter;
-use function json_decode;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
  */
 trait HandleChat
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function chat(array $messages): Message
-    {
-        return $this->chatAsync($messages)->wait();
-    }
-
-    public function chatAsync(array $messages): PromiseInterface
     {
         $json = [
             'model' => $this->model,
@@ -43,11 +40,10 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync('responses', [RequestOptions::JSON => $json])
-            ->then(function (ResponseInterface $result) {
-                $result = json_decode($result->getBody()->getContents(), true);
-                return $this->processChatResult($result);
-            });
+        $request = HttpRequest::post('responses', $json);
+        $response = $this->httpClient->request($request);
+
+        return $this->processChatResult($response->json());
     }
 
     /**

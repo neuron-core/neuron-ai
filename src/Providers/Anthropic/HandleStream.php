@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
 use Generator;
 
@@ -26,7 +24,6 @@ trait HandleStream
      * Yields intermediate chunks during streaming and returns the final complete Message.
      *
      * @throws ProviderException
-     * @throws GuzzleException
      */
     public function stream(array|string $messages): Generator
     {
@@ -43,11 +40,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        // https://docs.anthropic.com/claude/reference/messages_post
-        $stream = $this->client->post('messages', [
-            'stream' => true,
-            RequestOptions::JSON => $json
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'messages',
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 

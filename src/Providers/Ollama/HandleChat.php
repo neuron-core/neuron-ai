@@ -4,25 +4,23 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\ResponseInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 
 use function array_unshift;
-use function json_decode;
 
 trait HandleChat
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function chat(array $messages): Message
-    {
-        return $this->chatAsync($messages)->wait();
-    }
-
-    public function chatAsync(array $messages): PromiseInterface
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -40,28 +38,35 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync('chat', ['json' => $json])
-            ->then(function (ResponseInterface $response): Message {
-                if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-                    throw new ProviderException("Ollama chat error: {$response->getBody()->getContents()}");
-                }
+        $request = HttpRequest::post('chat', $json);
+        $response = $this->httpClient->request($request);
 
-                $response = json_decode($response->getBody()->getContents(), true);
-                $message = $response['message'];
+        if (!$response->isSuccessful()) {
+            throw new ProviderException("Ollama chat error: {$response->body}");
+        }
 
-                if (isset($message['tool_calls'])) {
-                    $message = $this->createToolCallMessage($message['tool_calls'], $message['content'] ?? null);
-                } else {
-                    $message = new AssistantMessage($message['content']);
-                }
+        return $this->processResponse($response->json());
+    }
 
-                if (isset($response['prompt_eval_count']) && isset($response['eval_count'])) {
-                    $message->setUsage(
-                        new Usage($response['prompt_eval_count'], $response['eval_count'])
-                    );
-                }
+    /**
+     * @throws ProviderException
+     */
+    protected function processResponse(array $response): AssistantMessage
+    {
+        $message = $response['message'];
 
-                return $message;
-            });
+        if (isset($message['tool_calls'])) {
+            $message = $this->createToolCallMessage($message['tool_calls'], $message['content'] ?? null);
+        } else {
+            $message = new AssistantMessage($message['content']);
+        }
+
+        if (isset($response['prompt_eval_count']) && isset($response['eval_count'])) {
+            $message->setUsage(
+                new Usage($response['prompt_eval_count'], $response['eval_count'])
+            );
+        }
+
+        return $message;
     }
 }

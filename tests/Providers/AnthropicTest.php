@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -19,6 +18,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -44,9 +44,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
 
@@ -85,8 +83,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
@@ -139,8 +136,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
@@ -188,8 +184,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(
@@ -242,8 +237,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
@@ -291,7 +285,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -304,7 +298,7 @@ class AnthropicTest extends TestCase
                         )
                     )
             ])
-            ->setClient($client);
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -355,7 +349,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -375,7 +369,7 @@ class AnthropicTest extends TestCase
                         )
                     )
             ])
-            ->setClient($client);
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -433,7 +427,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -446,7 +440,7 @@ class AnthropicTest extends TestCase
                         )
                     )
             ])
-            ->setClient($client);
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -512,7 +506,7 @@ class AnthropicTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
                 Tool::make('tool', 'description')
@@ -548,7 +542,7 @@ class AnthropicTest extends TestCase
                         )
                     )
             ])
-            ->setClient($client);
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat([new UserMessage('Hi')]);
 
@@ -625,9 +619,8 @@ class AnthropicTest extends TestCase
             new Response(status: 200, body: $streamBody),
         ]);
         $stack = HandlerStack::create($mockHandler);
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $generator = $provider->stream([new UserMessage('Hi')]);
 
@@ -636,7 +629,7 @@ class AnthropicTest extends TestCase
             $chunks[] = $chunk;
         }
 
-        // Get the final message from generator return value
+        // Get the final message from the generator return value
         $message = $generator->getReturn();
 
         // Assert we received TextChunk instances
@@ -680,9 +673,8 @@ class AnthropicTest extends TestCase
             new Response(status: 200, body: $streamBody),
         ]);
         $stack = HandlerStack::create($mockHandler);
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setClient($client);
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $generator = $provider->stream([new UserMessage('Question?')]);
 

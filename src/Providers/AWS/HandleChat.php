@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use Aws\ResultInterface;
-use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -18,7 +17,7 @@ trait HandleChat
         return $this->chatAsync($messages)->wait();
     }
 
-    public function chatAsync(array $messages): PromiseInterface
+    public function chatAsync(array $messages)
     {
         $payload = $this->createPayLoad($messages);
 

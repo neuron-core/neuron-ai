@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use GuzzleHttp\Client;
-use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 
 use function preg_replace;
 use function sprintf;
@@ -22,29 +22,24 @@ class AzureOpenAI extends OpenAI
         protected string $version,
         protected bool $strict_response = false,
         protected array $parameters = [],
-        protected ?\NeuronAI\Providers\HttpClientOptions $httpOptions = null,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        parent::__construct($key, $model, $parameters, $strict_response, $httpOptions);
-
         $this->setBaseUrl();
 
-        $config = [
-            'base_uri' => $this->baseUri,
-            'query'    => [
-                'api-version' => $this->version,
-            ],
-            'headers' => [
-                'Authorization' => 'Bearer '.$this->key,
+        // Create HTTP client with Azure-specific configuration
+        // Azure uses Bearer token auth instead of api-key header
+        // and requires api-version as query parameter
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
+            ->withHeaders([
+                'Authorization' => 'Bearer ' . $this->key,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-            ],
-        ];
+            ]);
 
-        if ($this->httpOptions instanceof HttpClientOptions) {
-            $config = $this->mergeHttpOptions($config, $this->httpOptions);
-        }
-
-        $this->client = new Client($config);
+        // Note: Azure api-version query parameter is handled by Azure-specific request building
+        // Store version for use in requests
+        $this->parameters['api-version'] = $this->version;
     }
 
     private function setBaseUrl(): void

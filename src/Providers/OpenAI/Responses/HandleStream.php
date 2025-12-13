@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -14,7 +12,9 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\StreamInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
+use NeuronAI\Providers\HttpClient\StreamInterface;
 use Generator;
 use Throwable;
 
@@ -38,7 +38,7 @@ trait HandleStream
      * Stream response from the LLM.
      *
      * @throws ProviderException
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -59,10 +59,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post('responses', [
-            'stream' => true,
-            RequestOptions::JSON => $json
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'responses',
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 

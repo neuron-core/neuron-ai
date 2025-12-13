@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HasGuzzleClient;
+use NeuronAI\Providers\HasHttpClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -22,7 +22,7 @@ use function uniqid;
 
 class Gemini implements AIProviderInterface
 {
-    use HasGuzzleClient;
+    use HasHttpClient;
     use HandleWithTools;
     use HandleChat;
     use HandleStream;
@@ -48,23 +48,17 @@ class Gemini implements AIProviderInterface
         protected string $key,
         protected string $model,
         protected array $parameters = [],
-        protected ?HttpClientOptions $httpOptions = null,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $config = [
-            // Since Gemini use colon ":" into the URL, guzzle fires an exception using base_uri configuration.
-            //'base_uri' => trim($this->baseUri, '/').'/',
-            'headers' => [
+        // Use provided client or create default Guzzle client
+        // Provider always configures authentication headers
+        // Note: Gemini doesn't use base_uri due to colon ":" in URL pattern
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 'x-goog-api-key' => $this->key,
-            ]
-        ];
-
-        if ($this->httpOptions instanceof HttpClientOptions) {
-            $config = $this->mergeHttpOptions($config, $this->httpOptions);
-        }
-
-        $this->client = new Client($config);
+            ]);
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

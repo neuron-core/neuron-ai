@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Mistral;
 
-use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -17,6 +16,8 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 use NeuronAI\Providers\OpenAI\StreamState;
 use NeuronAI\Providers\SSEParser;
 use Generator;
@@ -35,7 +36,7 @@ trait HandleStream
      * https://docs.mistral.ai/api/endpoint/chat
      *
      * @throws ProviderException
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -56,10 +57,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post('chat/completions', [
-            'stream' => true,
-            ...['json' => $json]
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'chat/completions',
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 

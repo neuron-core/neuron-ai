@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
 use Generator;
 
@@ -28,7 +26,7 @@ trait HandleStream
      * https://platform.openai.com/docs/api-reference/chat-streaming
      *
      * @throws ProviderException
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -50,10 +48,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post('chat/completions', [
-            'stream' => true,
-            RequestOptions::JSON => $json
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: 'chat/completions',
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -14,21 +12,20 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\ResponseInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 
 use function array_filter;
 use function array_key_exists;
-use function json_decode;
 use function trim;
 
 trait HandleChat
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function chat(array $messages): Message
-    {
-        return $this->chatAsync($messages)->wait();
-    }
-
-    public function chatAsync(array $messages): PromiseInterface
     {
         $json = [
             'contents' => $this->messageMapper()->map($messages),
@@ -47,11 +44,13 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync(trim($this->baseUri, '/')."/{$this->model}:generateContent", [RequestOptions::JSON => $json])
-            ->then(function (ResponseInterface $response): Message {
-                $result = json_decode($response->getBody()->getContents(), true);
-                return $this->processChatResult($result);
-            });
+        $request = HttpRequest::post(
+            trim($this->baseUri, '/')."/{$this->model}:generateContent",
+            $json
+        );
+        $response = $this->httpClient->request($request);
+
+        return $this->processChatResult($response->json());
     }
 
     /**

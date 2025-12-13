@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
-use GuzzleHttp\Client;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -90,9 +90,10 @@ class BedrockRuntime implements AIProviderInterface
         return $tool;
     }
 
-    public function setClient(Client $client): AIProviderInterface
+    public function setHttpClient(HttpClientInterface $client): AIProviderInterface
     {
-        // no need to set the client since it uses its own BedrockRuntimeClient
+        // AWS BedrockRuntime uses its own BedrockRuntimeClient, not HTTP client
+        // This method is a no-op to satisfy the AIProviderInterface
         return $this;
     }
 }

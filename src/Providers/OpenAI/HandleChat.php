@@ -4,29 +4,25 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\ResponseInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
 
 use function array_unshift;
 use function is_array;
-use function json_decode;
 
 trait HandleChat
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function chat(array $messages): Message
-    {
-        return $this->chatAsync($messages)->wait();
-    }
-
-    public function chatAsync(array $messages): PromiseInterface
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -44,11 +40,10 @@ trait HandleChat
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $this->client->postAsync('chat/completions', [RequestOptions::JSON => $json])
-            ->then(function (ResponseInterface $response): AssistantMessage|ToolCallMessage {
-                $result = json_decode($response->getBody()->getContents(), true);
-                return $this->processChatResult($result);
-            });
+        $request = HttpRequest::post('chat/completions', $json);
+        $response = $this->httpClient->request($request);
+
+        return $this->processChatResult($response->json());
     }
 
     /**

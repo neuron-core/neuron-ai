@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -48,9 +47,9 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
 
@@ -83,9 +82,9 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
@@ -127,9 +126,9 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(
@@ -171,9 +170,9 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(
@@ -215,9 +214,9 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
 
-        $provider = (new Gemini('', 'gemini-2.0-flash'))->setClient($client);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $message = (new UserMessage('Describe this document'))
             ->addContent(new ImageContent(
@@ -259,7 +258,7 @@ class GeminiTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
+
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
             ->setTools([
@@ -273,7 +272,7 @@ class GeminiTest extends TestCase
                         )
                     )
             ])
-            ->setClient($client);
+            ->setHttpClient((new GuzzleHttpClient())->withHandler($stack));
 
         $provider->chat([new UserMessage('Hi')]);
 

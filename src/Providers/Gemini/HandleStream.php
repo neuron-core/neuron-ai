@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Gemini;
 
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use Psr\Http\Message\StreamInterface;
+use NeuronAI\Providers\HttpClient\HttpException;
+use NeuronAI\Providers\HttpClient\HttpRequest;
+use NeuronAI\Providers\HttpClient\StreamInterface;
 use Generator;
 
 use function array_key_exists;
@@ -33,7 +32,7 @@ trait HandleStream
      * https://ai.google.dev/api/live#messages
      *
      * @throws ProviderException
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -54,10 +53,13 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $stream = $this->client->post(trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent", [
-            'stream' => true,
-            RequestOptions::JSON => $json
-        ])->getBody();
+        $stream = $this->httpClient->stream(
+            new HttpRequest(
+                method: 'POST',
+                uri: trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent",
+                body: $json
+            )
+        );
 
         $this->streamState = new StreamState();
 

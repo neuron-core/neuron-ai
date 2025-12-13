@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
-use GuzzleHttp\Client;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HasGuzzleClient;
+use NeuronAI\Providers\HasHttpClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -20,7 +20,7 @@ use function trim;
 
 class Ollama implements AIProviderInterface
 {
-    use HasGuzzleClient;
+    use HasHttpClient;
     use HandleWithTools;
     use HandleChat;
     use HandleStream;
@@ -38,18 +38,12 @@ class Ollama implements AIProviderInterface
         protected string $url, // http://localhost:11434/api
         protected string $model,
         protected array $parameters = [],
-        protected ?HttpClientOptions $httpOptions = null,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $config = [
-            'base_uri' => trim($this->url, '/').'/',
-            'headers' => [],
-        ];
-
-        if ($this->httpOptions instanceof HttpClientOptions) {
-            $config = $this->mergeHttpOptions($config, $this->httpOptions);
-        }
-
-        $this->client = new Client($config);
+        // Use provided client or create default Guzzle client
+        // Provider always configures base URI
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->url, '/') . '/');
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

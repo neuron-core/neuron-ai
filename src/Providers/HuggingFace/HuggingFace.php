@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\HuggingFace;
 
-use NeuronAI\Providers\HttpClientOptions;
+use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 use function sprintf;
@@ -25,10 +25,10 @@ class HuggingFace extends OpenAI
         protected ?InferenceProvider $inferenceProvider = InferenceProvider::HF_INFERENCE,
         protected bool $strict_response = false,
         protected array $parameters = [],
-        protected ?HttpClientOptions $httpOptions = null,
+        ?HttpClientInterface $httpClient = null,
     ) {
         $this->buildBaseUri();
-        parent::__construct($key, $model, $parameters, $this->strict_response, $httpOptions);
+        parent::__construct($key, $model, $parameters, $this->strict_response, $httpClient);
     }
 
     private function buildBaseUri(): void
