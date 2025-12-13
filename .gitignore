@@ -7,3 +7,5 @@ composer.lock
 /tests/VectorStore/*.store
 /**/CLAUDE.md
 .claude
+phpunit.xml.local
+.artiforge

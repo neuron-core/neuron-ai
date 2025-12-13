@@ -135,7 +135,7 @@ class MessageMapperResponses implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
-                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass),
+                'arguments' => json_encode($inputs !== [] ? $inputs : new stdClass()),
                 'call_id' => $tool->getCallId(),
             ];
         }
