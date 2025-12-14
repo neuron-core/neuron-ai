@@ -84,9 +84,9 @@ class AsyncAgentTest extends TestCase
         $duration = microtime(true) - $startTime;
 
         // All three should complete
-        $this->assertInstanceOf(WorkflowState::class, $result1);
-        $this->assertInstanceOf(WorkflowState::class, $result2);
-        $this->assertInstanceOf(WorkflowState::class, $result3);
+        $this->assertInstanceOf(AgentState::class, $result1);
+        $this->assertInstanceOf(AgentState::class, $result2);
+        $this->assertInstanceOf(AgentState::class, $result3);
 
         // Concurrent execution should be significantly faster than sequential
         $this->assertLessThan(4, $duration, 'Concurrent execution should complete in less than 4 seconds');
@@ -121,7 +121,7 @@ class AsyncAgentTest extends TestCase
         // Both should complete, with delay not blocking the agent
         [$agentResult, $delayResult] = Future\await([$agentFuture, $delayFuture]);
 
-        $this->assertInstanceOf(WorkflowState::class, $agentResult);
+        $this->assertInstanceOf(AgentState::class, $agentResult);
         $this->assertEquals('delay_completed', $delayResult);
         $this->assertInstanceOf(AssistantMessage::class, $agentResult->getChatHistory()->getLastMessage());
     }
