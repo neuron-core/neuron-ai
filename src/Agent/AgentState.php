@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
@@ -14,6 +15,11 @@ use NeuronAI\Workflow\WorkflowState;
 class AgentState extends WorkflowState
 {
     protected ChatHistoryInterface $chatHistory;
+
+    public function getMessage(): Message
+    {
+        return $this->getChatHistory()->getLastMessage();
+    }
 
     public function getChatHistory(): ChatHistoryInterface
     {
