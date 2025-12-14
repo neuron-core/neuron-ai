@@ -64,10 +64,7 @@ class AsyncWorkflowTest extends TestCase
                 new SecondNode(),
             ]);
 
-        $executor = new AmpWorkflowExecutor();
-        $future = $executor->execute($workflow->init());
-
-        $result = $future->await();
+        $result = AmpWorkflowExecutor::execute($workflow->init())->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
         $this->assertEquals('executed', $result->get('first'));
