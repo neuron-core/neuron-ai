@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Async;
 
 use Amp\Future;
-use NeuronAI\Agent\AgentHandler;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowHandlerInterface;
@@ -24,12 +23,12 @@ class AmpWorkflowExecutor implements AsyncWorkflowExecutor
      * The executor simply provides the async runtime infrastructure.
      * Nodes leverage it by using Amp's async-aware libraries.
      *
-     * @return Future<WorkflowState>
+     * @return Future<WorkflowState|AgentState>
      */
     public static function execute(WorkflowHandlerInterface $handler): Future
     {
         return async(
-            fn () => $handler instanceof AgentHandler ? $handler->getMessage() : $handler->getResult()
+            fn () => $handler->getResult()
         );
     }
 }
