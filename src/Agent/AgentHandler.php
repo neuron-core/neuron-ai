@@ -47,6 +47,6 @@ class AgentHandler implements WorkflowHandlerInterface
     {
         /** @var AgentState $state */
         $state = $this->getResult(); // Blocks until complete
-        return $state->getChatHistory()->getLastMessage();
+        return $state->getMessage();
     }
 }
