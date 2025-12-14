@@ -24,7 +24,7 @@ class AmpWorkflowExecutor implements AsyncWorkflowExecutor
      *
      * @return Future<WorkflowState>
      */
-    public function execute(WorkflowHandlerInterface $handler): Future
+    public static function execute(WorkflowHandlerInterface $handler): Future
     {
         return async($handler->getResult(...));
     }

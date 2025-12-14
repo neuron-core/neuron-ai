@@ -25,5 +25,5 @@ interface AsyncWorkflowExecutor
      *
      * @return mixed Framework-specific promise/future that resolves to WorkflowState
      */
-    public function execute(WorkflowHandlerInterface $handler): mixed;
+    public static function execute(WorkflowHandlerInterface $handler): mixed;
 }
