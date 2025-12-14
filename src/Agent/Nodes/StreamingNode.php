@@ -29,7 +29,7 @@ class StreamingNode extends Node
      */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected array $messages
+        protected Message|array $messages
     ) {
     }
 
