@@ -273,7 +273,6 @@ class Workflow implements WorkflowInterface
                 }
 
                 $currentNode = $this->eventNodeMap[$nextEventClass];
-                $resuming = false; // Only the first node should be in resuming mode
                 $resumeRequest = null;
             }
 
