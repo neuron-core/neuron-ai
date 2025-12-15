@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\HttpClient;
+namespace NeuronAI\HttpClient;
+
+use NeuronAI\Exceptions\HttpException;
 
 /**
  * Framework-agnostic HTTP client interface for AI provider communication.

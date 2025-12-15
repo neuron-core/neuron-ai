@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
-use NeuronAI\Providers\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpClientInterface;
 
 /**
  * Trait for providers using HTTP client abstraction.

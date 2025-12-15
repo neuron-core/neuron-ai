@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Providers\HttpClient\HttpClientInterface;
-use NeuronAI\Tools\ToolInterface;
 use Generator;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\Tools\ToolInterface;
 
 interface AIProviderInterface
 {

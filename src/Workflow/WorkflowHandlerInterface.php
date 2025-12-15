@@ -9,7 +9,7 @@ use Generator;
 
 interface WorkflowHandlerInterface
 {
-    public function streamEvents(?StreamAdapterInterface $adapter = null): Generator;
+    public function events(?StreamAdapterInterface $adapter = null): Generator;
 
     public function getResult(): WorkflowState;
 }

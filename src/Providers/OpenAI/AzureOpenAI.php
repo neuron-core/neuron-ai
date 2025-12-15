@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\Providers\HttpClient\GuzzleHttpClient;
-use NeuronAI\Providers\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 
 use function preg_replace;
 use function sprintf;

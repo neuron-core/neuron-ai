@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\HttpClient;
+namespace NeuronAI\HttpClient;
 
 class HttpRequest
 {

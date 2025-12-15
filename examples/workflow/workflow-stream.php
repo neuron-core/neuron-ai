@@ -23,7 +23,7 @@ echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
 
 $handler = $workflow->init();
 
-foreach ($handler->streamEvents() as $event) {
+foreach ($handler->events() as $event) {
     if ($event instanceof SecondEvent) {
         echo \PHP_EOL.'- ' . $event->message.\PHP_EOL;
     }

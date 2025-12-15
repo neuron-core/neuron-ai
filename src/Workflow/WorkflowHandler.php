@@ -29,7 +29,7 @@ class WorkflowHandler implements WorkflowHandlerInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function streamEvents(?StreamAdapterInterface $adapter = null): Generator
+    public function events(?StreamAdapterInterface $adapter = null): Generator
     {
         // Protocol start (if adapter provided)
         if ($adapter instanceof StreamAdapterInterface) {
@@ -76,7 +76,7 @@ class WorkflowHandler implements WorkflowHandlerInterface
     {
         // If streaming hasn't been consumed, consume it silently to get the final result
         if (!isset($this->result)) {
-            foreach ($this->streamEvents() as $event) {
+            foreach ($this->events() as $event) {
             }
         }
 

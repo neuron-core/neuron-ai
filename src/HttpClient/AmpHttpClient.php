@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\HttpClient;
+namespace NeuronAI\HttpClient;
 
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
+use NeuronAI\Exceptions\HttpException;
 use Throwable;
 
+use function is_array;
 use function json_encode;
 use function trim;
-use function is_array;
 
 /**
  * Amp HTTP client adapter for async workflows.

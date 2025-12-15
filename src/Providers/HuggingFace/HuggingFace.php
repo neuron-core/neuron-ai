@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\HuggingFace;
 
-use NeuronAI\Providers\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
 use function sprintf;

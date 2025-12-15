@@ -23,7 +23,7 @@ class WorkflowStreamTest extends TestCase
 
         $handler = $workflow->init();
 
-        foreach ($handler->streamEvents() as $event) {
+        foreach ($handler->events() as $event) {
             $this->assertInstanceOf(Event::class, $event);
         }
 

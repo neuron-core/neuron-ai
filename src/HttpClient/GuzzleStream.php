@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\HttpClient;
+namespace NeuronAI\HttpClient;
 
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
 

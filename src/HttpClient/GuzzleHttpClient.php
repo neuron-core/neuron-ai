@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\HttpClient;
+namespace NeuronAI\HttpClient;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 
-use function trim;
+use NeuronAI\Exceptions\HttpException;
 use function is_array;
+use function trim;
 
 final class GuzzleHttpClient implements HttpClientInterface
 {

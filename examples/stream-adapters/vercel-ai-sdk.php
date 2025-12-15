@@ -56,7 +56,7 @@ $handler = Agent::make()
     );
 
 // Initialize the streaming with the adapter
-$stream = $handler->streamEvents(new VercelAIAdapter());
+$stream = $handler->events(new VercelAIAdapter());
 
 // Process the response
 foreach ($stream as $line) {

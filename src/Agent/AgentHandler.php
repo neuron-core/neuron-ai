@@ -31,9 +31,9 @@ class AgentHandler implements WorkflowHandlerInterface
     /**
      * @throws Throwable
      */
-    public function streamEvents(?StreamAdapterInterface $adapter = null): Generator
+    public function events(?StreamAdapterInterface $adapter = null): Generator
     {
-        return $this->workflowHandler->streamEvents($adapter);
+        return $this->workflowHandler->events($adapter);
     }
 
     /**

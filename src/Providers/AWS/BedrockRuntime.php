@@ -6,9 +6,9 @@ namespace NeuronAI\Providers\AWS;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolPayloadMapperInterface;
 use NeuronAI\Tools\ToolInterface;

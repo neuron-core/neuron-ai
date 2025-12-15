@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
+use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -12,16 +13,15 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HttpClient\HttpException;
-use NeuronAI\Providers\HttpClient\HttpRequest;
-use NeuronAI\Providers\HttpClient\StreamInterface;
-use Generator;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
 use function json_decode;
+use function mb_strlen;
 use function str_contains;
 use function str_starts_with;
-use function mb_strlen;
 use function substr;
 use function trim;
 

@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Providers;
 
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HttpClient\StreamInterface;
+use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
 use function json_decode;
+use function mb_strlen;
 use function str_contains;
 use function str_starts_with;
-use function mb_strlen;
 use function substr;
 use function trim;
 

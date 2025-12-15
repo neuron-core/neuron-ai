@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
+use Generator;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HttpClient\HttpException;
-use NeuronAI\Providers\HttpClient\HttpRequest;
-use NeuronAI\Providers\HttpClient\StreamInterface;
-use Generator;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\StreamInterface;
 
 use function array_unshift;
 use function json_decode;

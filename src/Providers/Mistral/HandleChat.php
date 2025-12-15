@@ -15,12 +15,12 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\HttpClient\HttpException;
-use NeuronAI\Providers\HttpClient\HttpRequest;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
 
-use function array_unshift;
 use function array_filter;
 use function array_reduce;
+use function array_unshift;
 use function is_string;
 
 trait HandleChat

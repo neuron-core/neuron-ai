@@ -41,7 +41,7 @@ Route::post('/chat', function (Request $request) {
 
     $adapter = new VercelAIAdapter();
 
-    $stream = $handler->streamEvents($adapter);
+    $stream = $handler->events($adapter);
 
     // Return streaming response
     return response()->stream(
