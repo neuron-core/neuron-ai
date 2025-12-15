@@ -47,10 +47,10 @@ class NodeTest extends TestCase
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());
 
         try {
-            $state = $workflow->start()->getResult();
+            $state = $workflow->start()->run();
         } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals('test', $interrupt->getState()->get('checkpoint'));
-            $state = $workflow->start($interrupt->getRequest())->getResult();
+            $state = $workflow->start($interrupt->getRequest())->run();
 
             $this->assertEquals('test', $state->get('checkpoint'));
             $this->assertEquals($interrupt->getRequest()->getMessage(), $state->get('feedback'));

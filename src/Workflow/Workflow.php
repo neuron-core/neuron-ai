@@ -114,8 +114,7 @@ class Workflow implements WorkflowInterface
      */
     public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
     {
-        $isResume = $resumeRequest instanceof InterruptRequest;
-        return new WorkflowHandler($this, $isResume, $resumeRequest);
+        return new WorkflowHandler($this, $resumeRequest);
     }
 
     /**
@@ -123,8 +122,7 @@ class Workflow implements WorkflowInterface
      */
     public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
-        $isResume = $resumeRequest instanceof InterruptRequest;
-        return new WorkflowHandler($this, $isResume, $resumeRequest);
+        return new WorkflowHandler($this, $resumeRequest);
     }
 
     /**
@@ -178,7 +176,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
-    public function run(): Generator|WorkflowState
+    public function run(): Generator
     {
         EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap));
 
@@ -200,7 +198,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
-    public function resume(InterruptRequest $resumeRequest): Generator|WorkflowState
+    public function resume(InterruptRequest $resumeRequest): Generator
     {
         EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap));
 
@@ -217,7 +215,6 @@ class Workflow implements WorkflowInterface
         yield from $this->execute(
             $interrupt->getEvent(),
             $interrupt->getNode(),
-            true,
             $resumeRequest
         );
 
@@ -232,7 +229,6 @@ class Workflow implements WorkflowInterface
     protected function execute(
         Event $currentEvent,
         NodeInterface $currentNode,
-        bool $resuming = false,
         ?Interrupt\InterruptRequest $resumeRequest = null
     ): Generator {
         try {
@@ -240,7 +236,6 @@ class Workflow implements WorkflowInterface
                 $currentNode->setWorkflowContext(
                     $this->resolveState(),
                     $currentEvent,
-                    $resuming,
                     $resumeRequest
                 );
 

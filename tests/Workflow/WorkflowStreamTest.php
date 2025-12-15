@@ -27,7 +27,7 @@ class WorkflowStreamTest extends TestCase
             $this->assertInstanceOf(Event::class, $event);
         }
 
-        $finalState = $handler->getResult();
+        $finalState = $handler->run();
         $this->assertTrue($finalState->get('node_one_executed'));
     }
 }

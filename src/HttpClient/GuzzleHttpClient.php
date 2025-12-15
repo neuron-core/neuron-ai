@@ -8,8 +8,8 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
-
 use NeuronAI\Exceptions\HttpException;
+
 use function is_array;
 use function trim;
 

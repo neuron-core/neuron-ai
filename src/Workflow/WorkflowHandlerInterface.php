@@ -11,5 +11,5 @@ interface WorkflowHandlerInterface
 {
     public function events(?StreamAdapterInterface $adapter = null): Generator;
 
-    public function getResult(): WorkflowState;
+    public function run(): WorkflowState;
 }

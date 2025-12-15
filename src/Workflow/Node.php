@@ -35,12 +35,10 @@ abstract class Node implements NodeInterface
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        bool $isResuming = false,
         ?InterruptRequest $resumeRequest = null
     ): void {
         $this->state = $currentState;
         $this->event = $currentEvent;
-        $this->isResuming = $isResuming;
         $this->resumeRequest = $resumeRequest;
     }
 
@@ -50,11 +48,10 @@ abstract class Node implements NodeInterface
      */
     protected function consumeResumeRequest(): ?InterruptRequest
     {
-        if ($this->isResuming) {
+        if ($this->resumeRequest instanceof InterruptRequest) {
             $request = $this->resumeRequest;
-            // Clear both request and resuming state after use to allow subsequent interrupts
+            // Clear the request after use to allow subsequent interrupts
             $this->resumeRequest = null;
-            $this->isResuming = false;
             return $request;
         }
 

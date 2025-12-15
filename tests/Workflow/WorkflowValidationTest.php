@@ -24,7 +24,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
 
         $workflow = Workflow::make();
-        $workflow->init()->getResult();
+        $workflow->init()->run();
     }
 
     public function testValidationFailsWithMissingStartNode(): void
@@ -39,7 +39,7 @@ class WorkflowValidationTest extends TestCase
             ->addNode($node1)
             ->addNode($node2);
 
-        $workflow->init()->getResult();
+        $workflow->init()->run();
     }
 
     public function testValidationWithMissingHandler(): void
@@ -55,7 +55,7 @@ class WorkflowValidationTest extends TestCase
         };
 
         $workflow = Workflow::make()->addNode($invalidNode);
-        $workflow->init()->getResult();
+        $workflow->init()->run();
     }
 
     public function testValidationCustomState(): void
@@ -68,7 +68,7 @@ class WorkflowValidationTest extends TestCase
         };
 
         $workflow = Workflow::make(new CustomState())->addNode($node);
-        $state = $workflow->init()->getResult();
+        $state = $workflow->init()->run();
         $this->assertInstanceOf(CustomState::class, $state);
         $this->assertEquals('custom property', $state->custom);
     }

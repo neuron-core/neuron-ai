@@ -165,7 +165,7 @@ class Agent extends Workflow implements AgentInterface
         $handler = parent::init($interrupt);
 
         /** @var AgentState $finalState */
-        $finalState = $handler->getResult();
+        $finalState = $handler->run();
 
         EventBus::emit('structured-stop', $this);
 

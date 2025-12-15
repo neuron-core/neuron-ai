@@ -29,7 +29,7 @@ foreach ($handler->events() as $event) {
     }
 }
 
-$finalState = $handler->getResult();
+$finalState = $handler->run();
 
 // It should print "Second complete"
 echo $finalState->get('final_second_message').\PHP_EOL;

@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\AmpHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Workflow\Async\AmpWorkflowExecutor;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
@@ -39,10 +38,9 @@ class AsyncAgentTest extends TestCase
 
         $agent = Agent::make()->setAiProvider($provider);
 
-        // Execute within the async workflow executor
-        $executor = new AmpWorkflowExecutor();
+        // Execute within the async context
         $handler = $agent->chat(new UserMessage('Say hello in one word'));
-        $future = $executor->execute($handler);
+        $future = async(fn () => $handler->run());
 
         /** @var AgentState $result */
         $result = $future->await();
@@ -69,14 +67,12 @@ class AsyncAgentTest extends TestCase
         $agent2 = Agent::make()->setAiProvider($provider)->setInstructions('Name 3 colors');
         $agent3 = Agent::make()->setAiProvider($provider)->setInstructions('Name 3 animals');
 
-        $executor = new AmpWorkflowExecutor();
-
         $startTime = microtime(true);
 
         // Execute all three agents concurrently
-        $future1 = $executor->execute($agent1->chat(new UserMessage('Go')));
-        $future2 = $executor->execute($agent2->chat(new UserMessage('Go')));
-        $future3 = $executor->execute($agent3->chat(new UserMessage('Go')));
+        $future1 = async(fn () => $agent1->chat(new UserMessage('Go'))->run());
+        $future2 = async(fn () => $agent2->chat(new UserMessage('Go'))->run());
+        $future3 = async(fn () => $agent3->chat(new UserMessage('Go'))->run());
 
         // Wait for all to complete
         [$result1, $result2, $result3] = Future\await([$future1, $future2, $future3]);
@@ -107,9 +103,7 @@ class AsyncAgentTest extends TestCase
 
         $agent = Agent::make()->setAiProvider($provider);
 
-        $executor = new AmpWorkflowExecutor();
-
-        $agentFuture = $executor->execute($agent->chat(new UserMessage('Hello')));
+        $agentFuture = async(fn () => $agent->chat(new UserMessage('Hello'))->run());
 
         // Perform other async operations concurrently
         $delayFuture = async(function (): string {

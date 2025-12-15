@@ -16,7 +16,6 @@ class WorkflowHandler implements WorkflowHandlerInterface
 
     public function __construct(
         protected Workflow $workflow,
-        protected bool $resume = false,
         protected ?InterruptRequest $resumeRequest = null
     ) {
     }
@@ -39,7 +38,9 @@ class WorkflowHandler implements WorkflowHandlerInterface
         }
 
         // Stream events
-        $generator = $this->resume ? $this->workflow->resume($this->resumeRequest) : $this->workflow->run();
+        $generator = $this->resumeRequest instanceof InterruptRequest
+            ? $this->workflow->resume($this->resumeRequest)
+            : $this->workflow->run();
 
         while ($generator->valid()) {
             $event = $generator->current();
@@ -65,6 +66,8 @@ class WorkflowHandler implements WorkflowHandlerInterface
                 yield $output;
             }
         }
+
+        return $this->result;
     }
 
     /**
@@ -72,7 +75,7 @@ class WorkflowHandler implements WorkflowHandlerInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    public function getResult(): WorkflowState
+    public function run(): WorkflowState
     {
         // If streaming hasn't been consumed, consume it silently to get the final result
         if (!isset($this->result)) {

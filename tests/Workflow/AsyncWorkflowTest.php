@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use Amp\Future;
-use NeuronAI\Workflow\Async\AmpWorkflowExecutor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
@@ -62,9 +61,10 @@ class AsyncWorkflowTest extends TestCase
             ->addNodes([
                 new FirstNode(),
                 new SecondNode(),
-            ]);
+            ])
+            ->init();
 
-        $result = AmpWorkflowExecutor::execute($workflow->init())->await();
+        $result = async(fn () => $workflow->run())->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
         $this->assertEquals('executed', $result->get('first'));
@@ -77,16 +77,13 @@ class AsyncWorkflowTest extends TestCase
         $workflow2 = Workflow::make()->addNodes([new AsyncDelayNode()])->init();
         $workflow3 = Workflow::make()->addNodes([new AsyncDelayNode()])->init();
 
-        $executor = new AmpWorkflowExecutor();
-
         $startTime = microtime(true);
 
-        // Execute three workflows concurrently
-        $future1 = $executor->execute($workflow1);
-        $future2 = $executor->execute($workflow2);
-        $future3 = $executor->execute($workflow3);
-
-        [$result1, $result2, $result3] = Future\await([$future1, $future2, $future3]);
+        [$result1, $result2, $result3] = Future\await([
+            async(fn () => $workflow1->run()),
+            async(fn () => $workflow2->run()),
+            async(fn () => $workflow3->run())
+        ]);
 
         $duration = microtime(true) - $startTime;
 
@@ -111,8 +108,7 @@ class AsyncWorkflowTest extends TestCase
             ])
             ->init();
 
-        $executor = new AmpWorkflowExecutor();
-        $result = $executor->execute($workflow)->await();
+        $result = async(fn () => $workflow->run())->await();
 
         $this->assertEquals('value', $result->get('initial'));
         $this->assertEquals('executed', $result->get('first'));

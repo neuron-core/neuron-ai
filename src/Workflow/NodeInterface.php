@@ -15,7 +15,6 @@ interface NodeInterface
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        bool $isResuming = false,
         ?Interrupt\InterruptRequest $resumeRequest = null
     ): void;
 

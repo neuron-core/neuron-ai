@@ -23,9 +23,9 @@ class AgentHandler implements WorkflowHandlerInterface
     /**
      * @throws Throwable
      */
-    public function getResult(): WorkflowState
+    public function run(): WorkflowState
     {
-        return $this->workflowHandler->getResult();
+        return $this->workflowHandler->run();
     }
 
     /**
@@ -46,7 +46,7 @@ class AgentHandler implements WorkflowHandlerInterface
     public function getMessage(): Message
     {
         /** @var AgentState $state */
-        $state = $this->getResult(); // Blocks until complete
+        $state = $this->run(); // Blocks until complete
         return $state->getMessage();
     }
 }
