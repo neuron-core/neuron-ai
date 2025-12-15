@@ -15,7 +15,7 @@ use function is_array;
 use function json_encode;
 use function trim;
 
-final class AmpHttpClient implements HttpClientInterface
+class AmpHttpClient implements HttpClientInterface
 {
     protected string $baseUri = '';
 

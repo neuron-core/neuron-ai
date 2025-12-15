@@ -12,7 +12,7 @@ use Psr\Http\Message\StreamInterface as PsrStreamInterface;
  * Wraps Guzzle's stream to provide a framework-agnostic interface
  * for reading streaming HTTP responses.
  */
-final class GuzzleStream implements StreamInterface
+class GuzzleStream implements StreamInterface
 {
     public function __construct(
         private readonly PsrStreamInterface $stream

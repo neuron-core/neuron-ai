@@ -16,7 +16,7 @@ use function substr;
  * Wraps Amp's async stream to provide a framework-agnostic interface
  * for reading streaming HTTP responses in async contexts.
  */
-final class AmpStream implements StreamInterface
+class AmpStream implements StreamInterface
 {
     private bool $eof = false;
     private string $buffer = '';

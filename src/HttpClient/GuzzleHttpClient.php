@@ -13,7 +13,7 @@ use NeuronAI\Exceptions\HttpException;
 use function is_array;
 use function trim;
 
-final class GuzzleHttpClient implements HttpClientInterface
+class GuzzleHttpClient implements HttpClientInterface
 {
     protected string $baseUri = '';
 
