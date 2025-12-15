@@ -39,12 +39,12 @@ interface HttpClientInterface
      */
     public function stream(HttpRequest $request): StreamInterface;
 
-    public function withBaseUri(string $baseUri): static;
+    public function withBaseUri(string $baseUri): HttpClientInterface;
 
     /**
      * @param array<string, string> $headers
      */
-    public function withHeaders(array $headers): static;
+    public function withHeaders(array $headers): HttpClientInterface;
 
-    public function withTimeout(float $timeout): static;
+    public function withTimeout(float $timeout): HttpClientInterface;
 }

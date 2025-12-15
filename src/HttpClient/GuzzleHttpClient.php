@@ -17,13 +17,15 @@ final class GuzzleHttpClient implements HttpClientInterface
 {
     protected string $baseUri = '';
 
+    protected Client $client;
+
     /**
      * @param array<string, mixed> $customHeaders
      */
     public function __construct(
-        private readonly array         $customHeaders = [],
-        private readonly float         $timeout = 30.0,
-        private readonly float         $connectTimeout = 10.0,
+        private readonly array $customHeaders = [],
+        private readonly float $timeout = 30.0,
+        private readonly float $connectTimeout = 10.0,
         private readonly ?HandlerStack $handler = null,
     ) {
     }
@@ -87,14 +89,14 @@ final class GuzzleHttpClient implements HttpClientInterface
         }
     }
 
-    public function withBaseUri(string $baseUri): static
+    public function withBaseUri(string $baseUri): GuzzleHttpClient
     {
         $new = new self($this->customHeaders, $this->timeout, $this->connectTimeout, $this->handler);
         $new->baseUri = $baseUri;
         return $new;
     }
 
-    public function withHeaders(array $headers): static
+    public function withHeaders(array $headers): GuzzleHttpClient
     {
         $new = new self(
             [...$this->customHeaders, ...$headers],
@@ -106,7 +108,7 @@ final class GuzzleHttpClient implements HttpClientInterface
         return $new;
     }
 
-    public function withTimeout(float $timeout): static
+    public function withTimeout(float $timeout): GuzzleHttpClient
     {
         $new = new self($this->customHeaders, $timeout, $this->connectTimeout, $this->handler);
         $new->baseUri = $this->baseUri;
@@ -115,13 +117,17 @@ final class GuzzleHttpClient implements HttpClientInterface
 
     protected function createClient(): Client
     {
+        if (isset($this->client)) {
+            return $this->client;
+        }
+
         $config = [];
 
         if ($this->baseUri !== '') {
             $config['base_uri'] = trim($this->baseUri, '/') . '/';
         }
 
-        if ($this->handler instanceof \GuzzleHttp\HandlerStack) {
+        if ($this->handler instanceof HandlerStack) {
             $config['handler'] = $this->handler;
         }
 
