@@ -7,6 +7,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\StreamInterface;
 
 trait HandleStream
 {
@@ -32,11 +33,18 @@ trait HandleStream
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        $response = $this->httpClient->request(
+        $response = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'chat',
                 body: $json
             )
         );
+
+        yield from $this->stream( $response);
+    }
+
+    protected function processStream(StreamInterface $stream): Generator
+    {
+
     }
 }
