@@ -79,6 +79,7 @@ class Agent extends Workflow implements AgentInterface
     {
         if ($this->eventNodeMap !== []) {
             $this->eventNodeMap = [];
+            $this->nodes = [];
         }
 
         $nodes = is_array($nodes) ? $nodes : [$nodes];
