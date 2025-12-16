@@ -24,7 +24,7 @@ class HttpException extends Exception
     }
 
     /**
-     * Create exception for network error.
+     * Create an exception for network error.
      */
     public static function networkError(HttpRequest $request, Throwable $previous): self
     {
@@ -37,7 +37,7 @@ class HttpException extends Exception
     }
 
     /**
-     * Create exception for HTTP error response.
+     * Create an exception for HTTP error response.
      */
     public static function httpError(HttpRequest $request, HttpResponse $response): self
     {

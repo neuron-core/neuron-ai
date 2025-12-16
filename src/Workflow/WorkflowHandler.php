@@ -85,4 +85,20 @@ class WorkflowHandler implements WorkflowHandlerInterface
 
         return $this->result;
     }
+
+    /**
+     * @deprecated Use run() instead
+     */
+    public function start(): WorkflowState
+    {
+        return $this->run();
+    }
+
+    /**
+     * @deprecated Use events() instead
+     */
+    public function streamEvents(?StreamAdapterInterface $adapter = null): Generator
+    {
+        return $this->events($adapter);
+    }
 }
