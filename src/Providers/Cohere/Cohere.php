@@ -11,6 +11,9 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\ToolMapper as OpenAIToolMapper;
 use NeuronAI\Providers\ToolMapperInterface;
 
+/**
+ * https://docs.cohere.com/reference/chat
+ */
 class Cohere implements AIProviderInterface
 {
     use HasHttpClient;
