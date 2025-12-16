@@ -2,12 +2,18 @@
 
 namespace NeuronAI\Providers\Cohere;
 
-use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
-class MessageMapper implements MessageMapperInterface
+class MessageMapper extends OpenAIMessageMapper
 {
-    public function map(array $messages): array
+    protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
-        // TODO: Implement map() method.
+        return match ($block::class) {
+            ReasoningContent::class, FileContent::class => null,
+            default => parent::mapContentBlock($block),
+        };
     }
 }
