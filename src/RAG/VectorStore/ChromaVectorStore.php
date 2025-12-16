@@ -120,7 +120,7 @@ class ChromaVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::post(
-                    uri: "{$this->collectionId}/delete",
+                    uri: "{$this->collectionId}/add",
                     body: $this->mapDocuments($chunk)
                 )
             );

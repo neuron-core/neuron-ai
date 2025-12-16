@@ -18,7 +18,6 @@ class ChromaDBTest extends TestCase
 
     public function setUp(): void
     {
-        $this->markTestSkipped('Temporary');
         if (!$this->isPortOpen('127.0.0.1', 8000)) {
             $this->markTestSkipped("ChromaDB not available on port 8000. Skipping test.");
         }
