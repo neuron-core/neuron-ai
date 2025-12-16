@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\VectorStore;
 
 use GuzzleHttp\Exception\GuzzleException;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
@@ -26,7 +27,7 @@ class ChromaDBTest extends TestCase
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     protected function tearDown(): void
     {
@@ -34,7 +35,7 @@ class ChromaDBTest extends TestCase
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function test_add_document_and_search(): void
     {
@@ -51,7 +52,7 @@ class ChromaDBTest extends TestCase
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function test_add_multiple_document_and_search(): void
     {
@@ -71,7 +72,7 @@ class ChromaDBTest extends TestCase
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function test_delete_documents(): void
     {

@@ -43,9 +43,9 @@ trait HandleChat
                 uri: 'messages',
                 body: $json
             )
-        );
+        )->json();
 
-        return $this->processChatResult($response->json());
+        return $this->processChatResult($response);
     }
 
     /**
