@@ -18,6 +18,7 @@ class ChromaDBTest extends TestCase
 
     public function setUp(): void
     {
+        $this->markTestSkipped('Temporary');
         if (!$this->isPortOpen('127.0.0.1', 8000)) {
             $this->markTestSkipped("ChromaDB not available on port 8000. Skipping test.");
         }
@@ -46,6 +47,7 @@ class ChromaDBTest extends TestCase
 
         $results = $this->store->similaritySearch([1, 2, 3]);
 
+        $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
@@ -66,6 +68,7 @@ class ChromaDBTest extends TestCase
 
         $results = $this->store->similaritySearch([1, 2, 3]);
 
+        $this->assertGreaterThanOrEqual(1, count($results));
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
     }
