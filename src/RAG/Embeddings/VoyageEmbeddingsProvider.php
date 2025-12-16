@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -15,7 +14,6 @@ use NeuronAI\RAG\Document;
 use function array_chunk;
 use function array_map;
 use function array_merge;
-use function json_decode;
 
 class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
@@ -38,6 +36,9 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedText(string $text): array
     {
         $response = $this->httpClient->request(
@@ -54,6 +55,9 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
         return $response['data'][0]['embedding'];
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedDocuments(array $documents): array
     {
         $chunks = array_chunk($documents, 100);

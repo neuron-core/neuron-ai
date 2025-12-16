@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
-use GuzzleHttp\Client;
-
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
-use function json_decode;
 
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
