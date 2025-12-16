@@ -31,7 +31,7 @@ interface AIProviderInterface
     /**
      * The component responsible for mapping the NeuronAI Tools to the AI provider format.
      */
-    public function toolPayloadMapper(): ToolPayloadMapperInterface;
+    public function toolPayloadMapper(): ToolMapperInterface;
 
     /**
      * Send a prompt to the AI agent.

@@ -39,8 +39,7 @@ trait HandleChat
         }
 
         $response = $this->httpClient->request(
-            new HttpRequest(
-                method: 'POST',
+            HttpRequest::post(
                 uri: 'chat',
                 body: $json
             )

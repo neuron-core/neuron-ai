@@ -49,7 +49,7 @@ class GuzzleHttpClient implements HttpClientInterface
                 }
             }
 
-            $response = $client->request($request->method, $request->uri, $options);
+            $response = $client->request($request->method->value, $request->uri, $options);
 
             return new HttpResponse(
                 statusCode: $response->getStatusCode(),
@@ -81,7 +81,7 @@ class GuzzleHttpClient implements HttpClientInterface
                 }
             }
 
-            $response = $client->request($request->method, $request->uri, $options);
+            $response = $client->request($request->method->value, $request->uri, $options);
 
             return new GuzzleStream($response->getBody());
         } catch (GuzzleException $e) {

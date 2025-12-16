@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
@@ -13,7 +13,7 @@ use stdClass;
 
 use function array_reduce;
 
-class ToolPayloadMapper implements ToolPayloadMapperInterface
+class ToolMapper implements ToolMapperInterface
 {
     /**
      * @throws ProviderException

@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
@@ -24,6 +25,7 @@ trait HandleStream
      * Yields intermediate chunks during streaming and returns the final complete Message.
      *
      * @throws ProviderException
+     * @throws HttpException
      */
     public function stream(array|string $messages): Generator
     {
@@ -41,8 +43,7 @@ trait HandleStream
         }
 
         $stream = $this->httpClient->stream(
-            new HttpRequest(
-                method: 'POST',
+            HttpRequest::post(
                 uri: 'messages',
                 body: $json
             )

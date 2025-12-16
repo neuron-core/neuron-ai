@@ -88,7 +88,7 @@ class AmpHttpClient implements HttpClientInterface
             ? trim($this->baseUri, '/') . '/' . trim($request->uri, '/')
             : $request->uri;
 
-        $ampRequest = new Request($uri, $request->method);
+        $ampRequest = new Request($uri, $request->method->value);
 
         // Set headers
         foreach ([...$this->customHeaders, ...$request->headers] as $name => $value) {

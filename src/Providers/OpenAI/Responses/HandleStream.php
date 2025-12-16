@@ -60,8 +60,7 @@ trait HandleStream
         }
 
         $stream = $this->httpClient->stream(
-            new HttpRequest(
-                method: 'POST',
+            HttpRequest::post(
                 uri: 'responses',
                 body: $json
             )

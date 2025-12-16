@@ -10,7 +10,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
-use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function count;
@@ -27,7 +27,7 @@ class BedrockRuntime implements AIProviderInterface
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
-    protected ToolPayloadMapperInterface $toolPayloadMapper;
+    protected ToolMapperInterface $toolPayloadMapper;
 
     public function __construct(
         protected BedrockRuntimeClient $bedrockRuntimeClient,
@@ -47,9 +47,9 @@ class BedrockRuntime implements AIProviderInterface
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
-    public function toolPayloadMapper(): ToolPayloadMapperInterface
+    public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
     }
 
     protected function createPayLoad(array $messages): array

@@ -29,7 +29,7 @@ class HttpException extends Exception
     public static function networkError(HttpRequest $request, Throwable $previous): self
     {
         return new self(
-            "Network error during {$request->method} {$request->uri}: {$previous->getMessage()}",
+            "Network error during {$request->method->value} {$request->uri}: {$previous->getMessage()}",
             $request,
             null,
             $previous
@@ -42,7 +42,7 @@ class HttpException extends Exception
     public static function httpError(HttpRequest $request, HttpResponse $response): self
     {
         return new self(
-            "HTTP {$response->statusCode} error during {$request->method} {$request->uri}",
+            "HTTP {$response->statusCode} error during {$request->method->value} {$request->uri}",
             $request,
             $response
         );

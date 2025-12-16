@@ -7,7 +7,7 @@ namespace NeuronAI\Providers;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 
-interface ToolPayloadMapperInterface
+interface ToolMapperInterface
 {
     /**
      * @param array<ToolInterface|ProviderToolInterface> $tools

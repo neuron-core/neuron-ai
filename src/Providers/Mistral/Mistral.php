@@ -11,11 +11,11 @@ use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\HasHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\HandleStructured;
-use NeuronAI\Providers\OpenAI\ToolPayloadMapper;
-use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Providers\OpenAI\ToolMapper;
+use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
@@ -38,7 +38,7 @@ class Mistral implements AIProviderInterface
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
-    protected ToolPayloadMapperInterface $toolPayloadMapper;
+    protected ToolMapperInterface $toolPayloadMapper;
 
     /**
      * @param array<string, mixed> $parameters
@@ -72,9 +72,9 @@ class Mistral implements AIProviderInterface
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
-    public function toolPayloadMapper(): ToolPayloadMapperInterface
+    public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolPayloadMapper();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
     }
 
     /**

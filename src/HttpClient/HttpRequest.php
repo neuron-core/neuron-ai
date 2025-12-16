@@ -11,7 +11,7 @@ class HttpRequest
      * @param array<string, mixed>|string|null $body
      */
     public function __construct(
-        public string $method,
+        public HttpMethod $method,
         public string $uri,
         public array $headers = [],
         public array|string|null $body = null,
@@ -25,18 +25,48 @@ class HttpRequest
      */
     public static function get(string $uri, array $headers = []): self
     {
-        return new self('GET', $uri, $headers);
+        return new self(HttpMethod::GET, $uri, $headers);
     }
 
     /**
      * Create a POST request with JSON body.
      *
-     * @param array<string, mixed> $json
      * @param array<string, string> $headers
      */
-    public static function post(string $uri, array $json, array $headers = []): self
+    public static function post(string $uri, array $body = [], array $headers = []): self
     {
-        return new self('POST', $uri, $headers, $json);
+        return new self(HttpMethod::POST, $uri, $headers, $body);
+    }
+
+    /**
+     * Create a PUT request with JSON body.
+     *
+     * @param array<string, string> $headers
+     */
+    public static function put(string $uri, array $body = [], array $headers = []): self
+    {
+        return new self(HttpMethod::PUT, $uri, $headers, $body);
+    }
+
+    /**
+     * Create a PATCH request with JSON body.
+     *
+     * @param array<string, string> $headers
+     */
+    public static function patch(string $uri, array $body = [], array $headers = []): self
+    {
+        return new self(HttpMethod::PATCH, $uri, $headers, $body);
+    }
+
+    /**
+     * Create a POST request with JSON body.
+     *
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers
+     */
+    public static function delete(string $uri, array $body = [], array $headers = []): self
+    {
+        return new self(HttpMethod::DELETE, $uri, $headers, $body);
     }
 
     /**

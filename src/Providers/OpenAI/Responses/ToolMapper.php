@@ -2,19 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\AWS;
+namespace NeuronAI\Providers\OpenAI\Responses;
 
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
 use stdClass;
 
 use function array_reduce;
+use function is_string;
 
-class ToolPayloadMapper implements ToolPayloadMapperInterface
+class ToolMapper implements ToolMapperInterface
 {
+    /**
+     * @throws ProviderException
+     */
     public function map(array $tools): array
     {
         $mapping = [];
@@ -22,7 +26,7 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
         foreach ($tools as $tool) {
             $mapping[] = match (true) {
                 $tool instanceof ToolInterface => $this->mapTool($tool),
-                $tool instanceof ProviderToolInterface => throw new ProviderException('Bedrock Runtime does not support Provider Tools'),
+                $tool instanceof ProviderToolInterface => $this->mapProviderTool($tool),
                 default => throw new ProviderException('Could not map tool type '.$tool::class),
             };
         }
@@ -33,16 +37,13 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
     protected function mapTool(ToolInterface $tool): array
     {
         $payload = [
-            'toolSpec' => [
-                'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
-                'inputSchema' => [
-                    'json' => [
-                        'type' => 'object',
-                        'properties' => new stdClass(),
-                        'required' => [],
-                    ]
-                ],
+            'type' => 'function',
+            'name' => $tool->getName(),
+            'description' => $tool->getDescription(),
+            'parameters' => [
+                'type' => 'object',
+                'properties' => new stdClass(),
+                'required' => [],
             ],
         ];
 
@@ -52,11 +53,25 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
         }, []);
 
         if (!empty($properties)) {
-            $payload['toolSpec']['inputSchema']['json'] = [
+            $payload['parameters'] = [
                 'type' => 'object',
                 'properties' => $properties,
                 'required' => $tool->getRequiredProperties(),
             ];
+        }
+
+        return $payload;
+    }
+
+    protected function mapProviderTool(ProviderToolInterface $tool): array
+    {
+        $payload = [
+            'type' => $tool->getType(),
+            ...$tool->getOptions()
+        ];
+
+        if (is_string($tool->getName())) {
+            $payload['name'] = $tool->getName();
         }
 
         return $payload;

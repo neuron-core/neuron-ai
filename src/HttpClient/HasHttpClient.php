@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers;
-
-use NeuronAI\HttpClient\HttpClientInterface;
+namespace NeuronAI\HttpClient;
 
 /**
  * Trait for providers using HTTP client abstraction.
@@ -16,7 +14,7 @@ trait HasHttpClient
     /**
      * Set a custom HTTP client implementation.
      */
-    public function setHttpClient(HttpClientInterface $client): AIProviderInterface
+    public function setHttpClient(HttpClientInterface $client): self
     {
         $this->httpClient = $client;
         return $this;

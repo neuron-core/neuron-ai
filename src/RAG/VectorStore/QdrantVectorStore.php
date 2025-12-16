@@ -4,66 +4,79 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
 use function array_map;
 use function in_array;
 use function is_null;
-use function json_decode;
 use function trim;
 use function array_chunk;
 
 class QdrantVectorStore implements VectorStoreInterface
 {
-    protected Client $client;
+    use HasHttpClient;
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function __construct(
         protected string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
         protected int $topK = 5,
         protected int $dimension = 1024,
+        ?HttpClientInterface $httpClient = null,
     ) {
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->collectionUrl, '/').'/')
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
+            ]);
+
         $this->initialize();
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     protected function initialize(): void
     {
-        $response = $this->client()->get('exists')->getBody()->getContents();
-        $response = json_decode($response, true);
+        $response = $this->httpClient->request(
+            HttpRequest::get('exists')
+        )->json();
 
         if ($response['result']['exists']) {
             return;
         }
 
-        $this->client()->put('', [
-            RequestOptions::JSON => [
-                'vectors' => [
-                    'size' => $this->dimension,
-                    'distance' => 'Cosine',
+        $this->httpClient->request(
+            HttpRequest::put(
+                uri: '',
+                body: [
+                    'vectors' => [
+                        'size' => $this->dimension,
+                        'distance' => 'Cosine',
+                    ],
                 ],
-            ],
-        ]);
+            )
+        );
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function destroy(): void
     {
-        $this->client()->delete('');
+        $this->httpClient->request(HttpRequest::delete(''));
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -74,7 +87,7 @@ class QdrantVectorStore implements VectorStoreInterface
      * Bulk save documents.
      *
      * @param Document[] $documents
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -92,58 +105,65 @@ class QdrantVectorStore implements VectorStoreInterface
         $chunks = array_chunk($points, 100);
 
         foreach ($chunks as $chunk) {
-            $this->client()->put('points', [
-                RequestOptions::JSON => ['points' => $chunk]
-            ]);
+            $this->httpClient->request(
+                HttpRequest::put('points', ['points' => $chunk])
+            );
         }
 
         return $this;
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->client()->post('points/delete', [
-            RequestOptions::JSON => [
-                'wait' => true,
-                'filter' => [
-                    'must' => [
-                        [
-                            'key' => 'sourceType',
-                            'match' => [
-                                'value' => $sourceType,
-                            ]
-                        ],
-                        [
-                            'key' => 'sourceName',
-                            'match' => [
-                                'value' => $sourceName,
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'points/delete',
+                body: [
+                    'wait' => true,
+                    'filter' => [
+                        'must' => [
+                            [
+                                'key' => 'sourceType',
+                                'match' => [
+                                    'value' => $sourceType,
+                                ]
+                            ],
+                            [
+                                'key' => 'sourceName',
+                                'match' => [
+                                    'value' => $sourceName,
+                                ]
                             ]
                         ]
                     ]
                 ]
-            ]
-        ]);
+            )
+        );
 
         return $this;
     }
 
+    /**
+     * @throws HttpException
+     */
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client()->post('points/query', [
-            RequestOptions::JSON => [
-                'query' => [
-                    'recommend' => ['positive' => [$embedding]]
-                ],
-                'limit' => $this->topK,
-                'with_payload' => true,
-                'with_vector' => true,
-            ]
-        ])->getBody()->getContents();
-
-        $response = json_decode($response, true);
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'points/query',
+                body: [
+                    'query' => [
+                        'recommend' => ['positive' => [$embedding]]
+                    ],
+                    'limit' => $this->topK,
+                    'with_payload' => true,
+                    'with_vector' => true,
+                ]
+            )
+        )->json();
 
         return array_map(function (array $item): Document {
             $document = new Document($item['payload']['content']);
@@ -161,16 +181,5 @@ class QdrantVectorStore implements VectorStoreInterface
 
             return $document;
         }, $response['result']['points']);
-    }
-
-    protected function client(): Client
-    {
-        return $this->client ?? $this->client = new Client([
-            'base_uri' => trim($this->collectionUrl, '/').'/',
-            'headers' => [
-                'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
-            ],
-        ]);
     }
 }

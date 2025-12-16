@@ -45,8 +45,7 @@ trait HandleChat
         }
 
         $response = $this->httpClient->request(
-            new HttpRequest(
-                method: 'POST',
+            HttpRequest::post(
                 uri: trim($this->baseUri, '/')."/{$this->model}:generateContent",
                 body: $json
             )

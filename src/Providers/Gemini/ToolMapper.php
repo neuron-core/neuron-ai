@@ -2,33 +2,34 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\OpenAI\Responses;
+namespace NeuronAI\Providers\Gemini;
 
-use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\ToolPayloadMapperInterface;
+use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
 use stdClass;
 
+use function array_filter;
+use function array_map;
 use function array_reduce;
-use function is_string;
 
-class ToolPayloadMapper implements ToolPayloadMapperInterface
+class ToolMapper implements ToolMapperInterface
 {
-    /**
-     * @throws ProviderException
-     */
     public function map(array $tools): array
     {
+        $providerTools = array_filter($tools, fn (ProviderToolInterface|ToolInterface $tool): bool => $tool instanceof ProviderToolInterface);
+        $functionTools = array_filter($tools, fn (ProviderToolInterface|ToolInterface $tool): bool => $tool instanceof ToolInterface);
+
         $mapping = [];
 
-        foreach ($tools as $tool) {
-            $mapping[] = match (true) {
-                $tool instanceof ToolInterface => $this->mapTool($tool),
-                $tool instanceof ProviderToolInterface => $this->mapProviderTool($tool),
-                default => throw new ProviderException('Could not map tool type '.$tool::class),
-            };
+        // Gemini does not support functions and provider tool at the same time
+        if ($functionTools !== []) {
+            $mapping['functionDeclarations'] = array_map($this->mapTool(...), $functionTools);
+        } else {
+            foreach ($providerTools as $tool) {
+                $mapping[] = $this->mapProviderTool($tool);
+            }
         }
 
         return $mapping;
@@ -37,7 +38,6 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
     protected function mapTool(ToolInterface $tool): array
     {
         $payload = [
-            'type' => 'function',
             'name' => $tool->getName(),
             'description' => $tool->getDescription(),
             'parameters' => [
@@ -66,12 +66,11 @@ class ToolPayloadMapper implements ToolPayloadMapperInterface
     protected function mapProviderTool(ProviderToolInterface $tool): array
     {
         $payload = [
-            'type' => $tool->getType(),
-            ...$tool->getOptions()
+            $tool->getType() => new stdClass(),
         ];
 
-        if (is_string($tool->getName())) {
-            $payload['name'] = $tool->getName();
+        if ($tool->getOptions() !== []) {
+            $payload[$tool->getType()] = $tool->getOptions();
         }
 
         return $payload;

@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
 use function array_map;
 use function in_array;
-use function json_decode;
 use function trim;
 use function array_chunk;
 
 class PineconeVectorStore implements VectorStoreInterface
 {
-    protected Client $client;
+    use HasHttpClient;
 
     /**
      * Metadata filters.
@@ -30,64 +32,82 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $indexUrl,
         protected int $topK = 4,
         string $version = '2025-04',
-        protected string $namespace = '__default__' // Default namespace
+        protected string $namespace = '__default__', // Default namespace
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $this->client = new Client([
-            'base_uri' => trim($this->indexUrl, '/').'/',
-            'headers' => [
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->indexUrl, '/').'/')
+            ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 'Api-Key' => $key,
                 'X-Pinecone-API-Version' => $version,
-            ]
-        ]);
+            ]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         return $this->addDocuments([$document]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
-            $this->client->post("vectors/upsert", [
-                RequestOptions::JSON => [
-                    'namespace' => $this->namespace,
-                    'vectors' => array_map(fn (Document $document): array => [
-                        'id' => (string) $document->getId(),
-                        'values' => $document->getEmbedding(),
-                        'metadata' => [
-                            'content' => $document->getContent(),
-                            'sourceType' => $document->getSourceType(),
-                            'sourceName' => $document->getSourceName(),
-                            ...$document->metadata,
-                        ],
-                    ], $chunk)
-                ]
-            ]);
+            $this->httpClient->request(
+                HttpRequest::post(
+                    uri: 'vectors/upsert',
+                    body: [
+                        'namespace' => $this->namespace,
+                        'vectors' => array_map(fn (Document $document): array => [
+                            'id' => (string) $document->getId(),
+                            'values' => $document->getEmbedding(),
+                            'metadata' => [
+                                'content' => $document->getContent(),
+                                'sourceType' => $document->getSourceType(),
+                                'sourceName' => $document->getSourceName(),
+                                ...$document->metadata,
+                            ],
+                        ], $chunk),
+                    ]
+                )
+            );
         }
 
         return $this;
     }
 
+    /**
+     * @throws HttpException
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->client->post("vectors/delete", [
-            RequestOptions::JSON => [
-                'namespace' => $this->namespace,
-                'filter' => [
-                    'sourceType' => ['$eq' => $sourceType],
-                    'sourceName' => ['$eq' => $sourceName],
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'vectors/delete',
+                body: [
+                    'namespace' => $this->namespace,
+                    'filter' => [
+                        'sourceType' => ['$eq' => $sourceType],
+                        'sourceName' => ['$eq' => $sourceName],
+                    ],
                 ]
-            ]
-        ]);
+            )
+        );
 
         return $this;
     }
 
+    /**
+     * @throws HttpException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $queryParams = [
@@ -103,11 +123,12 @@ class PineconeVectorStore implements VectorStoreInterface
             $queryParams['filter'] = $this->filters;
         }
 
-        $result = $this->client->post("query", [
-            RequestOptions::JSON => $queryParams
-        ])->getBody()->getContents();
-
-        $result = json_decode($result, true);
+        $result = $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'query',
+                body: $queryParams
+            )
+        )->json();
 
         return array_map(function (array $item): Document {
             $document = new Document();

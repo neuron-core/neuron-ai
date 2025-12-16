@@ -4,28 +4,29 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
 
 use function count;
 use function in_array;
 use function is_null;
-use function json_decode;
 use function trim;
 use function uniqid;
 use function array_chunk;
 
 class ChromaVectorStore implements VectorStoreInterface
 {
-    protected Client $client;
+    use HasHttpClient;
 
     protected string $collectionId;
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function __construct(
         protected string $collection,
@@ -34,40 +35,40 @@ class ChromaVectorStore implements VectorStoreInterface
         protected string $database = 'default_database',
         protected ?string $key = null,
         protected int $topK = 5,
+        ?HttpClientInterface $httpClient = null,
     ) {
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/")
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
+            ]);
+
         $this->initialize();
     }
 
     /**
      * Create the collection if it doesn't exist
      *
-     * @throws \GuzzleHttp\Exception\GuzzleException
+     * @throws HttpException
      */
     protected function initialize(): void
     {
-        $response = $this->client()->post(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections", [
-            RequestOptions::JSON => [
-                'name' => $this->collection,
-                'get_or_create' => true,
-            ]
-        ])->getBody()->getContents();
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections",
+                body: [
+                    'name' => $this->collection,
+                    'get_or_create' => true,
+                ]
+            )
+        );
 
-        $this->collectionId = json_decode($response, true)['id'];
-    }
-
-    protected function client(): Client
-    {
-        return $this->client ?? $this->client = new Client([
-            'base_uri' => trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/",
-            'headers' => [
-                'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
-            ]
-        ]);
+        $this->collectionId = $response->json()['id'];
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -75,20 +76,23 @@ class ChromaVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->client()->post("{$this->collectionId}/delete", [
-            RequestOptions::JSON => [
-                'where' => [
-                    '$and' => [
-                        ['sourceType' => ['$eq' => $sourceType]],
-                        ['sourceName' => ['$eq' => $sourceName]]
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: "{$this->collectionId}/delete",
+                body: [
+                    'where' => [
+                        '$and' => [
+                            ['sourceType' => ['$eq' => $sourceType]],
+                            ['sourceName' => ['$eq' => $sourceName]]
+                        ]
                     ]
                 ]
-            ]
-        ]);
+            )
+        );
 
         return $this;
     }
@@ -96,43 +100,51 @@ class ChromaVectorStore implements VectorStoreInterface
     /**
      * Delete the current collection
      *
-     * @throws GuzzleException
+     * @throws HttpException
      */
     public function destroy(): void
     {
-        $this->client()->delete($this->collection);
+        $this->httpClient->request(
+            HttpRequest::delete($this->collection)
+        );
     }
 
     /**
-     * @throws GuzzleException
+     * @param Document[] $documents
+     * @throws HttpException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
-            $this->client()->post("{$this->collectionId}/add", [
-                RequestOptions::JSON => $this->mapDocuments($chunk),
-            ]);
+            $this->httpClient->request(
+                HttpRequest::post(
+                    uri: "{$this->collectionId}/delete",
+                    body: $this->mapDocuments($chunk)
+                )
+            );
         }
 
         return $this;
     }
 
     /**
-     * @throws GuzzleException
+     * @return iterable<Document>
+     * @throws HttpException
      */
     public function similaritySearch(array $embedding): iterable
     {
-        $response = $this->client()->post("{$this->collectionId}/query", [
-            RequestOptions::JSON => [
-                'query_embeddings' => [$embedding],
-                'n_results' => $this->topK,
-                'include' => ['documents', 'metadatas', 'distances'],
-            ]
-        ])->getBody()->getContents();
-
-        $response = json_decode($response, true);
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: "{$this->collectionId}/query",
+                body: [
+                    'query_embeddings' => [$embedding],
+                    'n_results' => $this->topK,
+                    'include' => ['documents', 'metadatas', 'distances'],
+                ]
+            )
+        )->json();
 
         // Map the result
         $size = count($response['ids'][0] ?? []);
@@ -160,6 +172,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     /**
      * @param Document[] $documents
+     * @return array<string, array>
      */
     protected function mapDocuments(array $documents): array
     {
