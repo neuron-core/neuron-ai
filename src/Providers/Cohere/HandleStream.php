@@ -44,7 +44,7 @@ trait HandleStream
             )
         );
 
-        yield from $this->stream($response);
+        yield from $this->processStream($response);
     }
 
     protected function processStream(StreamInterface $stream): Generator
