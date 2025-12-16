@@ -8,6 +8,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\OpenAI\ToolMapper as OpenAIToolMapper;
 use NeuronAI\Providers\ToolMapperInterface;
 
 class Cohere implements AIProviderInterface
@@ -55,6 +56,6 @@ class Cohere implements AIProviderInterface
 
     public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
+        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new OpenAIToolMapper();
     }
 }
