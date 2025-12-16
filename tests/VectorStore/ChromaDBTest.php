@@ -10,6 +10,8 @@ use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+
 class ChromaDBTest extends TestCase
 {
     use CheckOpenPort;
