@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\VectorStore;
 
-use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
