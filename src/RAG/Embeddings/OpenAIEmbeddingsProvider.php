@@ -6,41 +6,50 @@ namespace NeuronAI\RAG\Embeddings;
 
 use GuzzleHttp\Client;
 
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use function json_decode;
 
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
-    protected Client $client;
+    use HasHttpClient;
 
     protected string $baseUri = 'https://api.openai.com/v1/embeddings';
 
     public function __construct(
         protected string $key,
         protected string $model,
-        protected ?int $dimensions = 1024
+        protected ?int $dimensions = 1024,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $this->client = new Client([
-            'base_uri' => $this->baseUri,
-            'headers' => [
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
+            ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
-            ]
-        ]);
+            ]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedText(string $text): array
     {
-        $response = $this->client->post('', [
-            'json' => [
-                'model' => $this->model,
-                'input' => $text,
-                'encoding_format' => 'float',
-                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-            ]
-        ])->getBody()->getContents();
-
-        $response = json_decode($response, true);
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: '',
+                body: [
+                    'model' => $this->model,
+                    'input' => $text,
+                    'encoding_format' => 'float',
+                    ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+                ]
+            )
+        )->json();
 
         return $response['data'][0]['embedding'];
     }

@@ -7,32 +7,43 @@ namespace NeuronAI\RAG\Embeddings;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use function json_decode;
 use function trim;
 
 class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
-    protected Client $client;
+    use HasHttpClient;
 
     public function __construct(
         protected string $model,
         protected string $url = 'http://localhost:11434/api',
         protected array $parameters = [],
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $this->client = new Client(['base_uri' => trim($this->url, '/').'/']);
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->url, '/').'/');
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedText(string $text): array
     {
-        $response = $this->client->post('embed', [
-            RequestOptions::JSON => [
-                'model' => $this->model,
-                'input' => $text,
-                ...$this->parameters,
-            ]
-        ])->getBody()->getContents();
-
-        $response = json_decode($response, true);
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'embed',
+                body: [
+                    'model' => $this->model,
+                    'input' => $text,
+                    ...$this->parameters,
+                ]
+            )
+        )->json();
 
         return $response['embeddings'][0];
     }
