@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Cohere;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;

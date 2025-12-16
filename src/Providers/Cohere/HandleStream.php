@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Cohere;
 
 use Generator;
@@ -8,6 +10,8 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+
+use function array_unshift;
 
 trait HandleStream
 {
@@ -40,7 +44,7 @@ trait HandleStream
             )
         );
 
-        yield from $this->stream( $response);
+        yield from $this->stream($response);
     }
 
     protected function processStream(StreamInterface $stream): Generator
