@@ -78,8 +78,7 @@ class Agent extends Workflow implements AgentInterface
     protected function compose(array|Node $nodes): void
     {
         if ($this->eventNodeMap !== []) {
-            // Already composed, do nothing
-            return;
+            $this->eventNodeMap = [];
         }
 
         $nodes = is_array($nodes) ? $nodes : [$nodes];
