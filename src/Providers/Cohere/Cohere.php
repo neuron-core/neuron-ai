@@ -25,6 +25,7 @@ class Cohere extends OpenAI
         protected string $model,
         protected string $baseUri = 'https://api.cohere.ai/v2',
         protected array $parameters = [],
+        protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
     ) {
         parent::__construct($key, $model, $parameters, false, $httpClient);
