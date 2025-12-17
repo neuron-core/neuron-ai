@@ -14,7 +14,8 @@
         "guzzlehttp/guzzle": "^7.9",
         "inspector-apm/inspector-php": "^3.15.10",
         "psr/http-message": "^1.0|^2.0",
-        "psr/log": "^1.0|^2.0|^3.0"
+        "psr/log": "^1.0|^2.0|^3.0",
+        "google/auth": "^1.49"
     },
     "suggest": {
         "aws/aws-sdk-php": "^3.209",
