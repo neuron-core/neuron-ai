@@ -55,7 +55,7 @@ trait HandleStream
 
         $this->streamState = new StreamState();
 
-        yield from $this->processStream($stream);
+        return yield from $this->processStream($stream);
     }
 
     /**

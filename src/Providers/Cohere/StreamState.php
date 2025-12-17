@@ -1,8 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Cohere;
 
 use NeuronAI\Providers\OpenAI\StreamState as OpenAIStreamState;
+
+use function array_key_exists;
 
 class StreamState extends OpenAIStreamState
 {

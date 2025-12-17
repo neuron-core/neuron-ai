@@ -81,7 +81,7 @@ class EloquentChatHistory extends AbstractChatHistory
             ->delete();
     }
 
-    protected function clear(): ChatHistoryInterface
+    protected function clear(): void
     {
         /** @var Model $model */
         $model = new $this->modelClass();
@@ -89,8 +89,6 @@ class EloquentChatHistory extends AbstractChatHistory
         $model->newQuery()
             ->where('thread_id', $this->threadId)
             ->delete();
-
-        return $this;
     }
 
     /**

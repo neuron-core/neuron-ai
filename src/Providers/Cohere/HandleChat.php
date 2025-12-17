@@ -4,16 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Cohere;
 
-use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
-use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\HttpClient\HttpRequest;
-
-use function array_unshift;
 
 trait HandleChat
 {

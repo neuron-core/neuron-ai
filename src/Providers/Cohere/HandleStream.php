@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\Cohere;
 
 use Generator;
@@ -48,7 +50,8 @@ trait HandleStream
                 $content = $line['delta']['message']['content']['text'];
 
                 $this->streamState->updateContentBlock(
-                    $line['index'], new TextContent($content)
+                    $line['index'],
+                    new TextContent($content)
                 );
 
                 yield new TextChunk($this->streamState->messageId(), $content);

@@ -65,7 +65,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // When the trim is triggered, the messages in the position from zero to $index must be removed.
     }
 
-    protected function clear()
+    protected function clear(): void
     {
         // Remove all messages.
     }

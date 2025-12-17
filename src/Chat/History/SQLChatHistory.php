@@ -63,11 +63,10 @@ class SQLChatHistory extends AbstractChatHistory
         return $this;
     }
 
-    protected function clear(): ChatHistoryInterface
+    protected function clear(): void
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->thread_id]);
-        return $this;
     }
 
     protected function sanitizeTableName(string $tableName): string
