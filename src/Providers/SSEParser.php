@@ -24,6 +24,9 @@ class SSEParser
         $line = $stream->readLine();
 
         if (! str_starts_with($line, 'data:')) {
+            if ($line = json_decode($line, true)) {
+                return $line;
+            }
             return null;
         }
 

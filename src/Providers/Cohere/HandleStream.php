@@ -19,12 +19,16 @@ trait HandleStream
      */
     protected function processStream(StreamInterface $stream): Generator
     {
+        $this->streamState = new StreamState();
+
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
-            $this->streamState->messageId($line['id']);
+            if ($line['type'] === 'message-start') {
+                $this->streamState->messageId($line['id']);
+            }
 
             // Capture usage information
             if (!empty($line['usage'])) {
