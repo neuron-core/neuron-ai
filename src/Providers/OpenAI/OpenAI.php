@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\HttpClient\HasHttpClient;
@@ -63,6 +64,14 @@ class OpenAI implements AIProviderInterface
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
             ]);
+    }
+
+    protected function createChatHttpRequest(array $payload): HttpRequest
+    {
+        return HttpRequest::post(
+            uri: 'chat/completions',
+            body: $payload
+        );
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

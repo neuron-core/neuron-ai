@@ -13,7 +13,6 @@ use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
 
 use function array_unshift;
@@ -50,10 +49,7 @@ trait HandleStream
         }
 
         $stream = $this->httpClient->stream(
-            HttpRequest::post(
-                uri: 'chat/completions',
-                body: $json
-            )
+            $this->createChatHttpRequest($json)
         );
 
         $this->streamState = new StreamState();

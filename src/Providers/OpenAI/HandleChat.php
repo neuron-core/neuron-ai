@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\HttpRequest;
 
 use function array_unshift;
 use function is_array;
@@ -41,10 +40,7 @@ trait HandleChat
         }
 
         $response = $this->httpClient->request(
-            HttpRequest::post(
-                uri: 'chat/completions',
-                body: $json
-            )
+            $this->createChatHttpRequest($json)
         );
 
         return $this->processChatResult($response->json());
