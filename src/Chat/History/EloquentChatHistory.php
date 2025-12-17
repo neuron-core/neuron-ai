@@ -83,7 +83,6 @@ class EloquentChatHistory extends AbstractChatHistory
 
     public function setMessages(array $messages): ChatHistoryInterface
     {
-        $this->history = $messages;
         return $this;
     }
 
@@ -96,7 +95,6 @@ class EloquentChatHistory extends AbstractChatHistory
             ->where('thread_id', $this->threadId)
             ->delete();
 
-        $this->history = [];
         return $this;
     }
 
