@@ -14,7 +14,11 @@ class MessageMapper extends OpenAIMessageMapper
     protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
-            ReasoningContent::class, FileContent::class => null,
+            FileContent::class => null,
+            ReasoningContent::class => [
+                'type' => 'thinking',
+                'thinking' => $block->content,
+            ],
             default => parent::mapContentBlock($block),
         };
     }
