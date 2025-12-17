@@ -56,7 +56,7 @@ class SQLChatHistory extends AbstractChatHistory
         }
     }
 
-    public function setMessages(array $messages): ChatHistoryInterface
+    protected function setMessages(array $messages): ChatHistoryInterface
     {
         $stmt = $this->pdo->prepare("UPDATE {$this->table} SET messages = :messages WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->thread_id, 'messages' => json_encode($this->jsonSerialize())]);

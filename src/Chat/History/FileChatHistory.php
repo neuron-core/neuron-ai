@@ -55,7 +55,7 @@ class FileChatHistory extends AbstractChatHistory
     /**
      * @throws ChatHistoryException
      */
-    public function setMessages(array $messages): ChatHistoryInterface
+    protected function setMessages(array $messages): ChatHistoryInterface
     {
         $this->updateFile();
         return $this;

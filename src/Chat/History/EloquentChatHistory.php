@@ -81,11 +81,6 @@ class EloquentChatHistory extends AbstractChatHistory
             ->delete();
     }
 
-    public function setMessages(array $messages): ChatHistoryInterface
-    {
-        return $this;
-    }
-
     protected function clear(): ChatHistoryInterface
     {
         /** @var Model $model */

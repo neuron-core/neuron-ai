@@ -50,9 +50,10 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     /**
      * @param Message[] $messages
      */
-    abstract public function setMessages(array $messages): ChatHistoryInterface;
-
-    abstract protected function clear(): ChatHistoryInterface;
+    protected function setMessages(array $messages): ChatHistoryInterface
+    {
+        return $this;
+    }
 
     protected function onNewMessage(Message $message): void
     {
@@ -62,6 +63,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function onTrimHistory(int $index): void
     {
         // When the trim is triggered, the messages in the position from zero to the index are removed.
+    }
+
+    protected function clear(): ChatHistoryInterface
+    {
+        return $this;
     }
 
     public function addMessage(Message $message): ChatHistoryInterface

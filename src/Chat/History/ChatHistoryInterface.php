@@ -18,11 +18,6 @@ interface ChatHistoryInterface extends JsonSerializable
 
     public function getLastMessage(): Message|false;
 
-    /**
-     * @param Message[] $messages
-     */
-    public function setMessages(array $messages): ChatHistoryInterface;
-
     public function flushAll(): ChatHistoryInterface;
 
     public function calculateTotalUsage(): int;
