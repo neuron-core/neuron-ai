@@ -36,6 +36,10 @@ trait HandleStream
                 $this->streamState->addOutputTokens($line['usage']['tokens']['output_tokens'] ?? 0);
             }
 
+            if ($line['type'] === 'tool-plan-delta') {
+                $this->streamState->composeToolPlan($line['delta']['message']['tool_plan']);
+            }
+
             // Compile tool calls
             if ($line['type'] === 'tool-call-start' || $line['type'] === 'tool-call-delta') {
                 $this->streamState->composeToolCalls($line);
@@ -44,7 +48,7 @@ trait HandleStream
             if ($line['type'] === 'tool-call-end') {
                 $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
-                    $this->streamState->getContentBlocks()
+                    new TextContent($this->streamState->getToolPlan())
                 );
                 $message->setUsage($this->streamState->getUsage());
                 return $message;

@@ -11,6 +11,18 @@ use function array_values;
 
 class StreamState extends OpenAIStreamState
 {
+    protected string $toolPlan = '';
+
+    public function composeToolPlan(string $delta): void
+    {
+        $this->toolPlan .= $delta;
+    }
+
+    public function getToolPlan(): string
+    {
+        return $this->toolPlan;
+    }
+
     public function composeToolCalls(array $event): void
     {
         $index = $event['index'];
