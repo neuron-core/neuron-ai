@@ -33,7 +33,7 @@ trait HandleStream
             }
 
             // Compile tool calls
-            if ($line['type'] === 'tool-call-start' || $line['delta']['type'] === 'tool-call-delta') {
+            if ($line['type'] === 'tool-call-start' || $line['type'] === 'tool-call-delta') {
                 $this->streamState->composeToolCalls($line);
             }
 
