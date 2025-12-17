@@ -14,8 +14,7 @@
         "guzzlehttp/guzzle": "^7.9",
         "inspector-apm/inspector-php": "^3.15.10",
         "psr/http-message": "^1.0|^2.0",
-        "psr/log": "^1.0|^2.0|^3.0",
-        "google/auth": "^1.49"
+        "psr/log": "^1.0|^2.0|^3.0"
     },
     "suggest": {
         "aws/aws-sdk-php": "^3.209",
@@ -37,7 +36,8 @@
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
         "tomasvotruba/type-coverage": "^2.0",
-        "typesense/typesense-php": "^5.0"
+        "typesense/typesense-php": "^5.0",
+        "google/auth": "^1.49"
     },
     "bin": [
         "bin/neuron"
