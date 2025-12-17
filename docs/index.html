@@ -1603,11 +1603,11 @@
 }
 
 <span class="code-comment">// Use the agent in your application</span>
-<span class="code-variable">$agent</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>()-><span class="code-function">chat</span>(
+<span class="code-variable">$state</span> = <span class="code-class">CustomerServiceAgent</span>::<span class="code-keyword">make</span>()-><span class="code-function">chat</span>(
     <span class="code-keyword">new</span> <span class="code-class">UserMessage</span>(<span class="code-string">'Give me the daily average of sales in the last 30 days?'</span>)
-);
+)-><span class="code-function">run</span>();
 
-<span class="code-keyword">echo</span> <span class="code-variable">$response</span>-><span class="code-function">getContent()</span>;</code></pre>
+<span class="code-keyword">echo</span> <span class="code-variable">$state</span>-><span class="code-function">getMessage()</span>-><span class="code-function">getContent()</span>;</code></pre>
             </div>
         </div>
     </div>
