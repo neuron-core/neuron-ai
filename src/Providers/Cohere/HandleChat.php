@@ -58,7 +58,7 @@ trait HandleChat
             $response = $this->createToolCallMessage($result['message']['tool_calls'], $block);
         } else {
             $response = new AssistantMessage(
-                new TextContent($result['message']['content'])
+                new TextContent($result['message']['content']['text'])
             );
         }
 
