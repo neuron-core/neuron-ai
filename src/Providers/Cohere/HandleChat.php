@@ -19,35 +19,6 @@ trait HandleChat
 {
     /**
      * @throws ProviderException
-     * @throws HttpException
-     */
-    public function chat(array $messages): Message
-    {
-        // Include the system prompt
-        if (isset($this->system)) {
-            array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
-        }
-
-        $json = [
-            'model' => $this->model,
-            'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
-        ];
-
-        // Attach tools
-        if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
-        }
-
-        $response = $this->httpClient->request(
-            $this->createChatHttpRequest($json)
-        );
-
-        return $this->processChatResult($response->json());
-    }
-
-    /**
-     * @throws ProviderException
      */
     protected function processChatResult(array $result): AssistantMessage
     {

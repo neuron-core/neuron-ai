@@ -15,6 +15,7 @@ use NeuronAI\Providers\OpenAI\OpenAI;
 class Cohere extends OpenAI
 {
     use HandleChat;
+    use HandleStream;
 
     /**
      * @param array<string, mixed> $parameters

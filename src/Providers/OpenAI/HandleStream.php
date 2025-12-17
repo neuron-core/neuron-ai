@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\SSEParser;
 
 use function array_unshift;
@@ -54,6 +55,14 @@ trait HandleStream
 
         $this->streamState = new StreamState();
 
+        yield from $this->processStream($stream);
+    }
+
+    /**
+     * @throws ProviderException
+     */
+    protected function processStream(StreamInterface $stream): Generator
+    {
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
