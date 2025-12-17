@@ -28,7 +28,7 @@ class Cohere extends OpenAI
         protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
     ) {
-        parent::__construct($key, $model, $parameters, false, $httpClient);
+        parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
     }
 
     public function messageMapper(): MessageMapperInterface
