@@ -121,7 +121,10 @@ class Summarization implements WorkflowMiddleware
         ];
 
         // Update chat history
-        $state->getChatHistory()->setMessages($newMessages);
+        $state->getChatHistory()->flushAll();
+        foreach ($newMessages as $message) {
+            $state->getChatHistory()->addMessage($message);
+        }
     }
 
     /**
