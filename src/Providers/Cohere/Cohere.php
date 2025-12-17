@@ -34,7 +34,7 @@ class Cohere extends OpenAI
 
     protected function createChatHttpRequest(array $payload): HttpRequest
     {
-        unset($payload['include_usage']);
+        unset($payload['stream_options']);
 
         return HttpRequest::post(
             uri: 'chat',
