@@ -6,11 +6,15 @@ namespace NeuronAI\Providers\Cohere;
 
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\SSEParser;
+
+use function array_key_exists;
 
 trait HandleStream
 {
@@ -55,14 +59,21 @@ trait HandleStream
             }
 
             if ($line['type'] === 'content-delta') {
-                $content = $line['delta']['message']['content']['text'];
+                $content = $line['delta']['message']['content'];
 
-                $this->streamState->updateContentBlock(
-                    $line['index'],
-                    new TextContent($content)
-                );
-
-                yield new TextChunk($this->streamState->messageId(), $content);
+                if (array_key_exists('text', $content)) {
+                    $this->streamState->updateContentBlock(
+                        $line['index'],
+                        new TextContent($content['text'])
+                    );
+                    yield new TextChunk($this->streamState->messageId(), $content['text']);
+                } elseif (array_key_exists('thinking', $content)) {
+                    $this->streamState->updateContentBlock(
+                        $line['index'],
+                        new ReasoningContent($content['thinking'])
+                    );
+                    yield new ReasoningChunk($this->streamState->messageId(), $content['thinking']);
+                }
             }
         }
 
