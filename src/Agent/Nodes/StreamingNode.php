@@ -24,9 +24,6 @@ class StreamingNode extends Node
 {
     use ChatHistoryHelper;
 
-    /**
-     * @param Message[] $messages
-     */
     public function __construct(
         protected AIProviderInterface $provider,
     ) {
