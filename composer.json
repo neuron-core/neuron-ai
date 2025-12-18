@@ -36,7 +36,8 @@
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
         "tomasvotruba/type-coverage": "^2.0",
-        "typesense/typesense-php": "^5.0"
+        "typesense/typesense-php": "^5.0",
+        "google/auth": "^1.49"
     },
     "bin": [
         "bin/neuron"
