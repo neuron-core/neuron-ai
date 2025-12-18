@@ -51,16 +51,29 @@ class RAG extends Agent
      */
     protected function compose(array|Node $nodes): void
     {
+        if ($this->eventNodeMap !== []) {
+            // it's already been bootstrapped
+            return;
+        }
+
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
-        $nodes = array_merge($nodes, [
+        $nodes = array_merge($nodes, $this->ragNodes());
+
+        parent::compose($nodes);
+    }
+
+    /**
+     * @return Node[]
+     */
+    protected function ragNodes(): array
+    {
+        return [
             new PreProcessQueryNode($this->preProcessors()),
             new RetrieveDocumentsNode($this->resolveRetrieval()),
             new PostProcessDocumentsNode($this->postProcessors()),
             new EnrichInstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
-        ]);
-
-        parent::compose($nodes);
+        ];
     }
 
     /**
