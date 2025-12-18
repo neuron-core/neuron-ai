@@ -14,9 +14,9 @@ class GeminiVertex extends Gemini
      */
     public function __construct(
         string $pathJsonCredentials,
-        string $model,
         string $location,
         string $projectId,
+        string $model,
         array $parameters = [],
         ?HttpClientOptions $httpOptions = null,
     ) {
