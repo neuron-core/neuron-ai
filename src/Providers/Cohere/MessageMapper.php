@@ -9,9 +9,11 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 use NeuronAI\Tools\ToolInterface;
+
+use function array_map;
+use function json_encode;
 
 class MessageMapper extends OpenAIMessageMapper
 {

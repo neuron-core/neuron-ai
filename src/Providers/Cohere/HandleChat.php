@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Cohere;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
+
+use function array_map;
+use function array_filter;
 
 trait HandleChat
 {
@@ -22,9 +27,13 @@ trait HandleChat
                 : null;
             $response = $this->createToolCallMessage($result['message']['tool_calls'], $block);
         } else {
-            $response = new AssistantMessage(
-                new TextContent($result['message']['content'][0]['text'])
-            );
+            $blocks = array_map(fn (array $content): ?ContentBlockInterface => match ($content['type']) {
+                'text' => new TextContent($content['text']),
+                'thinking' => new ReasoningContent($content['thinking']),
+                default => null,
+            }, $result['message']['content'] ?? []);
+
+            $response = new AssistantMessage(array_filter($blocks));
         }
 
         if (isset($result['usage'])) {
