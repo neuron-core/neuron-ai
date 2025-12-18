@@ -22,18 +22,10 @@ trait HandleChat
     protected function processChatResult(array $result): AssistantMessage
     {
         if ($result['finish_reason'] === 'TOOL_CALL') {
-            $block = isset($result['message']['content'])
-                ? new TextContent($result['message']['content'])
-                : null;
-            $response = $this->createToolCallMessage($result['message']['tool_calls'], $block);
+            $blocks = $this->extractContent($result['message']['content']);
+            $response = $this->createToolCallMessage($result['message']['tool_calls'], $blocks);
         } else {
-            $blocks = array_map(fn (array $content): ?ContentBlockInterface => match ($content['type']) {
-                'text' => new TextContent($content['text']),
-                'thinking' => new ReasoningContent($content['thinking']),
-                default => null,
-            }, $result['message']['content'] ?? []);
-
-            $response = new AssistantMessage(array_filter($blocks));
+            $response = new AssistantMessage($this->extractContent($result['message']['content']));
         }
 
         if (isset($result['usage'])) {
@@ -46,5 +38,20 @@ trait HandleChat
         }
 
         return $response;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $content
+     * @return ContentBlockInterface[]
+     */
+    protected function extractContent(array $content): array
+    {
+        $blocks = array_map(fn (array $item): ?ContentBlockInterface => match ($item['type']) {
+            'text' => new TextContent($item['text']),
+            'thinking' => new ReasoningContent($item['thinking']),
+            default => null,
+        }, $content);
+
+        return array_filter($blocks);
     }
 }
