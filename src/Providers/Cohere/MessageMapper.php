@@ -42,18 +42,4 @@ class MessageMapper extends OpenAIMessageMapper
             ], $message->getTools())
         ];
     }
-
-    protected function mapToolsResult(ToolResultMessage $message): array
-    {
-        return array_map(fn (ToolInterface $tool): array => [
-            'role' => MessageRole::TOOL,
-            'tool_call_id' => $tool->getCallId(),
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => $tool->getResult(),
-                ]
-            ]
-        ], $message->getTools());
-    }
 }
