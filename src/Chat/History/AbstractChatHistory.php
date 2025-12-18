@@ -50,14 +50,14 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     /**
      * @param Message[] $messages
      */
-    protected function setMessages(array $messages): ChatHistoryInterface
+    protected function setMessages(array $messages): void
     {
-        return $this;
+        // Handle saving the entire history at once.
     }
 
     protected function onNewMessage(Message $message): void
     {
-        // Handle single message addition
+        // Handle single message addition.
     }
 
     protected function onTrimHistory(int $index): void
