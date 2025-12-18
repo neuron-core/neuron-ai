@@ -135,7 +135,7 @@ class Agent extends Workflow implements AgentInterface
 
         // Prepare the workflow for streaming mode
         $this->compose(
-            new StreamingNode($this->resolveProvider(), $messages),
+            new StreamingNode($this->resolveProvider()),
         );
 
         return new AgentHandler(parent::init($interrupt));
