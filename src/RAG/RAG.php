@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\Nodes\EnrichInstructionsNode;
@@ -13,8 +14,6 @@ use NeuronAI\RAG\Nodes\PreProcessQueryNode;
 use NeuronAI\RAG\Nodes\RetrieveDocumentsNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
-use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 
 use function array_chunk;
@@ -42,9 +41,9 @@ class RAG extends Agent
      */
     protected array $postProcessors = [];
 
-    protected function startEvent(): Event
+    protected function startEvent(): AgentStartEvent
     {
-        return new StartEvent();
+        return new AgentStartEvent();
     }
 
     /**

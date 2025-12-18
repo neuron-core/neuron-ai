@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
+use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
@@ -15,7 +16,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
 use NeuronAI\Observability\EventBus;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -25,6 +25,7 @@ use function is_array;
 
 /**
  * @method AgentState resolveState()
+ * @method AgentStartEvent resolveStartEvent()
  */
 class Agent extends Workflow implements AgentInterface
 {
@@ -78,8 +79,8 @@ class Agent extends Workflow implements AgentInterface
     protected function compose(array|Node $nodes): void
     {
         if ($this->eventNodeMap !== []) {
-            $this->eventNodeMap = [];
-            $this->nodes = [];
+            // it's already been bootstrapped
+            return;
         }
 
         $nodes = is_array($nodes) ? $nodes : [$nodes];
@@ -96,7 +97,7 @@ class Agent extends Workflow implements AgentInterface
         ]);
     }
 
-    protected function startEvent(): Event
+    protected function startEvent(): AgentStartEvent
     {
         return new AIInferenceEvent(
             $this->resolveInstructions(),
@@ -111,9 +112,11 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
+        $this->resolveStartEvent()->setMessages($messages);
+
         // Prepare the workflow for chat mode
         $this->compose(
-            new ChatNode($this->resolveProvider(), $messages),
+            new ChatNode($this->resolveProvider()),
         );
 
         return new AgentHandler(parent::init($interrupt));
@@ -128,9 +131,11 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
+        $this->resolveStartEvent()->setMessages($messages);
+
         // Prepare the workflow for streaming mode
         $this->compose(
-            new StreamingNode($this->resolveProvider(), $messages),
+            new StreamingNode($this->resolveProvider()),
         );
 
         return new AgentHandler(parent::init($interrupt));
@@ -150,10 +155,7 @@ class Agent extends Workflow implements AgentInterface
     ): mixed {
         EventBus::emit('structured-start', $this);
 
-        $messages = is_array($messages) ? $messages : [$messages];
-        foreach ($messages as $message) {
-            $this->addToChatHistory($this->resolveState(), $message);
-        }
+        $this->resolveStartEvent()->setMessages($messages);
 
         $class ??= $this->getOutputClass();
 

@@ -40,7 +40,7 @@ class ToolNode extends Node
 
         // Note: ToolCallMessage is already in chat history from ChatNode
         // Only add the tool result message
-        $state->getChatHistory()->addMessage($toolCallResult);
+        $event->inferenceEvent->setMessages($toolCallResult);
 
         // Go back to the AI provider
         return $event->inferenceEvent;

@@ -24,12 +24,8 @@ class StreamingNode extends Node
 {
     use ChatHistoryHelper;
 
-    /**
-     * @param Message[] $messages
-     */
     public function __construct(
         protected AIProviderInterface $provider,
-        protected Message|array $messages
     ) {
     }
 
@@ -38,8 +34,7 @@ class StreamingNode extends Node
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent
     {
-        // Ensure initial messages are added to chat history only once
-        $this->addInitialMessagesOnce($state, $this->messages);
+        $this->addToChatHistory($state, $event->getMessages());
 
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();

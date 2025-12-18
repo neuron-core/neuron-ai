@@ -68,6 +68,8 @@ class StructuredOutputNode extends Node
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
+        $this->addToChatHistory($state, $event->getMessages());
+
         $chatHistory = $state->getChatHistory();
 
         // Generate JSON schema if not already generated
