@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
 
@@ -31,13 +32,13 @@ class EloquentChatHistory extends AbstractChatHistory
         /** @var Model $model */
         $model = new $this->modelClass();
 
+        /** @var Collection<int, Model> $messages */
         $messages = $model->newQuery()
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
-            ->get()
-            // @phpstan-ignore-next-line
-            ->map($this->recordToArray(...))
-            ->all();
+            ->get();
+
+        $messages = $messages->map($this->recordToArray(...))->all();
 
         if (!empty($messages)) {
             $this->history = $this->deserializeMessages($messages);
