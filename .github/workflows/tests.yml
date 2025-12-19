@@ -4,6 +4,7 @@ on:
     push:
         branches:
             - '*.x'
+            - 'graph'
     pull_request:
 
 jobs:
@@ -31,6 +32,11 @@ jobs:
                 ports:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            neo4j:
+                image: neo4j:5.0.0
+                ports:
+                    - 7687:7687
+                    - 7474:7474
         strategy:
             matrix:
                 os: [ubuntu-latest]
