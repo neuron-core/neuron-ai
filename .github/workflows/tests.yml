@@ -37,6 +37,8 @@ jobs:
                 ports:
                     - 7687:7687
                     - 7474:7474
+                env:
+                    NEO4J_AUTH: none
         strategy:
             matrix:
                 os: [ubuntu-latest]

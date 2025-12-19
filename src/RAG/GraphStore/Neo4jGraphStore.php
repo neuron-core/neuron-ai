@@ -21,8 +21,8 @@ class Neo4jGraphStore implements GraphStoreInterface
 
     public function __construct(
         protected string $uri = 'bolt://localhost:7687',
-        protected string $username = 'neo4j',
-        protected string $password = 'password',
+        protected string $username = '',
+        protected string $password = '',
         protected string $database = 'neo4j',
         protected string $nodeLabel = 'Entity',
     ) {
