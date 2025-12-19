@@ -23,15 +23,19 @@ class AsyncAgentTest extends TestCase
 {
     protected string $model = "claude-3-7-sonnet-20250219";
 
-    public function testAsyncClientPattern(): void
+    protected string $key;
+
+    protected function setUp(): void
     {
-        $apiKey = getenv('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
+        if (!$this->key = getenv('ANTHROPIC_API_KEY')) {
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
+    }
 
+    public function testAsyncClientPattern(): void
+    {
         $provider = new Anthropic(
-            key: $apiKey,
+            key: $this->key,
             model: $this->model,
             httpClient: new AmpHttpClient(),
         );
@@ -51,13 +55,8 @@ class AsyncAgentTest extends TestCase
 
     public function testConcurrentAgentExecution(): void
     {
-        $apiKey = getenv('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
-            $this->markTestSkipped('ANTHROPIC_API_KEY not set');
-        }
-
         $provider = new Anthropic(
-            key: $apiKey,
+            key: $this->key,
             model: $this->model,
             httpClient: new AmpHttpClient(),
         );
@@ -90,13 +89,8 @@ class AsyncAgentTest extends TestCase
 
     public function testMixedAsyncOperations(): void
     {
-        $apiKey = getenv('ANTHROPIC_API_KEY');
-        if (!$apiKey) {
-            $this->markTestSkipped('ANTHROPIC_API_KEY not set');
-        }
-
         $provider = new Anthropic(
-            key: $apiKey,
+            key: $this->key,
             model: $this->model,
             httpClient: new AmpHttpClient(),
         );
