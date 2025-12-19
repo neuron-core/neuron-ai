@@ -128,8 +128,9 @@ class Neo4jGraphStore implements GraphStoreInterface
             $paths = $record->get('paths');
 
             $triplets = [];
+            /** @var \Laudis\Neo4j\Types\Path $path */
             foreach ($paths as $path) {
-                $relationships = $path->relationships();
+                $relationships = $path->getRelationships();
                 foreach ($relationships as $rel) {
                     $startNode = $rel->getStartNode();
                     $endNode = $rel->getEndNode();
