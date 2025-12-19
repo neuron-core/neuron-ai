@@ -109,38 +109,30 @@ class Neo4jGraphStore implements GraphStoreInterface
             return [];
         }
 
-        // Build subjects list for the query
-        $subjectsList = implode(', ', array_map(fn (string $s): string => "'{$s}'", $subjects));
-
         $query = <<<CYPHER
         MATCH path = (n1:`{$this->nodeLabel}`)-[*1..{$depth}]->(n2:`{$this->nodeLabel}`)
-        WHERE n1.id IN [{$subjectsList}]
-        WITH n1.id AS subject, collect(path) AS paths
-        RETURN subject, paths
+        WHERE n1.id IN \$subjects
+        UNWIND relationships(path) AS rel
+        WITH n1.id AS subject, collect([type(rel), endNode(rel).id]) AS rels
+        RETURN subject, rels
         LIMIT {$limit}
         CYPHER;
 
-        $result = $this->client()->run($query);
+        $result = $this->client->run($query, ['subjects' => $subjects]);
 
         $relationshipMap = [];
         foreach ($result as $record) {
             $subject = $record->get('subject');
-            $paths = $record->get('paths');
+            $rels = $record->get('rels');
 
             $triplets = [];
-            /** @var \Laudis\Neo4j\Types\Path $path */
-            foreach ($paths as $path) {
-                $relationships = $path->getRelationships();
-                foreach ($relationships as $rel) {
-                    $startNode = $rel->getStartNode();
-                    $endNode = $rel->getEndNode();
-
-                    $triplets[] = [
-                        $startNode->getProperty('id'),
-                        $rel->getType(),
-                        $endNode->getProperty('id'),
-                    ];
-                }
+            foreach ($rels as $rel) {
+                // Each rel is [relationship_type, end_node_id]
+                $triplets[] = [
+                    $subject,
+                    $rel[0], // relationship type
+                    $rel[1], // end node id
+                ];
             }
 
             $relationshipMap[$subject] = $triplets;
