@@ -33,7 +33,7 @@ jobs:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
             neo4j:
-                image: neo4j:5.0.0
+                image: neo4j:5.26.19-ubi9
                 ports:
                     - 7687:7687
                     - 7474:7474
