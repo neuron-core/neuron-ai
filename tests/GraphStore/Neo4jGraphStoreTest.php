@@ -6,8 +6,12 @@ namespace NeuronAI\Tests\GraphStore;
 
 use NeuronAI\RAG\GraphStore\GraphStoreInterface;
 use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
+use NeuronAI\RAG\GraphStore\Triplet;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+use Exception;
+
+use function count;
 
 class Neo4jGraphStoreTest extends TestCase
 {
@@ -42,7 +46,7 @@ class Neo4jGraphStoreTest extends TestCase
     {
         try {
             $this->store->query('MATCH (n:TestEntity) DETACH DELETE n');
-        } catch (\Exception $e) {
+        } catch (Exception) {
             // Ignore cleanup errors
         }
     }
@@ -61,7 +65,10 @@ class Neo4jGraphStoreTest extends TestCase
         $triplets = $this->store->get('Alice');
 
         $this->assertCount(1, $triplets);
-        $this->assertEquals(['Alice', 'KNOWS', 'Bob'], $triplets[0]);
+        $this->assertInstanceOf(Triplet::class, $triplets[0]);
+        $this->assertEquals('Alice', $triplets[0]->subject);
+        $this->assertEquals('KNOWS', $triplets[0]->relation);
+        $this->assertEquals('Bob', $triplets[0]->object);
     }
 
     public function test_delete(): void
@@ -76,7 +83,10 @@ class Neo4jGraphStoreTest extends TestCase
         // Verify only one relationship remains
         $triplets = $this->store->get('Alice');
         $this->assertCount(1, $triplets);
-        $this->assertEquals(['Alice', 'WORKS_WITH', 'Charlie'], $triplets[0]);
+        $this->assertInstanceOf(Triplet::class, $triplets[0]);
+        $this->assertEquals('Alice', $triplets[0]->subject);
+        $this->assertEquals('WORKS_WITH', $triplets[0]->relation);
+        $this->assertEquals('Charlie', $triplets[0]->object);
     }
 
     public function test_get_relationship_map(): void
@@ -144,7 +154,8 @@ class Neo4jGraphStoreTest extends TestCase
         $triplets = $this->store->get('Alice');
 
         $this->assertCount(1, $triplets);
+        $this->assertInstanceOf(Triplet::class, $triplets[0]);
         // Relationship type should be normalized to uppercase with underscores
-        $this->assertEquals('WORKS_WITH', $triplets[0][1]);
+        $this->assertEquals('WORKS_WITH', $triplets[0]->relation);
     }
 }

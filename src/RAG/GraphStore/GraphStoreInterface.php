@@ -8,20 +8,26 @@ interface GraphStoreInterface
 {
     // Core triplet operations (subject-relation-object)
     public function upsert(string $subject, string $relation, string $object): void;
+
     public function delete(string $subject, string $relation, string $object): void;
 
     /**
-     * Most RAG queries start from entities (subjects) and explore relationships
+     * Most RAG queries start from entities (subjects) and explore relationships.
+     *
+     * @return Triplet[]
      */
     public function get(string $subject): array;
 
     /**
-     * For RAG context gathering (multi-hop relationships)
+     * For RAG context gathering (multi-hop relationships).
+     *
+     * @param string[] $subjects
+     * @return array<string, Triplet[]>
      */
     public function getRelationshipMap(array $subjects = [], int $depth = 2, int $limit = 30): array;
 
     /**
-     * Helps agents understand available entity types and relationships
+     * Helps agents understand available entity types and relationships.
      */
     public function getSchema(bool $refresh = false): string;
 

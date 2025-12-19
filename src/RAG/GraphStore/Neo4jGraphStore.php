@@ -11,8 +11,6 @@ use Exception;
 
 use function str_replace;
 use function strtoupper;
-use function array_map;
-use function implode;
 
 class Neo4jGraphStore implements GraphStoreInterface
 {
@@ -93,11 +91,11 @@ class Neo4jGraphStore implements GraphStoreInterface
 
         $triplets = [];
         foreach ($result as $record) {
-            $triplets[] = [
+            $triplets[] = new Triplet(
                 $subject,
                 $record->get('relation'),
-                $record->get('object'),
-            ];
+                $record->get('object')
+            );
         }
 
         return $triplets;
@@ -128,11 +126,11 @@ class Neo4jGraphStore implements GraphStoreInterface
             $triplets = [];
             foreach ($rels as $rel) {
                 // Each rel is [relationship_type, end_node_id]
-                $triplets[] = [
+                $triplets[] = new Triplet(
                     $subject,
                     $rel[0], // relationship type
-                    $rel[1], // end node id
-                ];
+                    $rel[1]  // end node id
+                );
             }
 
             $relationshipMap[$subject] = $triplets;
