@@ -88,7 +88,7 @@ class OpenAITextToSpeech implements AIProviderInterface
         );
 
         return new AssistantMessage(
-            new AudioContent($response->body, SourceType::BASE64)
+            new AudioContent(base64_encode($response->body), SourceType::BASE64)
         );
     }
     /**
