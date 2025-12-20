@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
@@ -24,6 +25,7 @@ use function str_contains;
 use function str_starts_with;
 use function substr;
 use function trim;
+use function is_array;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -40,8 +42,10 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|string $messages): Generator
+    public function stream(array|Message $messages): Generator
     {
+        $messages = is_array($messages) ? $messages : [$messages];
+
         $json = [
             'stream' => true,
             'model' => $this->model,

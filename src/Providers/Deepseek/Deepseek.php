@@ -8,6 +8,8 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use Generator;
@@ -28,9 +30,11 @@ class Deepseek extends OpenAI
 
     /**
      * @param array<string, mixed> $response_format
+     * @throws HttpException
+     * @throws ProviderException
      */
     public function structured(
-        array $messages,
+        array|Message $messages,
         string $class,
         array $response_format,
         bool $strict = false,

@@ -13,7 +13,7 @@ use const PHP_EOL;
 trait HandleStructured
 {
     public function structured(
-        array $messages,
+        array|Message $messages,
         string $class,
         array $response_format
     ): Message {

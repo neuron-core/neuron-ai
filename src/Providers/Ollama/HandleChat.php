@@ -13,6 +13,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 
 use function array_unshift;
+use function is_array;
 
 trait HandleChat
 {
@@ -20,8 +21,10 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(array $messages): Message
+    public function chat(array|Message $messages): Message
     {
+        $messages = is_array($messages) ? $messages : [$messages];
+
         // Include the system prompt
         if (isset($this->system)) {
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));

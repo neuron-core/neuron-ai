@@ -15,10 +15,12 @@ use function json_encode;
 trait HandleStructured
 {
     public function structured(
-        array $messages,
+        array|Message $messages,
         string $class,
         array $response_format
     ): Message {
+        $messages = is_array($messages) ? $messages : [$messages];
+
         if (!array_key_exists('generationConfig', $this->parameters)) {
             $this->parameters['generationConfig'] = [
                 'temperature' => 0,

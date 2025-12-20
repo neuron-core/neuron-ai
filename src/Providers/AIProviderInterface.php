@@ -36,9 +36,9 @@ interface AIProviderInterface
     /**
      * Send a prompt to the AI agent.
      *
-     * @param Message[] $messages
+     * @param Message|Message[] $messages
      */
-    public function chat(array $messages): Message;
+    public function chat(array|Message $messages): Message;
 
     /**
      * Stream response from the LLM.
@@ -47,16 +47,16 @@ interface AIProviderInterface
      * for real-time delivery to the user. The generator MUST return a complete
      * Message object (AssistantMessage or ToolCallMessage) as its final value.
      *
-     * @param Message[] $messages
+     * @param Message|Message[] $messages
      * @return Generator<int, \NeuronAI\Chat\Messages\Stream\Chunks\TextChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk|array, mixed, Message>
      */
-    public function stream(array|string $messages): Generator;
+    public function stream(array|Message $messages): Generator;
 
     /**
-     * @param Message[] $messages
+     * @param Message|Message[] $messages
      * @param array<string, mixed> $response_schema
      */
-    public function structured(array $messages, string $class, array $response_schema): Message;
+    public function structured(array|Message $messages, string $class, array $response_schema): Message;
 
     /**
      * Set a custom HTTP client implementation.

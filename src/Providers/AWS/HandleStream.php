@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\AWS;
 use Aws\Api\Parser\EventParsingIterator;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -14,6 +15,7 @@ use NeuronAI\Exceptions\ProviderException;
 use Generator;
 
 use function count;
+use function is_array;
 
 trait HandleStream
 {
@@ -25,9 +27,11 @@ trait HandleStream
      *
      * @throws ProviderException
      */
-    public function stream(array|string $messages): Generator
+    public function stream(array|Message $messages): Generator
     {
-        $payload = $this->createPayLoad($messages);
+        $payload = $this->createPayLoad(
+            is_array($messages) ? $messages : [$messages]
+        );
         $result = $this->bedrockRuntimeClient->converseStream($payload);
 
         $this->streamState = new StreamState();

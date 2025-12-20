@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -98,10 +99,10 @@ class Message implements JsonSerializable
     /**
      * Get the text content of the message.
      */
-    public function getContent(): string
+    public function getContent(): ?string
     {
         $text = '';
-        foreach ($this->contents as $index => $block) {
+        foreach ($this->getContentBlocks() as $index => $block) {
             if ($block instanceof TextContent) {
                 $text .= ($index > 0 ? " " : '').$block->content;
             }
@@ -110,7 +111,18 @@ class Message implements JsonSerializable
             }
         }
 
-        return $text;
+        return $text === '' || $text === '0' ? null : $text;
+    }
+
+    public function getAudio(): ?string
+    {
+        foreach ($this->getContentBlocks() as $block) {
+            if ($block instanceof AudioContent) {
+                return $block->content;
+            }
+        }
+
+        return null;
     }
 
     public function getUsage(): ?Usage

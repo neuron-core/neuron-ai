@@ -8,12 +8,15 @@ use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
+
+use function is_array;
 
 trait HandleStream
 {
@@ -27,8 +30,10 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|string $messages): Generator
+    public function stream(array|Message $messages): Generator
     {
+        $messages = is_array($messages) ? $messages : [$messages];
+
         $json = [
             'stream' => true,
             'model' => $this->model,

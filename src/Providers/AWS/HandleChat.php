@@ -11,16 +11,20 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 
+use function is_array;
+
 trait HandleChat
 {
-    public function chat(array $messages): Message
+    public function chat(array|Message $messages): Message
     {
         return $this->chatAsync($messages)->wait();
     }
 
-    public function chatAsync(array $messages): PromiseInterface
+    public function chatAsync(array|Message $messages): PromiseInterface
     {
-        $payload = $this->createPayLoad($messages);
+        $payload = $this->createPayLoad(
+            is_array($messages) ? $messages : [$messages]
+        );
 
         return $this->bedrockRuntimeClient
             ->converseAsync($payload)

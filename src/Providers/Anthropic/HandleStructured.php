@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 
 use function json_encode;
 
@@ -12,8 +14,12 @@ use const PHP_EOL;
 
 trait HandleStructured
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function structured(
-        array $messages,
+        array|Message $messages,
         string $class,
         array $response_format
     ): Message {

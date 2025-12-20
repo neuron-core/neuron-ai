@@ -9,6 +9,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
@@ -21,6 +22,7 @@ use function json_decode;
 use function mb_strlen;
 use function rtrim;
 use function trim;
+use function is_array;
 
 trait HandleStream
 {
@@ -34,10 +36,10 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|string $messages): Generator
+    public function stream(array|Message $messages): Generator
     {
         $json = [
-            'contents' => $this->messageMapper()->map($messages),
+            'contents' => $this->messageMapper()->map(is_array($messages) ? $messages : [$messages]),
             ...$this->parameters
         ];
 

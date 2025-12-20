@@ -1,0 +1,118 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Providers\OpenAI\Audio;
+
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ToolMapperInterface;
+
+use function end;
+use function is_array;
+use function trim;
+
+class OpenAITextToSpeech implements AIProviderInterface
+{
+    use HasHttpClient;
+    use HandleStream;
+
+    /**
+     * The main URL of the provider API.
+     */
+    protected string $baseUri = 'https://api.openai.com/v1';
+
+    /**
+     * System instructions.
+     */
+    protected ?string $system = null;
+
+    public function __construct(
+        protected string $key,
+        protected string $model,
+        protected string $voice,
+        protected array $parameters = [],
+        ?HttpClientInterface $httpClient = null
+    ) {
+        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $this->key,
+            ]);
+    }
+
+    public function systemPrompt(?string $prompt): AIProviderInterface
+    {
+        $this->system = $prompt;
+        return $this;
+    }
+
+    /**
+     * https://platform.openai.com/docs/api-reference/audio/createSpeech
+     *
+     * @throws HttpException
+     */
+    public function chat(array|Message $messages): Message
+    {
+        $message = is_array($messages) ? end($messages) : $messages;
+
+        $json = [
+            'model' => $this->model,
+            'input' => $message->getContent(),
+            'voice' => $this->voice,
+            'instructions' => $this->system ?? '',
+            ...$this->parameters
+        ];
+
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'audio/speech',
+                body: $json
+            )
+        );
+
+        $message = new AssistantMessage(
+            new AudioContent($response->body, SourceType::BASE64)
+        );
+        $message->setUsage(
+            new Usage(
+                $response['usage']['input_tokens'] ?? 0,
+                $response['usage']['output_tokens'] ?? 0,
+            )
+        );
+        return $message;
+    }
+
+    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    {
+        throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
+    }
+
+    public function messageMapper(): MessageMapperInterface
+    {
+        throw new ProviderException('Messages are not supported by OpenAI Text to Speech.');
+    }
+
+    public function toolPayloadMapper(): ToolMapperInterface
+    {
+        throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
+    }
+
+    public function setTools(array $tools): AIProviderInterface
+    {
+        throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
+    }
+}

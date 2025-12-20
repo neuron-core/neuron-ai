@@ -18,6 +18,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use function array_filter;
 use function array_key_exists;
 use function trim;
+use function is_array;
 
 trait HandleChat
 {
@@ -25,10 +26,10 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(array $messages): Message
+    public function chat(array|Message $messages): Message
     {
         $json = [
-            'contents' => $this->messageMapper()->map($messages),
+            'contents' => $this->messageMapper()->map(is_array($messages) ? $messages : [$messages]),
             ...$this->parameters
         ];
 
