@@ -104,7 +104,7 @@ class OpeAISpeechToText implements AIProviderInterface
             'prompt' => $this->system ?? '',
         ];
 
-        $response = $this->httpClient->stream(
+        $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'audio/transcriptions',
                 body: $json
@@ -115,8 +115,8 @@ class OpeAISpeechToText implements AIProviderInterface
         $usage = new Usage(0, 0);
         $msgId = UniqueIdGenerator::generateId('msg_');
 
-        while (! $response->eof()) {
-            if (!$line = SSEParser::parseNextSSEEvent($response)) {
+        while (! $stream->eof()) {
+            if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
