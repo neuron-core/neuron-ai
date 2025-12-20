@@ -11,6 +11,7 @@ use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
 
 use function is_array;
+use function is_resource;
 use function trim;
 
 class GuzzleHttpClient implements HttpClientInterface
@@ -41,15 +42,7 @@ class GuzzleHttpClient implements HttpClientInterface
                 RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
             ];
 
-            if ($request->body !== null) {
-                if (is_array($request->body)) {
-                    $options[RequestOptions::JSON] = $request->body;
-                } else {
-                    $options[RequestOptions::BODY] = $request->body;
-                }
-            }
-
-            $response = $client->request($request->method->value, $request->uri, $options);
+            $response = $this->runRequest($request, $options, $client);
 
             return new HttpResponse(
                 statusCode: $response->getStatusCode(),
@@ -73,15 +66,7 @@ class GuzzleHttpClient implements HttpClientInterface
                 RequestOptions::STREAM => true, // Enable streaming
             ];
 
-            if ($request->body !== null) {
-                if (is_array($request->body)) {
-                    $options[RequestOptions::JSON] = $request->body;
-                } else {
-                    $options[RequestOptions::BODY] = $request->body;
-                }
-            }
-
-            $response = $client->request($request->method->value, $request->uri, $options);
+            $response = $this->runRequest($request, $options, $client);
 
             return new GuzzleStream($response->getBody());
         } catch (GuzzleException $e) {
@@ -132,5 +117,87 @@ class GuzzleHttpClient implements HttpClientInterface
         }
 
         return new Client($config);
+    }
+
+    /**
+     * Check if the body array contains multipart data (resources or nested arrays).
+     *
+     * @param array<string, mixed> $body
+     */
+    protected function isMultipartData(array $body): bool
+    {
+        foreach ($body as $value) {
+            if (is_resource($value)) {
+                return true;
+            }
+
+            if (is_array($value) && isset($value['contents']) && is_resource($value['contents'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Build multipart data array in Guzzle format.
+     *
+     * @param array<string, mixed> $data
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildMultipartData(array $data): array
+    {
+        $multipartData = [];
+
+        foreach ($data as $name => $value) {
+            // If it's already a properly formatted array with 'name' key, use it as-is
+            if (is_array($value) && isset($value['name'])) {
+                $multipartData[] = $value;
+                continue;
+            }
+
+            // Otherwise, convert to Guzzle format
+            $part = ['name' => $name];
+
+            if (is_resource($value)) {
+                $part['contents'] = $value;
+            } elseif (is_array($value) && isset($value['contents'])) {
+                $part['contents'] = $value['contents'];
+                if (isset($value['filename'])) {
+                    $part['filename'] = $value['filename'];
+                }
+                if (isset($value['headers'])) {
+                    $part['headers'] = $value['headers'];
+                }
+            } else {
+                $part['contents'] = (string) $value;
+            }
+
+            $multipartData[] = $part;
+        }
+
+        return $multipartData;
+    }
+
+    /**
+     * @param HttpRequest $request
+     * @throws GuzzleException
+     */
+    public function runRequest(HttpRequest $request, array $options, Client $client): \Psr\Http\Message\ResponseInterface
+    {
+        if ($request->body !== null) {
+            if (is_array($request->body)) {
+                // Check if body contains resources (multipart data)
+                if ($this->isMultipartData($request->body)) {
+                    $options[RequestOptions::MULTIPART] = $this->buildMultipartData($request->body);
+                } else {
+                    $options[RequestOptions::JSON] = $request->body;
+                }
+            } else {
+                $options[RequestOptions::BODY] = $request->body;
+            }
+        }
+
+        return $client->request($request->method->value, $request->uri, $options);
     }
 }

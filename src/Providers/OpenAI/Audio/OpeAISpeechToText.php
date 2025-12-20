@@ -50,8 +50,6 @@ class OpeAISpeechToText implements AIProviderInterface
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri(trim($this->baseUri, '/') . '/')
             ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
             ]);
     }
@@ -69,18 +67,21 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $json = [
+        $body = [
             'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
-            'prompt' => $this->system ?? '',
         ];
+
+        if ($this->system !== null && $this->system !== '') {
+            $body['prompt'] = $this->system;
+        }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: 'audio/transcriptions',
-                body: $json
+                body: $body
             )
         )->json();
 
@@ -95,19 +96,22 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $json = [
+        $body = [
             'stream' => true,
             'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
-            'prompt' => $this->system ?? '',
         ];
+
+        if ($this->system !== null && $this->system !== '') {
+            $body['prompt'] = $this->system;
+        }
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'audio/transcriptions',
-                body: $json
+                body: $body
             )
         );
 
