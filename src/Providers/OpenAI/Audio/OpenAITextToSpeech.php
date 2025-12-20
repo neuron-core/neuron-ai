@@ -87,16 +87,9 @@ class OpenAITextToSpeech implements AIProviderInterface
             )
         );
 
-        $message = new AssistantMessage(
+        return new AssistantMessage(
             new AudioContent($response->body, SourceType::BASE64)
         );
-        $message->setUsage(
-            new Usage(
-                $response['usage']['input_tokens'] ?? 0,
-                $response['usage']['output_tokens'] ?? 0,
-            )
-        );
-        return $message;
     }
     /**
      * https://platform.openai.com/docs/api-reference/audio/speech-audio-delta-event

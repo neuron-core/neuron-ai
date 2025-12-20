@@ -87,7 +87,10 @@ class OpeAISpeechToText implements AIProviderInterface
 
         $message = new AssistantMessage($response['text']);
         $message->setUsage(
-            new Usage($response['usage']['input_tokens'], $response['usage']['output_tokens'])
+            new Usage(
+                $response['usage']['input_tokens'],
+                $response['usage']['output_tokens']
+            )
         );
         return $message;
     }
