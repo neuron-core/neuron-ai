@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Audio;
 
 use Generator;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
@@ -24,10 +22,11 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
 use function end;
+use function fopen;
 use function is_array;
 use function trim;
 
-class OpenAITextToSpeech implements AIProviderInterface
+class OpeAISpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
 
@@ -44,7 +43,7 @@ class OpenAITextToSpeech implements AIProviderInterface
     public function __construct(
         protected string $key,
         protected string $model,
-        protected string $voice,
+        protected string $language = 'en',
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
@@ -64,62 +63,50 @@ class OpenAITextToSpeech implements AIProviderInterface
     }
 
     /**
-     * https://platform.openai.com/docs/api-reference/audio/createSpeech
-     *
      * @throws HttpException
      */
-    public function chat(array|Message $messages): Message
+    public function chat(Message|array $messages): Message
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
         $json = [
+            'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
-            'input' => $message->getContent(),
-            'voice' => $this->voice,
-            'instructions' => $this->system ?? '',
-            ...$this->parameters
+            'language' => $this->language,
+            'response_format' => 'json',
+            'prompt' => $this->system ?? '',
         ];
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'audio/speech',
+                uri: 'audio/transcriptions',
                 body: $json
             )
-        );
+        )->json();
 
-        $message = new AssistantMessage(
-            new AudioContent($response->body, SourceType::BASE64)
-        );
-        $message->setUsage(
-            new Usage(
-                $response['usage']['input_tokens'] ?? 0,
-                $response['usage']['output_tokens'] ?? 0,
-            )
-        );
-        return $message;
+        return new AssistantMessage($response['text']);
     }
+
     /**
-     * https://platform.openai.com/docs/api-reference/audio/speech-audio-delta-event
-     *
      * @throws HttpException
      * @throws ProviderException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message|array $messages): Generator
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
         $json = [
             'stream' => true,
+            'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
-            'input' => $message->getContent(),
-            'voice' => $this->voice,
-            'instructions' => $this->system ?? '',
-            ...$this->parameters
+            'language' => $this->language,
+            'response_format' => 'json',
+            'prompt' => $this->system ?? '',
         ];
 
-        $stream = $this->httpClient->stream(
+        $response = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'audio/speech',
+                uri: 'audio/transcriptions',
                 body: $json
             )
         );
@@ -128,28 +115,23 @@ class OpenAITextToSpeech implements AIProviderInterface
         $usage = new Usage(0, 0);
         $msgId = UniqueIdGenerator::generateId('msg_');
 
-        while (! $stream->eof()) {
-            if (!$line = SSEParser::parseNextSSEEvent($stream)) {
+        while (! $response->eof()) {
+            if (!$line = SSEParser::parseNextSSEEvent($response)) {
                 continue;
             }
 
-            // Delta
-            if ($line['type'] === 'speech.audio.delta') {
-                $content .= $line['audio'];
-
-                yield new AudioChunk($msgId, $line['audio']);
+            if ($line['type'] === 'transcript.text.delta') {
+                $content .= $line['delta'];
+                yield new TextChunk($msgId, $line['delta']);
             }
 
-            // Done
-            if ($line['type'] === 'speech.audio.done') {
+            if ($line['type'] === 'transcript.text.done') {
                 $usage->inputTokens = $line['usage']['input_tokens'] ?? 0;
                 $usage->outputTokens = $line['usage']['output_tokens'] ?? 0;
             }
         }
 
-        $message = new AssistantMessage(
-            new AudioContent($content, SourceType::BASE64)
-        );
+        $message = new AssistantMessage($content);
         $message->setUsage($usage);
         return $message;
     }
