@@ -26,6 +26,7 @@ use NeuronAI\UniqueIdGenerator;
 use function end;
 use function is_array;
 use function trim;
+use function base64_encode;
 
 class OpenAITextToSpeech implements AIProviderInterface
 {
