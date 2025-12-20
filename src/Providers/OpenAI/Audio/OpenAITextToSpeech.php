@@ -171,6 +171,6 @@ class OpenAITextToSpeech implements AIProviderInterface
 
     public function setTools(array $tools): AIProviderInterface
     {
-        throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
+        return $this;
     }
 }
