@@ -34,7 +34,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(14, $result);
+        $this->assertSame(15, $result);
     }
 
     public function test_counts_tokens_for_null_content(): void
@@ -58,7 +58,7 @@ class TokenCounterTest extends TestCase
         // Total: 10 + 3 = 13
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(12, $result);
+        $this->assertSame(13, $result);
     }
 
     public function test_counts_tokens_for_multiple_messages(): void
@@ -70,7 +70,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(27, $result);
+        $this->assertSame(28, $result);
     }
 
     public function test_counts_tokens_for_tool_call_message_with_array_content(): void
@@ -98,7 +98,7 @@ class TokenCounterTest extends TestCase
         // Total: 5 + 3 = 8
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(21, $result);
+        $this->assertSame(23, $result);
     }
 
     public function test_counts_tokens_with_custom_extra_tokens_per_message(): void
@@ -109,7 +109,7 @@ class TokenCounterTest extends TestCase
 
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(14, $result);
+        $this->assertSame(15, $result);
     }
 
     public function test_counts_tokens_with_fractional_extra_tokens(): void
@@ -125,7 +125,7 @@ class TokenCounterTest extends TestCase
         // Total: 4.5 + 4.5 = 9.0, final ceil = 9
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(23, $result);
+        $this->assertSame(24, $result);
     }
 
     public function test_handles_empty_tools_array_in_tool_call_message(): void

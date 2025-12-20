@@ -31,9 +31,9 @@ class FileContent extends ContentBlock
     public function toArray(): array
     {
         return array_filter([
-            'type' => $this->getType()->value,
-            'source' => $this->content,
-            'source_type' => $this->sourceType->value,
+            'type' => $this->getType(),
+            'content' => $this->content,
+            'source_type' => $this->sourceType,
             'media_type' => $this->mediaType,
             'filename' => $this->filename,
         ]);

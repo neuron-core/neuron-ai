@@ -412,30 +412,30 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         return match ($type) {
             ContentBlockType::TEXT => new TextContent(
-                content: $block['text']
+                content: $block['content']
             ),
             ContentBlockType::REASONING => new ReasoningContent(
-                content: $block['text'],
+                content: $block['content'],
                 id: $block['id'] ?? null
             ),
             ContentBlockType::IMAGE => new ImageContent(
-                content: $block['source'],
+                content: $block['content'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::FILE => new FileContent(
-                content: $block['source'],
+                content: $block['content'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null,
                 filename: $block['filename'] ?? null
             ),
             ContentBlockType::AUDIO => new AudioContent(
-                content: $block['source'],
+                content: $block['content'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),
             ContentBlockType::VIDEO => new VideoContent(
-                content: $block['source'],
+                content: $block['content'],
                 sourceType: SourceType::from($block['source_type']),
                 mediaType: $block['media_type'] ?? null
             ),

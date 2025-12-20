@@ -19,8 +19,8 @@ class TextContent extends ContentBlock
     public function toArray(): array
     {
         return [
-            'type' => $this->getType()->value,
-            'text' => $this->content,
+            'type' => $this->getType(),
+            'content' => $this->content,
         ];
     }
 }

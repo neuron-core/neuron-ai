@@ -118,11 +118,11 @@ class ContentBlockDeserializationTest extends TestCase
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => 'Analyze this image:',
+                        'content' => 'Analyze this image:',
                     ],
                     [
                         'type' => 'image',
-                        'source' => 'https://example.com/image.jpg',
+                        'content' => 'https://example.com/image.jpg',
                         'source_type' => 'url',
                         'media_type' => 'image/jpeg',
                     ],
@@ -163,30 +163,30 @@ class ContentBlockDeserializationTest extends TestCase
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => 'Text content',
+                        'content' => 'Text content',
                     ],
                     [
                         'type' => 'image',
-                        'source' => 'base64data',
+                        'content' => 'base64data',
                         'source_type' => 'base64',
                         'media_type' => 'image/png',
                     ],
                     [
                         'type' => 'file',
-                        'source' => 'https://example.com/doc.pdf',
+                        'content' => 'https://example.com/doc.pdf',
                         'source_type' => 'url',
                         'media_type' => 'application/pdf',
                         'filename' => 'document.pdf',
                     ],
                     [
                         'type' => 'audio',
-                        'source' => 'https://example.com/audio.mp3',
+                        'content' => 'https://example.com/audio.mp3',
                         'source_type' => 'url',
                         'media_type' => 'audio/mpeg',
                     ],
                     [
                         'type' => 'video',
-                        'source' => 'https://example.com/video.mp4',
+                        'content' => 'https://example.com/video.mp4',
                         'source_type' => 'url',
                         'media_type' => 'video/mp4',
                     ],
@@ -239,7 +239,7 @@ class ContentBlockDeserializationTest extends TestCase
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => 'Modern content block message',
+                        'content' => 'Modern content block message',
                     ],
                 ],
             ],

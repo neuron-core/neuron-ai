@@ -147,7 +147,7 @@ class InMemoryChatHistoryTest extends TestCase
         $remainingMessages = $this->chatHistory->getMessages();
 
         // With the context window of 1000, we should have fewer than 5 messages
-        $this->assertCount(34, $remainingMessages, 'Some messages should be removed due to context window limit');
+        $this->assertCount(32, $remainingMessages, 'Some messages should be removed due to context window limit');
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
