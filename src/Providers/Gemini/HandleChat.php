@@ -19,6 +19,7 @@ use function array_filter;
 use function array_key_exists;
 use function trim;
 use function is_array;
+use function json_encode;
 
 trait HandleChat
 {
@@ -60,9 +61,24 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
-        $content = $result['candidates'][0]['content'];
+        if (array_key_exists('error', $result)) {
+            throw new ProviderException("Gemini API Error: " . ($result['error']['message'] ?? json_encode($result['error'])));
+        }
 
-        if (!isset($content['parts']) && isset($result['candidates'][0]['finishReason']) && $result['candidates'][0]['finishReason'] === 'MAX_TOKENS') {
+        if (!array_key_exists('candidates', $result) || empty($result['candidates'])) {
+            throw new ProviderException("Gemini API returned no candidates. Response: " . json_encode($result));
+        }
+
+        $candidate = $result['candidates'][0];
+        $finishReason = $candidate['finishReason'] ?? 'UNKNOWN';
+
+        if ($finishReason !== 'STOP' && !isset($candidate['content'])) {
+            throw new ProviderException("Gemini API finished with reason: {$finishReason}. Full response: " . json_encode($result));
+        }
+
+        $content = $candidate['content'];
+
+        if (!isset($content['parts']) && $finishReason === 'MAX_TOKENS') {
             return new AssistantMessage('');
         }
 
