@@ -149,6 +149,10 @@ class AmpHttpClient implements HttpClientInterface
 
         $ampRequest = new Request($uri, $request->method->value);
 
+        // Apply the configured timeout to the Amp Request
+        $ampRequest->setTransferTimeout($this->timeout);
+        $ampRequest->setInactivityTimeout($this->timeout);
+
         // Set headers
         foreach ([...$this->customHeaders, ...$request->headers] as $name => $value) {
             $ampRequest->setHeader((string)$name, $value);
