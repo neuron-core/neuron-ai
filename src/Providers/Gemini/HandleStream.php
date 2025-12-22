@@ -71,6 +71,10 @@ trait HandleStream
                 continue;
             }
 
+            if (array_key_exists('error', $line)) {
+                throw new ProviderException("Gemini API Error (Streaming): " . ($line['error']['message'] ?? json_encode($line['error'])));
+            }
+
             // Save usage information
             if (array_key_exists('usageMetadata', $line)) {
                 $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
