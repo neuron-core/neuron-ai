@@ -33,7 +33,7 @@ class [classname] extends Agent
     /**
      * @return ToolInterface[]|ToolkitInterface[]
      */
-    protected tools(): array
+    protected function tools(): array
     {
         return [];
     }
