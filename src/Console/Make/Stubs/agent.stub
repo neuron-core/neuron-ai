@@ -9,7 +9,7 @@ use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
 
 class [classname] extends Agent
 {
