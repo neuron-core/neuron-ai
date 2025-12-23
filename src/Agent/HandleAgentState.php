@@ -7,7 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 
-trait ResolveState
+trait HandleAgentState
 {
     protected function state(): AgentState
     {
@@ -23,12 +23,16 @@ trait ResolveState
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        $this->resolveState()->setChatHistory($chatHistory);
+        /** @var AgentState $state */
+        $state = $this->resolveState();
+        $state->setChatHistory($chatHistory);
         return $this;
     }
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        return $this->resolveState()->getChatHistory();
+        /** @var AgentState $state */
+        $state = $this->resolveState();
+        return $state->getChatHistory();
     }
 }

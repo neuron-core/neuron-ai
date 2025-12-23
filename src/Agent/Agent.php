@@ -24,12 +24,11 @@ use Throwable;
 use function is_array;
 
 /**
- * @method AgentState resolveState()
  * @method AgentStartEvent resolveStartEvent()
  */
 class Agent extends Workflow implements AgentInterface
 {
-    use ResolveState;
+    use HandleAgentState;
     use ResolveProvider;
     use HandleTools;
     use HandleContent;
