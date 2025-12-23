@@ -1,14 +1,13 @@
 <?php
 
-declare(strict_types=1);
-
-namespace NeuronAI\Providers\OpenAI\Audio;
+namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -17,23 +16,14 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
-use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
-use function end;
-use function fopen;
-use function is_array;
-use function trim;
-
-class OpeAISpeechToText implements AIProviderInterface
+class ElevenLabsTextToSpeech implements AIProviderInterface
 {
     use HasHttpClient;
 
-    /**
-     * The main URL of the provider API.
-     */
-    protected string $baseUri = 'https://api.openai.com/v1';
+    protected string $baseUri = 'https://api.elevenlabs.io/v1/text-to-speech';
 
     /**
      * System instructions.
@@ -43,16 +33,16 @@ class OpeAISpeechToText implements AIProviderInterface
     public function __construct(
         protected string $key,
         protected string $model,
-        protected string $language = 'en',
+        protected string $voiceId,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
-    ) {
+    ){
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri(trim($this->baseUri, '/').'/')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
+                'xi-api-key' => $this->key,
             ]);
     }
 
@@ -69,84 +59,54 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $body = [
-            'file' => fopen($message->getAudio(), 'r'),
-            'model' => $this->model,
-            'language' => $this->language,
-            'response_format' => 'json',
+        $json = [
+            'model_id' => $this->model,
+            'text' => $message->getContent(),
         ];
-
-        if ($this->system !== null && $this->system !== '') {
-            $body['prompt'] = $this->system;
-        }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'audio/transcriptions',
-                body: $body
-            )
-        )->json();
-
-        $message = new AssistantMessage($response['text']);
-        $message->setUsage(
-            new Usage(
-                $response['usage']['input_tokens'],
-                $response['usage']['output_tokens']
+                uri: $this->voiceId,
+                body: $json
             )
         );
-        return $message;
+
+        return new AssistantMessage(
+            new AudioContent(base64_encode($response->body), SourceType::BASE64)
+        );
     }
 
     /**
      * @throws HttpException
-     * @throws ProviderException
      */
     public function stream(Message|array $messages): Generator
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
         $json = [
-            'stream' => true,
-            'file' => fopen($message->getAudio(), 'r'),
-            'model' => $this->model,
-            'language' => $this->language,
-            'response_format' => 'json',
+            'model_id' => $this->model,
+            'text' => $message->getContent(),
         ];
 
-        if ($this->system !== null && $this->system !== '') {
-            $json['prompt'] = $this->system;
-        }
-
-        $stream = $this->httpClient->stream(
+        $response = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'audio/transcriptions',
+                uri: $this->voiceId,
                 body: $json
             )
         );
 
-        $content = '';
-        $usage = new Usage(0, 0);
+        $audio = '';
         $msgId = UniqueIdGenerator::generateId('msg_');
 
-        while (! $stream->eof()) {
-            if (!$line = SSEParser::parseNextSSEEvent($stream)) {
-                continue;
-            }
-
-            if ($line['type'] === 'transcript.text.delta') {
-                $content .= $line['delta'];
-                yield new TextChunk($msgId, $line['delta']);
-            }
-
-            if ($line['type'] === 'transcript.text.done') {
-                $usage->inputTokens = $line['usage']['input_tokens'] ?? 0;
-                $usage->outputTokens = $line['usage']['output_tokens'] ?? 0;
-            }
+        while (! $response->eof()) {
+            $chunk = $response->read(1024);
+            yield new AudioChunk($msgId, $chunk);
+            $audio .= $chunk;
         }
 
-        $message = new AssistantMessage($content);
-        $message->setUsage($usage);
-        return $message;
+        return new AssistantMessage(
+            new AudioContent($audio, SourceType::BASE64)
+        );
     }
 
     public function structured(array|Message $messages, string $class, array $response_schema): Message
