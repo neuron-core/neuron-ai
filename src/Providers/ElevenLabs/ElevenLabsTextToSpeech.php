@@ -112,7 +112,7 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         }
 
         return new AssistantMessage(
-            new AudioContent($audio, SourceType::BASE64)
+            new AudioContent(base64_encode($audio), SourceType::BASE64)
         );
     }
 
