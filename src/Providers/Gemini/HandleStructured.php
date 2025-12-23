@@ -7,6 +7,8 @@ namespace NeuronAI\Providers\Gemini;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use function array_key_exists;
 use function end;
 use function is_array;
@@ -14,6 +16,10 @@ use function json_encode;
 
 trait HandleStructured
 {
+    /**
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function structured(
         array|Message $messages,
         string $class,
