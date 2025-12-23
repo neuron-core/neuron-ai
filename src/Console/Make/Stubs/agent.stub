@@ -9,7 +9,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic;
 use NeuronAI\SystemPrompt;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
 
 class [classname] extends Agent
 {
@@ -33,7 +33,7 @@ class [classname] extends Agent
     /**
      * @return ToolInterface[]|ToolkitInterface[]
      */
-    protected tools(): array
+    protected function tools(): array
     {
         return [];
     }
