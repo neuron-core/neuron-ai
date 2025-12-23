@@ -5,14 +5,22 @@ declare(strict_types=1);
 namespace [namespace];
 
 use NeuronAI\Agent;
-use NeuronAI\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\Anthropic;
+use NeuronAI\SystemPrompt;
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolkitInterface;
 
 class [classname] extends Agent
 {
     protected function provider(): AIProviderInterface
     {
         // return an instance of Anthropic, OpenAI, Gemini, Ollama, etc...
+        // https://docs.neuron-ai.dev/the-basics/ai-provider
+        return new Anthropic(
+            key: 'ANTHROPIC_KEY',
+            model: 'ANTHROPIC_MODEL',
+        );
     }
 
     public function instructions(): string
@@ -20,5 +28,13 @@ class [classname] extends Agent
         return (string) new SystemPrompt(
             background: ["You are a friendly AI Agent created with NeuronAI framework."],
         );
+    }
+
+    /**
+     * @return ToolInterface[]|ToolkitInterface[]
+     */
+    protected tools(): array
+    {
+        return [];
     }
 }
