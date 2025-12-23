@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
@@ -12,6 +14,8 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
+
+use function trim;
 
 class ElevenLabsSpeechToText implements AIProviderInterface
 {
@@ -29,7 +33,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
-    ){
+    ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri(trim($this->baseUri, '/').'/')
             ->withHeaders([
