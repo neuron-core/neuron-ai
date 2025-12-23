@@ -11,7 +11,6 @@ use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
 use function is_array;
-use function spl_object_hash;
 
 trait ChatHistoryHelper
 {

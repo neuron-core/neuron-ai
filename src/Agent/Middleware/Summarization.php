@@ -289,7 +289,7 @@ PROMPT;
             } else {
                 // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 $contentStr = $message->getContent();
-                $totalTokens += (int) ceil(mb_strlen($contentStr) / 4);
+                $totalTokens += (int) ceil(mb_strlen((string) $contentStr) / 4);
             }
         }
 
