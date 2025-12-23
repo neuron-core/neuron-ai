@@ -5,23 +5,28 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 
 use function trim;
+use function end;
+use function fopen;
+use function is_array;
 
 class ElevenLabsSpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
 
-    protected string $baseUri = 'https://api.elevenlabs.io/v1';
+    protected string $baseUri = 'https://api.elevenlabs.io/v1/speech-to-text';
 
     /**
      * System instructions.
@@ -54,16 +59,29 @@ class ElevenLabsSpeechToText implements AIProviderInterface
      */
     public function chat(Message|array $messages): Message
     {
+        $message = is_array($messages) ? end($messages) : $messages;
 
+        $body = [
+            'file' => fopen($message->getAudio(), 'r'),
+            'model' => $this->model,
+        ];
+
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'audio/transcriptions',
+                body: $body
+            )
+        )->json();
+
+        return new AssistantMessage($response['text']);
     }
 
     /**
-     * @throws HttpException
      * @throws ProviderException
      */
     public function stream(Message|array $messages): Generator
     {
-
+        throw new ProviderException('Streaming is not supported by OpenAI Text to Speech.');
     }
 
     public function structured(array|Message $messages, string $class, array $response_schema): Message
