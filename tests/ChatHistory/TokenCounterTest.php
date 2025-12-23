@@ -8,6 +8,7 @@ use NeuronAI\Chat\History\TokenCounter;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
@@ -34,7 +35,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(15, $result);
+        $this->assertSame(14, $result);
     }
 
     public function test_counts_tokens_for_null_content(): void
@@ -43,7 +44,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(5, $result);
+        $this->assertSame(4, $result);
     }
 
     public function test_counts_tokens_for_array_content(): void
@@ -70,46 +71,38 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(28, $result);
+        $this->assertSame(27, $result);
     }
 
     public function test_counts_tokens_for_tool_call_message_with_array_content(): void
     {
         $tool = $this->createMockTool('test_tool', ['param' => 'value']);
         $message = new ToolCallMessage(tools: [$tool]);
-        $messages = [$message];
+        $message->setUsage(new Usage(5, 12));
 
-        $result = $this->tokenCounter->count($messages);
+        $result = $this->tokenCounter->count([$message]);
 
-        $this->assertSame(12, $result);
+        $this->assertSame(15, $result);
     }
 
     public function test_counts_tokens_with_custom_chars_per_token_ratio(): void
     {
         $tokenCounter = new TokenCounter(2.0, 3.0);
         $message = new UserMessage('Hello');
-        $messages = [$message];
 
-        // Content: "Hello" = 5 chars
-        // Role: "user" = 4 chars
-        // Total chars: 9
-        // Tokens from chars: ceil(9 / 2.0) = 5
-        // Extra tokens per message: 3
-        // Total: 5 + 3 = 8
-        $result = $tokenCounter->count($messages);
+        $result = $tokenCounter->count([$message]);
 
-        $this->assertSame(23, $result);
+        $this->assertSame(22, $result);
     }
 
     public function test_counts_tokens_with_custom_extra_tokens_per_message(): void
     {
         $tokenCounter = new TokenCounter(4.0, 5.0);
         $message = new UserMessage('Test');
-        $messages = [$message];
 
-        $result = $tokenCounter->count($messages);
+        $result = $tokenCounter->count([$message]);
 
-        $this->assertSame(15, $result);
+        $this->assertSame(14, $result);
     }
 
     public function test_counts_tokens_with_fractional_extra_tokens(): void
@@ -125,7 +118,7 @@ class TokenCounterTest extends TestCase
         // Total: 4.5 + 4.5 = 9.0, final ceil = 9
         $result = $tokenCounter->count($messages);
 
-        $this->assertSame(24, $result);
+        $this->assertSame(23, $result);
     }
 
     public function test_handles_empty_tools_array_in_tool_call_message(): void
@@ -153,7 +146,7 @@ class TokenCounterTest extends TestCase
 
         $result = $this->tokenCounter->count($messages);
 
-        $this->assertSame(5, $result);
+        $this->assertSame(4, $result);
     }
 
     private function createMockTool(string $name, array $inputs = []): ToolInterface
