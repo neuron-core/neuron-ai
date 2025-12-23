@@ -50,7 +50,7 @@ class Summarization implements WorkflowMiddleware
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        // Only apply to ChatNode and StreamingNode
+        // Only apply to ChatNode, StreamingNode, and StructuredOutputNode
         if (!$event instanceof AIInferenceEvent) {
             return;
         }
