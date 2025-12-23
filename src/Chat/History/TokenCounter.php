@@ -77,15 +77,15 @@ class TokenCounter implements TokenCounterInterface
         // Calculate chars contribution of blocks
         $chars = array_reduce(
             $message->getContentBlocks(),
-            fn (int $carry, ContentBlockInterface $block): int => $carry + match ($block::class) {
-                TextContent::class, ReasoningContent::class => $this->handleTextBlock($block),
-                ImageContent::class => $this->handleImageBlock($block),
-                default => 100 * $this->charsPerToken, // Audio and video blocks are not supported yet (fallback to 100 tokens)
-            },
+            fn (float $carry, ContentBlockInterface $block): float => $carry + match ($block::class) {
+                    TextContent::class, ReasoningContent::class => $this->handleTextBlock($block),
+                    ImageContent::class => $this->handleImageBlock($block),
+                    default => 100 * $this->charsPerToken, // Audio and video blocks are not supported yet (fallback to 100 tokens)
+                },
             $chars
         );
 
-        return $this->tokens($chars);
+        return $this->tokens((int) ceil($chars));
     }
 
     protected function handleToolResult(ToolResultMessage $message): float
