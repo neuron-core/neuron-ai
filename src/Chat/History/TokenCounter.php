@@ -80,7 +80,7 @@ class TokenCounter implements TokenCounterInterface
             fn (int $carry, ContentBlockInterface $block): int => $carry + match ($block::class) {
                 TextContent::class, ReasoningContent::class => $this->handleTextBlock($block),
                 ImageContent::class => $this->handleImageBlock($block),
-                default => 100 * $this->charsPerToken, // Audio and video blocks are not supported yet (default 100 tokens)
+                default => 100 * $this->charsPerToken, // Audio and video blocks are not supported yet (fallback to 100 tokens)
             },
             $chars
         );
