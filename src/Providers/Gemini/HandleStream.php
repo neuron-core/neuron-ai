@@ -23,6 +23,7 @@ use function mb_strlen;
 use function rtrim;
 use function trim;
 use function is_array;
+use function json_encode;
 
 trait HandleStream
 {

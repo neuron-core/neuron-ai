@@ -11,7 +11,6 @@ use function array_key_exists;
 use function end;
 use function is_array;
 use function json_encode;
-use function strtoupper;
 
 trait HandleStructured
 {
@@ -54,37 +53,25 @@ trait HandleStructured
             unset($schema['additionalProperties']);
         }
 
-        if (array_key_exists('type', $schema)) {
-            if (is_array($schema['type'])) {
-                foreach ($schema['type'] as $type) {
-                    if ($type !== 'null') {
-                        $schema['type'] = strtoupper((string) $type);
-                        break;
-                    }
-                }
-            } else {
-                $schema['type'] = strtoupper((string) $schema['type']);
+        foreach ($schema as $key => $value) {
+            if (is_array($value)) {
+                $schema[$key] = $this->adaptSchema($value);
             }
-
-            $schema['type'] = match ($schema['type']) {
-                'INT' => 'INTEGER',
-                'BOOL' => 'BOOLEAN',
-                'DOUBLE', 'FLOAT' => 'NUMBER',
-                default => $schema['type']
-            };
         }
 
+        // Always an object also if it's empty
         if (array_key_exists('properties', $schema) && is_array($schema['properties'])) {
-            foreach ($schema['properties'] as $key => $value) {
-                if (is_array($value)) {
-                    $schema['properties'][$key] = $this->adaptSchema($value);
-                }
-            }
             $schema['properties'] = (object) $schema['properties'];
         }
 
-        if (array_key_exists('items', $schema) && is_array($schema['items'])) {
-            $schema['items'] = $this->adaptSchema($schema['items']);
+        // Reduce the array type to a single not-nullable type
+        if (isset($schema['type']) && is_array($schema['type'])) {
+            foreach ($schema['type'] as $type) {
+                if ($type !== 'null') {
+                    $schema['type'] = $type;
+                    break;
+                }
+            }
         }
 
         return $schema;
