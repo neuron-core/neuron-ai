@@ -10,6 +10,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 
+use function trim;
+
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
@@ -23,7 +25,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri($this->baseUri)
+            ->withBaseUri(trim($this->baseUri, '/').'/')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

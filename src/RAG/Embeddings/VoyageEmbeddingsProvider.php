@@ -14,12 +14,13 @@ use NeuronAI\RAG\Document;
 use function array_chunk;
 use function array_map;
 use function array_merge;
+use function trim;
 
 class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
 
-    protected string $baseUri = 'https://api.voyageai.com/v1/embeddings';
+    protected string $baseUri = 'https://api.voyageai.com/v1';
 
     public function __construct(
         string $key,
@@ -28,7 +29,7 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri($this->baseUri)
+            ->withBaseUri(trim($this->baseUri, '/').'/')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -43,7 +44,7 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: '',
+                uri: 'embeddings',
                 body: [
                     'model' => $this->model,
                     'input' => $text,
@@ -65,7 +66,7 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
         foreach ($chunks as $chunk) {
             $response = $this->httpClient->request(
                 HttpRequest::post(
-                    uri: '',
+                    uri: 'embeddings',
                     body: [
                         'model' => $this->model,
                         'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
