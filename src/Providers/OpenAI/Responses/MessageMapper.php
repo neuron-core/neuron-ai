@@ -90,12 +90,12 @@ class MessageMapper implements MessageMapperInterface
     {
         return match ($block->sourceType) {
             SourceType::BASE64 => [
-                'type' => 'file',
+                'type' => 'input_file',
                 'filename' => $block->filename,
                 'file_data' => "data:{$block->mediaType};base64,{$block->content}",
             ],
             SourceType::URL => [
-                'type' => 'file',
+                'type' => 'input_file',
                 'file_url' => $block->content,
             ],
             SourceType::ID => [
