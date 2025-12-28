@@ -118,7 +118,7 @@ class MessageMapper implements MessageMapperInterface
             ],
             SourceType::ID => [
                 'type' => 'input_image',
-                'image_id' => $block->content,
+                'file_id' => $block->content,
             ]
         };
     }
