@@ -14,7 +14,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
 
-    protected string $baseUri = 'https://api.openai.com/v1/embeddings';
+    protected string $baseUri = 'https://api.openai.com/v1';
 
     public function __construct(
         protected string $key,
@@ -38,7 +38,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: '',
+                uri: 'embeddings',
                 body: [
                     'model' => $this->model,
                     'input' => $text,
