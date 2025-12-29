@@ -47,6 +47,8 @@ class Summarization implements WorkflowMiddleware
      *
      * Checks if summarization is needed based on token count and performs
      * the summarization if the threshold is exceeded.
+     *
+     * @param AgentState $state
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
@@ -55,13 +57,12 @@ class Summarization implements WorkflowMiddleware
             return;
         }
 
-        // Summarization disabled
-        if ($this->maxTokens <= 0) {
+        if (!$state instanceof AgentState) {
             return;
         }
 
-        // Type hint for IDE
-        if (!$state instanceof AgentState) {
+        // Summarization disabled
+        if ($this->maxTokens <= 0) {
             return;
         }
 
@@ -99,8 +100,6 @@ class Summarization implements WorkflowMiddleware
     {
         // Find a safe cutoff point
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
-
-        echo "\n\nCutoff Index: " . $cutoffIndex . "\n\n";
 
         // If no safe cutoff found or not enough messages to summarize, skip
         if ($cutoffIndex === null || $cutoffIndex <= 0) {
@@ -141,12 +140,12 @@ class Summarization implements WorkflowMiddleware
         $totalMessages = count($messages);
         $targetCutoff = max(0, $totalMessages - $this->messagesToKeep);
 
-        // If target cutoff is at the beginning, nothing to summarize
+        // If the target cutoff is in the beginning, nothing to summarize
         if ($targetCutoff <= 0) {
             return null;
         }
 
-        // Search backward from target to find a safe cutoff point
+        // Search backward from the target to find a safe cutoff point
         for ($i = $targetCutoff; $i >= 0; $i--) {
             if ($this->isSafeCutoffPoint($messages, $i)) {
                 return $i;
