@@ -75,6 +75,12 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $this->history[] = $message;
 
+        // I would like to move this method to the trimmer, but it means I cannot call it before onNewMessage() hook.
+        // The problem is that distributing usage data changes the usage information of messages.
+        // So I don't want to call it before onNewMessage() hook to avoid storing messages with incorrect usage data.
+        // It can be performed on the trimmer if we can copy the $messages without affecting the original $this->history
+        // $list = unserialize(serialize($messages));
+        // But this strategy implies the calculation to be executed every time trim or tokenCount are called.
         $this->distributeUsageData();
 
         $this->onNewMessage($message);
