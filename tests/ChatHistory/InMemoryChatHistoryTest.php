@@ -169,7 +169,7 @@ class InMemoryChatHistoryTest extends TestCase
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
         $this->assertCount(1, $this->chatHistory->getMessages());
-        $this->assertEquals(4, $this->chatHistory->calculateTotalUsage());
+        $this->assertEquals(11, $this->chatHistory->calculateTotalUsage());
 
         $toolCall = new ToolCallMessage(tools: [$tool]);
         $toolCall->setUsage(new Usage(120, 150));

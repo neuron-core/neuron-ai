@@ -15,11 +15,14 @@ use function array_slice;
 use function count;
 use function in_array;
 use function intval;
-use function ceil;
-use function mb_strlen;
 
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
+    public function __construct(
+        protected TokenCounter $tokenCounter = new TokenCounter()
+    ) {
+    }
+
     /**
      * This implementation assumes "distributeUsageData" was already executed on incoming messages
      *
@@ -29,23 +32,10 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     {
         return array_reduce($messages, function (int $carry, Message $message): int {
             if (!$message->getUsage() instanceof Usage) {
-                return $carry + $this->estimateMessageTokens($message);
+                return $carry + $this->tokenCounter->count($message);
             }
             return $carry + $message->getUsage()->getTotal();
         }, 0);
-    }
-
-    /**
-     * Estimate tokens for a single message (fallback when no usage data available).
-     */
-    protected function estimateMessageTokens(Message $message): int
-    {
-        $content = $message->getContent();
-        if ($content === null || $content === '') {
-            return 0;
-        }
-
-        return (int) ceil(mb_strlen($content.$message->getRole(), 'UTF-8') / 4);
     }
 
     /**
