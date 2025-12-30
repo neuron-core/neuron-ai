@@ -8,12 +8,15 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 
 use function array_reduce;
 use function array_slice;
 use function count;
 use function in_array;
 use function intval;
+use function ceil;
+use function mb_strlen;
 
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
@@ -24,7 +27,25 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      */
     public function tokenCount(array $messages): int
     {
-        return array_reduce($messages, fn (int $carry, Message $message): int => $carry += $message->getUsage()->getTotal(), 0);
+        return array_reduce($messages, function (int $carry, Message $message): int {
+            if (!$message->getUsage() instanceof Usage) {
+                return $carry + $this->estimateMessageTokens($message);
+            }
+            return $carry + $message->getUsage()->getTotal();
+        }, 0);
+    }
+
+    /**
+     * Estimate tokens for a single message (fallback when no usage data available).
+     */
+    protected function estimateMessageTokens(Message $message): int
+    {
+        $content = $message->getContent();
+        if ($content === null || $content === '') {
+            return 0;
+        }
+
+        return (int) ceil(mb_strlen($content.$message->getRole(), 'UTF-8') / 4);
     }
 
     /**
@@ -37,7 +58,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         // Early exit if all messages fit within the token limit
         if ($tokenCount <= $contextWindow) {
-            return $messages;
+            return $this->ensureValidMessageSequence($messages);
         }
 
         $skipIndex = $this->trimIndex($messages, $contextWindow);

@@ -12,6 +12,7 @@ use NeuronAI\Chat\History\EloquentChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
@@ -165,7 +166,7 @@ class EloquentChatHistoryTest extends TestCase
         for ($i = 0; $i < 20; $i++) {
             $message = $i % 2 === 0
                 ? new UserMessage("User message $i with some text")
-                : new AssistantMessage("Assistant message $i with some text");
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(10, 15));
             $smallHistory->addMessage($message);
         }
 

@@ -46,18 +46,23 @@ class InMemoryChatHistoryTest extends TestCase
         $this->assertCount(1, $history->getMessages());
     }
 
-    public function test_chat_history_truncate(): void
+    public function test_chat_history_truncate_and_validate(): void
     {
         $history = new InMemoryChatHistory(13);
 
         $message = new UserMessage('Hello!');
         $history->addMessage($message);
-        $this->assertEquals(13, $history->calculateTotalUsage());
-
-        $message = new UserMessage('Hello!');
-        $history->addMessage($message);
-        $this->assertEquals(13, $history->calculateTotalUsage());
         $this->assertCount(1, $history->getMessages());
+
+        $message = new AssistantMessage('Hello!');
+        $message->setUsage(new Usage(15, 12));
+        $history->addMessage($message);
+
+        // The trimmer will keep only the assistant message because the user message will have 15 tokens > context_window
+        // Only the AssistantMessage will remain
+        // Since a chat history can't end with an assistant message, it will be removed during validation
+        // The final result is no messages
+        $this->assertCount(0, $history->getMessages());
     }
 
     public function test_chat_history_clear(): void
@@ -141,14 +146,12 @@ class InMemoryChatHistoryTest extends TestCase
         for ($i = 0; $i < 50; $i++) {
             $message = $i % 2 === 0
                 ? new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
-                : new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
+                : (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100, 150));
             $this->chatHistory->addMessage($message);
         }
 
-        $remainingMessages = $this->chatHistory->getMessages();
-
         // With the context window of 1000, we should have fewer than 5 messages
-        $this->assertCount(32, $remainingMessages, 'Some messages should be removed due to context window limit');
+        $this->assertCount(20, $this->chatHistory->getMessages());
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
@@ -168,6 +171,7 @@ class InMemoryChatHistoryTest extends TestCase
         $this->assertCount(1, $this->chatHistory->getMessages());
 
         $toolCall = new ToolCallMessage(tools: [$tool]);
+        $toolCall->setUsage(new Usage(120, 150));
         $this->chatHistory->addMessage($toolCall);
         $this->assertCount(2, $this->chatHistory->getMessages());
 
