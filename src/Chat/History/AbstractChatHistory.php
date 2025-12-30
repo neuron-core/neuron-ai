@@ -70,9 +70,16 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Remove all messages.
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function addMessage(Message $message): ChatHistoryInterface
     {
         $this->history[] = $message;
+
+        $this->ensureValidMessageSequence();
+
+        $this->distributeUsageData();
 
         $this->onNewMessage($message);
 
@@ -85,6 +92,67 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $this->setMessages($this->history);
 
         return $this;
+    }
+
+    /**
+     * User messages only have input_tokens
+     * Assistant messages only have output_tokens
+     *
+     * @throws ChatHistoryException
+     */
+    protected function distributeUsageData(): void
+    {
+        // Only process if it's an AssistantMessage with usage data
+        $lastMessage = $this->getLastMessage();
+        if (!$lastMessage instanceof AssistantMessage) {
+            return;
+        }
+
+        $messages = array_reverse($this->history);
+
+        $lastAssistant = null;
+        $pendingMessage = null;
+
+        // Iterate from the end of the array to the beginning
+        foreach ($messages as $message) {
+            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() !== null && $lastAssistant === null) {
+                $lastAssistant = $message;
+                continue;
+            }
+
+            if ($message->getRole() === MessageRole::USER->value) {
+                // The first user message with usage data means the rest of the history was already processed.
+                if ($message->getUsage() !== null) {
+                    break;
+                }
+                $pendingMessage = $message;
+                continue;
+            }
+
+            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() === null && $lastAssistant !== null) {
+                $pendingMessage?->setUsage(
+                    new Usage(
+                        $lastAssistant->getUsage()->inputTokens - $message->getUsage()->getTotal(),
+                        0
+                    )
+                );
+
+                $lastAssistant->getUsage()->inputTokens = 0;
+
+                $lastAssistant = null;
+                $pendingMessage = null;
+            }
+        }
+
+        if ($pendingMessage !== null && $lastAssistant !== null) {
+            $pendingMessage->setUsage(
+                new Usage(
+                    $lastAssistant->getUsage()->inputTokens,
+                    0
+                )
+            );
+            $lastAssistant->getUsage()->inputTokens = 0;
+        }
     }
 
     public function getMessages(): array
@@ -131,7 +199,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         // Early exit if all messages fit within the token limit
         if ($tokenCount <= $this->contextWindow) {
-            $this->ensureValidMessageSequence();
             return 0;
         }
 
@@ -140,37 +207,10 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         $this->history = array_slice($this->history, $skipFrom);
 
-        // Ensure valid message sequence
+        // Ensure valid message sequence after trimming
         $this->ensureValidMessageSequence();
 
         return $skipFrom;
-    }
-
-    /**
-     * Binary search to find the maximum number of messages that fit within the token limit.
-     *
-     * @return int The index of the first element to retain (keeping most recent messages) - 0 Skip no messages (include all) - count($this->history): Skip all messages (include none)
-     */
-    private function findMaxFittingMessages(): int
-    {
-        $totalMessages = count($this->history);
-        $left = 0;
-        $right = $totalMessages;
-
-        while ($left < $right) {
-            $mid = intval(($left + $right) / 2);
-            $subset = array_slice($this->history, $mid);
-
-            if ($this->tokenCounter->count($subset) <= $this->contextWindow) {
-                // Fits! Try including more messages (skip fewer)
-                $right = $mid;
-            } else {
-                // Doesn't fit! Need to skip more messages
-                $left = $mid + 1;
-            }
-        }
-
-        return $left;
     }
 
     /**

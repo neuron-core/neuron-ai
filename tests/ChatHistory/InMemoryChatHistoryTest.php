@@ -9,6 +9,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
@@ -190,6 +191,7 @@ class InMemoryChatHistoryTest extends TestCase
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
         $assistantMessage = new AssistantMessage('Assistant message 1');
+        $assistantMessage->setUsage(new Usage(12, 15));
         $this->chatHistory->addMessage($assistantMessage);
         $assistantMessage2 = new AssistantMessage('Assistant message 2');
         $this->chatHistory->addMessage($assistantMessage2);
