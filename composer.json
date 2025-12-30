@@ -59,7 +59,8 @@
     },
     "scripts-descriptions": {
         "analyse": "Run PHPStan static analysis against your application.",
-        "format": "Run PHP CS Fixer against your application.",
+        "format": "Run PHP CS Fixer and PHPStan in a pipeline.",
+        "style": "Run PHP CS Fixer to fix coding style issues.",
         "refactor": "Run rector for code refactoring.",
         "test": "Run PHPUnit to test"
     },
