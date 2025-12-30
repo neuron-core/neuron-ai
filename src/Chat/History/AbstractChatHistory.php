@@ -25,14 +25,12 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
 
 use function array_map;
-use function array_slice;
 use function count;
 use function end;
-use function in_array;
-use function intval;
 use function is_array;
 use function is_string;
 use function json_decode;
+use function array_reverse;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
@@ -43,7 +41,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function __construct(
         protected int $contextWindow = 50000,
-        protected TokenCounterInterface $tokenCounter = new TokenCounter()
+        protected HistoryTrimmerInterface $trimmer = new HistoryTrimmer()
     ) {
     }
 
@@ -77,15 +75,16 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $this->history[] = $message;
 
-        $this->ensureValidMessageSequence();
-
         $this->distributeUsageData();
 
         $this->onNewMessage($message);
 
-        $skipIndex = $this->trimHistory();
+        $trimmed = $this->trimmer->trim($this->history, $this->contextWindow);
+
+        $skipIndex = count($this->history) - count($trimmed);
 
         if ($skipIndex > 0) {
+            $this->history = $trimmed;
             $this->onTrimHistory($skipIndex);
         }
 
@@ -129,7 +128,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 continue;
             }
 
-            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() === null && $lastAssistant !== null) {
+            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() !== null && $lastAssistant !== null) {
                 $pendingMessage?->setUsage(
                     new Usage(
                         $lastAssistant->getUsage()->inputTokens - $message->getUsage()->getTotal(),
@@ -183,154 +182,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function calculateTotalUsage(): int
     {
-        return $this->tokenCounter->count($this->history);
-    }
-
-    /**
-     * @return int The index of the first element to retain (keeping most recent messages) - 0 Skip no messages (include all) - count($this->history): Skip all messages (include none)
-     */
-    protected function trimHistory(): int
-    {
-        if ($this->history === []) {
-            return 0;
-        }
-
-        $tokenCount = $this->tokenCounter->count($this->history);
-
-        // Early exit if all messages fit within the token limit
-        if ($tokenCount <= $this->contextWindow) {
-            return 0;
-        }
-
-        // Binary search to find how many messages to skip from the beginning
-        $skipFrom = $this->findMaxFittingMessages();
-
-        $this->history = array_slice($this->history, $skipFrom);
-
-        // Ensure valid message sequence after trimming
-        $this->ensureValidMessageSequence();
-
-        return $skipFrom;
-    }
-
-    /**
-     * Ensures the message list:
-     * 1. Starts with a UserMessage
-     * 2. Ends with an AssistantMessage
-     * 3. Maintains tool call/result pairs
-     */
-    protected function ensureValidMessageSequence(): void
-    {
-        if ($this->history === []) {
-            return;
-        }
-
-        // Drop leading tool_call / tool_call_result messages
-        $this->dropLeadingToolMessages();
-
-        if ($this->history === []) {
-            return;
-        }
-
-        // Ensure it starts with a UserMessage
-        $this->ensureStartsWithUser();
-
-        if ($this->history === []) {
-            return;
-        }
-
-        // Ensure it ends with an AssistantMessage
-        $this->ensureValidAlternation();
-    }
-
-    /**
-     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
-     */
-    protected function dropLeadingToolMessages(): void
-    {
-        $start = 0;
-
-        foreach ($this->history as $index => $message) {
-            if ($message instanceof ToolCallMessage || $message instanceof ToolResultMessage) {
-                $start = $index + 1;
-                continue;
-            }
-
-            // First non-tool message reached, stop advancing
-            break;
-        }
-
-        if ($start > 0) {
-            $this->history = array_slice($this->history, $start);
-        }
-    }
-
-    /**
-     * Ensures the message list starts with a UserMessage.
-     */
-    protected function ensureStartsWithUser(): void
-    {
-        // Find the first UserMessage
-        $firstUserIndex = null;
-        foreach ($this->history as $index => $message) {
-            if ($message->getRole() === MessageRole::USER->value) {
-                $firstUserIndex = $index;
-                break;
-            }
-        }
-
-        if ($firstUserIndex === null) {
-            // No UserMessage found
-            $this->history = [];
-            return;
-        }
-
-        if ($firstUserIndex === 0) {
-            return;
-        }
-
-        if ($firstUserIndex > 0) {
-            // Remove messages before the first user message
-            $this->history = array_slice($this->history, $firstUserIndex);
-        }
-    }
-
-    /**
-     * Ensures valid alternation between user and assistant messages.
-     */
-    protected function ensureValidAlternation(): void
-    {
-        $result = [];
-        $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
-        $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
-        $expectingRoles = $userRoles; // Should start with user
-
-        foreach ($this->history as $message) {
-            $messageRole = $message->getRole();
-
-            // Tool result messages have a special case - they're user messages
-            // but can only follow tool call messages (assistant)
-            // This is valid after a ToolCallMessage
-            if ($message instanceof ToolResultMessage && ($result !== [] && $result[count($result) - 1] instanceof ToolCallMessage)) {
-                $result[] = $message;
-                // After the tool result, we expect assistant again
-                $expectingRoles = $assistantRoles;
-                continue;
-            }
-
-            // Check if this message has the expected role
-            if (in_array($messageRole, $expectingRoles, true)) {
-                $result[] = $message;
-                // Toggle the expected role
-                $expectingRoles = ($expectingRoles === $userRoles)
-                    ? $assistantRoles
-                    : $userRoles;
-            }
-            // If not the expected role, we have an invalid alternation
-            // Skip this message to maintain a valid sequence
-        }
-
-        $this->history = $result;
+        return $this->trimmer->tokenCount($this->history);
     }
 
     /**
@@ -511,11 +363,5 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             }
             $item->addMetadata($key, $value);
         }
-    }
-
-    public function setTokenCounter(TokenCounterInterface $tokenCounter): ChatHistoryInterface
-    {
-        $this->tokenCounter = $tokenCounter;
-        return $this;
     }
 }

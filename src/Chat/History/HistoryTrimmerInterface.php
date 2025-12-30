@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Messages\Message;
@@ -15,7 +17,7 @@ interface HistoryTrimmerInterface
      * Determine where to trim message history to fit within the context window.
      *
      * @param Message[] $messages
-     * @return int Index of the first message to keep (0 = keep all, count($messages) = skip all)
+     * @return Message[]
      */
-    public function trimIndex(array $messages, int $contextWindow): int;
+    public function trim(array $messages, int $contextWindow): array;
 }
