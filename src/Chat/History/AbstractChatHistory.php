@@ -30,7 +30,6 @@ use function end;
 use function is_array;
 use function is_string;
 use function json_decode;
-use function array_reverse;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
@@ -68,23 +67,21 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Remove all messages.
     }
 
-    /**
-     * @throws ChatHistoryException
-     */
     public function addMessage(Message $message): ChatHistoryInterface
     {
         $this->history[] = $message;
 
-        // I would like to move this method to the trimmer, but it means I cannot call it before onNewMessage() hook.
-        // The problem is that distributing usage data changes the usage information of messages.
-        // So I don't want to call it before onNewMessage() hook to avoid storing messages with incorrect usage data.
-        // It can be performed on the trimmer if we can copy the $messages without affecting the original $this->history
-        // $list = unserialize(serialize($messages));
-        // But this strategy implies the calculation to be executed every time trim or tokenCount are called.
-        $this->distributeUsageData();
-
         $this->onNewMessage($message);
 
+        $this->trimHistory();
+
+        $this->setMessages($this->history);
+
+        return $this;
+    }
+
+    protected function trimHistory(): void
+    {
         $trimmed = $this->trimmer->trim($this->history, $this->contextWindow);
 
         $skipIndex = count($this->history) - count($trimmed);
@@ -92,71 +89,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         if ($skipIndex > 0) {
             $this->history = $trimmed;
             $this->onTrimHistory($skipIndex);
-        }
-
-        $this->setMessages($this->history);
-
-        return $this;
-    }
-
-    /**
-     * User messages only have input_tokens
-     * Assistant messages only have output_tokens
-     *
-     * @throws ChatHistoryException
-     */
-    protected function distributeUsageData(): void
-    {
-        // Only process if it's an AssistantMessage with usage data
-        $lastMessage = $this->getLastMessage();
-        if (!$lastMessage instanceof AssistantMessage) {
-            return;
-        }
-
-        $messages = array_reverse($this->history);
-
-        $lastAssistant = null;
-        $pendingMessage = null;
-
-        // Iterate from the end of the array to the beginning
-        foreach ($messages as $message) {
-            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() !== null && $lastAssistant === null) {
-                $lastAssistant = $message;
-                continue;
-            }
-
-            if ($message->getRole() === MessageRole::USER->value) {
-                // The first user message with usage data means the rest of the history was already processed.
-                if ($message->getUsage() !== null) {
-                    break;
-                }
-                $pendingMessage = $message;
-                continue;
-            }
-
-            if ($message->getRole() === MessageRole::ASSISTANT->value && $message->getUsage() !== null && $lastAssistant !== null) {
-                $pendingMessage?->setUsage(
-                    new Usage(
-                        $lastAssistant->getUsage()->inputTokens - $message->getUsage()->getTotal(),
-                        0
-                    )
-                );
-
-                $lastAssistant->getUsage()->inputTokens = 0;
-
-                $lastAssistant = null;
-                $pendingMessage = null;
-            }
-        }
-
-        if ($pendingMessage !== null && $lastAssistant !== null) {
-            $pendingMessage->setUsage(
-                new Usage(
-                    $lastAssistant->getUsage()->inputTokens,
-                    0
-                )
-            );
-            $lastAssistant->getUsage()->inputTokens = 0;
         }
     }
 
@@ -188,7 +120,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function calculateTotalUsage(): int
     {
-        return $this->trimmer->tokenCount($this->history);
+        $this->trimHistory();
+        return $this->trimmer->getTotalTokens();
     }
 
     /**

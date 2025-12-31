@@ -8,10 +8,7 @@ use NeuronAI\Chat\Messages\Message;
 
 interface HistoryTrimmerInterface
 {
-    /**
-     * @param Message[] $messages
-     */
-    public function tokenCount(array $messages): int;
+    public function getTotalTokens(): int;
 
     /**
      * Determine where to trim message history to fit within the context window.

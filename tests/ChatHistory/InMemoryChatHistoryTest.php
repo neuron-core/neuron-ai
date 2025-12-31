@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\ChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -143,15 +144,16 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
         // Add several regular messages that exceed the context window
-        for ($i = 0; $i < 50; $i++) {
+        for ($i = 1; $i <= 10; $i++) {
             $message = $i % 2 === 0
-                ? new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
-                : (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100, 150));
+                ? (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100 * $i, 150))
+                : new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
             $this->chatHistory->addMessage($message);
         }
 
         // With the context window of 1000, we should have fewer than 5 messages
-        $this->assertCount(20, $this->chatHistory->getMessages());
+        $this->assertCount(8, $this->chatHistory->getMessages());
+        $this->assertEquals(800, $this->chatHistory->calculateTotalUsage());
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
@@ -169,7 +171,6 @@ class InMemoryChatHistoryTest extends TestCase
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
         $this->assertCount(1, $this->chatHistory->getMessages());
-        $this->assertEquals(11, $this->chatHistory->calculateTotalUsage());
 
         $toolCall = new ToolCallMessage(tools: [$tool]);
         $toolCall->setUsage(new Usage(120, 150));

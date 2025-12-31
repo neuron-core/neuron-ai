@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -18,9 +19,16 @@ use function intval;
 
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
+    protected int $totalTokens = 0;
+
     public function __construct(
         protected TokenCounter $tokenCounter = new TokenCounter()
     ) {
+    }
+
+    public function getTotalTokens(): int
+    {
+        return $this->totalTokens;
     }
 
     /**
@@ -28,11 +36,11 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      *
      * @param Message[] $messages
      */
-    public function tokenCount(array $messages): int
+    protected function tokenCount(array $messages): int
     {
         return array_reduce($messages, function (int $carry, Message $message): int {
             if (!$message->getUsage() instanceof Usage) {
-                return $carry + $this->tokenCounter->count($message);
+                return $carry;
             }
             return $carry + $message->getUsage()->getTotal();
         }, 0);
@@ -44,10 +52,12 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      */
     public function trim(array $messages, int $contextWindow): array
     {
-        $tokenCount = $this->tokenCount($messages);
+        $messages = $this->distributeUsageData($messages);
 
-        // Early exit if all messages fit within the token limit
-        if ($tokenCount <= $contextWindow) {
+        $this->totalTokens = $this->tokenCount($messages);
+
+        // Early exit if all messages fit within the context window
+        if ($this->totalTokens <= $contextWindow) {
             return $this->ensureValidMessageSequence($messages);
         }
 
@@ -57,7 +67,52 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             $messages = array_slice($messages, $skipIndex);
         }
 
-        return $this->ensureValidMessageSequence($messages);
+        $messages = $this->ensureValidMessageSequence($messages);
+
+        // Update total tokens after trimming
+        $this->totalTokens = $this->tokenCount($messages);
+
+        return $messages;
+    }
+
+    /**
+     * User messages only have input_tokens
+     * Assistant messages only have output_tokens
+     *
+     * @param Message[] $messages
+     * @return Message[]
+     */
+    protected function distributeUsageData(array $messages): array
+    {
+        $pendingUserMessage = null;
+        $count = count($messages);
+
+        for ($i = 0; $i < $count; $i++) {
+            $message = $messages[$i];
+
+            if ($message->getRole() === MessageRole::USER->value && $message->getUsage() === null) {
+                $pendingUserMessage = $message;
+                continue;
+            }
+
+            if (
+                $message->getRole() === MessageRole::ASSISTANT->value &&
+                $message->getUsage() !== null &&
+                $pendingUserMessage !== null
+            ) {
+                $partial = $this->tokenCount(array_slice($messages, 0, $i));
+                $pendingUserMessage->setUsage(
+                    new Usage(
+                        $message->getUsage()->inputTokens - $partial,
+                        0
+                    )
+                );
+                $message->getUsage()->inputTokens = 0;
+                $pendingUserMessage = null;
+            }
+        }
+
+        return $messages;
     }
 
     /**

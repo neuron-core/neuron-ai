@@ -203,10 +203,10 @@ class SQLChatHistoryTest extends TestCase
         $smallHistory = new SQLChatHistory($this->threadId, $this->pdo, contextWindow: 100);
 
         // Add many messages to exceed context window
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 1; $i <= 20; $i++) {
             $message = $i % 2 === 0
                 ? new UserMessage("User message $i with some text")
-                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(10, 15));
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
             $smallHistory->addMessage($message);
         }
 
