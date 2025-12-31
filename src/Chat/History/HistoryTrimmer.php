@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;

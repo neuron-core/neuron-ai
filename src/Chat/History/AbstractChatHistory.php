@@ -71,9 +71,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $this->history[] = $message;
 
-        $this->onNewMessage($message);
-
         $this->trimHistory();
+
+        $this->onNewMessage($message);
 
         $this->setMessages($this->history);
 
