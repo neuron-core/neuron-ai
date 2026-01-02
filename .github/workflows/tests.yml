@@ -4,6 +4,7 @@ on:
     push:
         branches:
             - '*.x'
+            - 'usage'
     pull_request:
 
 jobs:
