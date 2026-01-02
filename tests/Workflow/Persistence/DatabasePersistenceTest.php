@@ -4,9 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Persistence;
 
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode;
+use NeuronAI\Tests\Workflow\Stubs\NodeOne;
+use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\WorkflowState;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -54,19 +62,19 @@ class DatabasePersistenceTest extends TestCase
 
     public function testSaveWorkflowInterrupt(): void
     {
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         try {
             $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt) {
+        } catch (WorkflowInterrupt) {
             // Verify the interrupt was saved to the database
             $stmt = $this->pdo->prepare("SELECT * FROM workflow_interrupts WHERE workflow_id = :id");
             $stmt->execute(['id' => $this->threadId]);
@@ -82,35 +90,35 @@ class DatabasePersistenceTest extends TestCase
 
     public function testLoadWorkflowInterrupt(): void
     {
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         // First run - interrupt and save
         try {
             $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt) {
+        } catch (WorkflowInterrupt) {
             // Expected interrupt
         }
 
         // Load the saved interrupt
         $loadedInterrupt = $this->persistence->load($this->threadId);
 
-        $this->assertInstanceOf(\NeuronAI\Workflow\WorkflowInterrupt::class, $loadedInterrupt);
+        $this->assertInstanceOf(WorkflowInterrupt::class, $loadedInterrupt);
         $this->assertEquals(['message' => 'Need human input'], $loadedInterrupt->getData());
-        $this->assertInstanceOf(\NeuronAI\Tests\Workflow\Stubs\InterruptableNode::class, $loadedInterrupt->getCurrentNode());
-        $this->assertInstanceOf(\NeuronAI\Workflow\WorkflowState::class, $loadedInterrupt->getState());
+        $this->assertInstanceOf(InterruptableNode::class, $loadedInterrupt->getCurrentNode());
+        $this->assertInstanceOf(WorkflowState::class, $loadedInterrupt->getState());
     }
 
     public function testLoadNonExistentWorkflowThrowsException(): void
     {
-        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No saved workflow found for ID: non-existent-id');
 
         $this->persistence->load('non-existent-id');
@@ -118,19 +126,19 @@ class DatabasePersistenceTest extends TestCase
 
     public function testDeleteWorkflowInterrupt(): void
     {
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         // First run - interrupt and save
         try {
             $workflow->start()->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt) {
+        } catch (WorkflowInterrupt) {
             // Expected interrupt
         }
 
@@ -149,19 +157,19 @@ class DatabasePersistenceTest extends TestCase
 
     public function testUpdateExistingWorkflowInterrupt(): void
     {
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\MultipleInterruptionsNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new MultipleInterruptionsNode(),
+            new NodeThree(),
         ]);
 
         // First interrupt
         try {
             $workflow->start()->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt $interrupt) {
+        } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 1, 'message' => 'Interrupt #1'], $interrupt->getData());
         }
 
@@ -178,7 +186,7 @@ class DatabasePersistenceTest extends TestCase
         // Second interrupt (should update the same record)
         try {
             $workflow->start(true, 'feedback')->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt $interrupt) {
+        } catch (WorkflowInterrupt $interrupt) {
             $this->assertEquals(['count' => 2, 'message' => 'Interrupt #2'], $interrupt->getData());
         }
 
@@ -198,24 +206,24 @@ class DatabasePersistenceTest extends TestCase
 
     public function testEndToEndWorkflowWithDatabasePersistence(): void
     {
-        $initialState = new \NeuronAI\Workflow\WorkflowState(['initial_data' => 'preserved']);
+        $initialState = new WorkflowState(['initial_data' => 'preserved']);
 
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             state: $initialState,
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         // First run - should interrupt
         try {
             $workflow->start()->getResult();
             $this->fail('Expected WorkflowInterrupt exception');
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt $interrupt) {
-            $this->assertInstanceOf(\NeuronAI\Tests\Workflow\Stubs\InterruptableNode::class, $interrupt->getCurrentNode());
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->assertInstanceOf(InterruptableNode::class, $interrupt->getCurrentNode());
 
             // Verify state at interrupt point
             $state = $interrupt->getState();
@@ -238,7 +246,7 @@ class DatabasePersistenceTest extends TestCase
 
     public function testSerializationOfComplexWorkflowState(): void
     {
-        $complexState = new \NeuronAI\Workflow\WorkflowState([
+        $complexState = new WorkflowState([
             'string' => 'test',
             'int' => 42,
             'float' => 3.14,
@@ -248,20 +256,20 @@ class DatabasePersistenceTest extends TestCase
             'null' => null,
         ]);
 
-        $workflow = \NeuronAI\Workflow\Workflow::make(
+        $workflow = Workflow::make(
             state: $complexState,
             persistence: $this->persistence,
             workflowId: $this->threadId
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         // Interrupt the workflow
         try {
             $workflow->start()->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt) {
+        } catch (WorkflowInterrupt) {
             // Expected
         }
 
@@ -287,34 +295,34 @@ class DatabasePersistenceTest extends TestCase
         $persistence2 = new DatabasePersistence($this->pdo, 'workflow_interrupts');
 
         // Create and interrupt first workflow
-        $workflow1 = \NeuronAI\Workflow\Workflow::make(
+        $workflow1 = Workflow::make(
             persistence: $persistence1,
             workflowId: $workflowId1
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         try {
             $workflow1->start()->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt $interrupt) {
+        } catch (WorkflowInterrupt $interrupt) {
             // Expected
         }
 
         // Create and interrupt second workflow
-        $workflow2 = \NeuronAI\Workflow\Workflow::make(
+        $workflow2 = Workflow::make(
             persistence: $persistence2,
             workflowId: $workflowId2
         )->addNodes([
-            new \NeuronAI\Tests\Workflow\Stubs\NodeOne(),
-            new \NeuronAI\Tests\Workflow\Stubs\InterruptableNode(),
-            new \NeuronAI\Tests\Workflow\Stubs\NodeThree(),
+            new NodeOne(),
+            new InterruptableNode(),
+            new NodeThree(),
         ]);
 
         try {
             $workflow2->start()->getResult();
-        } catch (\NeuronAI\Workflow\WorkflowInterrupt) {
+        } catch (WorkflowInterrupt) {
             // Expected
         }
 
@@ -327,8 +335,8 @@ class DatabasePersistenceTest extends TestCase
         $loaded1 = $persistence1->load($workflowId1);
         $loaded2 = $persistence2->load($workflowId2);
 
-        $this->assertInstanceOf(\NeuronAI\Workflow\WorkflowInterrupt::class, $loaded1);
-        $this->assertInstanceOf(\NeuronAI\Workflow\WorkflowInterrupt::class, $loaded2);
+        $this->assertInstanceOf(WorkflowInterrupt::class, $loaded1);
+        $this->assertInstanceOf(WorkflowInterrupt::class, $loaded2);
         $this->assertEquals(['message' => 'Need human input'], $loaded1->getData());
         $this->assertEquals(['message' => 'Need human input'], $loaded2->getData());
     }
