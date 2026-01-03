@@ -13,9 +13,19 @@ use function array_key_exists;
 use function end;
 use function is_array;
 use function json_encode;
+use function in_array;
 
 trait HandleStructured
 {
+    /**
+     * Structured outputs with tools is available only for the Gemini 3 series models.
+     * https://ai.google.dev/gemini-api/docs/structured-output?example=recipe#structured_outputs_with_tools
+     */
+    protected array $supportedModels = [
+        'gemini-3-pro-preview',
+        'gemini-3-flash-preview',
+    ];
+
     /**
      * @throws ProviderException
      * @throws HttpException
@@ -35,7 +45,7 @@ trait HandleStructured
 
         // Gemini does not support structured output in combination with tools.
         // So we try to work with a JSON mode in case the agent has some tools defined.
-        if (!empty($this->tools)) {
+        if (!empty($this->tools) && !in_array($this->model, $this->supportedModels)) {
             $last_message = end($messages);
             if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
                 $last_message->setContents(
