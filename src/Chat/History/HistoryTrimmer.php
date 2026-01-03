@@ -18,6 +18,8 @@ use function intval;
 
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
+    protected bool $distributed = false;
+
     protected int $totalTokens = 0;
 
     public function __construct(
@@ -31,17 +33,22 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * This implementation assumes "distributeUsageData" was already executed on incoming messages
+     * This implementation expects messages to have usage information with a single message contribution.
+     * It assumes "distributeUsageData" was already executed on incoming messages.
+     *
+     * Otherwise, fallback to token count estimation.
      *
      * @param Message[] $messages
      */
     protected function tokenCount(array $messages): int
     {
         return array_reduce($messages, function (int $carry, Message $message): int {
-            if (!$message->getUsage() instanceof Usage) {
-                return $carry;
+            if ($this->distributed) {
+                return $carry + $message->getUsage()?->getTotal() ?: $this->tokenCounter->count($message);
             }
-            return $carry + $message->getUsage()->getTotal();
+
+            // Fallback to token count estimation
+            return $carry + $this->tokenCounter->count($message);
         }, 0);
     }
 
@@ -110,6 +117,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 $pendingUserMessage = null;
             }
         }
+
+        $this->distributed = true;
 
         return $messages;
     }

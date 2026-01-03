@@ -105,7 +105,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $message = end($this->history);
 
         if ($message === false) {
-            throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large a message.');
+            throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large single message.');
         }
 
         return $message;
