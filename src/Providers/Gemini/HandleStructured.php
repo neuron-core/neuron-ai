@@ -13,6 +13,7 @@ use function array_key_exists;
 use function end;
 use function is_array;
 use function json_encode;
+use function in_array;
 
 trait HandleStructured
 {
