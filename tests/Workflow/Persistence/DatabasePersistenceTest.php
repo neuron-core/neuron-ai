@@ -306,7 +306,7 @@ class DatabasePersistenceTest extends TestCase
 
         try {
             $workflow1->start()->getResult();
-        } catch (WorkflowInterrupt $interrupt) {
+        } catch (WorkflowInterrupt) {
             // Expected
         }
 
