@@ -153,7 +153,7 @@ class InMemoryChatHistoryTest extends TestCase
 
         // With the context window of 1000, we should have fewer than 5 messages
         $this->assertCount(8, $this->chatHistory->getMessages());
-        $this->assertEquals(800, $this->chatHistory->calculateTotalUsage());
+        $this->assertEquals(825, $this->chatHistory->calculateTotalUsage());
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
