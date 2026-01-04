@@ -33,26 +33,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * This implementation expects messages to have usage information with a single message contribution.
-     * It assumes "distributeUsageData" was already executed on incoming messages.
-     *
-     * Otherwise, fallback to token count estimation.
-     *
-     * @param Message[] $messages
-     */
-    protected function tokenCount(array $messages): int
-    {
-        return array_reduce($messages, function (int $carry, Message $message): int {
-            if ($this->distributed) {
-                return $carry + $message->getUsage()?->getTotal() ?: $this->tokenCounter->count($message);
-            }
-
-            // Fallback to token count estimation
-            return $carry + $this->tokenCounter->count($message);
-        }, 0);
-    }
-
-    /**
      * @param Message[] $messages
      * @return Message[]
      */
@@ -82,8 +62,28 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * User messages only have input_tokens
-     * Assistant messages only have output_tokens
+     * This implementation expects messages to have usage information with a single message contribution.
+     * It assumes "distributeUsageData" was already executed on incoming messages.
+     *
+     * Otherwise, fallback to token count estimation.
+     *
+     * @param Message[] $messages
+     */
+    protected function tokenCount(array $messages): int
+    {
+        return array_reduce($messages, function (int $carry, Message $message): int {
+            if ($this->distributed) {
+                return $carry + $message->getUsage()?->getTotal() ?: $this->tokenCounter->count($message);
+            }
+
+            // Fallback to token count estimation
+            return $carry + $this->tokenCounter->count($message);
+        }, 0);
+    }
+
+    /**
+     * User messages will only have input_tokens
+     * Assistant messages will only have output_tokens
      *
      * @param Message[] $messages
      * @return Message[]
