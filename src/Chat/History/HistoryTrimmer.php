@@ -96,6 +96,9 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         for ($i = 0; $i < $count; $i++) {
             $message = $messages[$i];
 
+            /*
+             * If messages are already calculated, they are skipped. So new messages can be distrubuted correctly.
+             */
             if ($message->getRole() === MessageRole::USER->value && $message->getUsage() === null) {
                 $pendingUserMessage = $message;
                 continue;
