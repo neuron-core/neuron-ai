@@ -8,11 +8,14 @@ use Google\Auth\Credentials\ServiceAccountCredentials;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
+use function time;
+
 class GeminiVertex extends Gemini
 {
-    private ServiceAccountCredentials $credentials;
-    private ?int $tokenExpiresAt = null;
-    private ?string $currentToken = null;
+    protected string $key = ''; // Not used for Vertex AI, but required by parent
+    protected ServiceAccountCredentials $credentials;
+    protected ?int $tokenExpiresAt = null;
+    protected ?string $currentToken = null;
 
     /**
      * @param array<string, mixed> $parameters
@@ -21,10 +24,11 @@ class GeminiVertex extends Gemini
         string $pathJsonCredentials,
         string $location,
         string $projectId,
-        string $model,
-        array $parameters = [],
+        protected string $model,
+        protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
+        // Set Vertex AI specific base URI
         $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/google/models";
 
         // Store credentials for token refresh
@@ -33,11 +37,7 @@ class GeminiVertex extends Gemini
             $pathJsonCredentials
         );
 
-        // Call parent with empty key - parent will initialize with x-goog-api-key header
-        parent::__construct('', $model, $parameters, $httpClient);
-
-        // Override httpClient with proper Vertex AI authentication
-        // This replaces the x-goog-api-key header with Bearer token
+        // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withHeaders([
                 'Accept' => 'application/json',
@@ -48,15 +48,10 @@ class GeminiVertex extends Gemini
 
     /**
      * Get a valid OAuth token, refreshing if expired.
-     * This method checks token expiration and only fetches a new token if needed.
-     * Uses a 5-minute safety buffer before actual expiration.
-     * OAuth tokens typically expire after 1 hour.
-     *
-     * @return string The valid access token
      */
     public function refreshToken(): string
     {
-        // 5 minute buffer
+        // 5-minute buffer
         if ($this->currentToken !== null && $this->tokenExpiresAt !== null && time() < $this->tokenExpiresAt - 300) {
             return $this->currentToken;
         }
