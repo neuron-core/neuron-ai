@@ -31,12 +31,14 @@ class GeminiVertex extends Gemini
             $pathJsonCredentials
         );
 
+        $token = $credentials->fetchAuthToken();
+
         $config = [
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
-                'Authorization' => $credentials->fetchAuthToken(),
+                'Authorization' => 'Bearer '.$token['access_token'],
             ]
         ];
 
