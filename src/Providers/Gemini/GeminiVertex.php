@@ -10,6 +10,8 @@ use NeuronAI\Providers\HttpClientOptions;
 
 class GeminiVertex extends Gemini
 {
+    protected string $key = ''; // Not used for Vertex AI, but required by parent
+
     /**
      * @param array<string, mixed> $parameters
      */
