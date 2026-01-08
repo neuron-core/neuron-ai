@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use Google\Auth\Credentials\ServiceAccountCredentials;
+use GuzzleHttp\Client;
 use NeuronAI\Providers\HttpClientOptions;
 
 class GeminiVertex extends Gemini
@@ -16,10 +17,11 @@ class GeminiVertex extends Gemini
         string $pathJsonCredentials,
         string $location,
         string $projectId,
-        string $model,
-        array $parameters = [],
-        ?HttpClientOptions $httpOptions = null,
+        protected string $model,
+        protected array $parameters = [],
+        protected ?HttpClientOptions $httpOptions = null,
     ) {
+        // Set Vertex AI specific base URI
         $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/google/models";
 
         $credentials = new ServiceAccountCredentials(
@@ -27,8 +29,19 @@ class GeminiVertex extends Gemini
             $pathJsonCredentials
         );
 
-        $token = $credentials->fetchAuthToken();
+        $config = [
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
+                'Authorization' => $credentials->fetchAuthToken(),
+            ]
+        ];
 
-        parent::__construct($token['access_token'], $model, $parameters, $httpOptions);
+        if ($this->httpOptions instanceof HttpClientOptions) {
+            $config = $this->mergeHttpOptions($config, $this->httpOptions);
+        }
+
+        $this->client = new Client($config);
     }
 }
