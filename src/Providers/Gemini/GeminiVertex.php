@@ -12,10 +12,7 @@ use function time;
 
 class GeminiVertex extends Gemini
 {
-    protected string $key = ''; // Not used for Vertex AI, but required by parent
-    protected ServiceAccountCredentials $credentials;
-    protected ?int $tokenExpiresAt = null;
-    protected ?string $currentToken = null;
+    protected string $key = ''; // Not used for Vertex AI, but required by the parent
 
     /**
      * @param array<string, mixed> $parameters
@@ -31,39 +28,19 @@ class GeminiVertex extends Gemini
         // Set Vertex AI specific base URI
         $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/google/models";
 
-        // Store credentials for token refresh
-        $this->credentials = new ServiceAccountCredentials(
+        $credentials = new ServiceAccountCredentials(
             'https://www.googleapis.com/auth/cloud-platform',
             $pathJsonCredentials
         );
+
+        $token = $credentials->fetchAuthToken();
 
         // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->refreshToken(),
+                'Authorization' => 'Bearer ' . $token['access_token'],
             ]);
-    }
-
-    /**
-     * Get a valid OAuth token, refreshing if expired.
-     */
-    public function refreshToken(): string
-    {
-        // 5-minute buffer
-        if ($this->currentToken !== null && $this->tokenExpiresAt !== null && time() < $this->tokenExpiresAt - 300) {
-            return $this->currentToken;
-        }
-
-        // Fetch new token from Google
-        $tokenData = $this->credentials->fetchAuthToken();
-
-        // Store token and calculate expiration time
-        $this->currentToken = $tokenData['access_token'];
-        $expiresIn = $tokenData['expires_in'] ?? 3600;
-        $this->tokenExpiresAt = time() + $expiresIn;
-
-        return $this->currentToken;
     }
 }
