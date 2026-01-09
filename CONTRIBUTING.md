@@ -2,7 +2,15 @@
 
 👍🎉 First off, thanks for taking the time to contribute! 🎉👍
 
-The following is a set of guidelines for contributing to the Neuron AI Framework. These are mostly guidelines, not rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
+## Contributor License Agreement (CLA)
+
+By contributing to this project (e.g., submitting a Pull Request), you agree to the following terms:
+
+1.  **Copyright Assignment**: You hereby assign to Inspector SRL ("Project Owner") all right, title, and interest in and to your contribution, including all copyright and intellectual property rights.
+2.  **Grant of Rights**: If for any reason the assignment in section 1 is ineffective, you hereby grant to Inspector SRL a perpetual, irrevocable, exclusive, worldwide, royalty-free license to use, reproduce, modify, display, perform, sublicense, and distribute your contribution.
+3.  **Originality**: You represent that the code you are contributing is your original creation and that you have the right to assign or grant these rights to Inspector SRL.
+
+The following is a set of guidelines for contributing to the Neuron AI Framework. These are mostly guidelines, not rules. Use your best judgment and feel free to propose changes to this document in a pull request.
 
 ## I don't want to read this whole thing, I just have a question!!!
 
