@@ -40,6 +40,9 @@ trait HandleWorkflowEvents
         }
     }
 
+    /**
+     * @throws Exception
+     */
     public function workflowEnd(Workflow $workflow, string $event, WorkflowEnd $data): void
     {
         if (array_key_exists($workflow::class, $this->segments)) {
@@ -50,6 +53,10 @@ trait HandleWorkflowEvents
             $transaction = $this->inspector->transaction();
             $transaction->addContext('State', $data->state->all());
             $transaction->setResult('success');
+
+            if ($this->autoFlush) {
+                $this->inspector->flush();
+            }
         }
     }
 
