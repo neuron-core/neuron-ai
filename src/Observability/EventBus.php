@@ -19,6 +19,7 @@ class EventBus
 
     public static function observe(ObserverInterface $observer): void
     {
+        self::$initialized = true;
         self::$observers[] = $observer;
     }
 
@@ -33,9 +34,7 @@ class EventBus
     public static function emit(string $event, object $source, mixed $data = null): void
     {
         if (!self::$initialized) {
-            self::$initialized = true;
-            $observer = self::$defaultObserver ?? InspectorObserver::instance();
-            self::observe($observer);
+            self::observe(self::$defaultObserver ?? InspectorObserver::instance());
         }
 
         foreach (self::$observers as $observer) {
