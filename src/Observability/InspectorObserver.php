@@ -103,7 +103,7 @@ class InspectorObserver implements ObserverInterface
     /**
      * @throws InspectorException
      */
-    public static function instance(?string $key = null, ?string $transport = null): InspectorObserver
+    public static function instance(?string $key = null, ?string $transport = null, bool $autoFlush = false): InspectorObserver
     {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY'] ?? null);
         $configuration->setTransport($transport ?? $_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
@@ -115,7 +115,7 @@ class InspectorObserver implements ObserverInterface
         }
 
         if (!self::$instance instanceof InspectorObserver) {
-            self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
+            self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? $autoFlush ?: false);
         }
 
         return self::$instance;
