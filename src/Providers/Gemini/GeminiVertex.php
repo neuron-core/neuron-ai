@@ -8,8 +8,6 @@ use Google\Auth\Credentials\ServiceAccountCredentials;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
-use function time;
-
 class GeminiVertex extends Gemini
 {
     protected string $key = ''; // Not used for Vertex AI, but required by the parent
