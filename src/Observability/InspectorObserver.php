@@ -21,7 +21,6 @@ use NeuronAI\Workflow\WorkflowInterrupt;
 
 use function array_key_exists;
 use function array_map;
-use function explode;
 use function strrchr;
 use function substr;
 
