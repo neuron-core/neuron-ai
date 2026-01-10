@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use NeuronAI\Agent\Agent;
 use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
@@ -50,9 +51,14 @@ trait HandleWorkflowEvents
                 ->end()
                 ->addContext('State', $data->state->all());
         } elseif ($this->inspector->canAddSegments()) {
-            $transaction = $this->inspector->transaction();
+            $transaction = $this->inspector->transaction()->setResult('success');
             $transaction->addContext('State', $data->state->all());
-            $transaction->setResult('success');
+
+            if ($workflow instanceof Agent) {
+                foreach ($this->getAgentContext($workflow) as $key => $value) {
+                    $transaction->addContext($key, $value);
+                }
+            }
 
             if ($this->autoFlush) {
                 $this->inspector->flush();

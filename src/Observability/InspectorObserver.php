@@ -13,6 +13,10 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
 use Exception;
+use NeuronAI\Tools\ProviderToolInterface;
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\ToolPropertyInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
 
 use function array_key_exists;
@@ -29,7 +33,6 @@ use function substr;
  */
 class InspectorObserver implements ObserverInterface
 {
-    use HandleAgentEvents;
     use HandleToolEvents;
     use HandleRagEvents;
     use HandleInferenceEvents;
@@ -49,18 +52,12 @@ class InspectorObserver implements ObserverInterface
      */
     protected array $methodsMap = [
         'error' => 'reportError',
-        'chat-start' => 'start',
-        'chat-stop' => 'stop',
-        'stream-start' => 'start',
-        'stream-stop' => 'stop',
-        'structured-start' => 'start',
-        'structured-stop' => 'stop',
-        'chat-rag-start' => 'start',
-        'chat-rag-stop' => 'stop',
-        'stream-rag-start' => 'start',
-        'stream-rag-stop' => 'stop',
-        'structured-rag-start' => 'start',
-        'structured-rag-stop' => 'stop',
+
+        'workflow-start' => 'workflowStart',
+        'workflow-resume' => 'workflowStart',
+        'workflow-end' => 'workflowEnd',
+        'workflow-node-start' => 'workflowNodeStart',
+        'workflow-node-end' => 'workflowNodeEnd',
 
         'message-saving' => 'messageSaving',
         'message-saved' => 'messageSaved',
@@ -84,12 +81,6 @@ class InspectorObserver implements ObserverInterface
         'rag-preprocessed' => 'preProcessed',
         'rag-postprocessing' => 'postProcessing',
         'rag-postprocessed' => 'postProcessed',
-
-        'workflow-start' => 'workflowStart',
-        'workflow-resume' => 'workflowStart',
-        'workflow-end' => 'workflowEnd',
-        'workflow-node-start' => 'workflowNodeStart',
-        'workflow-node-end' => 'workflowNodeEnd',
     ];
 
     protected static ?InspectorObserver $instance = null;
@@ -148,11 +139,6 @@ class InspectorObserver implements ObserverInterface
         }
     }
 
-    public function getEventPrefix(string $event): string
-    {
-        return explode('-', $event)[0];
-    }
-
     protected function getBaseClassName(string $class): string
     {
         return substr(strrchr($class, '\\'), 1);
@@ -171,5 +157,33 @@ class InspectorObserver implements ObserverInterface
         }
 
         return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getAgentContext(Agent $agent): array
+    {
+        $mapTool = fn (ToolInterface $tool): array => [
+            $tool->getName() => [
+                'description' => $tool->getDescription(),
+                'properties' => array_map(
+                    fn (ToolPropertyInterface $property) => $property->jsonSerialize(),
+                    $tool->getProperties()
+                )
+            ]
+        ];
+
+        return [
+            'Agent' => [
+                'provider' => $agent->resolveProvider()::class,
+                'instructions' => $agent->resolveInstructions(),
+            ],
+            'Tools' => array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
+                $tool instanceof ToolInterface => $mapTool($tool),
+                $tool instanceof ToolkitInterface => [$tool::class => array_map($mapTool, $tool->tools())],
+                default => $tool->jsonSerialize(),
+            }, $agent->getTools()),
+        ];
     }
 }
