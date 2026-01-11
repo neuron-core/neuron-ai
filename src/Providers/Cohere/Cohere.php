@@ -11,6 +11,10 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
+use function array_replace_recursive;
+use function end;
+use function is_array;
+
 /**
  * https://docs.cohere.com/reference/chat
  */
