@@ -173,7 +173,7 @@ INSPECTOR_INGESTION_KEY=fwe45gtxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 After configuring the environment variable, you will see the agent execution timeline in your Inspector dashboard.
 
-![](./docs/images/neuron-observability.avif)
+[![](./docs/images/inspector.png)](https://inspector.dev)
 
 Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/advanced/observability).
 
@@ -190,11 +190,13 @@ Supported providers:
 - [Ollama](https://docs.neuron-ai.dev/components/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
 - [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike)
 - [Gemini](https://docs.neuron-ai.dev/components/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
+- [Gemini Vertex](https://docs.neuron-ai.dev/neuron-v3/agent/ai-provider#gemini-vertex-ai)
 - [Mistral](https://docs.neuron-ai.dev/components/ai-provider#mistral)
 - [HuggingFace](https://docs.neuron-ai.dev/components/ai-provider#huggingface)
 - [Deepseek](https://docs.neuron-ai.dev/components/ai-provider#deepseek)
 - [Grok](https://docs.neuron-ai.dev/components/ai-provider#grok-x-ai)
 - [AWS Bedrock Runtime](https://docs.neuron-ai.dev/components/ai-provider#aws-bedrock-runtime)
+- [Cohere](https://docs.neuron-ai.dev/neuron-v3/agent/ai-provider#cohere)
 
 <a name="tools">
 

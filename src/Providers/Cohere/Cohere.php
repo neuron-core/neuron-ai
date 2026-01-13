@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Cohere;
 
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+
+use function array_replace_recursive;
+use function end;
+use function is_array;
 
 /**
  * https://docs.cohere.com/reference/chat
@@ -44,5 +50,21 @@ class Cohere extends OpenAI
             uri: 'chat',
             body: $payload
         );
+    }
+
+    public function structured(Message|array $messages, string $class, array $response_format): Message
+    {
+        $this->parameters = array_replace_recursive($this->parameters, [
+            'response_format' => [
+                'type' => 'json_object',
+                'json_schema' => $response_format,
+            ]
+        ]);
+
+        $messages = is_array($messages) ? $messages : [$messages];
+        $message = end($messages);
+        $message->addContent(new TextContent('Generate a JSON'));
+
+        return $this->chat($messages);
     }
 }

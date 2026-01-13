@@ -24,7 +24,7 @@ class DatabasePersistence implements PersistenceInterface
         $stmt = $this->pdo->prepare("
             INSERT INTO {$this->table} (workflow_id, data, created_at, updated_at)
             VALUES (:id, :data, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE data = :data, updated_at = NOW()
+            ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()
         ");
 
         $stmt->execute([

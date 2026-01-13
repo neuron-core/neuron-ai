@@ -44,6 +44,9 @@ class MemoryVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function similaritySearch(array $embedding): array
     {
         $distances = [];
