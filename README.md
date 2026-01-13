@@ -190,6 +190,7 @@ Supported providers:
 - [Ollama](https://docs.neuron-ai.dev/components/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
 - [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike)
 - [Gemini](https://docs.neuron-ai.dev/components/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
+- [Gemini Vertex](https://docs.neuron-ai.dev/the-basics/ai-provider#gemini-vertex-ai)
 - [Mistral](https://docs.neuron-ai.dev/components/ai-provider#mistral)
 - [HuggingFace](https://docs.neuron-ai.dev/components/ai-provider#huggingface)
 - [Deepseek](https://docs.neuron-ai.dev/components/ai-provider#deepseek)
