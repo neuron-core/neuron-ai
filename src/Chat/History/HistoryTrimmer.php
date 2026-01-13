@@ -126,7 +126,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $lastCheckpoint = end($checkpoints);
         $total = $lastCheckpoint['cumulative'];
 
-        // Add estimation for tail (messages after last checkpoint)
+        // Add estimation for tail (messages after the last checkpoint)
         for ($i = $lastCheckpoint['index'] + 1; $i < $count; $i++) {
             $total += $this->tokenCounter->count($messages[$i]);
         }
@@ -163,7 +163,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
         }
 
-        // Tail overflow: trim at last checkpoint
+        // Tail overflow: trim at the last checkpoint
         $lastCheckpoint = end($checkpoints);
         return [
             'index' => $lastCheckpoint['index'] + 1,
@@ -201,7 +201,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Ensures the message list maintains valid conversation structure.
+     * Ensures the message list maintains a valid conversation structure.
      *
      * @param Message[] $messages
      * @return Message[]
@@ -230,7 +230,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return [];
         }
 
-        // Find first user message
+        // Find the first user message
         $firstUserIndex = null;
         foreach ($messages as $index => $message) {
             if ($message->getRole() === MessageRole::USER->value) {
