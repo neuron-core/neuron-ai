@@ -31,8 +31,10 @@ class DatabasePersistenceTest extends TestCase
             $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
         }
 
-        $this->pdo = new PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $this->pdo = new PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '', [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
         $this->pdo->exec("CREATE TABLE IF NOT EXISTS workflow_interrupts (
             workflow_id VARCHAR(255) PRIMARY KEY,
             data LONGBLOB NOT NULL,
@@ -232,6 +234,8 @@ class DatabasePersistenceTest extends TestCase
 
         $customPersistence->save($workflowId, $interrupt);
         $customPersistence->load($workflowId);
+
+        $this->expectNotToPerformAssertions();
 
         // Cleanup
         $this->pdo->exec("DROP TABLE {$customTable}");
