@@ -8,19 +8,38 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Chat\Messages\Usage;
 
 use function array_reduce;
 use function array_slice;
 use function count;
+use function end;
 use function in_array;
-use function intval;
+use function spl_object_hash;
 
+/**
+ * Trims chat history to fit within a context window using checkpoint-based calculation.
+ *
+ * Checkpoints are assistant messages with usage data. Their cumulative input_tokens + output_tokens
+ * gives us exact token counts at conversation turn boundaries. Trimming decisions use this
+ * authoritative data, falling back to estimation only when no checkpoints exist.
+ *
+ * This approach:
+ * - Never modifies original messages
+ * - Trims at natural conversation boundaries (after complete assistant responses)
+ * - Uses provider-reported token counts for accuracy
+ * - Preserves original usage data for other purposes (analytics, billing)
+ */
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
-    protected bool $distributed = false;
-
     protected int $totalTokens = 0;
+
+    /** @var array<int, array{index: int, cumulative: int}> */
+    protected array $cachedCheckpoints = [];
+    protected ?int $cachedCount = null;
+    protected ?string $cachedLastHash = null;
+
+    protected ?int $postTrimCount = null;
+    protected ?string $postTrimHash = null;
 
     public function __construct(
         protected TokenCounter $tokenCounter = new TokenCounter()
@@ -38,123 +57,178 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      */
     public function trim(array $messages, int $contextWindow): array
     {
-        $messages = $this->distributeUsageData($messages);
+        if ($messages === []) {
+            $this->totalTokens = 0;
+            return [];
+        }
 
-        $this->totalTokens = $this->tokenCount($messages);
+        $count = count($messages);
+        $hash = spl_object_hash($messages[$count - 1]);
 
-        // Early exit if all messages fit within the context window
+        // Check if this is the same post-trim message list (no new messages added).
+        // In this case, totalTokens is already accurate and checkpoints are stale.
+        if ($count === $this->postTrimCount && $hash === $this->postTrimHash) {
+            return $this->ensureValidMessageSequence($messages);
+        }
+
+        // New or modified message list - reset post-trim tracking
+        $this->postTrimCount = null;
+        $this->postTrimHash = null;
+
+        $checkpoints = $this->getCheckpoints($messages, $count, $hash);
+        $this->totalTokens = $this->calculateTotal($messages, $checkpoints, $count);
+
         if ($this->totalTokens <= $contextWindow) {
             return $this->ensureValidMessageSequence($messages);
         }
 
-        $skipIndex = $this->trimIndex($messages, $contextWindow);
+        $trimPoint = $this->findTrimPoint($messages, $checkpoints, $contextWindow);
 
-        if ($skipIndex > 0) {
-            $messages = array_slice($messages, $skipIndex);
+        if ($trimPoint['index'] > 0) {
+            $messages = array_slice($messages, $trimPoint['index']);
+            $this->totalTokens -= $trimPoint['cumulative'];
+
+            // Mark post-trim state so subsequent calls preserve totalTokens
+            $newCount = count($messages);
+            $this->postTrimCount = $newCount;
+            $this->postTrimHash = $newCount > 0 ? spl_object_hash($messages[$newCount - 1]) : null;
         }
 
+        $beforeValidation = count($messages);
         $messages = $this->ensureValidMessageSequence($messages);
 
-        // Update total tokens after trimming
-        $this->totalTokens = $this->tokenCount($messages);
+        // If validation removed additional messages, fall back to estimation
+        if (count($messages) < $beforeValidation) {
+            $this->totalTokens = $this->estimateTokens($messages);
+        }
 
         return $messages;
     }
 
     /**
-     * This implementation expects messages to have usage information with a single message contribution.
-     * It assumes "distributeUsageData" was already executed on incoming messages.
-     *
-     * Otherwise, fallback to token count estimation.
+     * Build checkpoints from assistant messages with usage data.
      *
      * @param Message[] $messages
+     * @return array<int, array{index: int, cumulative: int}>
      */
-    protected function tokenCount(array $messages): int
+    protected function getCheckpoints(array $messages, int $count, string $hash): array
     {
-        return array_reduce($messages, function (int $carry, Message $message): int {
-            if ($this->distributed) {
-                return $carry + $message->getUsage()?->getTotal() ?: $this->tokenCounter->count($message);
-            }
+        if ($count === $this->cachedCount && $hash === $this->cachedLastHash) {
+            return $this->cachedCheckpoints;
+        }
 
-            // Fallback to token count estimation
-            return $carry + $this->tokenCounter->count($message);
-        }, 0);
-    }
+        $checkpoints = [];
 
-    /**
-     * User messages will only have input_tokens
-     * Assistant messages will only have output_tokens
-     *
-     * @param Message[] $messages
-     * @return Message[]
-     */
-    protected function distributeUsageData(array $messages): array
-    {
-        $pendingUserMessage = null;
-        $count = count($messages);
-
-        for ($i = 0; $i < $count; $i++) {
-            $message = $messages[$i];
-
-            /*
-             * If messages are already calculated, they are skipped. So new messages can be distrubuted correctly.
-             */
-            if ($message->getRole() === MessageRole::USER->value && $message->getUsage() === null) {
-                $pendingUserMessage = $message;
-                continue;
-            }
-
+        foreach ($messages as $index => $message) {
             if (
                 $message->getRole() === MessageRole::ASSISTANT->value &&
-                $message->getUsage() !== null &&
-                $pendingUserMessage !== null
+                ($usage = $message->getUsage()) !== null
             ) {
-                $partial = $this->tokenCount(array_slice($messages, 0, $i));
-                $pendingUserMessage->setUsage(
-                    new Usage(
-                        $message->getUsage()->inputTokens - $partial,
-                        0
-                    )
-                );
-                $message->getUsage()->inputTokens = 0;
-                $pendingUserMessage = null;
+                $checkpoints[] = [
+                    'index' => $index,
+                    'cumulative' => $usage->inputTokens + $usage->outputTokens,
+                ];
             }
         }
 
-        $this->distributed = true;
+        $this->cachedCount = $count;
+        $this->cachedLastHash = $hash;
+        $this->cachedCheckpoints = $checkpoints;
 
-        return $messages;
+        return $checkpoints;
     }
 
     /**
-     * Binary search to find how many messages to skip from the beginning
+     * Calculate total tokens from checkpoints or estimation.
+     *
+     * @param Message[] $messages
+     * @param array<int, array{index: int, cumulative: int}> $checkpoints
      */
-    protected function trimIndex(array $messages, int $contextWindow): int
+    protected function calculateTotal(array $messages, array $checkpoints, int $count): int
     {
-        $left = 0;
-        $right = count($messages);
-
-        while ($left < $right) {
-            $mid = intval(($left + $right) / 2);
-            $subset = array_slice($messages, $mid);
-
-            if ($this->tokenCount($subset) <= $contextWindow) {
-                // Fits! Try including more messages (skip fewer)
-                $right = $mid;
-            } else {
-                // Doesn't fit! Need to skip more messages
-                $left = $mid + 1;
-            }
+        if ($checkpoints === []) {
+            return $this->estimateTokens($messages);
         }
 
-        return $left;
+        $lastCheckpoint = end($checkpoints);
+        $total = $lastCheckpoint['cumulative'];
+
+        // Add estimation for tail (messages after last checkpoint)
+        for ($i = $lastCheckpoint['index'] + 1; $i < $count; $i++) {
+            $total += $this->tokenCounter->count($messages[$i]);
+        }
+
+        return $total;
     }
 
     /**
-     * Ensures the message list:
-     * 1. Starts with a UserMessage
-     * 2. Ends with an AssistantMessage
-     * 3. Maintains tool call/result pairs
+     * Find the trim point (index and cumulative tokens to subtract).
+     *
+     * @param Message[] $messages
+     * @param array<int, array{index: int, cumulative: int}> $checkpoints
+     * @return array{index: int, cumulative: int}
+     */
+    protected function findTrimPoint(array $messages, array $checkpoints, int $contextWindow): array
+    {
+        if ($checkpoints === []) {
+            $index = $this->findTrimIndexByEstimation($messages, $contextWindow);
+            $trimmedTokens = 0;
+            for ($i = 0; $i < $index; $i++) {
+                $trimmedTokens += $this->tokenCounter->count($messages[$i]);
+            }
+            return ['index' => $index, 'cumulative' => $trimmedTokens];
+        }
+
+        $threshold = $this->totalTokens - $contextWindow;
+
+        foreach ($checkpoints as $checkpoint) {
+            if ($checkpoint['cumulative'] >= $threshold) {
+                return [
+                    'index' => $checkpoint['index'] + 1,
+                    'cumulative' => $checkpoint['cumulative'],
+                ];
+            }
+        }
+
+        // Tail overflow: trim at last checkpoint
+        $lastCheckpoint = end($checkpoints);
+        return [
+            'index' => $lastCheckpoint['index'] + 1,
+            'cumulative' => $lastCheckpoint['cumulative'],
+        ];
+    }
+
+    /**
+     * @param Message[] $messages
+     */
+    protected function findTrimIndexByEstimation(array $messages, int $contextWindow): int
+    {
+        $runningTotal = 0;
+
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            $runningTotal += $this->tokenCounter->count($messages[$i]);
+            if ($runningTotal > $contextWindow) {
+                return $i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param Message[] $messages
+     */
+    protected function estimateTokens(array $messages): int
+    {
+        return array_reduce(
+            $messages,
+            fn (int $carry, Message $message): int => $carry + $this->tokenCounter->count($message),
+            0
+        );
+    }
+
+    /**
+     * Ensures the message list maintains valid conversation structure.
      *
      * @param Message[] $messages
      * @return Message[]
@@ -165,62 +239,26 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return [];
         }
 
-        // Drop leading tool_call / tool_call_result messages
-        $messages = $this->dropLeadingToolMessages($messages);
-
-        if ($messages === []) {
-            return [];
-        }
-
-        // Ensure it starts with a UserMessage
-        $messages = $this->ensureStartsWithUser($messages);
-
-        if ($messages === []) {
-            return [];
-        }
-
-        // Ensure it ends with an AssistantMessage
-        return $this->ensureValidAlternation($messages);
-    }
-
-    /**
-     * Drops all leading ToolCallMessage / ToolCallResultMessage from the history.
-     *
-     * @param Message[] $messages
-     * @return Message[]
-     */
-    protected function dropLeadingToolMessages(array $messages): array
-    {
+        // Drop leading tool messages
         $start = 0;
-
         foreach ($messages as $index => $message) {
             if ($message instanceof ToolCallMessage || $message instanceof ToolResultMessage) {
                 $start = $index + 1;
                 continue;
             }
-
-            // First non-tool message reached, stop advancing
             break;
         }
 
         if ($start > 0) {
-            return array_slice($messages, $start);
+            $messages = array_slice($messages, $start);
         }
 
-        return $messages;
-    }
+        if ($messages === []) {
+            return [];
+        }
 
-    /**
-     * Ensures the message list starts with a UserMessage.
-     *
-     * @param Message[] $messages
-     * @return Message[]
-     */
-    protected function ensureStartsWithUser(array $messages): array
-    {
-        // Find the first UserMessage
+        // Find first user message
         $firstUserIndex = null;
-
         foreach ($messages as $index => $message) {
             if ($message->getRole() === MessageRole::USER->value) {
                 $firstUserIndex = $index;
@@ -229,25 +267,17 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         }
 
         if ($firstUserIndex === null) {
-            // No UserMessage found
             return [];
         }
 
-        if ($firstUserIndex === 0) {
-            return $messages;
-        }
-
         if ($firstUserIndex > 0) {
-            // Remove messages before the first user message
-            return array_slice($messages, $firstUserIndex);
+            $messages = array_slice($messages, $firstUserIndex);
         }
 
-        return $messages;
+        return $this->ensureValidAlternation($messages);
     }
 
     /**
-     * Ensures valid alternation between user and assistant messages.
-     *
      * @param Message[] $messages
      * @return Message[]
      */
@@ -256,31 +286,25 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $result = [];
         $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
         $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
-        $expectingRoles = $userRoles; // Should start with user
+        $expectingRoles = $userRoles;
 
         foreach ($messages as $message) {
-            $messageRole = $message->getRole();
+            $role = $message->getRole();
 
-            // Tool result messages have a special case - they're user messages
-            // but can only follow tool call messages (assistant)
-            // This is valid after a ToolCallMessage
-            if ($message instanceof ToolResultMessage && ($result !== [] && $result[count($result) - 1] instanceof ToolCallMessage)) {
+            if (
+                $message instanceof ToolResultMessage &&
+                $result !== [] &&
+                $result[count($result) - 1] instanceof ToolCallMessage
+            ) {
                 $result[] = $message;
-                // After the tool result, we expect assistant again
                 $expectingRoles = $assistantRoles;
                 continue;
             }
 
-            // Check if this message has the expected role
-            if (in_array($messageRole, $expectingRoles, true)) {
+            if (in_array($role, $expectingRoles, true)) {
                 $result[] = $message;
-                // Toggle the expected role
-                $expectingRoles = ($expectingRoles === $userRoles)
-                    ? $assistantRoles
-                    : $userRoles;
+                $expectingRoles = ($expectingRoles === $userRoles) ? $assistantRoles : $userRoles;
             }
-            // If not the expected role, we have an invalid alternation
-            // Skip this message to maintain a valid sequence
         }
 
         return $result;

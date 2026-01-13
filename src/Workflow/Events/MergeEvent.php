@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Workflow\Events;
 
 class MergeEvent implements Event

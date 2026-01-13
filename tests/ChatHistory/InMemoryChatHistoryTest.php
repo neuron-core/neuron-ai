@@ -143,7 +143,9 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
-        // Add several regular messages that exceed the context window
+        // Add several regular messages that exceed the context window.
+        // Assistant messages have cumulative usage: (200,150), (400,150), (600,150), (800,150), (1000,150)
+        // These represent checkpoint cumulative values: 350, 550, 750, 950, 1150
         for ($i = 1; $i <= 10; $i++) {
             $message = $i % 2 === 0
                 ? (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100 * $i, 150))
@@ -151,9 +153,13 @@ class InMemoryChatHistoryTest extends TestCase
             $this->chatHistory->addMessage($message);
         }
 
-        // With the context window of 1000, we should have fewer than 5 messages
+        // With context window of 1000 and total of 1150:
+        // - Threshold = 1150 - 1000 = 150
+        // - First checkpoint >= 150 is 350 (at index 1)
+        // - Trim at index 2, keeping 8 messages
+        // - Remaining tokens = 1150 - 350 = 800
         $this->assertCount(8, $this->chatHistory->getMessages());
-        $this->assertEquals(825, $this->chatHistory->calculateTotalUsage());
+        $this->assertEquals(800, $this->chatHistory->calculateTotalUsage());
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
