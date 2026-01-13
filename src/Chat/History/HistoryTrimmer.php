@@ -18,16 +18,7 @@ use function spl_object_hash;
 
 /**
  * Trims chat history to fit within a context window using checkpoint-based calculation.
- *
- * Checkpoints are assistant messages with usage data. Their cumulative input_tokens + output_tokens
- * gives us exact token counts at conversation turn boundaries. Trimming decisions use this
- * authoritative data, falling back to estimation only when no checkpoints exist.
- *
- * This approach:
- * - Never modifies original messages
- * - Trims at natural conversation boundaries (after complete assistant responses)
- * - Uses provider-reported token counts for accuracy
- * - Preserves original usage data for other purposes (analytics, billing)
+ * Checkpoints are assistant messages with usage data.
  */
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
@@ -37,9 +28,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     protected array $cachedCheckpoints = [];
     protected ?int $cachedCount = null;
     protected ?string $cachedLastHash = null;
-
-    protected ?int $postTrimCount = null;
-    protected ?string $postTrimHash = null;
 
     public function __construct(
         protected TokenCounter $tokenCounter = new TokenCounter()
@@ -65,16 +53,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $count = count($messages);
         $hash = spl_object_hash($messages[$count - 1]);
 
-        // Check if this is the same post-trim message list (no new messages added).
-        // In this case, totalTokens is already accurate and checkpoints are stale.
-        if ($count === $this->postTrimCount && $hash === $this->postTrimHash) {
-            return $this->ensureValidMessageSequence($messages);
-        }
-
-        // New or modified message list - reset post-trim tracking
-        $this->postTrimCount = null;
-        $this->postTrimHash = null;
-
         $checkpoints = $this->getCheckpoints($messages, $count, $hash);
         $this->totalTokens = $this->calculateTotal($messages, $checkpoints, $count);
 
@@ -87,11 +65,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         if ($trimPoint['index'] > 0) {
             $messages = array_slice($messages, $trimPoint['index']);
             $this->totalTokens -= $trimPoint['cumulative'];
-
-            // Mark post-trim state so subsequent calls preserve totalTokens
-            $newCount = count($messages);
-            $this->postTrimCount = $newCount;
-            $this->postTrimHash = $newCount > 0 ? spl_object_hash($messages[$newCount - 1]) : null;
         }
 
         $beforeValidation = count($messages);

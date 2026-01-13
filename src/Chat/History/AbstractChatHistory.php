@@ -120,7 +120,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function calculateTotalUsage(): int
     {
-        $this->trimHistory();
         return $this->trimmer->getTotalTokens();
     }
 
