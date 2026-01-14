@@ -77,7 +77,10 @@ trait HandleStream
             }
 
             // Save usage information
-            if (array_key_exists('usageMetadata', $line)) {
+            if (array_key_exists('usageMetadata', $line) &&
+                array_key_exists('promptTokenCount', $line['usageMetadata']) &&
+                array_key_exists('candidatesTokenCount', $line['usageMetadata'])
+            ) {
                 $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
                 $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
             }
