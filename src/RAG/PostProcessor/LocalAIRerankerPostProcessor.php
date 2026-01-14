@@ -11,6 +11,7 @@ use NeuronAI\RAG\Document;
 
 use function array_map;
 use function json_decode;
+use function trim;
 
 class LocalAIRerankerPostProcessor implements PostProcessorInterface
 {
@@ -43,7 +44,7 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
                 'model' => $this->model,
                 'query' => $question->getContent(),
                 'top_n' => $this->topN,
-                'documents' => array_map(fn(Document $document): string => $document->getContent(), $documents),
+                'documents' => array_map(fn (Document $document): string => $document->getContent(), $documents),
             ],
         ])->getBody()->getContents();
 
