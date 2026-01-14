@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\PostProcessor;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -15,7 +13,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
 use function array_map;
-use function json_decode;
+use function trim;
 
 class JinaRerankerPostProcessor implements PostProcessorInterface
 {

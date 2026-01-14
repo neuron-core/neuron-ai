@@ -9,7 +9,6 @@ use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
 use PHPUnit\Framework\TestCase;
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;

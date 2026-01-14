@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\PostProcessor;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -15,7 +13,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
 use function array_map;
-use function json_decode;
+use function trim;
 
 class LocalAIRerankerPostProcessor implements PostProcessorInterface
 {
@@ -49,7 +47,7 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
                     'model' => $this->model,
                     'query' => $question->getContent(),
                     'top_n' => $this->topN,
-                    'documents' => array_map(fn(Document $document): string => $document->getContent(), $documents),
+                    'documents' => array_map(fn (Document $document): string => $document->getContent(), $documents),
                 ]
             )
         )->json();
