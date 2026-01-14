@@ -1,12 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\RAG\PostProcessor;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Document;
-use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
+
+use function array_map;
+use function json_decode;
 
 class LocalAIRerankerPostProcessor implements PostProcessorInterface
 {
@@ -17,15 +21,13 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
         protected string $model = 'cross-encoder',
         protected int    $topN = 3,
         protected string $host = 'http://localhost:8080/v1/'
-    )
-    {
+    ) {
     }
 
     protected function getClient(): Client
     {
-
         return $this->client ?? $this->client = new Client([
-            'base_uri' => $this->host,
+            'base_uri' => trim($this->host, '/').'/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -41,13 +43,13 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
                 'model' => $this->model,
                 'query' => $question->getContent(),
                 'top_n' => $this->topN,
-                'documents' => \array_map(function (Document $document) {return $document->getContent();}, $documents),
+                'documents' => array_map(fn(Document $document): string => $document->getContent(), $documents),
             ],
         ])->getBody()->getContents();
 
-        $result = \json_decode($response, true);
+        $result = json_decode($response, true);
 
-        return \array_map(function (array $item) use ($documents): Document {
+        return array_map(function (array $item) use ($documents): Document {
             $document = $documents[$item['index']];
             $document->setScore($item['relevance_score']);
             return $document;
@@ -59,5 +61,4 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
         $this->client = $client;
         return $this;
     }
-
 }
