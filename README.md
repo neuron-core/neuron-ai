@@ -188,7 +188,7 @@ Supported providers:
 - [OpenAI](https://docs.neuron-ai.dev/components/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
 - [OpenAI on Azure](https://docs.neuron-ai.dev/components/ai-provider#azureopenai)
 - [Ollama](https://docs.neuron-ai.dev/components/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
-- [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike)
+- [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike) (OpenAI compatible APIs)
 - [Gemini](https://docs.neuron-ai.dev/components/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
 - [Gemini Vertex](https://docs.neuron-ai.dev/neuron-v3/agent/ai-provider#gemini-vertex-ai)
 - [Mistral](https://docs.neuron-ai.dev/components/ai-provider#mistral)
