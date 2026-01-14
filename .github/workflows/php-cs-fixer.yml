@@ -24,10 +24,8 @@ jobs:
             - name: Install dependencies
               run: composer install --no-progress --prefer-dist
 
-            - name: Run PHP-CS-Fixer
+            # This will fail the CI if code is not formatted,
+            # showing the user exactly what is wrong in the logs.
+            - name: Check PHP-CS-Fixer
               run: |
-                  ./vendor/bin/php-cs-fixer fix --allow-risky=yes
-
-            - uses: stefanzweifel/git-auto-commit-action@v5
-              with:
-                  commit_message: Apply PHP-CS-Fixer changes
+                  ./vendor/bin/php-cs-fixer fix --dry-run --diff --allow-risky=yes
