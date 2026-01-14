@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\PostProcessor;
 
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
 use PHPUnit\Framework\TestCase;
@@ -37,9 +38,7 @@ class JinaRerankerPostProcessorTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-
-        $postProcessor = (new JinaRerankerPostProcessor(''))->setClient($client);
+        $postProcessor = (new JinaRerankerPostProcessor(key: '', httpClient: new GuzzleHttpClient(handler: $stack)));
 
         $question = new UserMessage("What is the capital of Italy?");
         $documents = [
@@ -75,9 +74,12 @@ class JinaRerankerPostProcessorTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-
-        $postProcessor = (new JinaRerankerPostProcessor('', 'jina-reranker-v2-base-multilingual', 2))->setClient($client);
+        $postProcessor = (new JinaRerankerPostProcessor(
+            key: '',
+            model: 'jina-reranker-v2-base-multilingual',
+            topN: 2,
+            httpClient: new GuzzleHttpClient(handler: $stack)
+        ));
 
         $question = new UserMessage("What is the capital of Italy?");
         $documents = [

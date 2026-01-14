@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\PostProcessor;
 
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\CohereRerankerPostProcessor;
 use PHPUnit\Framework\TestCase;
@@ -47,9 +48,7 @@ class CohereRerankerPostProcessorTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-
-        $postProcessor = (new CohereRerankerPostProcessor(''))->setClient($client);
+        $postProcessor = (new CohereRerankerPostProcessor(key: '', httpClient: new GuzzleHttpClient(handler: $stack)));
 
         $question = new UserMessage("What is the capital of Italy?");
         $documents = [
@@ -97,9 +96,12 @@ class CohereRerankerPostProcessorTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $client = new Client(['handler' => $stack]);
-
-        $postProcessor = (new CohereRerankerPostProcessor('', 'rerank-v3.5', 2))->setClient($client);
+        $postProcessor = (new CohereRerankerPostProcessor(
+            key: '',
+            model: 'rerank-v3.5',
+            topN: 2,
+            httpClient: new GuzzleHttpClient(handler: $stack)
+        ));
 
         $question = new UserMessage("What is the capital of Italy?");
         $documents = [
