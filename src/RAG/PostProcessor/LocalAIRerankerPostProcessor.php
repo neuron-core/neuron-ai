@@ -17,15 +17,15 @@ use NeuronAI\RAG\Document;
 use function array_map;
 use function json_decode;
 
-class CohereRerankerPostProcessor implements PostProcessorInterface
+class LocalAIRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
 
     public function __construct(
         protected string $key,
-        protected string $model = 'rerank-v3.5',
-        protected int $topN = 3,
-        string $host = 'https://api.cohere.com/v2/',
+        protected string $model = 'cross-encoder',
+        protected int    $topN = 3,
+        protected string $host = 'http://localhost:8080/v1/',
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
@@ -47,9 +47,9 @@ class CohereRerankerPostProcessor implements PostProcessorInterface
                 uri: 'rerank',
                 body: [
                     'model' => $this->model,
-                    'query' => $question->getContentBlocks(),
+                    'query' => $question->getContent(),
                     'top_n' => $this->topN,
-                    'documents' => array_map(fn (Document $document): string => $document->getContent(), $documents),
+                    'documents' => array_map(fn(Document $document): string => $document->getContent(), $documents),
                 ]
             )
         )->json();
