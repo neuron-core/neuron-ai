@@ -21,14 +21,14 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
         protected string $key,
         protected string $model = 'cross-encoder',
         protected int    $topN = 3,
-        protected string $host = 'http://localhost:8080/v1/'
+        protected string $host = 'http://localhost:8080'
     ) {
     }
 
     protected function getClient(): Client
     {
         return $this->client ?? $this->client = new Client([
-            'base_uri' => trim($this->host, '/').'/',
+            'base_uri' => trim($this->host, '/').'/v1/',
             'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
