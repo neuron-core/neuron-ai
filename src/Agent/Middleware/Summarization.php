@@ -36,8 +36,8 @@ class Summarization implements WorkflowMiddleware
     public $tokenCounter;
     public function __construct(
         protected AIProviderInterface $provider,
-        protected int $maxTokens = 30000,
-        protected int $messagesToKeep = 10,
+        protected int $maxTokens = 50000,
+        protected int $messagesToKeep = 5,
         protected ?string $summaryPrompt = null,
     ) {
     }
