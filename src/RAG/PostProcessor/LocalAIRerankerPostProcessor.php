@@ -23,11 +23,11 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
         protected string $key,
         protected string $model = 'cross-encoder',
         protected int    $topN = 3,
-        protected string $host = 'http://localhost:8080/v1/',
+        protected string $host = 'http://localhost:8080/',
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($host, '/').'/')
+            ->withBaseUri(trim($host, '/').'/v1/')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
