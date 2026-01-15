@@ -30,10 +30,6 @@ use function strtoupper;
 
 class Summarization implements WorkflowMiddleware
 {
-    /**
-     * @var callable
-     */
-    public $tokenCounter;
     public function __construct(
         protected AIProviderInterface $provider,
         protected int $maxTokens = 50000,
@@ -319,17 +315,6 @@ PROMPT;
     public function setSummaryPrompt(string $prompt): self
     {
         $this->summaryPrompt = $prompt;
-        return $this;
-    }
-
-    /**
-     * Set a custom token counter function.
-     *
-     * @param callable $counter Function that takes Message[] and returns int
-     */
-    public function setTokenCounter(callable $counter): self
-    {
-        $this->tokenCounter = $counter;
         return $this;
     }
 }
