@@ -36,14 +36,14 @@ https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 Neuron is the perfect AI branch of your favorite framework.
 
 ## Laravel
-Neuron offers a well-defined encapsulation pattern, allowing you to work on your AI components in a dedicated namespace.
-You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, Nova, Horizon, Pennant, etc.
+Neuron offers a well-defined encapsulation pattern, allowing you to work on your agentic system in dedicated namespaces.
+You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, or Nova.
 
 [Example project (GitHub)](https://github.com/neuron-core/laravel-travel-agent)
 
 ## Symfony
 
-All Neuron components belong to its own interface, so you can easily define dependencies and automate objects creation
+All Neuron components belong to its own interface, so you can define dependencies and automate objects creation
 using the Symfony service container. Watch how it works in a real project.
 
 [Symfony & Neuron (YouTube)](https://www.youtube.com/watch?v=JWRlcaGnsXw)
@@ -67,7 +67,7 @@ using the Symfony service container. Watch how it works in a real project.
 
 ## Install
 
-Install the latest version of the package:
+Install the latest version via composer:
 
 ```
 composer require neuron-core/neuron-ai
@@ -79,7 +79,7 @@ composer require neuron-core/neuron-ai
 
 Neuron provides you with the Agent class you can extend to inherit the main features of the framework
 and create fully functional agents. This class automatically manages some advanced mechanisms for you, such as memory,
-tools and function calls, up to the RAG systems. You can go deeper into these aspects in the [documentation](https://docs.neuron-ai.dev).
+tools, and function calls, up to RAG (Retrieval Augmented Generation). You can go deeper into these aspects in the [documentation](https://docs.neuron-ai.dev).
 
 Let's create an Agent with the command below:
 
@@ -125,7 +125,7 @@ reducing the effort for prompt engineering.
 
 ## Talk to the Agent
 
-Send a prompt to the agent to get a response from the underlying LLM:
+Send a message to the agent to get a response from the underlying LLM:
 
 ```php
 
@@ -152,8 +152,8 @@ As you can see in the example above, the Agent has memory of the ongoing convers
 
 ## Monitoring & Debugging
 
-Integrating AI Agents into your application you’re not working only with functions and deterministic code,
-you program your agent also influencing probability distributions. Same input ≠ output.
+Integrating AI Agents into your application, you’re not working only with functions and deterministic code,
+you program your agent influencing probability distributions. Same input ≠ output.
 That means reproducibility, versioning, and debugging become real problems.
 
 Many of the Agents you build with Neuron will contain multiple steps with multiple invocations of LLM calls,
@@ -308,7 +308,7 @@ Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev
 
 ## Structured Output
 There are scenarios where you need Agents to understand natural language, but output in a structured format, like
-business processes automation, data extraction, etc. to use the output with some other downstream system.
+business processes automation, data extraction, etc. to use the output with other downstream systems.
 
 ```php
 use App\Neuron\MyAgent;
@@ -327,7 +327,9 @@ class Person
     public string $preference;
 }
 
-// Talk to the agent requiring the structured output
+/*
+ * Talk to the agent requiring the structured output
+ */
 $person = MyAgent::make()->structured(
     new UserMessage("I'm John and I like pizza!"),
     Person::class
@@ -343,7 +345,7 @@ Learn more about Structured Output on the [documentation](https://docs.neuron-ai
 
 ## RAG
 
-To create a RAG you need to attach some additional components other than the AI provider, such as a `vector store`,
+To create a RAG, you need to attach some additional components other than the AI provider, such as a `vector store`,
 and an `embeddings provider`.
 
 Let's create a RAG with the command below:
@@ -401,8 +403,8 @@ Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/getting-s
 
 ## Workflow
 Think of a Workflow as a smart flowchart for your AI applications. The idea behind Workflow is to allow developers
-to use all the Neuron components like AI providers, embeddings, data loaders, chat history, vector store, etc,
-as standalone components to create totally customized agentic entities.
+to use all the Neuron components like AI providers, embeddings, data loaders, chat history, vector store, etc.,
+as standalone components to create totally customized agentic systems.
 
 Agent and RAG classes represent a ready to use implementation of the most common patterns when it comes
 to retrieval use cases, or tool calls, structured output, etc. Workflow allows you to program your
