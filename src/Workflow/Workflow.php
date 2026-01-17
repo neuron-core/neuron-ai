@@ -8,6 +8,8 @@ use Generator;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
+use NeuronAI\Observability\Events\MiddlewareEnd;
+use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
@@ -152,11 +154,15 @@ class Workflow implements WorkflowInterface
 
     /**
      * Run before() middleware methods.
+     *
+     * @throws Throwable
      */
     protected function runBeforeMiddleware(Event $event, NodeInterface $node, WorkflowState $state): void
     {
         foreach ($this->getMiddlewareForNode($node) as $m) {
+            EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event));
             $m->before($node, $event, $state);
+            EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m));
         }
     }
 
@@ -165,11 +171,15 @@ class Workflow implements WorkflowInterface
      *
      * Called after the node execution completes and, for streaming nodes,
      * after the generator is fully consumed.
+     *
+     * @throws Throwable
      */
     protected function runAfterMiddleware(Event $result, NodeInterface $node, WorkflowState $state): void
     {
         foreach ($this->getMiddlewareForNode($node) as $m) {
+            EventBus::emit('middleware-after-start', $this, new MiddlewareStart($m, $result));
             $m->after($node, $result, $state);
+            EventBus::emit('middleware-after-end', $this, new MiddlewareEnd($m));
         }
     }
 

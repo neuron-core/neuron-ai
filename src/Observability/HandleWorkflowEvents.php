@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Observability\Events\MiddlewareEnd;
+use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
@@ -17,6 +19,7 @@ use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_values;
+use function str_contains;
 
 trait HandleWorkflowEvents
 {
@@ -75,7 +78,7 @@ trait HandleWorkflowEvents
         $segment = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($data->node))
             ->setColor(self::STANDARD_COLOR);
-        $segment->addContext('Before', $data->state->all());
+        $segment->addContext('State Before', $data->state->all());
         $this->segments[$data->node] = $segment;
     }
 
@@ -83,7 +86,32 @@ trait HandleWorkflowEvents
     {
         if (array_key_exists($data->node, $this->segments)) {
             $segment = $this->segments[$data->node]->end();
-            $segment->addContext('After', $data->state->all());
+            $segment->addContext('State After', $data->state->all());
+        }
+    }
+
+    public function middlewareStart(object $workflow, string $event, MiddlewareStart $data): void
+    {
+        if (!$this->inspector->canAddSegments()) {
+            return;
+        }
+
+        $class = $data->middleware::class;
+        $action = str_contains($event, 'before') ? 'before' : 'after';
+
+        $segment = $this->inspector
+            ->startSegment(self::SEGMENT_TYPE.'.middleware', $this->getBaseClassName($class)."::{$action}()")
+            ->setColor(self::STANDARD_COLOR);
+        $segment->addContext('Event', $data->event);
+        $this->segments[$class] = $segment;
+    }
+
+    public function middlewareEnd(object $workflow, string $event, MiddlewareEnd $data): void
+    {
+        $class = $data->middleware::class;
+
+        if (array_key_exists($class, $this->segments)) {
+            $this->segments[$class]->end();
         }
     }
 }

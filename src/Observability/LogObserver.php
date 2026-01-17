@@ -15,6 +15,10 @@ use NeuronAI\Observability\Events\InstructionsChanged;
 use NeuronAI\Observability\Events\InstructionsChanging;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
+use NeuronAI\Observability\Events\MiddlewareEnd;
+use NeuronAI\Observability\Events\MiddlewareStart;
+use NeuronAI\Observability\Events\MiddlewareBeforeEnd;
+use NeuronAI\Observability\Events\MiddlewareBeforeStart;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\Observability\Events\PreProcessed;
@@ -46,13 +50,14 @@ use function is_object;
 class LogObserver implements ObserverInterface
 {
     public function __construct(
-        private readonly LoggerInterface $logger
+        protected readonly LoggerInterface $logger,
+        protected string $level = LogLevel::INFO
     ) {
     }
 
     public function onEvent(string $event, object $source, mixed $data = null): void
     {
-        $this->logger->log(LogLevel::INFO, $event, $this->serializeData($data));
+        $this->logger->log($this->level, $event, $this->serializeData($data));
     }
 
     /**
@@ -147,15 +152,22 @@ class LogObserver implements ObserverInterface
                 'question' => $data->question->jsonSerialize(),
                 'documents' => $data->documents,
             ],
-            WorkflowStart::class => array_map(fn (string $eventClass, NodeInterface $node): array => [
-                $eventClass => $node::class,
-            ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)),
             WorkflowNodeStart::class => [
                 'node' => $data->node,
             ],
             WorkflowNodeEnd::class => [
                 'node' => $data->node,
             ],
+            MiddlewareStart::class => [
+                'class' => $data->middleware::class,
+                'node-event' => $data->event::class,
+            ],
+            MiddlewareEnd::class => [
+                'class' => $data->middleware::class,
+            ],
+            WorkflowStart::class => array_map(fn (string $eventClass, NodeInterface $node): array => [
+                $eventClass => $node::class,
+            ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)),
             WorkflowEnd::class => [
                 'state' => $data->state->all(),
             ],

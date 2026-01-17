@@ -57,6 +57,10 @@ class InspectorObserver implements ObserverInterface
         'workflow-end' => 'workflowEnd',
         'workflow-node-start' => 'workflowNodeStart',
         'workflow-node-end' => 'workflowNodeEnd',
+        'middleware-after-start' => 'middlewareStart',
+        'middleware-after-end' => 'middlewareEnd',
+        'middleware-before-start' => 'middlewareStart',
+        'middleware-before-end' => 'middlewareEnd',
 
         'message-saving' => 'messageSaving',
         'message-saved' => 'messageSaved',
@@ -96,19 +100,24 @@ class InspectorObserver implements ObserverInterface
     public static function instance(
         ?string $key = null,
         ?string $transport = null,
-        bool $autoFlush = false
+        bool $autoFlush = false,
+        bool $splitMonitoring = false,
     ): InspectorObserver {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY'] ?? null);
         $configuration->setTransport($transport ?? $_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
         $configuration->setMaxItems((int) ($_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems()));
 
-        // Split monitoring between agents and workflows.
-        if (isset($_ENV['NEURON_SPLIT_MONITORING'])) {
-            return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? false);
+        /*
+         * Split monitoring between agents and workflows.
+         * Since the event bus is static, $instance will be shared between agents and workflows.
+         * Splitting monitoring, we drop its usage in favor of a dedicated instance for each class.
+         */
+        if (isset($_ENV['NEURON_SPLIT_MONITORING']) || $splitMonitoring) {
+            return new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? $autoFlush);
         }
 
         if (!self::$instance instanceof InspectorObserver) {
-            self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? $autoFlush ?: false);
+            self::$instance = new self(new Inspector($configuration), $_ENV['NEURON_AUTOFLUSH'] ?? $autoFlush);
         }
 
         return self::$instance;
@@ -139,11 +148,6 @@ class InspectorObserver implements ObserverInterface
         if ($data->exception instanceof WorkflowInterrupt) {
             $this->inspector->transaction()->addContext("Interrupt", $data->exception->getRequest()->jsonSerialize());
         }
-    }
-
-    protected function getBaseClassName(string $class): string
-    {
-        return substr(strrchr($class, '\\'), 1);
     }
 
     protected function prepareMessageItem(Message $item): array
@@ -187,5 +191,10 @@ class InspectorObserver implements ObserverInterface
                 default => $tool->jsonSerialize(),
             }, $agent->getTools()),
         ];
+    }
+
+    protected function getBaseClassName(string $class): string
+    {
+        return substr(strrchr($class, '\\'), 1);
     }
 }
