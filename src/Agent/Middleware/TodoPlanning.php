@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
-use Generator;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\Tools\WriteTodosTool;
 use NeuronAI\Tools\ToolInterface;
@@ -97,7 +96,7 @@ PROMPT;
     /**
      * After inference - can be used for observability/logging.
      */
-    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
         //
     }

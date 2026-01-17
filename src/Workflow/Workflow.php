@@ -151,26 +151,26 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Run the middleware pipeline around node execution.
+     * Run before() middleware methods.
      */
-    protected function runMiddlewarePipeline(Event $event, NodeInterface $node, WorkflowState $state): Event|Generator
+    protected function runBeforeMiddleware(Event $event, NodeInterface $node, WorkflowState $state): void
     {
-        $middleware = $this->getMiddlewareForNode($node);
-
-        // Execute all before() methods in registration order
-        foreach ($middleware as $m) {
+        foreach ($this->getMiddlewareForNode($node) as $m) {
             $m->before($node, $event, $state);
         }
+    }
 
-        // Execute the node
-        $result = $node->run($event, $state);
-
-        // Execute all after() methods in registration order
-        foreach ($middleware as $m) {
-            $m->after($node, $event, $result, $state);
+    /**
+     * Run after() middleware methods.
+     *
+     * Called after the node execution completes and, for streaming nodes,
+     * after the generator is fully consumed.
+     */
+    protected function runAfterMiddleware(Event $result, NodeInterface $node, WorkflowState $state): void
+    {
+        foreach ($this->getMiddlewareForNode($node) as $m) {
+            $m->after($node, $result, $state);
         }
-
-        return $result;
     }
 
     /**
@@ -241,18 +241,24 @@ class Workflow implements WorkflowInterface
 
                 EventBus::emit('workflow-node-start', $this, new WorkflowNodeStart($currentNode::class, $this->resolveState()));
                 try {
-                    // Execute node through the middleware pipeline
-                    $result = $this->runMiddlewarePipeline($currentEvent, $currentNode, $this->resolveState());
+                    // Run before middleware
+                    $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
 
+                    // Execute the node
+                    $result = $currentNode->run($currentEvent, $this->resolveState());
+
+                    // Consume generator if streaming, get final event
                     if ($result instanceof Generator) {
                         foreach ($result as $event) {
                             yield $event;
                         }
-
                         $currentEvent = $result->getReturn();
                     } else {
                         $currentEvent = $result;
                     }
+
+                    // Run after middleware with the final event
+                    $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
                 } catch (WorkflowInterrupt $interrupt) {
                     // Interruptions are intentional, not errors - let them bubble to outer catch
                     throw $interrupt;

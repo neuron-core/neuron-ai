@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace [namespace];
 
-use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
@@ -31,17 +30,14 @@ class [classname] implements WorkflowMiddleware
      * Execute after the node runs.
      *
      * This method is called after the node's __invoke method completes.
-     * Use this for logging, caching, result transformation, etc.
-     *
-     * Note: For streaming nodes that return Generators, this is called after
-     * the generator is fully consumed.
+     * For streaming nodes that return Generators, this is called after
+     * the generator is fully consumed and the final Event is available.
      *
      * @param NodeInterface $node The node that executed
-     * @param Event $event The event that was processed
-     * @param Event|Generator $result The result returned by the node
+     * @param Event $result The final result event returned by the node
      * @param WorkflowState $state The current workflow state
      */
-    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
         // Implement after-node logic here
     }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
-use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
@@ -91,10 +90,8 @@ class ToolApproval implements WorkflowMiddleware
 
     /**
      * Execute after the node runs.
-     *
-     * Cleanup: Remove tool-action mapping from state after execution.
      */
-    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
         //
     }

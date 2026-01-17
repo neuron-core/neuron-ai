@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
-use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\Message;
@@ -82,7 +81,7 @@ class Summarization implements WorkflowMiddleware
     /**
      * Execute after the node runs.
      */
-    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
         // No action needed after node execution
     }
