@@ -191,4 +191,152 @@ class EventBusTest extends TestCase
         $this->assertTrue($removed);
         $this->assertEquals(0, EventBus::getObserverCount());
     }
+
+    // =========================================================================
+    // Scoped Observer Tests
+    // =========================================================================
+
+    public function test_observe_with_scope_tracks_scope(): void
+    {
+        $observer = $this->createMock(ObserverInterface::class);
+
+        EventBus::observe($observer, 'workflow_123');
+
+        $this->assertEquals('workflow_123', EventBus::getObserverScope($observer));
+    }
+
+    public function test_observe_without_scope_has_null_scope(): void
+    {
+        $observer = $this->createMock(ObserverInterface::class);
+
+        EventBus::observe($observer);
+
+        $this->assertNull(EventBus::getObserverScope($observer));
+    }
+
+    public function test_clear_scope_removes_only_scoped_observers(): void
+    {
+        $scopedObserver1 = $this->createMock(ObserverInterface::class);
+        $scopedObserver2 = $this->createMock(ObserverInterface::class);
+        $unscopedObserver = $this->createMock(ObserverInterface::class);
+        $differentScopeObserver = $this->createMock(ObserverInterface::class);
+
+        EventBus::observe($scopedObserver1, 'workflow_A');
+        EventBus::observe($scopedObserver2, 'workflow_A');
+        EventBus::observe($unscopedObserver);  // No scope
+        EventBus::observe($differentScopeObserver, 'workflow_B');
+
+        $this->assertEquals(4, EventBus::getObserverCount());
+
+        // Clear only workflow_A scope
+        $removed = EventBus::clearScope('workflow_A');
+
+        $this->assertEquals(2, $removed);
+        $this->assertEquals(2, EventBus::getObserverCount());
+        $this->assertFalse(EventBus::hasObserver($scopedObserver1));
+        $this->assertFalse(EventBus::hasObserver($scopedObserver2));
+        $this->assertTrue(EventBus::hasObserver($unscopedObserver));
+        $this->assertTrue(EventBus::hasObserver($differentScopeObserver));
+    }
+
+    public function test_clear_scope_returns_zero_for_unknown_scope(): void
+    {
+        $observer = $this->createMock(ObserverInterface::class);
+        EventBus::observe($observer, 'workflow_A');
+
+        $removed = EventBus::clearScope('workflow_UNKNOWN');
+
+        $this->assertEquals(0, $removed);
+        $this->assertEquals(1, EventBus::getObserverCount());
+    }
+
+    public function test_remove_observer_also_removes_scope_tracking(): void
+    {
+        $observer = $this->createMock(ObserverInterface::class);
+        EventBus::observe($observer, 'workflow_A');
+
+        $this->assertEquals('workflow_A', EventBus::getObserverScope($observer));
+
+        EventBus::removeObserver($observer);
+
+        // Scope tracking should also be cleaned up
+        $this->assertNull(EventBus::getObserverScope($observer));
+    }
+
+    public function test_clear_also_clears_scope_tracking(): void
+    {
+        $observer = $this->createMock(ObserverInterface::class);
+        EventBus::observe($observer, 'workflow_A');
+
+        $this->assertEquals('workflow_A', EventBus::getObserverScope($observer));
+
+        EventBus::clear();
+
+        $this->assertEquals(0, EventBus::getObserverCount());
+        // Internal scope tracking should also be cleared
+        $this->assertNull(EventBus::getObserverScope($observer));
+    }
+
+    /**
+     * Integration test: Simulates workflow completion clearing only its observers.
+     *
+     * This demonstrates the primary use case: multiple concurrent workflows
+     * each cleaning up only their own observers without affecting others.
+     */
+    public function test_workflow_completion_clears_only_its_observers(): void
+    {
+        // Simulate Workflow A
+        $scopeA = 'workflow_A';
+        $observerA = $this->createMock(ObserverInterface::class);
+        EventBus::observe($observerA, $scopeA);
+
+        // Simulate Workflow B
+        $scopeB = 'workflow_B';
+        $observerB = $this->createMock(ObserverInterface::class);
+        EventBus::observe($observerB, $scopeB);
+
+        // Global observer (registered directly, not via workflow)
+        $globalObserver = $this->createMock(ObserverInterface::class);
+        EventBus::observe($globalObserver);
+
+        $this->assertEquals(3, EventBus::getObserverCount());
+
+        // Workflow A completes
+        EventBus::clearScope($scopeA);
+
+        // Only A's observer should be removed
+        $this->assertEquals(2, EventBus::getObserverCount());
+        $this->assertFalse(EventBus::hasObserver($observerA));
+        $this->assertTrue(EventBus::hasObserver($observerB));
+        $this->assertTrue(EventBus::hasObserver($globalObserver));
+
+        // Workflow B completes
+        EventBus::clearScope($scopeB);
+
+        // Only global observer remains
+        $this->assertEquals(1, EventBus::getObserverCount());
+        $this->assertTrue(EventBus::hasObserver($globalObserver));
+    }
+
+    /**
+     * Test that scoped observers still receive events normally.
+     */
+    public function test_scoped_observers_receive_events(): void
+    {
+        $scopedObserver = $this->createMock(ObserverInterface::class);
+        $unscopedObserver = $this->createMock(ObserverInterface::class);
+
+        $scopedObserver->expects($this->once())
+            ->method('onEvent')
+            ->with('test-event', $this->anything(), ['data' => 'value']);
+
+        $unscopedObserver->expects($this->once())
+            ->method('onEvent')
+            ->with('test-event', $this->anything(), ['data' => 'value']);
+
+        EventBus::observe($scopedObserver, 'workflow_123');
+        EventBus::observe($unscopedObserver);
+
+        EventBus::emit('test-event', $this, ['data' => 'value']);
+    }
 }

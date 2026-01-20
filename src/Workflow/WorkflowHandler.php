@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Generator;
 use Throwable;
@@ -59,6 +60,9 @@ class WorkflowHandler implements WorkflowHandlerInterface
 
         // Store the final result
         $this->result = $generator->getReturn();
+
+        // Auto-clear scoped observers for this workflow
+        EventBus::clearScope($this->workflow->getWorkflowId());
 
         // Protocol end (if adapter provided)
         if ($adapter instanceof StreamAdapterInterface) {
