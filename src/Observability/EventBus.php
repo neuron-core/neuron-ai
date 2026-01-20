@@ -6,6 +6,12 @@ namespace NeuronAI\Observability;
 
 use Inspector\Exceptions\InspectorException;
 
+use function array_search;
+use function array_values;
+use function count;
+use function in_array;
+use function spl_object_id;
+
 /**
  * Global event bus for observability with optional scope support.
  *
