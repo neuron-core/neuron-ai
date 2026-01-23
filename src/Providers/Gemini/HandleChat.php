@@ -23,8 +23,10 @@ trait HandleChat
 {
     /**
      * Finish reasons that indicate a blocked response (potentially retryable).
+     *
+     * @var array<string>
      */
-    private const BLOCKED_FINISH_REASONS = [
+    private static array $blockedFinishReasons = [
         'SAFETY',
         'BLOCKLIST',
         'OTHER',
@@ -73,7 +75,7 @@ trait HandleChat
                 // Handle missing 'parts' for all finish reasons
                 if (!isset($content['parts']) || empty($content['parts'])) {
                     // Blocked responses (SAFETY, BLOCKLIST, OTHER, RECITATION) - throw retryable exception
-                    if (in_array($finishReason, self::BLOCKED_FINISH_REASONS, true)) {
+                    if (in_array($finishReason, self::$blockedFinishReasons, true)) {
                         throw new ProviderException(
                             "Gemini response blocked (finishReason: {$finishReason}). " .
                             'This may be transient - retry recommended.'
