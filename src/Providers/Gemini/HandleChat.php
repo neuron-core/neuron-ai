@@ -24,7 +24,7 @@ trait HandleChat
     /**
      * Finish reasons that indicate a blocked response (potentially retryable).
      */
-    private const array BLOCKED_FINISH_REASONS = [
+    private const BLOCKED_FINISH_REASONS = [
         'SAFETY',
         'BLOCKLIST',
         'OTHER',
