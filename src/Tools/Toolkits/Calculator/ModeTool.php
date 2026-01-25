@@ -15,6 +15,7 @@ use function array_keys;
 use function array_map;
 use function max;
 use function sort;
+use function strval;
 
 class ModeTool extends Tool
 {
@@ -66,8 +67,9 @@ DESC
         // Convert to float values
         $numericData = array_map(floatval(...), $numericData);
 
-        // Count frequency of each value
-        $frequencies = array_count_values($numericData);
+        // Count frequency of each value (convert to strings for array_count_values)
+        $stringData = array_map(strval(...), $numericData);
+        $frequencies = array_count_values($stringData);
         $maxFrequency = max($frequencies);
 
         // Find all values with maximum frequency
