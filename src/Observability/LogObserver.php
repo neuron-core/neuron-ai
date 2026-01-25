@@ -17,8 +17,6 @@ use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
-use NeuronAI\Observability\Events\MiddlewareBeforeEnd;
-use NeuronAI\Observability\Events\MiddlewareBeforeStart;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\Observability\Events\PreProcessed;

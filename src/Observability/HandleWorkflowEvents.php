@@ -34,7 +34,7 @@ trait HandleWorkflowEvents
 
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
-                ->setType('neuron-workflow')
+                ->setType('agent')
                 ->addContext('Mapping', array_map(fn (string $eventClass, NodeInterface $node): array => [
                     $eventClass => $node::class,
                 ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)));
