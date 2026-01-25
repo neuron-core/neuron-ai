@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
@@ -22,11 +23,17 @@ use function uniqid;
 
 class EloquentChatHistoryTest extends TestCase
 {
+    use CheckOpenPort;
+
     protected EloquentChatHistory $history;
     protected string $threadId;
 
     public function setUp(): void
     {
+        if (!$this->isPortOpen('127.0.0.1', 3306)) {
+            $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
+        }
+
         // Set up in-memory SQLite database for testing
         $capsule = new Capsule();
         $capsule->addConnection([

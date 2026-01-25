@@ -20,6 +20,7 @@ use function uniqid;
 class DatabasePersistenceTest extends TestCase
 {
     use CheckOpenPort;
+
     protected PDO $pdo;
     protected string $threadId;
 
