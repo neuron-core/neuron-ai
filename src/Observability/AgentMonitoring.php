@@ -155,7 +155,7 @@ class AgentMonitoring implements SplObserver
 
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($class.'::'.$method)
-                ->setType('ai-agent')
+                ->setType('agent')
                 ->setContext($this->getContext($agent));
         } elseif ($this->inspector->canAddSegments() && !$agent instanceof RAG) { // do not add "parent" agent segments on RAG
             $key = $class.$method;
