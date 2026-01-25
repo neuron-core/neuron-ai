@@ -6,7 +6,6 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
-use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
@@ -62,7 +61,7 @@ trait HandleChat
                 $result = json_decode($response->getBody()->getContents(), true);
 
                 // Handle missing or empty candidates
-                if (!isset($result['candidates']) || empty($result['candidates'])) {
+                if (empty($result['candidates'])) {
                     throw new ProviderException(
                         'Gemini API returned no candidates. Response: ' . json_encode($result)
                     );
@@ -73,7 +72,7 @@ trait HandleChat
                 $content = $candidate['content'] ?? [];
 
                 // Handle missing 'parts' for all finish reasons
-                if (!isset($content['parts']) || empty($content['parts'])) {
+                if (empty($content['parts'])) {
                     // Blocked responses (SAFETY, BLOCKLIST, OTHER, RECITATION) - throw retryable exception
                     if (in_array($finishReason, self::$blockedFinishReasons, true)) {
                         throw new ProviderException(
@@ -82,9 +81,8 @@ trait HandleChat
                         );
                     }
 
-                    // MAX_TOKENS or other - return empty message
-                    $role = $content['role'] ?? 'model';
-                    return new Message(MessageRole::from($role), '');
+                    // MAX_TOKENS or other - return an empty message
+                    return new AssistantMessage('');
                 }
 
                 $parts = $content['parts'];
