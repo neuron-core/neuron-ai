@@ -10,14 +10,29 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Exceptions\ProviderException;
 use Psr\Http\Message\ResponseInterface;
 
 use function array_key_exists;
+use function in_array;
 use function json_decode;
+use function json_encode;
 use function trim;
 
 trait HandleChat
 {
+    /**
+     * Finish reasons that indicate a blocked response (potentially retryable).
+     *
+     * @var array<string>
+     */
+    private static array $blockedFinishReasons = [
+        'SAFETY',
+        'BLOCKLIST',
+        'OTHER',
+        'RECITATION',
+    ];
+
     public function chat(array $messages): Message
     {
         return $this->chatAsync($messages)->wait();
@@ -46,10 +61,30 @@ trait HandleChat
             ->then(function (ResponseInterface $response): Message {
                 $result = json_decode($response->getBody()->getContents(), true);
 
-                $content = $result['candidates'][0]['content'];
+                // Handle missing or empty candidates
+                if (!isset($result['candidates']) || empty($result['candidates'])) {
+                    throw new ProviderException(
+                        'Gemini API returned no candidates. Response: ' . json_encode($result)
+                    );
+                }
 
-                if (!isset($content['parts']) && isset($result['candidates'][0]['finishReason']) && $result['candidates'][0]['finishReason'] === 'MAX_TOKENS') {
-                    return new Message(MessageRole::from($content['role']), '');
+                $candidate = $result['candidates'][0];
+                $finishReason = $candidate['finishReason'] ?? 'UNKNOWN';
+                $content = $candidate['content'] ?? [];
+
+                // Handle missing 'parts' for all finish reasons
+                if (!isset($content['parts']) || empty($content['parts'])) {
+                    // Blocked responses (SAFETY, BLOCKLIST, OTHER, RECITATION) - throw retryable exception
+                    if (in_array($finishReason, self::$blockedFinishReasons, true)) {
+                        throw new ProviderException(
+                            "Gemini response blocked (finishReason: {$finishReason}). " .
+                            'This may be transient - retry recommended.'
+                        );
+                    }
+
+                    // MAX_TOKENS or other - return empty message
+                    $role = $content['role'] ?? 'model';
+                    return new Message(MessageRole::from($role), '');
                 }
 
                 $parts = $content['parts'];
