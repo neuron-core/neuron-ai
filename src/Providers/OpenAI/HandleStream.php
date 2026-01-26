@@ -153,7 +153,8 @@ trait HandleStream
      */
     protected function processContentDelta(array $choice): Generator
     {
-        if ($content = $choice['delta']['content'] ?? null) {
+        $content = $choice['delta']['content'] ?? null;
+        if ($content !== null) {
             $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
             yield new TextChunk($this->streamState->messageId(), $content);
         }
