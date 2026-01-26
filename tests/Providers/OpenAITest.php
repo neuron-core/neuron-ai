@@ -514,9 +514,10 @@ class OpenAITest extends TestCase
         }
 
         // Verify chunk contents
-        $this->assertSame('Hello', $chunks[0]->content);
-        $this->assertSame(' there', $chunks[1]->content);
-        $this->assertSame('!', $chunks[2]->content);
+        $this->assertSame('', $chunks[0]->content);
+        $this->assertSame('Hello', $chunks[1]->content);
+        $this->assertSame(' there', $chunks[2]->content);
+        $this->assertSame('!', $chunks[3]->content);
 
         // Assert the final message is correct
         $this->assertInstanceOf(AssistantMessage::class, $message);
