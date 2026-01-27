@@ -60,6 +60,7 @@ using the Symfony service container. Watch how it works in a real project.
 - [Structured Output](#structured)
 - [RAG](#rag)
 - [Workflow](#workflow)
+- [AI Assisted Development](#agentic)
 - [Security Vulnerabilities](#security)
 - [Official Documentation](#documentation)
 
@@ -416,6 +417,16 @@ large language model (LLM)-driven applications where model output may require va
 or additional context to complete the task.
 
 Learn more about Workflow on the [documentation](https://docs.neuron-ai.dev/workflow/getting-started).
+
+<a name="agentic"></a>
+
+## AI Assisted Development
+
+The official of Neuron AI documentation is also available and searchable as a Model Context Protocol (MCP) server.
+
+This allows AI assistants to access Neuron AI documentation content directly, making it easy for tools like Claude Code, Cursor, and VS Code extensions reliably understand what Neuron AI can do, its components, how to configure them, and how to compose workflows agents and RAG.
+
+Configure the MCP server: https://docs.neuron-ai.dev/~gitbook/mcp
 
 <a name="security">
 
