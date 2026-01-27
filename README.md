@@ -60,6 +60,7 @@ using the Symfony service container. Watch how it works in a real project.
 - [Structured Output](#structured)
 - [RAG](#rag)
 - [Workflow](#workflow)
+- [AI Assisted Development](#agentic)
 - [Security Vulnerabilities](#security)
 - [Official Documentation](#documentation)
 
