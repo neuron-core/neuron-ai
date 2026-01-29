@@ -14,6 +14,7 @@ use Psr\Http\Message\ResponseInterface;
 use function array_key_exists;
 use function end;
 use function json_decode;
+use function is_array;
 
 trait HandleChat
 {
