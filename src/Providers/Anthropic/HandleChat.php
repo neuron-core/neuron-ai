@@ -13,7 +13,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 
-use function array_key_exists;
 use function is_array;
 
 trait HandleChat
@@ -58,6 +57,11 @@ trait HandleChat
     {
         $blocks = [];
         $toolCalls = [];
+
+        if (!isset($result['content'])) {
+            goto message;
+        }
+
         foreach ($result['content'] as $content) {
             if ($content['type'] === 'thinking') {
                 $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
@@ -74,6 +78,7 @@ trait HandleChat
             }
         }
 
+        message:
         if ($toolCalls !== []) {
             $message = $this->createToolCallMessage($toolCalls, $blocks);
         } else {
@@ -84,8 +89,8 @@ trait HandleChat
             }
         }
 
-        // Attach the usage for the current interaction
-        if (array_key_exists('usage', $result)) {
+        // Save the usage for the current interaction
+        if (isset($result['usage'])) {
             $message->setUsage(
                 new Usage(
                     $result['usage']['input_tokens'],
