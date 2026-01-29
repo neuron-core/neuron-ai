@@ -65,7 +65,9 @@ class PdfReaderTest extends TestCase
         $this->skipIfPdfToTextNotFound();
         $instance = new PdfReader();
         $text = $instance->getText(__DIR__ . '/test.pdf');
-        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . PHP_EOL);
+        $expected = $this->normalizeLineEndings(file_get_contents(__DIR__ . '/target.txt'));
+        $actual = $this->normalizeLineEndings($text . PHP_EOL);
+        $this->assertEquals($expected, $actual);
     }
 
     public function test_get_text_with_image(): void
@@ -73,7 +75,17 @@ class PdfReaderTest extends TestCase
         $this->skipIfPdfToTextNotFound();
         $instance = new PdfReader();
         $text = $instance->getText(__DIR__ . '/test-with-image.pdf');
-        $this->assertStringEqualsFile(__DIR__. '/target.txt', $text . PHP_EOL);
+        $expected = $this->normalizeLineEndings(file_get_contents(__DIR__ . '/target.txt'));
+        $actual = $this->normalizeLineEndings($text . PHP_EOL);
+        $this->assertEquals($expected, $actual);
+    }
+
+    /**
+     * Normalize line endings for cross-platform compatibility.
+     */
+    private function normalizeLineEndings(string $content): string
+    {
+        return str_replace("\r\n", "\n", $content);
     }
 
     public function test_get_text_exception(): void
