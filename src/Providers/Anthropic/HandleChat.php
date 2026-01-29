@@ -45,10 +45,10 @@ trait HandleChat
 
                 $content = end($result['content']);
 
-                if ($content['type'] === 'tool_use') {
+                if (is_array($content) && $content['type'] === 'tool_use') {
                     $response = $this->createToolCallMessage($content);
                 } else {
-                    $response = new AssistantMessage($content['text']);
+                    $response = new AssistantMessage($content['text'] ?? '');
                 }
 
                 // Attach the usage for the current interaction
