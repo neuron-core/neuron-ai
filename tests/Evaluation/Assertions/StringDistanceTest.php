@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Evaluation\Assertions;
+namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringDistance;
 use PHPUnit\Framework\TestCase;

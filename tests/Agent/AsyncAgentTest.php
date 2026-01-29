@@ -27,7 +27,7 @@ class AsyncAgentTest extends TestCase
 
     protected function setUp(): void
     {
-        if (!getenv('ANTHROPIC_API_KEY')) {
+        if (empty(getenv('ANTHROPIC_API_KEY'))) {
             $this->markTestSkipped('ANTHROPIC_API_KEY not set');
         }
 
