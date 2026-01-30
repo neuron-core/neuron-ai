@@ -10,6 +10,8 @@ use NeuronAI\RAG\DataLoader\ReaderInterface;
 use PHPUnit\Framework\TestCase;
 
 use function is_executable;
+use function file_get_contents;
+use function str_replace;
 
 use const PHP_EOL;
 

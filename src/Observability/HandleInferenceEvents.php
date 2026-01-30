@@ -29,9 +29,9 @@ trait HandleInferenceEvents
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
 
-        if ($data->message instanceof AssistantMessage && $data->message->getUsage() !== null) {
+        if ($data->message instanceof AssistantMessage && $data->message->getUsage() instanceof \NeuronAI\Chat\Messages\Usage) {
             $token = new Token($this->inspector->transaction());
-            $token->setAgent(get_class($source))
+            $token->setAgent($source::class)
                 ->setInputTokens($data->message->getUsage()->inputTokens)
                 ->setOutputTokens($data->message->getUsage()->outputTokens);
             $this->inspector->addEntries($token);
