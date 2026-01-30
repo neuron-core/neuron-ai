@@ -55,6 +55,8 @@ interface ToolInterface extends JsonSerializable
      */
     public function getInputs(): array;
 
+    public function getInput(string $key): mixed;
+
     /**
      * Get the input arguments of the function call.
      */

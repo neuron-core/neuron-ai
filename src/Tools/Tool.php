@@ -155,6 +155,11 @@ class Tool implements ToolInterface
         return $this->inputs ?? [];
     }
 
+    public function getInput(string $key): mixed
+    {
+        return $this->inputs[$key] ?? null;
+    }
+
     public function setInputs(?array $inputs): self
     {
         $this->inputs = $inputs ?? [];
