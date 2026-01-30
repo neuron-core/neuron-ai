@@ -14,8 +14,6 @@ use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
-use function get_class;
-
 trait HandleInferenceEvents
 {
     protected Segment $message;
