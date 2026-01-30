@@ -32,8 +32,7 @@ trait HandleInferenceEvents
 
         if ($data->message instanceof AssistantMessage && $data->message->getUsage() instanceof Usage) {
             $token = new Token($this->inspector->transaction());
-            $token->setAgent($this->inspector->transaction()->name)
-                ->setInputTokens($data->message->getUsage()->inputTokens)
+            $token->setInputTokens($data->message->getUsage()->inputTokens)
                 ->setOutputTokens($data->message->getUsage()->outputTokens);
             $this->inspector->addEntries($token);
         }
