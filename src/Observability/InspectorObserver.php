@@ -107,6 +107,10 @@ class InspectorObserver implements ObserverInterface
         $configuration->setTransport($transport ?? $_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
         $configuration->setMaxItems((int) ($_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems()));
 
+        if (isset($_ENV['INSPECTOR_URL'])) {
+            $configuration->setUrl($_ENV['INSPECTOR_URL']);
+        }
+
         /*
          * Split monitoring between agents and workflows.
          * Since the event bus is static, $instance will be shared between agents and workflows.
