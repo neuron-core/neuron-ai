@@ -7,6 +7,7 @@ namespace NeuronAI\Observability;
 use Inspector\Models\Segment;
 use Inspector\Models\Token;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Events\MessageSaved;
@@ -29,9 +30,9 @@ trait HandleInferenceEvents
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
 
-        if ($data->message instanceof AssistantMessage && $data->message->getUsage() instanceof \NeuronAI\Chat\Messages\Usage) {
+        if ($data->message instanceof AssistantMessage && $data->message->getUsage() instanceof Usage) {
             $token = new Token($this->inspector->transaction());
-            $token->setAgent($source::class)
+            $token->setAgent($this->inspector->transaction()->name)
                 ->setInputTokens($data->message->getUsage()->inputTokens)
                 ->setOutputTokens($data->message->getUsage()->outputTokens);
             $this->inspector->addEntries($token);
