@@ -18,6 +18,7 @@ use function Amp\async;
 use function Amp\delay;
 use function getenv;
 use function microtime;
+use function in_array;
 
 class AsyncAgentTest extends TestCase
 {
