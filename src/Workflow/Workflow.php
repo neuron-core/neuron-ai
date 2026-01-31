@@ -93,11 +93,17 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Register an observer to receive events.
+     * Register an observer scoped to this workflow instance.
+     *
+     * Scoped observers are automatically removed when this workflow completes,
+     * preventing observer accumulation in long-running processes.
+     *
+     * @param ObserverInterface $observer The observer to register
+     * @return $this
      */
     public function observe(ObserverInterface $observer): self
     {
-        EventBus::observe($observer);
+        EventBus::observe($observer, $this->workflowId);
         return $this;
     }
 
