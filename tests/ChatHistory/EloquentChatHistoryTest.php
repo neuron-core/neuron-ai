@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 use function uniqid;
 

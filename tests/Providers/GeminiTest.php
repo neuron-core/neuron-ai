@@ -33,7 +33,8 @@ class GeminiTest extends TestCase
                         "text": "test response"
                     }
                 ]
-			}
+			},
+			"finishReason": "STOP"
 		}
 	]
 }';
@@ -51,6 +52,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -69,6 +71,7 @@ class GeminiTest extends TestCase
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
+        $this->assertSame('STOP', $response->stopReason());
     }
 
     public function test_chat_with_url_image(): void

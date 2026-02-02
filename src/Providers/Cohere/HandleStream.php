@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\SSEParser;
+
 use function array_key_exists;
 
 trait HandleStream

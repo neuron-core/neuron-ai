@@ -26,6 +26,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
+
 use function json_decode;
 
 class AnthropicTest extends TestCase
@@ -46,6 +47,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
+        $this->assertInstanceOf(AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -67,6 +69,7 @@ class AnthropicTest extends TestCase
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('How can I assist you today?', $response->getContent());
+        $this->assertSame('end_turn', $response->stopReason());
     }
 
     public function test_chat_with_base64_image(): void

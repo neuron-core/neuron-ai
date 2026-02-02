@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\RAG;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+
 use const PHP_EOL;
 
 class NeuronAITest extends TestCase

@@ -18,6 +18,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
+
 use function is_array;
 use function json_decode;
 use function mb_strlen;
@@ -25,6 +26,7 @@ use function str_contains;
 use function str_starts_with;
 use function substr;
 use function trim;
+
 use const JSON_THROW_ON_ERROR;
 
 /**

@@ -13,8 +13,10 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+
 use function array_merge;
 use function json_encode;
+
 use const PHP_EOL;
 
 class Deepseek extends OpenAI

@@ -19,6 +19,7 @@ use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+
 use function array_map;
 use function array_merge;
 use function json_decode;

@@ -15,6 +15,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\SSEParser;
+
 use function array_unshift;
 use function is_array;
 

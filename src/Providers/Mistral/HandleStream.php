@@ -21,6 +21,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\OpenAI\StreamState;
 use NeuronAI\Providers\SSEParser;
+
 use function array_filter;
 use function array_reduce;
 use function array_unshift;

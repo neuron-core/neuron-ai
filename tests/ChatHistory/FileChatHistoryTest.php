@@ -8,8 +8,10 @@ use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use PHPUnit\Framework\TestCase;
+
 use function file_get_contents;
 use function json_decode;
+
 use const DIRECTORY_SEPARATOR;
 
 class FileChatHistoryTest extends TestCase

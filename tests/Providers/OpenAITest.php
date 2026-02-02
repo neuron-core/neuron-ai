@@ -22,6 +22,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 use function json_decode;
 
@@ -42,6 +43,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
+        $this->assertInstanceOf(AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -65,6 +67,7 @@ class OpenAITest extends TestCase
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
+        $this->assertSame('stop', $response->stopReason());
     }
 
     public function test_chat_with_url_image(): void

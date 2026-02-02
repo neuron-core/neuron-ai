@@ -7,8 +7,6 @@ namespace NeuronAI\Tests\Providers;
 use Aws\Result;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use GuzzleHttp\Promise\FulfilledPromise;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Tools\PropertyType;
@@ -68,8 +66,10 @@ class BedrockRuntimeTest extends TestCase
         $response = $provider->chat([
             new UserMessage('Hi')
         ]);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
 
         $this->assertSame('Hello world', $response->getContent());
+        $this->assertSame('end_turn', $response->stopReason());
         $this->assertNotNull($response->getUsage());
         $this->assertSame(5, $response->getUsage()->jsonSerialize()['input_tokens']);
         $this->assertSame(3, $response->getUsage()->jsonSerialize()['output_tokens']);
@@ -133,12 +133,11 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('Sys');
 
-        /** @var Message|ToolResultMessage $response */
         $response = $provider->chat([
             new UserMessage('Use tool')
         ]);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\ToolCallMessage::class, $response);
 
-        /** @var ToolResultMessage $response */
         // Response should be a ToolCallMessage (subclass) with tools
         $this->assertSame('tool_call', $response->jsonSerialize()['type']);
         $this->assertCount(1, $response->getTools());
@@ -146,6 +145,7 @@ class BedrockRuntimeTest extends TestCase
         $this->assertSame('my_tool', $toolInstance->getName());
         $this->assertSame('call-123', $toolInstance->getCallId());
         $this->assertSame(['param' => 'value'], $toolInstance->getInputs());
+        $this->assertSame('tool_use', $response->stopReason());
         $this->assertSame(7, $response->getUsage()->jsonSerialize()['input_tokens']);
         $this->assertSame(2, $response->getUsage()->jsonSerialize()['output_tokens']);
 

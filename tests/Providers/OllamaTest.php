@@ -41,6 +41,7 @@ class OllamaTest extends TestCase
         ))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat([new UserMessage('Hi')]);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -60,6 +61,7 @@ class OllamaTest extends TestCase
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
+        $this->assertSame('stop', $response->stopReason());
     }
 
     public function test_chat_with_base64_image(): void

@@ -22,6 +22,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
+
 use function base64_encode;
 use function end;
 use function is_array;
