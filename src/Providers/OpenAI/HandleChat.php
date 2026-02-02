@@ -81,6 +81,8 @@ trait HandleChat
             }
         }
 
+        $response->setStopReason($result['choices'][0]['finish_reason']);
+
         return $this->enrichMessage($response, $result);
     }
 }

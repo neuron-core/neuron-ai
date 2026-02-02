@@ -63,9 +63,15 @@ trait HandleChat
         $usage = new Usage($result['usage']['input_tokens'] ?? 0, $result['usage']['output_tokens'] ?? 0);
 
         if ($toolCalls !== []) {
-            return $this->createToolCallMessage($toolCalls)->setUsage($usage);
+            $message = $this->createToolCallMessage($toolCalls)->setUsage($usage);
+        } else {
+            $message = $this->createAssistantMessage($result)->setUsage($usage);
         }
 
-        return $this->createAssistantMessage($result)->setUsage($usage);
+        if (isset($result['status'])) {
+            $message->setStopReason($result['status']);
+        }
+
+        return $message;
     }
 }

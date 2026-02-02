@@ -74,6 +74,10 @@ trait HandleChat
             );
         }
 
+        if (isset($response['done_reason'])) {
+            $message->setStopReason($response['done_reason']);
+        }
+
         return $message;
     }
 }

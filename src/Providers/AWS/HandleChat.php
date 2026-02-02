@@ -45,6 +45,7 @@ trait HandleChat
 
                     $message = new ToolCallMessage(tools: $tools);
                     $message->setUsage($usage);
+                    $message->setStopReason($stopReason);
                     return $message;
                 }
 
@@ -57,6 +58,7 @@ trait HandleChat
 
                 $message = new AssistantMessage($text);
                 $message->setUsage($usage);
+                $message->setStopReason($stopReason);
                 return $message;
             });
     }

@@ -99,6 +99,10 @@ trait HandleChat
             );
         }
 
+        if (isset($result['stop_reason'])) {
+            $message->setStopReason($result['stop_reason']);
+        }
+
         return $message;
     }
 }

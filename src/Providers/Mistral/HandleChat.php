@@ -102,6 +102,8 @@ trait HandleChat
             );
         }
 
+        $response->setStopReason($choice['finish_reason']);
+
         return $response;
     }
 }

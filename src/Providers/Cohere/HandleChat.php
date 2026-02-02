@@ -37,6 +37,8 @@ trait HandleChat
             );
         }
 
+        $response->setStopReason($result['finish_reason']);
+
         return $response;
     }
 

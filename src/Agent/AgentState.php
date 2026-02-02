@@ -21,16 +21,6 @@ class AgentState extends WorkflowState
         return $this->getChatHistory()->getLastMessage();
     }
 
-    public function stopReason(): ?string
-    {
-        return $this->get('stop_reason');
-    }
-
-    public function setStopReason(string $reason): void
-    {
-        $this->set('stop_reason', $reason);
-    }
-
     public function getChatHistory(): ChatHistoryInterface
     {
         return $this->chatHistory ?? $this->chatHistory = new InMemoryChatHistory();

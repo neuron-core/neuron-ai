@@ -127,6 +127,8 @@ trait HandleChat
             );
         }
 
+        $message->setStopReason($finishReason);
+
         return $message;
     }
 }
