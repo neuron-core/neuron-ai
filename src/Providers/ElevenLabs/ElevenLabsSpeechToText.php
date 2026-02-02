@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -16,11 +16,10 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-
-use function trim;
 use function end;
 use function fopen;
 use function is_array;
+use function trim;
 
 class ElevenLabsSpeechToText implements AIProviderInterface
 {

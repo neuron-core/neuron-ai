@@ -7,18 +7,17 @@ namespace NeuronAI\Tests\Agent;
 use Amp\Future;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\AmpHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-
 use function Amp\async;
 use function Amp\delay;
 use function getenv;
-use function microtime;
 use function in_array;
+use function microtime;
 
 class AsyncAgentTest extends TestCase
 {

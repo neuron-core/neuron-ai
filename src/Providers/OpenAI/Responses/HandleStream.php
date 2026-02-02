@@ -6,27 +6,25 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 
 use Generator;
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
-
+use function is_array;
 use function json_decode;
 use function mb_strlen;
 use function str_contains;
 use function str_starts_with;
 use function substr;
 use function trim;
-use function is_array;
-
 use const JSON_THROW_ON_ERROR;
 
 /**

@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\SQLChatHistory;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -15,9 +15,8 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
-use PHPUnit\Framework\TestCase;
 use PDO;
-
+use PHPUnit\Framework\TestCase;
 use function count;
 use function json_decode;
 use function uniqid;

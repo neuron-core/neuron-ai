@@ -6,7 +6,7 @@ namespace NeuronAI\Observability;
 
 use Inspector\Models\Segment;
 use Inspector\Models\Token;
-use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;

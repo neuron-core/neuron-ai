@@ -6,9 +6,9 @@ namespace NeuronAI\Providers\OpenAI\Audio;
 
 use Generator;
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
@@ -22,11 +22,10 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
-
+use function base64_encode;
 use function end;
 use function is_array;
 use function trim;
-use function base64_encode;
 
 class OpenAITextToSpeech implements AIProviderInterface
 {

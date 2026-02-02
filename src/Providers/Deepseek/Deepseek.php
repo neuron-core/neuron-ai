@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Deepseek;
 
-use NeuronAI\Chat\Messages\AssistantMessage;
+use Generator;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
-use Generator;
-
 use function array_merge;
 use function json_encode;
-
 use const PHP_EOL;
 
 class Deepseek extends OpenAI

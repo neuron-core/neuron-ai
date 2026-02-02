@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages;
+namespace NeuronAI\Chat\Messages\Stream;
 
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\Message;
 
 /**
  * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content = null, MessageRole $role = MessageRole::ASSISTANT)
@@ -20,9 +21,9 @@ class AssistantMessage extends Message
         parent::__construct($role, $content);
     }
 
-    public function setStopReason(string $reason): self
+    public function setStopReason(string $reason): void
     {
-        return $this->addMetadata('stop_reason', $reason);
+        $this->addMetadata('stop_reason', $reason);
     }
 
     public function stopReason(): ?string

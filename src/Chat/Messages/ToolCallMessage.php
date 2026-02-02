@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Tools\ToolInterface;
 use Stringable;
-
 use function array_map;
 use function array_merge;
 use function json_encode;

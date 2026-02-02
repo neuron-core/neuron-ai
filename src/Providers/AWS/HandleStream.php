@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use Aws\Api\Parser\EventParsingIterator;
-use NeuronAI\Chat\Messages\AssistantMessage;
+use Generator;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
-use Generator;
-
 use function count;
 use function is_array;
 

@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Cohere;
 
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\ProviderException;
-
-use function array_map;
 use function array_filter;
+use function array_map;
 
 trait HandleChat
 {

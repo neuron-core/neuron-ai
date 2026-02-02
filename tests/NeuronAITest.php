@@ -6,17 +6,16 @@ namespace NeuronAI\Tests;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
+use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\RAG;
-use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use PHPUnit\Framework\TestCase;
-
 use const PHP_EOL;
 
 class NeuronAITest extends TestCase

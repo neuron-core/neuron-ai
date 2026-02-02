@@ -6,18 +6,17 @@ namespace NeuronAI\Providers\Ollama;
 
 use Generator;
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
-
 use function array_unshift;
-use function json_decode;
 use function is_array;
+use function json_decode;
 
 trait HandleStream
 {

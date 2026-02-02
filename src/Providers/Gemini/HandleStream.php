@@ -6,24 +6,23 @@ namespace NeuronAI\Providers\Gemini;
 
 use Generator;
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
-
 use function array_key_exists;
+use function is_array;
 use function json_decode;
+use function json_encode;
 use function mb_strlen;
 use function rtrim;
 use function trim;
-use function is_array;
-use function json_encode;
 
 trait HandleStream
 {

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\EloquentChatHistory;
-use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -17,7 +17,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
-
 use function count;
 use function uniqid;
 
