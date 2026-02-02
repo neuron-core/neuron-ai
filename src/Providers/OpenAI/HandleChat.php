@@ -51,6 +51,9 @@ trait HandleChat
                     $response = $this->createAssistantMessage($result);
                 }
 
+                // Attach the stop reason
+                $response->setStopReason($result['choices'][0]['finish_reason'] ?? '');
+
                 if (array_key_exists('usage', $result)) {
                     $response->setUsage(
                         new Usage($result['usage']['prompt_tokens'], $result['usage']['completion_tokens'])

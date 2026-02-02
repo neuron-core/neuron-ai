@@ -12,6 +12,7 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Attachments\Image;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tools\PropertyType;
@@ -33,7 +34,8 @@ class GeminiTest extends TestCase
                         "text": "test response"
                     }
                 ]
-			}
+			},
+			"finishReason": "STOP"
 		}
 	]
 }';
@@ -71,6 +73,8 @@ class GeminiTest extends TestCase
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertSame('STOP', $response->stopReason());
     }
 
     public function test_chat_with_url_image(): void

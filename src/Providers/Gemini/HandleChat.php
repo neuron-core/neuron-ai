@@ -82,7 +82,9 @@ trait HandleChat
                     }
 
                     // MAX_TOKENS or other - return an empty message
-                    return new AssistantMessage('');
+                    $emptyResponse = new AssistantMessage('');
+                    $emptyResponse->setStopReason($finishReason);
+                    return $emptyResponse;
                 }
 
                 $parts = $content['parts'];
@@ -91,6 +93,11 @@ trait HandleChat
                     $response = $this->createToolCallMessage($content);
                 } else {
                     $response = new AssistantMessage($parts[0]['text'] ?? '');
+                }
+
+                // Attach the stop reason
+                if ($response instanceof AssistantMessage) {
+                    $response->setStopReason($finishReason);
                 }
 
                 if (array_key_exists('groundingMetadata', $result['candidates'][0])) {

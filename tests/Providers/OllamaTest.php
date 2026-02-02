@@ -11,6 +11,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Image;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\Ollama\Ollama;
@@ -62,6 +63,8 @@ class OllamaTest extends TestCase
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertSame('stop', $response->stopReason());
     }
 
     public function test_chat_with_base64_image(): void

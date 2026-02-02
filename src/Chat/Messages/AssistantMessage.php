@@ -18,4 +18,14 @@ class AssistantMessage extends Message
     {
         parent::__construct($role, $content);
     }
+
+    public function setStopReason(string $reason): void
+    {
+        $this->addMetadata('stop_reason', $reason);
+    }
+
+    public function stopReason(): ?string
+    {
+        return $this->getMetadata('stop_reason');
+    }
 }

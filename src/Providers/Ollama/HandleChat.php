@@ -56,6 +56,11 @@ trait HandleChat
                     $message = new AssistantMessage($message['content']);
                 }
 
+                // Attach the stop reason
+                if ($message instanceof AssistantMessage && array_key_exists('done_reason', $response)) {
+                    $message->setStopReason($response['done_reason']);
+                }
+
                 if (array_key_exists('prompt_eval_count', $response) && array_key_exists('eval_count', $response)) {
                     $message->setUsage(
                         new Usage($response['prompt_eval_count'], $response['eval_count'])

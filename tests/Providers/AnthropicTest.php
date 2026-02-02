@@ -12,6 +12,7 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Attachments\Document;
 use NeuronAI\Chat\Attachments\Image;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
@@ -63,6 +64,8 @@ class AnthropicTest extends TestCase
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
         $this->assertSame('How can I assist you today?', $response->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertSame('end_turn', $response->stopReason());
     }
 
     public function test_chat_with_base64_image(): void

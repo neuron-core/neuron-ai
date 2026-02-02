@@ -52,6 +52,11 @@ trait HandleChat
                     $response = new AssistantMessage($content['text'] ?? '');
                 }
 
+                // Attach the stop reason
+                if ($response instanceof AssistantMessage && array_key_exists('stop_reason', $result)) {
+                    $response->setStopReason($result['stop_reason']);
+                }
+
                 // Attach the usage for the current interaction
                 if (array_key_exists('usage', $result)) {
                     $response->setUsage(

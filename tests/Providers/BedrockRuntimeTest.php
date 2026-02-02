@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Providers;
 use Aws\Result;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use GuzzleHttp\Promise\FulfilledPromise;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -70,6 +71,8 @@ class BedrockRuntimeTest extends TestCase
         ]);
 
         $this->assertSame('Hello world', $response->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertSame('end_turn', $response->stopReason());
         $this->assertNotNull($response->getUsage());
         $this->assertSame(5, $response->getUsage()->jsonSerialize()['input_tokens']);
         $this->assertSame(3, $response->getUsage()->jsonSerialize()['output_tokens']);
