@@ -101,14 +101,14 @@ class InterruptRequest implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'reason' => $this->message,
+            'message' => $this->message,
             'actions' => array_map(fn (Action $a): array => $a->jsonSerialize(), $this->actions),
         ];
     }
 
     public static function fromArray(array $data): InterruptRequest
     {
-        $instance = new self($data['reason']);
+        $instance = new self($data['message']);
         foreach ($data['actions'] as $actionData) {
             $instance->addAction(Action::fromArray($actionData));
         }

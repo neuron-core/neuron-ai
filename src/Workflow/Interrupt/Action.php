@@ -11,17 +11,33 @@ class Action implements JsonSerializable
     /**
      * @param string $id Unique identifier for this action
      * @param string $name Short human-readable name
-     * @param string $description Detailed description of what this action does
+     * @param string|null $description Detailed description of what this action does
      * @param ActionDecision $decision Current decision state
      * @param string|null $feedback Optional feedback from the approver
      */
     public function __construct(
         public readonly string $id,
         public readonly string $name,
-        public readonly string $description,
+        public readonly ?string $description = null,
         public ActionDecision $decision = ActionDecision::Pending,
         public ?string $feedback = null,
     ) {
+    }
+
+    public function decision(?ActionDecision $decision = null): ActionDecision
+    {
+        if ($decision !== null) {
+            $this->decision = $decision;
+        }
+        return $this->decision;
+    }
+
+    public function feedback(?string $feedback = null): ?string
+    {
+        if ($feedback !== null) {
+            $this->feedback = $feedback;
+        }
+        return $this->feedback;
     }
 
     /**
@@ -40,12 +56,14 @@ class Action implements JsonSerializable
     /**
      * Mark this action as rejected.
      *
-     * @param string $feedback Reason for rejection
+     * @param string|null $feedback Optional reason for rejection
      */
-    public function reject(string $feedback): void
+    public function reject(?string $feedback = null): void
     {
         $this->decision = ActionDecision::Rejected;
-        $this->feedback = $feedback;
+        if ($feedback !== null) {
+            $this->feedback = $feedback;
+        }
     }
 
     /**
@@ -119,7 +137,7 @@ class Action implements JsonSerializable
         return new self(
             $data['id'],
             $data['name'],
-            $data['description'],
+            $data['description'] ?? null,
             ActionDecision::from($data['decision']),
             $data['feedback'] ?? null,
         );
