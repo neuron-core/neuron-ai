@@ -100,8 +100,12 @@ class Message implements JsonSerializable
         return $this;
     }
 
-    public function getMetadata(string $key): mixed
+    public function getMetadata(?string $key = null): mixed
     {
+        if ($key === null) {
+            return $this->meta;
+        }
+
         return $this->meta[$key] ?? null;
     }
 

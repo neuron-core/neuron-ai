@@ -42,6 +42,12 @@ trait HandleResponses
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
+        // Attach metadata
+        $latestMessage = end($messages);
+        if ($latestMessage instanceof Message::class) {
+            $json['metadata'] = $latestMessage->getMetadata();
+        }
+
         return $this->client->postAsync('responses', [RequestOptions::JSON => $json])
             ->then(function (ResponseInterface $response) {
                 $response = json_decode($response->getBody()->getContents(), true);
