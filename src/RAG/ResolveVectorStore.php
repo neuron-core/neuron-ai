@@ -24,6 +24,6 @@ trait ResolveVectorStore
 
     public function resolveVectorStore(): VectorStoreInterface
     {
-        return $this->store ?? $this->store = $this->vectorStore();
+        return $this->store ??= $this->vectorStore();
     }
 }

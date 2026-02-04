@@ -46,6 +46,7 @@ class ToolNodeStreamingTest extends TestCase
 
         // Create the ToolNode
         $toolNode = new ToolNode();
+        $toolNode->setWorkflowContext($state, $inferenceEvent);
 
         // Invoke the node and collect yielded chunks
         $generator = $toolNode->__invoke($toolCallEvent, $state);

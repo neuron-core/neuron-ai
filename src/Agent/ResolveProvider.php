@@ -26,14 +26,10 @@ trait ResolveProvider
     }
 
     /**
-     * Get the current instance of the chat history.
+     * Get the current provider instance.
      */
     public function resolveProvider(): AIProviderInterface
     {
-        if (!isset($this->provider)) {
-            $this->provider = $this->provider();
-        }
-
-        return $this->provider;
+        return $this->provider ??= $this->provider();
     }
 }

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\Retrieved;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
@@ -32,14 +30,12 @@ class RetrieveDocumentsNode extends Node
 
     /**
      * Retrieve and deduplicate documents.
-     *
-     * @throws InspectorException
      */
     public function __invoke(QueryPreProcessedEvent $event, AgentState $state): DocumentsRetrievedEvent
     {
         $query = $event->query;
 
-        EventBus::emit('rag-retrieving', $this, new Retrieving($query));
+        $this->emit('rag-retrieving', new Retrieving($query));
 
         $documents = $this->retrieval->retrieve($query);
 
@@ -51,7 +47,7 @@ class RetrieveDocumentsNode extends Node
         }
         $docs = array_values($docs);
 
-        EventBus::emit('rag-retrieved', $this, new Retrieved($query, $docs));
+        $this->emit('rag-retrieved', new Retrieved($query, $docs));
 
         return new DocumentsRetrievedEvent($query, $docs);
     }

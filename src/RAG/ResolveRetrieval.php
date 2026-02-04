@@ -30,6 +30,6 @@ trait ResolveRetrieval
 
     public function resolveRetrieval(): RetrievalInterface
     {
-        return $this->retrieval ?? $this->retrieval = $this->retrieval();
+        return $this->retrieval ??= $this->retrieval();
     }
 }

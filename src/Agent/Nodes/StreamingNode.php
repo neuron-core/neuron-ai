@@ -10,7 +10,6 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
@@ -39,11 +38,7 @@ class StreamingNode extends Node
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        EventBus::emit(
-            'inference-start',
-            $this,
-            new InferenceStart($lastMessage)
-        );
+        $this->emit('inference-start', new InferenceStart($lastMessage));
 
         try {
             $stream = $this->provider
@@ -59,11 +54,7 @@ class StreamingNode extends Node
             // Get the final message from the generator return value
             $message = $stream->getReturn();
 
-            EventBus::emit(
-                'inference-stop',
-                $this,
-                new InferenceStop($lastMessage, $message)
-            );
+            $this->emit('inference-stop', new InferenceStop($lastMessage, $message));
 
             // Add the message to the chat history
             $this->addToChatHistory($state, $message);
@@ -76,7 +67,7 @@ class StreamingNode extends Node
             return new StopEvent();
 
         } catch (Throwable $exception) {
-            EventBus::emit('error', $this, new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
     }

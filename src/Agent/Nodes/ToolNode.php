@@ -12,7 +12,6 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolMaxTriesException;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -69,7 +68,7 @@ class ToolNode extends Node
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
     {
-        EventBus::emit('tool-calling', $this, new ToolCalling($tool));
+        $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
             $state->incrementToolAttempt($tool->getName());
@@ -82,10 +81,10 @@ class ToolNode extends Node
 
             $tool->execute();
         } catch (Throwable $exception) {
-            EventBus::emit('error', $this, new AgentError($exception));
+            $this->emit('error', new AgentError($exception));
             throw $exception;
         }
 
-        EventBus::emit('tool-called', $this, new ToolCalled($tool));
+        $this->emit('tool-called', new ToolCalled($tool));
     }
 }

@@ -26,7 +26,7 @@ class Action implements JsonSerializable
 
     public function decision(?ActionDecision $decision = null): ActionDecision
     {
-        if ($decision !== null) {
+        if ($decision instanceof \NeuronAI\Workflow\Interrupt\ActionDecision) {
             $this->decision = $decision;
         }
         return $this->decision;

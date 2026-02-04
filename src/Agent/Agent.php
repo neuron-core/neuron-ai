@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -32,7 +31,6 @@ class Agent extends Workflow implements AgentInterface
     use ResolveProvider;
     use HandleTools;
     use HandleContent;
-    use ChatHistoryHelper;
 
     protected string $instructions;
 
@@ -143,7 +141,6 @@ class Agent extends Workflow implements AgentInterface
     /**
      * @param Message|Message[] $messages
      * @throws AgentException
-     * @throws InspectorException
      * @throws Throwable
      */
     public function structured(
@@ -152,7 +149,7 @@ class Agent extends Workflow implements AgentInterface
         int $maxRetries = 1,
         ?InterruptRequest $interrupt = null
     ): mixed {
-        EventBus::emit('structured-start', $this);
+        EventBus::emit('structured-start', $this, null, $this->workflowId);
 
         $this->resolveStartEvent()->setMessages($messages);
 
@@ -168,7 +165,7 @@ class Agent extends Workflow implements AgentInterface
         /** @var AgentState $finalState */
         $finalState = $handler->run();
 
-        EventBus::emit('structured-stop', $this);
+        EventBus::emit('structured-stop', $this, null, $this->workflowId);
 
         // Return the structured output object
         return $finalState->get('structured_output');

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Closure;
@@ -127,5 +129,16 @@ abstract class Node implements NodeInterface
     public function getResumeRequest(): ?InterruptRequest
     {
         return $this->resumeRequest;
+    }
+
+    /**
+     * Emit an event to the workflow-scoped observers.
+     *
+     * @throws InspectorException
+     */
+    protected function emit(string $event, mixed $data = null): void
+    {
+        $workflowId = $this->state->get('__workflowId');
+        EventBus::emit($event, $this, $data, $workflowId);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
@@ -68,6 +69,7 @@ trait HandleTools
      * just traverses the array of tools without any action.
      *
      * @return ToolInterface[]
+     * @throws InspectorException
      */
     public function bootstrapTools(): array
     {
@@ -77,7 +79,12 @@ trait HandleTools
             return $this->toolsBootstrapCache;
         }
 
-        EventBus::emit('tools-bootstrapping', $this);
+        EventBus::emit(
+            'tools-bootstrapping',
+            $this,
+            null,
+            $this->workflowId
+        );
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
@@ -116,7 +123,12 @@ trait HandleTools
             );
         }
 
-        EventBus::emit('tools-bootstrapped', $this, new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines));
+        EventBus::emit(
+            'tools-bootstrapped',
+            $this,
+            new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines),
+            $this->workflowId
+        );
 
         return $this->toolsBootstrapCache;
     }

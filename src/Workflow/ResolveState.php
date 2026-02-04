@@ -22,6 +22,6 @@ trait ResolveState
      */
     public function resolveState(): WorkflowState
     {
-        return $this->state ?? $this->state = $this->state();
+        return $this->state ??= $this->state();
     }
 }

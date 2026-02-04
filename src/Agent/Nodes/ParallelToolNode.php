@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
@@ -13,7 +12,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -34,7 +32,6 @@ use function unserialize;
 class ParallelToolNode extends ToolNode
 {
     /**
-     * @throws InspectorException
      * @throws ToolException
      * @throws ToolMaxTriesException
      * @throws Throwable
@@ -68,7 +65,7 @@ class ParallelToolNode extends ToolNode
                 throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
-            EventBus::emit('tool-calling', $this, new ToolCalling($tool));
+            $this->emit('tool-calling', new ToolCalling($tool));
 
             yield new ToolCallChunk($tool);
         }
@@ -115,7 +112,7 @@ class ParallelToolNode extends ToolNode
                     $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
                 }
 
-                EventBus::emit('error', $this, new AgentError($exception));
+                $this->emit('error', new AgentError($exception));
                 throw $exception;
             }
 
@@ -124,7 +121,7 @@ class ParallelToolNode extends ToolNode
             yield new ToolResultChunk($data);
 
             // Notify that tool was called successfully
-            EventBus::emit('tool-called', $this, new ToolCalled($data));
+            $this->emit('tool-called', new ToolCalled($data));
         }
 
         // Return a new ToolCallResultMessage with the executed tools

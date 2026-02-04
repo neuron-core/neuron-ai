@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -35,8 +33,6 @@ class PreProcessQueryNode extends Node
 
     /**
      * Apply preprocessors sequentially to the query.
-     *
-     * @throws InspectorException
      */
     public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
@@ -45,9 +41,9 @@ class PreProcessQueryNode extends Node
         $query = $state->getChatHistory()->getLastMessage();
 
         foreach ($this->preProcessors as $processor) {
-            EventBus::emit('rag-preprocessing', $this, new PreProcessing($processor::class, $query));
+            $this->emit('rag-preprocessing', new PreProcessing($processor::class, $query));
             $query = $processor->process($query);
-            EventBus::emit('rag-preprocessed', $this, new PreProcessed($processor::class, $query));
+            $this->emit('rag-preprocessed', new PreProcessed($processor::class, $query));
         }
 
         return new QueryPreProcessedEvent($query);

@@ -93,11 +93,14 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Register an observer to receive events.
+     * Register an observer to receive events for this workflow.
+     *
+     * Observers are scoped to this workflow instance, ensuring proper
+     * isolation when running multiple workflows concurrently.
      */
     public function observe(ObserverInterface $observer): self
     {
-        EventBus::observe($observer);
+        EventBus::observe($observer, $this->workflowId);
         return $this;
     }
 
@@ -149,7 +152,7 @@ class Workflow implements WorkflowInterface
      */
     protected function resolveStartEvent(): Event
     {
-        return $this->startEvent ?? $this->startEvent = $this->startEvent();
+        return $this->startEvent ??= $this->startEvent();
     }
 
     /**
@@ -160,9 +163,9 @@ class Workflow implements WorkflowInterface
     protected function runBeforeMiddleware(Event $event, NodeInterface $node, WorkflowState $state): void
     {
         foreach ($this->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event));
+            EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event), $this->workflowId);
             $m->before($node, $event, $state);
-            EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m));
+            EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m), $this->workflowId);
         }
     }
 
@@ -177,9 +180,9 @@ class Workflow implements WorkflowInterface
     protected function runAfterMiddleware(Event $result, NodeInterface $node, WorkflowState $state): void
     {
         foreach ($this->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-after-start', $this, new MiddlewareStart($m, $result));
+            EventBus::emit('middleware-after-start', $this, new MiddlewareStart($m, $result), $this->workflowId);
             $m->after($node, $result, $state);
-            EventBus::emit('middleware-after-end', $this, new MiddlewareEnd($m));
+            EventBus::emit('middleware-after-end', $this, new MiddlewareEnd($m), $this->workflowId);
         }
     }
 
@@ -188,20 +191,23 @@ class Workflow implements WorkflowInterface
      */
     public function run(): Generator
     {
-        EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap));
+        // Store workflow ID in state for nodes to access when emitting events
+        $this->resolveState()->set('__workflowId', $this->workflowId);
+
+        EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
         try {
             $this->bootstrap();
         } catch (WorkflowException $exception) {
-            EventBus::emit('error', $this, new AgentError($exception));
+            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
             throw $exception;
         }
 
         $startEvent = $this->resolveStartEvent();
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
-        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()));
-        EventBus::clear();
+        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
+        EventBus::clear($this->workflowId);
 
         return $this->resolveState();
     }
@@ -211,12 +217,15 @@ class Workflow implements WorkflowInterface
      */
     public function resume(InterruptRequest $resumeRequest): Generator
     {
-        EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap));
+        // Store workflow ID in state for nodes to access when emitting events
+        $this->resolveState()->set('__workflowId', $this->workflowId);
+
+        EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
         try {
             $this->bootstrap();
         } catch (WorkflowException $exception) {
-            EventBus::emit('error', $this, new AgentError($exception));
+            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
             throw $exception;
         }
 
@@ -229,8 +238,8 @@ class Workflow implements WorkflowInterface
             $resumeRequest
         );
 
-        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()));
-        EventBus::clear();
+        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
+        EventBus::clear($this->workflowId);
 
         return $this->resolveState();
     }
@@ -251,7 +260,7 @@ class Workflow implements WorkflowInterface
                     $resumeRequest
                 );
 
-                EventBus::emit('workflow-node-start', $this, new WorkflowNodeStart($currentNode::class, $this->resolveState()));
+                EventBus::emit('workflow-node-start', $this, new WorkflowNodeStart($currentNode::class, $this->resolveState()), $this->workflowId);
                 try {
                     // Run before middleware
                     $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
@@ -276,10 +285,10 @@ class Workflow implements WorkflowInterface
                     throw $interrupt;
                 } catch (Throwable $exception) {
                     // Only notify for actual errors
-                    EventBus::emit('error', $this, new AgentError($exception));
+                    EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
                     throw $exception;
                 }
-                EventBus::emit('workflow-node-end', $this, new WorkflowNodeEnd($currentNode::class, $this->resolveState()));
+                EventBus::emit('workflow-node-end', $this, new WorkflowNodeEnd($currentNode::class, $this->resolveState()), $this->workflowId);
 
                 if ($currentEvent instanceof StopEvent) {
                     break;
@@ -298,7 +307,7 @@ class Workflow implements WorkflowInterface
 
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);
-            EventBus::emit('error', $this, new AgentError($interrupt, false));
+            EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
             throw $interrupt;
         }
     }
