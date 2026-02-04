@@ -43,8 +43,9 @@ trait HandleResponses
         }
 
         // Attach metadata
+        /** @var Message $latestMessage */
         $latestMessage = end($messages);
-        if (!empty($latestMessage->meta)) {
+        if (!empty($latestMessage->getMetadata())) {
             $json['metadata'] = $latestMessage->getMetadata();
         }
 
