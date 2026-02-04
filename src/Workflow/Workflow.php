@@ -201,6 +201,7 @@ class Workflow implements WorkflowInterface
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
         EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()));
+        EventBus::clear();
 
         return $this->resolveState();
     }
