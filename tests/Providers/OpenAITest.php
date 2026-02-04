@@ -559,20 +559,21 @@ class OpenAITest extends TestCase
         $this->assertSame('test response', $response->getContent());
     }
 
-    public function test_metadata_payload(): void
+    public function test_responses_metadata_payload(): void
     {
+        $responsesBody = '{"id": "resp_123", "model": "gpt-4o", "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "test response"}]}], "usage": {"input_tokens": 19, "output_tokens": 10}}';
+
         $sentRequests = [];
         $history = Middleware::history($sentRequests);
         $mockHandler = new MockHandler([
-            new Response(status: 200, body: $this->body),
+            new Response(status: 200, body: $responsesBody),
         ]);
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
         $client = new Client(['handler' => $stack]);
 
-        $provider = (new OpenAI('', 'gpt-4o'))
-            ->setClient($client);
+        $provider = (new OpenAIResponses('', 'gpt-4o'))->setClient($client);
 
         $provider->chat([
             (new UserMessage('Hi'))->addMetadata('metadatakey', 'metadatavalue'),
@@ -585,11 +586,11 @@ class OpenAITest extends TestCase
         // Ensure we have sent the expected request payload.
         $expectedRequest = [
             'model' => 'gpt-4o',
-            'messages' => [
+            'input' => [
                 [
                     'role' => 'user',
                     'content' => [
-                        ['type' => 'text', 'text' => 'Hi'],
+                        ['type' => 'input_text', 'text' => 'Hi'],
                     ],
                 ],
             ],
