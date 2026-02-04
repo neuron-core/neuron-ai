@@ -230,6 +230,7 @@ class Workflow implements WorkflowInterface
         );
 
         EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()));
+        EventBus::clear();
 
         return $this->resolveState();
     }
