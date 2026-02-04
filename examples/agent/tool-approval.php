@@ -39,29 +39,6 @@ class FileDeleteTool extends Tool
     }
 }
 
-class FileReadTool extends Tool
-{
-    public function __construct()
-    {
-        parent::__construct(
-            'file_read',
-            'Read the contents of a file'
-        );
-    }
-
-    protected function properties(): array
-    {
-        return [
-            ToolProperty::make('path', PropertyType::STRING, 'The path to the file to read', true),
-        ];
-    }
-
-    public function __invoke(string $path): string
-    {
-        return "Contents of '{$path}': Sample file content...";
-    }
-}
-
 echo "=== Agent Middleware: Tool Approval Example ===\n";
 echo "-------------------------------------------------------------------\n\n";
 
@@ -80,7 +57,6 @@ $agent = Agent::make(
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
-        new FileReadTool(),
         new FileDeleteTool(),
     ])
     ->addMiddleware(
