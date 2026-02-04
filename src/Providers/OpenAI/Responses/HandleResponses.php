@@ -11,6 +11,7 @@ use Psr\Http\Message\ResponseInterface;
 
 use function array_filter;
 use function array_map;
+use function end;
 use function implode;
 use function json_decode;
 

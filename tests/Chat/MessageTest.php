@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Tests\Chat;
 
-use PHPUnit\Framework\TestCase;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
+use PHPUnit\Framework\TestCase;
 
 class MessageTest extends Testcase
 {
