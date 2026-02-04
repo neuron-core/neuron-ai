@@ -70,13 +70,13 @@ trait HandleMiddleware
     /**
      * Register middleware for a specific node class or multiple node classes.
      *
-     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $nodeClass Node class name or array of node class names
+     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $node Node class name or array of node class names
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function addMiddleware(string|array $nodeClass, WorkflowMiddleware|array $middleware): self
+    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): self
     {
-        $nodeClasses = is_array($nodeClass) ? $nodeClass : [$nodeClass];
+        $nodeClasses = is_array($node) ? $node : [$node];
         $middlewareList = is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($nodeClasses as $class) {
