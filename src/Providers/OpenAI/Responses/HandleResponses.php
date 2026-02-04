@@ -44,7 +44,7 @@ trait HandleResponses
 
         // Attach metadata
         $latestMessage = end($messages);
-        if ($latestMessage instanceof Message::class) {
+        if (get_parent_class($latestMessage) === Message::class) {
             $json['metadata'] = $latestMessage->getMetadata();
         }
 
