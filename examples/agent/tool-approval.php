@@ -72,13 +72,13 @@ try {
     echo "User: {$message->getContent()}\n\n";
 
     if ($interruptRequest == null) {
-        $response = $agent->chat(messages: $message);
+        $response = $agent->chat(messages: $message)->getMessage();
     } else {
         echo "Resuming workflow...\n\n";
-        $response = $agent->chat(interrupt: $interruptRequest);
+        $response = $agent->chat(interrupt: $interruptRequest)->getMessage();
     }
 
-    echo "Agent: ".\json_encode($response->getMessage()->getContent())."\n\n";
+    echo "Agent: ".$response->getContent()."\n\n";
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
