@@ -22,7 +22,7 @@ use function json_encode;
 use function method_exists;
 
 /**
- * @method static static make(?string $name = null, ?string $description = null, array $properties = [])
+ * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $annotations = [])
  */
 class Tool implements ToolInterface
 {
@@ -62,11 +62,13 @@ class Tool implements ToolInterface
      * Tool constructor.
      *
      * @param ToolPropertyInterface[] $properties
+     * @params array<int, mixed>|null $annotations
      */
     public function __construct(
         protected string $name,
         protected ?string $description = null,
         array $properties = [],
+        protected array $annotations = []
     ) {
         if ($properties !== []) {
             $this->properties = $properties;
@@ -132,6 +134,11 @@ class Tool implements ToolInterface
 
             return $carry;
         }, []);
+    }
+
+    public function getAnnotations(): array
+    {
+        return $this->annotations;
     }
 
     public function setCallable(callable $callback): self
