@@ -34,7 +34,10 @@ class Tool implements ToolInterface
      */
     protected array $properties = [];
 
-    protected ?Closure $callback = null;
+    /**
+     * @var null|callable
+     */
+    protected $callback = null;
 
     /**
      * The arguments to pass in to the callback.
