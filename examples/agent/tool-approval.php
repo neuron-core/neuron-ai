@@ -50,10 +50,7 @@ $persistence = new FilePersistence(__DIR__);
 
 // Reset state for new conversation
 $id = 'workflow_1';
-$agent = Agent::make(
-    persistence: $persistence,
-    workflowId: $id
-)
+$agent = Agent::make(persistence: $persistence, workflowId: $id)
     ->setAiProvider($provider)
     ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
     ->addTool([
@@ -103,6 +100,7 @@ try {
 
     goto chat;
 }
+
 $persistence->delete($id);
 
 // Helper function to simulate user input
