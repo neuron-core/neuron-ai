@@ -42,20 +42,21 @@ class FileDeleteTool extends Tool
 echo "=== Agent Middleware: Tool Approval Example ===\n";
 echo "-------------------------------------------------------------------\n\n";
 
-$provider = new Anthropic\Anthropic(
-    '',
-    'claude-3-7-sonnet-latest'
-);
 $persistence = new FilePersistence(__DIR__);
 
 // Reset state for new conversation
 $id = 'workflow_1';
 $agent = Agent::make(persistence: $persistence, workflowId: $id)
-    ->setAiProvider($provider)
-    ->setInstructions('You are a helpful assistant with access to file and command tools. Be concise.')
-    ->addTool([
-        new FileDeleteTool(),
-    ])
+    ->setAiProvider(
+        new Anthropic\Anthropic(
+            '',
+            'claude-3-7-sonnet-latest'
+        )
+    )
+    ->setInstructions(
+        'You are a helpful assistant with access to file and command tools. Be concise.'
+    )
+    ->addTool(new FileDeleteTool())
     ->addMiddleware(
         ToolNode::class,
         new ToolApproval()
