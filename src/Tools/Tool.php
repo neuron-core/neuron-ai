@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-use Closure;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
