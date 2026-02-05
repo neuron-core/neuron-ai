@@ -469,15 +469,11 @@ class ToolTest extends TestCase
         $this->assertEquals('test', $tool->getKey());
     }
 
-    public function test_annotations(): void
+    public function test_callback_precedence(): void
     {
-        $tool = Tool::make('foo-bar', 'description', annotations: [
-            'readOnly' => true,
-            'idempotent' => false,
-        ]);
-        $this->assertEquals([
-            'readOnly' => true,
-            'idempotent' => false,
-        ], $tool->getAnnotations());
+        $tool = new Tool('test', 'test');
+        $tool->setCallable(fn () => 'test result');
+        $tool->execute();
+        $this->assertEquals('test result', $tool->getResult());
     }
 }

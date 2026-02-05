@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Stubs\Tools;
 
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
-class TestToolClassOnlyParentConstructorFluent extends \NeuronAI\Tools\Tool
+class TestToolClassOnlyParentConstructorFluent extends Tool
 {
     public function __construct(protected string $key)
     {

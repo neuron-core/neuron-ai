@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
+use Closure;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
@@ -22,7 +23,7 @@ use function json_encode;
 use function method_exists;
 
 /**
- * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $annotations = [])
+ * @method static static make(?string $name = null, ?string $description = null, array $properties = [])
  */
 class Tool implements ToolInterface
 {
@@ -33,10 +34,7 @@ class Tool implements ToolInterface
      */
     protected array $properties = [];
 
-    /**
-     * @var ?callable
-     */
-    protected $callback;
+    protected ?Closure $callback = null;
 
     /**
      * The arguments to pass in to the callback.
@@ -62,13 +60,11 @@ class Tool implements ToolInterface
      * Tool constructor.
      *
      * @param ToolPropertyInterface[] $properties
-     * @param array<string, mixed> $annotations
      */
     public function __construct(
         protected string $name,
         protected ?string $description = null,
         array $properties = [],
-        protected array $annotations = [],
     ) {
         if ($properties !== []) {
             $this->properties = $properties;
@@ -109,14 +105,6 @@ class Tool implements ToolInterface
     protected function properties(): array
     {
         return [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function getAnnotations(): array
-    {
-        return $this->annotations;
     }
 
     /**
@@ -254,10 +242,13 @@ class Tool implements ToolInterface
 
         }, []);
 
-        $this->setResult(
-            method_exists($this, '__invoke') ? $this->__invoke(...$parameters)
-                : call_user_func($this->callback, ...$parameters)
-        );
+        if ($this->callback instanceof Closure) {
+            $this->setResult(call_user_func($this->callback, ...$parameters));
+        } elseif (method_exists($this, '__invoke')) {
+            $this->setResult($this->__invoke(...$parameters));
+        } else {
+            throw new ToolCallableNotSet('No function defined for tool execution.');
+        }
     }
 
     public function jsonSerialize(): array
