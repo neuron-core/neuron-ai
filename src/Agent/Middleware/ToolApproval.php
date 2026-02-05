@@ -156,7 +156,9 @@ class ToolApproval implements WorkflowMiddleware
                 continue;
             }
 
-            if (!($action = $request->getAction($toolCallId)) instanceof \NeuronAI\Workflow\Interrupt\Action) {
+            $action = $request->getAction($toolCallId);
+
+            if (!$action instanceof Action) {
                 // Tool doesn't require approval, skip
                 continue;
             }
