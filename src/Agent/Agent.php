@@ -116,7 +116,7 @@ class Agent extends Workflow implements AgentInterface
             new ChatNode($this->resolveProvider()),
         );
 
-        return new AgentHandler(parent::init($interrupt));
+        return new AgentHandler($this, $interrupt);
     }
 
     /**
@@ -135,7 +135,7 @@ class Agent extends Workflow implements AgentInterface
             new StreamingNode($this->resolveProvider()),
         );
 
-        return new AgentHandler(parent::init($interrupt));
+        return new AgentHandler($this, $interrupt);
     }
 
     /**

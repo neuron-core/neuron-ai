@@ -4,38 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Generator;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\WorkflowHandlerInterface;
+use NeuronAI\Workflow\WorkflowHandler;
 use NeuronAI\Workflow\WorkflowInterrupt;
-use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-class AgentHandler implements WorkflowHandlerInterface
+class AgentHandler extends WorkflowHandler
 {
-    public function __construct(
-        protected WorkflowHandlerInterface $workflowHandler
-    ) {
-    }
-
-    /**
-     * @throws Throwable
-     */
-    public function run(): WorkflowState
-    {
-        return $this->workflowHandler->run();
-    }
-
-    /**
-     * @throws Throwable
-     */
-    public function events(?StreamAdapterInterface $adapter = null): Generator
-    {
-        return $this->workflowHandler->events($adapter);
-    }
-
     /**
      * Agent convenience method
      *
