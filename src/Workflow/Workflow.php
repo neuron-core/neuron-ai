@@ -260,35 +260,38 @@ class Workflow implements WorkflowInterface
                     $resumeRequest
                 );
 
-                EventBus::emit('workflow-node-start', $this, new WorkflowNodeStart($currentNode::class, $this->resolveState()), $this->workflowId);
-                try {
-                    // Run before middleware
-                    $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
+                EventBus::emit(
+                    'workflow-node-start',
+                    $this,
+                    new WorkflowNodeStart($currentNode::class, $this->resolveState()),
+                    $this->workflowId
+                );
 
-                    // Execute the node
-                    $result = $currentNode->run($currentEvent, $this->resolveState());
+                // Run before middleware
+                $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
 
-                    // Consume generator if streaming, get final event
-                    if ($result instanceof Generator) {
-                        foreach ($result as $event) {
-                            yield $event;
-                        }
-                        $currentEvent = $result->getReturn();
-                    } else {
-                        $currentEvent = $result;
+                // Execute the node
+                $result = $currentNode->run($currentEvent, $this->resolveState());
+
+                // Consume generator if streaming, get final event
+                if ($result instanceof Generator) {
+                    foreach ($result as $event) {
+                        yield $event;
                     }
-
-                    // Run after middleware with the final event
-                    $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
-                } catch (WorkflowInterrupt $interrupt) {
-                    // Interruptions are intentional, not errors - let them bubble to outer catch
-                    throw $interrupt;
-                } catch (Throwable $exception) {
-                    // Only notify for actual errors
-                    EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-                    throw $exception;
+                    $currentEvent = $result->getReturn();
+                } else {
+                    $currentEvent = $result;
                 }
-                EventBus::emit('workflow-node-end', $this, new WorkflowNodeEnd($currentNode::class, $this->resolveState()), $this->workflowId);
+
+                // Run after middleware with the final event
+                $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
+
+                EventBus::emit(
+                    'workflow-node-end',
+                    $this,
+                    new WorkflowNodeEnd($currentNode::class, $this->resolveState()),
+                    $this->workflowId
+                );
 
                 if ($currentEvent instanceof StopEvent) {
                     break;
@@ -309,6 +312,10 @@ class Workflow implements WorkflowInterface
             $this->persistence->save($this->workflowId, $interrupt);
             EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
             throw $interrupt;
+        } catch (Throwable $exception) {
+            // Notify and propagate
+            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
+            throw $exception;
         }
     }
 
