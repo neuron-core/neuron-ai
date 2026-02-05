@@ -77,7 +77,7 @@ class ToolApproval implements WorkflowMiddleware
         $count = count($actions);
         $interruptRequest = new InterruptRequest(
             message: sprintf(
-                '%d tool call%s require%s human approval before execution',
+                '%d tool call%s require%s approval before execution',
                 $count,
                 $count === 1 ? '' : 's',
                 $count === 1 ? 's' : ''
