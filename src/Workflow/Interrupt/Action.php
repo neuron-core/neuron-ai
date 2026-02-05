@@ -26,7 +26,7 @@ class Action implements JsonSerializable
 
     public function decision(?ActionDecision $decision = null): ActionDecision
     {
-        if ($decision instanceof \NeuronAI\Workflow\Interrupt\ActionDecision) {
+        if ($decision instanceof ActionDecision) {
             $this->decision = $decision;
         }
         return $this->decision;
@@ -34,9 +34,7 @@ class Action implements JsonSerializable
 
     public function feedback(?string $feedback = null): ?string
     {
-        if ($feedback !== null) {
-            $this->feedback = $feedback;
-        }
+        $this->feedback = $feedback;
         return $this->feedback;
     }
 
@@ -48,9 +46,7 @@ class Action implements JsonSerializable
     public function approve(?string $feedback = null): void
     {
         $this->decision = ActionDecision::Approved;
-        if ($feedback !== null) {
-            $this->feedback = $feedback;
-        }
+        $this->feedback = $feedback;
     }
 
     /**
@@ -61,9 +57,7 @@ class Action implements JsonSerializable
     public function reject(?string $feedback = null): void
     {
         $this->decision = ActionDecision::Rejected;
-        if ($feedback !== null) {
-            $this->feedback = $feedback;
-        }
+        $this->feedback = $feedback;
     }
 
     /**
@@ -74,9 +68,7 @@ class Action implements JsonSerializable
     public function edit(?string $feedback = null): void
     {
         $this->decision = ActionDecision::Edit;
-        if ($feedback !== null) {
-            $this->feedback = $feedback;
-        }
+        $this->feedback = $feedback;
     }
 
     /**
