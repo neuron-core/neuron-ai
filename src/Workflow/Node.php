@@ -20,7 +20,6 @@ abstract class Node implements NodeInterface
 {
     protected WorkflowState $state;
     protected Event $event;
-    protected bool $isResuming = false;
     protected ?InterruptRequest $resumeRequest = null;
 
     /**
@@ -115,7 +114,7 @@ abstract class Node implements NodeInterface
      */
     public function isResuming(): bool
     {
-        return $this->isResuming;
+        return $this->resumeRequest instanceof InterruptRequest;
     }
 
     /**
