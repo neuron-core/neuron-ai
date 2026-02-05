@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
@@ -196,12 +197,7 @@ class Workflow implements WorkflowInterface
 
         EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
-        try {
-            $this->bootstrap();
-        } catch (WorkflowException $exception) {
-            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            throw $exception;
-        }
+        $this->bootstrap();
 
         $startEvent = $this->resolveStartEvent();
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
@@ -222,12 +218,7 @@ class Workflow implements WorkflowInterface
 
         EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
-        try {
-            $this->bootstrap();
-        } catch (WorkflowException $exception) {
-            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            throw $exception;
-        }
+        $this->bootstrap();
 
         $interrupt = $this->persistence->load($this->workflowId);
         $this->setState($interrupt->getState());
@@ -250,7 +241,7 @@ class Workflow implements WorkflowInterface
     protected function execute(
         Event $currentEvent,
         NodeInterface $currentNode,
-        ?Interrupt\InterruptRequest $resumeRequest = null
+        ?InterruptRequest $resumeRequest = null
     ): Generator {
         try {
             while (!($currentEvent instanceof StopEvent)) {
@@ -356,11 +347,17 @@ class Workflow implements WorkflowInterface
 
     /**
      * @throws WorkflowException
+     * @throws InspectorException
      */
     protected function bootstrap(): void
     {
-        $this->loadEventNodeMap();
-        $this->validate();
+        try {
+            $this->loadEventNodeMap();
+            $this->validate();
+        } catch (Throwable $exception) {
+            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
+            throw $exception;
+        }
     }
 
     /**
@@ -494,7 +491,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowException
+     * @throws WorkflowException|InspectorException
      */
     public function export(): string
     {
