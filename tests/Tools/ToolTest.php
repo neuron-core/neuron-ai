@@ -472,7 +472,7 @@ class ToolTest extends TestCase
     public function test_callback_precedence(): void
     {
         $tool = new Tool('test', 'test');
-        $tool->setCallable(fn () => 'test result');
+        $tool->setCallable(fn (): string => 'test result');
         $tool->execute();
         $this->assertEquals('test result', $tool->getResult());
     }

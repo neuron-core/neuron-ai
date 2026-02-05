@@ -37,7 +37,7 @@ class Tool implements ToolInterface
     /**
      * @var null|callable
      */
-    protected $callback = null;
+    protected $callback;
 
     /**
      * The arguments to pass in to the callback.
