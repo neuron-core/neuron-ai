@@ -245,7 +245,7 @@ class Tool implements ToolInterface
 
         }, []);
 
-        if ($this->callback instanceof Closure) {
+        if (is_callable($this->callback)) {
             $this->setResult(call_user_func($this->callback, ...$parameters));
         } elseif (method_exists($this, '__invoke')) {
             $this->setResult($this->__invoke(...$parameters));
