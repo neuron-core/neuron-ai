@@ -14,6 +14,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
@@ -26,7 +27,7 @@ use function fopen;
 use function is_array;
 use function trim;
 
-class OpeAISpeechToText implements AIProviderInterface
+class OpenAISpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
 
@@ -51,7 +52,6 @@ class OpeAISpeechToText implements AIProviderInterface
             ->withBaseUri(trim($this->baseUri, '/') . '/')
             ->withHeaders([
                 'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
             ]);
     }
@@ -69,21 +69,34 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $body = [
-            'file' => fopen($message->getAudio(), 'r'),
+        $fields = [
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
         ];
 
         if ($this->system !== null && $this->system !== '') {
-            $body['prompt'] = $this->system;
+            $field['prompt'] = $this->system;
         }
 
+        $boundary = '----NeuronAIBoundary' . bin2hex(random_bytes(16));
+        $body = $this->buildMultipartBody($fields, $boundary, [
+            'field'    => 'file',
+            'filename' => $message->getAudio(),
+            'mime'     => 'application/octet-stream',
+            'content'  => file_get_contents($message->getAudio()),
+        ]);
+        $headers = [
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+            'Content-Length' => strlen($body),
+        ];
+
         $response = $this->httpClient->request(
-            HttpRequest::post(
+            new HttpRequest(
+                method: HttpMethod::POST,
                 uri: 'audio/transcriptions',
-                body: $body
+                headers: $headers,
+                body: $body,
             )
         )->json();
 
@@ -105,22 +118,35 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $json = [
+        $fields = [
             'stream' => true,
-            'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
         ];
 
         if ($this->system !== null && $this->system !== '') {
-            $json['prompt'] = $this->system;
+            $field['prompt'] = $this->system;
         }
 
+        $boundary = '----NeuronAIBoundary' . bin2hex(random_bytes(16));
+        $body = $this->buildMultipartBody($fields, $boundary, [
+            'field'    => 'file',
+            'filename' => $message->getAudio(),
+            'mime'     => 'application/octet-stream',
+            'content'  => file_get_contents($message->getAudio()),
+        ]);
+        $headers = [
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+            'Content-Length' => strlen($body),
+        ];
+
         $stream = $this->httpClient->stream(
-            HttpRequest::post(
+            new HttpRequest(
+                method: HttpMethod::POST,
                 uri: 'audio/transcriptions',
-                body: $json
+                headers: $headers,
+                body: $body,
             )
         );
 
@@ -167,5 +193,47 @@ class OpeAISpeechToText implements AIProviderInterface
     public function setTools(array $tools): AIProviderInterface
     {
         return $this;
+    }
+
+    /**
+     * Builds a multipart body string for use in HTTP requests with multipart/form-data encoding.
+     *
+     * @param array $fields An associative array of form fields where keys are field names
+     *                      and values are field values. Supports nested arrays for multiple values of the same field.
+     * @param string $boundary The boundary string used to separate parts in the multipart body.
+     * @param array $file An associative array containing file data to include in the multipart body:
+     *                    - 'field': The name of the form field for the file (default: 'file').
+     *                    - 'filename': The name of the uploaded file (default: 'upload.mp3').
+     *                    - 'mime': The MIME type of the file (default: 'application/octet-stream').
+     *                    - 'content': The binary content of the file.
+     * @return string The generated multipart body as a string.
+     */
+    private function buildMultipartBody(array $fields, string $boundary, array $file): string
+    {
+        $eol = "\r\n";
+        $body = '';
+        foreach ($fields as $name => $value) {
+            if (is_array($value)) {
+                foreach ($value as $v) {
+                    $body .= "--{$boundary}{$eol}";
+                    $body .= 'Content-Disposition: form-data; name="' . $name . '[]"'.$eol.$eol;
+                    $body .= (string)$v . $eol;
+                }
+                continue;
+            }
+            $body .= "--{$boundary}{$eol}";
+            $body .= 'Content-Disposition: form-data; name="' . $name . '"'.$eol.$eol;
+            $body .= (string)$value . $eol;
+        }
+        $fileField = $file['field'] ?? 'file';
+        $filename  = $file['filename'] ?? 'upload.mp3';
+        $mime      = $file['mime'] ?? 'application/octet-stream';
+        $content   = $file['content'] ?? '';
+        $body .= "--{$boundary}{$eol}";
+        $body .= 'Content-Disposition: form-data; name="' . $fileField . '"; filename="' . $filename . '"' . $eol;
+        $body .= 'Content-Type: ' . $mime . $eol . $eol;
+        $body .= $content . $eol;
+        $body .= "--{$boundary}--{$eol}";
+        return $body;
     }
 }
