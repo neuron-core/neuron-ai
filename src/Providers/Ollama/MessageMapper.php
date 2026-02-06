@@ -67,6 +67,7 @@ class MessageMapper implements MessageMapperInterface
         }
 
         unset($payload['attachments']);
+        unset($payload['stop_reason']);
 
         $this->mapping[] = $payload;
     }

@@ -79,6 +79,7 @@ class MessageMapper implements MessageMapperInterface
         $payload['content'] = array_merge($payload['content'], $this->mapAttachments($attachments));
 
         unset($payload['attachments']);
+        unset($payload['stop_reason']);
 
         return $payload;
     }
