@@ -8,10 +8,10 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\RAG\Nodes\EnrichInstructionsNode;
-use NeuronAI\RAG\Nodes\PostProcessDocumentsNode;
-use NeuronAI\RAG\Nodes\PreProcessQueryNode;
-use NeuronAI\RAG\Nodes\RetrieveDocumentsNode;
+use NeuronAI\RAG\Nodes\InstructionsNode;
+use NeuronAI\RAG\Nodes\PostProcessNode;
+use NeuronAI\RAG\Nodes\PreProcessNode;
+use NeuronAI\RAG\Nodes\RetrievalNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
 use NeuronAI\Workflow\Node;
@@ -69,10 +69,10 @@ class RAG extends Agent
     protected function ragNodes(): array
     {
         return [
-            new PreProcessQueryNode($this->preProcessors()),
-            new RetrieveDocumentsNode($this->resolveRetrieval()),
-            new PostProcessDocumentsNode($this->postProcessors()),
-            new EnrichInstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
+            new PreProcessNode($this->preProcessors()),
+            new RetrievalNode($this->resolveRetrieval()),
+            new PostProcessNode($this->postProcessors()),
+            new InstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
         ];
     }
 

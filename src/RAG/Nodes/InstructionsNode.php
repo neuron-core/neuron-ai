@@ -18,7 +18,7 @@ use const PHP_EOL;
  * Injects documents into instructions within <EXTRA-CONTEXT> tags.
  * Caches enriched instructions, tools, and documents in state for tool loop reuse.
  */
-class EnrichInstructionsNode extends Node
+class InstructionsNode extends Node
 {
     use HandleContent;
 

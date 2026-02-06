@@ -17,7 +17,7 @@ use NeuronAI\Workflow\Node;
  *
  * Post-processors can rerank, filter, or transform documents (e.g., relevance scoring, diversity filtering).
  */
-class PostProcessDocumentsNode extends Node
+class PostProcessNode extends Node
 {
     /**
      * @param PostProcessorInterface[] $postProcessors

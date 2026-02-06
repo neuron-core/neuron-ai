@@ -21,7 +21,7 @@ use function md5;
  * Uses the configured retrieval strategy to find documents matching the query.
  * Automatically deduplicates documents by content hash.
  */
-class RetrieveDocumentsNode extends Node
+class RetrievalNode extends Node
 {
     public function __construct(
         private readonly RetrievalInterface $retrieval

@@ -19,7 +19,7 @@ use NeuronAI\Workflow\Node;
  *
  * Preprocessors can transform the query (e.g., query expansion, rewriting).
  */
-class PreProcessQueryNode extends Node
+class PreProcessNode extends Node
 {
     use ChatHistoryHelper;
 
