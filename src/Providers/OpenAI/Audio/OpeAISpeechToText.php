@@ -105,7 +105,7 @@ class OpeAISpeechToText implements AIProviderInterface
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
-        $json = [
+        $body = [
             'stream' => true,
             'file' => fopen($message->getAudio(), 'r'),
             'model' => $this->model,
@@ -113,14 +113,14 @@ class OpeAISpeechToText implements AIProviderInterface
             'response_format' => 'json',
         ];
 
-        if ($this->system !== null && $this->system !== '') {
-            $json['prompt'] = $this->system;
+        if ($message->getContent() !== null) {
+            $body['prompt'] = $message->getContent();
         }
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'audio/transcriptions',
-                body: $json
+                body: $body
             )
         );
 
