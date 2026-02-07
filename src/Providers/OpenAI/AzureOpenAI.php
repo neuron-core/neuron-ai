@@ -28,7 +28,7 @@ class AzureOpenAI extends OpenAI
 
         // Create HTTP client with Azure-specific configuration
         // Azure uses Bearer token auth instead of api-key header
-        // and requires api-version as query parameter
+        // and requires api-version as a query parameter
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
