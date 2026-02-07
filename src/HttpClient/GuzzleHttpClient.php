@@ -187,7 +187,7 @@ class GuzzleHttpClient implements HttpClientInterface
     {
         if ($request->body !== null) {
             if (is_array($request->body)) {
-                // Check if body contains resources (multipart data)
+                // Check if the body contains resources (multipart data)
                 if ($this->isMultipartData($request->body)) {
                     $options[RequestOptions::MULTIPART] = $this->buildMultipartData($request->body);
                 } else {

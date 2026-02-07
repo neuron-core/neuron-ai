@@ -26,7 +26,7 @@ use function fopen;
 use function is_array;
 use function trim;
 
-class OpeAISpeechToText implements AIProviderInterface
+class OpenAISpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
 
