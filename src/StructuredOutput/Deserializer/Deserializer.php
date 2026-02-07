@@ -6,6 +6,7 @@ namespace NeuronAI\StructuredOutput\Deserializer;
 
 use BackedEnum;
 use NeuronAI\StaticConstructor;
+use NeuronAI\StructuredOutput\SchemaProperty;
 use DateTime;
 use DateTimeImmutable;
 use Exception;
@@ -16,7 +17,6 @@ use ReflectionProperty;
 use ReflectionType;
 use ReflectionUnionType;
 
-use function array_filter;
 use function array_key_exists;
 use function array_keys;
 use function array_map;
@@ -24,7 +24,6 @@ use function basename;
 use function class_exists;
 use function count;
 use function enum_exists;
-use function explode;
 use function gettype;
 use function implode;
 use function is_array;
@@ -35,8 +34,6 @@ use function json_decode;
 use function json_last_error;
 use function json_last_error_msg;
 use function lcfirst;
-use function preg_match;
-use function preg_match_all;
 use function preg_replace;
 use function str_replace;
 use function strtolower;
@@ -233,55 +230,26 @@ class Deserializer
      */
     protected function handleArray(mixed $value, ReflectionProperty $property): mixed
     {
-        $types = $this->extractArrayElementTypes($property);
+        $attributes = $property->getAttributes(SchemaProperty::class);
 
-        if ($types !== []) {
-            if (count($types) === 1) {
-                // Single type - use existing logic
-                $elementType = $types[0];
-                if (class_exists($elementType)) {
-                    return array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
+        if ($attributes !== []) {
+            /** @var SchemaProperty $attribute */
+            $attribute = $attributes[0]->newInstance();
+
+            if ($attribute->anyOf !== null && $attribute->anyOf !== []) {
+                if (count($attribute->anyOf) === 1) {
+                    $elementType = $attribute->anyOf[0];
+                    if (class_exists($elementType)) {
+                        return array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
+                    }
+                } else {
+                    return array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $attribute->anyOf), $value);
                 }
-            } elseif (count($types) > 1) {
-                // Multiple types - use discriminator-based deserialization
-                return array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $types), $value);
             }
         }
 
         // Fallback: return the value as-is
         return $value;
-    }
-
-    /**
-     * Extract element types from array docblock annotation
-     * Supports single and multiple types
-     *
-     * @return array<string> Array of fully qualified class names
-     */
-    protected function extractArrayElementTypes(ReflectionProperty $property): array
-    {
-        $docComment = $property->getDocComment();
-        if (!$docComment) {
-            return [];
-        }
-
-        // Try to match array<Type1|Type2|...> format
-        if (preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
-            $typesString = $matches[1];
-            // Split by pipe and trim whitespace
-            $types = array_map(trim(...), explode('|', $typesString));
-            return array_filter($types, fn (string $type): bool => class_exists($type) || enum_exists($type));
-        }
-
-        // Try to match Type1[]|Type2[]|... format
-        if (preg_match_all('/@var\s+([a-zA-Z0-9_\\\\]+)\[\](?:\|([a-zA-Z0-9_\\\\]+)\[\])*/', $docComment, $matches)) {
-            // Extract all types from the first match group
-            $fullMatch = $matches[0][0] ?? '';
-            preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
-            return array_filter($typeMatches[1], fn (string $type): bool => class_exists($type) || enum_exists($type));
-        }
-
-        return [];
     }
 
     /**

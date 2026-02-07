@@ -14,10 +14,7 @@ class Tag
     #[NotBlank]
     public string $name;
 
-    #[SchemaProperty(description: 'Properties can contains additional values', required: false)]
-    /**
-     * @var \NeuronAI\Tests\Stubs\StructuredOutput\TagProperties[]
-     */
+    #[SchemaProperty(description: 'Properties can contains additional values', required: false, anyOf: [TagProperties::class])]
     #[ArrayOf(TagProperties::class)]
     public array $properties;
 }

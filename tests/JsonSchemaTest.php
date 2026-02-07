@@ -7,7 +7,11 @@ namespace NeuronAI\Tests;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
+use NeuronAI\Tests\Stubs\StructuredOutput\EmailMode;
+use NeuronAI\Tests\Stubs\StructuredOutput\FtpMode;
+use NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\TextBlock;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use PHPUnit\Framework\TestCase;
 
@@ -266,8 +270,7 @@ class JsonSchemaTest extends TestCase
     public function test_array_of_object(): void
     {
         $people = new class () {
-            /** @var \NeuronAI\Tests\Stubs\StructuredOutput\User[] */
-            #[SchemaProperty(description: "The list of users", required: true)]
+            #[SchemaProperty(description: "The list of users", required: true, anyOf: [User::class])]
             #[ArrayOf(User::class)]
             public array $people;
         };
@@ -298,12 +301,10 @@ class JsonSchemaTest extends TestCase
         ], $schema);
     }
 
-    public function test_array_with_multiple_types_using_pipe_syntax(): void
+    public function test_array_with_multiple_types_using_anyof(): void
     {
         $class = new class () {
-            /**
-             * @var \NeuronAI\Tests\Stubs\StructuredOutput\FtpMode[]|\NeuronAI\Tests\Stubs\StructuredOutput\EmailMode[]
-             */
+            #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
             public array $modes;
         };
 
@@ -339,12 +340,10 @@ class JsonSchemaTest extends TestCase
         $this->assertContains('__classname__', $schemas[1]['required']);
     }
 
-    public function test_array_with_multiple_types_using_array_syntax(): void
+    public function test_array_with_multiple_types_using_anyof_alternative(): void
     {
         $class = new class () {
-            /**
-             * @var array<\NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock|\NeuronAI\Tests\Stubs\StructuredOutput\TextBlock>
-             */
+            #[SchemaProperty(anyOf: [ImageBlock::class, TextBlock::class])]
             public array $blocks;
         };
 
@@ -378,5 +377,78 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayHasKey('type', $schemas[1]['properties']);
         $this->assertArrayHasKey('content', $schemas[1]['properties']);
         $this->assertContains('__classname__', $schemas[1]['required']);
+    }
+
+    public function test_string_constraints(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "A title", minLength: 1, maxLength: 100)]
+            public string $title;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'title' => [
+                    'description' => 'A title',
+                    'type' => 'string',
+                    'minLength' => 1,
+                    'maxLength' => 100,
+                ]
+            ],
+            'required' => ['title'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
+    public function test_numeric_constraints(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "A rating", min: 1, max: 5)]
+            public int $rating;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'rating' => [
+                    'description' => 'A rating',
+                    'type' => 'integer',
+                    'minimum' => 1,
+                    'maximum' => 5,
+                ]
+            ],
+            'required' => ['rating'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
+    public function test_array_constraints(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Tags list", min: 1, max: 10)]
+            public array $tags;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'tags' => [
+                    'description' => 'Tags list',
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'minItems' => 1,
+                    'maxItems' => 10,
+                ]
+            ],
+            'required' => ['tags'],
+            'additionalProperties' => false,
+        ], $schema);
     }
 }

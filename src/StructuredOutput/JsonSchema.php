@@ -12,8 +12,6 @@ use ReflectionException;
 use ReflectionNamedType;
 use ReflectionProperty;
 
-use function array_filter;
-use function array_map;
 use function array_merge;
 use function array_pop;
 use function array_unique;
@@ -21,13 +19,10 @@ use function basename;
 use function class_exists;
 use function count;
 use function enum_exists;
-use function explode;
 use function in_array;
-use function is_array;
-use function preg_match;
-use function preg_match_all;
 use function str_replace;
 use function strtolower;
+use function is_array;
 
 /**
  * @method static static make(string $discriminator = '__classname__')
@@ -173,22 +168,25 @@ class JsonSchema
         if ($typeName === 'array') {
             $schema['type'] = 'array';
 
-            // Parse PHPDoc for the array item type(s)
-            $docComment = $property->getDocComment();
-            if ($docComment) {
-                // Extract all types from PHPDoc
-                $types = $this->extractArrayItemTypes($docComment);
-
-                if (count($types) === 1) {
-                    // Single class type - use existing logic
-                    $schema['items'] = $this->generateClassSchema($types[0]);
+            // Use anyOf from SchemaProperty attribute
+            if ($attribute instanceof SchemaProperty && $attribute->anyOf !== null && $attribute->anyOf !== []) {
+                if (count($attribute->anyOf) === 1) {
+                    $schema['items'] = $this->generateClassSchema($attribute->anyOf[0]);
                 } else {
-                    // Multiple class types - use anyOf
-                    $schema['items'] = $this->generateAnyOfSchema($types);
+                    $schema['items'] = $this->generateAnyOfSchema($attribute->anyOf);
                 }
             } else {
-                // Default to string if no doc comment
                 $schema['items'] = ['type' => 'string'];
+            }
+
+            // Apply array constraints
+            if ($attribute instanceof SchemaProperty) {
+                if ($attribute->min !== null) {
+                    $schema['minItems'] = $attribute->min;
+                }
+                if ($attribute->max !== null) {
+                    $schema['maxItems'] = $attribute->max;
+                }
             }
         }
         // Handle enum types
@@ -205,6 +203,27 @@ class JsonSchema
         elseif ($typeName) {
             $typeSchema = $this->getBasicTypeSchema($typeName);
             $schema = array_merge($schema, $typeSchema);
+
+            // Apply type-specific constraints
+            if ($attribute instanceof SchemaProperty) {
+                if (in_array($typeName, ['int', 'integer', 'float', 'double'])) {
+                    if ($attribute->min !== null) {
+                        $schema['minimum'] = $attribute->min;
+                    }
+                    if ($attribute->max !== null) {
+                        $schema['maximum'] = $attribute->max;
+                    }
+                }
+
+                if ($typeName === 'string') {
+                    if ($attribute->minLength !== null) {
+                        $schema['minLength'] = $attribute->minLength;
+                    }
+                    if ($attribute->maxLength !== null) {
+                        $schema['maxLength'] = $attribute->maxLength;
+                    }
+                }
+            }
         } else {
             // Default to string if no type hint
             $schema['type'] = 'string';
@@ -306,50 +325,6 @@ class JsonSchema
                 // Default to string for unknown types
                 return ['type' => 'string'];
         }
-    }
-
-    /**
-     * Extract array item types from PHPDoc comment
-     *
-     * Supports formats:
-     * - @var \App\Type[]
-     * - @var array<\App\Type>
-     * - @var \App\TypeOne[]|\App\TypeTwo[]
-     * - @var array<\App\TypeOne|\App\TypeTwo>
-     *
-     * @return array<class-string> Array of type strings (empty if no types found)
-     */
-    protected function extractArrayItemTypes(string $docComment): array
-    {
-        // Try to match array<Type1|Type2|...> format
-        if (preg_match('/@var\s+array<([^>]+)>/', $docComment, $matches)) {
-            $typesString = $matches[1];
-            // Split by pipe and trim whitespace
-            return $this->filterClassTypes(
-                array_map(trim(...), explode('|', $typesString))
-            );
-        }
-
-        // Try to match Type1[]|Type2[]|... format
-        if (preg_match_all('/@var\s+([a-zA-Z0-9_\\\\]+)\[\](?:\|([a-zA-Z0-9_\\\\]+)\[\])*/', $docComment, $matches)) {
-            // Extract all types from the first match group
-            $fullMatch = $matches[0][0] ?? '';
-            preg_match_all('/([a-zA-Z0-9_\\\\]+)\[\]/', $fullMatch, $typeMatches);
-            return $this->filterClassTypes($typeMatches[1]);
-        }
-
-        return [];
-    }
-
-    /**
-     * Filter array of types to keep only class and enum types
-     *
-     * @param array $types Array of type strings
-     * @return array Array of class/enum type strings
-     */
-    protected function filterClassTypes(array $types): array
-    {
-        return array_filter($types, fn (string $type): bool => class_exists($type) || enum_exists($type));
     }
 
     /**

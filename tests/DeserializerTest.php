@@ -10,8 +10,12 @@ use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
 use NeuronAI\Tests\Stubs\StructuredOutput\ColorWithDefaults;
+use NeuronAI\Tests\Stubs\StructuredOutput\EmailMode;
+use NeuronAI\Tests\Stubs\StructuredOutput\FtpMode;
+use NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
+use NeuronAI\Tests\Stubs\StructuredOutput\TextBlock;
 use NeuronAI\Tests\Stubs\StringEnum;
 use NeuronAI\Tests\Stubs\StructuredOutput\TagProperties;
 use PHPUnit\Framework\TestCase;
@@ -190,9 +194,7 @@ class DeserializerTest extends TestCase
     public function test_deserialize_multi_type_array_with_discriminator(): void
     {
         $class = new class () {
-            /**
-             * @var \NeuronAI\Tests\Stubs\StructuredOutput\FtpMode[]|\NeuronAI\Tests\Stubs\StructuredOutput\EmailMode[]
-             */
+            #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
             public array $modes;
         };
 
@@ -225,12 +227,10 @@ class DeserializerTest extends TestCase
         $this->assertEquals('backup', $obj->modes[2]->account);
     }
 
-    public function test_deserialize_multi_type_array_with_array_syntax(): void
+    public function test_deserialize_multi_type_array_with_anyof(): void
     {
         $class = new class () {
-            /**
-             * @var array<\NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock|\NeuronAI\Tests\Stubs\StructuredOutput\TextBlock>
-             */
+            #[SchemaProperty(anyOf: [ImageBlock::class, TextBlock::class])]
             public array $blocks;
         };
 
@@ -260,9 +260,7 @@ class DeserializerTest extends TestCase
     public function test_deserialize_multi_type_array_missing_discriminator(): void
     {
         $class = new class () {
-            /**
-             * @var \NeuronAI\Tests\Stubs\StructuredOutput\FtpMode[]|\NeuronAI\Tests\Stubs\StructuredOutput\EmailMode[]
-             */
+            #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
             public array $modes;
         };
 
@@ -281,9 +279,7 @@ class DeserializerTest extends TestCase
     public function test_deserialize_multi_type_array_invalid_discriminator(): void
     {
         $class = new class () {
-            /**
-             * @var \NeuronAI\Tests\Stubs\StructuredOutput\FtpMode[]|\NeuronAI\Tests\Stubs\StructuredOutput\EmailMode[]
-             */
+            #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
             public array $modes;
         };
 

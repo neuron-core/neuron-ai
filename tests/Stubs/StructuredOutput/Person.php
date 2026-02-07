@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Stubs\StructuredOutput;
 
+use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
 
@@ -15,9 +16,7 @@ class Person
 
     public Address $address;
 
-    /**
-     * @var \NeuronAI\Tests\Stubs\StructuredOutput\Tag[]
-     */
+    #[SchemaProperty(anyOf: [Tag::class])]
     #[ArrayOf(Tag::class, allowEmpty: true)]
     public array $tags;
 }
