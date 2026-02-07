@@ -71,7 +71,7 @@ abstract class AbstractToolkit implements ToolkitInterface
         }
 
         if ($this->with !== []) {
-            return array_map(fn (ToolInterface $tool): ToolInterface => $this->with[$tool::class]($tool) ?? $tool, $tools);
+            return array_map(fn (ToolInterface $tool): ToolInterface => isset($this->with[$tool::class]) ? ($this->with[$tool::class]($tool) ?? $tool) : $tool, $tools);
         }
 
         return $tools;
