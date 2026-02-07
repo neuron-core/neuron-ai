@@ -51,7 +51,6 @@ class OpenAISpeechToText implements AIProviderInterface
             ->withBaseUri(trim($this->baseUri, '/') . '/')
             ->withHeaders([
                 'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
             ]);
     }
