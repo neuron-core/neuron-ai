@@ -76,8 +76,8 @@ class OpeAISpeechToText implements AIProviderInterface
             'response_format' => 'json',
         ];
 
-        if ($this->system !== null && $this->system !== '') {
-            $body['prompt'] = $this->system;
+        if ($message->getContent() !== null) {
+            $body['prompt'] = $message->getContent();
         }
 
         $response = $this->httpClient->request(
