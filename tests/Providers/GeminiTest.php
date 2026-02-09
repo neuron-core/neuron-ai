@@ -40,6 +40,31 @@ class GeminiTest extends TestCase
 	]
 }';
 
+    protected string $bodyWithAttachment = '{
+	"candidates": [
+		{
+			"content": {
+			    "role": "model",
+			    "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/png",
+                            "data": "abc123"
+                        }
+                    },
+                    {
+                        "inlineData": {
+                            "mimeType": "application/pdf",
+                            "data": "321cba"
+                        }
+                    }
+                ]
+			},
+			"finishReason": "STOP"
+		}
+	]
+}';
+
     public function test_chat_request(): void
     {
         $sentRequests = [];
@@ -314,5 +339,50 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_chat_with_attachment_response(): void
+    {
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $this->bodyWithAttachment),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $client = new Client(['handler' => $stack]);
+
+        $provider = (new Gemini('', 'gemini-2.5-flash-image'))->setClient($client);
+
+        $message = (new UserMessage('Generate two files'));
+
+        $response = $provider->chat([$message]);
+
+        // Ensure we sent one request
+        $this->assertCount(1, $sentRequests);
+        $request = $sentRequests[0];
+
+        // Ensure we have sent the expected request payload.
+        $expectedRequest = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => 'Generate two files'],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame('', $response->getContent()); // We did this on purpose, depending on your responseModalities it might not generate any text
+        $this->assertCount(2, $attachmentList = $response->getAttachments());
+
+        $this->assertSame('image/png', $attachmentList[0]->mediaType);
+        $this->assertSame('abc123', $attachmentList[0]->content);
+
+        $this->assertSame('application/pdf', $attachmentList[1]->mediaType);
+        $this->assertSame('321cba', $attachmentList[1]->content);
     }
 }
