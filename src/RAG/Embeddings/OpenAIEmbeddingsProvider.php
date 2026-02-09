@@ -34,7 +34,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         $inputs = [];
 
         foreach ($documents as $document) {
-            $text = $document->formattedContent ?? $document->content;
+            $text = $document->content;
             $inputs[] = $text;
         }
 
