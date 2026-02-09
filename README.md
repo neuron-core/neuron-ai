@@ -135,15 +135,15 @@ $agent = DataAnalystAgent::make();
 
 $response = $agent->chat(
     new UserMessage("Hi, I'm Valerio. Who are you?")
-);
-echo $response->getContentBlocks();
+)->getMessage();
+echo $response->getContent();
 // I'm a data analyst. How can I help you today?
 
 
 $response = $agent->chat(
     new UserMessage("Do you remember my name?")
-);
-echo $response->getContentBlocks();
+)->getMessage();
+echo $response->getContent();
 // Your name is Valerio, as you said in your introduction.
 ```
 
@@ -253,9 +253,9 @@ Ask the agent something about your database:
 ```php
 $response = DataAnalystAgent::make()->chat(
     new UserMessage("How many orders we received today?")
-);
+)->getMessage();
 
-echo $response->getContentBlocks();
+echo $response->getContent();
 ```
 
 Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/getting-started/tools).
@@ -321,7 +321,7 @@ use NeuronAI\StructuredOutput\SchemaProperty;
  */
 class Person
 {
-    #[SchemaProperty(description: 'The user name')]
+    #[SchemaProperty(description: 'The user name', required: true)]
     public string $name;
 
     #[SchemaProperty(description: 'What the user love to eat')]
