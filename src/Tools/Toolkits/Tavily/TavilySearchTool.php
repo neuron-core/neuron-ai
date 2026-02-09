@@ -63,7 +63,7 @@ class TavilySearchTool extends Tool
                 PropertyType::STRING,
                 'Explicit the topic you want to perform the web search on.',
                 false,
-                ['general', 'news']
+                ['general', 'news', 'finance']
             ),
             new ToolProperty(
                 'time_range',
