@@ -92,12 +92,21 @@ class Workflow implements WorkflowInterface
 
         try {
             $this->bootstrap();
-        } catch (WorkflowException $exception) {
+        } catch (Throwable $exception) {
             $this->notify('error', new AgentError($exception));
+            $this->notify('workflow-end', new WorkflowEnd($this->state));
             throw $exception;
         }
 
-        yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class]);
+        try {
+            yield from $this->execute(new StartEvent(), $this->eventNodeMap[StartEvent::class]);
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->persistence->save($this->workflowId, $interrupt);
+            $this->notify('workflow-interrupt', $interrupt);
+            throw $interrupt;
+        } finally {
+            $this->notify('workflow-end', new WorkflowEnd($this->state));
+        }
 
         $this->notify('workflow-end', new WorkflowEnd($this->state));
 
@@ -113,8 +122,9 @@ class Workflow implements WorkflowInterface
 
         try {
             $this->bootstrap();
-        } catch (WorkflowException $exception) {
+        } catch (Throwable $exception) {
             $this->notify('error', new AgentError($exception));
+            $this->notify('workflow-end', new WorkflowEnd($this->state));
             throw $exception;
         }
 
@@ -124,14 +134,23 @@ class Workflow implements WorkflowInterface
         $currentNode = $interrupt->getCurrentNode();
         $currentEvent = $interrupt->getCurrentEvent();
 
-        yield from $this->execute(
-            $currentEvent,
-            $currentNode,
-            true,
-            $externalFeedback
-        );
-
-        $this->notify('workflow-end', new WorkflowEnd($this->state));
+        try {
+            yield from $this->execute(
+                $currentEvent,
+                $currentNode,
+                true,
+                $externalFeedback
+            );
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->persistence->save($this->workflowId, $interrupt);
+            $this->notify('workflow-interrupt', $interrupt);
+            throw $interrupt;
+        } catch (Throwable $exception) {
+            $this->notify('error', new AgentError($exception));
+            throw $exception;
+        } finally {
+            $this->notify('workflow-end', new WorkflowEnd($this->state));
+        }
 
         return $this->state;
     }
@@ -145,55 +164,48 @@ class Workflow implements WorkflowInterface
         bool $resuming = false,
         mixed $externalFeedback = null
     ): Generator {
-        try {
-            while (!($currentEvent instanceof StopEvent)) {
-                $currentNode->setWorkflowContext(
-                    $this->state,
-                    $currentEvent,
-                    $resuming,
-                    $externalFeedback
-                );
+        while (!($currentEvent instanceof StopEvent)) {
+            $currentNode->setWorkflowContext(
+                $this->state,
+                $currentEvent,
+                $resuming,
+                $externalFeedback
+            );
 
-                $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
-                try {
-                    $result = $currentNode->run($currentEvent, $this->state);
+            $this->notify('workflow-node-start', new WorkflowNodeStart($currentNode::class, $this->state));
+            try {
+                $result = $currentNode->run($currentEvent, $this->state);
 
-                    if ($result instanceof Generator) {
-                        foreach ($result as $event) {
-                            yield $event;
-                        }
-
-                        $currentEvent = $result->getReturn();
-                    } else {
-                        $currentEvent = $result;
+                if ($result instanceof Generator) {
+                    foreach ($result as $event) {
+                        yield $event;
                     }
-                } catch (Throwable $exception) {
-                    $this->notify('error', new AgentError($exception));
-                    throw $exception;
-                }
-                $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->state));
 
-                if ($currentEvent instanceof StopEvent) {
-                    break;
+                    $currentEvent = $result->getReturn();
+                } else {
+                    $currentEvent = $result;
                 }
+            } catch (Throwable $exception) {
+                $this->notify('error', new AgentError($exception));
+                throw $exception;
+            }
+            $this->notify('workflow-node-end', new WorkflowNodeEnd($currentNode::class, $this->state));
 
-                $nextEventClass = $currentEvent::class;
-                if (!isset($this->eventNodeMap[$nextEventClass])) {
-                    throw new WorkflowException("No node found that handle event: " . $nextEventClass);
-                }
-
-                $currentNode = $this->eventNodeMap[$nextEventClass];
-                $resuming = false; // Only the first node should be in resuming mode
-                $externalFeedback = null;
+            if ($currentEvent instanceof StopEvent) {
+                break;
             }
 
-            $this->persistence->delete($this->workflowId);
+            $nextEventClass = $currentEvent::class;
+            if (!isset($this->eventNodeMap[$nextEventClass])) {
+                throw new WorkflowException("No node found that handle event: " . $nextEventClass);
+            }
 
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->persistence->save($this->workflowId, $interrupt);
-            $this->notify('workflow-interrupt', $interrupt);
-            throw $interrupt;
+            $currentNode = $this->eventNodeMap[$nextEventClass];
+            $resuming = false; // Only the first node should be in resuming mode
+            $externalFeedback = null;
         }
+
+        $this->persistence->delete($this->workflowId);
     }
 
     /**

@@ -114,6 +114,8 @@ trait HandleStructured
             $maxRetries--;
         } while ($maxRetries >= 0);
 
+        $this->notify('structured-stop');
+
         throw $exception;
     }
 

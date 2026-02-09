@@ -75,6 +75,7 @@ trait HandleStream
             return $response;
         } catch (Throwable $exception) {
             $this->notify('error', new AgentError($exception));
+            $this->notify('stream-stop');
             throw $exception;
         }
     }
