@@ -87,8 +87,8 @@ class StructuredOutputNode extends Node
                 // If something goes wrong, retry informing the model about the error
                 if (trim($error) !== '') {
                     $correctionMessage = new UserMessage(
-                        "There was a problem in your previous response that generated the following errors".
-                        PHP_EOL.PHP_EOL.'- '.$error.PHP_EOL.PHP_EOL.
+                        "There was a problem in your previous response that generated the following error:".
+                        PHP_EOL.PHP_EOL.$error.PHP_EOL.PHP_EOL.
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
                     $this->addToChatHistory($state, $correctionMessage);
@@ -148,13 +148,14 @@ class StructuredOutputNode extends Node
      * @throws AgentException
      * @throws DeserializerException
      * @throws ReflectionException
+     * @throws InspectorException
      */
     protected function processResponse(
         Message $response,
         array $schema,
         string $class,
     ): object {
-        // Try to extract a valid JSON object from the LLM response
+        // Extract a valid JSON object from the LLM response
         $this->emit('structured-extracting', new Extracting($response));
         $json = (new JsonExtractor())->getJson($response->getContent());
         $this->emit('structured-extracted', new Extracted($response, $schema, $json));
