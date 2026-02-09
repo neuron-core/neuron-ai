@@ -229,8 +229,7 @@ class Workflow implements WorkflowInterface
             $resumeRequest
         );
 
-        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
-        EventBus::clear($this->workflowId);
+        $this->workflowEnd();
 
         return $this->resolveState();
     }
@@ -264,7 +263,7 @@ class Workflow implements WorkflowInterface
                 // Execute the node
                 $result = $currentNode->run($currentEvent, $this->resolveState());
 
-                // Consume generator if streaming, get final event
+                // Consume generator if streaming, get the final event
                 if ($result instanceof Generator) {
                     foreach ($result as $event) {
                         yield $event;
@@ -302,12 +301,23 @@ class Workflow implements WorkflowInterface
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);
             EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
+            $this->workflowEnd();
             throw $interrupt;
         } catch (Throwable $exception) {
             // Notify and propagate
             EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
+            $this->workflowEnd();
             throw $exception;
         }
+    }
+
+    /**
+     * @throws InspectorException
+     */
+    protected function workflowEnd(): void
+    {
+        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
+        EventBus::clear($this->workflowId);
     }
 
     /**

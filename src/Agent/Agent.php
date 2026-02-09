@@ -153,8 +153,6 @@ class Agent extends Workflow implements AgentInterface
         int $maxRetries = 1,
         ?InterruptRequest $interrupt = null
     ): mixed {
-        EventBus::emit('structured-start', $this, null, $this->workflowId);
-
         $this->resolveStartEvent()->setMessages($messages);
 
         $class ??= $this->getOutputClass();
@@ -168,8 +166,6 @@ class Agent extends Workflow implements AgentInterface
 
         /** @var AgentState $finalState */
         $finalState = $handler->run();
-
-        EventBus::emit('structured-stop', $this, null, $this->workflowId);
 
         // Return the structured output object
         return $finalState->get('structured_output');
