@@ -6,6 +6,9 @@ namespace NeuronAI\Providers;
 
 use Generator;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\ToolInterface;
 
@@ -38,7 +41,7 @@ interface AIProviderInterface
      *
      * @param Message|Message[] $messages
      */
-    public function chat(array|Message $messages): Message;
+    public function chat(Message ...$messages): Message;
 
     /**
      * Stream response from the LLM.
@@ -48,9 +51,9 @@ interface AIProviderInterface
      * Message object (AssistantMessage or ToolCallMessage) as its final value.
      *
      * @param Message|Message[] $messages
-     * @return Generator<int, \NeuronAI\Chat\Messages\Stream\Chunks\TextChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk|\NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk|array, mixed, Message>
+     * @return Generator<int, TextChunk|ReasoningChunk|ToolCallChunk|array, mixed, Message>
      */
-    public function stream(array|Message $messages): Generator;
+    public function stream(Message ...$messages): Generator;
 
     /**
      * @param Message|Message[] $messages

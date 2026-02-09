@@ -62,9 +62,9 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
     /**
      * @throws HttpException
      */
-    public function chat(Message|array $messages): Message
+    public function chat(Message ...$messages): Message
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $json = [
             'model_id' => $this->model,

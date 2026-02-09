@@ -37,10 +37,10 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
         $json = [
-            'contents' => $this->messageMapper()->map(is_array($messages) ? $messages : [$messages]),
+            'contents' => $this->messageMapper()->map($messages),
             ...$this->parameters
         ];
 

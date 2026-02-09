@@ -27,11 +27,9 @@ trait HandleStream
      *
      * @throws ProviderException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
-        $payload = $this->createPayLoad(
-            is_array($messages) ? $messages : [$messages]
-        );
+        $payload = $this->createPayLoad($messages);
         $result = $this->bedrockRuntimeClient->converseStream($payload);
 
         $this->streamState = new StreamState();

@@ -30,10 +30,8 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-
         // Attach the system prompt
         if (isset($this->system)) {
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));

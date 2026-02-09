@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -94,6 +95,9 @@ class Agent extends Workflow implements AgentInterface
         ]);
     }
 
+    /**
+     * @throws InspectorException
+     */
     protected function startEvent(): AgentStartEvent
     {
         return new AIInferenceEvent(

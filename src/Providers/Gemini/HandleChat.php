@@ -27,10 +27,10 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(array|Message $messages): Message
+    public function chat(Message ...$messages): Message
     {
         $json = [
-            'contents' => $this->messageMapper()->map(is_array($messages) ? $messages : [$messages]),
+            'contents' => $this->messageMapper()->map($messages),
             ...$this->parameters
         ];
 

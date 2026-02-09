@@ -21,10 +21,8 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(array|Message $messages): Message
+    public function chat(Message ...$messages): Message
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-
         $json = [
             'model' => $this->model,
             'max_tokens' => $this->max_tokens,

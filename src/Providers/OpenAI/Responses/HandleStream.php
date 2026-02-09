@@ -42,10 +42,8 @@ trait HandleStream
      * @throws ProviderException
      * @throws HttpException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-
         $json = [
             'stream' => true,
             'model' => $this->model,

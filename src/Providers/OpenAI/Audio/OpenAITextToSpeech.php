@@ -69,7 +69,7 @@ class OpenAITextToSpeech implements AIProviderInterface
      *
      * @throws HttpException
      */
-    public function chat(array|Message $messages): Message
+    public function chat(Message ...$messages): Message
     {
         $message = is_array($messages) ? end($messages) : $messages;
 
@@ -98,7 +98,7 @@ class OpenAITextToSpeech implements AIProviderInterface
      * @throws HttpException
      * @throws ProviderException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
         $message = is_array($messages) ? end($messages) : $messages;
 

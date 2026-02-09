@@ -59,11 +59,10 @@ class FakeAIProvider implements AIProviderInterface
 
     /**
      * @param Message|Message[] $messages
+     * @throws ProviderException
      */
-    public function chat(array|Message $messages): Message
+    public function chat(Message ...$messages): Message
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-
         $response = $this->nextResponse();
 
         $this->recorded[] = new RequestRecord(
@@ -79,11 +78,10 @@ class FakeAIProvider implements AIProviderInterface
     /**
      * @param Message|Message[] $messages
      * @return Generator<int, TextChunk, mixed, Message>
+     * @throws ProviderException
      */
-    public function stream(array|Message $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
-        $messages = is_array($messages) ? $messages : [$messages];
-
         // Eagerly shift from queue and record before returning the generator,
         // because generator bodies don't execute until iterated.
         $response = $this->nextResponse();
@@ -120,6 +118,7 @@ class FakeAIProvider implements AIProviderInterface
     /**
      * @param Message|Message[] $messages
      * @param array<string, mixed> $response_schema
+     * @throws ProviderException
      */
     public function structured(array|Message $messages, string $class, array $response_schema): Message
     {

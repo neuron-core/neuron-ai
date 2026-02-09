@@ -57,9 +57,9 @@ class ElevenLabsSpeechToText implements AIProviderInterface
     /**
      * @throws HttpException
      */
-    public function chat(Message|array $messages): Message
+    public function chat(Message ...$messages): Message
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $body = [
             'file' => fopen($message->getAudio(), 'r'),

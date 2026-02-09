@@ -15,16 +15,14 @@ use function is_array;
 
 trait HandleChat
 {
-    public function chat(array|Message $messages): Message
+    public function chat(Message ...$messages): Message
     {
         return $this->chatAsync($messages)->wait();
     }
 
-    public function chatAsync(array|Message $messages): PromiseInterface
+    public function chatAsync(Message ...$messages): PromiseInterface
     {
-        $payload = $this->createPayLoad(
-            is_array($messages) ? $messages : [$messages]
-        );
+        $payload = $this->createPayLoad($messages);
 
         return $this->bedrockRuntimeClient
             ->converseAsync($payload)

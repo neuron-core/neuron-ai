@@ -9,14 +9,20 @@ use NeuronAI\Workflow\Events\Event;
 
 class AgentStartEvent implements Event
 {
-    protected Message|array $messages = [];
+    /**
+     * @var Message[]
+     */
+    protected array $messages = [];
 
-    public function setMessages(Message|array $messages): void
+    public function setMessages(Message ...$messages): void
     {
         $this->messages = $messages;
     }
 
-    public function getMessages(): Message|array
+    /**
+     * @return Message[]
+     */
+    public function getMessages(): array
     {
         return $this->messages;
     }
