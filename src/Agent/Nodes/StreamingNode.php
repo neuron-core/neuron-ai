@@ -44,7 +44,7 @@ class StreamingNode extends Node
             $stream = $this->provider
                 ->systemPrompt($event->instructions)
                 ->setTools($event->tools)
-                ->stream($chatHistory->getMessages());
+                ->stream(...$chatHistory->getMessages());
 
             // Yield all chunks as-is (TextChunk, ReasoningChunk, etc.)
             foreach ($stream as $chunk) {

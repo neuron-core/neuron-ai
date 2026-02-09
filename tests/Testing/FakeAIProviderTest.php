@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Testing;
 
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeMessageMapper;
 use NeuronAI\Testing\FakeToolMapper;
@@ -26,7 +27,7 @@ class FakeAIProviderTest extends TestCase
         $expected = new AssistantMessage('Hello!');
 
         $provider = new FakeAIProvider($expected);
-        $response = $provider->chat([new UserMessage('Hi')]);
+        $response = $provider->chat(new UserMessage('Hi'));
 
         $this->assertSame($expected, $response);
     }
@@ -38,8 +39,8 @@ class FakeAIProviderTest extends TestCase
 
         $provider = new FakeAIProvider($first, $second);
 
-        $this->assertSame($first, $provider->chat([new UserMessage('1')]));
-        $this->assertSame($second, $provider->chat([new UserMessage('2')]));
+        $this->assertSame($first, $provider->chat(new UserMessage('1')));
+        $this->assertSame($second, $provider->chat(new UserMessage('2')));
     }
 
     public function test_empty_queue_throws_exception(): void
@@ -49,7 +50,7 @@ class FakeAIProviderTest extends TestCase
         $this->expectException(ProviderException::class);
         $this->expectExceptionMessage('response queue is empty');
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
     }
 
     public function test_add_responses_extends_queue(): void
@@ -58,7 +59,7 @@ class FakeAIProviderTest extends TestCase
         $message = new AssistantMessage('Added later');
 
         $provider->addResponses($message);
-        $response = $provider->chat([new UserMessage('Hi')]);
+        $response = $provider->chat(new UserMessage('Hi'));
 
         $this->assertSame($message, $response);
     }
@@ -70,7 +71,7 @@ class FakeAIProviderTest extends TestCase
 
         $this->assertSame($provider, $returned);
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->assertSame('You are helpful.', $provider->getRecorded()[0]->systemPrompt);
     }
@@ -82,7 +83,7 @@ class FakeAIProviderTest extends TestCase
 
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->setTools([$tool]);
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->assertCount(1, $provider->getRecorded()[0]->tools);
         $this->assertSame('search', $provider->getRecorded()[0]->tools[0]->getName());
@@ -92,7 +93,7 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->systemPrompt('Be helpful');
-        $provider->chat([new UserMessage('Hello')]);
+        $provider->chat(new UserMessage('Hello'));
 
         $records = $provider->getRecorded();
         $this->assertCount(1, $records);
@@ -107,7 +108,7 @@ class FakeAIProviderTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
         $provider->setStreamChunkSize(5);
 
-        $generator = $provider->stream([new UserMessage('Hi')]);
+        $generator = $provider->stream(new UserMessage('Hi'));
 
         $chunks = [];
         foreach ($generator as $chunk) {
@@ -124,7 +125,7 @@ class FakeAIProviderTest extends TestCase
     public function test_stream_records_request(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Streamed'));
-        $provider->stream([new UserMessage('Hi')]);
+        $provider->stream(new UserMessage('Hi'));
 
         $this->assertSame('stream', $provider->getRecorded()[0]->method);
     }
@@ -133,9 +134,10 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage());
 
-        $generator = $provider->stream([new UserMessage('Hi')]);
+        $generator = $provider->stream(new UserMessage('Hi'));
 
         $chunks = [];
+        /** @var TextChunk $chunk */
         foreach ($generator as $chunk) {
             $chunks[] = $chunk->content;
         }
@@ -151,7 +153,7 @@ class FakeAIProviderTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('{"name":"Alice"}'));
 
         $schema = ['type' => 'object', 'properties' => ['name' => ['type' => 'string']]];
-        $provider->structured([new UserMessage('Generate')], 'App\\User', $schema);
+        $provider->structured(new UserMessage('Generate'), 'App\\User', $schema);
 
         $record = $provider->getRecorded()[0];
         $this->assertSame('structured', $record->method);
@@ -180,10 +182,10 @@ class FakeAIProviderTest extends TestCase
 
         $this->assertSame(0, $provider->getCallCount());
 
-        $provider->chat([new UserMessage('a')]);
+        $provider->chat(new UserMessage('a'));
         $this->assertSame(1, $provider->getCallCount());
 
-        $provider->chat([new UserMessage('b')]);
+        $provider->chat(new UserMessage('b'));
         $this->assertSame(2, $provider->getCallCount());
     }
 
@@ -194,7 +196,7 @@ class FakeAIProviderTest extends TestCase
     public function test_assert_call_count_passes(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $provider->assertCallCount(1);
         $this->addToAssertionCount(1);
@@ -203,7 +205,7 @@ class FakeAIProviderTest extends TestCase
     public function test_assert_call_count_fails(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
         $provider->assertCallCount(2);
@@ -213,7 +215,7 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->systemPrompt('Be helpful');
-        $provider->chat([new UserMessage('Hello world')]);
+        $provider->chat(new UserMessage('Hello world'));
 
         $provider->assertSent(fn (RequestRecord $record): bool => $record->method === 'chat'
             && $record->systemPrompt === 'Be helpful');
@@ -222,7 +224,7 @@ class FakeAIProviderTest extends TestCase
     public function test_assert_sent_fails(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
         $provider->assertSent(fn (RequestRecord $r): bool => $r->method === 'stream');
@@ -239,7 +241,7 @@ class FakeAIProviderTest extends TestCase
     public function test_assert_nothing_sent_fails(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
         $provider->assertNothingSent();
@@ -253,9 +255,9 @@ class FakeAIProviderTest extends TestCase
             new AssistantMessage('3'),
         );
 
-        $provider->chat([new UserMessage('a')]);
-        $provider->chat([new UserMessage('b')]);
-        $provider->stream([new UserMessage('c')]);
+        $provider->chat(new UserMessage('a'));
+        $provider->chat(new UserMessage('b'));
+        $provider->stream(new UserMessage('c'));
 
         $provider->assertMethodCallCount('chat', 2);
         $provider->assertMethodCallCount('stream', 1);
@@ -265,7 +267,7 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->systemPrompt('You are a weather assistant.');
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $provider->assertSystemPrompt('You are a weather assistant.');
     }
@@ -274,7 +276,7 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->systemPrompt('Something else');
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
         $provider->assertSystemPrompt('You are a weather assistant.');
@@ -286,7 +288,7 @@ class FakeAIProviderTest extends TestCase
 
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->setTools([$tool]);
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $provider->assertToolsConfigured(['search']);
     }
@@ -294,7 +296,7 @@ class FakeAIProviderTest extends TestCase
     public function test_assert_tools_configured_fails(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
         $provider->assertToolsConfigured(['nonexistent']);
@@ -304,14 +306,14 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = FakeAIProvider::make(new AssistantMessage('OK'));
 
-        $response = $provider->chat([new UserMessage('Hi')]);
+        $response = $provider->chat(new UserMessage('Hi'));
         $this->assertSame('OK', $response->getContent());
     }
 
     public function test_set_http_client_is_noop(): void
     {
         $provider = new FakeAIProvider();
-        $result = $provider->setHttpClient($this->createMock(\NeuronAI\HttpClient\HttpClientInterface::class));
+        $result = $provider->setHttpClient($this->createMock(HttpClientInterface::class));
 
         $this->assertSame($provider, $result);
     }
@@ -331,7 +333,7 @@ class FakeAIProviderTest extends TestCase
         $response = (new AssistantMessage('Hello'))->setUsage(new Usage(10, 20));
         $provider = new FakeAIProvider($response);
 
-        $message = $provider->chat([new UserMessage('Hi')]);
+        $message = $provider->chat(new UserMessage('Hi'));
 
         $this->assertSame(10, $message->getUsage()->inputTokens);
         $this->assertSame(20, $message->getUsage()->outputTokens);

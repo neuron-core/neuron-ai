@@ -58,7 +58,6 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * @param Message|Message[] $messages
      * @throws ProviderException
      */
     public function chat(Message ...$messages): Message
@@ -76,7 +75,6 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * @param Message|Message[] $messages
      * @return Generator<int, TextChunk, mixed, Message>
      * @throws ProviderException
      */

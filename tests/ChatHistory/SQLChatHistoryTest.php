@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;

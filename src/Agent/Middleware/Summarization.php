@@ -182,16 +182,11 @@ class Summarization implements WorkflowMiddleware
         // Format messages into a readable conversation format
         $conversation = $this->formatMessagesForSummarization($messages);
 
-        // Create summarization request
-        $summaryRequest = [
-            UserMessage::make("{$prompt}\n\n{$conversation}"),
-        ];
-
         try {
             // Call AI provider to generate summary
             $response = $this->provider
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
-                ->chat($summaryRequest);
+                ->chat(new UserMessage("{$prompt}\n\n{$conversation}"));
 
             return $response->getContent();
         } catch (Exception) {

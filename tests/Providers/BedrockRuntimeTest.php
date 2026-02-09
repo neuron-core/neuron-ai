@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use Aws\Result;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
+use Aws\Result;
 use GuzzleHttp\Promise\FulfilledPromise;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Tools\PropertyType;
@@ -63,10 +65,8 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('System prompt');
 
-        $response = $provider->chat([
-            new UserMessage('Hi')
-        ]);
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
+        $response = $provider->chat(new UserMessage('Hi'));
+        $this->assertInstanceOf(AssistantMessage::class, $response);
 
         $this->assertSame('Hello world', $response->getContent());
         $this->assertSame('end_turn', $response->stopReason());
@@ -133,10 +133,8 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('Sys');
 
-        $response = $provider->chat([
-            new UserMessage('Use tool')
-        ]);
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\ToolCallMessage::class, $response);
+        $response = $provider->chat(new UserMessage('Use tool'));
+        $this->assertInstanceOf(ToolCallMessage::class, $response);
 
         // Response should be a ToolCallMessage (subclass) with tools
         $this->assertSame('tool_call', $response->jsonSerialize()['type']);
@@ -204,7 +202,7 @@ class BedrockRuntimeTest extends TestCase
             'model-z'
         ))->setTools([$tool]);
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $this->assertArrayHasKey('toolConfig', $capturedPayload);
         $toolSpec = $capturedPayload['toolConfig']['tools'][0]['toolSpec'];

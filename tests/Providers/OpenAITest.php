@@ -9,8 +9,8 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -42,7 +42,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $response = $provider->chat([new UserMessage('Hi')]);
+        $response = $provider->chat(new UserMessage('Hi'));
         $this->assertInstanceOf(AssistantMessage::class, $response);
 
         // Ensure we sent one request
@@ -85,7 +85,7 @@ class OpenAITest extends TestCase
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -124,7 +124,7 @@ class OpenAITest extends TestCase
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64, mediaType: 'image/jpeg'));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -163,7 +163,7 @@ class OpenAITest extends TestCase
         $message = (new UserMessage('Describe this document'))
             ->addContent(new ImageContent(content: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -211,7 +211,7 @@ class OpenAITest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -280,7 +280,7 @@ class OpenAITest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -348,7 +348,7 @@ class OpenAITest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -422,7 +422,7 @@ class OpenAITest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -499,7 +499,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $generator = $provider->stream([new UserMessage('Hi')]);
+        $generator = $provider->stream(new UserMessage('Hi'));
 
         $chunks = [];
         foreach ($generator as $chunk) {

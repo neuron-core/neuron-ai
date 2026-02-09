@@ -38,8 +38,6 @@ interface AIProviderInterface
 
     /**
      * Send a prompt to the AI agent.
-     *
-     * @param Message|Message[] $messages
      */
     public function chat(Message ...$messages): Message;
 
@@ -50,7 +48,6 @@ interface AIProviderInterface
      * for real-time delivery to the user. The generator MUST return a complete
      * Message object (AssistantMessage or ToolCallMessage) as its final value.
      *
-     * @param Message|Message[] $messages
      * @return Generator<int, TextChunk|ReasoningChunk|ToolCallChunk|array, mixed, Message>
      */
     public function stream(Message ...$messages): Generator;

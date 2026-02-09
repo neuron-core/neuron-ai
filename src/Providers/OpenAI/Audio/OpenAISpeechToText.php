@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Audio;
 
 use Generator;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
@@ -23,7 +23,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function end;
 use function fopen;
-use function is_array;
 use function trim;
 
 class OpenAISpeechToText implements AIProviderInterface
@@ -64,9 +63,9 @@ class OpenAISpeechToText implements AIProviderInterface
     /**
      * @throws HttpException
      */
-    public function chat(Message|array $messages): Message
+    public function chat(Message ...$messages): Message
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $body = [
             'file' => fopen($message->getAudio(), 'r'),
@@ -100,9 +99,9 @@ class OpenAISpeechToText implements AIProviderInterface
      * @throws HttpException
      * @throws ProviderException
      */
-    public function stream(Message|array $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $body = [
             'stream' => true,

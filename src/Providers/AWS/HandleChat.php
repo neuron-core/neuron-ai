@@ -6,8 +6,8 @@ namespace NeuronAI\Providers\AWS;
 
 use Aws\ResultInterface;
 use GuzzleHttp\Promise\PromiseInterface;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 
@@ -15,7 +15,7 @@ trait HandleChat
 {
     public function chat(Message ...$messages): Message
     {
-        return $this->chatAsync($messages)->wait();
+        return $this->chatAsync(...$messages)->wait();
     }
 
     public function chatAsync(Message ...$messages): PromiseInterface

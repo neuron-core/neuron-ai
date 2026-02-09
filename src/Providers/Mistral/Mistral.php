@@ -50,7 +50,7 @@ class Mistral implements AIProviderInterface
         protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Use provided client or create default Guzzle client
+        // Use the provided client or create default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri(trim($this->baseUri, '/') . '/')
@@ -69,12 +69,12 @@ class Mistral implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+        return $this->messageMapper ??= new MessageMapper();
     }
 
     public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
+        return $this->toolPayloadMapper ??= new ToolMapper();
     }
 
     /**

@@ -57,7 +57,7 @@ trait HandleStructured
             $this->parameters['generationConfig']['responseMimeType'] = 'application/json';
         }
 
-        return $this->chat($messages);
+        return $this->chat(...$messages);
     }
 
     /**

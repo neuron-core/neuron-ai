@@ -9,6 +9,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 
 use function array_merge;
+use function is_array;
 
 trait HandleStructured
 {
@@ -25,6 +26,8 @@ trait HandleStructured
             'format' => $response_format,
         ]);
 
-        return $this->chat($messages);
+        $messages = is_array($messages) ? $messages : [$messages];
+
+        return $this->chat(...$messages);
     }
 }

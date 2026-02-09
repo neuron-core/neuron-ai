@@ -74,6 +74,6 @@ class ChatNode extends Node
         return $this->provider
             ->systemPrompt($event->instructions)
             ->setTools($event->tools)
-            ->chat($messages);
+            ->chat(...$messages);
     }
 }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -78,7 +78,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
     /**
      * @throws ProviderException
      */
-    public function stream(Message|array $messages): Generator
+    public function stream(Message ...$messages): Generator
     {
         throw new ProviderException('Streaming is not supported by OpenAI Text to Speech.');
     }

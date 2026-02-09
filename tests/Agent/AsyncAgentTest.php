@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Agent;
 use Amp\Future;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\WorkflowState;

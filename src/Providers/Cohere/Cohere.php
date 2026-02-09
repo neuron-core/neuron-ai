@@ -39,7 +39,7 @@ class Cohere extends OpenAI
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+        return $this->messageMapper ??= new MessageMapper();
     }
 
     protected function createChatHttpRequest(array $payload): HttpRequest
@@ -65,6 +65,6 @@ class Cohere extends OpenAI
         $message = end($messages);
         $message->addContent(new TextContent('Generate a JSON'));
 
-        return $this->chat($messages);
+        return $this->chat(...$messages);
     }
 }

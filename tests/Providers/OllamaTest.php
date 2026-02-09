@@ -40,8 +40,8 @@ class OllamaTest extends TestCase
             model: 'llama3.2',
         ))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $response = $provider->chat([new UserMessage('Hi')]);
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
+        $response = $provider->chat(new UserMessage('Hi'));
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -82,7 +82,7 @@ class OllamaTest extends TestCase
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::BASE64));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -124,7 +124,7 @@ class OllamaTest extends TestCase
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::URL));
 
         $this->expectException(ProviderException::class);
-        $provider->chat([$message]);
+        $provider->chat($message);
     }
 
     public function test_tools_payload(): void
@@ -152,7 +152,7 @@ class OllamaTest extends TestCase
                 )
         ])->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);

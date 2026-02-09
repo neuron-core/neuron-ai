@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\FileChatHistory;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use PHPUnit\Framework\TestCase;
 

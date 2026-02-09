@@ -6,9 +6,9 @@ namespace NeuronAI\Providers\OpenAI\Audio;
 
 use Generator;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
@@ -25,7 +25,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function base64_encode;
 use function end;
-use function is_array;
 use function trim;
 
 class OpenAITextToSpeech implements AIProviderInterface
@@ -71,7 +70,7 @@ class OpenAITextToSpeech implements AIProviderInterface
      */
     public function chat(Message ...$messages): Message
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $json = [
             'model' => $this->model,
@@ -100,7 +99,7 @@ class OpenAITextToSpeech implements AIProviderInterface
      */
     public function stream(Message ...$messages): Generator
     {
-        $message = is_array($messages) ? end($messages) : $messages;
+        $message = end($messages);
 
         $json = [
             'stream' => true,

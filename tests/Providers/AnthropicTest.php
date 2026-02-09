@@ -9,11 +9,11 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -46,7 +46,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $response = $provider->chat([new UserMessage('Hi')]);
+        $response = $provider->chat(new UserMessage('Hi'));
         $this->assertInstanceOf(AssistantMessage::class, $response);
 
         // Ensure we sent one request
@@ -94,7 +94,7 @@ class AnthropicTest extends TestCase
                 mediaType: 'image/png'
             ));
 
-        $provider->chat([$message]);
+        $provider->chat($message);
 
         $request = $sentRequests[0];
 
@@ -143,7 +143,7 @@ class AnthropicTest extends TestCase
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'https://example.com/image.png', sourceType: SourceType::URL));
 
-        $provider->chat([$message]);
+        $provider->chat($message);
 
         $request = $sentRequests[0];
 
@@ -195,7 +195,7 @@ class AnthropicTest extends TestCase
                 mediaType: 'pdf'
             ));
 
-        $provider->chat([$message]);
+        $provider->chat($message);
 
         $request = $sentRequests[0];
 
@@ -244,7 +244,7 @@ class AnthropicTest extends TestCase
         $message = (new UserMessage('Describe this document'))
             ->addContent(new FileContent(content: 'https://example.com/document.pdf', sourceType: SourceType::URL));
 
-        $provider->chat([$message]);
+        $provider->chat($message);
 
         $request = $sentRequests[0];
 
@@ -302,7 +302,7 @@ class AnthropicTest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $request = $sentRequests[0];
 
@@ -373,7 +373,7 @@ class AnthropicTest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $request = $sentRequests[0];
 
@@ -444,7 +444,7 @@ class AnthropicTest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $request = $sentRequests[0];
 
@@ -546,7 +546,7 @@ class AnthropicTest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         $request = $sentRequests[0];
 
@@ -624,7 +624,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $generator = $provider->stream([new UserMessage('Hi')]);
+        $generator = $provider->stream(new UserMessage('Hi'));
 
         $chunks = [];
         foreach ($generator as $chunk) {
@@ -678,7 +678,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $generator = $provider->stream([new UserMessage('Question?')]);
+        $generator = $provider->stream(new UserMessage('Question?'));
 
         $chunks = [];
         foreach ($generator as $chunk) {

@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream;
+namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\Message;
 
 /**
  * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content = null, MessageRole $role = MessageRole::ASSISTANT)

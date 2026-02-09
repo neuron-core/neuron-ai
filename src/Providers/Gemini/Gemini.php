@@ -69,12 +69,12 @@ class Gemini implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+        return $this->messageMapper ??= new MessageMapper();
     }
 
     public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
+        return $this->toolPayloadMapper ??= new ToolMapper();
     }
 
     /**

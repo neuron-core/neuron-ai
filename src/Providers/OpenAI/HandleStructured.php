@@ -13,6 +13,7 @@ use function explode;
 use function preg_match;
 use function preg_replace;
 use function array_replace_recursive;
+use function is_array;
 
 trait HandleStructured
 {
@@ -39,7 +40,9 @@ trait HandleStructured
             ]
         ]);
 
-        return $this->chat($messages);
+        $messages = is_array($messages) ? $messages : [$messages];
+
+        return $this->chat(...$messages);
     }
 
     protected function sanitizeClassName(string $name): string

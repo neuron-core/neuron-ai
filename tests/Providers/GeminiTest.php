@@ -51,8 +51,8 @@ class GeminiTest extends TestCase
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $response = $provider->chat([new UserMessage('Hi')]);
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\Stream\AssistantMessage::class, $response);
+        $response = $provider->chat(new UserMessage('Hi'));
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\AssistantMessage::class, $response);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -93,7 +93,7 @@ class GeminiTest extends TestCase
                 mediaType: 'image/png'
             ));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -135,7 +135,7 @@ class GeminiTest extends TestCase
                 mediaType: 'image/png'
             ));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -177,7 +177,7 @@ class GeminiTest extends TestCase
                 mediaType: 'application/pdf'
             ));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -219,7 +219,7 @@ class GeminiTest extends TestCase
                 mediaType: 'application/pdf'
             ));
 
-        $response = $provider->chat([$message]);
+        $response = $provider->chat($message);
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -266,7 +266,7 @@ class GeminiTest extends TestCase
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
-        $provider->chat([new UserMessage('Hi')]);
+        $provider->chat(new UserMessage('Hi'));
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);

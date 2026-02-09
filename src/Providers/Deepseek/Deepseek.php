@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Deepseek;
 
 use Generator;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Exceptions\HttpException;
@@ -16,6 +16,7 @@ use NeuronAI\Providers\OpenAI\OpenAI;
 
 use function array_merge;
 use function json_encode;
+use function is_array;
 
 use const PHP_EOL;
 
@@ -48,7 +49,9 @@ class Deepseek extends OpenAI
         $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL
             .'Generate a json respecting this schema: '.json_encode($response_format);
 
-        return $this->chat($messages);
+        $messages = is_array($messages) ? $messages : [$messages];
+
+        return $this->chat(...$messages);
     }
 
     /**

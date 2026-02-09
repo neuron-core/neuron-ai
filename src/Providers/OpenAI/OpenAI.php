@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -55,7 +55,7 @@ class OpenAI implements AIProviderInterface
         protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Use provided client or create default Guzzle client
+        // Use the provided client or create default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri(trim($this->baseUri, '/') . '/')
@@ -82,12 +82,12 @@ class OpenAI implements AIProviderInterface
 
     public function messageMapper(): MessageMapperInterface
     {
-        return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
+        return $this->messageMapper ??= new MessageMapper();
     }
 
     public function toolPayloadMapper(): ToolMapperInterface
     {
-        return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
+        return $this->toolPayloadMapper ??= new ToolMapper();
     }
 
     /**
