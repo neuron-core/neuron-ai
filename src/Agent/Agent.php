@@ -15,7 +15,6 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
