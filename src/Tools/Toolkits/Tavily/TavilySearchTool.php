@@ -63,12 +63,12 @@ class TavilySearchTool extends Tool
                 PropertyType::STRING,
                 'Explicit the topic you want to perform the web search on.',
                 false,
-                ['general', 'news']
+                ['general', 'news', 'finance']
             ),
             new ToolProperty(
                 'time_range',
                 PropertyType::STRING,
-                '',
+                'How far back to search for relevant contents.',
                 false,
                 ['day, week, month, year']
             ),
@@ -83,7 +83,7 @@ class TavilySearchTool extends Tool
 
     protected function getClient(): Client
     {
-        return $this->client ?? $this->client = new Client([
+        return $this->client ??= new Client([
             'base_uri' => trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => 'Bearer '.$this->key,
@@ -99,14 +99,10 @@ class TavilySearchTool extends Tool
      */
     public function __invoke(
         string $search_query,
-        ?string $topic = null,
-        ?string $time_range = null,
-        ?int $days = null,
+        string $topic = 'general',
+        string $time_range = 'day',
+        int $days = 7,
     ): array {
-        $topic ??= 'general';
-        $time_range ??= 'day';
-        $days ??= 7;
-
         $result = $this->getClient()->post('search', [
             RequestOptions::JSON => array_merge(
                 ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
