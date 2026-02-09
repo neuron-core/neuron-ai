@@ -11,8 +11,6 @@ use NeuronAI\Chat\Messages\Stream\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 
-use function is_array;
-
 trait HandleChat
 {
     public function chat(Message ...$messages): Message

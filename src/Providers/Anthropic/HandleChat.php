@@ -13,8 +13,6 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 
-use function is_array;
-
 trait HandleChat
 {
     /**

@@ -19,7 +19,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
 use function fopen;
-use function is_array;
 use function trim;
 
 class ElevenLabsSpeechToText implements AIProviderInterface

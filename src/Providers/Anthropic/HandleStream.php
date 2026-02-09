@@ -16,8 +16,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
 
-use function is_array;
-
 trait HandleStream
 {
     protected StreamState $streamState;

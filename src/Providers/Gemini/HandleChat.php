@@ -17,7 +17,6 @@ use NeuronAI\HttpClient\HttpRequest;
 
 use function array_filter;
 use function array_key_exists;
-use function is_array;
 use function json_encode;
 use function trim;
 

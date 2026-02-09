@@ -12,7 +12,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 
 use function array_filter;
-use function is_array;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty

@@ -16,7 +16,6 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 
 use function array_unshift;
-use function is_array;
 use function json_decode;
 
 trait HandleStream

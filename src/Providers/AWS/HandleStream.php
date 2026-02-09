@@ -15,7 +15,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 
 use function count;
-use function is_array;
 
 trait HandleStream
 {

@@ -21,7 +21,6 @@ use NeuronAI\HttpClient\HttpRequest;
 use function array_filter;
 use function array_reduce;
 use function array_unshift;
-use function is_array;
 use function is_string;
 
 trait HandleChat

@@ -19,7 +19,6 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
-use function is_array;
 use function json_decode;
 use function mb_strlen;
 use function str_contains;
