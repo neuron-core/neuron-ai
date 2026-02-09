@@ -19,8 +19,7 @@ abstract class AbstractEmbeddingsProvider implements EmbeddingsProviderInterface
 
     public function embedDocument(Document $document): Document
     {
-        $text = $document->formattedContent ?? $document->content;
-        $document->embedding = $this->embedText($text);
+        $document->embedding = $this->embedText($document->content);
 
         return $document;
     }
