@@ -4,51 +4,73 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
-use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
-use NeuronAI\HttpClient\HasHttpClient;
-use NeuronAI\HttpClient\HttpClientInterface;
-use NeuronAI\HttpClient\HttpRequest;
+use GuzzleHttp\Client;
+use NeuronAI\RAG\Document;
 
-use function trim;
+use function json_decode;
+use function array_chunk;
+use function array_map;
+use function array_merge;
 
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
-    use HasHttpClient;
+    protected Client $client;
 
-    protected string $baseUri = 'https://api.openai.com/v1';
+    protected string $baseUri = 'https://api.openai.com/v1/embeddings';
 
     public function __construct(
         protected string $key,
         protected string $model,
-        protected ?int $dimensions = 1024,
-        ?HttpClientInterface $httpClient = null,
+        protected ?int $dimensions = 1024
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/').'/')
-            ->withHeaders([
+        $this->client = new Client([
+            'base_uri' => $this->baseUri,
+            'headers' => [
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $this->key,
-            ]);
+            ]
+        ]);
     }
 
-    /**
-     * @throws HttpException
-     */
-    public function embedText(string $text): array
+    public function embedDocuments(array $documents): array
     {
-        $response = $this->httpClient->request(
-            HttpRequest::post(
-                uri: 'embeddings',
-                body: [
+        $chunks = array_chunk($documents, 100);
+
+        foreach ($chunks as $chunk) {
+            $response = $this->client->post('', [
+                'json' => [
                     'model' => $this->model,
-                    'input' => $text,
+                    'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
                     'encoding_format' => 'float',
                     ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+
                 ]
-            )
-        )->json();
+            ])->getBody()->getContents();
+
+            $response = json_decode($response, true);
+
+            foreach ($response['data'] as $index => $item) {
+                $chunk[$index]->embedding = $item['embedding'];
+            }
+        }
+
+        return array_merge(...$chunks);
+    }
+
+    public function embedText(string $text): array
+    {
+        $response = $this->client->post('', [
+            'json' => [
+                'model' => $this->model,
+                'input' => $text,
+                'encoding_format' => 'float',
+                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+
+            ]
+        ])->getBody()->getContents();
+
+        $response = json_decode($response, true);
 
         return $response['data'][0]['embedding'];
     }
