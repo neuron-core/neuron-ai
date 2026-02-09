@@ -29,6 +29,34 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         ]);
     }
 
+    public function embedDocuments(array $documents): array
+    {
+        $inputs = [];
+
+        foreach ($documents as $document) {
+            $text = $document->formattedContent ?? $document->content;
+            $inputs[] = $text;
+        }
+
+        $response = $this->client->post('', [
+            'json' => [
+                'model' => $this->model,
+                'input' => $inputs,
+                'encoding_format' => 'float',
+                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+
+            ]
+        ])->getBody()->getContents();
+
+        $response = json_decode($response, true);
+
+        foreach ($response['data'] as $key => $item) {
+            $documents[$key]->embedding = $item['embedding'];
+        }
+
+        return $documents;
+    }
+
     public function embedText(string $text): array
     {
         $response = $this->client->post('', [
