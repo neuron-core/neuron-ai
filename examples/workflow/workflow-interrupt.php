@@ -8,13 +8,12 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowState;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $persistence = new FilePersistence(__DIR__);
 
-$workflow = Workflow::make(new WorkflowState(), $persistence)
+$workflow = Workflow::make(persistence: $persistence)
     ->addNodes([
         new NodeOne(),
         new InterruptableNode(),
@@ -33,11 +32,24 @@ try {
 
     // The resume token is auto-generated and available from the interrupt
     echo "Resume token: {$resumeToken}\n";
-    echo "Workflow interrupted at ".$interrupt->getNode()::class."\n";
 }
 
-// Resume the workflow providing external data
+/*
+ * ---------------------------------------
+ * Imagine a new execution cycle start here
+ * ---------------------------------------
+ *
+ * Create the workflow instance with the resumeToken and the same persistence component.
+ */
+$workflow = Workflow::make(persistence: $persistence, resumeToken: $resumeToken)
+    ->addNodes([
+        new NodeOne(),
+        new InterruptableNode(),
+        new NodeForSecond(),
+    ]);
+
+// Resume the workflow providing the modified approval request
 $finalState = $workflow->init($approvalRequest)->run();
 
-// It should print "approved"
+// It should print "completed"
 echo $finalState->get('received_feedback').\PHP_EOL;

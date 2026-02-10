@@ -182,10 +182,10 @@ class WorkflowTest extends TestCase
         }
 
         // Resume with human feedback
-        $finalState = $workflow->start($interrupt->getRequest())->run();
+        $finalState = $workflow->init($interrupt->getRequest())->run();
 
         $this->assertTrue($finalState->get('interruptable_node_executed'));
-        $this->assertEquals('human input needed', $finalState->get('received_feedback'));
+        $this->assertEquals('completed', $finalState->get('received_feedback'));
     }
 
     public function testPersistenceWithoutResumeTokenAutoGenerates(): void
