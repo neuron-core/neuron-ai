@@ -21,20 +21,23 @@ $workflow = Workflow::make(new WorkflowState(), $persistence)
         new NodeForSecond(),
     ]);
 
-// Draw the workflow graph
-echo $workflow->export()."\n\n\n";
+$approvalRequest = null;
+$resumeToken = null;
 
 // Run the workflow and catch the interruption
 try {
     $finalState = $workflow->init()->run();
 } catch (WorkflowInterrupt $interrupt) {
+    $approvalRequest = $interrupt->getRequest();
+    $resumeToken = $interrupt->getResumeToken();
+
     // The resume token is auto-generated and available from the interrupt
-    echo "Resume token: ".$interrupt->getResumeToken().\PHP_EOL;
-    echo "Workflow interrupted at ".$interrupt->getNode()::class.\PHP_EOL;
-
-    // Resume the workflow providing external data
-    $finalState = $workflow->init($interrupt->getRequest())->run();
-
-    // It should print "approved"
-    echo $finalState->get('received_feedback').\PHP_EOL;
+    echo "Resume token: {$resumeToken}\n";
+    echo "Workflow interrupted at ".$interrupt->getNode()::class."\n";
 }
+
+// Resume the workflow providing external data
+$finalState = $workflow->init($approvalRequest)->run();
+
+// It should print "approved"
+echo $finalState->get('received_feedback').\PHP_EOL;
