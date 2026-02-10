@@ -44,9 +44,7 @@ echo "-------------------------------------------------------------------\n\n";
 
 $persistence = new FilePersistence(__DIR__);
 
-// Reset state for new conversation
-$id = 'workflow_1';
-$agent = Agent::make(persistence: $persistence, workflowId: $id)
+$agent = Agent::make(persistence: $persistence)
     ->setAiProvider(
         new Anthropic\Anthropic(
             '',
@@ -63,6 +61,7 @@ $agent = Agent::make(persistence: $persistence, workflowId: $id)
     );
 
 $interruptRequest = null;
+$resumeToken = null;
 
 try {
     chat:
@@ -80,8 +79,10 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
+    $resumeToken = $interrupt->getResumeToken();
     $interruptRequest = $interrupt->getRequest();
 
+    echo "Resume token: {$resumeToken}\n";
     echo "Message: {$interruptRequest->getMessage()}\n\n";
     echo "Actions requiring approval:\n";
 
@@ -102,7 +103,7 @@ try {
     goto chat;
 }
 
-$persistence->delete($id);
+$persistence->delete($resumeToken);
 
 // Helper function to simulate user input
 function promptUserForApproval(): bool

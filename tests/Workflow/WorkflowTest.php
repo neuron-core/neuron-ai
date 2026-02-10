@@ -152,7 +152,7 @@ class WorkflowTest extends TestCase
 
         $workflow = Workflow::make(
             persistence: new InMemoryPersistence(),
-            workflowId: 'test-workflow'
+            resumeToken: 'test-workflow'
         )->addNodes([
             new NodeOne(),
             new InterruptableNode(),
@@ -166,7 +166,7 @@ class WorkflowTest extends TestCase
     {
         $workflow = Workflow::make(
             persistence: new InMemoryPersistence(),
-            workflowId: 'test-workflow'
+            resumeToken: 'test-workflow'
         )->addNodes([
             new NodeOne(),
             new InterruptableNode(),
@@ -186,5 +186,39 @@ class WorkflowTest extends TestCase
 
         $this->assertTrue($finalState->get('interruptable_node_executed'));
         $this->assertEquals('human input needed', $finalState->get('received_feedback'));
+    }
+
+    public function testPersistenceWithoutResumeTokenAutoGenerates(): void
+    {
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+             new NodeThree(),
+        ]);
+
+        $this->assertNotEmpty($workflow->getResumeToken());
+        $this->assertStringStartsWith('workflow_', $workflow->getResumeToken());
+    }
+
+    public function testInterruptExposesResumeToken(): void
+    {
+        $workflow = Workflow::make(
+            persistence: new InMemoryPersistence(),
+        )->addNodes([
+            new NodeOne(),
+            new InterruptableNode(),
+             new NodeThree(),
+        ]);
+
+        $expectedToken = $workflow->getResumeToken();
+
+        try {
+            $workflow->init()->run();
+            $this->fail('Expected WorkflowInterrupt exception');
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->assertEquals($expectedToken, $interrupt->getResumeToken());
+        }
     }
 }

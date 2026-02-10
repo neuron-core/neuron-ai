@@ -29,5 +29,7 @@ interface WorkflowInterface
 
     public function getWorkflowId(): string;
 
+    public function getResumeToken(): string;
+
     public function export(): string;
 }

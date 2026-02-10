@@ -14,7 +14,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 $persistence = new FilePersistence(__DIR__);
 
-$workflow = Workflow::make(new WorkflowState(), $persistence, 'test_workflow')
+$workflow = Workflow::make(new WorkflowState(), $persistence)
     ->addNodes([
         new NodeOne(),
         new InterruptableNode(),
@@ -28,13 +28,13 @@ echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
 try {
     $finalState = $workflow->init()->run();
 } catch (WorkflowInterrupt $interrupt) {
-    // Verify interrupt was saved
-    $savedInterrupt = $persistence->load('test_workflow');
-    echo "Workflow interrupted at ".$savedInterrupt->getNode()::class.\PHP_EOL;
+    // The resume token is auto-generated and available from the interrupt
+    echo "Resume token: ".$interrupt->getResumeToken().\PHP_EOL;
+    echo "Workflow interrupted at ".$interrupt->getNode()::class.\PHP_EOL;
 }
 
 // Resume the workflow providing external data
-$finalState = $workflow->init($savedInterrupt->getRequest())->run();
+$finalState = $workflow->init($interrupt->getRequest())->run();
 
 // It should print "approved"
 echo $finalState->get('received_feedback').\PHP_EOL;

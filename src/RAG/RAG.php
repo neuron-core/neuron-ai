@@ -23,7 +23,7 @@ use function explode;
 use function is_array;
 
 /**
- * @method static static make(?AIProviderInterface $aiProvider = null, ?string $workflowId = null)
+ * @method static static make(?AIProviderInterface $aiProvider = null, ?string $resumeToken = null)
  */
 class RAG extends Agent
 {

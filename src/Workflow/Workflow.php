@@ -40,7 +40,7 @@ use function is_null;
 use function uniqid;
 
 /**
- * @method static static make(?WorkflowState $state = null, ?PersistenceInterface $persistence = null, ?string $workflowId = null)
+ * @method static static make(?WorkflowState $state = null, ?PersistenceInterface $persistence = null, ?string $resumeToken = null)
  */
 class Workflow implements WorkflowInterface
 {
@@ -70,20 +70,16 @@ class Workflow implements WorkflowInterface
     public function __construct(
         protected ?WorkflowState $state = null,
         protected ?PersistenceInterface $persistence = null,
-        ?string $workflowId = null
+        ?string $resumeToken = null
     ) {
         $this->exporter = new ConsoleExporter();
 
-        if (is_null($persistence) && !is_null($workflowId)) {
-            throw new WorkflowException('Persistence must be defined when workflowId is defined');
-        }
-
-        if (!is_null($persistence) && is_null($workflowId)) {
-            throw new WorkflowException('WorkflowId must be defined when persistence is defined');
+        if (is_null($persistence) && !is_null($resumeToken)) {
+            throw new WorkflowException('Persistence must be defined when resumeToken is defined');
         }
 
         $this->persistence = $persistence ?? new InMemoryPersistence();
-        $this->workflowId = $workflowId ?? uniqid('workflow_');
+        $this->workflowId = $resumeToken ?? uniqid('workflow_');
 
         // Register the node middleware
         $global = $this->globalMiddleware();
@@ -108,10 +104,14 @@ class Workflow implements WorkflowInterface
     /**
      * Configure workflow persistence.
      */
-    public function setPersistence(PersistenceInterface $persistence, string $workflowId): self
+    public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): self
     {
         $this->persistence = $persistence;
-        $this->workflowId = $workflowId;
+
+        if ($resumeToken !== null) {
+            $this->workflowId = $resumeToken;
+        }
+
         return $this;
     }
 
@@ -496,6 +496,11 @@ class Workflow implements WorkflowInterface
     }
 
     public function getWorkflowId(): string
+    {
+        return $this->workflowId;
+    }
+
+    public function getResumeToken(): string
     {
         return $this->workflowId;
     }
