@@ -132,7 +132,7 @@ class Agent extends Workflow implements AgentInterface
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
         $this->resolveStartEvent()->setMessages(
-            is_array($messages) ? $messages : [$messages]
+            ...(is_array($messages) ? $messages : [$messages])
         );
 
         // Prepare the workflow for streaming mode
@@ -155,7 +155,7 @@ class Agent extends Workflow implements AgentInterface
         ?InterruptRequest $interrupt = null
     ): mixed {
         $this->resolveStartEvent()->setMessages(
-            is_array($messages) ? $messages : [$messages]
+            ...(is_array($messages) ? $messages : [$messages])
         );
 
         $class ??= $this->getOutputClass();
