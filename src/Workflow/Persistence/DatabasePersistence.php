@@ -22,20 +22,20 @@ class DatabasePersistence implements PersistenceInterface
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->table} (workflow_id, data, created_at, updated_at)
-            VALUES (:id, :data, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()
+            INSERT INTO {$this->table} (workflow_id, request, created_at, updated_at)
+            VALUES (:id, :request, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE request = VALUES(request), updated_at = NOW()
         ");
 
         $stmt->execute([
             'id' => $workflowId,
-            'data' => serialize($interrupt),
+            'request' => serialize($interrupt),
         ]);
     }
 
     public function load(string $workflowId): WorkflowInterrupt
     {
-        $stmt = $this->pdo->prepare("SELECT data FROM {$this->table} WHERE workflow_id = :id");
+        $stmt = $this->pdo->prepare("SELECT request FROM {$this->table} WHERE workflow_id = :id");
         $stmt->execute(['id' => $workflowId]);
         $result = $stmt->fetch();
 
