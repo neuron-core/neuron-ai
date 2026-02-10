@@ -247,7 +247,7 @@ class DatabasePersistenceTest extends TestCase
     /**
      * Helper method to create a test WorkflowInterrupt.
      */
-    private function createTestInterrupt(string $message = 'Test interrupt message', string $id = null): WorkflowInterrupt
+    private function createTestInterrupt(string $message = 'Test interrupt message', ?string $id = null): WorkflowInterrupt
     {
         $state = new WorkflowState(['test_key' => 'test_value', '__workflowId' => $id ?? $this->workflowId]);
         return $this->createTestInterruptWithState($state, $message);
