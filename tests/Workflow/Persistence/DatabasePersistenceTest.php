@@ -126,6 +126,7 @@ class DatabasePersistenceTest extends TestCase
             'key1' => 'value1',
             'key2' => 42,
             'key3' => ['nested' => 'array'],
+            '__workflowId' => $this->workflowId,
         ]);
 
         $interrupt = $this->createTestInterruptWithState($state);
@@ -227,7 +228,7 @@ class DatabasePersistenceTest extends TestCase
         $customTable = 'custom_workflow_table_' . uniqid();
         $this->pdo->exec("CREATE TABLE {$customTable} (
             workflow_id VARCHAR(255) PRIMARY KEY,
-            data LONGBLOB NOT NULL,
+            interrupt LONGBLOB NOT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
