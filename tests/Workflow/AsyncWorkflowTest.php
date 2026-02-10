@@ -101,7 +101,7 @@ class AsyncWorkflowTest extends TestCase
     {
         $state = new WorkflowState(['initial' => 'value']);
 
-        $workflow = Workflow::make($state)
+        $workflow = Workflow::make(state: $state)
             ->addNodes([
                 new FirstNode(),
                 new SecondNode(),

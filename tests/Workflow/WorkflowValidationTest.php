@@ -67,7 +67,7 @@ class WorkflowValidationTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make(new CustomState())->addNode($node);
+        $workflow = Workflow::make(state: new CustomState())->addNode($node);
         $state = $workflow->init()->run();
         $this->assertInstanceOf(CustomState::class, $state);
         $this->assertEquals('custom property', $state->custom);

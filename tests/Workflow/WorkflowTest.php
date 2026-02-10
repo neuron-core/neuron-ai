@@ -42,7 +42,7 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowWithInitialState(): void
     {
-        $workflow = Workflow::make(new WorkflowState(['initial_data' => 'test']))
+        $workflow = Workflow::make(state: new WorkflowState(['initial_data' => 'test']))
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -96,7 +96,7 @@ class WorkflowTest extends TestCase
             new NodeForThird(),
         ];
 
-        $workflow = Workflow::make(new WorkflowState(['condition' => 'second']))
+        $workflow = Workflow::make(state: new WorkflowState(['condition' => 'second']))
             ->addNodes($nodes);
 
         $finalState = $workflow->init()->run();
@@ -107,7 +107,7 @@ class WorkflowTest extends TestCase
         $this->assertEquals('Conditional chose second', $finalState->get('final_second_message'));
 
         // Test the third path
-        $workflow = Workflow::make(new WorkflowState(['condition' => 'third']))
+        $workflow = Workflow::make(state: new WorkflowState(['condition' => 'third']))
             ->addNodes($nodes);
         $finalState = $workflow->init()->run();
 
