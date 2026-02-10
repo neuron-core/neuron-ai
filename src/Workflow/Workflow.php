@@ -92,7 +92,7 @@ class Workflow implements WorkflowInterface
     /**
      * Register an observer to receive events for this workflow.
      *
-     * Observers are scoped to this workflow instance, ensuring proper
+     * Observers are scoped to the workflow instance, ensuring proper
      * isolation when running multiple workflows concurrently.
      */
     public function observe(ObserverInterface $observer): self
@@ -141,7 +141,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Create the default start event for this workflow.
+     * Create the default start event for the workflow.
      */
     protected function startEvent(): Event
     {
@@ -149,7 +149,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Resolve the start event for this workflow.
+     * Resolve the start event for the workflow.
      */
     protected function resolveStartEvent(): Event
     {
