@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
@@ -22,7 +22,7 @@ class InterruptableNode extends Node
         $state->set('interruptable_node_executed', true);
 
         $feedback = $this->interrupt(
-            new InterruptRequest(
+            new ApprovalRequest(
                 'human input needed',
                 [new Action('action_id', 'action_name', 'action_description')],
             )

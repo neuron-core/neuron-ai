@@ -73,6 +73,9 @@ abstract class Node implements NodeInterface
     }
 
     /**
+     * @template T of InterruptRequest
+     * @param T $request
+     * @return T|null
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
@@ -82,6 +85,9 @@ abstract class Node implements NodeInterface
     }
 
     /**
+     * @template T of InterruptRequest
+     * @param T $request
+     * @return T|null
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */

@@ -12,7 +12,7 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -55,7 +55,7 @@ class ToolApproval implements WorkflowMiddleware
         }
 
         // Check if we're resuming
-        if ($node->isResuming() && $node->getResumeRequest() instanceof InterruptRequest) {
+        if ($node->isResuming() && $node->getResumeRequest() instanceof ApprovalRequest) {
             $this->processDecisions($node->getResumeRequest(), $event);
             return;
         }
@@ -75,7 +75,7 @@ class ToolApproval implements WorkflowMiddleware
         }
 
         $count = count($actions);
-        $interruptRequest = new InterruptRequest(
+        $interruptRequest = new ApprovalRequest(
             message: sprintf(
                 '%d tool call%s require%s approval before execution',
                 $count,
@@ -146,8 +146,8 @@ class ToolApproval implements WorkflowMiddleware
      *  - Approved: No changes, tool executes normally
      */
     protected function processDecisions(
-        InterruptRequest $request,
-        ToolCallEvent $event,
+        ApprovalRequest $request,
+        ToolCallEvent   $event,
     ): void {
         foreach ($event->toolCallMessage->getTools() as $tool) {
             $toolCallId = $tool->getCallId();

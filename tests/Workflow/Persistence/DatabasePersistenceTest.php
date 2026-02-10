@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow\Persistence;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowInterrupt;
@@ -77,7 +77,9 @@ class DatabasePersistenceTest extends TestCase
             $interrupt->getRequest()->getMessage(),
             $loadedInterrupt->getRequest()->getMessage()
         );
-        $this->assertCount(2, $loadedInterrupt->getRequest()->getActions());
+        /** @var ApprovalRequest $loadedRequest */
+        $loadedRequest = $loadedInterrupt->getRequest();
+        $this->assertCount(2, $loadedRequest->getActions());
     }
 
     public function testUpdateExistingWorkflowInterrupt(): void
@@ -145,7 +147,9 @@ class DatabasePersistenceTest extends TestCase
         $this->assertEquals(['nested' => 'array'], $loadedState->get('key3'));
 
         // Verify actions were preserved
-        $actions = $loadedInterrupt->getRequest()->getActions();
+        /** @var ApprovalRequest $loadedRequest */
+        $loadedRequest = $loadedInterrupt->getRequest();
+        $actions = $loadedRequest->getActions();
         $this->assertCount(2, $actions);
         $this->assertEquals('action_1', $actions[0]->id);
         $this->assertEquals('Execute Command', $actions[0]->name);
@@ -157,14 +161,18 @@ class DatabasePersistenceTest extends TestCase
         $interrupt = $this->createTestInterrupt();
 
         // Approve one action
-        $actions = $interrupt->getRequest()->getActions();
+        /** @var ApprovalRequest $request */
+        $request = $interrupt->getRequest();
+        $actions = $request->getActions();
         $actions[0]->approve('Looks good');
 
         $this->persistence->save($workflowId, $interrupt);
         $loadedInterrupt = $this->persistence->load($workflowId);
 
         // Verify action decisions were preserved
-        $loadedActions = $loadedInterrupt->getRequest()->getActions();
+        /** @var ApprovalRequest $loadedRequest */
+        $loadedRequest = $loadedInterrupt->getRequest();
+        $loadedActions = $loadedRequest->getActions();
         $this->assertTrue($loadedActions[0]->isApproved());
         $this->assertEquals('Looks good', $loadedActions[0]->feedback);
         $this->assertTrue($loadedActions[1]->isPending());
@@ -176,14 +184,18 @@ class DatabasePersistenceTest extends TestCase
         $interrupt = $this->createTestInterrupt();
 
         // Reject one action
-        $actions = $interrupt->getRequest()->getActions();
+        /** @var ApprovalRequest $request */
+        $request = $interrupt->getRequest();
+        $actions = $request->getActions();
         $actions[1]->reject('Too dangerous');
 
         $this->persistence->save($workflowId, $interrupt);
         $loadedInterrupt = $this->persistence->load($workflowId);
 
         // Verify action decisions were preserved
-        $loadedActions = $loadedInterrupt->getRequest()->getActions();
+        /** @var ApprovalRequest $loadedRequest */
+        $loadedRequest = $loadedInterrupt->getRequest();
+        $loadedActions = $loadedRequest->getActions();
         $this->assertTrue($loadedActions[1]->isRejected());
         $this->assertEquals('Too dangerous', $loadedActions[1]->feedback);
     }
@@ -258,7 +270,7 @@ class DatabasePersistenceTest extends TestCase
         WorkflowState $state,
         string $message = 'Test interrupt message'
     ): WorkflowInterrupt {
-        $request = new InterruptRequest(
+        $request = new ApprovalRequest(
             $message,
             [
                 new Action(
