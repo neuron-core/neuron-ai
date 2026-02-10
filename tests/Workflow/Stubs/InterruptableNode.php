@@ -21,7 +21,7 @@ class InterruptableNode extends Node
     {
         $state->set('interruptable_node_executed', true);
 
-        $feedback = $this->interrupt(
+        $this->interrupt(
             new ApprovalRequest(
                 'human input needed',
                 [new Action('action_id', 'action_name', 'action_description')],

@@ -41,7 +41,7 @@ use function is_null;
 use function uniqid;
 
 /**
- * @method static static make(?WorkflowState $state = null, ?PersistenceInterface $persistence = null, ?string $resumeToken = null)
+ * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null)
  */
 class Workflow implements WorkflowInterface
 {
