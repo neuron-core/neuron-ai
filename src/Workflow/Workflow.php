@@ -69,9 +69,9 @@ class Workflow implements WorkflowInterface
      * @throws WorkflowException
      */
     public function __construct(
-        protected ?WorkflowState $state = null,
         protected ?PersistenceInterface $persistence = null,
-        ?string $resumeToken = null
+        ?string $resumeToken = null,
+        protected ?WorkflowState $state = null,
     ) {
         $this->exporter = new ConsoleExporter();
 
