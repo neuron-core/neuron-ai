@@ -22,7 +22,7 @@ $workflow = Workflow::make(new WorkflowState(), $persistence)
     ]);
 
 // Draw the workflow graph
-echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
+echo $workflow->export()."\n\n\n";
 
 // Run the workflow and catch the interruption
 try {
@@ -31,10 +31,10 @@ try {
     // The resume token is auto-generated and available from the interrupt
     echo "Resume token: ".$interrupt->getResumeToken().\PHP_EOL;
     echo "Workflow interrupted at ".$interrupt->getNode()::class.\PHP_EOL;
+
+    // Resume the workflow providing external data
+    $finalState = $workflow->init($interrupt->getRequest())->run();
+
+    // It should print "approved"
+    echo $finalState->get('received_feedback').\PHP_EOL;
 }
-
-// Resume the workflow providing external data
-$finalState = $workflow->init($interrupt->getRequest())->run();
-
-// It should print "approved"
-echo $finalState->get('received_feedback').\PHP_EOL;
