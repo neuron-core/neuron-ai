@@ -128,11 +128,7 @@ class ToolApproval implements WorkflowMiddleware
         return new Action(
             id: $tool->getCallId() ?? uniqid('tool_'),
             name: $tool->getName(),
-            description: sprintf(
-                "Description: %s\nInputs: %s",
-                $tool->getDescription() ?? 'No description',
-                $inputsDescription
-            ),
+            description: sprintf("Inputs: %s", $inputsDescription),
             decision: ActionDecision::Pending
         );
     }
