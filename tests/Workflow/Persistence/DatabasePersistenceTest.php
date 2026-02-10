@@ -37,7 +37,7 @@ class DatabasePersistenceTest extends TestCase
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
         $this->pdo->exec("CREATE TABLE IF NOT EXISTS workflow_interrupts (
-            resume_token VARCHAR(255) PRIMARY KEY,
+            workflow_id VARCHAR(255) PRIMARY KEY,
             request LONGBLOB NOT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
