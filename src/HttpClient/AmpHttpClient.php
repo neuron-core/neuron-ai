@@ -30,7 +30,7 @@ class AmpHttpClient implements HttpClientInterface
      */
     public function __construct(
         protected readonly array $customHeaders = [],
-        protected readonly float $timeout = 30.0,
+        protected readonly float $timeout = 60.0,
     ) {
     }
 

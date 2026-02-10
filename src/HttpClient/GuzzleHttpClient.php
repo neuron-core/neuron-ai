@@ -25,7 +25,7 @@ class GuzzleHttpClient implements HttpClientInterface
      */
     public function __construct(
         private readonly array $customHeaders = [],
-        private readonly float $timeout = 30.0,
+        private readonly float $timeout = 60.0,
         private readonly float $connectTimeout = 10.0,
         private readonly ?HandlerStack $handler = null,
     ) {
