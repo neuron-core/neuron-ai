@@ -22,14 +22,14 @@ class DatabasePersistence implements PersistenceInterface
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->table} (workflow_id, request, created_at, updated_at)
-            VALUES (:id, :request, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE request = VALUES(request), updated_at = NOW()
+            INSERT INTO {$this->table} (workflow_id, interrupt, created_at, updated_at)
+            VALUES (:id, :interrupt, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE interrupt = VALUES(interrupt), updated_at = NOW()
         ");
 
         $stmt->execute([
             'id' => $workflowId,
-            'request' => serialize($interrupt),
+            'interrupt' => serialize($interrupt),
         ]);
     }
 
@@ -43,7 +43,7 @@ class DatabasePersistence implements PersistenceInterface
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        return unserialize($result['data']);
+        return unserialize($result['interrupt']);
     }
 
     public function delete(string $workflowId): void
