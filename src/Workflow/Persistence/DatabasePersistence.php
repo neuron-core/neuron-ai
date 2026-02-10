@@ -35,7 +35,7 @@ class DatabasePersistence implements PersistenceInterface
 
     public function load(string $workflowId): WorkflowInterrupt
     {
-        $stmt = $this->pdo->prepare("SELECT request FROM {$this->table} WHERE workflow_id = :id");
+        $stmt = $this->pdo->prepare("SELECT interrupt FROM {$this->table} WHERE workflow_id = :id");
         $stmt->execute(['id' => $workflowId]);
         $result = $stmt->fetch();
 
