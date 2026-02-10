@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Interrupt;
 
 use function array_filter;
-use function array_map;
 use function array_values;
+use function json_encode;
 
 class ApprovalRequest extends InterruptRequest
 {
