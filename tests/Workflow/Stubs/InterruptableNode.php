@@ -7,8 +7,8 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 
 class InterruptableNode extends Node

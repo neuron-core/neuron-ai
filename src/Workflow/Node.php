@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Closure;
+use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use Closure;
-use Generator;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 use function array_key_exists;
 use function call_user_func;

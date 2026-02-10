@@ -13,9 +13,9 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_filter;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 use function file_exists;
 use function file_get_contents;

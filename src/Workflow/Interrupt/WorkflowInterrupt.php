@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow;
+namespace NeuronAI\Workflow\Interrupt;
 
+use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use JsonSerializable;
+use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowState;
 
 use function serialize;
 use function unserialize;

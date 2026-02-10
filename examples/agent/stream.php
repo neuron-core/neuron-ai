@@ -9,7 +9,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
-use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 

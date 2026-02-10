@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
-use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 interface PersistenceInterface
 {

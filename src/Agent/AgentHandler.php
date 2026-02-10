@@ -6,8 +6,8 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowHandler;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use Throwable;
 
 class AgentHandler extends WorkflowHandler

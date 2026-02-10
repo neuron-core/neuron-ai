@@ -9,10 +9,10 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
-use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 class DataAnalystAgent extends Agent
 {

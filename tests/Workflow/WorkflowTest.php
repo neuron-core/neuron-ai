@@ -5,12 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowInterrupt;
-use NeuronAI\Workflow\WorkflowState;
-use PHPUnit\Framework\TestCase;
 use NeuronAI\Tests\Workflow\Stubs\ConditionalNode;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
@@ -19,6 +13,12 @@ use NeuronAI\Tests\Workflow\Stubs\NodeForThird;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\TestCase;
 
 class WorkflowTest extends TestCase
 {

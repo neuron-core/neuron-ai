@@ -10,8 +10,8 @@ use NeuronAI\Providers\Anthropic;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
-use NeuronAI\Workflow\WorkflowInterrupt;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 

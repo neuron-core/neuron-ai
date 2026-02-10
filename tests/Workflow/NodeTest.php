@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
+use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 
 class NodeTest extends TestCase
 {

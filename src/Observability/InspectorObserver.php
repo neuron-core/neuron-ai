@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Exception;
 use Inspector\Configuration;
 use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
@@ -12,12 +13,11 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\AgentError;
-use Exception;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
-use NeuronAI\Workflow\WorkflowInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 use function array_key_exists;
 use function array_map;

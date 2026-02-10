@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Generator;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use Generator;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use Throwable;
 
 class WorkflowHandler implements WorkflowHandlerInterface
