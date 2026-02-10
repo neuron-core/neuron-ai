@@ -22,7 +22,7 @@ class DatabasePersistenceTest extends TestCase
     use CheckOpenPort;
 
     protected PDO $pdo;
-    protected string $threadId;
+    protected string $workflowId;
 
     protected PersistenceInterface $persistence;
 
@@ -46,7 +46,7 @@ class DatabasePersistenceTest extends TestCase
             INDEX idx_updated_at (updated_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-        $this->threadId = uniqid('test-thread-');
+        $this->workflowId = uniqid('test-thread-');
 
         $this->persistence = new DatabasePersistence($this->pdo, 'workflow_interrupts');
     }
@@ -61,14 +61,13 @@ class DatabasePersistenceTest extends TestCase
 
     public function testSaveAndLoadWorkflowInterrupt(): void
     {
-        $workflowId = $this->threadId . '-save-load';
         $interrupt = $this->createTestInterrupt();
 
         // Save the interrupt
-        $this->persistence->save($workflowId, $interrupt);
+        $this->persistence->save($this->workflowId, $interrupt);
 
         // Load it back
-        $loadedInterrupt = $this->persistence->load($workflowId);
+        $loadedInterrupt = $this->persistence->load($this->workflowId);
 
         // Verify the data matches
         $this->assertInstanceOf(WorkflowInterrupt::class, $loadedInterrupt);
@@ -84,51 +83,45 @@ class DatabasePersistenceTest extends TestCase
 
     public function testUpdateExistingWorkflowInterrupt(): void
     {
-        $workflowId = $this->threadId . '-update';
-
         // Save the first interrupt
-        $this->persistence->save($workflowId, $this->createTestInterrupt('First message'));
+        $this->persistence->save($this->workflowId, $this->createTestInterrupt('First message'));
 
         // Update with new interrupt
-        $this->persistence->save($workflowId, $this->createTestInterrupt('Second message'));
+        $this->persistence->save($this->workflowId, $this->createTestInterrupt('Second message'));
 
         // Load and verify it was updated
-        $loadedInterrupt = $this->persistence->load($workflowId);
+        $loadedInterrupt = $this->persistence->load($this->workflowId);
 
         $this->assertEquals('Second message', $loadedInterrupt->getRequest()->getMessage());
     }
 
     public function testDeleteWorkflowInterrupt(): void
     {
-        $workflowId = $this->threadId . '-delete';
         $interrupt = $this->createTestInterrupt();
 
         // Save and verify it exists
-        $this->persistence->save($workflowId, $interrupt);
-        $this->assertInstanceOf(WorkflowInterrupt::class, $this->persistence->load($workflowId));
+        $this->persistence->save($this->workflowId, $interrupt);
+        $this->assertInstanceOf(WorkflowInterrupt::class, $this->persistence->load($this->workflowId));
 
         // Delete it
-        $this->persistence->delete($workflowId);
+        $this->persistence->delete($this->workflowId);
 
         // Verify it throws an exception when trying to load deleted workflow
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("No saved workflow found for ID: {$workflowId}");
-        $this->persistence->load($workflowId);
+        $this->expectExceptionMessage("No saved workflow found for ID: {$this->workflowId}");
+        $this->persistence->load($this->workflowId);
     }
 
     public function testLoadNonExistentWorkflowThrowsException(): void
     {
-        $workflowId = $this->threadId . '-nonexistent';
-
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("No saved workflow found for ID: {$workflowId}");
+        $this->expectExceptionMessage("No saved workflow found for ID: {$this->workflowId}");
 
-        $this->persistence->load($workflowId);
+        $this->persistence->load($this->workflowId);
     }
 
     public function testSavePreservesAllInterruptData(): void
     {
-        $workflowId = $this->threadId . '-preserve-data';
         $state = new WorkflowState([
             'key1' => 'value1',
             'key2' => 42,
@@ -137,8 +130,8 @@ class DatabasePersistenceTest extends TestCase
 
         $interrupt = $this->createTestInterruptWithState($state);
 
-        $this->persistence->save($workflowId, $interrupt);
-        $loadedInterrupt = $this->persistence->load($workflowId);
+        $this->persistence->save($this->workflowId, $interrupt);
+        $loadedInterrupt = $this->persistence->load($this->workflowId);
 
         // Verify state was preserved
         $loadedState = $loadedInterrupt->getState();
@@ -157,7 +150,6 @@ class DatabasePersistenceTest extends TestCase
 
     public function testSaveAndLoadWithApprovedActions(): void
     {
-        $workflowId = $this->threadId . '-approved-actions';
         $interrupt = $this->createTestInterrupt();
 
         // Approve one action
@@ -166,8 +158,8 @@ class DatabasePersistenceTest extends TestCase
         $actions = $request->getActions();
         $actions[0]->approve('Looks good');
 
-        $this->persistence->save($workflowId, $interrupt);
-        $loadedInterrupt = $this->persistence->load($workflowId);
+        $this->persistence->save($this->workflowId, $interrupt);
+        $loadedInterrupt = $this->persistence->load($this->workflowId);
 
         // Verify action decisions were preserved
         /** @var ApprovalRequest $loadedRequest */
@@ -180,7 +172,6 @@ class DatabasePersistenceTest extends TestCase
 
     public function testSaveAndLoadWithRejectedActions(): void
     {
-        $workflowId = $this->threadId . '-rejected-actions';
         $interrupt = $this->createTestInterrupt();
 
         // Reject one action
@@ -189,8 +180,8 @@ class DatabasePersistenceTest extends TestCase
         $actions = $request->getActions();
         $actions[1]->reject('Too dangerous');
 
-        $this->persistence->save($workflowId, $interrupt);
-        $loadedInterrupt = $this->persistence->load($workflowId);
+        $this->persistence->save($this->workflowId, $interrupt);
+        $loadedInterrupt = $this->persistence->load($this->workflowId);
 
         // Verify action decisions were preserved
         /** @var ApprovalRequest $loadedRequest */
@@ -202,11 +193,11 @@ class DatabasePersistenceTest extends TestCase
 
     public function testMultipleWorkflowsAreIndependent(): void
     {
-        $workflowId1 = $this->threadId . '-workflow-1';
-        $workflowId2 = $this->threadId . '-workflow-2';
+        $workflowId1 = $this->workflowId . '-workflow-1';
+        $workflowId2 = $this->workflowId . '-workflow-2';
 
-        $interrupt1 = $this->createTestInterrupt('Workflow 1 message');
-        $interrupt2 = $this->createTestInterrupt('Workflow 2 message');
+        $interrupt1 = $this->createTestInterrupt('Workflow 1 message', $workflowId1);
+        $interrupt2 = $this->createTestInterrupt('Workflow 2 message', $workflowId2);
 
         // Save both
         $this->persistence->save($workflowId1, $interrupt1);
@@ -242,11 +233,10 @@ class DatabasePersistenceTest extends TestCase
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         $customPersistence = new DatabasePersistence($this->pdo, $customTable);
-        $workflowId = $this->threadId . '-custom-table';
         $interrupt = $this->createTestInterrupt();
 
-        $customPersistence->save($workflowId, $interrupt);
-        $customPersistence->load($workflowId);
+        $customPersistence->save($this->workflowId, $interrupt);
+        $customPersistence->load($this->workflowId);
 
         $this->expectNotToPerformAssertions();
 
@@ -257,9 +247,9 @@ class DatabasePersistenceTest extends TestCase
     /**
      * Helper method to create a test WorkflowInterrupt.
      */
-    private function createTestInterrupt(string $message = 'Test interrupt message'): WorkflowInterrupt
+    private function createTestInterrupt(string $message = 'Test interrupt message', string $id = null): WorkflowInterrupt
     {
-        $state = new WorkflowState(['test_key' => 'test_value']);
+        $state = new WorkflowState(['test_key' => 'test_value', '__workflowId' => $id ?? $this->workflowId]);
         return $this->createTestInterruptWithState($state, $message);
     }
 
