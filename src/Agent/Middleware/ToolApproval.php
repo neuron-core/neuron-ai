@@ -30,7 +30,7 @@ use const JSON_PRETTY_PRINT;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param string[] $tools Tool names that require approval (empty = all tools)
+     * @param string[]|class-string[] $tools Tools that require approval (empty = all tools)
      */
     public function __construct(
         protected array $tools = []
@@ -111,7 +111,8 @@ class ToolApproval implements WorkflowMiddleware
 
         return array_filter(
             $tools,
-            fn (ToolInterface $tool): bool => in_array($tool->getName(), $this->tools, true)
+            fn (ToolInterface $tool): bool =>
+                in_array($tool->getName(), $this->tools, true) || in_array($tool::class, $this->tools, true)
         );
     }
 
