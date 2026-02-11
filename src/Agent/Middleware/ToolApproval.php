@@ -111,8 +111,17 @@ class ToolApproval implements WorkflowMiddleware
 
         return array_filter(
             $tools,
-            fn (ToolInterface $tool): bool =>
-                in_array($tool->getName(), $this->tools, true) || in_array($tool::class, $this->tools, true)
+            function(ToolInterface $tool): bool {
+                // Support both tool names and class names
+                if (!in_array($tool->getName(), $this->tools, true)) {
+                    return false;
+                }
+                if (!in_array($tool::class, $this->tools, true)) {
+                    return false;
+                }
+
+                return true;
+            }
         );
     }
 
