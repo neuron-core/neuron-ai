@@ -20,12 +20,10 @@ use Exception;
 
 use function array_map;
 use function array_slice;
-use function ceil;
 use function count;
 use function implode;
 use function max;
 use function sprintf;
-use function mb_strlen;
 use function strtoupper;
 
 class Summarization implements WorkflowMiddleware

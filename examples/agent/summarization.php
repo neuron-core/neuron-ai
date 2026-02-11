@@ -9,7 +9,6 @@ use NeuronAI\Agent\Middleware\Summarization;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 

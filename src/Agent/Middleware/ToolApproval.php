@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -20,7 +19,9 @@ use NeuronAI\Workflow\WorkflowState;
 
 use function array_filter;
 use function count;
-use function in_array;
+use function is_callable;
+use function is_int;
+use function is_string;
 use function json_encode;
 use function sprintf;
 use function uniqid;
@@ -30,7 +31,18 @@ use const JSON_PRETTY_PRINT;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param string[]|class-string[] $tools Tools that require approval (empty = all tools)
+     * @param array<int|string, string|callable(array): bool> $tools Tools that require approval.
+     *   - Empty array: all tools require approval (default)
+     *   - Numeric key + string value: tool name or class-string always requires approval
+     *   - String key + callable value: tool name or class-string with conditional callback.
+     *     The callback receives the tool's input arguments (array) and returns bool
+     *     (true = requires approval, false = skip).
+     *
+     * Example:
+     *   new ToolApproval([
+     *       'delete_file',
+     *       'transfer_money' => fn(array $args) => $args['amount'] > 100,
+     *   ])
      */
     public function __construct(
         protected array $tools = []
@@ -45,7 +57,6 @@ class ToolApproval implements WorkflowMiddleware
      *
      * @param ToolNode $node
      * @param ToolCallEvent $event
-     * @param AgentState $state
      * @throws WorkflowInterrupt
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
@@ -111,18 +122,34 @@ class ToolApproval implements WorkflowMiddleware
 
         return array_filter(
             $tools,
-            function(ToolInterface $tool): bool {
-                // Support both tool names and class names
-                if (!in_array($tool->getName(), $this->tools, true)) {
-                    return false;
-                }
-                if (!in_array($tool::class, $this->tools, true)) {
-                    return false;
-                }
+            $this->toolRequiresApproval(...)
+        );
+    }
 
+    /**
+     * Determine if a specific tool requires approval.
+     *
+     * Checks the tool against the configured tools list, handling both
+     * unconditional (string) and conditional (callable) entries.
+     */
+    protected function toolRequiresApproval(ToolInterface $tool): bool
+    {
+        $toolName = $tool->getName();
+        $toolClass = $tool::class;
+
+        foreach ($this->tools as $key => $value) {
+            // Numeric key + string value: unconditional approval
+            if (is_int($key) && is_string($value) && ($value === $toolName || $value === $toolClass)) {
                 return true;
             }
-        );
+
+            // String key + callable value: conditional approval
+            if (is_string($key) && is_callable($value) && ($key === $toolName || $key === $toolClass)) {
+                return $value($tool->getInputs());
+            }
+        }
+
+        return false;
     }
 
     /**
