@@ -33,7 +33,7 @@ In addition, we provide tutorials and other educational content to help you get 
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
 https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 
-Neuron is the perfect AI branch of your favorite framework.
+Neuron is the perfect AI architecture for your project.
 
 ## Laravel
 Neuron offers a well-defined encapsulation pattern, allowing you to work on your AI components in a dedicated namespace.
