@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
@@ -48,11 +49,7 @@ class Summarization implements WorkflowMiddleware
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
         // Only apply to ChatNode, StreamingNode, and StructuredOutputNode
-        if (!$event instanceof AIInferenceEvent) {
-            return;
-        }
-
-        if (!$state instanceof AgentState) {
+        if (!$event instanceof AIInferenceEvent || !$state instanceof AgentState) {
             return;
         }
 
@@ -231,7 +228,7 @@ PROMPT;
 
             if ($message instanceof ToolCallMessage) {
                 $toolNames = array_map(
-                    fn (\NeuronAI\Tools\ToolInterface $tool): string => $tool->getName(),
+                    fn (ToolInterface $tool): string => $tool->getName(),
                     $message->getTools()
                 );
                 $formatted[] = sprintf(
@@ -259,34 +256,7 @@ PROMPT;
     }
 
     /**
-     * Count total tokens in messages.
-     *
-     * Uses custom token counter if provided, otherwise uses default estimation.
-     *
-     * @param Message[] $messages
-     */
-    protected function countTokens(array $messages): int
-    {
-        // Default token counting: use usage data if available, otherwise estimate
-        $totalTokens = 0;
-
-        foreach ($messages as $message) {
-            $usage = $message->getUsage();
-            if ($usage !== null) {
-                // Use actual token count from usage data
-                $totalTokens += $usage->getTotal();
-            } else {
-                // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-                $contentStr = $message->getContent();
-                $totalTokens += (int) ceil(mb_strlen((string) $contentStr) / 4);
-            }
-        }
-
-        return $totalTokens;
-    }
-
-    /**
-     * Set the maximum tokens before summarization threshold.
+     * Set the maximum tokens before the summarization threshold.
      */
     public function setMaxTokens(int $tokens): self
     {

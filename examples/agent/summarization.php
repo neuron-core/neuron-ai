@@ -35,7 +35,6 @@ $summarizationProvider = new Anthropic(
 // Create the agent with summarization middleware
 $agent = Agent::make()
     ->setAiProvider($mainProvider)
-    ->setChatHistory(new InMemoryChatHistory())
     // Apply summarization middleware to generative nodes
     ->addMiddleware(
         [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
