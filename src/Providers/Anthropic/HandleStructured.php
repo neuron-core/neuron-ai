@@ -9,6 +9,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 
 use function json_encode;
+use function is_array;
 
 use const PHP_EOL;
 

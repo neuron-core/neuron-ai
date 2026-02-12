@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\AWS;
 use NeuronAI\Chat\Messages\Message;
 
 use function json_encode;
+use function is_array;
 
 use const PHP_EOL;
 
