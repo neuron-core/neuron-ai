@@ -112,7 +112,9 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
-        $this->resolveStartEvent()->setMessages($messages);
+        $this->resolveStartEvent()->setMessages(
+            ...(is_array($messages) ? $messages : [$messages])
+        );
 
         // Prepare the workflow for chat mode
         $this->compose(
