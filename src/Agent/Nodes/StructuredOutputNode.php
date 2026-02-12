@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
-use GuzzleHttp\Exception\RequestException;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
@@ -69,8 +68,6 @@ class StructuredOutputNode extends Node
     {
         $this->addToChatHistory($state, $event->getMessages());
 
-        $chatHistory = $state->getChatHistory();
-
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
             $this->emit('schema-generation', new SchemaGeneration($this->outputClass));
@@ -94,12 +91,12 @@ class StructuredOutputNode extends Node
                     $this->addToChatHistory($state, $correctionMessage);
                 }
 
+                $chatHistory = $state->getChatHistory();
                 $messages = $chatHistory->getMessages();
 
                 $last = clone $chatHistory->getLastMessage();
                 $this->emit('inference-start', new InferenceStart($last));
 
-                // Use instructions and tools from the event
                 $response = $this->provider
                     ->systemPrompt($event->instructions)
                     ->setTools($event->tools)
@@ -122,15 +119,11 @@ class StructuredOutputNode extends Node
 
                 return new StopEvent();
 
-            } catch (RequestException $ex) {
-                $exception = $ex;
-                $error = $ex->getResponse()?->getBody()->getContents() ?? $ex->getMessage();
-                $this->emit('error', new AgentError($ex, false));
             } catch (ToolMaxTriesException $ex) {
                 // If the problem is a tool max tries exception, we don't want to retry
                 throw $ex;
             } catch (Exception $ex) {
-                $exception = $ex;
+                $lastException = $ex;
                 $error = $ex->getMessage();
                 $this->emit('error', new AgentError($ex, false));
             }
@@ -138,7 +131,7 @@ class StructuredOutputNode extends Node
             $this->maxTries--;
         } while ($this->maxTries >= 0);
 
-        throw $exception;
+        throw $lastException;
     }
 
     /**

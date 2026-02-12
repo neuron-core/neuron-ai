@@ -23,7 +23,7 @@ class AgentState extends WorkflowState
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        return $this->chatHistory ?? $this->chatHistory = new InMemoryChatHistory();
+        return $this->chatHistory ??= new InMemoryChatHistory();
     }
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): AgentState

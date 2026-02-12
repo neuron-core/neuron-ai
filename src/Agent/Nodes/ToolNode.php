@@ -83,8 +83,8 @@ class ToolNode extends Node
         } catch (Throwable $exception) {
             $this->emit('error', new AgentError($exception));
             throw $exception;
+        } finally {
+            $this->emit('tool-called', new ToolCalled($tool));
         }
-
-        $this->emit('tool-called', new ToolCalled($tool));
     }
 }

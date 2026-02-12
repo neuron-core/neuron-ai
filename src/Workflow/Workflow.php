@@ -302,13 +302,12 @@ class Workflow implements WorkflowInterface
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence->save($this->workflowId, $interrupt);
             EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
-            $this->workflowEnd();
             throw $interrupt;
         } catch (Throwable $exception) {
-            // Notify and propagate
             EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            $this->workflowEnd();
             throw $exception;
+        } finally {
+            $this->workflowEnd();
         }
     }
 
