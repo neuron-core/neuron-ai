@@ -4,7 +4,7 @@
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
 
 > [!IMPORTANT]
-> **Neuron v3 release scheduled for the end of February.** Start with it or read the upgrade guide to update your project.
+> **Neuron v3 release scheduled for the end of February.** Start with it or read the upgrade guide to prepare your project.
 > [Upgrade Guide](https://docs.neuron-ai.dev/neuron-v3/overview/upgrade)
 
 > Before moving on, support the community giving a GitHub star ⭐️. Thank you!
