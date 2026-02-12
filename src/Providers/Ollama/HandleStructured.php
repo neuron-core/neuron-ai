@@ -26,8 +26,6 @@ trait HandleStructured
             'format' => $response_format,
         ]);
 
-        $messages = is_array($messages) ? $messages : [$messages];
-
-        return $this->chat(...$messages);
+        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
     }
 }

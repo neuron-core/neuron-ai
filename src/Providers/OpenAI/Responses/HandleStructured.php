@@ -40,9 +40,7 @@ trait HandleStructured
             ]
         ]);
 
-        $messages = is_array($messages) ? $messages : [$messages];
-
-        return $this->chat(...$messages);
+        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
     }
 
     protected function sanitizeClassName(string $name): string

@@ -27,6 +27,6 @@ trait HandleStructured
             "Your response must be a JSON string following this schema: ".PHP_EOL.
             json_encode($response_format);
 
-        return $this->chat($messages);
+        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
     }
 }
