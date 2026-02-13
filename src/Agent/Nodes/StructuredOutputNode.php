@@ -118,9 +118,6 @@ class StructuredOutputNode extends Node
 
                 return new StopEvent();
 
-            } catch (ToolMaxTriesException $ex) {
-                // If the problem is a tool max tries exception, we don't want to retry
-                throw $ex;
             } catch (Exception $ex) {
                 $lastException = $ex;
                 $error = $ex->getMessage();
