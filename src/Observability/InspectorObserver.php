@@ -100,12 +100,13 @@ class InspectorObserver implements ObserverInterface
     public static function instance(
         ?string $key = null,
         ?string $transport = null,
+        ?int $maxItems = null,
         bool $autoFlush = false,
         bool $splitMonitoring = false,
     ): InspectorObserver {
         $configuration = new Configuration($key ?? $_ENV['INSPECTOR_INGESTION_KEY'] ?? null);
         $configuration->setTransport($transport ?? $_ENV['INSPECTOR_TRANSPORT'] ?? 'async');
-        $configuration->setMaxItems((int) ($_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems()));
+        $configuration->setMaxItems((int) ($maxItems ?? $_ENV['INSPECTOR_MAX_ITEMS'] ?? $configuration->getMaxItems()));
 
         if (isset($_ENV['INSPECTOR_URL'])) {
             $configuration->setUrl($_ENV['INSPECTOR_URL']);
