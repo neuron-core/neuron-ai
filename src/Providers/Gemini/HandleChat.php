@@ -21,6 +21,8 @@ use function json_decode;
 use function json_encode;
 use function trim;
 use function str_starts_with;
+use function array_filter;
+use function count;
 
 trait HandleChat
 {
@@ -93,16 +95,9 @@ trait HandleChat
 
                 $parts = $content['parts'];
 
-                // Scan ALL parts for functionCall, not just parts[0].
-                // Gemini 3 models may return text or thought parts before functionCall parts.
-                // See https://ai.google.dev/gemini-api/docs/thought-signatures
-                $hasFunctionCall = false;
-                foreach ($parts as $part) {
-                    if (array_key_exists('functionCall', $part) && !empty($part['functionCall'])) {
-                        $hasFunctionCall = true;
-                        break;
-                    }
-                }
+                $hasFunctionCall = count(
+                    array_filter($parts, fn (array $part): bool => !empty($part['functionCall'] ?? null))
+                ) > 0;
 
                 if ($hasFunctionCall) {
                     $response = $this->createToolCallMessage($content);

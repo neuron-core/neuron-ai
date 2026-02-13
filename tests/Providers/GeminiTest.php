@@ -18,6 +18,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -538,7 +539,7 @@ class GeminiTest extends TestCase
         $this->assertSame('sig-abc123', $response->getMetadata('thoughtSignature'));
     }
 
-    private function makeSimpleTool(string $name): Tool
+    private function makeSimpleTool(string $name): ToolInterface
     {
         return Tool::make($name, "A test tool called {$name}.")
             ->addProperty(new ToolProperty('prop', PropertyType::STRING, 'A test property', true))
