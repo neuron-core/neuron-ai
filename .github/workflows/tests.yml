@@ -43,6 +43,11 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
+            - name: Upgrade Docker
+              run: |
+                sudo apt-get update
+                sudo apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io
+
             - name: Login to Docker Hub
               uses: docker/login-action@v3
               # This condition skips the step if the event is a Pull Request
