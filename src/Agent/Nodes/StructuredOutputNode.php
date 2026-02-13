@@ -14,7 +14,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ToolMaxTriesException;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
 use NeuronAI\Observability\Events\Extracted;
@@ -125,7 +124,6 @@ class StructuredOutputNode extends Node
             } catch (Exception $ex) {
                 $lastException = $ex;
                 $error = $ex->getMessage();
-                $this->emit('error', new AgentError($ex, false));
             }
 
             $this->maxTries--;
