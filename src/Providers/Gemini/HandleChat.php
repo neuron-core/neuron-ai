@@ -93,7 +93,18 @@ trait HandleChat
 
                 $parts = $content['parts'];
 
-                if (array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
+                // Scan ALL parts for functionCall, not just parts[0].
+                // Gemini 3 models may return text or thought parts before functionCall parts.
+                // See https://ai.google.dev/gemini-api/docs/thought-signatures
+                $hasFunctionCall = false;
+                foreach ($parts as $part) {
+                    if (array_key_exists('functionCall', $part) && !empty($part['functionCall'])) {
+                        $hasFunctionCall = true;
+                        break;
+                    }
+                }
+
+                if ($hasFunctionCall) {
                     $response = $this->createToolCallMessage($content);
                 } else {
                     $response = new AssistantMessage($parts[0]['text'] ?? '');
