@@ -87,6 +87,7 @@ trait HandleWorkflowEvents
         if (array_key_exists($data->node, $this->segments)) {
             $segment = $this->segments[$data->node]->end();
             $segment->addContext('State After', $data->state->all());
+            unset($this->segments[$data->node]);
         }
     }
 
