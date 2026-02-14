@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\OpenAI\Image;
 
 use Generator;
@@ -9,7 +11,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ImageChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
@@ -21,7 +22,9 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\UniqueIdGenerator;
+
+use function end;
+use function trim;
 
 class OpenAIImage implements AIProviderInterface
 {
@@ -61,6 +64,7 @@ class OpenAIImage implements AIProviderInterface
 
     /**
      * https://developers.openai.com/api/reference/resources/images/methods/generate
+     *
      * @throws HttpException
      */
     public function chat(Message ...$messages): Message
@@ -110,6 +114,12 @@ class OpenAIImage implements AIProviderInterface
         return $result;
     }
 
+    /**
+     * https://developers.openai.com/api/docs/guides/image-generation?api=image#streaming
+     *
+     * @throws ProviderException
+     * @throws HttpException
+     */
     public function stream(Message ...$messages): Generator
     {
         $message = end($messages);
@@ -143,7 +153,6 @@ class OpenAIImage implements AIProviderInterface
 
             // Image APIs stream entire partially generated images, not base64 chunks.
             // The last content streamed is the final image.
-            // https://developers.openai.com/api/docs/guides/image-generation?api=image#streaming
             if ($line['type'] === 'image_generation.partial_image') {
                 $content = $line['b64_json'];
                 yield new ImageChunk($line['partial_image_index'], $line['b64_json']);
