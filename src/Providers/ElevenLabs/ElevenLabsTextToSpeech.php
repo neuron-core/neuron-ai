@@ -65,7 +65,7 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
     {
         $message = end($messages);
 
-        $json = [
+        $body = [
             'model_id' => $this->model,
             'text' => $message->getContent(),
         ];
@@ -73,7 +73,7 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: $this->voiceId,
-                body: $json
+                body: $body
             )
         );
 

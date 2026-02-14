@@ -45,7 +45,7 @@ trait HandleStream
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
-        $json = [
+        $body = [
             'stream' => true,
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
@@ -54,13 +54,13 @@ trait HandleStream
 
         // Attach tools
         if ($this->tools !== []) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'chat/completions',
-                body: $json
+                body: $body
             )
         );
 

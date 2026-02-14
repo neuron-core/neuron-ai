@@ -27,7 +27,7 @@ trait HandleChat
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
-        $json = [
+        $body = [
             'stream' => false,
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
@@ -35,13 +35,13 @@ trait HandleChat
         ];
 
         if (! empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: 'chat',
-                body: $json
+                body: $body
             )
         );
 

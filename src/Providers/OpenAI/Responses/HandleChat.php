@@ -24,7 +24,7 @@ trait HandleChat
      */
     public function chat(Message ...$messages): Message
     {
-        $json = [
+        $body = [
             'model' => $this->model,
             'input' => $this->messageMapper()->map($messages),
             ...$this->parameters
@@ -32,18 +32,18 @@ trait HandleChat
 
         // Attach the system prompt
         if (isset($this->system)) {
-            $json['instructions'] = $this->system;
+            $body['instructions'] = $this->system;
         }
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: 'responses',
-                body: $json
+                body: $body
             )
         );
 

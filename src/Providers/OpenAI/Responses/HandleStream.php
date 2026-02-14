@@ -43,7 +43,7 @@ trait HandleStream
      */
     public function stream(Message ...$messages): Generator
     {
-        $json = [
+        $body = [
             'stream' => true,
             'model' => $this->model,
             'input' => $this->messageMapper()->map($messages),
@@ -52,18 +52,18 @@ trait HandleStream
 
         // Attach the system prompt
         if (isset($this->system)) {
-            $json['instructions'] = $this->system;
+            $body['instructions'] = $this->system;
         }
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: 'responses',
-                body: $json
+                body: $body
             )
         );
 

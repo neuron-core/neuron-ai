@@ -36,7 +36,7 @@ trait HandleStream
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
-        $json = [
+        $body = [
             'stream' => true,
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
@@ -46,11 +46,11 @@ trait HandleStream
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->httpClient->stream(
-            $this->createChatHttpRequest($json)
+            $this->createChatHttpRequest($body)
         );
 
         $this->streamState = new StreamState();

@@ -28,7 +28,7 @@ trait HandleChat
             array_unshift($messages, new Message(MessageRole::SYSTEM, $this->system));
         }
 
-        $json = [
+        $body = [
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
             ...$this->parameters
@@ -36,11 +36,11 @@ trait HandleChat
 
         // Attach tools
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $response = $this->httpClient->request(
-            $this->createChatHttpRequest($json)
+            $this->createChatHttpRequest($body)
         );
 
         return $this->processChatResult($response->json());

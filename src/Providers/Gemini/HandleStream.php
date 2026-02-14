@@ -38,13 +38,13 @@ trait HandleStream
      */
     public function stream(Message ...$messages): Generator
     {
-        $json = [
+        $body = [
             'contents' => $this->messageMapper()->map($messages),
             ...$this->parameters
         ];
 
         if (isset($this->system)) {
-            $json['system_instruction'] = [
+            $body['system_instruction'] = [
                 'parts' => [
                     ['text' => $this->system]
                 ]
@@ -52,13 +52,13 @@ trait HandleStream
         }
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent",
-                body: $json
+                body: $body
             )
         );
 

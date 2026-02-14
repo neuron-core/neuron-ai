@@ -28,13 +28,13 @@ trait HandleChat
      */
     public function chat(Message ...$messages): Message
     {
-        $json = [
+        $body = [
             'contents' => $this->messageMapper()->map($messages),
             ...$this->parameters
         ];
 
         if (isset($this->system)) {
-            $json['system_instruction'] = [
+            $body['system_instruction'] = [
                 'parts' => [
                     ['text' => $this->system]
                 ]
@@ -42,13 +42,13 @@ trait HandleChat
         }
 
         if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: trim($this->baseUri, '/')."/{$this->model}:generateContent",
-                body: $json
+                body: $body
             )
         );
 
@@ -104,6 +104,7 @@ trait HandleChat
             }
         }
 
+        // If no tool calls
         if (!isset($message)) {
             $message = new AssistantMessage($blocks);
         }
