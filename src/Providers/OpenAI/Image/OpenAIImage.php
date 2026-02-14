@@ -77,7 +77,7 @@ class OpenAIImage implements AIProviderInterface
 
         $body = [
             'model' => $this->model,
-            'input' => $message->getContent(),
+            'prompt' => $message->getContent(),
             'output_format' => $this->output_format,
             ...$this->parameters
         ];
@@ -131,7 +131,7 @@ class OpenAIImage implements AIProviderInterface
         $body = [
             'stream' => true,
             'model' => $this->model,
-            'input' => $message->getContent(),
+            'prompt' => $message->getContent(),
             'output_format' => $this->output_format,
             ...$this->parameters
         ];
