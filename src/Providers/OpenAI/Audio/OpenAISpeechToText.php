@@ -68,7 +68,7 @@ class OpenAISpeechToText implements AIProviderInterface
         $message = end($messages);
 
         $body = [
-            'file' => fopen($message->getAudio(), 'r'),
+            'file' => fopen($message->getAudio()->getContent(), 'r'),
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
@@ -105,7 +105,7 @@ class OpenAISpeechToText implements AIProviderInterface
 
         $body = [
             'stream' => true,
-            'file' => fopen($message->getAudio(), 'r'),
+            'file' => fopen($message->getAudio()->getContent(), 'r'),
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',

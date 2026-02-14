@@ -61,7 +61,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         $message = end($messages);
 
         $body = [
-            'file' => fopen($message->getAudio(), 'r'),
+            'file' => fopen($message->getAudio()->getContent(), 'r'),
             'model' => $this->model,
         ];
 
