@@ -69,7 +69,7 @@ trait HandleWorkflowEvents
         }
     }
 
-    public function workflowNodeStart(object $workflow, string $event, WorkflowNodeStart $data): void
+    public function nodeStart(object $workflow, string $event, WorkflowNodeStart $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -82,7 +82,7 @@ trait HandleWorkflowEvents
         $this->segments[$data->node] = $segment;
     }
 
-    public function workflowNodeEnd(object $workflow, string $event, WorkflowNodeEnd $data): void
+    public function nodeEnd(object $workflow, string $event, WorkflowNodeEnd $data): void
     {
         if (array_key_exists($data->node, $this->segments)) {
             $segment = $this->segments[$data->node]->end();

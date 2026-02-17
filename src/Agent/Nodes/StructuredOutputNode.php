@@ -13,7 +13,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Exceptions\ToolMaxTriesException;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
 use NeuronAI\Observability\Events\Extracted;
@@ -32,7 +31,6 @@ use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
-use Exception;
 use ReflectionException;
 
 use function count;
@@ -59,9 +57,10 @@ class StructuredOutputNode extends Node
     }
 
     /**
-     * @throws ReflectionException
-     * @throws ToolMaxTriesException
+     * @throws AgentException
+     * @throws DeserializerException
      * @throws InspectorException
+     * @throws ReflectionException
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
@@ -118,7 +117,7 @@ class StructuredOutputNode extends Node
 
                 return new StopEvent();
 
-            } catch (Exception $ex) {
+            } catch (AgentException|DeserializerException $ex) {
                 $lastException = $ex;
                 $error = $ex->getMessage();
             }

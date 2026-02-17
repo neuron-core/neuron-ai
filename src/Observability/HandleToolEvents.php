@@ -78,5 +78,7 @@ trait HandleToolEvents
             ->addContext('Properties', $data->tool->getProperties())
             ->addContext('Inputs', $data->tool->getInputs())
             ->addContext('Output', $data->tool->getResult());
+
+        unset($this->toolCalls[$data->tool::class]);
     }
 }
