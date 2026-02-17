@@ -38,7 +38,7 @@ class InspectorObserver implements ObserverInterface
     use HandleStructuredEvents;
     use HandleWorkflowEvents;
 
-    public const SEGMENT_TYPE = 'neuron';
+    public const SEGMENT_TYPE = 'agent';
     public const STANDARD_COLOR = '#FF800C';
 
     /**
