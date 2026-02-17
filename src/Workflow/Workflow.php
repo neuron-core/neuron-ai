@@ -258,31 +258,33 @@ class Workflow implements WorkflowInterface
                     $this->workflowId
                 );
 
-                // Run before middleware
-                $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
+                try {
+                    // Run before middleware
+                    $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
 
-                // Execute the node
-                $result = $currentNode->run($currentEvent, $this->resolveState());
+                    // Execute the node
+                    $result = $currentNode->run($currentEvent, $this->resolveState());
 
-                // Consume generator if streaming, get the final event
-                if ($result instanceof Generator) {
-                    foreach ($result as $event) {
-                        yield $event;
+                    // Consume generator if streaming, get the final event
+                    if ($result instanceof Generator) {
+                        foreach ($result as $event) {
+                            yield $event;
+                        }
+                        $currentEvent = $result->getReturn();
+                    } else {
+                        $currentEvent = $result;
                     }
-                    $currentEvent = $result->getReturn();
-                } else {
-                    $currentEvent = $result;
+
+                    // Run after middleware with the returning event
+                    $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
+                } finally {
+                    EventBus::emit(
+                        'workflow-node-end',
+                        $this,
+                        new WorkflowNodeEnd($currentNode::class, $this->resolveState()),
+                        $this->workflowId
+                    );
                 }
-
-                // Run after middleware with the final event
-                $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
-
-                EventBus::emit(
-                    'workflow-node-end',
-                    $this,
-                    new WorkflowNodeEnd($currentNode::class, $this->resolveState()),
-                    $this->workflowId
-                );
 
                 if ($currentEvent instanceof StopEvent) {
                     break;
