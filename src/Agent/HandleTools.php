@@ -112,7 +112,9 @@ trait HandleTools
                 }
             } else {
                 // If the item is a simple tool, add to the list as it is
-                $this->toolsBootstrapCache[] = $tool;
+                if ($tool->isAuthorized()) {
+                    $this->toolsBootstrapCache[] = $tool;
+                }
             }
         }
 
