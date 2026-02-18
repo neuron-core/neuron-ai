@@ -114,7 +114,7 @@ class ApprovalRequest extends InterruptRequest
 
         $actionsData = is_array($data['actions'])
             ? $data['actions']
-            : json_decode($data['actions'], true);
+            : json_decode((string) $data['actions'], true);
 
         foreach ($actionsData as $actionData) {
             $instance->addAction(Action::fromArray($actionData));
