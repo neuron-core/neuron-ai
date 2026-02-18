@@ -139,6 +139,32 @@ class AgentTest extends TestCase
         $provider->assertCallCount(2);
     }
 
+    public function test_hidden_tool_is_not_sent_to_provider(): void
+    {
+        $visibleTool = Tool::make('search', 'Search the web')
+            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
+            ->setCallable(fn (string $query): string => "Results for: {$query}");
+
+        $hiddenTool = Tool::make('secret', 'Secret tool')
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
+            ->setCallable(fn (string $input): string => "Secret: {$input}")
+            ->visible(false);
+
+        $provider = new FakeAIProvider(
+            new AssistantMessage('Here is my answer.')
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->addTool($visibleTool);
+        $agent->addTool($hiddenTool);
+
+        $agent->chat(new UserMessage('Hello'))->getMessage();
+
+        // Only the visible tool should be configured on the provider
+        $provider->assertToolsConfigured(['search']);
+    }
+
     public function test_assert_sent(): void
     {
         $provider = new FakeAIProvider(
