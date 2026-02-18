@@ -13,7 +13,7 @@ class ProviderTool implements ProviderToolInterface
 {
     use StaticConstructor;
 
-    protected bool $authorized = true;
+    protected bool $visible = true;
 
     public function __construct(
         protected string $type,
@@ -43,15 +43,15 @@ class ProviderTool implements ProviderToolInterface
         return $this;
     }
 
-    public function canSee(bool $allow): ProviderToolInterface
+    public function visible(bool $visible): ProviderToolInterface
     {
-        $this->authorized = $allow;
+        $this->visible = $visible;
         return $this;
     }
 
-    public function canBeSeen(): bool
+    public function isVisible(): bool
     {
-        return $this->authorized;
+        return $this->visible;
     }
 
     public function jsonSerialize(): array

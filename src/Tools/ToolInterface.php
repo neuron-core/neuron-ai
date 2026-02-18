@@ -72,9 +72,9 @@ interface ToolInterface extends JsonSerializable
 
     public function setMaxTries(int $tries): ToolInterface;
 
-    public function canSee(bool $allow): ToolInterface;
+    public function visible(bool $visible): ToolInterface;
 
-    public function canBeSeen(): bool;
+    public function isVisible(): bool;
 
     /**
      * Execute the tool's logic with input parameters.
