@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Exceptions\SkipRemainingMiddlewareException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Exceptions\SkipRemainingMiddlewareException;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 class SingleStepNode extends Node
 {
     public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
     {
         $state->set('node_executed', true);
+
         return new StopEvent('done');
     }
 }
@@ -28,11 +30,13 @@ class SkipRemainingMiddlewareTest extends TestCase
 {
     public function testSecondMiddlewareBeforeIsNotCalledWhenFirstThrowsSkip(): void
     {
-        $tracker = new \stdClass();
+        $tracker = new stdClass();
         $tracker->calls = [];
 
-        $firstMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $firstMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
@@ -46,8 +50,10 @@ class SkipRemainingMiddlewareTest extends TestCase
             }
         };
 
-        $secondMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $secondMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
@@ -72,11 +78,13 @@ class SkipRemainingMiddlewareTest extends TestCase
 
     public function testAfterMethodRunsForAllMiddlewareEvenAfterSkip(): void
     {
-        $tracker = new \stdClass();
+        $tracker = new stdClass();
         $tracker->calls = [];
 
-        $firstMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $firstMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
@@ -90,8 +98,10 @@ class SkipRemainingMiddlewareTest extends TestCase
             }
         };
 
-        $secondMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $secondMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
@@ -130,11 +140,13 @@ class SkipRemainingMiddlewareTest extends TestCase
 
     public function testNormalMiddlewareChainIsUnaffectedWithoutSkip(): void
     {
-        $tracker = new \stdClass();
+        $tracker = new stdClass();
         $tracker->calls = [];
 
-        $firstMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $firstMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
@@ -147,8 +159,10 @@ class SkipRemainingMiddlewareTest extends TestCase
             }
         };
 
-        $secondMiddleware = new class($tracker) implements WorkflowMiddleware {
-            public function __construct(private \stdClass $tracker) {}
+        $secondMiddleware = new class ($tracker) implements WorkflowMiddleware {
+            public function __construct(private stdClass $tracker)
+            {
+            }
 
             public function before(NodeInterface $node, Event $event, WorkflowState $state): void
             {
