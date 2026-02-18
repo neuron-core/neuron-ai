@@ -109,7 +109,7 @@ trait HandleTools
                     $guidelines[] = $kitGuidelines;
                 }
             } elseif ($tool->isAuthorized()) {
-                // If the item is a simple tool, add to the list as it is
+                // If the item is a simple tool, add to the list if it's authorized
                 $this->toolsBootstrapCache[] = $tool;
             }
         }
