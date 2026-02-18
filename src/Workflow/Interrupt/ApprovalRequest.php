@@ -105,7 +105,16 @@ class ApprovalRequest extends InterruptRequest
     public static function fromArray(array $data): self
     {
         $instance = new self($data['message']);
-        foreach ($data['actions'] as $actionData) {
+
+        if (!isset($data['actions'])) {
+            return $instance;
+        }
+
+        if (!is_array($data['actions'])) {
+            $actionsData = json_decode($data['actions'], true);
+        }
+
+        foreach ($actionsData as $actionData) {
             $instance->addAction(Action::fromArray($actionData));
         }
         return $instance;
