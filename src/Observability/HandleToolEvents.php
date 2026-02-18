@@ -11,6 +11,7 @@ use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
+use TypeError;
 
 use function array_key_exists;
 use function array_reduce;
@@ -74,10 +75,16 @@ trait HandleToolEvents
             return;
         }
 
-        $this->toolCalls[$data->tool::class]->end()
+        $segment = $this->toolCalls[$data->tool::class]->end()
             ->addContext('Properties', $data->tool->getProperties())
-            ->addContext('Inputs', $data->tool->getInputs())
-            ->addContext('Output', $data->tool->getResult());
+            ->addContext('Inputs', $data->tool->getInputs());
+
+        try {
+            $segment->addContext('Output', $data->tool->getResult());
+        } catch (TypeError) {
+            // The tool may not have run due to an error, like ToolMaxTries.
+            // In that case getResult will throw an error due to a null result.
+        }
 
         unset($this->toolCalls[$data->tool::class]);
     }

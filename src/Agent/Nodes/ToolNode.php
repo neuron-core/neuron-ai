@@ -37,8 +37,7 @@ class ToolNode extends Node
     {
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
-        // Note: ToolCallMessage is already in chat history from ChatNode
-        // Only add the tool result message
+        // Only carry the tool result message as the next turn in the conversation
         $event->inferenceEvent->setMessages($toolCallResult);
 
         // Go back to the AI provider
