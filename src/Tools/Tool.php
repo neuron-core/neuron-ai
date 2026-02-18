@@ -58,7 +58,7 @@ class Tool implements ToolInterface
      */
     protected ?int $maxTries = null;
 
-    protected bool $authorized = true;
+    protected bool $visible = true;
 
     /**
      * Tool constructor.
@@ -202,15 +202,15 @@ class Tool implements ToolInterface
         return $this;
     }
 
-    public function canSee(bool $allow): ToolInterface
+    public function visible(bool $visible): ToolInterface
     {
-        $this->authorized = $allow;
+        $this->visible = $visible;
         return $this;
     }
 
-    public function canBeSeen(): bool
+    public function isVisible(): bool
     {
-        return $this->authorized;
+        return $this->visible;
     }
 
     /**

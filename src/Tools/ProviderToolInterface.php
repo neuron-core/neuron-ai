@@ -14,7 +14,7 @@ interface ProviderToolInterface extends JsonSerializable
 
     public function getOptions(): array;
 
-    public function canSee(bool $allow): ProviderToolInterface;
+    public function visible(bool $allow): ProviderToolInterface;
 
-    public function canBeSeen(): bool;
+    public function isVisible(): bool;
 }

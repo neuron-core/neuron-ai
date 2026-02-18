@@ -112,7 +112,7 @@ trait HandleTools
 
                     $guidelines[] = $kitGuidelines;
                 }
-            } elseif ($tool->canBeSeen()) {
+            } elseif ($tool->isVisible()) {
                 // If the item is a simple tool, add if authorized
                 $this->toolsBootstrapCache[] = $tool;
             }
