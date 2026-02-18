@@ -43,13 +43,13 @@ class ProviderTool implements ProviderToolInterface
         return $this;
     }
 
-    public function authorize(bool $allow): ProviderToolInterface
+    public function canSee(bool $allow): ProviderToolInterface
     {
         $this->authorized = $allow;
         return $this;
     }
 
-    public function isAuthorized(): bool
+    public function canBeSeen(): bool
     {
         return $this->authorized;
     }
