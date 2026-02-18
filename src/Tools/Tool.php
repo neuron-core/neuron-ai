@@ -58,6 +58,8 @@ class Tool implements ToolInterface
      */
     protected ?int $maxTries = null;
 
+    protected bool $authorized = true;
+
     /**
      * Tool constructor.
      *
@@ -198,6 +200,17 @@ class Tool implements ToolInterface
     {
         $this->maxTries = $tries;
         return $this;
+    }
+
+    public function authorize(bool $allow): ToolInterface
+    {
+        $this->authorized = $allow;
+        return $this;
+    }
+
+    public function isAuthorized(): bool
+    {
+        return $this->authorized;
     }
 
     /**

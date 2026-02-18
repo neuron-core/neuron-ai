@@ -13,6 +13,8 @@ class ProviderTool implements ProviderToolInterface
 {
     use StaticConstructor;
 
+    protected bool $authorized = true;
+
     public function __construct(
         protected string $type,
         protected ?string $name = null,
@@ -39,6 +41,17 @@ class ProviderTool implements ProviderToolInterface
     {
         $this->options = $options;
         return $this;
+    }
+
+    public function authorize(bool $allow): ProviderToolInterface
+    {
+        $this->authorized = $allow;
+        return $this;
+    }
+
+    public function isAuthorized(): bool
+    {
+        return $this->authorized;
     }
 
     public function jsonSerialize(): array
