@@ -24,6 +24,7 @@ use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use NeuronAI\Exceptions\SkipRemainingMiddlewareException;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
@@ -165,9 +166,14 @@ class Workflow implements WorkflowInterface
     protected function runBeforeMiddleware(Event $event, NodeInterface $node, WorkflowState $state): void
     {
         foreach ($this->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event), $this->workflowId);
-            $m->before($node, $event, $state);
-            EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m), $this->workflowId);
+            try {
+                EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event), $this->workflowId);
+                $m->before($node, $event, $state);
+                EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m), $this->workflowId);
+            } catch (SkipRemainingMiddlewareException) {
+                EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m), $this->workflowId);
+                break;
+            }
         }
     }
 
