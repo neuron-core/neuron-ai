@@ -93,11 +93,9 @@ trait HandleTools
                     $name = (new ReflectionClass($tool))->getShortName();
                     $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
                 }
-
                 // Merge the tools
                 $innerTools = $tool->tools();
                 $this->toolsBootstrapCache = array_merge($this->toolsBootstrapCache, $innerTools);
-
                 // Add guidelines to the system prompt
                 if (!in_array($kitGuidelines, [null, '', '0'], true)) {
                     $kitGuidelines .= PHP_EOL.implode(
@@ -110,11 +108,9 @@ trait HandleTools
 
                     $guidelines[] = $kitGuidelines;
                 }
-            } else {
+            } elseif ($tool->isAuthorized()) {
                 // If the item is a simple tool, add to the list as it is
-                if ($tool->isAuthorized()) {
-                    $this->toolsBootstrapCache[] = $tool;
-                }
+                $this->toolsBootstrapCache[] = $tool;
             }
         }
 
