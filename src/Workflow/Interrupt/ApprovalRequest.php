@@ -6,6 +6,8 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use function array_filter;
 use function array_values;
+use function is_array;
+use function json_decode;
 use function json_encode;
 
 class ApprovalRequest extends InterruptRequest
@@ -105,7 +107,16 @@ class ApprovalRequest extends InterruptRequest
     public static function fromArray(array $data): self
     {
         $instance = new self($data['message']);
-        foreach ($data['actions'] as $actionData) {
+
+        if (!isset($data['actions'])) {
+            return $instance;
+        }
+
+        $actionsData = is_array($data['actions'])
+            ? $data['actions']
+            : json_decode($data['actions'], true);
+
+        foreach ($actionsData as $actionData) {
             $instance->addAction(Action::fromArray($actionData));
         }
         return $instance;
