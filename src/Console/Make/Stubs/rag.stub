@@ -19,6 +19,13 @@ class [classname] extends RAG
         );*/
     }
 
+    protected function instructions(): string
+    {
+        return (string) new SystemPrompt(
+            background: ["You are a friendly AI Agent created with Neuron AI framework."],
+        );
+    }
+
     protected function embeddings(): EmbeddingsProviderInterface
     {
         /*return new OpenAIEmbeddingsProvider(
@@ -33,5 +40,13 @@ class [classname] extends RAG
             directory: __DIR__,
             name: 'demo'
         );*/
+    }
+
+    /**
+     * @return ToolInterface[]|ToolkitInterface[]
+     */
+    protected function tools(): array
+    {
+        return [];
     }
 }

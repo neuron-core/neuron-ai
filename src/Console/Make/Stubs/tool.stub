@@ -15,7 +15,7 @@ class [classname] extends Tool
         // Define Tool name and description
         parent::__construct(
             '[classname]',
-            'describe the purpose of the tool',
+            'Describe the purpose of the tool',
         );
     }
 
@@ -28,7 +28,7 @@ class [classname] extends Tool
             new ToolProperty(
                 name: 'input',
                 type: PropertyType::STRING,
-                description: 'The input to the tool',
+                description: 'The input argument of the tool',
                 required: true,
             ),
         ];

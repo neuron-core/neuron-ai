@@ -16,7 +16,7 @@ class [classname] extends Agent
     protected function provider(): AIProviderInterface
     {
         // return an instance of Anthropic, OpenAI, Gemini, Ollama, etc...
-        // https://docs.neuron-ai.dev/the-basics/ai-provider
+        // https://docs.neuron-ai.dev/providers/ai-provider
         return new Anthropic(
             key: 'ANTHROPIC_KEY',
             model: 'ANTHROPIC_MODEL',
@@ -26,7 +26,7 @@ class [classname] extends Agent
     protected function instructions(): string
     {
         return (string) new SystemPrompt(
-            background: ["You are a friendly AI Agent created with NeuronAI framework."],
+            background: ["You are a friendly AI Agent created with Neuron AI framework."],
         );
     }
 
@@ -36,5 +36,15 @@ class [classname] extends Agent
     protected function tools(): array
     {
         return [];
+    }
+
+    /**
+     * Attach middleware to nodes.
+     */
+    protected function middleware(): array
+    {
+        return [
+            // ToolNode::class => [],
+        ];
     }
 }
