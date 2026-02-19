@@ -21,6 +21,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
+use stdClass;
 use function array_filter;
 use function array_map;
 use function json_encode;
@@ -124,7 +125,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    ...($tool->getInputs() === [] ? [] : ['arguments' => json_encode($tool->getInputs())]),
+                    'arguments' => $tool->getInputs() !== [] ? json_encode($tool->getInputs()) : new stdClass(),
                 ],
             ], $message->getTools())
         ];
