@@ -20,8 +20,8 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
-
 use stdClass;
+
 use function array_filter;
 use function array_map;
 use function json_encode;
