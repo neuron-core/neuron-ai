@@ -193,10 +193,10 @@ class Workflow implements WorkflowInterface
      */
     public function run(): Generator
     {
+        EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
+
         // Store workflow ID in state for nodes to access when emitting events
         $this->resolveState()->set('__workflowId', $this->workflowId);
-
-        EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
         $this->bootstrap();
 
@@ -214,10 +214,10 @@ class Workflow implements WorkflowInterface
      */
     public function resume(InterruptRequest $resumeRequest): Generator
     {
+        EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
+
         // Store workflow ID in state for nodes to access when emitting events
         $this->resolveState()->set('__workflowId', $this->workflowId);
-
-        EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
 
         $this->bootstrap();
 

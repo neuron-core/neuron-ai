@@ -87,7 +87,7 @@ class Agent extends Workflow implements AgentInterface
             ? new ParallelToolNode($this->toolMaxTries)
             : new ToolNode($this->toolMaxTries);
 
-        // Add nodes to this workflow instance
+        // Add nodes to the workflow instance
         $this->addNodes([
             ...$nodes,
             $toolNode,
@@ -177,13 +177,13 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Get the output class for structured output.
+     * Get the class representing the structured output.
      * Override this method in subclasses to provide a default output class.
      *
      * @throws AgentException
      */
     protected function getOutputClass(): string
     {
-        throw new AgentException('You need to specify an output class.');
+        throw new AgentException('You need to specify a structured output class.');
     }
 }

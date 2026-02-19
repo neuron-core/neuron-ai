@@ -34,7 +34,6 @@ trait HandleWorkflowEvents
 
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
-                ->setType('agent')
                 ->setResult('success') // success by default, it can be changed during execution
                 ->addContext('Mapping', array_map(fn (string $eventClass, NodeInterface $node): array => [
                     $eventClass => $node::class,
@@ -43,6 +42,8 @@ trait HandleWorkflowEvents
             $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($workflow::class))
                 ->setColor(self::STANDARD_COLOR);
         }
+
+        $this->inspector->transaction()->setType('agent');
     }
 
     /**

@@ -101,7 +101,7 @@ trait HandleTools
                     $kitGuidelines .= PHP_EOL.implode(
                         PHP_EOL.'- ',
                         array_map(
-                            fn (ToolInterface $tool): string => "{$tool->getName()}: {$tool->getDescription()}",
+                            fn (ToolInterface $tool): string => "{$tool->getName()}",
                             $innerTools
                         )
                     );
