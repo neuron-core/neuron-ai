@@ -35,6 +35,7 @@ trait HandleWorkflowEvents
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
                 ->setType('agent')
+                ->setResult('success') // success by default, it can be changed during execution
                 ->addContext('Mapping', array_map(fn (string $eventClass, NodeInterface $node): array => [
                     $eventClass => $node::class,
                 ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)));
@@ -54,7 +55,7 @@ trait HandleWorkflowEvents
                 ->end()
                 ->addContext('State', $data->state->all());
         } elseif ($this->inspector->canAddSegments()) {
-            $transaction = $this->inspector->transaction()->setResult('success');
+            $transaction = $this->inspector->transaction();
             $transaction->addContext('State', $data->state->all());
 
             if ($workflow instanceof Agent) {

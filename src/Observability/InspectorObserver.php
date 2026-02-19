@@ -50,7 +50,7 @@ class InspectorObserver implements ObserverInterface
      * @var array<string, string>
      */
     protected array $methodsMap = [
-        'error' => 'reportError',
+        'error' => 'error',
 
         'workflow-start' => 'workflowStart',
         'workflow-resume' => 'workflowStart',
@@ -139,15 +139,12 @@ class InspectorObserver implements ObserverInterface
     /**
      * @throws Exception
      */
-    public function reportError(object $source, string $event, AgentError $data): void
+    public function error(object $source, string $event, AgentError $data): void
     {
         $this->inspector->reportException($data->exception, !$data->unhandled);
 
         if ($data->unhandled) {
             $this->inspector->transaction()->setResult('error');
-            if ($source instanceof Agent) {
-                $this->inspector->transaction()->setContext($this->getAgentContext($source));
-            }
         }
 
         if ($data->exception instanceof WorkflowInterrupt) {
