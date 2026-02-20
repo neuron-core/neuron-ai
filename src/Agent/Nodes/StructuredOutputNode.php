@@ -102,12 +102,13 @@ class StructuredOutputNode extends Node
 
                 $this->emit('inference-stop', new InferenceStop($last, $response));
 
-                $this->addToChatHistory($state, $response);
-
                 // If the response is a tool call, route to tool execution
                 if ($response instanceof ToolCallMessage) {
                     return new ToolCallEvent($response, $event);
                 }
+
+                // Add the final message to the chat history (after tool loop)
+                $this->addToChatHistory($state, $response);
 
                 // Process the response: extract, deserialize, and validate
                 $output = $this->processResponse($response, $schema, $this->outputClass);

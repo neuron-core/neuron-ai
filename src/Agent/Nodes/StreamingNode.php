@@ -56,13 +56,13 @@ class StreamingNode extends Node
 
             $this->emit('inference-stop', new InferenceStop($lastMessage, $message));
 
-            // Add the message to the chat history
-            $this->addToChatHistory($state, $message);
-
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
                 return new ToolCallEvent($message, $event);
             }
+
+            // Add the final message to the chat history (after tool loop)
+            $this->addToChatHistory($state, $message);
 
             return new StopEvent();
 
