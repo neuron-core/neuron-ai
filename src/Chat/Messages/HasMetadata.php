@@ -24,4 +24,10 @@ trait HasMetadata
     {
         return $this->meta[$key] ?? null;
     }
+
+    public function setMetadata(array $meta): self
+    {
+        $this->meta = $meta;
+        return $this;
+    }
 }

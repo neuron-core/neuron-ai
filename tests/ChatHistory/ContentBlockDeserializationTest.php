@@ -263,4 +263,35 @@ class ContentBlockDeserializationTest extends TestCase
         $this->assertInstanceOf(TextContent::class, $assistantBlocks[0]);
         $this->assertEquals('Modern content block message', $assistantBlocks[0]->content);
     }
+
+    public function test_content_block_with_metadata(): void
+    {
+        $key = 'test_meta';
+        $filePath = $this->testDir . '/neuron_' . $key . '.chat';
+
+        // Mix of new and legacy formats
+        $messages = [
+            [
+                'role' => 'user',
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'content' => 'Modern content block message',
+                        'meta' => ['foo' => 'bar'],
+                    ],
+                ],
+            ],
+        ];
+
+        file_put_contents($filePath, json_encode($messages));
+
+        $history = new FileChatHistory($this->testDir, $key);
+        $messages = $history->getMessages();
+
+        $this->assertCount(1, $messages);
+        $blocks = $messages[0]->getContentBlocks();
+        $this->assertCount(1, $blocks);
+        $this->assertInstanceOf(TextContent::class, $blocks[0]);
+        $this->assertEquals('bar', $blocks[0]->getMetadata('foo'));
+    }
 }

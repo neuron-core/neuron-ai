@@ -240,7 +240,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $type = ContentBlockType::from($block['type']);
 
-        return match ($type) {
+        $item = match ($type) {
             ContentBlockType::TEXT => new TextContent(
                 content: $block['content']
             ),
@@ -270,6 +270,12 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 mediaType: $block['media_type'] ?? null
             ),
         };
+
+        if (isset($block['meta'])) {
+            $item->setMetadata($block['meta']);
+        }
+
+        return $item;
     }
 
     /**

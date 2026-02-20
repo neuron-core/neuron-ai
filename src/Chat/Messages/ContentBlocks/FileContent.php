@@ -15,7 +15,7 @@ class FileContent extends ContentBlock
         string $content,
         public readonly SourceType $sourceType,
         public readonly ?string $mediaType = null,
-        public readonly ?string $filename = null
+        public readonly ?string $filename = null,
     ) {
         parent::__construct($content);
     }
