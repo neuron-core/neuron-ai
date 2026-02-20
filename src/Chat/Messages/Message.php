@@ -23,6 +23,7 @@ use function is_string;
 class Message implements JsonSerializable
 {
     use StaticConstructor;
+    use HasMetadata;
 
     protected ?Usage $usage = null;
 
@@ -30,11 +31,6 @@ class Message implements JsonSerializable
      * @var ContentBlockInterface[]
      */
     protected array $contents = [];
-
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $meta = [];
 
     /**
      * @param string|ContentBlockInterface|ContentBlockInterface[]|null $content
@@ -146,20 +142,6 @@ class Message implements JsonSerializable
     {
         $this->usage = $usage;
         return $this;
-    }
-
-    /**
-     * @param string|array<int, mixed>|null $value
-     */
-    public function addMetadata(string $key, string|array|null $value): self
-    {
-        $this->meta[$key] = $value;
-        return $this;
-    }
-
-    public function getMetadata(string $key): mixed
-    {
-        return $this->meta[$key] ?? null;
     }
 
     /**

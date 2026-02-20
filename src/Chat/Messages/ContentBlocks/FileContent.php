@@ -36,6 +36,7 @@ class FileContent extends ContentBlock
             'source_type' => $this->sourceType,
             'media_type' => $this->mediaType,
             'filename' => $this->filename,
+            'meta' => $this->meta,
         ]);
     }
 }

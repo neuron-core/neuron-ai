@@ -8,7 +8,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -62,9 +62,9 @@ class MessageMapper implements MessageMapperInterface
         return array_filter(array_map($this->mapContentBlock(...), $blocks));
     }
 
-    protected function mapContentBlock(ContentBlockInterface $block): ?array
+    protected function mapContentBlock(ContentBlock $block): ?array
     {
-        return match ($block::class) {
+        $item = match ($block::class) {
             TextContent::class => [
                 'text' => $block->content,
             ],
@@ -78,6 +78,12 @@ class MessageMapper implements MessageMapperInterface
             VideoContent::class => $this->mapMediaBlock($block),
             default => null
         };
+
+        if ($signature = $block->getMetadata('thought_signature')) {
+            $item['thought_signature'] = $signature;
+        }
+
+        return $item;
     }
 
     protected function mapMediaBlock(ImageContent|FileContent|AudioContent|VideoContent $block): ?array
@@ -115,8 +121,8 @@ class MessageMapper implements MessageMapperInterface
                 ]
             ];
 
-            if ($index === 0 && $signature = $message->getMetadata('thoughtSignature')) {
-                $part['thoughtSignature'] = $signature;
+            if ($index === 0 && $signature = $message->getMetadata('thought_signature')) {
+                $part['thought_signature'] = $signature;
             }
 
             $parts[] = $part;

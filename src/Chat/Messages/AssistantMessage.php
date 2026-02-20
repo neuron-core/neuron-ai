@@ -20,9 +20,10 @@ class AssistantMessage extends Message
         parent::__construct($role, $content);
     }
 
-    public function setStopReason(string $reason): void
+    public function setStopReason(string $reason): AssistantMessage
     {
         $this->addMetadata('stop_reason', $reason);
+        return $this;
     }
 
     public function stopReason(): ?string

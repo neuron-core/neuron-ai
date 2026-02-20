@@ -21,6 +21,7 @@ class TextContent extends ContentBlock
         return [
             'type' => $this->getType(),
             'content' => $this->content,
+            'meta' => $this->meta,
         ];
     }
 }

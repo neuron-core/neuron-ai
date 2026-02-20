@@ -34,6 +34,7 @@ class ImageContent extends ContentBlock
             'content' => $this->content,
             'source_type' => $this->sourceType,
             'media_type' => $this->mediaType,
+            'meta' => $this->meta,
         ]);
     }
 }

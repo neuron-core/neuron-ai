@@ -78,23 +78,36 @@ trait HandleChat
         $content = $candidate['content'];
 
         if (!isset($content['parts']) && $finishReason === 'MAX_TOKENS') {
-            return new AssistantMessage('');
+            return (new AssistantMessage())->setStopReason($finishReason);
         }
 
         $blocks = [];
         foreach ($content['parts'] as $part) {
+
             if (isset($part['text'])) {
-                $blocks[] = $part['thought'] ?? false
+                $block = $part['thought'] ?? false
                     ? new ReasoningContent($part['text'])
                     : new TextContent($part['text']);
+
+                if (isset($part['thought_signature'])) {
+                    $block->addMetadata('thought_signature', $part['thought_signature']);
+                }
+
+                $blocks[] = $block;
             }
 
             if (isset($part['inlineData'])) {
-                $blocks[] = new ImageContent(
+                $block = new ImageContent(
                     $part['inlineData']['data'],
                     SourceType::BASE64,
                     $part['inlineData']['mimeType']
                 );
+
+                if (isset($part['thought_signature'])) {
+                    $block->addMetadata('thought_signature', $part['thought_signature']);
+                }
+
+                $blocks[] = $block;
             }
 
             if (isset($part['functionCall'])) {
