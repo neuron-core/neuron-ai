@@ -89,8 +89,8 @@ trait HandleChat
                     ? new ReasoningContent($part['text'])
                     : new TextContent($part['text']);
 
-                if (isset($part['thought_signature'])) {
-                    $block->addMetadata('thought_signature', $part['thought_signature']);
+                if (isset($part['thoughtSignature'])) {
+                    $block->addMetadata('thought_signature', $part['thoughtSignature']);
                 }
 
                 $blocks[] = $block;
@@ -103,8 +103,8 @@ trait HandleChat
                     $part['inlineData']['mimeType']
                 );
 
-                if (isset($part['thought_signature'])) {
-                    $block->addMetadata('thought_signature', $part['thought_signature']);
+                if (isset($part['thoughtSignature'])) {
+                    $block->addMetadata('thought_signature', $part['thoughtSignature']);
                 }
 
                 $blocks[] = $block;
