@@ -185,7 +185,7 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ad
 With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
-- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic)
+- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic) (supports [prompt caching](#anthropic-prompt-caching))
 - [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#openai))
 - [OpenAI Responses API](https://docs.neuron-ai.dev/providers/ai-provider#openairesponses)
 - [OpenAI on Azure](https://docs.neuron-ai.dev/providers/ai-provider#azureopenai)
@@ -200,6 +200,44 @@ Supported providers:
 - [AWS Bedrock Runtime](https://docs.neuron-ai.dev/providers/ai-provider#aws-bedrock-runtime)
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
 - [ZAI](https://docs.neuron-ai.dev/providers/ai-provider#zai)
+
+<a name="anthropic-prompt-caching">
+
+### Anthropic Prompt Caching
+
+Reduce costs and latency by caching frequently used context with Anthropic's prompt caching feature. This is opt-in and requires explicit enablement.
+
+**Enable caching for system prompts and tools:**
+
+```php
+protected function provider(): AIProviderInterface
+{
+    return (new Anthropic('key', 'claude-3-7-sonnet-latest'))
+        ->withPromptCaching()  // Enable tool caching
+        ->systemPromptBlocks([
+            [
+                'type' => 'text',
+                'text' => 'Static context that rarely changes...',
+                'cache_control' => ['type' => 'ephemeral']  // Cache this block
+            ],
+            [
+                'type' => 'text',
+                'text' => 'Dynamic context that changes frequently...'
+            ]
+        ]);
+}
+```
+
+**Track cache performance:**
+
+```php
+$response = $agent->chat('Your message');
+
+echo "Cache write tokens: " . $response->getMetadata('cacheWriteTokens') . "\n";
+echo "Cache read tokens: " . $response->getMetadata('cacheReadTokens') . "\n";
+```
+
+Cache metrics are also available in streaming responses. Learn more in [Anthropic's documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching).
 
 <a name="tools">
 
