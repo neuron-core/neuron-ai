@@ -10,7 +10,9 @@ class Usage implements JsonSerializable
 {
     public function __construct(
         public int $inputTokens,
-        public int $outputTokens
+        public int $outputTokens,
+        public int $cacheWriteTokens = 0,
+        public int $cacheReadTokens = 0,
     ) {
     }
 
@@ -27,6 +29,8 @@ class Usage implements JsonSerializable
         return [
             'input_tokens' => $this->inputTokens,
             'output_tokens' => $this->outputTokens,
+            'cache_write_tokens' => $this->cacheWriteTokens,
+            'cache_read_tokens' => $this->cacheReadTokens,
         ];
     }
 }
