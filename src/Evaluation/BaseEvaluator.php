@@ -87,4 +87,15 @@ abstract class BaseEvaluator implements EvaluatorInterface
     {
         return $this->ruleExecutor->getFailures();
     }
+
+    /**
+     * Reset assertion state
+     *
+     * Clears all assertion counters and failures. This should be called
+     * between dataset items to ensure isolated assertion state.
+     */
+    public function resetAssertionState(): void
+    {
+        $this->ruleExecutor->reset();
+    }
 }
