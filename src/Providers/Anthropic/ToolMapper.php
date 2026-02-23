@@ -12,6 +12,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
 
 use function array_reduce;
 use function is_string;
+use function array_merge;
 
 class ToolMapper implements ToolMapperInterface
 {
@@ -40,7 +41,7 @@ class ToolMapper implements ToolMapperInterface
             return $carry;
         }, []);
 
-        return [
+        $payload = [
             'name' => $tool->getName(),
             'description' => $tool->getDescription(),
             'input_schema' => [
@@ -49,6 +50,12 @@ class ToolMapper implements ToolMapperInterface
                 'required' => $tool->getRequiredProperties(),
             ],
         ];
+
+        if ($tool->getParameters() !== []) {
+            return array_merge($payload, $tool->getParameters());
+        }
+
+        return $payload;
     }
 
     protected function mapProviderTool(ProviderToolInterface $tool): array

@@ -12,6 +12,7 @@ use NeuronAI\Tools\ToolPropertyInterface;
 use stdClass;
 
 use function array_reduce;
+use function array_merge;
 
 class ToolMapper implements ToolMapperInterface
 {
@@ -57,6 +58,10 @@ class ToolMapper implements ToolMapperInterface
                 'properties' => $properties,
                 'required' => $tool->getRequiredProperties(),
             ];
+        }
+
+        if ($tool->getParameters() !== []) {
+            $payload['toolSpec'] = array_merge($payload['toolSpec'], $tool->getParameters());
         }
 
         return $payload;

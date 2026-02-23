@@ -70,6 +70,7 @@ class Tool implements ToolInterface
         protected string $name,
         protected ?string $description = null,
         array $properties = [],
+        protected array $parameters = [],
         protected array $annotations = []
     ) {
         if ($properties !== []) {
@@ -143,10 +144,9 @@ class Tool implements ToolInterface
         return $this->annotations;
     }
 
-    public function setCallable(callable $callback): self
+    public function getParameters(): array
     {
-        $this->callback = $callback;
-        return $this;
+        return $this->parameters;
     }
 
     public function getInputs(): array
@@ -212,6 +212,12 @@ class Tool implements ToolInterface
     public function isVisible(): bool
     {
         return $this->visible;
+    }
+
+    public function setCallable(callable $callback): self
+    {
+        $this->callback = $callback;
+        return $this;
     }
 
     /**

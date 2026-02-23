@@ -13,6 +13,7 @@ use stdClass;
 use function array_filter;
 use function array_map;
 use function array_reduce;
+use function array_merge;
 
 class ToolMapper implements ToolMapperInterface
 {
@@ -58,6 +59,10 @@ class ToolMapper implements ToolMapperInterface
                 'properties' => $properties,
                 'required' => $tool->getRequiredProperties(),
             ];
+        }
+
+        if ($tool->getParameters() !== []) {
+            return array_merge($payload, $tool->getParameters());
         }
 
         return $payload;

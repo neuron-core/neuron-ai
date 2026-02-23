@@ -39,10 +39,7 @@ interface ToolInterface extends JsonSerializable
      */
     public function getRequiredProperties(): array;
 
-    /**
-     * Define the code to be executed.
-     */
-    public function setCallable(callable $callback): ToolInterface;
+    public function getParameters(): array;
 
     /**
      * Get the input arguments of the function call.
@@ -75,6 +72,11 @@ interface ToolInterface extends JsonSerializable
     public function visible(bool $visible): ToolInterface;
 
     public function isVisible(): bool;
+
+    /**
+     * Define the code to be executed.
+     */
+    public function setCallable(callable $callback): ToolInterface;
 
     /**
      * Execute the tool's logic with input parameters.

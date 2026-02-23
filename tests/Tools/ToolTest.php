@@ -474,8 +474,25 @@ class ToolTest extends TestCase
         $tool = new Tool('test', 'test');
         $this->assertSame([], $tool->getAnnotations());
 
-        $tool = new Tool('test', 'test', [], ['foo' => 'bar']);
+        $tool = new Tool(
+            name: 'test',
+            description: 'test',
+            annotations: ['foo' => 'bar'],
+        );
         $this->assertEquals(['foo' => 'bar'], $tool->getAnnotations());
+    }
+
+    public function test_parameters(): void
+    {
+        $tool = new Tool('test', 'test');
+        $this->assertSame([], $tool->getAnnotations());
+
+        $tool = new Tool(
+            name: 'test',
+            description: 'test',
+            parameters: ['foo' => 'bar'],
+        );
+        $this->assertEquals(['foo' => 'bar'], $tool->getParameters());
     }
 
     public function test_callback_precedence(): void
