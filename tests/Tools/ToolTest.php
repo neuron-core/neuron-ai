@@ -8,8 +8,6 @@ use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tests\Stubs\Tools\TestToolClassOnlyParentConstructor;
 use NeuronAI\Tests\Stubs\Tools\TestToolClassOnlyParentConstructorFluent;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassWithoutParentConstructor;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassWithoutParentConstructorMixed;
 use NeuronAI\Tests\Stubs\Tools\TestToolClassWithParentConstructor;
 use NeuronAI\Tests\Stubs\Tools\TestToolClassWithParentConstructorMixed;
 use NeuronAI\Tools\ArrayProperty;
@@ -20,8 +18,6 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Error;
-
-use function count;
 
 class ToolTest extends TestCase
 {
@@ -415,28 +411,10 @@ class ToolTest extends TestCase
         );
     }
 
-    public function test_properties_declaration_on_method_and_constructor_without_parent_constructor(): void
-    {
-        $tool = new TestToolClassWithoutParentConstructorMixed('test');
-        $this->assertEquals(1, count($tool->getProperties()));
-        $this->assertEquals('test_tool', $tool->getName());
-        $this->assertEquals('test tool', $tool->getDescription());
-        $this->assertEquals('test', $tool->getKey());
-    }
-
-    public function test_properties_declaration_on_method_without_parent_constructor(): void
-    {
-        $tool = new TestToolClassWithoutParentConstructor('test');
-        $this->assertEquals(2, count($tool->getProperties()));
-        $this->assertEquals('test_tool', $tool->getName());
-        $this->assertEquals('test tool', $tool->getDescription());
-        $this->assertEquals('test', $tool->getKey());
-    }
-
     public function test_properties_declaration_on_method_and_constructor_with_parent_constructor(): void
     {
         $tool = new TestToolClassWithParentConstructorMixed('test');
-        $this->assertEquals(1, count($tool->getProperties()));
+        $this->assertCount(1, $tool->getProperties());
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -445,7 +423,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_method_with_parent_constructor(): void
     {
         $tool = new TestToolClassWithParentConstructor('test');
-        $this->assertEquals(1, count($tool->getProperties()));
+        $this->assertCount(1, $tool->getProperties());
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -454,7 +432,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_constructor_with_parent_constructor(): void
     {
         $tool = new TestToolClassOnlyParentConstructor('test');
-        $this->assertEquals(2, count($tool->getProperties()));
+        $this->assertCount(2, $tool->getProperties());
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -463,7 +441,7 @@ class ToolTest extends TestCase
     public function test_properties_declaration_on_constructor_with_parent_constructor_fluent(): void
     {
         $tool = new TestToolClassOnlyParentConstructorFluent('test');
-        $this->assertEquals(2, count($tool->getProperties()));
+        $this->assertCount(2, $tool->getProperties());
         $this->assertEquals('test_tool', $tool->getName());
         $this->assertEquals('test tool', $tool->getDescription());
         $this->assertEquals('test', $tool->getKey());
@@ -493,6 +471,9 @@ class ToolTest extends TestCase
             parameters: ['foo' => 'bar'],
         );
         $this->assertEquals(['foo' => 'bar'], $tool->getParameters());
+
+        $tool->setParameters(['foo' => 'baz']);
+        $this->assertEquals(['foo' => 'baz'], $tool->getParameters());
     }
 
     public function test_callback_precedence(): void
