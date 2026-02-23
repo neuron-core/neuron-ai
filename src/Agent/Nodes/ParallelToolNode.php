@@ -11,7 +11,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
-use NeuronAI\Exceptions\ToolMaxTriesException;
+use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
@@ -33,7 +33,7 @@ class ParallelToolNode extends ToolNode
 {
     /**
      * @throws ToolException
-     * @throws ToolMaxTriesException
+     * @throws ToolRunsExceededException
      * @throws Throwable
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
@@ -62,7 +62,7 @@ class ParallelToolNode extends ToolNode
             // Single tool max tries have the highest priority over the global max tries
             $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
             if ($state->getToolAttempts($tool->getName()) > $maxTries) {
-                throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
+                throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
             $this->emit('tool-calling', new ToolCalling($tool));

@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Exceptions\ToolMaxTriesException;
+use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ToolInterface;
@@ -32,7 +32,7 @@ class ToolNode extends Node
     }
 
     /**
-     * @throws ToolMaxTriesException
+     * @throws ToolRunsExceededException
      * @throws Throwable
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): Generator
@@ -52,7 +52,7 @@ class ToolNode extends Node
 
     /**
      * @throws Throwable
-     * @throws ToolMaxTriesException
+     * @throws ToolRunsExceededException
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
     {
@@ -68,7 +68,7 @@ class ToolNode extends Node
     /**
      * Execute a single tool with proper error handling and retry logic.
      *
-     * @throws ToolMaxTriesException If the tool exceeds its maximum retry attempts
+     * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
@@ -81,7 +81,7 @@ class ToolNode extends Node
             // Single tool max tries have the highest priority over the global max tries
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
             if ($state->getToolAttempts($tool->getName()) > $runs) {
-                throw new ToolMaxTriesException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
+                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
             }
 
             $tool->execute();
