@@ -36,6 +36,18 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
+    /**
+     * Determines whether tools should be executed in parallel.
+     * Override this method to return true to enable parallel tool execution.
+     *
+     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
+     */
+    public function parallelToolCalls(bool $enabled): AgentInterface
+    {
+        $this->parallelToolCalls = $enabled;
+        return $this;
+    }
+
     protected function instructions(): string
     {
         return 'Your are a helpful and friendly AI agent built with Neuron AI PHP agentic framework.';
@@ -50,21 +62,6 @@ class Agent extends Workflow implements AgentInterface
     public function resolveInstructions(): string
     {
         return $this->instructions ?? $this->instructions();
-    }
-
-    /**
-     * Determines whether tools should be executed in parallel.
-     * Override this method to return true to enable parallel tool execution.
-     *
-     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
-     */
-    public function parallelToolCalls(?bool $flag = null): bool|AgentInterface
-    {
-        if ($flag === null) {
-            return $this->parallelToolCalls;
-        }
-        $this->parallelToolCalls = $flag;
-        return $this;
     }
 
     /**
@@ -83,9 +80,9 @@ class Agent extends Workflow implements AgentInterface
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         // Select the appropriate ToolNode based on the parallel execution setting
-        $toolNode = $this->parallelToolCalls()
-            ? new ParallelToolNode($this->toolMaxTries)
-            : new ToolNode($this->toolMaxTries);
+        $toolNode = $this->parallelToolCalls
+            ? new ParallelToolNode($this->toolMaxRuns)
+            : new ToolNode($this->toolMaxRuns);
 
         // Add nodes to the workflow instance
         $this->addNodes([

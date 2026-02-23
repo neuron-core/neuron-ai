@@ -36,13 +36,22 @@ trait HandleTools
     protected array $toolsBootstrapCache = [];
 
     /**
-     * Global max tries for all tools.
+     * Global max runs for all tools.
      */
-    protected int $toolMaxTries = 5;
+    protected int $toolMaxRuns = 10;
 
+    public function toolMaxRuns(int $num): Agent
+    {
+        $this->toolMaxRuns = $num;
+        return $this;
+    }
+
+    /**
+     * @deprecated Use toolMaxRuns instead.
+     */
     public function toolMaxTries(int $tries): Agent
     {
-        $this->toolMaxTries = $tries;
+        $this->toolMaxRuns = $tries;
         return $this;
     }
 

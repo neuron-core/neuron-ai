@@ -27,7 +27,7 @@ class ToolNode extends Node
     use ChatHistoryHelper;
 
     public function __construct(
-        protected int $maxTries = 10
+        protected int $maxRuns = 10
     ) {
     }
 
@@ -79,9 +79,9 @@ class ToolNode extends Node
             $state->incrementToolAttempt($tool->getName());
 
             // Single tool max tries have the highest priority over the global max tries
-            $maxTries = $tool->getMaxTries() ?? $this->maxTries;
-            if ($state->getToolAttempts($tool->getName()) > $maxTries) {
-                throw new ToolMaxTriesException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
+            $runs = $tool->getMaxRuns() ?? $this->maxRuns;
+            if ($state->getToolAttempts($tool->getName()) > $runs) {
+                throw new ToolMaxTriesException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
             }
 
             $tool->execute();

@@ -56,7 +56,7 @@ class Tool implements ToolInterface
     /**
      * Define the maximum number of calls for the tool in a single agent session.
      */
-    protected ?int $maxTries = null;
+    protected ?int $maxRuns = null;
 
     protected bool $visible = true;
 
@@ -183,14 +183,23 @@ class Tool implements ToolInterface
         return $this;
     }
 
-    public function getMaxTries(): ?int
+    public function getMaxRuns(): ?int
     {
-        return $this->maxTries;
+        return $this->maxRuns;
     }
 
+    public function setMaxRuns(int $tries): self
+    {
+        $this->maxRuns = $tries;
+        return $this;
+    }
+
+    /**
+     * @deprecated Use setMaxRuns instead.
+     */
     public function setMaxTries(int $tries): self
     {
-        $this->maxTries = $tries;
+        $this->maxRuns = $tries;
         return $this;
     }
 

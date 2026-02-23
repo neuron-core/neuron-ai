@@ -92,10 +92,10 @@ class ToolkitTest extends TestCase
 
         $toolkit = $toolkit->only([SumTool::class]);
 
-        $this->assertEquals(null, $toolkit->tools()[0]->getMaxTries());
+        $this->assertEquals(null, $toolkit->tools()[0]->getMaxRuns());
 
-        $toolkit = $toolkit->with(SumTool::class, fn (ToolInterface $tool): \NeuronAI\Tools\ToolInterface => $tool->setMaxTries(10));
+        $toolkit = $toolkit->with(SumTool::class, fn (ToolInterface $tool): \NeuronAI\Tools\ToolInterface => $tool->setMaxRuns(10));
 
-        $this->assertEquals(10, $toolkit->tools()[0]->getMaxTries());
+        $this->assertEquals(10, $toolkit->tools()[0]->getMaxRuns());
     }
 }
