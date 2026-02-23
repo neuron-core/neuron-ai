@@ -68,4 +68,3 @@ class StringContainsEvaluator extends BaseEvaluator
         $this->assert(new StringContains($datasetItem['expected']), $output);
     }
 }
-
