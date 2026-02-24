@@ -162,7 +162,6 @@ class OpenSearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @param array $embedding
      * @return Document[]
      */
     public function similaritySearch(array $embedding): iterable
