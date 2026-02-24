@@ -293,6 +293,7 @@ class Tool implements ToolInterface
             'callId' => $this->callId,
             'name' => $this->name,
             'description' => $this->description,
+            'parameters' => $this->parameters,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
             'result' => $this->result,
         ];

@@ -169,6 +169,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
         $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+            ->setParameters($tool['parameters'] ?? [])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'] ?? null), $message['tools']);
 
