@@ -31,6 +31,16 @@ jobs:
                 ports:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            opensearch:
+                image: opensearchproject/opensearch:latest
+                ports:
+                    - 9201:9200 # Avoid port conflict with Elasticsearch
+                    - 9600:9600
+                env:
+                    discovery.type: single-node
+                    plugins.security.disabled: "true"
+                    DISABLE_INSTALL_DEMO_CONFIG: true
+                options: --health-cmd="curl -s http://localhost:9200/_cluster/health | grep '\"status\":\"green\"'" --health-interval=10s --health-timeout=5s --health-retries=5
             neo4j:
                 image: neo4j:5.26.19-ubi9
                 ports:

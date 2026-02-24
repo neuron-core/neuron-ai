@@ -109,9 +109,9 @@ class StreamableHttpTransport implements McpTransportInterface
             $this->lastResponse = $response;
 
         } catch (GuzzleException $e) {
-            throw new McpException('HTTP request failed: ' . $e->getMessage());
+            throw new McpException('HTTP request failed: ' . $e->getMessage(), $e->getCode(), $e);
         } catch (JsonException $e) {
-            throw new McpException('Failed to encode JSON: ' . $e->getMessage());
+            throw new McpException('Failed to encode JSON: ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 
@@ -145,7 +145,7 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
         } catch (JsonException $e) {
-            throw new McpException('Invalid JSON response: ' . $e->getMessage());
+            throw new McpException('Invalid JSON response: ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 
