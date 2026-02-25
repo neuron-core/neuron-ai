@@ -186,12 +186,12 @@ With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/c
 Supported providers:
 
 - [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic)
-- [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
+- [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#openai))
 - [OpenAI Responses API](https://docs.neuron-ai.dev/providers/ai-provider#openairesponses)
 - [OpenAI on Azure](https://docs.neuron-ai.dev/providers/ai-provider#azureopenai)
 - [OpenAILike](https://docs.neuron-ai.dev/providers/ai-provider#openailike) (OpenAI compatible APIs)
-- [Ollama](https://docs.neuron-ai.dev/providers/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
-- [Gemini](https://docs.neuron-ai.dev/providers/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
+- [Ollama](https://docs.neuron-ai.dev/providers/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#ollama))
+- [Gemini](https://docs.neuron-ai.dev/providers/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#gemini))
 - [Gemini Vertex](https://docs.neuron-ai.dev/providers/ai-provider#gemini-vertex-ai)
 - [Mistral](https://docs.neuron-ai.dev/providers/ai-provider#mistral)
 - [HuggingFace](https://docs.neuron-ai.dev/providers/ai-provider#huggingface)
