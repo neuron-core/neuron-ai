@@ -194,9 +194,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Deserialize content from storage format to ContentBlock array.
+     * Deserialize content from the storage format to the ContentBlock array.
      *
-     * Handles both legacy string format and new content block array format.
+     * Handles both legacy string format and the new content block array format.
      * Legacy formats are automatically converted to ContentBlocks for migration.
      *
      * @return string|ContentBlockInterface|ContentBlockInterface[]|null
