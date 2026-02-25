@@ -122,7 +122,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $serialized = $message->jsonSerialize();
 
         // Remove fields that are stored in separate columns
-        unset($serialized['role'], $serialized['content']);
+        unset($serialized['role'], $serialized['content'], $message['usage']);
 
         return $serialized;
     }
