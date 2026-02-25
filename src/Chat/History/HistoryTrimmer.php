@@ -260,24 +260,71 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
         $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
         $expectingRoles = $userRoles;
+        $expectingToolResult = false;
+        $invalidSequenceFound = false;
 
         foreach ($messages as $message) {
             $role = $message->getRole();
 
-            if (
-                $message instanceof ToolResultMessage &&
-                $result !== [] &&
-                $result[count($result) - 1] instanceof ToolCallMessage
-            ) {
-                $result[] = $message;
-                $expectingRoles = $assistantRoles;
+            // ToolCallMessage must be followed by ToolResultMessage
+            if ($message instanceof ToolCallMessage) {
+                // ToolCall can only come when expecting assistant roles
+                // OR if last message was a ToolResultMessage (agent can continue with another tool call)
+                $lastIsToolResult = $result !== [] && $result[count($result) - 1] instanceof ToolResultMessage;
+
+                if (!$expectingToolResult && (in_array($role, $expectingRoles, true) || $lastIsToolResult)) {
+                    $result[] = $message;
+                    $expectingToolResult = true;
+                } else {
+                    $invalidSequenceFound = true;
+                }
                 continue;
             }
 
+            // ToolResultMessage is only valid after ToolCallMessage
+            if ($message instanceof ToolResultMessage) {
+                if ($expectingToolResult && $result !== [] && $result[count($result) - 1] instanceof ToolCallMessage) {
+                    $result[] = $message;
+                    $expectingToolResult = false;
+                    // After tool result, allow either USER or ASSISTANT next
+                    // This handles both: user continuing conversation OR agent responding with another tool call
+                    $expectingRoles = $userRoles; // Default to user (common case)
+                } else {
+                    $invalidSequenceFound = true;
+                }
+                continue;
+            }
+
+            // For regular messages, check if we're in a tool call waiting state
+            if ($expectingToolResult) {
+                // We're expecting a tool result but got a regular message - invalid sequence
+                $invalidSequenceFound = true;
+                continue;
+            }
+
+            // Check role alternation for regular messages
+            // After ToolResult, we might expect either user or assistant, so be more flexible
             if (in_array($role, $expectingRoles, true)) {
                 $result[] = $message;
                 $expectingRoles = ($expectingRoles === $userRoles) ? $assistantRoles : $userRoles;
+            } else {
+                // Special case: if previous was ToolResultMessage and this is a valid role, allow it
+                $lastIsToolResult = $result !== [] && $result[count($result) - 1] instanceof ToolResultMessage;
+                if ($lastIsToolResult && (in_array($role, $userRoles, true) || in_array($role, $assistantRoles, true))) {
+                    $result[] = $message;
+                    $expectingRoles = ($role === MessageRole::USER->value || $role === MessageRole::DEVELOPER->value)
+                        ? $assistantRoles
+                        : $userRoles;
+                } else {
+                    $invalidSequenceFound = true;
+                }
             }
+        }
+
+        // If we found an invalid sequence, recursively validate the result
+        // This handles cases where an invalid message in the middle causes later messages to also be invalid
+        if ($invalidSequenceFound) {
+            return $this->ensureValidAlternation($result);
         }
 
         return $result;

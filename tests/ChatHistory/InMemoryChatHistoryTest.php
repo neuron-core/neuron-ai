@@ -172,7 +172,7 @@ class InMemoryChatHistoryTest extends TestCase
             ->setCallId('123')
             ->setResult('Mixed tool result');
 
-        // Add a mix of different message types
+        // Add a valid tool call sequence
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
         $this->assertCount(1, $this->chatHistory->getMessages());
@@ -186,14 +186,51 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->addMessage($toolResult);
         $this->assertCount(3, $this->chatHistory->getMessages());
 
-        // Add a mix of different message types
-        $userMessage = new UserMessage('User message');
+        // Add a valid user message after tool result - this is correct conversation flow
+        $userMessage = new UserMessage('User message after tool result');
         $this->chatHistory->addMessage($userMessage);
-        // This UserMessage must be removed to restore a valid progression
-        $this->assertCount(3, $this->chatHistory->getMessages());
+        // UserMessage after ToolResultMessage is valid - conversation continues
+        $this->assertCount(4, $this->chatHistory->getMessages());
 
         $messages = $this->chatHistory->getMessages();
 
+        // Last message should be the UserMessage
+        $this->assertInstanceOf(UserMessage::class, end($messages));
+
+        // Now test the actual bug: UserMessage after ToolCallMessage (without ToolResult)
+        $tool2 = Tool::make('another_tool', 'Another tool')
+            ->setInputs(['param' => 'value'])
+            ->setCallId('456');
+
+        $tool2WithResult = Tool::make('another_tool', 'Another tool')
+            ->setInputs(['param' => 'value'])
+            ->setCallId('456')
+            ->setResult('Another tool result');
+
+        // Add another tool call
+        $toolCall2 = new ToolCallMessage(tools: [$tool2]);
+        $toolCall2->setUsage(new Usage(120, 150));
+        $this->chatHistory->addMessage($toolCall2);
+        $this->assertCount(5, $this->chatHistory->getMessages());
+
+        // BUG: User message added immediately after ToolCallMessage (before ToolResult)
+        // This should be rejected to maintain valid conversation flow
+        $invalidUserMessage = new UserMessage('Invalid message after tool call');
+        $this->chatHistory->addMessage($invalidUserMessage);
+        // The invalid message should be removed, count remains 5
+        $this->assertCount(5, $this->chatHistory->getMessages());
+
+        $messages = $this->chatHistory->getMessages();
+
+        // Last message should still be the ToolCallMessage
+        $this->assertInstanceOf(ToolCallMessage::class, end($messages));
+
+        // Adding the correct ToolResultMessage should work
+        $toolResult2 = new ToolResultMessage([$tool2WithResult]);
+        $this->chatHistory->addMessage($toolResult2);
+        $this->assertCount(6, $this->chatHistory->getMessages());
+
+        $messages = $this->chatHistory->getMessages();
         $this->assertInstanceOf(ToolResultMessage::class, end($messages));
     }
 
