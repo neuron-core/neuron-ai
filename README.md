@@ -147,7 +147,7 @@ echo $response->getContent();
 // Your name is Valerio, as you said in your introduction.
 ```
 
-As you can see in the example above, the Agent has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/components/chat-history-and-memory).
+As you can see in the example above, the Agent has memory of the ongoing conversation. Learn more about memory in the [documentation](https://docs.neuron-ai.dev/agent/chat-history-and-memory).
 
 <a name="monitoring">
 
@@ -185,19 +185,20 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ad
 With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
-- [Anthropic](https://docs.neuron-ai.dev/components/ai-provider#anthropic)
-- [OpenAI](https://docs.neuron-ai.dev/components/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
-- [OpenAI on Azure](https://docs.neuron-ai.dev/components/ai-provider#azureopenai)
-- [Ollama](https://docs.neuron-ai.dev/components/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
-- [OpenAILike](https://docs.neuron-ai.dev/components/ai-provider#openailike) (OpenAI compatible APIs)
-- [Gemini](https://docs.neuron-ai.dev/components/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
-- [Gemini Vertex](https://docs.neuron-ai.dev/neuron-v3/agent/ai-provider#gemini-vertex-ai)
-- [Mistral](https://docs.neuron-ai.dev/components/ai-provider#mistral)
-- [HuggingFace](https://docs.neuron-ai.dev/components/ai-provider#huggingface)
-- [Deepseek](https://docs.neuron-ai.dev/components/ai-provider#deepseek)
-- [Grok](https://docs.neuron-ai.dev/components/ai-provider#grok-x-ai)
-- [AWS Bedrock Runtime](https://docs.neuron-ai.dev/components/ai-provider#aws-bedrock-runtime)
-- [Cohere](https://docs.neuron-ai.dev/neuron-v3/agent/ai-provider#cohere)
+- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic)
+- [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#openai))
+- [OpenAI Responses API](https://docs.neuron-ai.dev/providers/ai-provider#openairesponses)
+- [OpenAI on Azure](https://docs.neuron-ai.dev/providers/ai-provider#azureopenai)
+- [OpenAILike](https://docs.neuron-ai.dev/providers/ai-provider#openailike) (OpenAI compatible APIs)
+- [Ollama](https://docs.neuron-ai.dev/providers/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#ollama))
+- [Gemini](https://docs.neuron-ai.dev/providers/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/components/embeddings-provider#gemini))
+- [Gemini Vertex](https://docs.neuron-ai.dev/providers/ai-provider#gemini-vertex-ai)
+- [Mistral](https://docs.neuron-ai.dev/providers/ai-provider#mistral)
+- [HuggingFace](https://docs.neuron-ai.dev/providers/ai-provider#huggingface)
+- [Deepseek](https://docs.neuron-ai.dev/providers/ai-provider#deepseek)
+- [Grok](https://docs.neuron-ai.dev/providers/ai-provider#grok-x-ai)
+- [AWS Bedrock Runtime](https://docs.neuron-ai.dev/providers/ai-provider#aws-bedrock-runtime)
+- [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
 
 <a name="tools">
 
@@ -258,7 +259,7 @@ $response = DataAnalystAgent::make()->chat(
 echo $response->getContent();
 ```
 
-Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/getting-started/tools).
+Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/agent/tools).
 
 <a name="mcp">
 
@@ -303,7 +304,7 @@ class DataAnalystAgent extends Agent
 }
 ```
 
-Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev/getting-started/mcp-connector).
+Learn more about MCP connector in the [documentation](https://docs.neuron-ai.dev/agent/mcp-connector).
 
 <a name="structured">
 
@@ -340,7 +341,7 @@ echo $person->name ' like '.$person->preference;
 // John like pizza
 ```
 
-Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/getting-started/structured-output).
+Learn more about Structured Output on the [documentation](https://docs.neuron-ai.dev/agent/structured-output).
 
 <a name="rag">
 
@@ -398,7 +399,7 @@ class MyChatBot extends RAG
 }
 ```
 
-Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/getting-started/rag).
+Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/rag/rag).
 
 <a name="workflow">
 
