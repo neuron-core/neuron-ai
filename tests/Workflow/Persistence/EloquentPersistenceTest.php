@@ -34,7 +34,7 @@ class EloquentPersistenceTest extends TestCase
         $manager->setAsGlobal();
         $manager->bootEloquent();
 
-        Manager::schema()->create('workflow_interrupts', function (Blueprint $table) {
+        Manager::schema()->create('workflow_interrupts', function (Blueprint $table): void {
             $table->id();
             $table->string('workflow_id')->unique();
             $table->longText('interrupt')->charset('binary');

@@ -31,7 +31,7 @@ class EloquentPersistence implements PersistenceInterface
 
     public function load(string $workflowId): WorkflowInterrupt
     {
-        /** @var Model $model */
+        /** @var Model&object{interrupt: string} $model */
         $model = new $this->modelClass();
 
         $record = $model->newQuery()
