@@ -85,7 +85,7 @@ tools, and function calls, up to RAG (Retrieval Augmented Generation). You can g
 Let's create an Agent with the command below:
 
 ```
-php vendor/bin/neuron make:agent DataAnalystAgent
+./vendor/bin/neuron make:agent DataAnalystAgent
 ```
 
 ```php
@@ -353,7 +353,7 @@ and an `embeddings provider`.
 Let's create a RAG with the command below:
 
 ```
-php vendor/bin/neuron make:rag MyChatBot
+./vendor/bin/neuron make:rag MyChatBot
 ```
 
 Here is an example of a RAG implementation:
