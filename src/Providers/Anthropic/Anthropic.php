@@ -42,6 +42,17 @@ class Anthropic implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    /**
+     * System prompt blocks for prompt caching.
+     * Use systemPromptBlocks() to set array of content blocks with cache_control.
+     */
+    protected ?array $systemBlocks = null;
+
+    /**
+     * Enable prompt caching for tools.
+     */
+    protected bool $promptCachingEnabled = false;
+
     protected MessageMapperInterface $messageMapper;
     protected ToolMapperInterface $toolPayloadMapper;
 
@@ -70,6 +81,36 @@ class Anthropic implements AIProviderInterface
     public function systemPrompt(?string $prompt): AIProviderInterface
     {
         $this->system = $prompt;
+        $this->systemBlocks = null; // Clear blocks when using string
+        return $this;
+    }
+
+    /**
+     * Set system prompt as content blocks for prompt caching.
+     *
+     * @param array $blocks Array of content blocks with optional cache_control
+     * @return self
+     *
+     * @example
+     * $provider->systemPromptBlocks([
+     *     ['type' => 'text', 'text' => 'Static instructions...', 'cache_control' => ['type' => 'ephemeral']],
+     *     ['type' => 'text', 'text' => 'Dynamic context...']
+     * ]);
+     */
+    public function systemPromptBlocks(array $blocks): self
+    {
+        $this->systemBlocks = $blocks;
+        $this->system = null; // Clear string when using blocks
+        return $this;
+    }
+
+    /**
+     * Enable prompt caching for tools.
+     * When enabled, the last tool will be marked with cache_control.
+     */
+    public function withPromptCaching(bool $enabled = true): self
+    {
+        $this->promptCachingEnabled = $enabled;
         return $this;
     }
 

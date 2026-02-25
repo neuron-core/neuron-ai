@@ -13,6 +13,18 @@ use function json_decode;
 
 class StreamState extends BasicStreamState
 {
+    public function addCacheWriteTokens(int $tokens): self
+    {
+        $this->usage->cacheWriteTokens += $tokens;
+        return $this;
+    }
+
+    public function addCacheReadTokens(int $tokens): self
+    {
+        $this->usage->cacheReadTokens += $tokens;
+        return $this;
+    }
+
     public function addContentBlock(int $index, ContentBlockInterface $block): void
     {
         $this->blocks[$index] = $block;

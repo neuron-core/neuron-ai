@@ -13,6 +13,8 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 
+use function count;
+
 trait HandleChat
 {
     /**
@@ -30,10 +32,18 @@ trait HandleChat
 
         if (isset($this->system)) {
             $json['system'] = $this->system;
+        } elseif (isset($this->systemBlocks)) {
+            $json['system'] = $this->systemBlocks;
         }
 
         if (!empty($this->tools)) {
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            // Add cache_control to last tool if caching is enabled
+            if ($this->promptCachingEnabled) {
+                $last = count($json['tools']) - 1;
+                $json['tools'][$last]['cache_control'] = ['type' => 'ephemeral'];
+            }
         }
 
         $response = $this->httpClient->request(
@@ -87,10 +97,21 @@ trait HandleChat
 
         // Save the usage for the current interaction
         if (isset($result['usage'])) {
+            $u = $result['usage'];
+
+            // Extract cache metrics (supports both API formats)
+            $cacheCreation = $u['cache_creation'] ?? [];
+            $cacheWrite = ($cacheCreation['ephemeral_5m_input_tokens'] ?? 0)
+                        + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
+                        + ($u['cache_creation_input_tokens'] ?? 0);
+            $cacheRead = $u['cache_read_input_tokens'] ?? 0;
+
             $message->setUsage(
                 new Usage(
-                    $result['usage']['input_tokens'],
-                    $result['usage']['output_tokens']
+                    $u['input_tokens'],
+                    $u['output_tokens'],
+                    $cacheWrite,
+                    $cacheRead
                 )
             );
         }
