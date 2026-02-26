@@ -41,13 +41,10 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 
         foreach ($chunks as $chunk) {
             $response = $this->httpClient->request(HttpRequest::post('', [
-                [
-                    'model' => $this->model,
-                    'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
-                    'encoding_format' => 'float',
-                    ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-
-                ]
+                'model' => $this->model,
+                'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
+                'encoding_format' => 'float',
+                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
             ]))->json();
 
             foreach ($response['data'] as $index => $item) {
@@ -61,13 +58,10 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
     public function embedText(string $text): array
     {
         $response = $this->httpClient->request(HttpRequest::post('', [
-            [
-                'model' => $this->model,
-                'input' => $text,
-                'encoding_format' => 'float',
-                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-
-            ]
+            'model' => $this->model,
+            'input' => $text,
+            'encoding_format' => 'float',
+            ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
         ]))->json();
 
         return $response['data'][0]['embedding'];
