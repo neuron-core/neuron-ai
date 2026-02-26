@@ -173,7 +173,7 @@ class QdrantVectorStore implements VectorStoreInterface
         }, $response['result']['points']);
     }
 
-    private function createCollection(): void
+    protected function createCollection(): void
     {
         $this->httpClient->request(
             HttpRequest::put(
