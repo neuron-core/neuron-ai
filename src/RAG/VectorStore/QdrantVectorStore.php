@@ -54,17 +54,7 @@ class QdrantVectorStore implements VectorStoreInterface
             return;
         }
 
-        $this->httpClient->request(
-            HttpRequest::put(
-                uri: '',
-                body: [
-                    'vectors' => [
-                        'size' => $this->dimension,
-                        'distance' => 'Cosine',
-                    ],
-                ],
-            )
-        );
+        $this->createCollection();
     }
 
     /**
@@ -181,5 +171,20 @@ class QdrantVectorStore implements VectorStoreInterface
 
             return $document;
         }, $response['result']['points']);
+    }
+
+    private function createCollection(): void
+    {
+        $this->httpClient->request(
+            HttpRequest::put(
+                uri: '',
+                body: [
+                    'vectors' => [
+                        'size' => $this->dimension,
+                        'distance' => 'Cosine',
+                    ],
+                ],
+            )
+        );
     }
 }
