@@ -9,7 +9,9 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 class GlobalMiddlewareMethodTest extends TestCase
@@ -218,7 +220,7 @@ class GlobalMiddlewareMethodTest extends TestCase
     public function testGlobalMiddlewareOverrideCanReadAndWriteState(): void
     {
         $middleware = FakeMiddleware::make()
-            ->setBeforeHandler(function ($node, $event, $state): void {
+            ->setBeforeHandler(function (NodeInterface $node, Event $event, WorkflowState $state): void {
                 $state->set('injected_by_global', true);
                 $state->set('execution_count', ($state->get('execution_count') ?? 0) + 1);
             });
@@ -250,7 +252,7 @@ class GlobalMiddlewareMethodTest extends TestCase
     public function testEmptyGlobalMiddlewareOverrideDoesNotCauseErrors(): void
     {
         // A workflow that explicitly returns empty array should work fine
-        $workflow = new class extends Workflow {
+        $workflow = new class () extends Workflow {
             protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
