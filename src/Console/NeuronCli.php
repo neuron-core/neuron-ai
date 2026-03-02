@@ -6,6 +6,7 @@ namespace NeuronAI\Console;
 
 use NeuronAI\Console\Evaluation\EvaluationCommand;
 use NeuronAI\Console\Make\MakeAgentCommand;
+use NeuronAI\Console\Make\MakeEventCommand;
 use NeuronAI\Console\Make\MakeMiddlewareCommand;
 use NeuronAI\Console\Make\MakeNodeCommand;
 use NeuronAI\Console\Make\MakeRagCommand;
@@ -29,6 +30,7 @@ class NeuronCli
         'make:tool' => MakeToolCommand::class,
         'make:rag' => MakeRagCommand::class,
         'make:workflow' => MakeWorkflowCommand::class,
+        'make:event' => MakeEventCommand::class,
     ];
 
     /**
@@ -87,6 +89,7 @@ Available Commands:
   make:tool       Create a new Tool class
   make:rag        Create a new RAG class
   make:workflow   Create a new Workflow class
+  make:event      Create a new Event class
 
 Options:
   --help, -h   Show this help message
