@@ -18,6 +18,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolInterface;
+use stdClass;
 
 use function array_filter;
 use function array_is_list;
@@ -121,7 +122,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
-                    'arguments' => json_encode($tool->getInputs() === [] ? new \stdClass() : $tool->getInputs()),
+                    'arguments' => json_encode($tool->getInputs() === [] ? new stdClass() : $tool->getInputs()),
                 ],
             ], $message->getTools())
         ];
