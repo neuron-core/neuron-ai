@@ -44,6 +44,12 @@ class MemoryVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->documents = array_filter($this->documents, fn (Document $document): bool => $document->getSourceType() !== $sourceType);
+        return $this;
+    }
+
     /**
      * @throws VectorStoreException
      */

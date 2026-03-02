@@ -111,6 +111,23 @@ class MeilisearchVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'documents/delete',
+                body: [
+                    'filter' => "sourceType = {$sourceType}",
+                ]
+            )
+        );
+
+        return $this;
+    }
+
+    /**
+     * @throws HttpException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $response = $this->httpClient->request(

@@ -91,4 +91,32 @@ class ChromaDBTest extends TestCase
         $results = $this->store->similaritySearch([1, 2, 3]);
         $this->assertCount(0, $results);
     }
+
+    /**
+     * @throws HttpException
+     */
+    public function test_delete_by_type(): void
+    {
+        $document1 = new Document('Hello!');
+        $document1->embedding = [1, 2, 3];
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello 2!');
+        $document2->embedding = [3, 4, 5];
+        $document2->sourceType = 'web';
+        $document2->sourceName = 'page-b';
+
+        $document3 = new Document('Hello 3!');
+        $document3->embedding = [2, 2, 2];
+        $document3->sourceType = 'file';
+        $document3->sourceName = 'doc.txt';
+
+        $this->store->addDocuments([$document1, $document2, $document3]);
+        $this->store->deleteByType('web');
+
+        $results = $this->store->similaritySearch([1, 2, 3]);
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+    }
 }

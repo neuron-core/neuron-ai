@@ -17,6 +17,8 @@ interface VectorStoreInterface
 
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface;
 
+    public function deleteByType(string $sourceType): VectorStoreInterface;
+
     /**
      * Return docs most similar to the embedding.
      *

@@ -67,4 +67,34 @@ class MeiliSearchTest extends TestCase
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);
     }
+
+    public function test_meilisearch_delete_by_type(): void
+    {
+        $store = new MeilisearchVectorStore('neuron');
+
+        $document1 = new Document('Hello type A!');
+        $document1->embedding = $this->embedding;
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello type B!');
+        $document2->embedding = $this->embedding;
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+
+        $store->addDocuments([$document1, $document2]);
+
+        // Wait for Meilisearch to index the documents
+        sleep(5);
+
+        $store->deleteByType('web');
+
+        // Wait for Meilisearch to delete documents
+        sleep(5);
+
+        $results = $store->similaritySearch($this->embedding);
+        foreach ($results as $result) {
+            $this->assertNotEquals('web', $result->getSourceType());
+        }
+    }
 }

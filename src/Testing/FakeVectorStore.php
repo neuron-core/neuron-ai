@@ -68,6 +68,18 @@ class FakeVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->documents = array_values(array_filter(
+            $this->documents,
+            fn (Document $doc): bool => $doc->sourceType !== $sourceType
+        ));
+
+        $this->recorded[] = ['method' => 'deleteBySource', 'args' => [$sourceType]];
+
+        return $this;
+    }
+
     /**
      * @param float[] $embedding
      * @return Document[]

@@ -98,6 +98,25 @@ class ChromaVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @throws HttpException
+     */
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: "{$this->collectionId}/delete",
+                body: [
+                    'where' => [
+                        'sourceType' => ['$eq' => $sourceType]
+                    ]
+                ]
+            )
+        );
+
+        return $this;
+    }
+
+    /**
      * Delete the current collection
      *
      * @throws HttpException

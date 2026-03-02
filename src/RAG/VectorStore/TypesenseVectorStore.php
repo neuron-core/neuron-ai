@@ -111,6 +111,15 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->client->collections[$this->collection]->documents->delete([
+            "filter_by" => "sourceType:={$sourceType}",
+        ]);
+
+        return $this;
+    }
+
     /**
      * Bulk save.
      *
