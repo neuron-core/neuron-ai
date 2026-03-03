@@ -54,6 +54,7 @@ class Gemini implements AIProviderInterface
         // Provider always configures authentication headers
         // Note: Gemini doesn't use base_uri due to colon ":" in URL pattern
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

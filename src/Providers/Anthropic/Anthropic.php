@@ -59,7 +59,7 @@ class Anthropic implements AIProviderInterface
         // Use provided client or create default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->key,

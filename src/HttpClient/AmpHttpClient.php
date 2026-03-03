@@ -143,8 +143,8 @@ class AmpHttpClient implements HttpClientInterface
 
         $client = $this->client ?? HttpClientBuilder::buildDefault();
 
-        $uri = $this->baseUri !== '' && $this->baseUri !== '0'
-            ? trim($this->baseUri, '/') . '/' . trim($request->uri, '/')
+        $uri = $this->baseUri !== ''
+            ? trim($this->baseUri, '/') . ($request->uri !== '' ? '/'.trim($request->uri, '/') : '')
             : $request->uri;
 
         $ampRequest = new Request($uri, $request->method->value);

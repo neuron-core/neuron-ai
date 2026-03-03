@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
@@ -35,6 +36,9 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedDocuments(array $documents): array
     {
         $chunks = array_chunk($documents, 100);
@@ -55,6 +59,9 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         return array_merge(...$chunks);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedText(string $text): array
     {
         $response = $this->httpClient->request(HttpRequest::post('embeddings', [

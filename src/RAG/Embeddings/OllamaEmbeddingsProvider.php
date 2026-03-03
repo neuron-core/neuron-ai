@@ -10,8 +10,6 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 
-use function trim;
-
 class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
@@ -23,7 +21,7 @@ class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->url, '/').'/');
+            ->withBaseUri($this->url);
     }
 
     /**
