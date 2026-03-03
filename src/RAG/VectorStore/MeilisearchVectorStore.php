@@ -45,7 +45,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ]);
 
         try {
-            $this->httpClient->request(HttpRequest::get(''));
+            $this->httpClient->request(HttpRequest::get(uri: "indexes/{$this->indexUid}"));
         } catch (Exception) {
             $this->createIndex();
         }
