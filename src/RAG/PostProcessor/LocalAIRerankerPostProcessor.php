@@ -27,7 +27,7 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($host, '/').'/v1/')
+            ->withBaseUri(trim($host, '/').'/v1')
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
