@@ -14,7 +14,6 @@ use NeuronAI\RAG\Document;
 use function array_map;
 use function in_array;
 use function is_null;
-use function trim;
 use function array_chunk;
 
 class QdrantVectorStore implements VectorStoreInterface
@@ -32,7 +31,7 @@ class QdrantVectorStore implements VectorStoreInterface
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->collectionUrl, '/').'/')
+            ->withBaseUri($this->collectionUrl)
             ->withHeaders([
                 'Content-Type' => 'application/json',
                 ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
@@ -47,24 +46,14 @@ class QdrantVectorStore implements VectorStoreInterface
     protected function initialize(): void
     {
         $response = $this->httpClient->request(
-            HttpRequest::get('exists')
+            HttpRequest::get(uri: 'exists')
         )->json();
 
         if ($response['result']['exists']) {
             return;
         }
 
-        $this->httpClient->request(
-            HttpRequest::put(
-                uri: '',
-                body: [
-                    'vectors' => [
-                        'size' => $this->dimension,
-                        'distance' => 'Cosine',
-                    ],
-                ],
-            )
-        );
+        $this->createCollection();
     }
 
     /**
@@ -72,7 +61,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function destroy(): void
     {
-        $this->httpClient->request(HttpRequest::delete(''));
+        $this->httpClient->request(HttpRequest::delete(uri: ''));
     }
 
     /**
@@ -106,7 +95,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
-                HttpRequest::put('points', ['points' => $chunk])
+                HttpRequest::put(uri: 'points', body: ['points' => $chunk])
             );
         }
 
@@ -181,5 +170,23 @@ class QdrantVectorStore implements VectorStoreInterface
 
             return $document;
         }, $response['result']['points']);
+    }
+
+    /**
+     * @throws HttpException
+     */
+    protected function createCollection(): void
+    {
+        $this->httpClient->request(
+            HttpRequest::put(
+                uri: '',
+                body: [
+                    'vectors' => [
+                        'size' => $this->dimension,
+                        'distance' => 'Cosine',
+                    ],
+                ],
+            )
+        );
     }
 }

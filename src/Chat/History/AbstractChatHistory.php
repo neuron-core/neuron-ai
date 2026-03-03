@@ -149,13 +149,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMessage(array $message): Message
     {
-        $messageRole = MessageRole::from($message['role']);
-        $messageContent = $this->deserializeContent($message['content'] ?? null);
+        $role = MessageRole::from($message['role']);
+        $content = $this->deserializeContent($message['content'] ?? null);
 
-        $item = match ($messageRole) {
-            MessageRole::ASSISTANT => new AssistantMessage($messageContent),
-            MessageRole::USER => new UserMessage($messageContent),
-            default => new Message($messageRole, $messageContent)
+        $item = match ($role) {
+            MessageRole::ASSISTANT => new AssistantMessage($content),
+            MessageRole::USER => new UserMessage($content),
+            default => new Message($role, $content)
         };
 
         $this->deserializeMeta($message, $item);
@@ -194,9 +194,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Deserialize content from storage format to ContentBlock array.
+     * Deserialize content from the storage format to the ContentBlock array.
      *
-     * Handles both legacy string format and new content block array format.
+     * Handles both legacy string format and the new content block array format.
      * Legacy formats are automatically converted to ContentBlocks for migration.
      *
      * @return string|ContentBlockInterface|ContentBlockInterface[]|null

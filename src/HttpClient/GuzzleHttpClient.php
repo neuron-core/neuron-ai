@@ -9,6 +9,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
+use Psr\Http\Message\ResponseInterface;
 
 use function is_array;
 use function is_resource;
@@ -108,10 +109,6 @@ class GuzzleHttpClient implements HttpClientInterface
 
         $config = [];
 
-        if ($this->baseUri !== '') {
-            $config['base_uri'] = trim($this->baseUri, '/') . '/';
-        }
-
         if ($this->handler instanceof HandlerStack) {
             $config['handler'] = $this->handler;
         }
@@ -181,9 +178,10 @@ class GuzzleHttpClient implements HttpClientInterface
 
     /**
      * @param HttpRequest $request
+     * @param array<string, mixed> $options
      * @throws GuzzleException
      */
-    public function runRequest(HttpRequest $request, array $options, Client $client): \Psr\Http\Message\ResponseInterface
+    public function runRequest(HttpRequest $request, array $options, Client $client): ResponseInterface
     {
         if ($request->body !== null) {
             if (is_array($request->body)) {
@@ -198,6 +196,10 @@ class GuzzleHttpClient implements HttpClientInterface
             }
         }
 
-        return $client->request($request->method->value, $request->uri, $options);
+        $uri = $this->baseUri !== ''
+            ? trim($this->baseUri, '/') . ($request->uri !== '' ? '/'.trim($request->uri, '/') : '')
+            : $request->uri;
+
+        return $client->request($request->method->value, $uri, $options);
     }
 }

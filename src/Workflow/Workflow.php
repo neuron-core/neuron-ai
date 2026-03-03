@@ -83,10 +83,10 @@ class Workflow implements WorkflowInterface
         $this->workflowId = $resumeToken ?? uniqid('workflow_');
 
         // Register the node middleware
-        $global = $this->globalMiddleware();
+        $this->addGlobalMiddleware($this->globalMiddleware());
         foreach ($this->middleware() as $node => $middleware) {
             $middleware = is_array($middleware) ? $middleware : [$middleware];
-            $this->addMiddleware($node, array_merge($middleware, $global));
+            $this->addMiddleware($node, $middleware);
         }
     }
 

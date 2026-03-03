@@ -34,6 +34,7 @@ class EloquentChatHistory extends AbstractChatHistory
 
         /** @var Collection<int, Model> $messages */
         $messages = $model->newQuery()
+            ->select(['role', 'content', 'meta'])
             ->where('thread_id', $this->threadId)
             ->orderBy('id')
             ->get();

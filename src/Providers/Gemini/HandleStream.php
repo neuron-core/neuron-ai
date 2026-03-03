@@ -22,7 +22,6 @@ use function json_decode;
 use function json_encode;
 use function mb_strlen;
 use function rtrim;
-use function trim;
 
 trait HandleStream
 {
@@ -57,7 +56,7 @@ trait HandleStream
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: trim($this->baseUri, '/')."/{$this->model}:streamGenerateContent",
+                uri: "{$this->model}:streamGenerateContent",
                 body: $body
             )
         );

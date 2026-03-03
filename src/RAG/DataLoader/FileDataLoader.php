@@ -88,10 +88,7 @@ class FileDataLoader extends AbstractDataLoader
                     if (is_dir($fullPath)) {
                         $documents = [...$documents, ...$this->getDocumentsFromDirectory($fullPath)];
                     } else {
-                        try {
-                            $documents[] = $this->getDocument($this->getContentFromFile($fullPath), $entry);
-                        } catch (Throwable) {
-                        }
+                        $documents[] = $this->getDocument($this->getContentFromFile($fullPath), $entry);
                     }
                 }
             }

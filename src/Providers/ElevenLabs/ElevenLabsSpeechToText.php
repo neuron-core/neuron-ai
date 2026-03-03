@@ -19,7 +19,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
 use function fopen;
-use function trim;
 
 class ElevenLabsSpeechToText implements AIProviderInterface
 {
@@ -39,7 +38,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         ?HttpClientInterface $httpClient = null
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/').'/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
