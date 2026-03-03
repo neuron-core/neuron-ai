@@ -23,7 +23,6 @@ use NeuronAI\Tools\ToolInterface;
 use function array_map;
 use function array_merge;
 use function json_decode;
-use function trim;
 use function uniqid;
 
 class OpenAIResponses implements AIProviderInterface
@@ -60,7 +59,7 @@ class OpenAIResponses implements AIProviderInterface
         // Use the provided client or create the default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

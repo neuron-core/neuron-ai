@@ -35,6 +35,7 @@ class GeminiVertex extends Gemini
 
         // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
