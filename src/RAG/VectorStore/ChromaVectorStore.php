@@ -56,15 +56,15 @@ class ChromaVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections",
+                uri: '',
                 body: [
                     'name' => $this->collection,
                     'get_or_create' => true,
                 ]
             )
-        );
+        )->json();
 
-        $this->collectionId = $response->json()['id'];
+        $this->collectionId = $response['id'];
     }
 
     /**
@@ -105,7 +105,7 @@ class ChromaVectorStore implements VectorStoreInterface
     public function destroy(): void
     {
         $this->httpClient->request(
-            HttpRequest::delete($this->collection)
+            HttpRequest::delete(uri: $this->collection)
         );
     }
 
