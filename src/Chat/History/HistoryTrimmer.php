@@ -286,7 +286,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 if ($expectingToolResult && $result !== [] && $result[count($result) - 1] instanceof ToolCallMessage) {
                     $result[] = $message;
                     $expectingToolResult = false;
-                    // After tool result, allow either USER or ASSISTANT next
+                    // After a tool result, allow either USER or ASSISTANT next
                     // This handles both: user continuing conversation OR agent responding with another tool call
                     $expectingRoles = $userRoles; // Default to user (common case)
                 } else {
