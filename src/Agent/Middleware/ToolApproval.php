@@ -160,7 +160,7 @@ class ToolApproval implements WorkflowMiddleware
         $inputs = $tool->getInputs();
         $inputsDescription = $inputs === []
             ? '(no arguments)'
-            : json_encode($inputs);
+            : json_encode($inputs, JSON_PRETTY_PRINT);
 
         return new Action(
             id: $tool->getCallId() ?? uniqid('tool_'),
