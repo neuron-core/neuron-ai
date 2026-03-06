@@ -31,7 +31,7 @@ use const JSON_PRETTY_PRINT;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param array<int|string, string|callable(ToolInterface): bool> $tools Tools that require approval.
+     * @param array<int|string, string|callable(array): bool> $tools Tools that require approval.
      *   - Empty array: all tools require approval (default)
      *   - Numeric key + string value: tool name or class-string always requires approval
      *   - String key + callable value: tool name or class-string with conditional callback.
@@ -145,7 +145,7 @@ class ToolApproval implements WorkflowMiddleware
 
             // String key + callable value: conditional approval
             if (is_string($key) && is_callable($value) && ($key === $toolName || $key === $toolClass)) {
-                return $value($tool);
+                return $value($tool->getInputs());
             }
         }
 
