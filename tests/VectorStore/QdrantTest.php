@@ -102,4 +102,32 @@ class QdrantTest extends TestCase
         $results = $this->store->similaritySearch([1, 2, 3]);
         $this->assertCount(0, $results);
     }
+
+    /**
+     * @throws GuzzleException
+     */
+    public function test_delete_by_type(): void
+    {
+        $document1 = new Document('Hello type A!');
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+        $document1->embedding = [1, 2, 3];
+
+        $document2 = new Document('Hello type B!');
+        $document2->sourceType = 'web';
+        $document2->sourceName = 'page-b';
+        $document2->embedding = [3, 4, 5];
+
+        $document3 = new Document('Hello type C!');
+        $document3->sourceType = 'file';
+        $document3->sourceName = 'doc.txt';
+        $document3->embedding = [2, 2, 2];
+
+        $this->store->addDocuments([$document1, $document2, $document3]);
+        $this->store->deleteByType('web');
+
+        $results = $this->store->similaritySearch([1, 2, 3]);
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+    }
 }

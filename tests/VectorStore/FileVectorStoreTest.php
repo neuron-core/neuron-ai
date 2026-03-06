@@ -68,6 +68,37 @@ class FileVectorStoreTest extends TestCase
         $this->assertFileDoesNotExist(__DIR__.'/neuron_tmp.store');
     }
 
+    public function test_delete_by_type(): void
+    {
+        $document1 = new Document('Hello!');
+        $document1->embedding = [1, 2, 3];
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello 2!');
+        $document2->embedding = [3, 4, 5];
+        $document2->sourceType = 'web';
+        $document2->sourceName = 'page-b';
+
+        $document3 = new Document('Hello 3!');
+        $document3->embedding = [2, 2, 2];
+        $document3->sourceType = 'file';
+        $document3->sourceName = 'doc.txt';
+
+        $store = new FileVectorStore(__DIR__, 3);
+        $store->addDocuments([$document1, $document2, $document3]);
+
+        $store->deleteByType('web');
+
+        $results = $store->similaritySearch([1, 2, 3]);
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+
+        unlink(__DIR__.'/neuron.store');
+        $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
+        $this->assertFileDoesNotExist(__DIR__.'/neuron_tmp.store');
+    }
+
     public function test_creates_directory_if_not_exists(): void
     {
         $testDir = sys_get_temp_dir() . '/neuron_test_' . uniqid();

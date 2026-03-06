@@ -161,6 +161,17 @@ class OpenSearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->client->deleteByQuery([
+            'index' => $this->index,
+            'q' => "sourceType:{$sourceType}",
+            'body' => []
+        ]);
+        $this->client->indices()->refresh(['index' => $this->index]);
+        return $this;
+    }
+
     /**
      * @return Document[]
      */

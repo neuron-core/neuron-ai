@@ -138,6 +138,33 @@ class QdrantVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'points/delete',
+                body: [
+                    'wait' => true,
+                    'filter' => [
+                        'must' => [
+                            [
+                                'key' => 'sourceType',
+                                'match' => [
+                                    'value' => $sourceType,
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            )
+        );
+
+        return $this;
+    }
+
+    /**
+     * @throws HttpException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $response = $this->httpClient->request(

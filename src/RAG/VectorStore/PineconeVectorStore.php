@@ -108,6 +108,26 @@ class PineconeVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
+    public function deleteByType(string $sourceType): VectorStoreInterface
+    {
+        $this->httpClient->request(
+            HttpRequest::post(
+                uri: 'vectors/delete',
+                body: [
+                    'namespace' => $this->namespace,
+                    'filter' => [
+                        'sourceType' => ['$eq' => $sourceType],
+                    ],
+                ]
+            )
+        );
+
+        return $this;
+    }
+
+    /**
+     * @throws HttpException
+     */
     public function similaritySearch(array $embedding): iterable
     {
         $queryParams = [
