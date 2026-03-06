@@ -25,6 +25,10 @@ class FileSystemToolkit extends AbstractToolkit
             GlobPathTool::make(),
             PreviewFileTool::make(),
             ParseFileTool::make(),
+            WriteFileTool::make(),
+            DeleteFileTool::make(),
+            EditFileTool::make(),
+            BashTool::make(),
         ];
     }
 }
