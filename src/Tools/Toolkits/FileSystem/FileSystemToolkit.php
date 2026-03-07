@@ -19,11 +19,9 @@ class FileSystemToolkit extends AbstractToolkit
     public function provide(): array
     {
         return [
-            DescribeDirectoryContentTool::make(),
             ReadFileTool::make(),
             GrepFileContentTool::make(),
             GlobPathTool::make(),
-            PreviewFileTool::make(),
             ParseFileTool::make(),
             WriteFileTool::make(),
             DeleteFileTool::make(),
