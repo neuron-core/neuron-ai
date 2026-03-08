@@ -17,6 +17,14 @@ use function json_encode;
  */
 abstract class SSEAdapter implements StreamAdapterInterface
 {
+    /** @var array<string, mixed> */
+    protected array $metadata = [];
+
+    public function setMetadata(array $metadata): void
+    {
+        $this->metadata = $metadata;
+    }
+
     /**
      * Format data as a Server-Sent Event.
      *

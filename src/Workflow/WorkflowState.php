@@ -48,4 +48,16 @@ class WorkflowState
     {
         return $this->data;
     }
+
+    protected array $responseMetadata = [];
+
+    public function addResponseMetadata(string $key, mixed $value): void
+    {
+        $this->responseMetadata[$key] = $value;
+    }
+
+    public function getResponseMetadata(): array
+    {
+        return $this->responseMetadata;
+    }
 }

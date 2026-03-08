@@ -95,7 +95,28 @@ class VercelAIAdapter extends SSEAdapter
 
     public function start(): iterable
     {
-        return [];
+        foreach ($this->metadata as $key => $value) {
+            if (empty($value)) {
+                continue;
+            }
+
+            if ($key === 'sources') {
+                foreach ($value as $source) {
+                    yield $this->sse([
+                        'type' => 'source-url',
+                        'sourceId' => $this->generateId('src'),
+                        'url' => $source['url'] ?? '',
+                        'title' => $source['title'] ?? '',
+                    ]);
+                }
+            } else {
+                yield $this->sse([
+                    'type' => 'data-' . $key,
+                    'id' => $this->generateId('data'),
+                    'data' => $value,
+                ]);
+            }
+        }
     }
 
     public function end(): iterable
