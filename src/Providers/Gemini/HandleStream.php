@@ -79,8 +79,8 @@ trait HandleStream
                 array_key_exists('promptTokenCount', $line['usageMetadata']) &&
                 array_key_exists('candidatesTokenCount', $line['usageMetadata'])
             ) {
-                $this->streamState->addInputTokens($line['usageMetadata']['promptTokenCount'] ?? 0);
-                $this->streamState->addOutputTokens($line['usageMetadata']['candidatesTokenCount'] ?? 0);
+                $this->streamState->getUsage()->inputTokens = $line['usageMetadata']['promptTokenCount'] ?? 0;
+                $this->streamState->getUsage()->outputTokens = $line['usageMetadata']['candidatesTokenCount'] ?? 0;
             }
 
             // Process tool calls
