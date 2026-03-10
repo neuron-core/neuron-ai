@@ -9,7 +9,7 @@ interface StreamAdapterInterface
     /**
      * Transform a Neuron chunk into protocol-specific output.
      *
-     * @param object $chunk Any Neuron chunk (TextChunk, ToolCallChunk, etc.)
+     * @param object $chunk Neuron chunk (TextChunk, ToolCallChunk, etc.) or custom objects
      * @return iterable<string> One or more output lines/messages
      */
     public function transform(object $chunk): iterable;
