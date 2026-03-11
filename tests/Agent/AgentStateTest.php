@@ -14,25 +14,25 @@ class AgentStateTest extends TestCase
     {
         $state = new AgentState();
 
-        $this->assertSame(0, $state->getToolAttempts('calculator'));
+        $this->assertSame(0, $state->getToolRuns('calculator'));
 
-        $state->incrementToolAttempt('calculator');
-        $this->assertSame(1, $state->getToolAttempts('calculator'));
+        $state->incrementToolRun('calculator');
+        $this->assertSame(1, $state->getToolRuns('calculator'));
 
-        $state->incrementToolAttempt('calculator');
-        $this->assertSame(2, $state->getToolAttempts('calculator'));
+        $state->incrementToolRun('calculator');
+        $this->assertSame(2, $state->getToolRuns('calculator'));
     }
 
     public function test_tool_attempts_reset(): void
     {
         $state = new AgentState();
 
-        $state->incrementToolAttempt('calculator');
-        $state->incrementToolAttempt('calculator');
-        $this->assertSame(2, $state->getToolAttempts('calculator'));
+        $state->incrementToolRun('calculator');
+        $state->incrementToolRun('calculator');
+        $this->assertSame(2, $state->getToolRuns('calculator'));
 
-        $state->resetToolAttempts();
-        $this->assertSame(0, $state->getToolAttempts('calculator'));
+        $state->resetToolRuns();
+        $this->assertSame(0, $state->getToolRuns('calculator'));
     }
 
     public function test_add_and_get_steps(): void

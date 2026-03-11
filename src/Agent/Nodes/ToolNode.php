@@ -76,11 +76,11 @@ class ToolNode extends Node
         $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
-            $state->incrementToolAttempt($tool->getName());
+            $state->incrementToolRun($tool->getName());
 
             // Single tool max tries have the highest priority over the global max tries
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolAttempts($tool->getName()) > $runs) {
+            if ($state->getToolRuns($tool->getName()) > $runs) {
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
             }
 

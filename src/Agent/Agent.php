@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -42,7 +41,7 @@ class Agent extends Workflow implements AgentInterface
 
     public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
-        $this->resolveState()->resetToolAttempts();
+        $this->resolveState()->resetToolRuns();
         $this->resolveState()->resetSteps();
 
         return parent::init($resumeRequest);

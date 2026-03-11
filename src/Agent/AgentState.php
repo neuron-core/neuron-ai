@@ -32,22 +32,22 @@ class AgentState extends WorkflowState
         return $this;
     }
 
-    public function incrementToolAttempt(string $toolName): void
+    public function incrementToolRun(string $toolName): void
     {
-        $attempts = $this->get('__tool_attempts', []);
+        $attempts = $this->get('__tool_runs', []);
         $attempts[$toolName] = ($attempts[$toolName] ?? 0) + 1;
-        $this->set('__tool_attempts', $attempts);
+        $this->set('__tool_runs', $attempts);
     }
 
-    public function getToolAttempts(string $toolName): int
+    public function getToolRuns(string $toolName): int
     {
-        $attempts = $this->get('__tool_attempts', []);
+        $attempts = $this->get('__tool_runs', []);
         return $attempts[$toolName] ?? 0;
     }
 
-    public function resetToolAttempts(): void
+    public function resetToolRuns(): void
     {
-        $this->delete('__tool_attempts');
+        $this->delete('__tool_runs');
     }
 
     public function addStep(Message $message): void
