@@ -23,6 +23,8 @@ use function in_array;
  */
 class WriteTodosTool extends Tool
 {
+    protected array $todos = [];
+
     public function __construct(string $name = 'write_todos')
     {
         parent::__construct(
@@ -88,7 +90,6 @@ It is important to skip using this tool when:
 Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully
 Remember: If you only need to make a few tool calls to complete a task, and it is clear what you need to do, it is better to just do the task directly and NOT call this tool at all.
 TODO
-,
         );
     }
 
@@ -137,6 +138,8 @@ TODO
                 return "Error: Todo at index {$index} has invalid status '{$todo['status']}'. Must be one of: pending, in_progress, completed.";
             }
         }
+
+        $this->todos = $todos;
 
         return "Updated to do list to: " . json_encode($todos);
     }
