@@ -93,8 +93,8 @@ class MeiliSearchTest extends TestCase
         sleep(5);
 
         $results = $store->similaritySearch($this->embedding);
-        foreach ($results as $result) {
-            $this->assertNotEquals('web', $result->getSourceType());
-        }
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+        $this->assertEquals('Hello type B!', $results[0]->getContent());
     }
 }
