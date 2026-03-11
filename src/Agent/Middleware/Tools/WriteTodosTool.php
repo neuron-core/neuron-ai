@@ -10,8 +10,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
-use function count;
 use function in_array;
+use function json_encode;
 
 /**
  * Tool for agents to write and manage their todo list.
