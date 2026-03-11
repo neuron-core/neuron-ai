@@ -10,8 +10,6 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 
-use function trim;
-
 class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
@@ -25,6 +23,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
@@ -39,7 +38,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: trim($this->baseUri, '/')."/{$this->model}:embedContent",
+                uri: "{$this->model}:embedContent",
                 body: [
                     'content' => [
                         'parts' => [['text' => $text]]

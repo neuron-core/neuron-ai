@@ -20,7 +20,6 @@ use NeuronAI\Tools\ToolInterface;
 use function array_map;
 use function is_array;
 use function mb_strlen;
-use function trim;
 use function uniqid;
 
 class Anthropic implements AIProviderInterface
@@ -59,7 +58,7 @@ class Anthropic implements AIProviderInterface
         // Use provided client or create default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->key,

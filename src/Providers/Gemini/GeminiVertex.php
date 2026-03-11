@@ -17,14 +17,16 @@ class GeminiVertex extends Gemini
      */
     public function __construct(
         string $pathJsonCredentials,
-        string $location,
+        ?string $location,
         string $projectId,
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
         // Set Vertex AI specific base URI
-        $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/google/models";
+        $this->baseUri = $location !== null
+            ? "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/google/models"
+            : "https://aiplatform.googleapis.com/v1/projects/{$projectId}/locations/global/publishers/google/models";
 
         $credentials = new ServiceAccountCredentials(
             'https://www.googleapis.com/auth/cloud-platform',
@@ -35,6 +37,7 @@ class GeminiVertex extends Gemini
 
         // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

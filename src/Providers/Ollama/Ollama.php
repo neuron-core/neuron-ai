@@ -16,7 +16,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
-use function trim;
 
 class Ollama implements AIProviderInterface
 {
@@ -43,7 +42,7 @@ class Ollama implements AIProviderInterface
         // Use provided client or create default Guzzle client
         // Provider always configures base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->url, '/') . '/');
+            ->withBaseUri($this->url);
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
@@ -18,7 +19,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
     use HasHttpClient;
 
-    protected string $baseUri = 'https://api.openai.com/v1/embeddings';
+    protected string $baseUri = 'https://api.openai.com/v1';
 
     public function __construct(
         protected string $key,
@@ -35,12 +36,15 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedDocuments(array $documents): array
     {
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
-            $response = $this->httpClient->request(HttpRequest::post('', [
+            $response = $this->httpClient->request(HttpRequest::post('embeddings', [
                 'model' => $this->model,
                 'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
                 'encoding_format' => 'float',
@@ -55,9 +59,12 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         return array_merge(...$chunks);
     }
 
+    /**
+     * @throws HttpException
+     */
     public function embedText(string $text): array
     {
-        $response = $this->httpClient->request(HttpRequest::post('', [
+        $response = $this->httpClient->request(HttpRequest::post('embeddings', [
             'model' => $this->model,
             'input' => $text,
             'encoding_format' => 'float',

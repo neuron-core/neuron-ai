@@ -13,13 +13,12 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
 use function array_map;
-use function trim;
 
 class JinaRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
 
-    protected string $host = 'https://api.jina.ai/v1/';
+    protected string $host = 'https://api.jina.ai/v1';
 
     public function __construct(
         protected string $key,
@@ -28,7 +27,7 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->host, '/').'/')
+            ->withBaseUri($this->host)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

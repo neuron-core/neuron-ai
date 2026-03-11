@@ -41,7 +41,7 @@ class GlobPathTool extends Tool
             ToolProperty::make(
                 name: 'pattern',
                 type: PropertyType::STRING,
-                description: 'Glob pattern to match (e.g., "*.txt", "**/*.pdf").',
+                description: 'Glob pattern to match (e.g., "*.php", "**/*.pdf", "**/*.md").',
             ),
         ];
     }

@@ -39,8 +39,18 @@ class MySQLSelectTool extends Tool
     {
         parent::__construct(
             'mysql_select_query',
-            'Use this tool only to run SELECT query against the MySQL database.
-This the tool to use only to gather information from the MySQL database.'
+            'Use this tool only to run SELECT query against the MySQL database to gather information.
+
+IMPORTANT: When table or column names are MySQL reserved keywords (e.g., character, order, group,
+index, key, value, date, time, etc.), you MUST wrap them in backticks (`) to avoid syntax errors.
+
+Examples of correct usage:
+- SELECT id, name FROM `character` (not FROM character)
+- SELECT * FROM `order` WHERE status = :status
+- SELECT user_id, `key`, value FROM settings WHERE `key` LIKE :pattern
+- SELECT COUNT(*) FROM `group` WHERE `group`.id IN (1, 2, 3)
+
+Always use backticks around identifiers that are reserved keywords.'
         );
     }
 
@@ -55,7 +65,7 @@ This the tool to use only to gather information from the MySQL database.'
             new ToolProperty(
                 name: 'query',
                 type: PropertyType::STRING,
-                description: 'The parameterized SELECT query with named placeholders (e.g., "SELECT name, email FROM users WHERE name = :name". Use named parameters (:parameter_name) for all dynamic values.',
+                description: 'The SELECT query. Use backticks (`) around table/column names that are MySQL reserved keywords (e.g., `character`, `order`, `group`, `index`, `key`, `value`, `date`, `time`). Use named placeholders (:parameter_name) for all dynamic values. Examples: "SELECT id, name FROM `character` WHERE type = :type", "SELECT * FROM `order` WHERE status = :status"',
                 required: true
             ),
             new ArrayProperty(

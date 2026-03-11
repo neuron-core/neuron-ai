@@ -18,7 +18,6 @@ use function is_null;
 use function min;
 use function range;
 use function sleep;
-use function trim;
 use function uniqid;
 use function array_chunk;
 
@@ -39,14 +38,14 @@ class MeilisearchVectorStore implements VectorStoreInterface
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($host, '/').'/indexes/'.$indexUid.'/')
+            ->withBaseUri($host)
             ->withHeaders([
                 'Content-Type' => 'application/json',
                 ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"])
             ]);
 
         try {
-            $this->httpClient->request(HttpRequest::get(''));
+            $this->httpClient->request(HttpRequest::get(uri: "indexes/{$this->indexUid}"));
         } catch (Exception) {
             $this->createIndex();
         }
@@ -70,7 +69,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::put(
-                    uri: 'documents',
+                    uri: "indexes/{$this->indexUid}/documents",
                     body: array_map(fn (Document $document): array => [
                         'id' => $document->getId(),
                         'content' => $document->getContent(),
@@ -111,7 +110,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'documents/delete',
+                uri: "/indexes/{$this->indexUid}/documents/delete",
                 body: ['filter' => $filter]
             )
         );
@@ -126,7 +125,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'search',
+                uri: "/indexes/{$this->indexUid}/search",
                 body: [
                     'vector' => $embedding,
                     'limit' => min($this->topK, 20),
@@ -165,7 +164,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: trim($this->host, '/').'/indexes',
+                uri: 'indexes',
                 body: [
                     'uid' => $this->indexUid,
                     'primaryKey' => 'id',
@@ -176,7 +175,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
         foreach (range(1, 10) as $i) {
             try {
                 $task = $this->httpClient->request(
-                    HttpRequest::get(trim($this->host, '/').'/tasks/'.$response['taskUid'])
+                    HttpRequest::get('tasks/'.$response['taskUid'])
                 )->json();
                 if ($task['status'] === 'succeeded') {
                     break;
@@ -189,7 +188,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::patch(
-                uri: trim($this->host, '/')."/indexes/{$this->indexUid}/settings/embedders",
+                uri: "indexes/{$this->indexUid}/settings/embedders",
                 body: [
                     $this->embedder => [
                         'dimensions' => $this->dimension,
@@ -202,7 +201,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::put(
-                uri: trim($this->host, '/')."/indexes/{$this->indexUid}/settings/filterable-attributes",
+                uri: "indexes/{$this->indexUid}/settings/filterable-attributes",
                 body: ['sourceType', 'sourceName']
             )
         );

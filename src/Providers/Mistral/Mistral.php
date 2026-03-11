@@ -20,7 +20,6 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function json_decode;
-use function trim;
 
 class Mistral implements AIProviderInterface
 {
@@ -53,7 +52,7 @@ class Mistral implements AIProviderInterface
         // Use the provided client or create default Guzzle client
         // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

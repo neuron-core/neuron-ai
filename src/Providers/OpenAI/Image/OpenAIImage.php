@@ -24,7 +24,6 @@ use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
-use function trim;
 
 class OpenAIImage implements AIProviderInterface
 {
@@ -48,7 +47,7 @@ class OpenAIImage implements AIProviderInterface
         ?HttpClientInterface $httpClient = null
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

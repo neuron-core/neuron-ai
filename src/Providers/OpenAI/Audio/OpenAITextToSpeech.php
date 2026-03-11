@@ -25,7 +25,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function base64_encode;
 use function end;
-use function trim;
 
 class OpenAITextToSpeech implements AIProviderInterface
 {
@@ -49,7 +48,7 @@ class OpenAITextToSpeech implements AIProviderInterface
         ?HttpClientInterface $httpClient = null
     ) {
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/') . '/')
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
