@@ -18,12 +18,14 @@ use NeuronAI\HandleContent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowHandlerInterface;
 use Throwable;
 
 use function is_array;
 
 /**
  * @method AgentStartEvent resolveStartEvent()
+ * @method AgentState resolveState()
  */
 class Agent extends Workflow implements AgentInterface
 {
@@ -35,6 +37,14 @@ class Agent extends Workflow implements AgentInterface
     protected string $instructions;
 
     protected bool $parallelToolCalls = false;
+
+    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
+    {
+        $this->resolveState()->resetToolAttempts();
+        $this->resolveState()->resetSteps();
+
+        return parent::init($resumeRequest);
+    }
 
     /**
      * Determines whether tools should be executed in parallel.
@@ -50,7 +60,9 @@ class Agent extends Workflow implements AgentInterface
 
     protected function instructions(): string
     {
-        return 'Your are a helpful and friendly AI agent built with Neuron AI PHP agentic framework.';
+        return (string) new SystemPrompt(
+            background: ['Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.']
+        );
     }
 
     public function setInstructions(string $instructions): self

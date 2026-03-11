@@ -20,6 +20,8 @@ trait ChatHistoryHelper
             $this->emit('message-saving', new MessageSaving($message));
             $state->getChatHistory()->addMessage($message);
             $this->emit('message-saved', new MessageSaved($message));
+
+            $state->addStep($message);
         }
     }
 }

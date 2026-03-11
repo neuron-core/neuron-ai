@@ -120,7 +120,7 @@ class ParallelToolNode extends ToolNode
             $executedTools[$index] = $data;
             yield new ToolResultChunk($data);
 
-            // Notify that tool was called successfully
+            // Notify that the tool was called successfully
             $this->emit('tool-called', new ToolCalled($data));
         }
 
