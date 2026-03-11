@@ -86,6 +86,8 @@ class OpenSearchTest extends TestCase
         $store->deleteBy('web');
 
         $results = $store->similaritySearch($this->embedding);
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
         foreach ($results as $result) {
             $this->assertNotEquals('web', $result->getSourceType());
         }
