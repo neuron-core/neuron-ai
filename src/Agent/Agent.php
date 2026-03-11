@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -26,6 +27,7 @@ use function is_array;
 /**
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
+ * @method AgentState run()
  */
 class Agent extends Workflow implements AgentInterface
 {
