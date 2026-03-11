@@ -61,39 +61,15 @@ class FileVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        // Temporary file
-        $tmpFile = $this->directory . DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
-
-        // Create a temporary file handle
-        $tempHandle = fopen($tmpFile, 'w');
-        if (!$tempHandle) {
-            throw new RuntimeException("Cannot create temporary file: {$tmpFile}");
-        }
-
-        try {
-            foreach ($this->getLine($this->getFilePath()) as $line) {
-                $document = json_decode((string) $line, true);
-
-                if ($document['sourceType'] !== $sourceType || $document['sourceName'] !== $sourceName) {
-                    fwrite($tempHandle, (string) $line);
-                }
-            }
-        } finally {
-            fclose($tempHandle);
-        }
-
-        // Replace the original file with the filtered version
-        unlink($this->getFilePath());
-        if (!rename($tmpFile, $this->getFilePath())) {
-            throw new VectorStoreException(self::class." failed to replace original file.");
-        }
-
-        return $this;
+        return $this->deleteBy($sourceType, $sourceName);
     }
 
-    public function deleteByType(string $sourceType): VectorStoreInterface
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
         // Temporary file
         $tmpFile = $this->directory . DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
@@ -108,7 +84,10 @@ class FileVectorStore implements VectorStoreInterface
             foreach ($this->getLine($this->getFilePath()) as $line) {
                 $document = json_decode((string) $line, true);
 
-                if ($document['sourceType'] !== $sourceType) {
+                $matchesType = $document['sourceType'] === $sourceType;
+                $matchesName = $sourceName === null || $document['sourceName'] === $sourceName;
+
+                if (!($matchesType && $matchesName)) {
                     fwrite($tempHandle, (string) $line);
                 }
             }

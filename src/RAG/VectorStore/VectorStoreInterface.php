@@ -15,9 +15,13 @@ interface VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface;
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface;
 
-    public function deleteByType(string $sourceType): VectorStoreInterface;
+    // todo uncomment in v4
+    // public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface;
 
     /**
      * Return docs most similar to the embedding.

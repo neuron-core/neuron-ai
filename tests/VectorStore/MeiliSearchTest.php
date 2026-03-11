@@ -87,7 +87,7 @@ class MeiliSearchTest extends TestCase
         // Wait for Meilisearch to index the documents
         sleep(5);
 
-        $store->deleteByType('web');
+        $store->deleteBy('web');
 
         // Wait for Meilisearch to delete documents
         sleep(5);

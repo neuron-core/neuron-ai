@@ -104,58 +104,39 @@ class QdrantVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @deprecated Use deleteBy() instead.
      * @throws HttpException
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
-        $this->httpClient->request(
-            HttpRequest::post(
-                uri: 'points/delete',
-                body: [
-                    'wait' => true,
-                    'filter' => [
-                        'must' => [
-                            [
-                                'key' => 'sourceType',
-                                'match' => [
-                                    'value' => $sourceType,
-                                ]
-                            ],
-                            [
-                                'key' => 'sourceName',
-                                'match' => [
-                                    'value' => $sourceName,
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            )
-        );
-
-        return $this;
+        return $this->deleteBy($sourceType, $sourceName);
     }
 
     /**
      * @throws HttpException
      */
-    public function deleteByType(string $sourceType): VectorStoreInterface
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
+        $must = [
+            [
+                'key' => 'sourceType',
+                'match' => ['value' => $sourceType],
+            ],
+        ];
+
+        if ($sourceName !== null) {
+            $must[] = [
+                'key' => 'sourceName',
+                'match' => ['value' => $sourceName],
+            ];
+        }
+
         $this->httpClient->request(
             HttpRequest::post(
                 uri: 'points/delete',
                 body: [
                     'wait' => true,
-                    'filter' => [
-                        'must' => [
-                            [
-                                'key' => 'sourceType',
-                                'match' => [
-                                    'value' => $sourceType,
-                                ]
-                            ]
-                        ]
-                    ]
+                    'filter' => ['must' => $must],
                 ]
             )
         );

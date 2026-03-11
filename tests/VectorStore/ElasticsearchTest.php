@@ -81,7 +81,7 @@ class ElasticsearchTest extends TestCase
         $document2->sourceName = 'doc.txt';
 
         $store->addDocuments([$document1, $document2]);
-        $store->deleteByType('web');
+        $store->deleteBy('web');
 
         $results = $store->similaritySearch($this->embedding);
         foreach ($results as $result) {
