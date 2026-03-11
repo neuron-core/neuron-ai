@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\Tools\WriteTodosTool;
 use NeuronAI\Tools\ToolInterface;
@@ -14,7 +15,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 class TodoPlanning implements WorkflowMiddleware
 {
-    private const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
+    protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
 ---
 
 ## `write_todos`
@@ -33,18 +34,15 @@ Writing todos takes time and tokens, use it when it is helpful for managing comp
 ```
 PROMPT;
 
-    /**
-     * @param string $systemPrompt Custom system prompt for to-do planning guidance
-     * @param string $toolName Name of the todos tool (default: 'write_todos')
-     */
     public function __construct(
-        private readonly string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
-        private readonly string $toolName = 'write_todos',
+        protected string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
     ) {
     }
 
     /**
      * Inject to-do planning instructions and tool before inference.
+     *
+     * @param AgentState $state
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
@@ -58,7 +56,7 @@ PROMPT;
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
         if (!$this->hasWriteTodosTool($event->tools)) {
-            $event->tools[] = new WriteTodosTool($this->toolName);
+            $event->tools[] = new WriteTodosTool($state);
         }
     }
 

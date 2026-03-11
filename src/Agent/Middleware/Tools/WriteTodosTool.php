@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware\Tools;
 
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
@@ -25,10 +26,10 @@ class WriteTodosTool extends Tool
 {
     protected array $todos = [];
 
-    public function __construct(string $name = 'write_todos')
+    public function __construct(protected AgentState $state)
     {
         parent::__construct(
-            name: $name,
+            name: 'write_todos',
             description: <<<TODO
 Use this tool to create and manage a structured task list for your current work session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 
@@ -139,7 +140,7 @@ TODO
             }
         }
 
-        $this->todos = $todos;
+        $this->state->set('__todos', $todos);
 
         return "Updated to do list to: " . json_encode($todos);
     }
