@@ -114,8 +114,7 @@ class TypesenseTest extends TestCase
         $store->deleteBy('web');
 
         $results = $store->similaritySearch($this->embedding);
-        foreach ($results as $result) {
-            $this->assertNotEquals('web', $result->getSourceType());
-        }
+        $this->assertCount(1, $results);
+        $this->assertSame('file', $results[0]->getSourceType());
     }
 }
