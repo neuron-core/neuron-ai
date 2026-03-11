@@ -98,7 +98,7 @@ class TypesenseTest extends TestCase
 
     public function test_delete_by_type(): void
     {
-        $store = new TypesenseVectorStore($this->client, 'test-'.bin2hex(random_bytes()), $this->vectorDimension);
+        $store = new TypesenseVectorStore($this->client, 'test-'.bin2hex(random_bytes(5)), $this->vectorDimension);
 
         $document1 = new Document('Hello type A!');
         $document1->embedding = $this->embedding;
