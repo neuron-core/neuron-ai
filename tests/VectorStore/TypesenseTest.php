@@ -13,6 +13,8 @@ use Typesense\Client;
 
 use function file_get_contents;
 use function json_decode;
+use function bin2hex;
+use function random_bytes;
 
 class TypesenseTest extends TestCase
 {
