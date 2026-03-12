@@ -159,17 +159,17 @@ class ZAITranscription implements AIProviderInterface
 
     public function structured(array|Message $messages, string $class, array $response_schema): Message
     {
-        throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Structured output is not supported for transcription.');
     }
 
     public function messageMapper(): MessageMapperInterface
     {
-        throw new ProviderException('Messages are not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Messages are not supported for transcription.');
     }
 
     public function toolPayloadMapper(): ToolMapperInterface
     {
-        throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Tools are not supported for transcription.');
     }
 
     public function setTools(array $tools): AIProviderInterface
