@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\ZAI;
 
 use NeuronAI\Chat\Enums\SourceType;
@@ -13,7 +15,6 @@ use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
 class MessageMapper extends OpenAIMessageMapper
 {
-
     protected function mapMessage(Message $message): array
     {
         $result = [
@@ -21,7 +22,7 @@ class MessageMapper extends OpenAIMessageMapper
             'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
 
-        if ($reasoning = $message->getReasoning()) {
+        if (($reasoning = $message->getReasoning()) instanceof \NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent) {
             $result['reasoning_content'] = $reasoning->content;
         }
 

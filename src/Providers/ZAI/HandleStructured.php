@@ -1,10 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\ZAI;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+
+use function array_replace_recursive;
+use function is_array;
+use function json_encode;
+
+use const JSON_PRETTY_PRINT;
 
 trait HandleStructured
 {

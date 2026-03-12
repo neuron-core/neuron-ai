@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -21,7 +20,6 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function json_decode;
-use function uniqid;
 
 class OpenAI implements AIProviderInterface
 {

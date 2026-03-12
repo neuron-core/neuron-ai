@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
@@ -16,6 +15,7 @@ use NeuronAI\Exceptions\ProviderException;
 
 use function array_unshift;
 use function is_array;
+use function uniqid;
 
 trait HandleChat
 {
@@ -111,7 +111,6 @@ trait HandleChat
     protected function processAnnotation(array $annotation): ?Citation
     {
         $type = $annotation['type'] ?? null;
-
         if ($type === 'file_citation') {
             $fileCitation = $annotation['file_citation'] ?? [];
             return new Citation(
@@ -126,7 +125,9 @@ trait HandleChat
                     'provider' => 'openai',
                 ]
             );
-        } elseif ($type === 'file_path') {
+        }
+
+        if ($type === 'file_path') {
             $filePath = $annotation['file_path'] ?? [];
             return new Citation(
                 id: $filePath['file_id'] ?? uniqid('openai_path_'),
