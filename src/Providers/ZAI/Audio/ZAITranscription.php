@@ -1,15 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Providers\ZAI\Audio;
 
 use Generator;
-use LibDNS\Records\Resource;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -21,7 +21,10 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
-use Rector\StaticTypeMapper\Mapper\ScalarStringToTypeMapper;
+
+use function end;
+use function fopen;
+use function json_encode;
 
 class ZAITranscription implements AIProviderInterface
 {
@@ -59,6 +62,7 @@ class ZAITranscription implements AIProviderInterface
 
     /**
      * @throws HttpException
+     * @throws ProviderException
      */
     public function chat(Message ...$messages): Message
     {
@@ -131,7 +135,7 @@ class ZAITranscription implements AIProviderInterface
     {
         if ($audio->sourceType === SourceType::BASE64) {
             $body['file_base64'] = 'data:'.$audio->mediaType.';base64,'.$audio->content;
-        } elseif($audio->sourceType === SourceType::URL) {
+        } elseif ($audio->sourceType === SourceType::URL) {
             $body['file'] = fopen($audio->content, 'r');
         } else {
             throw new ProviderException("Source type not supported: {$audio->sourceType->value}");
