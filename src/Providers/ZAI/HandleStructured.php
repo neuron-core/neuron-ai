@@ -24,6 +24,6 @@ trait HandleStructured
 
         $this->system .= "\n\n---\n\nGenerate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT);
 
-        return $this->chat(...$messages);
+        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
     }
 }
