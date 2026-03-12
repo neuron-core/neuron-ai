@@ -3,7 +3,10 @@
 namespace NeuronAI\Providers\ZAI\Audio;
 
 use Generator;
+use LibDNS\Records\Resource;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
 use NeuronAI\Chat\Messages\Usage;
@@ -18,6 +21,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
+use Rector\StaticTypeMapper\Mapper\ScalarStringToTypeMapper;
 
 class ZAITranscription implements AIProviderInterface
 {
@@ -61,7 +65,7 @@ class ZAITranscription implements AIProviderInterface
         $message = end($messages);
 
         $body = [
-            'file' => fopen($message->getAudio()->getContent(), 'r'),
+            'file' => $this->getFile($message->getAudio()),
             'model' => $this->model,
         ];
 
@@ -89,7 +93,7 @@ class ZAITranscription implements AIProviderInterface
 
         $body = [
             'stream' => true,
-            'file' => fopen($message->getAudio()->getContent(), 'r'),
+            'file' => $this->getFile($message->getAudio()),
             'model' => $this->model,
         ];
 
@@ -119,6 +123,15 @@ class ZAITranscription implements AIProviderInterface
         echo "\n\n";
 
         return new AssistantMessage('');
+    }
+
+    protected function getFile(AudioContent $audio): string|resource
+    {
+        if ($audio->sourceType === SourceType::BASE64) {
+            return 'data:'.$audio->mediaType.';base64,'.$audio->content;
+        } else {
+            return fopen($audio->content, 'r');
+        }
     }
 
     public function structured(array|Message $messages, string $class, array $response_schema): Message
