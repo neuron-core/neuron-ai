@@ -27,6 +27,7 @@ class ToolMapper extends OpenAIToolMapper
     protected function mapProviderTool(ProviderToolInterface $tool): array
     {
         return [
+            'type' => $tool->getType(),
             $tool->getType() => $tool->getOptions(),
         ];
     }
