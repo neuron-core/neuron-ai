@@ -7,6 +7,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
@@ -66,6 +67,14 @@ class ZAI implements AIProviderInterface
     public function toolPayloadMapper(): ToolMapperInterface
     {
         return $this->toolPayloadMapper ??= new ToolMapper();
+    }
+
+    protected function createChatHttpRequest(array $payload): HttpRequest
+    {
+        return HttpRequest::post(
+            uri: 'chat/completions',
+            body: $payload
+        );
     }
 
     protected function createAssistantMessage(array $message): AssistantMessage
