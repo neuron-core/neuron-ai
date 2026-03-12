@@ -65,9 +65,10 @@ class ZAITranscription implements AIProviderInterface
         $message = end($messages);
 
         $body = [
-            'file' => $this->getFile($message->getAudio()),
             'model' => $this->model,
         ];
+
+        $this->addFile($body, $message->getAudio());
 
         if ($message->getContent() !== null) {
             $body['prompt'] = $message->getContent();
@@ -93,9 +94,10 @@ class ZAITranscription implements AIProviderInterface
 
         $body = [
             'stream' => true,
-            'file' => $this->getFile($message->getAudio()),
             'model' => $this->model,
         ];
+
+        $this->addFile($body, $message->getAudio());
 
         if ($message->getContent() !== null) {
             $body['prompt'] = $message->getContent();
@@ -125,12 +127,14 @@ class ZAITranscription implements AIProviderInterface
         return new AssistantMessage('');
     }
 
-    protected function getFile(AudioContent $audio): string|resource
+    protected function addFile(array &$body, AudioContent $audio): void
     {
         if ($audio->sourceType === SourceType::BASE64) {
-            return 'data:'.$audio->mediaType.';base64,'.$audio->content;
+            $body['file_base64'] = 'data:'.$audio->mediaType.';base64,'.$audio->content;
+        } elseif($audio->sourceType === SourceType::URL) {
+            $body['file'] = fopen($audio->content, 'r');
         } else {
-            return fopen($audio->content, 'r');
+            throw new ProviderException("Source type not supported: {$audio->sourceType->value}");
         }
     }
 
