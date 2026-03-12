@@ -9,7 +9,8 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -24,7 +25,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function end;
 use function fopen;
-use function json_encode;
 
 class ZAITranscription implements AIProviderInterface
 {
@@ -85,7 +85,14 @@ class ZAITranscription implements AIProviderInterface
             )
         )->json();
 
-        return new AssistantMessage($response['text']);
+        $message = new AssistantMessage($response['text']);
+        $message->setUsage(
+            new Usage(
+                $response['usage']['prompt_tokens'] ?? 0,
+                $response['usage']['completion_tokens'] ?? 0
+            )
+        );
+        return $message;
     }
 
     /**
@@ -114,21 +121,29 @@ class ZAITranscription implements AIProviderInterface
             )
         );
 
+        $content = '';
         $msgId = UniqueIdGenerator::generateId('msg_');
+        $usage = new Usage(0, 0);
 
-        echo "\n";
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
             }
 
-            yield new AudioChunk($msgId, '');
+            if ($line['type'] === 'transcript.text.delta') {
+                $content .= $line['delta'];
+                yield new TextChunk($msgId, $line['delta']);
+            }
 
-            echo "\n".json_encode($line);
+            if ($line['type'] === 'transcript.text.done') {
+                $usage->inputTokens = $line['usage']['prompt_tokens'] ?? 0;
+                $usage->outputTokens = $line['usage']['completion_tokens'] ?? 0;
+            }
         }
-        echo "\n\n";
 
-        return new AssistantMessage('');
+        $message = new AssistantMessage($content);
+        $message->setUsage($usage);
+        return $message;
     }
 
     protected function addFile(array &$body, AudioContent $audio): void
