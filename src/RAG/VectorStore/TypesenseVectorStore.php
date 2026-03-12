@@ -102,10 +102,22 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
+        return $this->deleteBy($sourceType, $sourceName);
+    }
+
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    {
+        $filter = $sourceName !== null
+            ? "sourceType:={$sourceType} && sourceName:={$sourceName}"
+            : "sourceType:={$sourceType}";
+
         $this->client->collections[$this->collection]->documents->delete([
-            "filter_by" => "sourceType:={$sourceType} && sourceName:={$sourceName}",
+            "filter_by" => $filter,
         ]);
 
         return $this;
