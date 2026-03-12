@@ -8,10 +8,26 @@ use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 
 class MessageMapper extends OpenAIMessageMapper
 {
+
+    protected function mapMessage(Message $message): array
+    {
+        $result = [
+            'role' => $message->getRole(),
+            'content' => $this->mapBlocks($message->getContentBlocks()),
+        ];
+
+        if ($reasoning = $message->getReasoning()) {
+            $result['reasoning_content'] = $reasoning;
+        }
+
+        return $result;
+    }
+
     protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
