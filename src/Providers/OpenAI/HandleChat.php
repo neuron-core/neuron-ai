@@ -6,6 +6,8 @@ namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Citation;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
@@ -57,7 +59,7 @@ trait HandleChat
                 : null;
             $response = $this->createToolCallMessage($result['choices'][0]['message']['tool_calls'], $block);
         } else {
-            $response = new AssistantMessage($result['choices'][0]['message']['content']);
+            $response = $this->createAssistantMessage($result['choices'][0]['message']);
         }
 
         if (isset($result['usage'])) {
@@ -67,20 +69,78 @@ trait HandleChat
         }
 
         // Extract citations from content annotations
-        $message = $result['choices'][0]['message'];
-        if (isset($message['content']) && is_array($message['content'])) {
-            foreach ($message['content'] as $contentBlock) {
-                if (isset($contentBlock['annotations']) && is_array($contentBlock['annotations'])) {
-                    $citations = $this->extractCitations($contentBlock['annotations']);
-                    if (!empty($citations)) {
-                        $response->addMetadata('citations', $citations);
-                    }
-                }
-            }
+        $citations = $this->extractCitations($result['choices'][0]['message']);
+        if (!empty($citations)) {
+            $response->addMetadata('citations', $citations);
         }
 
         $response->setStopReason($result['choices'][0]['finish_reason']);
 
         return $this->enrichMessage($response, $result);
+    }
+
+    protected function createAssistantMessage(array $message): AssistantMessage
+    {
+        return new AssistantMessage($message['content']);
+    }
+
+    /**
+     * Extract citations from OpenAI's content annotations.
+     *
+     * @return Citation[]
+     */
+    protected function extractCitations(array $message): array
+    {
+        $citations = [];
+
+        if (isset($message['content']) && is_array($message['content'])) {
+            foreach ($message['content'] as $contentBlock) {
+                if (isset($contentBlock['annotations']) && is_array($contentBlock['annotations'])) {
+                    foreach ($contentBlock['annotations'] as $annotation) {
+                        if ($citation = $this->processAnnotation($annotation)) {
+                            $citations[] = $citation;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $citations;
+    }
+
+    protected function processAnnotation(array $annotation): ?Citation
+    {
+        $type = $annotation['type'] ?? null;
+
+        if ($type === 'file_citation') {
+            $fileCitation = $annotation['file_citation'] ?? [];
+            return new Citation(
+                id: $fileCitation['file_id'] ?? uniqid('openai_file_'),
+                source: $fileCitation['file_id'] ?? '',
+                startIndex: $annotation['start_index'] ?? null,
+                endIndex: $annotation['end_index'] ?? null,
+                citedText: $annotation['text'] ?? null,
+                metadata: [
+                    'type' => 'file_citation',
+                    'quote' => $fileCitation['quote'] ?? null,
+                    'provider' => 'openai',
+                ]
+            );
+        } elseif ($type === 'file_path') {
+            $filePath = $annotation['file_path'] ?? [];
+            return new Citation(
+                id: $filePath['file_id'] ?? uniqid('openai_path_'),
+                source: $filePath['file_id'] ?? '',
+                startIndex: $annotation['start_index'] ?? null,
+                endIndex: $annotation['end_index'] ?? null,
+                citedText: $annotation['text'] ?? null,
+                metadata: [
+                    'type' => 'file_path',
+                    'provider' => 'openai',
+                ]
+            );
+        }
+
+        return null;
     }
 }
