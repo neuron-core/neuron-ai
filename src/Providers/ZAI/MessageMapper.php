@@ -22,7 +22,10 @@ class MessageMapper extends OpenAIMessageMapper
         ];
 
         if ($reasoning = $message->getReasoning()) {
-            $result['reasoning_content'] = $reasoning;
+            $result['reasoning_content'] = [
+                'type' => 'reasoning',
+                'content' => $reasoning->content
+            ];
         }
 
         return $result;

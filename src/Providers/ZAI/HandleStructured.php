@@ -17,11 +17,10 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): Message {
+        $response_format['type'] = 'json_object';
+
         $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => [
-                'type' => 'json_object',
-                'json_object' => $response_format,
-            ]
+            'response_format' => $response_format
         ]);
 
         return $this->chat(...(is_array($messages) ? $messages : [$messages]));
