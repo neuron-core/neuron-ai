@@ -8,6 +8,7 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\ToolMapperInterface;
 
 class ZAI extends OpenAI
 {
@@ -20,6 +21,11 @@ class ZAI extends OpenAI
     public function messageMapper(): MessageMapperInterface
     {
         return $this->messageMapper ??= new MessageMapper();
+    }
+
+    public function toolPayloadMapper(): ToolMapperInterface
+    {
+        return $this->toolPayloadMapper ??= new ToolMapper();
     }
 
     protected function createAssistantMessage(array $message): AssistantMessage

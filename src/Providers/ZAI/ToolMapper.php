@@ -1,0 +1,40 @@
+<?php
+
+namespace NeuronAI\Providers\ZAI;
+
+use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\OpenAI\ToolMapper as OpenAIToolMapper;
+use NeuronAI\Tools\ProviderToolInterface;
+use NeuronAI\Tools\ToolInterface;
+
+class ToolMapper extends OpenAIToolMapper
+{
+    public function map(array $tools): array
+    {
+        $mapping = [];
+
+        foreach ($tools as $tool) {
+            $mapping[] = match (true) {
+                $tool instanceof ToolInterface => $this->mapTool($tool),
+                $tool instanceof ProviderToolInterface => $this->mapProviderTool($tool),
+                default => throw new ProviderException('Could not map tool type '.$tool::class),
+            };
+        }
+
+        return $mapping;
+    }
+
+    protected function mapProviderTool(ProviderToolInterface $tool): array
+    {
+        $payload = [
+            'type' => $tool->getType(),
+            ...$tool->getOptions()
+        ];
+
+        if (is_string($tool->getName())) {
+            $payload['name'] = $tool->getName();
+        }
+
+        return $payload;
+    }
+}
