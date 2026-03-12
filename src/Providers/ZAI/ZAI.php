@@ -27,7 +27,7 @@ class ZAI extends OpenAI
         $response = new AssistantMessage($message['content']);
 
         if (isset($message['reasoning_content'])) {
-            $response->addContent(new ReasoningContent($message['reasoning_content']['content']));
+            $response->addContent(new ReasoningContent($message['reasoning_content']));
         }
 
         return $response;
