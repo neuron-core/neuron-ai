@@ -61,6 +61,13 @@ class StreamingNode extends Node
                 return new ToolCallEvent($message, $event);
             }
 
+            // Attach response metadata to the message for persistence
+            foreach ($state->getResponseMetadata() as $key => $value) {
+                if ($value !== null && $value !== '' && $value !== []) {
+                    $message->addMetadata($key, $value);
+                }
+            }
+
             // Add the final message to the chat history (after tool loop)
             $this->addToChatHistory($state, $message);
 

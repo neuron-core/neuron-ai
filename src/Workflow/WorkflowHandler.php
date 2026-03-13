@@ -15,10 +15,22 @@ class WorkflowHandler implements WorkflowHandlerInterface
 {
     protected WorkflowState $result;
 
+    /** @var array<string, mixed> */
+    protected array $metadata = [];
+
     public function __construct(
         protected Workflow $workflow,
         protected ?InterruptRequest $resumeRequest = null
     ) {
+    }
+
+    /**
+     * Attach application-level metadata for persistence and streaming.
+     */
+    public function withMetadata(string $key, mixed $value): static
+    {
+        $this->metadata[$key] = $value;
+        return $this;
     }
 
     /**
@@ -31,6 +43,17 @@ class WorkflowHandler implements WorkflowHandlerInterface
      */
     public function events(?StreamAdapterInterface $adapter = null): Generator
     {
+        // Pass metadata to state for persistence
+        $state = $this->workflow->resolveState();
+        foreach ($this->metadata as $k => $v) {
+            $state->addResponseMetadata($k, $v);
+        }
+
+        // Pass metadata to adapter for streaming
+        if ($adapter instanceof StreamAdapterInterface && $this->metadata !== []) {
+            $adapter->setMetadata($this->metadata);
+        }
+
         // Protocol start (if adapter provided)
         if ($adapter instanceof StreamAdapterInterface) {
             foreach ($adapter->start() as $output) {
