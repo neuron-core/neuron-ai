@@ -216,10 +216,10 @@ class ToolApproval implements WorkflowMiddleware
      */
     protected function handleRejectedTool(ToolInterface $tool, Action $action): void
     {
+        $feedback = $action->feedback ?? 'No specific instruction provided.';
         $rejectionMessage = sprintf(
-            "The user rejected the tool '%s' execution. Reason: %s",
-            $tool->getName(),
-            $action->feedback ?? 'No reason provided'
+            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction.",
+            $feedback
         );
 
         // Replace the tool's callback with a serializable rejection handler
