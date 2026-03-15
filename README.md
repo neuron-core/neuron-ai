@@ -199,6 +199,7 @@ Supported providers:
 - [Grok](https://docs.neuron-ai.dev/providers/ai-provider#grok-x-ai)
 - [AWS Bedrock Runtime](https://docs.neuron-ai.dev/providers/ai-provider#aws-bedrock-runtime)
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
+- [ZAI](https://docs.neuron-ai.dev/providers/ai-provider#zai)
 
 <a name="tools">
 
@@ -426,11 +427,12 @@ Learn more about Workflow on the [documentation](https://docs.neuron-ai.dev/work
 
 ## AI Assisted Development
 
-The official of Neuron AI documentation is also available and searchable as a Model Context Protocol (MCP) server.
+When working with AI coding assistants like Claude Code, Opencode, Cursor, or other similar tools, you
+have two options to give the AI deep context about Neuron components. This leads to more accurate code suggestions,
+better understanding of component APIs, and fewer hallucinations when generating Neuron code:
 
-This allows AI assistants to access Neuron AI documentation content directly, making it easy for tools like Claude Code, Cursor, and VS Code extensions reliably understand what Neuron AI can do, its components, how to configure them, and how to compose workflows agents and RAG.
-
-Configure the MCP server: https://docs.neuron-ai.dev/~gitbook/mcp
+- [Skills](https://docs.neuron-ai.dev/overview/agentic-development#agent-skills)
+- [MCP server](https://docs.neuron-ai.dev/overview/agentic-development#mcp-server)
 
 <a name="security">
 
