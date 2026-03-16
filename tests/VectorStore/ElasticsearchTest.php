@@ -65,4 +65,27 @@ class ElasticsearchTest extends TestCase
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);
     }
+
+    public function test_elasticsearch_delete_by_type(): void
+    {
+        $store = new ElasticsearchVectorStore($this->client, 'test');
+
+        $document1 = new Document('Hello type A!');
+        $document1->embedding = $this->embedding;
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello type B!');
+        $document2->embedding = $this->embedding;
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+
+        $store->addDocuments([$document1, $document2]);
+        $store->deleteBy('web');
+
+        $results = $store->similaritySearch($this->embedding);
+
+        $this->assertCount(1, $results);
+        $this->assertSame('file', $results[0]->getSourceType());
+    }
 }

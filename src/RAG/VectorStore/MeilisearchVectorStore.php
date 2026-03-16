@@ -91,16 +91,27 @@ class MeilisearchVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @deprecated Use deleteBy() instead.
      * @throws HttpException
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
+        return $this->deleteBy($sourceType, $sourceName);
+    }
+
+    /**
+     * @throws HttpException
+     */
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    {
+        $filter = $sourceName !== null
+            ? "sourceType = {$sourceType} AND sourceName = '{$sourceName}'"
+            : "sourceType = {$sourceType}";
+
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "/indexes/{$this->indexUid}/documents/delete",
-                body: [
-                    'filter' => "sourceType = {$sourceType} AND sourceName = '{$sourceName}'",
-                ]
+                body: ['filter' => $filter]
             )
         );
 

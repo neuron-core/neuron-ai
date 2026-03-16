@@ -6,7 +6,7 @@ namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
 
-interface VectorStoreInterface
+interface VectorStoreInterface extends DeleteByInterface
 {
     public function addDocument(Document $document): VectorStoreInterface;
 
@@ -15,6 +15,9 @@ interface VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface;
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface;
 
     /**

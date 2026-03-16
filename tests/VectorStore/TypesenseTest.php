@@ -13,6 +13,8 @@ use Typesense\Client;
 
 use function file_get_contents;
 use function json_decode;
+use function bin2hex;
+use function random_bytes;
 
 class TypesenseTest extends TestCase
 {
@@ -94,5 +96,27 @@ class TypesenseTest extends TestCase
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);
+    }
+
+    public function test_delete_by_type(): void
+    {
+        $store = new TypesenseVectorStore($this->client, 'test-'.bin2hex(random_bytes(5)), $this->vectorDimension);
+
+        $document1 = new Document('Hello type A!');
+        $document1->embedding = $this->embedding;
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello type B!');
+        $document2->embedding = $this->embedding;
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+
+        $store->addDocuments([$document1, $document2]);
+        $store->deleteBy('web');
+
+        $results = $store->similaritySearch($this->embedding);
+        $this->assertCount(1, $results);
+        $this->assertSame('file', $results[0]->getSourceType());
     }
 }

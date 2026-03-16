@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
@@ -65,6 +66,8 @@ class RAG extends Agent
 
     /**
      * @return Node[]
+     *
+     * @throws InspectorException
      */
     protected function ragNodes(): array
     {
@@ -111,7 +114,7 @@ class RAG extends Agent
 
         foreach (array_keys($grouped) as $key) {
             [$sourceType, $sourceName] = explode(':', $key);
-            $this->resolveVectorStore()->deleteBySource($sourceType, $sourceName);
+            $this->resolveVectorStore()->deleteBy($sourceType, $sourceName);
             $this->addDocuments($grouped[$key], $chunkSize);
         }
     }
