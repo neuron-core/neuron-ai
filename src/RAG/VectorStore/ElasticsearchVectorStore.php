@@ -145,11 +145,23 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
+        return $this->deleteBy($sourceType, $sourceName);
+    }
+
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    {
+        $query = $sourceName !== null
+            ? "sourceType:{$sourceType} AND sourceName:{$sourceName}"
+            : "sourceType:{$sourceType}";
+
         $this->client->deleteByQuery([
             'index' => $this->index,
-            'q' => "sourceType:{$sourceType} AND sourceName:{$sourceName}",
+            'q' => $query,
             'body' => []
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);

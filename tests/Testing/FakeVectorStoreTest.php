@@ -53,6 +53,25 @@ class FakeVectorStoreTest extends TestCase
         $this->assertSame('Keep', $store->getDocuments()[0]->content);
     }
 
+    public function test_delete_by(): void
+    {
+        $store = new FakeVectorStore();
+
+        $doc1 = new Document('Keep');
+        $doc1->sourceType = 'file';
+        $doc1->sourceName = 'keep.txt';
+
+        $doc2 = new Document('Delete');
+        $doc2->sourceType = 'db';
+        $doc2->sourceName = 'foo-1';
+
+        $store->addDocuments([$doc1, $doc2]);
+        $store->deleteBy('db');
+
+        $this->assertCount(1, $store->getDocuments());
+        $this->assertSame('Keep', $store->getDocuments()[0]->content);
+    }
+
     public function test_similarity_search_returns_preset_results(): void
     {
         $doc = (new Document('Result'))->setScore(0.95);
@@ -101,7 +120,7 @@ class FakeVectorStoreTest extends TestCase
         $this->assertCount(4, $recorded);
         $this->assertSame('addDocument', $recorded[0]['method']);
         $this->assertSame('addDocuments', $recorded[1]['method']);
-        $this->assertSame('deleteBySource', $recorded[2]['method']);
+        $this->assertSame('deleteBy', $recorded[2]['method']);
         $this->assertSame('similaritySearch', $recorded[3]['method']);
     }
 

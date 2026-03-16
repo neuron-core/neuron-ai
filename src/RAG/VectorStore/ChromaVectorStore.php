@@ -76,21 +76,32 @@ class ChromaVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @deprecated Use deleteBy() instead.
      * @throws HttpException
      */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
     {
+        return $this->deleteBy($sourceType, $sourceName);
+    }
+
+    /**
+     * @throws HttpException
+     */
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    {
+        $where = $sourceName !== null
+            ? [
+                '$and' => [
+                    ['sourceType' => ['$eq' => $sourceType]],
+                    ['sourceName' => ['$eq' => $sourceName]],
+                ],
+            ]
+            : ['sourceType' => ['$eq' => $sourceType]];
+
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "{$this->collectionId}/delete",
-                body: [
-                    'where' => [
-                        '$and' => [
-                            ['sourceType' => ['$eq' => $sourceType]],
-                            ['sourceName' => ['$eq' => $sourceName]]
-                        ]
-                    ]
-                ]
+                body: ['where' => $where]
             )
         );
 

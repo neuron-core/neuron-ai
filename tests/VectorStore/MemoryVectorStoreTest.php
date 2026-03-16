@@ -88,4 +88,31 @@ class MemoryVectorStoreTest extends TestCase
         $results = $store->similaritySearch([1, 0]);
         $this->assertCount(0, $results);
     }
+
+    public function test_delete_by_type(): void
+    {
+        $document1 = new Document('Hello!');
+        $document1->embedding = [1, 0];
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello 2!');
+        $document2->embedding = [0, 1];
+        $document2->sourceType = 'web';
+        $document2->sourceName = 'page-b';
+
+        $document3 = new Document('Hello 3!');
+        $document3->embedding = [0.5, 0.5];
+        $document3->sourceType = 'file';
+        $document3->sourceName = 'doc.txt';
+
+        $store = new MemoryVectorStore();
+        $store->addDocuments([$document1, $document2, $document3]);
+
+        $store->deleteBy('web');
+
+        $results = $store->similaritySearch([1, 0]);
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+    }
 }

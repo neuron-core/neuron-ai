@@ -61,7 +61,15 @@ class FileVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @deprecated Use deleteBy() instead.
+     */
     public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
+    {
+        return $this->deleteBy($sourceType, $sourceName);
+    }
+
+    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
         // Temporary file
         $tmpFile = $this->directory . DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
@@ -76,7 +84,10 @@ class FileVectorStore implements VectorStoreInterface
             foreach ($this->getLine($this->getFilePath()) as $line) {
                 $document = json_decode((string) $line, true);
 
-                if ($document['sourceType'] !== $sourceType || $document['sourceName'] !== $sourceName) {
+                $matchesType = $document['sourceType'] === $sourceType;
+                $matchesName = $sourceName === null || $document['sourceName'] === $sourceName;
+
+                if (!($matchesType && $matchesName)) {
                     fwrite($tempHandle, (string) $line);
                 }
             }
