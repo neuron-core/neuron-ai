@@ -323,10 +323,15 @@ use NeuronAI\StructuredOutput\SchemaProperty;
  */
 class Person
 {
-    #[SchemaProperty(description: 'The user name', required: true)]
+    #[SchemaProperty(
+        description: 'The user name',
+        required: true
+    )]
     public string $name;
 
-    #[SchemaProperty(description: 'What the user love to eat')]
+    #[SchemaProperty(
+        description: 'What the user love to eat'
+    )]
     public string $preference;
 }
 
