@@ -6,6 +6,7 @@ namespace NeuronAI\Console;
 
 use NeuronAI\Console\Evaluation\EvaluationCommand;
 use NeuronAI\Console\Make\MakeAgentCommand;
+use NeuronAI\Console\Make\MakeEvaluatorsCommand;
 use NeuronAI\Console\Make\MakeEventCommand;
 use NeuronAI\Console\Make\MakeMiddlewareCommand;
 use NeuronAI\Console\Make\MakeNodeCommand;
@@ -31,6 +32,7 @@ class NeuronCli
         'make:rag' => MakeRagCommand::class,
         'make:workflow' => MakeWorkflowCommand::class,
         'make:event' => MakeEventCommand::class,
+        'make:evaluators' => MakeEvaluatorsCommand::class,
     ];
 
     /**

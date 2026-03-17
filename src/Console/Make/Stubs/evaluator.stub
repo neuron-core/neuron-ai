@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+
+namespace [namespace];
+
+use NeuronAI\Evaluation\Assertions\StringContains;
+use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronAI\Evaluation\Dataset\JsonDataset;
+
+class [classname] extends BaseEvaluator
+{
+    /**
+     * Get the dataset to evaluate against
+     */
+    public function getDataset(): DatasetInterface
+    {
+        // return new JsonDataset(__DIR__ . '/datasets/dataset.json');
+    }
+
+    /**
+     * Run the agent logic being tested
+     */
+    public function run(array $datasetItem): mixed
+    {
+        /*
+        $response = MyAgent::make()->chat(
+            new UserMessage($datasetItem['input'])
+        )->getMessage();
+
+        return $response->getContent();
+        */
+    }
+
+    /**
+     * Evaluate the output against expected results, with assertions
+     */
+    public function evaluate(mixed $output, array $datasetItem): void
+    {
+        /*
+        $this->assert(
+            new StringContains($datasetItem['reference']),
+            $output,
+        );
+        */
+    }
+}

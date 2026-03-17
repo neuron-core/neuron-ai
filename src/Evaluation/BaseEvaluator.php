@@ -31,7 +31,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
     abstract public function getDataset(): DatasetInterface;
 
     /**
-     * Run the application logic being tested
+     * Run the agent logic being tested
      *
      * @param array<string, mixed> $datasetItem Current item from the dataset
      * @return mixed Output from the application logic
@@ -39,7 +39,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
     abstract public function run(array $datasetItem): mixed;
 
     /**
-     * Evaluate the output against expected results
+     * Evaluate the output against expected results, with assertions
      *
      * @param mixed $output Output from the run () method
      * @param array<string, mixed> $datasetItem Reference dataset item for comparison
