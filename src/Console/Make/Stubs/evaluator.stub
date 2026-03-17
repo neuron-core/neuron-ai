@@ -12,7 +12,7 @@ use NeuronAI\Evaluation\Dataset\JsonDataset;
 class [classname] extends BaseEvaluator
 {
     /**
-     * Get the dataset to evaluate against
+     * 1. Get the dataset to evaluate against
      */
     public function getDataset(): DatasetInterface
     {
@@ -20,7 +20,7 @@ class [classname] extends BaseEvaluator
     }
 
     /**
-     * Run the agent logic being tested
+     * 2. Run the agent logic being tested
      */
     public function run(array $datasetItem): mixed
     {
@@ -34,7 +34,7 @@ class [classname] extends BaseEvaluator
     }
 
     /**
-     * Evaluate the output against expected results, with assertions
+     * 3. Evaluate the output against expected results, with assertions
      */
     public function evaluate(mixed $output, array $datasetItem): void
     {
