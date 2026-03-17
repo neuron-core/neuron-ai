@@ -655,4 +655,27 @@ class ValidationTest extends TestCase
         $violations = Validator::validate($class);
         $this->assertCount(1, $violations);
     }
+
+    public function test_union_type_validation(): void
+    {
+        $class = new class () {
+            public int|float|string|null $value = null;
+        };
+        $class = new $class();
+
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->value = 1;
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->value = 1.1;
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+
+        $class->value = "one";
+        $violations = Validator::validate($class);
+        $this->assertCount(0, $violations);
+    }
 }
