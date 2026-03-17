@@ -54,7 +54,7 @@ using the Symfony service container. Watch how it works in a real project.
 - [Create an Agent](#create)
 - [Talk to the Agent](#talk)
 - [Monitoring](#monitoring)
-- [Supported LLM Providers](#providers)
+- [AI Providers](#providers)
 - [Tools & Toolkits](#tools)
 - [MCP Connector](#mcp)
 - [Structured Output](#structured)
