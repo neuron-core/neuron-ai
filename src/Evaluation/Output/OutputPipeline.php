@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\OutputDrivers;
+namespace NeuronAI\Evaluation\Output;
 
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use Throwable;
 
 use function error_log;
 
-class OutputPipeline implements OutputDriverInterface
+class OutputPipeline implements EvaluationOutputInterface
 {
     /**
-     * @param OutputDriverInterface[] $drivers
+     * @param EvaluationOutputInterface[] $drivers
      */
     public function __construct(
         private readonly array $drivers
@@ -32,7 +32,7 @@ class OutputPipeline implements OutputDriverInterface
     }
 
     /**
-     * @return OutputDriverInterface[]
+     * @return EvaluationOutputInterface[]
      */
     public function getDrivers(): array
     {

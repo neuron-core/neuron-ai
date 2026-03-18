@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Config;
 
-use NeuronAI\Evaluation\OutputDrivers\ConsoleOutputDriver;
+use NeuronAI\Evaluation\Output\ConsoleOutput;
 use RuntimeException;
 
 use function file_exists;
@@ -40,7 +40,7 @@ class ConfigLoader
     private function getDefaultConfig(): array
     {
         return [
-            'output_drivers' => [ConsoleOutputDriver::class],
+            'output_drivers' => [ConsoleOutput::class],
         ];
     }
 
@@ -49,6 +49,6 @@ class ConfigLoader
      */
     public function getOutputDrivers(): array
     {
-        return $this->load()['output_drivers'] ?? [ConsoleOutputDriver::class];
+        return $this->load()['output_drivers'] ?? [ConsoleOutput::class];
     }
 }

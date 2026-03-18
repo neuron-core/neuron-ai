@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\OutputDrivers;
+namespace NeuronAI\Evaluation\Output;
 
 use NeuronAI\Evaluation\AssertionFailure;
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 
 use function array_map;
@@ -23,7 +23,7 @@ use function str_repeat;
 
 use const JSON_PRETTY_PRINT;
 
-class ConsoleOutputDriver implements OutputDriverInterface
+class ConsoleOutput implements EvaluationOutputInterface
 {
     public function __construct(
         protected readonly bool $verbose = false

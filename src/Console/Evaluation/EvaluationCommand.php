@@ -6,9 +6,9 @@ namespace NeuronAI\Console\Evaluation;
 
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Config\ConfigLoader;
-use NeuronAI\Evaluation\Config\OutputDriverResolver;
+use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
-use NeuronAI\Evaluation\OutputDrivers\OutputPipeline;
+use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
@@ -31,7 +31,7 @@ class EvaluationCommand
 
     public function __construct(
         private readonly ?ConfigLoader $configLoader = new ConfigLoader(),
-        private readonly ?OutputDriverResolver $driverResolver = new OutputDriverResolver()
+        private readonly ?EvaluationOutputResolver $driverResolver = new EvaluationOutputResolver()
     ) {
         $this->discovery = new EvaluatorDiscovery();
         $this->runner = new EvaluatorRunner();

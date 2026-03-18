@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Config;
 
-use NeuronAI\Evaluation\Config\OutputDriverFactory;
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
-use NeuronAI\Evaluation\OutputDrivers\ConsoleOutputDriver;
-use NeuronAI\Evaluation\OutputDrivers\JsonOutputDriver;
+use NeuronAI\Evaluation\Config\EvaluationOutputFactory;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Output\ConsoleOutput;
+use NeuronAI\Evaluation\Output\JsonOutput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ReflectionProperty;
@@ -19,40 +19,40 @@ class OutputDriverFactoryTest extends TestCase
 {
     public function testCreateConsoleDriverWithoutOptions(): void
     {
-        $factory = new OutputDriverFactory();
-        $driver = $factory->create(ConsoleOutputDriver::class);
+        $factory = new EvaluationOutputFactory();
+        $driver = $factory->create(ConsoleOutput::class);
 
-        $this->assertInstanceOf(ConsoleOutputDriver::class, $driver);
-        $this->assertInstanceOf(OutputDriverInterface::class, $driver);
+        $this->assertInstanceOf(ConsoleOutput::class, $driver);
+        $this->assertInstanceOf(EvaluationOutputInterface::class, $driver);
     }
 
     public function testCreateConsoleDriverWithOptions(): void
     {
-        $factory = new OutputDriverFactory();
-        $driver = $factory->create(ConsoleOutputDriver::class, ['verbose' => true]);
+        $factory = new EvaluationOutputFactory();
+        $driver = $factory->create(ConsoleOutput::class, ['verbose' => true]);
 
-        $this->assertInstanceOf(ConsoleOutputDriver::class, $driver);
+        $this->assertInstanceOf(ConsoleOutput::class, $driver);
     }
 
     public function testCreateJsonDriverWithOption(): void
     {
-        $factory = new OutputDriverFactory();
-        $driver = $factory->create(JsonOutputDriver::class, ['path' => '/tmp/test.json']);
+        $factory = new EvaluationOutputFactory();
+        $driver = $factory->create(JsonOutput::class, ['path' => '/tmp/test.json']);
 
-        $this->assertInstanceOf(JsonOutputDriver::class, $driver);
+        $this->assertInstanceOf(JsonOutput::class, $driver);
     }
 
     public function testCreateJsonDriverWithoutOption(): void
     {
-        $factory = new OutputDriverFactory();
-        $driver = $factory->create(JsonOutputDriver::class);
+        $factory = new EvaluationOutputFactory();
+        $driver = $factory->create(JsonOutput::class);
 
-        $this->assertInstanceOf(JsonOutputDriver::class, $driver);
+        $this->assertInstanceOf(JsonOutput::class, $driver);
     }
 
     public function testThrowsExceptionWhenClassNotFound(): void
     {
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Driver class 'NonExistentDriver' not found");
@@ -62,42 +62,42 @@ class OutputDriverFactoryTest extends TestCase
 
     public function testThrowsExceptionWhenClassDoesNotImplementInterface(): void
     {
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Driver 'stdClass' must implement OutputDriverInterface");
+        $this->expectExceptionMessage("Driver 'stdClass' must implement EvaluationOutputInterface");
 
         $factory->create('stdClass');
     }
 
     public function testUsesCustomConstructorWhenRegistered(): void
     {
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
         $factory->registerConstructor(
-            ConsoleOutputDriver::class,
-            function (string $driverClass, array $options): OutputDriverInterface {
-                $this->assertEquals(ConsoleOutputDriver::class, $driverClass);
+            ConsoleOutput::class,
+            function (string $driverClass, array $options): EvaluationOutputInterface {
+                $this->assertEquals(ConsoleOutput::class, $driverClass);
                 $this->assertEquals(['verbose' => true], $options);
-                return new ConsoleOutputDriver(true);
+                return new ConsoleOutput(true);
             }
         );
 
-        $driver = $factory->create(ConsoleOutputDriver::class, ['verbose' => true]);
+        $driver = $factory->create(ConsoleOutput::class, ['verbose' => true]);
 
-        $this->assertInstanceOf(ConsoleOutputDriver::class, $driver);
+        $this->assertInstanceOf(ConsoleOutput::class, $driver);
     }
 
     public function testThrowsExceptionForMissingRequiredOption(): void
     {
         // Create a test driver with required parameter
         $testDriverClass = 'TestDriver_' . bin2hex(random_bytes(8));
-        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\OutputDriverInterface {
+        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\EvaluationOutputInterface {
             private string $required;
             public function __construct(string $required) { $this->required = $required; }
             public function output(\NeuronAI\Evaluation\Runner\EvaluatorSummary $summary): void {}
         }');
 
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("Missing required option 'required' for driver");
@@ -109,13 +109,13 @@ class OutputDriverFactoryTest extends TestCase
     {
         // Create a test driver with optional parameter
         $testDriverClass = 'TestDriver_' . bin2hex(random_bytes(8));
-        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\OutputDriverInterface {
+        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\EvaluationOutputInterface {
             public bool $usedDefault = false;
             public function __construct(bool $optional = false) { $this->usedDefault = !$optional; }
             public function output(\NeuronAI\Evaluation\Runner\EvaluatorSummary $summary): void {}
         }');
 
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
         $driver = $factory->create($testDriverClass);
 
         // Access the property via reflection to check default was used
@@ -127,13 +127,13 @@ class OutputDriverFactoryTest extends TestCase
     {
         // Create a test driver with optional parameter
         $testDriverClass = 'TestDriver_' . bin2hex(random_bytes(8));
-        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\OutputDriverInterface {
+        eval('class ' . $testDriverClass . ' implements NeuronAI\Evaluation\Contracts\EvaluationOutputInterface {
             public bool $value = false;
             public function __construct(bool $optional = false) { $this->value = $optional; }
             public function output(\NeuronAI\Evaluation\Runner\EvaluatorSummary $summary): void {}
         }');
 
-        $factory = new OutputDriverFactory();
+        $factory = new EvaluationOutputFactory();
         $driver = $factory->create($testDriverClass, ['optional' => true]);
 
         $reflection = new ReflectionProperty($driver, 'value');

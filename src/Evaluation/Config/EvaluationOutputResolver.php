@@ -4,28 +4,30 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Config;
 
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use ReflectionException;
 use RuntimeException;
 
 use function is_array;
 use function is_int;
 use function is_string;
 
-class OutputDriverResolver
+class EvaluationOutputResolver
 {
     /**
-     * @var OutputDriverInterface[]
+     * @var EvaluationOutputInterface[]
      */
     private array $resolvedDrivers = [];
 
     public function __construct(
-        private readonly OutputDriverFactory $factory = new OutputDriverFactory()
+        private readonly EvaluationOutputFactory $factory = new EvaluationOutputFactory()
     ) {
     }
 
     /**
      * @param array<string|int, mixed> $driverConfigs
-     * @return OutputDriverInterface[]
+     * @return EvaluationOutputInterface[]
+     * @throws ReflectionException
      */
     public function resolve(array $driverConfigs): array
     {

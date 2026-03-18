@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\OutputDrivers;
 
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
-use NeuronAI\Evaluation\OutputDrivers\JsonOutputDriver;
-use NeuronAI\Evaluation\OutputDrivers\OutputPipeline;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Output\JsonOutput;
+use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use PHPUnit\Framework\TestCase;
@@ -25,7 +25,7 @@ class OutputDriversTest extends TestCase
 {
     public function testJsonOutputDriverOutputsToStdout(): void
     {
-        $driver = new JsonOutputDriver();
+        $driver = new JsonOutput();
         $summary = $this->createSummary();
 
         ob_start();
@@ -44,7 +44,7 @@ class OutputDriversTest extends TestCase
         $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
 
         try {
-            $driver = new JsonOutputDriver($tempFile);
+            $driver = new JsonOutput($tempFile);
             $summary = $this->createSummary();
 
             $driver->output($summary);
@@ -67,7 +67,7 @@ class OutputDriversTest extends TestCase
     public function testJsonOutputDriverThrowsExceptionOnFileWriteFailure(): void
     {
         // Use an invalid path
-        $driver = new JsonOutputDriver('/nonexistent/directory/file.json');
+        $driver = new JsonOutput('/nonexistent/directory/file.json');
         $summary = $this->createSummary();
 
         $this->expectException(RuntimeException::class);
@@ -78,7 +78,7 @@ class OutputDriversTest extends TestCase
 
     public function testJsonOutputDriverIncludesAllSummaryFields(): void
     {
-        $driver = new JsonOutputDriver();
+        $driver = new JsonOutput();
         $summary = $this->createSummary();
 
         ob_start();
@@ -103,7 +103,7 @@ class OutputDriversTest extends TestCase
 
     public function testJsonOutputDriverIncludesResultDetails(): void
     {
-        $driver = new JsonOutputDriver();
+        $driver = new JsonOutput();
         $summary = $this->createSummary();
 
         ob_start();
@@ -219,7 +219,7 @@ class OutputDriversTest extends TestCase
 
         $summary = new EvaluatorSummary([$result1, $result2, $result3], 0.6);
 
-        $driver = new JsonOutputDriver();
+        $driver = new JsonOutput();
 
         ob_start();
         $driver->output($summary);
@@ -262,9 +262,9 @@ class OutputDriversTest extends TestCase
     /**
      * @param callable(\NeuronAI\Evaluation\Runner\EvaluatorSummary): void $outputCallback
      */
-    private function createMockDriver(?callable $outputCallback = null): OutputDriverInterface
+    private function createMockDriver(?callable $outputCallback = null): EvaluationOutputInterface
     {
-        $mock = $this->createMock(OutputDriverInterface::class);
+        $mock = $this->createMock(EvaluationOutputInterface::class);
         if ($outputCallback !== null) {
             $mock->method('output')->willReturnCallback($outputCallback);
         }

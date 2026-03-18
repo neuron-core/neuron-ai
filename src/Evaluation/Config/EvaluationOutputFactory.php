@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Config;
 
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use ReflectionClass;
 use RuntimeException;
 use ReflectionException;
@@ -13,14 +13,17 @@ use function array_key_exists;
 use function class_exists;
 use function is_subclass_of;
 
-class OutputDriverFactory
+class EvaluationOutputFactory
 {
     /**
-     * @var array<string, callable(string, array): OutputDriverInterface>
+     * @var array<string, callable(string, array): EvaluationOutputInterface>
      */
     private array $customConstructors = [];
 
-    public function create(string $driverClass, array $options = []): OutputDriverInterface
+    /**
+     * @throws ReflectionException
+     */
+    public function create(string $driverClass, array $options = []): EvaluationOutputInterface
     {
         if (isset($this->customConstructors[$driverClass])) {
             return ($this->customConstructors[$driverClass])($driverClass, $options);
@@ -39,21 +42,21 @@ class OutputDriverFactory
      *
      * @throws ReflectionException
      */
-    private function instantiateViaReflection(string $driverClass, array $options): OutputDriverInterface
+    protected function instantiateViaReflection(string $driverClass, array $options): EvaluationOutputInterface
     {
         if (!class_exists($driverClass)) {
             throw new RuntimeException("Driver class '{$driverClass}' not found");
         }
 
-        if (!is_subclass_of($driverClass, OutputDriverInterface::class)) {
-            throw new RuntimeException("Driver '{$driverClass}' must implement OutputDriverInterface");
+        if (!is_subclass_of($driverClass, EvaluationOutputInterface::class)) {
+            throw new RuntimeException("Driver '{$driverClass}' must implement EvaluationOutputInterface");
         }
 
         $reflection = new ReflectionClass($driverClass);
         $constructor = $reflection->getConstructor();
 
         if ($constructor === null) {
-            /** @var OutputDriverInterface */
+            /** @var EvaluationOutputInterface */
             return $reflection->newInstance();
         }
 
@@ -71,7 +74,7 @@ class OutputDriverFactory
             }
         }
 
-        /** @var OutputDriverInterface */
+        /** @var EvaluationOutputInterface */
         return $reflection->newInstanceArgs($args);
     }
 }

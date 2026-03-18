@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\OutputDrivers;
+namespace NeuronAI\Evaluation\Output;
 
-use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use RuntimeException;
@@ -23,7 +23,7 @@ use function is_int;
 use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
 
-class JsonOutputDriver implements OutputDriverInterface
+class JsonOutput implements EvaluationOutputInterface
 {
     public function __construct(
         private readonly ?string $path = null

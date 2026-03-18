@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Config;
 
 use NeuronAI\Evaluation\Config\ConfigLoader;
-use NeuronAI\Evaluation\OutputDrivers\ConsoleOutputDriver;
+use NeuronAI\Evaluation\Output\ConsoleOutput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -69,7 +69,7 @@ class ConfigLoaderTest extends TestCase
 
             $this->assertArrayHasKey('output_drivers', $config);
             $this->assertIsArray($config['output_drivers']);
-            $this->assertContains(ConsoleOutputDriver::class, $config['output_drivers']);
+            $this->assertContains(ConsoleOutput::class, $config['output_drivers']);
         } finally {
             chdir($originalCwd);
         }
@@ -84,7 +84,7 @@ class ConfigLoaderTest extends TestCase
             $loader = new ConfigLoader();
             $drivers = $loader->getOutputDrivers();
 
-            $this->assertContains(ConsoleOutputDriver::class, $drivers);
+            $this->assertContains(ConsoleOutput::class, $drivers);
         } finally {
             chdir($originalCwd);
         }

@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Contracts;
 
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 
-interface OutputDriverInterface
+interface EvaluationOutputInterface
 {
     public function output(EvaluatorSummary $summary): void;
 }
