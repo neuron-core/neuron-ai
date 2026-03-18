@@ -35,14 +35,6 @@ class ConfigLoader
     }
 
     /**
-     * @return array<string|int, mixed>
-     */
-    public function getOutputDrivers(): array
-    {
-        return $this->load()['output_drivers'] ?? [ConsoleOutputDriver::class];
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function getDefaultConfig(): array
@@ -50,5 +42,13 @@ class ConfigLoader
         return [
             'output_drivers' => [ConsoleOutputDriver::class],
         ];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     */
+    public function getOutputDrivers(): array
+    {
+        return $this->load()['output_drivers'] ?? [ConsoleOutputDriver::class];
     }
 }
