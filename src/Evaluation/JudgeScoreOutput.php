@@ -16,7 +16,6 @@ class JudgeScoreOutput
         )]
         #[OutOfRange(min: 0.0, max: 1.0)]
         public float $score,
-
         #[SchemaProperty(
             description: 'Detailed reasoning for the given score',
             required: true

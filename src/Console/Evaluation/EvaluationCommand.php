@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Console\Evaluation;
 
 use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Config\ConfigLoader;
+use NeuronAI\Evaluation\Config\OutputDriverResolver;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
+use NeuronAI\Evaluation\OutputDrivers\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
@@ -23,12 +26,13 @@ use function substr;
 
 class EvaluationCommand
 {
-    private OutputFormatter $formatter;
     private readonly EvaluatorDiscovery $discovery;
     private readonly EvaluatorRunner $runner;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly ?ConfigLoader $configLoader = new ConfigLoader(),
+        private readonly ?OutputDriverResolver $driverResolver = new OutputDriverResolver()
+    ) {
         $this->discovery = new EvaluatorDiscovery();
         $this->runner = new EvaluatorRunner();
     }
@@ -39,23 +43,22 @@ class EvaluationCommand
     public function run(array $args): int
     {
         $options = $this->parseArguments($args);
-        $this->formatter = new OutputFormatter($options['verbose']);
 
         if ($options['help']) {
-            $this->formatter->printUsage();
+            $this->printUsage();
             return 0;
         }
 
         if (empty($options['path'])) {
-            $this->formatter->printError("Path argument is required");
-            $this->formatter->printUsage();
+            $this->printError("Path argument is required");
+            $this->printUsage();
             return 1;
         }
 
         try {
-            return $this->executeEvaluations($options['path']);
+            return $this->executeEvaluations($options['path'], $options['verbose']);
         } catch (Throwable $e) {
-            $this->formatter->printError($e->getMessage());
+            $this->printError($e->getMessage());
             return 1;
         }
     }
@@ -90,15 +93,21 @@ class EvaluationCommand
         return $options;
     }
 
-    private function executeEvaluations(string $path): int
+    private function executeEvaluations(string $path, bool $verbose): int
     {
-        $this->formatter->printHeader();
+        // Load output drivers from config and create pipeline
+        $driverConfigs = $this->configLoader->getOutputDrivers();
+        $drivers = $this->driverResolver->resolve($driverConfigs);
+        $pipeline = new OutputPipeline($drivers);
+
+        // Print header
+        echo "Neuron AI Evaluation Runner\n\n";
 
         // Discover evaluators
         $evaluatorClasses = $this->discovery->discover($path);
 
         if ($evaluatorClasses === []) {
-            $this->formatter->printError("No evaluator classes found in: {$path}");
+            $this->printError("No evaluator classes found in: {$path}");
             return 1;
         }
 
@@ -107,11 +116,9 @@ class EvaluationCommand
         $totalEvaluators = count($evaluatorClasses);
 
         foreach ($evaluatorClasses as $evaluatorClass) {
-            $this->formatter->printProgress(
-                $this->getShortClassName($evaluatorClass),
-                $evaluatorCount,
-                $totalEvaluators
-            );
+            if ($verbose) {
+                echo "Running {$this->getShortClassName($evaluatorClass)}... [{$evaluatorCount}/{$totalEvaluators}]\n";
+            }
 
             try {
                 $evaluator = $this->createEvaluator($evaluatorClass);
@@ -119,8 +126,10 @@ class EvaluationCommand
                 $summary = $this->runner->run($evaluator);
 
                 // Print progress symbols
-                foreach ($summary->getResults() as $result) {
-                    $this->formatter->printProgressSymbol($result->isPassed());
+                if (!$verbose) {
+                    foreach ($summary->getResults() as $result) {
+                        echo $result->isPassed() ? '.' : 'F';
+                    }
                 }
 
                 if ($summary->hasFailures()) {
@@ -128,14 +137,15 @@ class EvaluationCommand
                 }
 
             } catch (Throwable $e) {
-                $this->formatter->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
+                $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
                 $totalFailures++;
             }
 
             $evaluatorCount++;
         }
 
-        $this->formatter->printSummary($this->createOverallSummary($evaluatorClasses));
+        // Final output through the pipeline (includes all configured drivers)
+        $pipeline->output($this->createOverallSummary($evaluatorClasses));
 
         return $totalFailures > 0 ? 1 : 0;
     }
@@ -159,7 +169,6 @@ class EvaluationCommand
             throw new RuntimeException("Cannot instantiate evaluator {$className}: " . $e->getMessage(), $e->getCode(), $e);
         }
     }
-
 
     private function getShortClassName(string $fullClassName): string
     {
@@ -187,5 +196,21 @@ class EvaluationCommand
         }
 
         return new EvaluatorSummary($results, $totalTime);
+    }
+
+    private function printError(string $message): void
+    {
+        echo "Error: {$message}\n";
+    }
+
+    private function printUsage(): void
+    {
+        echo "Usage:\n";
+        echo "  vendor/bin/evaluation <path> [options]\n\n";
+        echo "Arguments:\n";
+        echo "  path                   Path to directory containing evaluators\n\n";
+        echo "Options:\n";
+        echo "  --verbose, -v          Show verbose output\n";
+        echo "  --help, -h             Show this help message\n";
     }
 }

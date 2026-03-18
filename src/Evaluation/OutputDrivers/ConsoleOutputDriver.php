@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Console\Evaluation;
+namespace NeuronAI\Evaluation\OutputDrivers;
 
 use NeuronAI\Evaluation\AssertionFailure;
+use NeuronAI\Evaluation\Contracts\OutputDriverInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 
 use function array_map;
@@ -22,22 +23,22 @@ use function str_repeat;
 
 use const JSON_PRETTY_PRINT;
 
-class OutputFormatter
+class ConsoleOutputDriver implements OutputDriverInterface
 {
-    public function __construct(private readonly bool $verbose = false)
+    public function __construct(
+        protected readonly bool $verbose = false
+    ) {
+    }
+
+    public function output(EvaluatorSummary $summary): void
     {
+        $this->printHeader();
+        $this->printSummary($summary);
     }
 
     public function printHeader(): void
     {
         echo "Neuron AI Evaluation Runner\n\n";
-    }
-
-    public function printProgress(string $evaluatorName, int $current, int $total): void
-    {
-        if ($this->verbose) {
-            echo "Running {$evaluatorName}... [{$current}/{$total}]\n";
-        }
     }
 
     public function printProgressSymbol(bool $passed): void
@@ -152,11 +153,6 @@ class OutputFormatter
         return (string) $output;
     }
 
-    public function printError(string $message): void
-    {
-        echo "Error: {$message}\n";
-    }
-
     private function printAssertionFailureSummary(EvaluatorSummary $summary): void
     {
         $failuresByLocation = $summary->getAssertionFailuresByLocation();
@@ -188,16 +184,5 @@ class OutputFormatter
         }
 
         echo "\n";
-    }
-
-    public function printUsage(): void
-    {
-        echo "Usage:\n";
-        echo "  vendor/bin/evaluation <path> [options]\n\n";
-        echo "Arguments:\n";
-        echo "  path                   Path to directory containing evaluators\n\n";
-        echo "Options:\n";
-        echo "  --verbose, -v          Show verbose output\n";
-        echo "  --help, -h             Show this help message\n";
     }
 }
