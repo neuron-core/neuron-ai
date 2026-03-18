@@ -40,7 +40,7 @@ class ConfigLoader
     private function getDefaultConfig(): array
     {
         return [
-            'output_drivers' => [ConsoleOutput::class],
+            'output' => [ConsoleOutput::class],
         ];
     }
 
@@ -49,6 +49,6 @@ class ConfigLoader
      */
     public function getOutputDrivers(): array
     {
-        return $this->load()['output_drivers'] ?? [ConsoleOutput::class];
+        return $this->load()['output'] ?? [ConsoleOutput::class];
     }
 }

@@ -67,9 +67,9 @@ class ConfigLoaderTest extends TestCase
             $loader = new ConfigLoader();
             $config = $loader->load();
 
-            $this->assertArrayHasKey('output_drivers', $config);
-            $this->assertIsArray($config['output_drivers']);
-            $this->assertContains(ConsoleOutput::class, $config['output_drivers']);
+            $this->assertArrayHasKey('output', $config);
+            $this->assertIsArray($config['output']);
+            $this->assertContains(ConsoleOutput::class, $config['output']);
         } finally {
             chdir($originalCwd);
         }
