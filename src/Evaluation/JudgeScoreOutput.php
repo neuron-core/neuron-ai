@@ -15,12 +15,13 @@ class JudgeScoreOutput
             required: true
         )]
         #[OutOfRange(min: 0.0, max: 1.0)]
-        public readonly float $score,
+        public float $score,
+
         #[SchemaProperty(
             description: 'Detailed reasoning for the given score',
             required: true
         )]
-        public readonly string $reasoning,
+        public string $reasoning,
     ) {
     }
 }
