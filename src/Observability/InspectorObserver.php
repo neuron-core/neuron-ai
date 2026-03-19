@@ -154,17 +154,17 @@ class InspectorObserver implements ObserverInterface
 
     protected function prepareMessageItem(Message $item): array
     {
-        $item = $item->jsonSerialize();
-        if (isset($item['content'])) {
-            $item['content'] = array_map(function (array $block): array {
+        $message = $item->jsonSerialize();
+        if (isset($message['content'])) {
+            $message['content'] = array_map(function (array $block): array {
                 if (isset($block['source_type']) && $block['source_type'] === SourceType::BASE64->value) {
                     unset($block['source']);
                 }
                 return $block;
-            }, $item['content']);
+            }, $message['content']);
         }
 
-        return $item;
+        return $message;
     }
 
     /**

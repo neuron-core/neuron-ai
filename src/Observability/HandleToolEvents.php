@@ -82,7 +82,7 @@ trait HandleToolEvents
         try {
             $segment->addContext('Output', $data->tool->getResult());
         } catch (TypeError) {
-            // The tool may not have run due to an error, like ToolMaxTries.
+            // The tool may not have run due to an error, like ToolMaxRuns.
             // In that case getResult will throw an error due to a null result.
         }
 

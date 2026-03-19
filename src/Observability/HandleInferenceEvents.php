@@ -7,6 +7,7 @@ namespace NeuronAI\Observability;
 use Inspector\Models\Segment;
 use Inspector\Models\Token;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
@@ -65,8 +66,10 @@ trait HandleInferenceEvents
     {
         if (isset($this->inference)) {
             $this->inference->end();
-            $this->inference->addContext('Message', $this->prepareMessageItem($data->message))
-                ->addContext('Response', $data->response);
+            if ($data->message instanceof Message) {
+                $this->inference->addContext('Message', $this->prepareMessageItem($data->message));
+            }
+            $this->inference->addContext('Response', $this->prepareMessageItem($data->response));
         }
     }
 }

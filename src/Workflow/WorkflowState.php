@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow;
 use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
+use function array_diff_key;
 
 class WorkflowState
 {
@@ -42,6 +43,11 @@ class WorkflowState
     public function only(array $keys): array
     {
         return array_intersect_key($this->data, array_flip($keys));
+    }
+
+    public function except(string ...$keys): array
+    {
+        return array_diff_key($this->data, array_flip($keys));
     }
 
     public function all(): array
