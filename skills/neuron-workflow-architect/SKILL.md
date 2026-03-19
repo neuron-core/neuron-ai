@@ -369,7 +369,7 @@ $diagram = $workflow->export();
 ## CLI Generation
 
 ```bash
-php vendor/bin/neuron make:workflow DataProcessingWorkflow
+vendor/bin/neuron make:workflow DataProcessingWorkflow
 ```
 
 ## Best Practices

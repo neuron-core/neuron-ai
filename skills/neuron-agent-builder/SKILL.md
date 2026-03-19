@@ -242,7 +242,7 @@ $message = new UserMessage([
 Use the Neuron CLI to generate agent boilerplate:
 
 ```bash
-php vendor/bin/neuron make:agent MyCustomAgent
+vendor/bin/neuron make:agent MyCustomAgent
 ```
 
 ## Common Patterns
@@ -299,7 +299,7 @@ When helping users build agents:
    - Memory needs to be shared across agents
 
 5. **Use middleware** for:
-   - Logging and monitoring
+   - Context summarization
    - Tool approval workflows
    - Custom pre/post processing
 

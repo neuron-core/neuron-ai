@@ -361,7 +361,7 @@ class KnowledgeRAG extends RAG
 ## CLI Generation
 
 ```bash
-php vendor/bin/neuron make:rag MyKnowledgeBot
+vendor/bin/neuron make:rag MyKnowledgeBot
 ```
 
 ## Advanced Configuration
