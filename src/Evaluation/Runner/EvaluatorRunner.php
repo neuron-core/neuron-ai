@@ -21,6 +21,9 @@ class EvaluatorRunner
         $totalTime = 0.0;
 
         foreach ($data as $index => $item) {
+            // Reset assertion state before each dataset item to ensure isolation
+            $evaluator->resetAssertionState();
+
             $startTime = microtime(true);
             $error = null;
             $output = null;
