@@ -79,7 +79,7 @@ trait HandleChat
             $message = $this->createToolCallMessage($toolCalls, $blocks);
         } else {
             $message = new AssistantMessage($blocks);
-            $citations = $this->extractCitations($result['content']??[]);
+            $citations = $this->extractCitations($result['content'] ?? []);
             if (!empty($citations)) {
                 $message->addMetadata('citations', $citations);
             }
