@@ -62,6 +62,7 @@ trait HandleStream
         );
 
         $this->streamState = new StreamState();
+        $lastFinishReason = null;
 
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
@@ -81,6 +82,11 @@ trait HandleStream
             ) {
                 $this->streamState->getUsage()->inputTokens = $line['usageMetadata']['promptTokenCount'] ?? 0;
                 $this->streamState->getUsage()->outputTokens = $line['usageMetadata']['candidatesTokenCount'] ?? 0;
+            }
+
+            // Track finishReason — the last value seen is authoritative
+            if (isset($line['candidates'][0]['finishReason'])) {
+                $lastFinishReason = $line['candidates'][0]['finishReason'];
             }
 
             // Process tool calls
@@ -138,6 +144,10 @@ trait HandleStream
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
 
+        if ($lastFinishReason !== null) {
+            $message->setStopReason($lastFinishReason);
+        }
+
         return $message;
     }
 
@@ -173,7 +183,7 @@ trait HandleStream
         return false;
     }
 
-    private function readLine(StreamInterface $stream): string
+    protected function readLine(StreamInterface $stream): string
     {
         $buffer = '';
 
