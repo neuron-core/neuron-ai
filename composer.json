@@ -28,7 +28,7 @@
         "laudis/neo4j-php-client": "^3.4",
         "opensearch-project/opensearch-php": "^2.5",
         "phpstan/phpstan": "^2.1",
-        "phpunit/phpunit": "^9.0",
+        "phpunit/phpunit": "^10.0",
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
         "tomasvotruba/type-coverage": "^2.0",

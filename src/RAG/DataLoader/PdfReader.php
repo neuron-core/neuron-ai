@@ -105,7 +105,7 @@ class PdfReader implements ReaderInterface
     public function setPdf(string $pdf): self
     {
         if (!is_readable($pdf)) {
-            throw new DataReaderException("Could not read `{$pdf}`");
+            throw new DataReaderException("Could not read `{$pdf}`. Invalid path or permission denied.");
         }
 
         $this->pdf = $pdf;
@@ -165,6 +165,9 @@ class PdfReader implements ReaderInterface
         return $process->getOutput();
     }
 
+    /**
+     * @throws DataReaderException
+     */
     public function text(): string
     {
         $command = array_merge([$this->findPdfToText()], $this->options, [$this->pdf, '-']);
@@ -180,8 +183,8 @@ class PdfReader implements ReaderInterface
      */
     public function getPageCount(string $pdfPath): int
     {
-        $pdfinfoPath = $this->findPdfInfo();
-        $output = $this->executeProcess([$pdfinfoPath, $pdfPath]);
+        $pdfInfoPath = $this->findPdfInfo();
+        $output = $this->executeProcess([$pdfInfoPath, $pdfPath]);
 
         if (preg_match('/Pages:\s+(\d+)/', $output, $matches)) {
             return (int) $matches[1];
