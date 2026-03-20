@@ -93,7 +93,7 @@ vendor/bin/neuron make:agent DataAnalystAgent
 
 namespace App\Neuron;
 
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -212,7 +212,7 @@ Make your agent able to perform concrete tasks, like reading from a database, by
 
 namespace App\Neuron;
 
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Agent\SystemPrompt;
