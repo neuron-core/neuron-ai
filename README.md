@@ -273,7 +273,7 @@ Instead of implementing tools manually, you can connect tools exposed by an MCP 
 
 namespace App\Neuron;
 
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
