@@ -139,6 +139,6 @@ jobs:
               run: composer update --${{ matrix.dependency-version }} --no-interaction --no-progress --ansi
 
             - name: Unit Tests
-              run: vendor/bin/phpunit --colors=always --verbose
+              run: vendor/bin/phpunit --colors=always
               env:
                   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
