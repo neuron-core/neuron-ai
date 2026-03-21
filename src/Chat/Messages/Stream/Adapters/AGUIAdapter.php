@@ -167,6 +167,19 @@ class AGUIAdapter extends SSEAdapter
             'threadId' => $this->threadId,
             'timestamp' => $this->timestamp(),
         ]);
+
+        foreach ($this->metadata as $key => $value) {
+            if (empty($value)) {
+                continue;
+            }
+
+            yield $this->sse([
+                'type' => 'Custom',
+                'name' => $key,
+                'value' => $value,
+                'timestamp' => $this->timestamp(),
+            ]);
+        }
     }
 
     public function end(): iterable

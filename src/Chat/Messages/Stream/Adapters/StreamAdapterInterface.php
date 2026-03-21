@@ -34,4 +34,11 @@ interface StreamAdapterInterface
      * @return iterable<string>
      */
     public function end(): iterable;
+
+    /**
+     * Set application-level metadata to be emitted during streaming.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    public function setMetadata(array $metadata): void;
 }

@@ -50,6 +50,13 @@ class ChatNode extends Node
             return new ToolCallEvent($response, $event);
         }
 
+        // Attach response metadata to the message for persistence
+        foreach ($state->getResponseMetadata() as $key => $value) {
+            if ($value !== null && $value !== '' && $value !== []) {
+                $response->addMetadata($key, $value);
+            }
+        }
+
         // Add the final response to chat history (after tool loop)
         $this->addToChatHistory($state, $response);
 
