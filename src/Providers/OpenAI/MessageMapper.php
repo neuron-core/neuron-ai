@@ -24,6 +24,7 @@ use function array_filter;
 use function array_is_list;
 use function array_map;
 use function array_merge;
+use function array_values;
 use function json_encode;
 
 class MessageMapper implements MessageMapperInterface
@@ -64,7 +65,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapBlocks(array $blocks): array
     {
-        return array_filter(array_map($this->mapContentBlock(...), $blocks));
+        return array_values(array_filter(array_map($this->mapContentBlock(...), $blocks)));
     }
 
     protected function mapContentBlock(ContentBlockInterface $block): ?array
