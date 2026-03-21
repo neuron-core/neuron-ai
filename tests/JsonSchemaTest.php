@@ -8,9 +8,11 @@ use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\Tests\Stubs\StructuredOutput\EmailMode;
+use NeuronAI\Tests\Stubs\StructuredOutput\ExampleStructure;
 use NeuronAI\Tests\Stubs\StructuredOutput\FtpMode;
 use NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock;
 use NeuronAI\Tests\Stubs\StructuredOutput\Person;
+use NeuronAI\Tests\Stubs\StructuredOutput\Tag;
 use NeuronAI\Tests\Stubs\StructuredOutput\TextBlock;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use PHPUnit\Framework\TestCase;
@@ -40,6 +42,7 @@ class JsonSchemaTest extends TestCase
             'additionalProperties' => false,
         ], $schema);
     }
+
     public function test_with_nullable_properties(): void
     {
         $class = new class () {
@@ -427,6 +430,30 @@ class JsonSchemaTest extends TestCase
         ], $schema);
     }
 
+    public function test_float_constraints(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "A rating", min: 1, max: 5)]
+            public float $rating;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'rating' => [
+                    'description' => 'A rating',
+                    'type' => 'number',
+                    'minimum' => 1,
+                    'maximum' => 5,
+                ]
+            ],
+            'required' => ['rating'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
     public function test_array_constraints(): void
     {
         $class = new class () {
@@ -448,6 +475,90 @@ class JsonSchemaTest extends TestCase
                 ]
             ],
             'required' => ['tags'],
+            'additionalProperties' => false,
+        ], $schema);
+    }
+
+    public function test_union_types(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Current value", required: true)]
+            public int|float|null $currentValue = null;
+
+            #[SchemaProperty(description: "Target value", required: true)]
+            public ExampleStructure|null $targetValue = null;
+
+            // Without attributes
+            public array|string|int|null $arrayValue = null;
+
+            #[SchemaProperty(anyOf: [Tag::class])]
+            #[ArrayOf(Tag::class, allowEmpty: true)]
+            public array|null $tags;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'currentValue' => [
+                    'type' => ['integer', 'number', 'null'],
+                    'default' => null,
+                    'description' => 'Current value',
+                ],
+                'targetValue' => [
+                    'type' => ['object', 'null'],
+                    'default' => null,
+                    'description' => 'Target value',
+                    'properties' => [
+                        'value' => [
+                            'type' => 'integer',
+                            'description' => 'Value',
+                        ],
+                        'rounded' => [
+                            'type' => 'number',
+                            'description' => 'Rounded',
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                    'required' => ['value'],
+                ],
+                'arrayValue' => [
+                    'type' => ['array', 'string', 'integer', 'null'],
+                    'items' => ['type' => 'string'],
+                    'default' => null,
+                ],
+                'tags' => [
+                    'type' => ['array', 'null'],
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'name' => [
+                                'description' => 'The name of the tag',
+                                'type' => 'string',
+                            ],
+                            'properties' => [
+                                'description' => 'Properties can contains additional values',
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'value' => [
+                                            'description' => 'The property value',
+                                            'type' => 'string',
+                                        ]
+                                    ],
+                                    'additionalProperties' => false,
+                                    'required' => ['value']
+                                ]
+                            ]
+                        ],
+                        'required' => ['name'],
+                        'additionalProperties' => false,
+                    ]
+                ],
+            ],
+            'required' => ['currentValue', 'targetValue'],
             'additionalProperties' => false,
         ], $schema);
     }
