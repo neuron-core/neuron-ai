@@ -69,10 +69,6 @@ trait HandleStructured
             unset($schema['additionalProperties']);
         }
 
-        if (array_key_exists('default', $schema)) {
-            unset($schema['default']);
-        }
-
         foreach ($schema as $key => $value) {
             if (is_array($value)) {
                 $schema[$key] = $this->adaptSchema($value);
