@@ -18,7 +18,7 @@ use function in_array;
 trait HandleStructured
 {
     /**
-     * Structured outputs with tools is available only for the Gemini 3 series models.
+     * Structured output with tools is available only for the Gemini 3 series models.
      * https://ai.google.dev/gemini-api/docs/structured-output?example=recipe#structured_outputs_with_tools
      */
     protected array $supportedModels = [
@@ -67,6 +67,10 @@ trait HandleStructured
     {
         if (array_key_exists('additionalProperties', $schema)) {
             unset($schema['additionalProperties']);
+        }
+
+        if (array_key_exists('default', $schema)) {
+            unset($schema['default']);
         }
 
         foreach ($schema as $key => $value) {
