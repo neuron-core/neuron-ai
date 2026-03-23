@@ -12,8 +12,8 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
 use JsonSerializable;
-
 use NeuronAI\UniqueIdGenerator;
+
 use function array_map;
 use function array_merge;
 use function is_string;
