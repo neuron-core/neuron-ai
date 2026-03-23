@@ -6,8 +6,11 @@ namespace NeuronAI\Providers\Mistral;
 
 use NeuronAI\Chat\Attachments\Attachment;
 use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
+use NeuronAI\Tools\ToolInterface;
 
 class MessageMapper extends OpenAIMessageMapper
 {

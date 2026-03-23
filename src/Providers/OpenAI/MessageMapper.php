@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 
+use NeuronAI\Tools\ToolInterface;
 use function array_key_exists;
 use function is_string;
 use function uniqid;
@@ -145,16 +146,17 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): array
     {
-        $message = $message->jsonSerialize();
-
-        if (array_key_exists('usage', $message)) {
-            unset($message['usage']);
-        }
-
-        unset($message['type']);
-        unset($message['tools']);
-
-        return $message;
+        return [
+            'role' => MessageRole::ASSISTANT,
+            'tool_calls' => array_map(fn (ToolInterface $tool): array => [
+                'id' => $tool->getCallId(),
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool->getName(),
+                    'arguments' => json_encode($tool->getInputs() ?: new \stdClass()),
+                ],
+            ], $message->getTools())
+        ];
     }
 
     protected function mapToolsResult(ToolCallResultMessage $message): array
