@@ -282,7 +282,7 @@ class Workflow implements WorkflowInterface
                     $this->eventNodeMap[$eventClass] = $node;
                 }
             } catch (ReflectionException $e) {
-                throw new WorkflowException('Failed to load event-node map for '.$node::class.': ' . $e->getMessage());
+                throw new WorkflowException('Failed to load event-node map for '.$node::class.': ' . $e->getMessage(), $e->getCode(), $e);
             }
         }
     }
@@ -364,7 +364,7 @@ class Workflow implements WorkflowInterface
             }
 
         } catch (ReflectionException $e) {
-            throw new WorkflowException('Failed to validate '.$node::class.': ' . $e->getMessage());
+            throw new WorkflowException('Failed to validate '.$node::class.': ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 

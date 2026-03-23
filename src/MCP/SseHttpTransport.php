@@ -148,7 +148,7 @@ class SseHttpTransport implements McpTransportInterface
 
         } catch (GuzzleException $e) {
             $this->cleanup();
-            throw new McpException('HTTP connection failed: ' . $e->getMessage());
+            throw new McpException('HTTP connection failed: ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 
@@ -273,9 +273,9 @@ class SseHttpTransport implements McpTransportInterface
             }
 
         } catch (GuzzleException $e) {
-            throw new McpException('HTTP POST failed: ' . $e->getMessage());
+            throw new McpException('HTTP POST failed: ' . $e->getMessage(), $e->getCode(), $e);
         } catch (JsonException $e) {
-            throw new McpException('Failed to encode JSON: ' . $e->getMessage());
+            throw new McpException('Failed to encode JSON: ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 

@@ -139,7 +139,7 @@ trait HandleStream
         try {
             return json_decode($line, true, flags: JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
-            throw new ProviderException('Anthropic streaming error - '.$exception->getMessage());
+            throw new ProviderException('Anthropic streaming error - '.$exception->getMessage(), $exception->getCode(), $exception);
         }
     }
 
