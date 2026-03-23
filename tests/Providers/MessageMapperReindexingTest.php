@@ -19,6 +19,7 @@ use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
 use NeuronAI\Providers\OpenAI\Responses\MessageMapper as OpenAIResponsesMessageMapper;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use JsonException;
 
 use function array_is_list;
 use function json_decode;
@@ -30,7 +31,7 @@ class MessageMapperReindexingTest extends TestCase
 {
     /**
      * @param array<int, array<string, mixed>> $expectedBlocks
-     * @throws \JsonException
+     * @throws JsonException
      */
     #[DataProvider('mapperProvider')]
     public function test_filtered_blocks_serialize_as_lists(
