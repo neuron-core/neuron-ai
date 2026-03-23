@@ -30,6 +30,7 @@ class MessageMapperReindexingTest extends TestCase
 {
     /**
      * @param array<int, array<string, mixed>> $expectedBlocks
+     * @throws \JsonException
      */
     #[DataProvider('mapperProvider')]
     public function test_filtered_blocks_serialize_as_lists(
