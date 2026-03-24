@@ -94,8 +94,8 @@ class Agent extends Workflow implements AgentInterface
 
         // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->toolMaxRuns)
-            : new ToolNode($this->toolMaxRuns);
+            ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         // Add nodes to the workflow instance
         $this->addNodes([

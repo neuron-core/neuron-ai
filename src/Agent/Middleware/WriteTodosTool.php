@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Middleware\Tools;
+namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Tools\ArrayProperty;

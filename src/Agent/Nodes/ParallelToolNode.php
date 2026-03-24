@@ -12,7 +12,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ToolInterface;
@@ -112,16 +111,19 @@ class ParallelToolNode extends ToolNode
                     $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
                 }
 
-                $this->emit('error', new AgentError($exception));
-                throw $exception;
+                // Get the original tool to handle the error
+                $originalTool = $tools[$index];
+                $this->handleError($exception, $originalTool);
+                $executedTools[$index] = $originalTool;
+            } else {
+                // Collect the executed tool with its new state
+                $executedTools[$index] = $data;
             }
 
-            // Collect the executed tool with its new state
-            $executedTools[$index] = $data;
-            yield new ToolResultChunk($data);
+            yield new ToolResultChunk($executedTools[$index]);
 
-            // Notify that the tool was called successfully
-            $this->emit('tool-called', new ToolCalled($data));
+            // Notify that the tool was called
+            $this->emit('tool-called', new ToolCalled($executedTools[$index]));
         }
 
         // Return a new ToolCallResultMessage with the executed tools

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Middleware\Tools;
+namespace NeuronAI\Agent\Tools;
 
 /**
  * Serializable tool rejection handler.
@@ -13,7 +13,7 @@ namespace NeuronAI\Agent\Middleware\Tools;
 class ToolRejectionHandler
 {
     public function __construct(
-        private readonly string $rejectionMessage
+        protected readonly string $rejectionMessage
     ) {
     }
 

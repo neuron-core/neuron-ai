@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Agent\Middleware\Tools\ToolRejectionHandler;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
