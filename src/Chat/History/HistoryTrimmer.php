@@ -14,9 +14,7 @@ use function array_reduce;
 use function array_slice;
 use function count;
 use function end;
-use function in_array;
 use function spl_object_hash;
-use function implode;
 use function sprintf;
 
 /**
@@ -185,7 +183,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Adjust trim index to preserve complete user-assistant pairs.
+     * Adjust the trim index to preserve complete user-assistant pairs.
      *
      * Finds the next assistant message after the proposed trim index
      * and returns the index after that assistant. This ensures we never
@@ -251,7 +249,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Validates that messages follow proper user-assistant alternation.
+     * Validates that messages follow the proper user-assistant alternation.
      *
      * @param Message[] $messages
      * @throws ChatHistoryException
@@ -262,9 +260,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return;
         }
 
-        $userRoles = [MessageRole::USER->value, MessageRole::DEVELOPER->value];
-        $assistantRoles = [MessageRole::ASSISTANT->value, MessageRole::MODEL->value];
-        $expectingRoles = $userRoles;
+        $expectingUser = true;
         $previousMessage = null;
 
         foreach ($messages as $index => $message) {
@@ -272,7 +268,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
             // Tool result messages must follow a tool call message
             if ($message instanceof ToolResultMessage) {
-                if ($previousMessage === null || !$previousMessage instanceof ToolCallMessage) {
+                if (!$previousMessage instanceof ToolCallMessage) {
                     throw new ChatHistoryException(
                         sprintf(
                             'Invalid message sequence: ToolResultMessage at position %d must follow a ToolCallMessage',
@@ -280,44 +276,44 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                         )
                     );
                 }
-                // After tool result, we still expect assistant to continue
-                $expectingRoles = $assistantRoles;
+                // After a tool result, we still expect assistant to continue
+                $expectingUser = false;
                 $previousMessage = $message;
                 continue;
             }
 
-            // Tool call messages must come from assistant role
+            // Tool call messages must come from an assistant role
             if ($message instanceof ToolCallMessage) {
-                if (!in_array($role, $assistantRoles, true)) {
+                if ($role !== MessageRole::ASSISTANT->value) {
                     throw new ChatHistoryException(
                         sprintf(
-                            'Invalid message sequence: ToolCallMessage at position %d must have ASSISTANT or MODEL role, got %s',
+                            'Invalid message sequence: ToolCallMessage at position %d must have ASSISTANT role, got %s',
                             $index,
                             $role
                         )
                     );
                 }
                 // After tool call, we expect tool result or user
-                $expectingRoles = $userRoles;
+                $expectingUser = true;
                 $previousMessage = $message;
                 continue;
             }
 
-            // Regular messages must follow expected alternation
-            if (!in_array($role, $expectingRoles, true)) {
-                $expected = implode(' or ', $expectingRoles);
+            // Regular messages must follow the expected alternation
+            $expectedRole = $expectingUser ? MessageRole::USER->value : MessageRole::ASSISTANT->value;
+            if ($role !== $expectedRole) {
                 throw new ChatHistoryException(
                     sprintf(
                         'Invalid message sequence at position %d: expected role %s, got %s',
                         $index,
-                        $expected,
+                        $expectedRole,
                         $role
                     )
                 );
             }
 
-            // Toggle expected roles for next iteration
-            $expectingRoles = ($expectingRoles === $userRoles) ? $assistantRoles : $userRoles;
+            // Toggle expected role for next iteration
+            $expectingUser = !$expectingUser;
             $previousMessage = $message;
         }
     }

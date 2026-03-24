@@ -69,7 +69,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_chat_history_clear(): void
     {
         $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 1: expected role assistant or model, got user');
+        $this->expectExceptionMessage('Invalid message sequence at position 1: expected role assistant, got user');
 
         $history = new InMemoryChatHistory();
         $history->addMessage(new UserMessage('Hello!'));
@@ -173,7 +173,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_remove_intermediate_invalid_message_types(): void
     {
         $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant or model, got user');
+        $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant, got user');
 
         $tool = Tool::make('mixed_tool', 'A mixed tool')
             ->setInputs(['param' => 'value'])
@@ -207,7 +207,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_double_assistant_messages(): void
     {
         $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 2: expected role user or developer, got assistant');
+        $this->expectExceptionMessage('Invalid message sequence at position 2: expected role user, got assistant');
 
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
@@ -222,7 +222,7 @@ class InMemoryChatHistoryTest extends TestCase
     {
         // A single assistant message is invalid - should throw exception
         $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user or developer, got assistant');
+        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user, got assistant');
 
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
     }
@@ -231,7 +231,7 @@ class InMemoryChatHistoryTest extends TestCase
     {
         // Assistant followed by user is invalid sequence - should throw exception
         $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user or developer, got assistant');
+        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user, got assistant');
 
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
         $this->chatHistory->addMessage(new UserMessage('Test message'));
