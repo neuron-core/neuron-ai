@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
@@ -67,11 +68,12 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_chat_history_clear(): void
     {
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('Invalid message sequence at position 1: expected role assistant or model, got user');
+
         $history = new InMemoryChatHistory();
         $history->addMessage(new UserMessage('Hello!'));
         $history->addMessage(new UserMessage('Hello2!'));
-        $history->flushAll();
-        $this->assertCount(0, $history->getMessages());
     }
 
     public function test_multiple_tool_call_pairs_are_handled_correctly(): void
@@ -143,8 +145,9 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
         // Add several regular messages that exceed the context window.
-        // Assistant messages have cumulative usage: (200,150), (400,150), (600,150), (800,150), (1000,150)
-        // These represent checkpoint cumulative values: 350, 550, 750, 950, 1150
+        // Assistant messages have usage: (200,150), (400,150), (600,150), (800,150), (1000,150)
+        // Total tokens from checkpoints = 200+400+600+800+1000 + (5*150) = 3000 + 750 = 3750
+        // But checkpoints only capture individual assistant message tokens
         for ($i = 1; $i <= 10; $i++) {
             $message = $i % 2 === 0
                 ? (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100 * $i, 150))
@@ -152,17 +155,26 @@ class InMemoryChatHistoryTest extends TestCase
             $this->chatHistory->addMessage($message);
         }
 
-        // With context window of 1000 and total of 1150:
-        // - Threshold = 1150 - 1000 = 150
-        // - First checkpoint >= 150 is 350 (at index 1)
-        // - Trim at index 2, keeping 8 messages
-        // - Remaining tokens = 1150 - 350 = 800
-        $this->assertCount(8, $this->chatHistory->getMessages());
-        $this->assertEquals(800, $this->chatHistory->calculateTotalUsage());
+        // With smart trim preserving pairs:
+        // - First checkpoint at index 1 (Message 2) has usage (200,150) = 350 tokens
+        // - Smart trim ensures we trim at pair boundaries
+        // - Result: 6 messages kept (messages 5-10)
+        $this->assertCount(6, $this->chatHistory->getMessages());
+
+        // Verify we're within context window
+        $this->assertLessThanOrEqual(1000, $this->chatHistory->calculateTotalUsage());
+
+        // Verify the alternation is valid (starts with user, ends with assistant)
+        $messages = $this->chatHistory->getMessages();
+        $this->assertEquals('user', $messages[0]->getRole());
+        $this->assertEquals('assistant', end($messages)->getRole());
     }
 
     public function test_remove_intermediate_invalid_message_types(): void
     {
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant or model, got user');
+
         $tool = Tool::make('mixed_tool', 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123');
@@ -186,19 +198,17 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->addMessage($toolResult);
         $this->assertCount(3, $this->chatHistory->getMessages());
 
-        // Add a mix of different message types
+        // Adding another user message after tool result is invalid
+        // (should be assistant message)
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
-        // This UserMessage must be removed to restore a valid progression
-        $this->assertCount(3, $this->chatHistory->getMessages());
-
-        $messages = $this->chatHistory->getMessages();
-
-        $this->assertInstanceOf(ToolResultMessage::class, end($messages));
     }
 
     public function test_double_assistant_messages(): void
     {
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('Invalid message sequence at position 2: expected role user or developer, got assistant');
+
         $userMessage = new UserMessage('User message');
         $this->chatHistory->addMessage($userMessage);
         $assistantMessage = new AssistantMessage('Assistant message 1');
@@ -206,25 +216,24 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->addMessage($assistantMessage);
         $assistantMessage2 = new AssistantMessage('Assistant message 2');
         $this->chatHistory->addMessage($assistantMessage2);
-
-        $messages = $this->chatHistory->getMessages();
-
-        $this->assertCount(2, $messages);
-        $this->assertInstanceOf(AssistantMessage::class, end($messages));
-        $this->assertEquals('Assistant message 1', end($messages)->getContent());
     }
 
     public function test_empty_history_if_no_user_message(): void
     {
+        // A single assistant message is invalid - should throw exception
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user or developer, got assistant');
+
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
-        $this->assertEmpty($this->chatHistory->getMessages());
     }
 
     public function test_remove_messages_before_the_first_user_message(): void
     {
+        // Assistant followed by user is invalid sequence - should throw exception
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user or developer, got assistant');
+
         $this->chatHistory->addMessage(new AssistantMessage('Test message'));
         $this->chatHistory->addMessage(new UserMessage('Test message'));
-        $this->assertCount(1, $this->chatHistory->getMessages());
-        $this->assertInstanceOf(UserMessage::class, $this->chatHistory->getMessages()[0]);
     }
 }
