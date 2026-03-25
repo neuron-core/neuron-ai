@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 
@@ -17,6 +19,7 @@ use function count;
 use function end;
 use function spl_object_hash;
 use function sprintf;
+use function max;
 
 /**
  * Trims chat history to fit within a context window using checkpoint-based calculation.
@@ -68,14 +71,54 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $trimPoint = $this->findTrimPoint($messages, $checkpoints, $contextWindow);
 
         if ($trimPoint['index'] > 0) {
+            $trimmedTokens = $trimPoint['tokens'];
             $messages = array_slice($messages, $trimPoint['index']);
-            $this->totalTokens -= $trimPoint['tokens'];
+            $this->totalTokens -= $trimmedTokens;
+
+            // Normalize remaining checkpoint values by subtracting trimmed tokens
+            $this->normalizeCheckpoints($messages, $trimmedTokens);
         }
 
         // Validate alternation after trimming
         $this->validateAlternation($messages);
 
         return $messages;
+    }
+
+    /**
+     * Normalize checkpoint values after trimming by subtracting trimmed tokens.
+     *
+     * When messages are trimmed from the beginning of the history, the remaining
+     * checkpoints still have their original cumulative token values from the AI
+     * provider. This method adjusts those values to reflect the actual tokens
+     * in the remaining messages.
+     *
+     * @param Message[] $messages The remaining messages after trimming
+     * @param int $trimmedTokens The total tokens that were removed
+     */
+    protected function normalizeCheckpoints(array $messages, int $trimmedTokens): void
+    {
+        if ($trimmedTokens <= 0) {
+            return;
+        }
+
+        foreach ($messages as $message) {
+            $usage = $message->getUsage();
+            if ($usage !== null) {
+                // Subtract trimmed tokens from inputTokens (cumulative context)
+                // outputTokens stays the same as it represents this message's output
+                $normalizedInputTokens = max(0, $usage->inputTokens - $trimmedTokens);
+                $message->setUsage(new Usage(
+                    $normalizedInputTokens,
+                    $usage->outputTokens
+                ));
+            }
+        }
+
+        // Invalidate cache since checkpoint values have changed
+        $this->cachedCount = null;
+        $this->cachedLastHash = null;
+        $this->cachedCheckpoints = [];
     }
 
     /**
@@ -95,8 +138,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         foreach ($messages as $index => $message) {
             if (
-                $message->getRole() === MessageRole::ASSISTANT->value &&
-                ($usage = $message->getUsage()) !== null
+                $message::class === AssistantMessage::class &&
+                ($usage = $message->getUsage()) instanceof \NeuronAI\Chat\Messages\Usage
             ) {
                 $checkpoints[] = [
                     'index' => $index,
@@ -206,7 +249,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         // If we're at a ToolCallMessage or ToolResultMessage, skip all tool pairs
         if ($messages[$trimIndex] instanceof ToolCallMessage || $messages[$trimIndex] instanceof ToolResultMessage) {
-            $trimIndex = $this->skipToolCallPairs($messages, $trimIndex);
+            $trimIndex = $this->skipToolCallResultPairs($messages, $trimIndex);
         }
 
         // Check the current position after skipping tool pairs
@@ -214,16 +257,20 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return $trimIndex;
         }
 
-        // Find the next AssistantMessage (not ToolCallMessage) and trim after it
-        for ($i = $trimIndex; $i < $count; $i++) {
+        // Find the next AssistantMessage (not ToolCallMessage) and trim after it.
+        // We exclude the last message since it's the one being added and shouldn't be trimmed
+        for ($i = $trimIndex; $i < $count - 1; $i++) {
             $message = $messages[$i];
-            if ($message->getRole() === MessageRole::ASSISTANT->value) {
+            // Only consider actual AssistantMessage, not ToolCallMessage
+            if ($message::class === AssistantMessage::class) {
                 return $i + 1;
             }
         }
 
-        // No valid trim point found - validation will catch the inconsistency
-        return $trimIndex;
+        // No valid trim point found before the last message
+        // This means the remaining messages are all part of the current conversation turn
+        // We should not trim anything - return 0 to keep all messages
+        return 0;
     }
 
     /**
@@ -231,7 +278,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      *
      * @param Message[] $messages
      */
-    protected function skipToolCallPairs(array $messages, int $trimIndex): int
+    protected function skipToolCallResultPairs(array $messages, int $trimIndex): int
     {
         $count = count($messages);
 

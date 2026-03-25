@@ -55,8 +55,6 @@ class Anthropic implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Use provided client or create default Guzzle client
-        // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([

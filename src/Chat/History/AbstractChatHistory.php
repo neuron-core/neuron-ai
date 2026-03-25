@@ -67,6 +67,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Remove all messages.
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function addMessage(Message $message): ChatHistoryInterface
     {
         $this->history[] = $message;
@@ -80,6 +83,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         return $this;
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function trimHistory(): void
     {
         $trimmed = $this->trimmer->trim($this->history, $this->contextWindow);
