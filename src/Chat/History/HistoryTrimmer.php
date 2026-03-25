@@ -267,9 +267,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
         }
 
-        // No valid trim point found before the last message
-        // This means the remaining messages are all part of the current conversation turn
-        // We should not trim anything - return 0 to keep all messages
+        // No valid trim point found before the last message - return 0 to keep all messages
         return 0;
     }
 
