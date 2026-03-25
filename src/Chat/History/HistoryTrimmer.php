@@ -8,6 +8,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 
 use function array_reduce;
@@ -25,7 +26,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 {
     protected int $totalTokens = 0;
 
-    /** @var array<int, array{index: int, cumulative: int}> */
+    /** @var array<int, array{index: int, tokens: int}> */
     protected array $cachedCheckpoints = [];
     protected ?int $cachedCount = null;
     protected ?string $cachedLastHash = null;
@@ -68,7 +69,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         if ($trimPoint['index'] > 0) {
             $messages = array_slice($messages, $trimPoint['index']);
-            $this->totalTokens -= $trimPoint['cumulative'];
+            $this->totalTokens -= $trimPoint['tokens'];
         }
 
         // Validate alternation after trimming
@@ -79,9 +80,10 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
     /**
      * Build checkpoints from assistant messages with usage data.
+     * Each checkpoint stores the token count reported by the AI provider at that point.
      *
      * @param Message[] $messages
-     * @return array<int, array{index: int, cumulative: int}>
+     * @return array<int, array{index: int, tokens: int}>
      */
     protected function getCheckpoints(array $messages, int $count, string $hash): array
     {
@@ -98,7 +100,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             ) {
                 $checkpoints[] = [
                     'index' => $index,
-                    'cumulative' => $usage->inputTokens + $usage->outputTokens,
+                    'tokens' => $usage->inputTokens + $usage->outputTokens,
                 ];
             }
         }
@@ -114,7 +116,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      * Calculate total tokens from checkpoints or estimation.
      *
      * @param Message[] $messages
-     * @param array<int, array{index: int, cumulative: int}> $checkpoints
+     * @param array<int, array{index: int, tokens: int}> $checkpoints
      */
     protected function calculateTotal(array $messages, array $checkpoints, int $count): int
     {
@@ -123,7 +125,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         }
 
         $lastCheckpoint = end($checkpoints);
-        $total = $lastCheckpoint['cumulative'];
+        $total = $lastCheckpoint['tokens'];
 
         // Add estimation for tail (messages after the last checkpoint)
         for ($i = $lastCheckpoint['index'] + 1; $i < $count; $i++) {
@@ -134,14 +136,14 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Find the trim point (index and cumulative tokens to subtract).
+     * Find the trim point (index and tokens to subtract).
      *
      * Adjusts the trim index to preserve user-assistant message pairs,
      * ensuring the alternation pattern is maintained after trimming.
      *
      * @param Message[] $messages
-     * @param array<int, array{index: int, cumulative: int}> $checkpoints
-     * @return array{index: int, cumulative: int}
+     * @param array<int, array{index: int, tokens: int}> $checkpoints
+     * @return array{index: int, tokens: int}
      */
     protected function findTrimPoint(array $messages, array $checkpoints, int $contextWindow): array
     {
@@ -152,20 +154,20 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 $trimmedTokens += $this->tokenCounter->count($messages[$i]);
             }
             $index = $this->adjustTrimIndexToPreservePairs($messages, $index);
-            return ['index' => $index, 'cumulative' => $trimmedTokens];
+            return ['index' => $index, 'tokens' => $trimmedTokens];
         }
 
         $threshold = $this->totalTokens - $contextWindow;
 
         foreach ($checkpoints as $checkpoint) {
-            if ($checkpoint['cumulative'] >= $threshold) {
+            if ($checkpoint['tokens'] >= $threshold) {
                 $adjustedIndex = $this->adjustTrimIndexToPreservePairs(
                     $messages,
                     $checkpoint['index'] + 1
                 );
                 return [
                     'index' => $adjustedIndex,
-                    'cumulative' => $checkpoint['cumulative'],
+                    'tokens' => $checkpoint['tokens'],
                 ];
             }
         }
@@ -178,16 +180,18 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         );
         return [
             'index' => $adjustedIndex,
-            'cumulative' => $lastCheckpoint['cumulative'],
+            'tokens' => $lastCheckpoint['tokens'],
         ];
     }
 
     /**
      * Adjust the trim index to preserve complete user-assistant pairs.
      *
-     * Finds the next assistant message after the proposed trim index
-     * and returns the index after that assistant. This ensures we never
-     * cut in the middle of a user-assistant conversation pair.
+     * Ensures we trim at a valid boundary:
+     * - After an AssistantMessage (end of a pair)
+     *
+     * This ensures we never cut in the middle of a user-assistant conversation pair
+     * or leave orphaned ToolResultMessages.
      *
      * @param Message[] $messages
      */
@@ -200,22 +204,58 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return $trimIndex;
         }
 
-        // Check what role the message at trimIndex is
-        $trimRole = $messages[$trimIndex]->getRole();
-
-        // If we're at an assistant message, trim after it
-        if ($trimRole === MessageRole::ASSISTANT->value) {
-            return $trimIndex + 1;
+        // If we're at a ToolCallMessage or ToolResultMessage, skip all tool pairs
+        if ($messages[$trimIndex] instanceof ToolCallMessage || $messages[$trimIndex] instanceof ToolResultMessage) {
+            $trimIndex = $this->skipToolCallResultPairs($messages, $trimIndex);
         }
 
-        // For user or tool messages, find the next assistant and trim after it
+        // Check the current position after skipping tool pairs
+        if ($trimIndex >= $count || $messages[$trimIndex]::class === UserMessage::class) {
+            return $trimIndex;
+        }
+
+        // Find the next AssistantMessage (not ToolCallMessage) and trim after it
         for ($i = $trimIndex; $i < $count; $i++) {
-            if ($messages[$i]->getRole() === MessageRole::ASSISTANT->value) {
+            $message = $messages[$i];
+            if ($message->getRole() === MessageRole::ASSISTANT->value) {
                 return $i + 1;
             }
         }
 
-        // No assistant found - validation will catch a potential inconsistency
+        // No valid trim point found - validation will catch the inconsistency
+        return $trimIndex;
+    }
+
+    /**
+     * Skip all tool call/result pairs.
+     *
+     * @param Message[] $messages
+     */
+    protected function skipToolCallResultPairs(array $messages, int $trimIndex): int
+    {
+        $count = count($messages);
+
+        while ($trimIndex < $count) {
+            $message = $messages[$trimIndex];
+
+            // Skip ToolCallMessage and its following ToolResultMessages
+            if ($message instanceof ToolCallMessage) {
+                $trimIndex++;
+                while ($trimIndex < $count && $messages[$trimIndex] instanceof ToolResultMessage) {
+                    $trimIndex++;
+                }
+                continue;
+            }
+
+            // Skip orphaned ToolResultMessage (shouldn't happen with valid history)
+            if ($message instanceof ToolResultMessage) {
+                $trimIndex++;
+                continue;
+            }
+
+            return $trimIndex;
+        }
+
         return $trimIndex;
     }
 

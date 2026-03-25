@@ -34,7 +34,7 @@ class EloquentChatHistoryTest extends TestCase
             $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
         }
 
-        // Set up in-memory SQLite database for testing
+        // Set up an in-memory SQLite database for testing
         $capsule = new Capsule();
         $capsule->addConnection([
             'driver' => 'sqlite',
