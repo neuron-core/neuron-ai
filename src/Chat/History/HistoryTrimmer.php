@@ -206,7 +206,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         // If we're at a ToolCallMessage or ToolResultMessage, skip all tool pairs
         if ($messages[$trimIndex] instanceof ToolCallMessage || $messages[$trimIndex] instanceof ToolResultMessage) {
-            $trimIndex = $this->skipToolCallResultPairs($messages, $trimIndex);
+            $trimIndex = $this->skipToolCallPairs($messages, $trimIndex);
         }
 
         // Check the current position after skipping tool pairs
@@ -231,7 +231,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      *
      * @param Message[] $messages
      */
-    protected function skipToolCallResultPairs(array $messages, int $trimIndex): int
+    protected function skipToolCallPairs(array $messages, int $trimIndex): int
     {
         $count = count($messages);
 
