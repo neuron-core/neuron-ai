@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\ChatHistory;
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\EloquentChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -14,27 +15,38 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
 use function count;
 use function uniqid;
 
+/**
+ * Mock Eloquent Model for testing
+ *
+ * @property string $thread_id
+ * @property string $role
+ * @property string $content
+ * @property array $meta
+ */
+class ChatMessage extends Model
+{
+    protected $table = 'chat_messages';
+    protected $fillable = ['thread_id', 'role', 'content', 'meta'];
+    protected $casts = [
+        'meta' => 'array',
+    ];
+}
+
 class EloquentChatHistoryTest extends TestCase
 {
-    use CheckOpenPort;
-
     protected EloquentChatHistory $history;
     protected string $threadId;
 
     public function setUp(): void
     {
-        if (!$this->isPortOpen('127.0.0.1', 3306)) {
-            $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
-        }
-
-        // Set up in-memory SQLite database for testing
+        // Set up an in-memory SQLite database for testing
         $capsule = new Capsule();
         $capsule->addConnection([
             'driver' => 'sqlite',
@@ -249,27 +261,20 @@ class EloquentChatHistoryTest extends TestCase
 
         $this->history->addMessage($message);
 
-        // Load in new instance
+        // Load in a new instance
         $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
         $loadedMessage = $newHistory->getMessages()[0];
 
         $this->assertEquals('custom_value', $loadedMessage->getMetadata('custom_key'));
     }
-}
 
-/**
- * Mock Eloquent Model for testing
- *
- * @property string $thread_id
- * @property string $role
- * @property string $content
- * @property array $meta
- */
-class ChatMessage extends Model
-{
-    protected $table = 'chat_messages';
-    protected $fillable = ['thread_id', 'role', 'content', 'meta'];
-    protected $casts = [
-        'meta' => 'array',
-    ];
+    public function test_with_agent(): void
+    {
+        $agent = Agent::make()->setAiProvider(
+            new FakeAIProvider(new AssistantMessage('Hello!'))
+        )->setChatHistory($this->history);
+
+        $response = $agent->chat(new UserMessage('Hello'))->getMessage();
+        $this->assertEquals('Hello!', $response->getContent());
+    }
 }
