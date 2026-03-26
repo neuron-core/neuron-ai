@@ -43,7 +43,7 @@ class Anthropic implements AIProviderInterface
 
     /**
      * System prompt blocks for prompt caching.
-     * Use systemPromptBlocks() to set array of content blocks with cache_control.
+     * Use systemPromptBlocks() to set an array of content blocks with cache_control.
      */
     protected ?array $systemBlocks = null;
 
@@ -66,8 +66,6 @@ class Anthropic implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Use provided client or create default Guzzle client
-        // Provider always configures authentication and base URI
         $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
@@ -88,7 +86,6 @@ class Anthropic implements AIProviderInterface
      * Set system prompt as content blocks for prompt caching.
      *
      * @param array $blocks Array of content blocks with optional cache_control
-     * @return self
      *
      * @example
      * $provider->systemPromptBlocks([

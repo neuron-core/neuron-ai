@@ -97,16 +97,16 @@ trait HandleChat
 
         // Save the usage for the current interaction
         if (isset($result['usage'])) {
-            $u = $result['usage'];
+            $usage = $result['usage'];
 
-            $message->setUsage(new Usage($u['input_tokens'], $u['output_tokens']));
+            $message->setUsage(new Usage($usage['input_tokens'], $usage['output_tokens']));
 
             // Attach Anthropic-specific cache metrics as metadata (supports both API formats)
-            $cacheCreation = $u['cache_creation'] ?? [];
+            $cacheCreation = $usage['cache_creation'] ?? [];
             $cacheWrite = ($cacheCreation['ephemeral_5m_input_tokens'] ?? 0)
                         + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
-                        + ($u['cache_creation_input_tokens'] ?? 0);
-            $cacheRead = $u['cache_read_input_tokens'] ?? 0;
+                        + ($usage['cache_creation_input_tokens'] ?? 0);
+            $cacheRead = $usage['cache_read_input_tokens'] ?? 0;
 
             if ($cacheWrite > 0 || $cacheRead > 0) {
                 $message->addMetadata('cacheWriteTokens', (string) $cacheWrite)
