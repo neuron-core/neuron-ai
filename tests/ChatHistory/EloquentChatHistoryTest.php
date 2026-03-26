@@ -274,7 +274,7 @@ class EloquentChatHistoryTest extends TestCase
             new FakeAIProvider(new AssistantMessage('Hello!'))
         )->setChatHistory($this->history);
 
-        $response = $agent->chat(new UserMessage('Hello'))->run();
-        $this->assertEquals('Hello!', $response->getMessage()->getContent());
+        $response = $agent->chat(new UserMessage('Hello'))->getMessage();
+        $this->assertEquals('Hello!', $response->getContent());
     }
 }
