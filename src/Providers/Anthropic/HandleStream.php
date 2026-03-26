@@ -85,11 +85,15 @@ trait HandleStream
             return $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
                 $this->streamState->getContentBlocks()
-            )->setUsage($this->streamState->getUsage());
+            )->setUsage($this->streamState->getUsage())
+             ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
+             ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        return $message->setUsage($this->streamState->getUsage());
+        return $message->setUsage($this->streamState->getUsage())
+            ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
+            ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
     }
 
     protected function handleMessageStart(array $message): void
@@ -97,6 +101,17 @@ trait HandleStream
         $this->streamState->messageId($message['id']);
         $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
         $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
+
+        // Capture cache metrics
+        $cacheCreation = $message['usage']['cache_creation'] ?? [];
+        $this->streamState->addCacheWriteTokens(
+            ($cacheCreation['ephemeral_5m_input_tokens'] ?? 0)
+            + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
+            + ($message['usage']['cache_creation_input_tokens'] ?? 0)
+        );
+        $this->streamState->addCacheReadTokens(
+            $message['usage']['cache_read_input_tokens'] ?? 0
+        );
     }
 
     protected function handleMessageDelta(array $event): void
