@@ -111,11 +111,9 @@ class Agent extends Workflow implements AgentInterface
     {
         // The bootstrapTools method modifies the instructions, adding the toolkit guidelines, so we need to resolve them first
         $tools = $this->bootstrapTools();
+        $instructions = $this->resolveInstructions();
 
-        return new AIInferenceEvent(
-            $this->resolveInstructions(),
-            $tools
-        );
+        return new AIInferenceEvent($instructions, $tools);
     }
 
     /**
