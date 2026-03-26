@@ -16,7 +16,6 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
