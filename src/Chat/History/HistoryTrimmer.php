@@ -122,7 +122,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Build checkpoints from assistant messages with usage data.
+     * Build checkpoints from assistant messages (including tool calls) with usage data.
      * Each checkpoint stores the token count reported by the AI provider at that point.
      *
      * @param Message[] $messages
@@ -138,8 +138,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         foreach ($messages as $index => $message) {
             if (
-                $message::class === AssistantMessage::class &&
-                ($usage = $message->getUsage()) instanceof \NeuronAI\Chat\Messages\Usage
+                $message instanceof AssistantMessage &&
+                ($usage = $message->getUsage()) instanceof Usage
             ) {
                 $checkpoints[] = [
                     'index' => $index,
@@ -181,8 +181,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     /**
      * Find the trim point (index and tokens to subtract).
      *
-     * Adjusts the trim index to preserve user-assistant message pairs,
-     * ensuring the alternation pattern is maintained after trimming.
+     * Adjusts the trim index to ensure the history starts with a UserMessage,
+     * using the most accurate token count from checkpoints.
      *
      * @param Message[] $messages
      * @param array<int, array{index: int, tokens: int}> $checkpoints
@@ -192,116 +192,108 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     {
         if ($checkpoints === []) {
             $index = $this->findTrimIndexByEstimation($messages, $contextWindow);
-            $trimmedTokens = 0;
-            for ($i = 0; $i < $index; $i++) {
-                $trimmedTokens += $this->tokenCounter->count($messages[$i]);
-            }
-            $index = $this->adjustTrimIndexToPreservePairs($messages, $index);
-            return ['index' => $index, 'tokens' => $trimmedTokens];
+            return $this->adjustTrimIndexToPreservePairs($messages, $index, 0);
         }
 
         $threshold = $this->totalTokens - $contextWindow;
 
         foreach ($checkpoints as $checkpoint) {
             if ($checkpoint['tokens'] >= $threshold) {
-                $adjustedIndex = $this->adjustTrimIndexToPreservePairs(
+                return $this->adjustTrimIndexToPreservePairs(
                     $messages,
-                    $checkpoint['index'] + 1
+                    $checkpoint['index'] + 1,
+                    $checkpoint['tokens']
                 );
-                return [
-                    'index' => $adjustedIndex,
-                    'tokens' => $checkpoint['tokens'],
-                ];
             }
         }
 
         // Tail overflow: trim at the last checkpoint
         $lastCheckpoint = end($checkpoints);
-        $adjustedIndex = $this->adjustTrimIndexToPreservePairs(
+        return $this->adjustTrimIndexToPreservePairs(
             $messages,
-            $lastCheckpoint['index'] + 1
+            $lastCheckpoint['index'] + 1,
+            (int)$lastCheckpoint['tokens']
         );
-        return [
-            'index' => $adjustedIndex,
-            'tokens' => $lastCheckpoint['tokens'],
-        ];
     }
 
     /**
-     * Adjust the trim index to preserve complete user-assistant pairs.
+     * Adjust the trim index to ensure the trimmed history starts with a UserMessage.
      *
-     * Ensures we trim at a valid boundary:
-     * - After an AssistantMessage (end of a pair)
-     *
-     * This ensures we never cut in the middle of a user-assistant conversation pair
-     * or leave orphaned ToolResultMessages.
+     * A valid chat history must start with a user message. While searching for
+     * the next UserMessage, this method also updates the token count when passing
+     * messages with usage data (checkpoints), providing the most accurate token
+     * approximation for the trimmed portion.
      *
      * @param Message[] $messages
+     * @return array{index: int, tokens: int}
      */
-    protected function adjustTrimIndexToPreservePairs(array $messages, int $trimIndex): int
+    protected function adjustTrimIndexToPreservePairs(array $messages, int $trimIndex, int $tokens): array
+    {
+        $backward = $this->adjustIndexBackward($messages, $trimIndex, $tokens);
+        $forward = $this->adjustIndexForward($messages, $trimIndex, $tokens);
+
+        // If only one direction found a valid UserMessage, use it
+        if ($backward === null) {
+            return $forward ?? ['index' => 0, 'tokens' => 0];
+        }
+        if ($forward === null) {
+            return $backward;
+        }
+
+        // Both found - pick the closest, preferring backward on tie
+        $backwardDistance = $trimIndex - $backward['index'];
+        $forwardDistance = $forward['index'] - $trimIndex;
+
+        return $backwardDistance <= $forwardDistance ? $backward : $forward;
+    }
+
+    protected function adjustIndexForward(array $messages, int $trimIndex, int $tokens): ?array
     {
         $count = count($messages);
 
-        // If trimming everything or already at the end, return as-is
-        if ($trimIndex >= $count) {
-            return $trimIndex;
-        }
-
-        // If we're at a ToolCallMessage or ToolResultMessage, skip all tool pairs
-        if ($messages[$trimIndex] instanceof ToolCallMessage || $messages[$trimIndex] instanceof ToolResultMessage) {
-            $trimIndex = $this->skipToolCallResultPairs($messages, $trimIndex);
-        }
-
-        // Check the current position after skipping tool pairs
-        if ($trimIndex >= $count || $messages[$trimIndex]::class === UserMessage::class) {
-            return $trimIndex;
-        }
-
-        // Find the next AssistantMessage (not ToolCallMessage) and trim after it.
-        // We exclude the last message since it's the one being added and shouldn't be trimmed
         for ($i = $trimIndex; $i < $count - 1; $i++) {
             $message = $messages[$i];
-            // Only consider actual AssistantMessage, not ToolCallMessage
-            if ($message::class === AssistantMessage::class) {
-                return $i + 1;
+
+            // Update tokens from checkpoint if available
+            $usage = $message->getUsage();
+            if ($usage instanceof Usage) {
+                $tokens = $usage->inputTokens + $usage->outputTokens;
+            }
+
+            if ($message::class === UserMessage::class) {
+                return ['index' => $i, 'tokens' => $tokens];
             }
         }
 
-        // No valid trim point found before the last message - return 0 to keep all messages
-        return 0;
+        // No valid UserMessage found after the trim point
+        return null;
     }
 
-    /**
-     * Skip all tool call/result pairs.
-     *
-     * @param Message[] $messages
-     */
-    protected function skipToolCallResultPairs(array $messages, int $trimIndex): int
+    protected function adjustIndexBackward(array $messages, int $trimIndex, int $tokens): ?array
     {
         $count = count($messages);
 
-        while ($trimIndex < $count) {
-            $message = $messages[$trimIndex];
-
-            // Skip ToolCallMessage and its following ToolResultMessages
-            if ($message instanceof ToolCallMessage) {
-                $trimIndex++;
-                while ($trimIndex < $count && $messages[$trimIndex] instanceof ToolResultMessage) {
-                    $trimIndex++;
-                }
-                continue;
-            }
-
-            // Skip orphaned ToolResultMessage (shouldn't happen with valid history)
-            if ($message instanceof ToolResultMessage) {
-                $trimIndex++;
-                continue;
-            }
-
-            return $trimIndex;
+        // Ensure trimIndex is within bounds
+        if ($trimIndex >= $count) {
+            $trimIndex = $count - 1;
         }
 
-        return $trimIndex;
+        for ($i = $trimIndex; $i >= 0; $i--) {
+            $message = $messages[$i];
+
+            // Update tokens from checkpoint if available
+            $usage = $message->getUsage();
+            if ($usage instanceof Usage) {
+                $tokens = $usage->inputTokens + $usage->outputTokens;
+            }
+
+            if ($message::class === UserMessage::class) {
+                return ['index' => $i, 'tokens' => $tokens];
+            }
+        }
+
+        // No valid UserMessage found before the trim point
+        return null;
     }
 
     /**
