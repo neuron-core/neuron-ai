@@ -10,7 +10,7 @@ use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
 abstract class BaseEvaluator implements EvaluatorInterface
 {
-    private readonly RuleExecutor $ruleExecutor;
+    protected readonly RuleExecutor $ruleExecutor;
 
     public function __construct()
     {
@@ -97,5 +97,39 @@ abstract class BaseEvaluator implements EvaluatorInterface
     public function resetAssertionState(): void
     {
         $this->ruleExecutor->reset();
+    }
+
+    /**
+     * Get all assertion scores
+     *
+     * @return array<float>
+     */
+    public function getAssertionScores(): array
+    {
+        return $this->ruleExecutor->getScores();
+    }
+
+    /**
+     * Get the average assertion score
+     */
+    public function getAverageAssertionScore(): float
+    {
+        return $this->ruleExecutor->getAverageScore();
+    }
+
+    /**
+     * Get the minimum assertion score
+     */
+    public function getMinAssertionScore(): float
+    {
+        return $this->ruleExecutor->getMinScore();
+    }
+
+    /**
+     * Get the maximum assertion score
+     */
+    public function getMaxAssertionScore(): float
+    {
+        return $this->ruleExecutor->getMaxScore();
     }
 }

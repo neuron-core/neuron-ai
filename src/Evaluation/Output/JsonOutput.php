@@ -55,6 +55,8 @@ class JsonOutput implements EvaluationOutputInterface
      */
     private function summaryToArray(EvaluatorSummary $summary): array
     {
+        $allScores = $summary->getAllAssertionScores();
+
         return [
             'total' => $summary->getTotalCount(),
             'passed' => $summary->getPassedCount(),
@@ -66,6 +68,11 @@ class JsonOutput implements EvaluationOutputInterface
             'assertions_passed' => $summary->getTotalAssertionsPassed(),
             'assertions_failed' => $summary->getTotalAssertionsFailed(),
             'assertion_success_rate' => $summary->getAssertionSuccessRate(),
+            'score_statistics' => $allScores !== [] ? [
+                'average_score' => $summary->getAverageAssertionScore(),
+                'min_score' => $summary->getMinAssertionScore(),
+                'max_score' => $summary->getMaxAssertionScore(),
+            ] : null,
             'has_failures' => $summary->hasFailures(),
             'results' => array_map(
                 fn (EvaluatorResult $r): array => [
@@ -77,6 +84,7 @@ class JsonOutput implements EvaluationOutputInterface
                     'error' => $r->getError(),
                     'assertions_passed' => $r->getAssertionsPassed(),
                     'assertions_failed' => $r->getAssertionsFailed(),
+                    'assertion_scores' => $r->getAssertionScores(),
                 ],
                 $summary->getResults()
             ),

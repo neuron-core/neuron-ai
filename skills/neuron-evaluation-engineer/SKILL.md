@@ -613,20 +613,20 @@ name: Evaluation Tests
 on: [push, pull_request]
 
 jobs:
-  evaluate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-      - name: Install dependencies
-        run: composer install
-      - name: Run evaluations
-        run: vendor/bin/neuron evaluation evaluators --verbose
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    evaluate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.2'
+            - name: Install dependencies
+              run: composer install
+            - name: Run evaluations
+              run: vendor/bin/neuron evaluation evaluators --verbose
+              env:
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ### Failing on Thresholds
@@ -641,21 +641,21 @@ vendor/bin/neuron evaluation evaluators || exit 1
 When helping users with evaluations:
 
 1. **Dataset format** depends on:
-   - Small datasets → `ArrayDataset` (in code)
-   - Large/external datasets → `JsonDataset` (files)
+    - Small datasets → `ArrayDataset` (in code)
+    - Large/external datasets → `JsonDataset` (files)
 
 2. **Assertion choice** depends on:
-   - Exact matching → `StringContains`, `StringStartsWith`
-   - Pattern matching → `MatchesRegex`
-   - Semantic similarity → `StringSimilarity` (embeddings)
-   - Fuzzy matching → `StringDistance`
+    - Exact matching → `StringContains`, `StringStartsWith`
+    - Pattern matching → `MatchesRegex`
+    - Semantic similarity → `StringSimilarity` (embeddings)
+    - Fuzzy matching → `StringDistance`
 
 3. **Output configuration** based on:
-   - Development → `ConsoleOutput` with verbose mode
-   - CI/CD → `JsonOutput` to file
-   - Analytics → Custom driver to database/API
+    - Development → `ConsoleOutput` with verbose mode
+    - CI/CD → `JsonOutput` to file
+    - Analytics → Custom driver to database/API
 
 4. **Evaluation granularity**:
-   - Unit tests → Single assertion per evaluator
-   - Integration tests → Multiple assertions
-   - System tests → Multiple evaluators covering different scenarios
+    - Unit tests → Single assertion per evaluator
+    - Integration tests → Multiple assertions
+    - System tests → Multiple evaluators covering different scenarios

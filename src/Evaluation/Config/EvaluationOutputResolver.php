@@ -17,10 +17,10 @@ class EvaluationOutputResolver
     /**
      * @var EvaluationOutputInterface[]
      */
-    private array $resolvedDrivers = [];
+    protected array $resolvedDrivers = [];
 
     public function __construct(
-        private readonly EvaluationOutputFactory $factory = new EvaluationOutputFactory()
+        protected readonly EvaluationOutputFactory $factory = new EvaluationOutputFactory()
     ) {
     }
 
