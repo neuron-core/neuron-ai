@@ -99,9 +99,24 @@ class ConsoleOutput implements EvaluationOutputInterface
             $failedAssertions,
             $assertionSuccessRate
         );
+
+        // Display score statistics if there are any scores
+        $allScores = $summary->getAllAssertionScores();
+        if ($allScores !== []) {
+            $avgScore = round($summary->getAverageAssertionScore(), 3);
+            $minScore = round($summary->getMinAssertionScore(), 3);
+            $maxScore = round($summary->getMaxAssertionScore(), 3);
+
+            echo sprintf(
+                "Score Stats: Avg: %s, Min: %s, Max: %s\n",
+                $avgScore,
+                $minScore,
+                $maxScore
+            );
+        }
     }
 
-    private function printFailures(EvaluatorSummary $summary): void
+    protected function printFailures(EvaluatorSummary $summary): void
     {
         echo "There were " . $summary->getFailedCount() . " failure(s):\n\n";
 
@@ -132,7 +147,7 @@ class ConsoleOutput implements EvaluationOutputInterface
         }
     }
 
-    private function formatOutput(mixed $output): string
+    protected function formatOutput(mixed $output): string
     {
         if (is_string($output)) {
             return '"' . $output . '"';
@@ -153,7 +168,7 @@ class ConsoleOutput implements EvaluationOutputInterface
         return (string) $output;
     }
 
-    private function printAssertionFailureSummary(EvaluatorSummary $summary): void
+    protected function printAssertionFailureSummary(EvaluatorSummary $summary): void
     {
         $failuresByLocation = $summary->getAssertionFailuresByLocation();
 

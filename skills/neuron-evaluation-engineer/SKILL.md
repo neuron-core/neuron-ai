@@ -114,42 +114,42 @@ JSON format (`sentiment.json`):
 ### String Assertions
 
 #### StringContains
-Check if output contains a substring:
+Check if the output contains a substring:
 
 ```php
 $this->assert(new StringContains('positive'), $output);
 ```
 
 #### StringContainsAll
-Check if output contains all keywords:
+Check if the output contains all keywords:
 
 ```php
 $this->assert(new StringContainsAll(['hello', 'world']), $output);
 ```
 
 #### StringContainsAny
-Check if output contains any of the keywords:
+Check if the output contains any of the keywords:
 
 ```php
 $this->assert(new StringContainsAny(['success', 'completed']), $output);
 ```
 
 #### StringStartsWith
-Check if output starts with a prefix:
+Check if the output starts with a prefix:
 
 ```php
 $this->assert(new StringStartsWith('Hello'), $output);
 ```
 
 #### StringEndsWith
-Check if output ends with a suffix:
+Check if the output ends with a suffix:
 
 ```php
 $this->assert(new StringEndsWith('!'), $output);
 ```
 
 #### StringLengthBetween
-Check if string length is within range:
+Check if the string length is within range:
 
 ```php
 $this->assert(new StringLengthBetween(10, 100), $output);
@@ -192,7 +192,7 @@ $this->assert(new MatchesRegex('/^\d{3}-\d{2}-\d{4}$/'), $output);
 ### Structure Assertions
 
 #### IsValidJson
-Check if output is valid JSON:
+Check if the output is valid JSON:
 
 ```php
 $this->assert(new IsValidJson(), $output);
@@ -232,6 +232,7 @@ class GreaterThanAssertion extends AbstractAssertion
 ```
 
 Use it:
+
 ```php
 $this->assert(new GreaterThanAssertion(0.8), $score);
 ```
@@ -612,20 +613,20 @@ name: Evaluation Tests
 on: [push, pull_request]
 
 jobs:
-  evaluate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-      - name: Install dependencies
-        run: composer install
-      - name: Run evaluations
-        run: vendor/bin/neuron evaluation evaluators --verbose
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    evaluate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.2'
+            - name: Install dependencies
+              run: composer install
+            - name: Run evaluations
+              run: vendor/bin/neuron evaluation evaluators --verbose
+              env:
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ### Failing on Thresholds
@@ -640,21 +641,21 @@ vendor/bin/neuron evaluation evaluators || exit 1
 When helping users with evaluations:
 
 1. **Dataset format** depends on:
-   - Small datasets → `ArrayDataset` (in code)
-   - Large/external datasets → `JsonDataset` (files)
+    - Small datasets → `ArrayDataset` (in code)
+    - Large/external datasets → `JsonDataset` (files)
 
 2. **Assertion choice** depends on:
-   - Exact matching → `StringContains`, `StringStartsWith`
-   - Pattern matching → `MatchesRegex`
-   - Semantic similarity → `StringSimilarity` (embeddings)
-   - Fuzzy matching → `StringDistance`
+    - Exact matching → `StringContains`, `StringStartsWith`
+    - Pattern matching → `MatchesRegex`
+    - Semantic similarity → `StringSimilarity` (embeddings)
+    - Fuzzy matching → `StringDistance`
 
 3. **Output configuration** based on:
-   - Development → `ConsoleOutput` with verbose mode
-   - CI/CD → `JsonOutput` to file
-   - Analytics → Custom driver to database/API
+    - Development → `ConsoleOutput` with verbose mode
+    - CI/CD → `JsonOutput` to file
+    - Analytics → Custom driver to database/API
 
 4. **Evaluation granularity**:
-   - Unit tests → Single assertion per evaluator
-   - Integration tests → Multiple assertions
-   - System tests → Multiple evaluators covering different scenarios
+    - Unit tests → Single assertion per evaluator
+    - Integration tests → Multiple assertions
+    - System tests → Multiple evaluators covering different scenarios

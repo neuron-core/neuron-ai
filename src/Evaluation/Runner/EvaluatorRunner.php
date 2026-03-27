@@ -52,6 +52,7 @@ class EvaluatorRunner
                 $assertionsPassed,
                 $assertionsFailed,
                 $assertionFailures,
+                $evaluator->getAssertionScores(),
                 $error
             );
         }

@@ -11,11 +11,11 @@ use function sprintf;
 class AssertionFailure
 {
     public function __construct(
-        private readonly string $evaluatorClass,
-        private readonly string $assertionMethod,
-        private readonly string $message,
-        private readonly int $lineNumber,
-        private readonly array $context = []
+        protected readonly string $evaluatorClass,
+        protected readonly string $assertionMethod,
+        protected readonly string $message,
+        protected readonly int $lineNumber,
+        protected readonly array $context = []
     ) {
     }
 
