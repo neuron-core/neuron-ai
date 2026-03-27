@@ -6,11 +6,17 @@ namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 
+use function array_sum;
+use function count;
+use function max;
+use function min;
+
 class EvaluatorResult
 {
     /**
      * @param array<string, mixed> $input
      * @param array<AssertionFailure> $assertionFailures
+     * @param array<float> $assertionScores
      */
     public function __construct(
         private readonly int $index,
@@ -21,6 +27,7 @@ class EvaluatorResult
         private readonly int $assertionsPassed,
         private readonly int $assertionsFailed,
         private readonly array $assertionFailures = [],
+        private readonly array $assertionScores = [],
         private readonly ?string $error = null
     ) {
     }
@@ -89,5 +96,37 @@ class EvaluatorResult
     public function hasAssertionFailures(): bool
     {
         return $this->assertionFailures !== [];
+    }
+
+    /**
+     * @return array<float>
+     */
+    public function getAssertionScores(): array
+    {
+        return $this->assertionScores;
+    }
+
+    public function getAverageAssertionScore(): float
+    {
+        if ($this->assertionScores === []) {
+            return 0.0;
+        }
+        return array_sum($this->assertionScores) / count($this->assertionScores);
+    }
+
+    public function getMinAssertionScore(): float
+    {
+        if ($this->assertionScores === []) {
+            return 0.0;
+        }
+        return min($this->assertionScores);
+    }
+
+    public function getMaxAssertionScore(): float
+    {
+        if ($this->assertionScores === []) {
+            return 0.0;
+        }
+        return max($this->assertionScores);
     }
 }

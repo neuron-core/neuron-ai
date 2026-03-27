@@ -11,6 +11,8 @@ use function array_map;
 use function array_merge;
 use function array_sum;
 use function count;
+use function max;
+use function min;
 
 class EvaluatorSummary
 {
@@ -153,5 +155,55 @@ class EvaluatorSummary
             $groupedFailures[$key][] = $failure;
         }
         return $groupedFailures;
+    }
+
+    /**
+     * Get all assertion scores across all results
+     *
+     * @return array<float>
+     */
+    public function getAllAssertionScores(): array
+    {
+        $scores = [];
+        foreach ($this->results as $result) {
+            $scores = array_merge($scores, $result->getAssertionScores());
+        }
+        return $scores;
+    }
+
+    /**
+     * Get the average assertion score across all evaluations
+     */
+    public function getAverageAssertionScore(): float
+    {
+        $scores = $this->getAllAssertionScores();
+        if ($scores === []) {
+            return 0.0;
+        }
+        return array_sum($scores) / count($scores);
+    }
+
+    /**
+     * Get the minimum assertion score across all evaluations
+     */
+    public function getMinAssertionScore(): float
+    {
+        $scores = $this->getAllAssertionScores();
+        if ($scores === []) {
+            return 0.0;
+        }
+        return min($scores);
+    }
+
+    /**
+     * Get the maximum assertion score across all evaluations
+     */
+    public function getMaxAssertionScore(): float
+    {
+        $scores = $this->getAllAssertionScores();
+        if ($scores === []) {
+            return 0.0;
+        }
+        return max($scores);
     }
 }
