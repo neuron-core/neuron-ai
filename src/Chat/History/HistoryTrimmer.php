@@ -192,14 +192,14 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     {
         if ($checkpoints === []) {
             $index = $this->findTrimIndexByEstimation($messages, $contextWindow);
-            return $this->adjustTrimIndexToPreservePairs($messages, $index, 0);
+            return $this->adjustTrimIndex($messages, $index, 0);
         }
 
         $threshold = $this->totalTokens - $contextWindow;
 
         foreach ($checkpoints as $checkpoint) {
             if ($checkpoint['tokens'] >= $threshold) {
-                return $this->adjustTrimIndexToPreservePairs(
+                return $this->adjustTrimIndex(
                     $messages,
                     $checkpoint['index'] + 1,
                     $checkpoint['tokens']
@@ -209,7 +209,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
         // Tail overflow: trim at the last checkpoint
         $lastCheckpoint = end($checkpoints);
-        return $this->adjustTrimIndexToPreservePairs(
+        return $this->adjustTrimIndex(
             $messages,
             $lastCheckpoint['index'] + 1,
             (int)$lastCheckpoint['tokens']
@@ -227,7 +227,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      * @param Message[] $messages
      * @return array{index: int, tokens: int}
      */
-    protected function adjustTrimIndexToPreservePairs(array $messages, int $trimIndex, int $tokens): array
+    protected function adjustTrimIndex(array $messages, int $trimIndex, int $tokens): array
     {
         $backward = $this->adjustIndexBackward($messages, $trimIndex, $tokens);
         $forward = $this->adjustIndexForward($messages, $trimIndex, $tokens);
