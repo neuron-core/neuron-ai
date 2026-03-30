@@ -14,15 +14,15 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Set up PHP
               uses: shivammathur/setup-php@v2
               with:
-                  php-version: '8.2'
+                  php-version: '8.1'
 
             - name: Install dependencies
-              run: composer install --no-progress --prefer-dist
+              run: composer install --no-progress --no-interaction --prefer-dist
 
             # This will fail the CI if code is not formatted,
             # showing the user exactly what is wrong in the logs.
