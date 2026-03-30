@@ -10,7 +10,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
@@ -18,7 +17,6 @@ use NeuronAI\Tools\Tool;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
-use function count;
 use function json_decode;
 use function uniqid;
 
