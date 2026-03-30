@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
+use NeuronAI\Evaluation\Contracts\AssertionInterface;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
-use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
 abstract class BaseEvaluator implements EvaluatorInterface
 {
-    protected readonly RuleExecutor $ruleExecutor;
+    protected RuleExecutor $ruleExecutor;
 
     public function __construct()
     {
         $this->ruleExecutor = new RuleExecutor();
     }
+
     /**
      * Set up the method called before evaluation starts.
      * Override this to initialize judge agents and other resources
@@ -39,12 +40,35 @@ abstract class BaseEvaluator implements EvaluatorInterface
     abstract public function run(array $datasetItem): mixed;
 
     /**
-     * Evaluate the output against expected results, with assertions
+     * Evaluate the output against expected results, with assertions.
+     * Developers implement this method to define their assertions.
      *
-     * @param mixed $output Output from the run () method
+     * @param mixed $output Output from the run() method
      * @param array<string, mixed> $datasetItem Reference dataset item for comparison
      */
     abstract public function evaluate(mixed $output, array $datasetItem): void;
+
+    /**
+     * Perform evaluation and return assertion outcomes.
+     * This is the wrapper method called by the runner.
+     *
+     * @internal Used by EvaluatorRunner
+     */
+    final public function performEvaluation(mixed $output, array $datasetItem): AssertionOutcomes
+    {
+        // Reset state before each evaluation to prevent leakage between dataset items
+        $this->ruleExecutor->reset();
+
+        // Call developer's evaluate() implementation
+        $this->evaluate($output, $datasetItem);
+
+        return new AssertionOutcomes(
+            $this->ruleExecutor->getPassedCount(),
+            $this->ruleExecutor->getFailedCount(),
+            $this->ruleExecutor->getFailures(),
+            $this->ruleExecutor->getScores(),
+        );
+    }
 
     /**
      * Execute an evaluation rule
@@ -52,84 +76,5 @@ abstract class BaseEvaluator implements EvaluatorInterface
     protected function assert(AssertionInterface $rule, mixed $actual): bool
     {
         return $this->ruleExecutor->execute($rule, $actual);
-    }
-
-    /**
-     * Get the number of passed assertions
-     */
-    public function getAssertionsPassed(): int
-    {
-        return $this->ruleExecutor->getPassedCount();
-    }
-
-    /**
-     * Get the number of failed assertions
-     */
-    public function getAssertionsFailed(): int
-    {
-        return $this->ruleExecutor->getFailedCount();
-    }
-
-    /**
-     * Get the total number of assertions
-     */
-    public function getTotalAssertions(): int
-    {
-        return $this->ruleExecutor->getTotalCount();
-    }
-
-    /**
-     * Get all assertion failures
-     *
-     * @return array<AssertionFailure>
-     */
-    public function getAssertionFailures(): array
-    {
-        return $this->ruleExecutor->getFailures();
-    }
-
-    /**
-     * Reset assertion state
-     *
-     * Clears all assertion counters and failures. This should be called
-     * between dataset items to ensure isolated assertion state.
-     */
-    public function resetAssertionState(): void
-    {
-        $this->ruleExecutor->reset();
-    }
-
-    /**
-     * Get all assertion scores
-     *
-     * @return array<float>
-     */
-    public function getAssertionScores(): array
-    {
-        return $this->ruleExecutor->getScores();
-    }
-
-    /**
-     * Get the average assertion score
-     */
-    public function getAverageAssertionScore(): float
-    {
-        return $this->ruleExecutor->getAverageScore();
-    }
-
-    /**
-     * Get the minimum assertion score
-     */
-    public function getMinAssertionScore(): float
-    {
-        return $this->ruleExecutor->getMinScore();
-    }
-
-    /**
-     * Get the maximum assertion score
-     */
-    public function getMaxAssertionScore(): float
-    {
-        return $this->ruleExecutor->getMaxScore();
     }
 }
