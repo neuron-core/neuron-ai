@@ -27,8 +27,9 @@ For each dataset item:
 1. `setUp()` - Initialize resources (once per evaluator)
 2. `run(datasetItem)` - Execute your AI logic
 3. `evaluate(output, datasetItem)` - Assert against expected results
-4. Reset assertion state
-5. Repeat for next item
+4. Repeat for next item
+
+**Note:** Each evaluation starts with a fresh assertion executor - no manual reset needed.
 
 ## Creating Custom Evaluators
 
@@ -48,11 +49,8 @@ class SentimentEvaluator extends BaseEvaluator
 
     public function setUp(): void
     {
-        $this->agent = Agent::make(
-            new SystemPrompt(
-                background: ['You are a sentiment analyzer.']
-            )
-        );
+        $this->agent = Agent::make()
+            ->setInstructions('You are a sentiment analyzer.');
     }
 
     public function getDataset(): DatasetInterface
@@ -81,7 +79,7 @@ class SentimentEvaluator extends BaseEvaluator
     public function evaluate(mixed $output, array $datasetItem): void
     {
         $this->assert(
-            new StringContains($datasetItem['expected_sentiment']),
+            new StringContains($datasetItem['text']),
             $output
         );
     }

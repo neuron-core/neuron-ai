@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Runner;
 
-use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 use Throwable;
 
 use function microtime;
 
 class EvaluatorRunner
 {
-    public function run(BaseEvaluator $evaluator): EvaluatorSummary
+    /**
+     * Run the evaluator and return a summary of results
+     */
+    public function run(EvaluatorInterface $evaluator): EvaluatorSummary
     {
         $evaluator->setUp();
 
@@ -21,16 +24,14 @@ class EvaluatorRunner
         $totalTime = 0.0;
 
         foreach ($data as $index => $item) {
-            // Reset assertion state before each dataset item to ensure isolation
-            $evaluator->resetAssertionState();
-
             $startTime = microtime(true);
             $error = null;
             $output = null;
+            $outcomes = null;
 
             try {
                 $output = $evaluator->run($item);
-                $evaluator->evaluate($output, $item);
+                $outcomes = $evaluator->performEvaluation($output, $item);
             } catch (Throwable $e) {
                 $error = $e->getMessage();
             }
@@ -38,21 +39,16 @@ class EvaluatorRunner
             $executionTime = microtime(true) - $startTime;
             $totalTime += $executionTime;
 
-            // Capture assertion counts and failures
-            $assertionsPassed = $evaluator->getAssertionsPassed();
-            $assertionsFailed = $evaluator->getAssertionsFailed();
-            $assertionFailures = $evaluator->getAssertionFailures();
-
             $results[] = new EvaluatorResult(
                 $index,
-                $assertionsFailed === 0,
+                $outcomes !== null && $outcomes->isPassed(),
                 $item,
                 $output,
                 $executionTime,
-                $assertionsPassed,
-                $assertionsFailed,
-                $assertionFailures,
-                $evaluator->getAssertionScores(),
+                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->passedCount : 0,
+                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->failedCount : 0,
+                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->failures : [],
+                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->scores : [],
                 $error
             );
         }
