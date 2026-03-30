@@ -20,6 +20,7 @@ use function tempnam;
 use function unlink;
 use function ob_get_clean;
 use function ob_start;
+use function ini_set;
 
 class OutputDriversTest extends TestCase
 {
@@ -162,8 +163,17 @@ class OutputDriversTest extends TestCase
         $pipeline = new OutputPipeline([$driver1, $driver2]);
         $summary = $this->createSummary();
 
-        // Should not throw, continues despite driver1 failing
-        $pipeline->output($summary);
+        // Redirect error_log to a temp file to suppress noisy output
+        $tempLog = tempnam(sys_get_temp_dir(), 'error_log_');
+        $originalLog = ini_set('error_log', $tempLog);
+
+        try {
+            // Should not throw, continues despite driver1 failing
+            $pipeline->output($summary);
+        } finally {
+            ini_set('error_log', $originalLog);
+            unlink($tempLog);
+        }
 
         $this->assertEquals(['driver1', 'driver2'], $calls);
     }
