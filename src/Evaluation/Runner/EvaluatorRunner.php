@@ -41,7 +41,7 @@ class EvaluatorRunner
 
             $results[] = new EvaluatorResult(
                 $index,
-                $outcomes !== null && $outcomes->isPassed(),
+                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes && $outcomes->isPassed(),
                 $item,
                 $output,
                 $executionTime,

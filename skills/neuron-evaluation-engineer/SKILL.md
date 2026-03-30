@@ -79,7 +79,7 @@ class SentimentEvaluator extends BaseEvaluator
     public function evaluate(mixed $output, array $datasetItem): void
     {
         $this->assert(
-            new StringContains($datasetItem['text']),
+            new StringContains($datasetItem['expected_sentiment']),
             $output
         );
     }
@@ -194,6 +194,84 @@ Check if the output is valid JSON:
 
 ```php
 $this->assert(new IsValidJson(), $output);
+```
+
+### AI Judge Assertions
+
+#### AgentJudge
+Use an AI agent to evaluate outputs with custom criteria:
+
+```php
+use NeuronAI\Evaluation\Assertions\AgentJudge;
+use NeuronAI\Agent;
+
+$judge = Agent::make()
+    ->setInstructions('You are an expert evaluator for customer support responses.');
+
+// Reference-free evaluation (criteria only)
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'Response should be helpful, polite, and address the customer\'s question directly',
+    threshold: 0.7
+), $output);
+
+// Reference-based evaluation (compare to expected)
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'The response should convey the same meaning as the reference',
+    threshold: 0.8,
+    reference: $datasetItem['expected_answer']
+), $output);
+
+// With few-shot examples for calibration
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'Rate the factual accuracy of the response',
+    threshold: 0.7,
+    examples: [
+        [
+            'input' => 'What is 2+2?',
+            'output' => '2+2 equals 4',
+            'score' => 1.0,
+            'reasoning' => 'Mathematically correct and clear.',
+        ],
+    ]
+), $output);
+```
+
+#### Pre-configured Judges
+
+Built-in judges for common evaluation scenarios:
+
+```php
+use NeuronAI\Evaluation\Assertions\Judges\{FaithfulnessJudge, CorrectnessJudge, RelevanceJudge, HelpfulnessJudge};
+
+// Faithfulness - check if output is grounded in context (no hallucinations)
+$this->assert(new FaithfulnessJudge(
+    judge: $judge,
+    context: $retrievedDocuments,
+    threshold: 0.7
+), $output);
+
+// Correctness - compare to expected answer
+$this->assert(new CorrectnessJudge(
+    judge: $judge,
+    expected: $datasetItem['expected_answer'],
+    threshold: 0.7
+), $output);
+
+// Relevance - check if output addresses the question
+$this->assert(new RelevanceJudge(
+    judge: $judge,
+    question: $datasetItem['question'],
+    threshold: 0.7
+), $output);
+
+// Helpfulness - evaluate utility and actionability
+$this->assert(new HelpfulnessJudge(
+    judge: $judge,
+    threshold: 0.7
+), $output);
 ```
 
 ### Creating Custom Assertions
@@ -456,28 +534,33 @@ public function evaluate(mixed $output, array $datasetItem): void
 
 ### Using AI Judge for Scoring
 
+Use the built-in `AgentJudge` assertion for AI-powered evaluation:
+
 ```php
-use NeuronAI\Evaluation\JudgeScoreOutput;
+use NeuronAI\Evaluation\Assertions\AgentJudge;
+use NeuronAI\Evaluation\Assertions\Judges\CorrectnessJudge;
+
+public function setUp(): void
+{
+    $this->judge = Agent::make()
+        ->setInstructions('You are an expert evaluator for AI responses.');
+}
 
 public function evaluate(mixed $output, array $datasetItem): void
 {
-    $judge = Agent::make(
-        new SystemPrompt([
-            'You are an expert evaluator.',
-            'Rate the quality of responses from 0.0 to 1.0.',
-        ])
-    );
+    // Simple criteria-based evaluation
+    $this->assert(new AgentJudge(
+        judge: $this->judge,
+        criteria: 'Rate the quality and accuracy of the response',
+        threshold: 0.7
+    ), $output);
 
-    $prompt = "Expected: {$datasetItem['expected']}\n" .
-              "Actual: {$output}\n" .
-              "Rate the similarity.";
-
-    $result = $judge->structured(
-        new UserMessage($prompt),
-        JudgeScoreOutput::class
-    );
-
-    $this->assert(new GreaterThanAssertion(0.7), $result->score);
+    // Or use pre-configured judges
+    $this->assert(new CorrectnessJudge(
+        judge: $this->judge,
+        expected: $datasetItem['expected'],
+        threshold: 0.7
+    ), $output);
 }
 ```
 
