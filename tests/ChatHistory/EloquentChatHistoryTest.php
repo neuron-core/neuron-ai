@@ -182,8 +182,9 @@ class EloquentChatHistoryTest extends TestCase
         $smallHistory = new EloquentChatHistory($this->threadId, ChatMessage::class, contextWindow: 100);
 
         // Add many messages to exceed context window
+        // Start with UserMessage (i=1 is odd) to create valid sequence
         for ($i = 1; $i <= 20; $i++) {
-            $message = $i % 2 === 0
+            $message = $i % 2 === 1
                 ? new UserMessage("User message $i with some text")
                 : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
             $smallHistory->addMessage($message);

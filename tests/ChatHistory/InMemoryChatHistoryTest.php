@@ -60,11 +60,11 @@ class InMemoryChatHistoryTest extends TestCase
         $message->setUsage(new Usage(15, 12));
         $history->addMessage($message);
 
-        // The trimmer will keep only the assistant message because the user message will have 15 tokens > context_window
-        // Only the AssistantMessage will remain
-        // Since a chat history can't end with an assistant message, it will be removed during validation
-        // The final result is no messages
-        $this->assertCount(0, $history->getMessages());
+        // The trimmer uses bidirectional search to find the closest UserMessage.
+        // Even though both messages exceed the context window (27 tokens > 13),
+        // the backward search finds the UserMessage at index 0 and keeps both.
+        // This is the intentional trade-off: minimize context loss while ensuring valid sequence.
+        $this->assertCount(2, $history->getMessages());
     }
 
     public function test_chat_history_clear(): void
