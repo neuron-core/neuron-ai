@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Evaluation\Assertions\AgentJudge;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -22,7 +24,7 @@ class AgentJudgeTest extends TestCase
      * Create a fake agent with predetermined judge score.
      * Adds multiple responses to handle potential retries.
      */
-    protected function createFakeAgentWithScore(float $score, string $reasoning, int $responseCount = 3): Agent
+    protected function createFakeAgentWithScore(float $score, string $reasoning, int $responseCount = 3): AgentInterface
     {
         $fakeProvider = FakeAIProvider::make();
 
@@ -156,7 +158,7 @@ class AgentJudgeTest extends TestCase
         $this->assertTrue($result->passed);
 
         // Verify the reference was included in the prompt
-        $fakeProvider->assertSent(function ($record): bool {
+        $fakeProvider->assertSent(function (RequestRecord $record): bool {
             $messages = $record->messages;
             $lastMessage = $messages[count($messages) - 1];
             return str_contains((string) $lastMessage->getContent(), 'Expected (Reference):') &&
@@ -195,7 +197,7 @@ class AgentJudgeTest extends TestCase
         $this->assertTrue($result->passed);
 
         // Verify the examples were included in the prompt
-        $fakeProvider->assertSent(function ($record): bool {
+        $fakeProvider->assertSent(function (RequestRecord $record): bool {
             $content = $record->messages[0]->getContent();
             return str_contains($content, 'Examples of graded outputs:') &&
                    str_contains($content, 'What is PHP?');
@@ -267,7 +269,7 @@ class AgentJudgeTest extends TestCase
 
         $assertion->evaluate('Test output');
 
-        $fakeProvider->assertSent(function ($record): bool {
+        $fakeProvider->assertSent(function (RequestRecord $record): bool {
             $content = $record->messages[0]->getContent();
             return str_contains($content, 'Criteria:') &&
                    str_contains($content, 'Expected (Reference):') &&

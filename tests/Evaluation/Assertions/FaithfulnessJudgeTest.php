@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Evaluation\Assertions\Judges\FaithfulnessJudge;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
@@ -17,7 +19,7 @@ use const JSON_THROW_ON_ERROR;
 
 class FaithfulnessJudgeTest extends TestCase
 {
-    protected function createFakeAgentWithScore(float $score, string $reasoning, int $responseCount = 3): Agent
+    protected function createFakeAgentWithScore(float $score, string $reasoning, int $responseCount = 3): AgentInterface
     {
         $fakeProvider = FakeAIProvider::make();
 
@@ -95,7 +97,7 @@ class FaithfulnessJudgeTest extends TestCase
 
         $assertion->evaluate('The price is $99.');
 
-        $fakeProvider->assertSent(function ($record) use ($context): bool {
+        $fakeProvider->assertSent(function (RequestRecord $record) use ($context): bool {
             $content = $record->messages[0]->getContent();
             return str_contains($content, 'Context:') &&
                    str_contains($content, $context);
@@ -117,7 +119,7 @@ class FaithfulnessJudgeTest extends TestCase
 
         $assertion->evaluate('Output');
 
-        $fakeProvider->assertSent(function ($record): bool {
+        $fakeProvider->assertSent(function (RequestRecord $record): bool {
             $content = $record->messages[0]->getContent();
             return str_contains($content, 'factually grounded') &&
                    str_contains($content, 'hallucinations');
