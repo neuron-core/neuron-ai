@@ -150,7 +150,7 @@ class Tool implements ToolInterface
 
     public function getInputs(): array
     {
-        return $this->inputs ?? [];
+        return $this->inputs;
     }
 
     public function getInput(string $key): mixed
