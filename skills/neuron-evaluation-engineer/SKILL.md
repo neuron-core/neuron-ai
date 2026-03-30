@@ -43,33 +43,25 @@ use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Agent;
 use NeuronAI\Agent\SystemPrompt;
 
-class SentimentEvaluator extends BaseEvaluator
+class ContainsEvaluator extends BaseEvaluator
 {
-    private Agent $agent;
-
-    public function setUp(): void
-    {
-        $this->agent = Agent::make()
-            ->setInstructions('You are a sentiment analyzer.');
-    }
-
     public function getDataset(): DatasetInterface
     {
         return new ArrayDataset([
             [
                 'text' => 'I love this product!',
-                'expected_sentiment' => 'positive',
+                'content' => 'product',
             ],
             [
                 'text' => 'This is terrible.',
-                'expected_sentiment' => 'negative',
+                'content' => 'positive',
             ],
         ]);
     }
 
     public function run(array $datasetItem): mixed
     {
-        $response = $this->agent->chat(
+        $response = MyAgent::make()->chat(
             new UserMessage($datasetItem['text'])
         )->getMessage();
 
@@ -79,7 +71,7 @@ class SentimentEvaluator extends BaseEvaluator
     public function evaluate(mixed $output, array $datasetItem): void
     {
         $this->assert(
-            new StringContains($datasetItem['expected_sentiment']),
+            new StringContains($datasetItem['content']),
             $output
         );
     }
