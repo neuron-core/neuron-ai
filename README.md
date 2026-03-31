@@ -35,13 +35,13 @@ https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 
 Neuron is the perfect AI architecture for your project.
 
-## Laravel
+## Laravel Demo
 Neuron offers a well-defined encapsulation pattern, allowing you to work on your agentic system in dedicated namespaces.
 You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, or Nova.
 
 [Example project (GitHub)](https://github.com/neuron-core/laravel-travel-agent)
 
-## Symfony
+## Symfony Demo
 
 All Neuron components belong to its own interface, so you can define dependencies and automate objects creation
 using the Symfony service container. Watch how it works in a real project.
