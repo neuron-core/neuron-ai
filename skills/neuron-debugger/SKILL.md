@@ -55,16 +55,20 @@ All components emit events automatically:
 ```php
 use NeuronAI\Observability\EventBus;
 
-// Agents emit events like:
-// - 'agent.chat.started'
-// - 'agent.llm.inference'
-// - 'agent.tool.called'
-// - 'agent.response.completed'
-
 // Workflows emit events like:
-// - 'workflow.started'
-// - 'workflow.node.executed'
-// - 'workflow.completed'
+// - 'workflow-start'
+// - 'workflow-resume'
+// - 'workflow-end'
+// - 'workflow-node-start'
+// - 'workflow-node-end'
+// - 'middleware-before-start'
+// - 'middleware-after-end'
+// - 'tool-calling'
+// - 'tool-called'
+// - 'rag-retrieving'
+// - 'rag-retrieved'
+// - 'inference-start'
+// - 'inference-end'
 ```
 
 ### Custom Observers
@@ -173,16 +177,12 @@ protected function instructions(): string
 
 3. **Optimization strategies**:
    - Enable parallel tool calls
-   - Use caching for expensive operations
    - Optimize database queries
    - Use smaller/faster embedding models
 
 ```php
 // Enable parallel tool execution
-$agent->setConfig(['parallelToolCalls' => true]);
-
-// Cache vector embeddings
-$rag->vectorStore()->setCache($cacheAdapter);
+$agent->parallelToolCalls(true);
 ```
 
 ### Poor Response Quality
@@ -218,7 +218,7 @@ protected function instructions(): string
             "You are a helpful assistant answering questions",
             "about our product using only the provided context.",
         ],
-        constraints: [
+        steps: [
             "Never make up information.",
             "If you don't know, say so clearly.",
             "Cite sources when possible.",
@@ -259,53 +259,6 @@ class MyTool extends Tool
         }
     }
 }
-```
-
-## Performance Monitoring
-
-### Key Metrics to Track
-
-**LLM Inference**:
-- Time per call
-- Token usage (input/output)
-- Model selection impact
-
-**Tool Execution**:
-- Time per tool call
-- Success/failure rate
-- External API latency
-
-**RAG Retrieval**:
-- Retrieval time
-- Document count
-- Relevance scores
-
-### Viewing Metrics in Inspector
-
-1. Navigate to your dashboard
-2. Click on an execution trace
-3. Expand segments to see details
-4. Use filters to find slow operations
-
-### Creating Custom Performance Segments
-
-```php
-use NeuronAI\Observability\InspectorObserver;
-
-$observer = InspectorObserver::instance();
-
-$segment = $observer->addSegment('custom', 'my_operation');
-
-// Your operation here
-$result = $this->doSomethingExpensive();
-
-$segment->end();
-
-// Or add custom data
-$segment->addContext([
-    'items_processed' => count($result),
-    'duration_ms' => $segment->getDuration(),
-]);
 ```
 
 ## Logging
@@ -398,10 +351,6 @@ Inspector provides detailed error analysis:
 3. **Context**: Input data, state at time of error
 4. **Patterns**: Repeated issues, common failure modes
 
-Access via Inspector dashboard → Errors tab.
-
-## Workflow-Specific Debugging
-
 ### Tracing Node Execution
 
 ```php
@@ -421,22 +370,6 @@ class TracingObserver implements ObserverInterface
 EventBus::observe(new TracingObserver());
 ```
 
-### Debugging Workflow State
-
-```php
-class DebugNode extends Node
-{
-    public function __invoke(Event $event, WorkflowState $state): Event
-    {
-        // Dump current state
-        error_log("State: " . json_encode($state->all()));
-
-        // Continue execution
-        return $this->process($event, $state);
-    }
-}
-```
-
 ### Exporting Workflows for Visualization
 
 ```php
@@ -446,23 +379,6 @@ $workflow->setExporter(new MermaidExporter());
 $diagram = $workflow->export();
 
 file_put_contents('workflow_diagram.mmd', $diagram);
-```
-
-## Common Debugging Commands
-
-```bash
-# View Inspector logs
-tail -f storage/logs/inspector.log
-
-# Check environment
-echo $INSPECTOR_INGESTION_KEY
-
-# Test agent with verbose mode
-php bin/console neuron:chat --verbose "Your question"
-
-# Run with debugging
-export NEURON_DEBUG=1
-php bin/console neuron:chat "Your question"
 ```
 
 ## Debugging Checklist
@@ -486,26 +402,5 @@ If issues persist:
 
 1. **Check Inspector** - timeline and errors
 2. **Review logs** - application and framework logs
-3. **Enable debug mode** - `NEURON_DEBUG=1`
 4. **Create minimal reproduction** - simplify the agent
-5. **Consult documentation** - https://docs.neuron-ai.dev/
-
-## Best Practices
-
-### Production Monitoring
-- Always use Inspector in production
-- Set up alerts for error rates
-- Monitor latency percentiles (p95, p99)
-- Track token usage for cost management
-
-### Development Debugging
-- Use custom observers for specific events
-- Add tracing for complex workflows
-- Export workflow diagrams for understanding
-- Use mock providers for testing
-
-### Error Handling
-- Return errors in LLM-readable format
-- Add context to error messages
-- Log errors with sufficient detail
-- Set up error rate monitoring
+5. **Consult Neuron AI documentation** - https://docs.neuron-ai.dev/
