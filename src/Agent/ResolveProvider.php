@@ -13,7 +13,7 @@ trait ResolveProvider
      */
     protected AIProviderInterface $provider;
 
-    public function setAiProvider(AIProviderInterface $provider): static
+    public function setAiProvider(AIProviderInterface $provider): AgentInterface
     {
         $this->provider = $provider;
 
