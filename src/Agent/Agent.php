@@ -34,8 +34,7 @@ class Agent extends Workflow implements AgentInterface
     use ResolveProvider;
     use HandleTools;
     use HandleContent;
-
-    protected string $instructions;
+    use HandleInstructions;
 
     protected bool $parallelToolCalls = false;
 
@@ -57,24 +56,6 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->parallelToolCalls = $enabled;
         return $this;
-    }
-
-    protected function instructions(): string
-    {
-        return (string) new SystemPrompt(
-            background: ['Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.']
-        );
-    }
-
-    public function setInstructions(string $instructions): self
-    {
-        $this->instructions = $instructions;
-        return $this;
-    }
-
-    public function resolveInstructions(): string
-    {
-        return $this->instructions ?? $this->instructions();
     }
 
     /**
