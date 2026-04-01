@@ -8,11 +8,11 @@
             <directory>tests</directory>
         </testsuite>
     </testsuites>
-    <coverage>
+    <source>
         <include>
             <directory suffix=".php">src</directory>
         </include>
-    </coverage>
+    </source>
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="INSPECTOR_API_KEY" value=""/>
