@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
@@ -105,6 +106,29 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(2, $messages);
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
+    }
+
+    public function test_truncates_history_when_low_context_window_exceeded(): void
+    {
+        // Create history with small context window
+        $smallHistory = new SQLChatHistory(thread_id: $this->threadId, pdo: $this->pdo, contextWindow: 100);
+
+        // Add many messages to exceed context window
+        for ($i = 1; $i <= 20; $i++) {
+            $message = $i % 2 !== 0
+                ? new UserMessage("User message $i with some text")
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
+            $smallHistory->addMessage($message);
+        }
+
+        $messages = $smallHistory->getMessages();
+
+        // Should have fewer messages due to truncation
+        $this->assertLessThan(20, count($messages));
+        $this->assertGreaterThan(0, count($messages));
+
+        // First message should be a user message (valid sequence)
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
     }
 
     public function test_updates_messages_on_add(): void
