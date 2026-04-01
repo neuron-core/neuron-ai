@@ -20,6 +20,7 @@ use PHPUnit\Framework\TestCase;
 
 use function json_decode;
 use function uniqid;
+use function count;
 
 class SQLChatHistoryTest extends TestCase
 {
