@@ -176,7 +176,7 @@ After configuring the environment variable, you will see the agent execution tim
 
 [![](./docs/images/inspector.png)](https://inspector.dev)
 
-Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/advanced/observability).
+Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/agent/observability).
 
 <a name="providers">
 
