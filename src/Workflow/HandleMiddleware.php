@@ -101,7 +101,7 @@ trait HandleMiddleware
      *
      * @return WorkflowMiddleware[]
      */
-    protected function getMiddlewareForNode(NodeInterface $node): array
+    public function getMiddlewareForNode(NodeInterface $node): array
     {
         $nodeClass = $node::class;
         $middlewares = $this->nodeMiddleware[$nodeClass] ?? [];

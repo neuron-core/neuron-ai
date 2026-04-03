@@ -9,17 +9,14 @@ use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\MiddlewareEnd;
-use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
-use NeuronAI\Observability\Events\WorkflowNodeEnd;
-use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Execution\SequentialExecutor;
+use NeuronAI\Workflow\Execution\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -41,7 +38,7 @@ use function is_null;
 use function uniqid;
 
 /**
- * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null)
+ * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null, ?WorkflowExecutorInterface $executor = null)
  */
 class Workflow implements WorkflowInterface
 {
@@ -65,6 +62,8 @@ class Workflow implements WorkflowInterface
 
     protected Event $startEvent;
 
+    protected WorkflowExecutorInterface $executor;
+
     /**
      * @throws WorkflowException
      */
@@ -81,6 +80,7 @@ class Workflow implements WorkflowInterface
 
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $resumeToken ?? uniqid('workflow_');
+        $this->executor = new SequentialExecutor();
 
         // Register the node middleware
         $this->addGlobalMiddleware($this->globalMiddleware());
@@ -158,37 +158,6 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Run before() middleware methods.
-     *
-     * @throws Throwable
-     */
-    protected function runBeforeMiddleware(Event $event, NodeInterface $node, WorkflowState $state): void
-    {
-        foreach ($this->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-before-start', $this, new MiddlewareStart($m, $event), $this->workflowId);
-            $m->before($node, $event, $state);
-            EventBus::emit('middleware-before-end', $this, new MiddlewareEnd($m), $this->workflowId);
-        }
-    }
-
-    /**
-     * Run after() middleware methods.
-     *
-     * Called after the node execution completes and, for streaming nodes,
-     * after the generator is fully consumed.
-     *
-     * @throws Throwable
-     */
-    protected function runAfterMiddleware(Event $result, NodeInterface $node, WorkflowState $state): void
-    {
-        foreach ($this->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-after-start', $this, new MiddlewareStart($m, $result), $this->workflowId);
-            $m->after($node, $result, $state);
-            EventBus::emit('middleware-after-end', $this, new MiddlewareEnd($m), $this->workflowId);
-        }
-    }
-
-    /**
      * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
     public function run(): Generator
@@ -243,74 +212,13 @@ class Workflow implements WorkflowInterface
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null
     ): Generator {
-        try {
-            while (!($currentEvent instanceof StopEvent)) {
-                $currentNode->setWorkflowContext(
-                    $this->resolveState(),
-                    $currentEvent,
-                    $resumeRequest
-                );
-
-                EventBus::emit(
-                    'workflow-node-start',
-                    $this,
-                    new WorkflowNodeStart($currentNode::class, $this->resolveState()),
-                    $this->workflowId
-                );
-
-                try {
-                    // Run before middleware
-                    $this->runBeforeMiddleware($currentEvent, $currentNode, $this->resolveState());
-
-                    // Execute the node
-                    $result = $currentNode->run($currentEvent, $this->resolveState());
-
-                    // Consume generator if streaming, get the final event
-                    if ($result instanceof Generator) {
-                        foreach ($result as $event) {
-                            yield $event;
-                        }
-                        $currentEvent = $result->getReturn();
-                    } else {
-                        $currentEvent = $result;
-                    }
-
-                    // Run after middleware with the returning event
-                    $this->runAfterMiddleware($currentEvent, $currentNode, $this->resolveState());
-                } finally {
-                    EventBus::emit(
-                        'workflow-node-end',
-                        $this,
-                        new WorkflowNodeEnd($currentNode::class, $this->resolveState()),
-                        $this->workflowId
-                    );
-                }
-
-                if ($currentEvent instanceof StopEvent) {
-                    break;
-                }
-
-                $nextEventClass = $currentEvent::class;
-                if (!isset($this->eventNodeMap[$nextEventClass])) {
-                    throw new WorkflowException("No node found that handle event: " . $nextEventClass);
-                }
-
-                $currentNode = $this->eventNodeMap[$nextEventClass];
-                $resumeRequest = null;
-            }
-
-            $this->persistence->delete($this->workflowId);
-
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->persistence->save($this->workflowId, $interrupt);
-            EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
-            throw $interrupt;
-        } catch (Throwable $exception) {
-            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            throw $exception;
-        } finally {
-            $this->workflowEnd();
-        }
+        // Delegate to executor
+        yield from $this->getExecutor()->execute(
+            $this,
+            $currentEvent,
+            $currentNode,
+            $resumeRequest
+        );
     }
 
     /**
@@ -414,6 +322,71 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Check if a node exists for the given event class.
+     */
+    public function hasNodeForEvent(string $eventClass): bool
+    {
+        return isset($this->eventNodeMap[$eventClass]);
+    }
+
+    /**
+     * Get the node that handles a specific event type.
+     */
+    public function getNodeForEvent(string $eventClass): ?NodeInterface
+    {
+        return $this->eventNodeMap[$eventClass] ?? null;
+    }
+
+    /**
+     * Set a custom executor for workflow execution.
+     */
+    public function setExecutor(WorkflowExecutorInterface $executor): self
+    {
+        $this->executor = $executor;
+        return $this;
+    }
+
+    /**
+     * Get the current executor.
+     */
+    public function getExecutor(): WorkflowExecutorInterface
+    {
+        return $this->executor;
+    }
+
+    /**
+     * Get the workflow ID.
+     */
+    public function getWorkflowId(): string
+    {
+        return $this->workflowId;
+    }
+
+    /**
+     * Delete persisted state.
+     */
+    public function deletePersistedState(): void
+    {
+        $this->persistence->delete($this->workflowId);
+    }
+
+    /**
+     * Persist an interrupt.
+     */
+    public function persistInterrupt(WorkflowInterrupt $interrupt): void
+    {
+        $this->persistence->save($this->workflowId, $interrupt);
+    }
+
+    /**
+     * Emit workflow end event.
+     */
+    public function emitWorkflowEnd(): void
+    {
+        $this->workflowEnd();
+    }
+
+    /**
      * @throws WorkflowException
      */
     protected function validate(): void
@@ -495,11 +468,6 @@ class Workflow implements WorkflowInterface
         } catch (ReflectionException $e) {
             throw new WorkflowException('Failed to validate '.$node::class.': ' . $e->getMessage(), $e->getCode(), $e);
         }
-    }
-
-    public function getWorkflowId(): string
-    {
-        return $this->workflowId;
     }
 
     public function getResumeToken(): string
