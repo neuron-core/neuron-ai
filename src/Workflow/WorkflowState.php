@@ -8,6 +8,8 @@ use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
 use function array_diff_key;
+use function is_array;
+use function is_object;
 
 class WorkflowState
 {
@@ -53,5 +55,32 @@ class WorkflowState
     public function all(): array
     {
         return $this->data;
+    }
+
+    /**
+     * Create a deep copy for complete isolation in parallel branches.
+     */
+    public function __clone(): void
+    {
+        // Deep clone nested arrays/objects if needed
+        $this->data = $this->deepCloneArray($this->data);
+    }
+
+    /**
+     * Recursively clone arrays and objects.
+     */
+    protected function deepCloneArray(array $data): array
+    {
+        $result = [];
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $result[$key] = $this->deepCloneArray($value);
+            } elseif (is_object($value)) {
+                $result[$key] = clone $value;
+            } else {
+                $result[$key] = $value;
+            }
+        }
+        return $result;
     }
 }
