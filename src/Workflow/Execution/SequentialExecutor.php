@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Execution;
 
 use Generator;
+use Inspector\Exceptions\InspectorException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\MiddlewareEnd;
@@ -48,7 +50,7 @@ class SequentialExecutor implements WorkflowExecutorInterface
 
                 $nextEventClass = $currentEvent::class;
                 if (!$workflow->hasNodeForEvent($nextEventClass)) {
-                    throw new \NeuronAI\Exceptions\WorkflowException(
+                    throw new WorkflowException(
                         "No node found that handle event: " . $nextEventClass
                     );
                 }
@@ -74,6 +76,7 @@ class SequentialExecutor implements WorkflowExecutorInterface
      * Execute a single node, yielding any streamed events and returning the next event.
      *
      * @return Generator<int, Event, mixed, Event>
+     * @throws InspectorException
      */
     protected function executeNode(
         Workflow $workflow,

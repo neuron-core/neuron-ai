@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Execution;
 
 use Generator;
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
+use NeuronAI\Observability\Events\WorkflowNodeEnd;
+use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ForkEvent;
 use NeuronAI\Workflow\Events\JoinEvent;
@@ -20,7 +23,6 @@ use Throwable;
 use function Amp\async;
 use function Amp\Future\await;
 use function array_diff_assoc;
-use function array_keys;
 
 /**
  * Async-aware executor that runs ParallelNode branches concurrently using Amp.
@@ -34,6 +36,7 @@ class AsyncExecutor extends SequentialExecutor
      * Override to route ParallelNode instances to concurrent branch execution.
      *
      * @return Generator<int, Event, mixed, Event>
+     * @throws InspectorException
      */
     protected function executeNode(
         Workflow $workflow,
@@ -52,6 +55,7 @@ class AsyncExecutor extends SequentialExecutor
      * Execute parallel branches concurrently.
      *
      * @return Generator<int, Event, mixed, Event>
+     * @throws InspectorException
      */
     protected function executeParallel(
         Workflow $workflow,
@@ -64,19 +68,12 @@ class AsyncExecutor extends SequentialExecutor
             return $node->merge([], $workflow->resolveState());
         }
 
-        EventBus::emit(
-            'workflow-parallel-start',
-            $workflow,
-            ['node' => $node::class, 'branches' => array_keys($branches)],
-            $workflow->getWorkflowId()
-        );
-
         yield new ForkEvent($branches);
 
         $futures = [];
         foreach ($branches as $branchId => $branchEvent) {
             $futures[$branchId] = async(
-                fn (): \NeuronAI\Workflow\Execution\BranchResult => $this->executeBranch($workflow, $branchId, $branchEvent, $node)
+                fn (): BranchResult => $this->executeBranch($workflow, $branchId, $branchEvent, $node)
             );
         }
 
@@ -105,13 +102,6 @@ class AsyncExecutor extends SequentialExecutor
         $nextEvent = $node->merge($mergedResults, $workflow->resolveState());
 
         yield new JoinEvent($mergedResults);
-
-        EventBus::emit(
-            'workflow-parallel-end',
-            $workflow,
-            ['node' => $node::class, 'branches' => array_keys($branches)],
-            $workflow->getWorkflowId()
-        );
 
         return $nextEvent;
     }
@@ -146,9 +136,10 @@ class AsyncExecutor extends SequentialExecutor
                 $currentNode->setWorkflowContext($branchState, $currentEvent);
 
                 EventBus::emit(
-                    'workflow-branch-node-start',
+                    'workflow-node-start',
                     $workflow,
-                    ['branchId' => $branchId, 'node' => $currentNode::class],
+                    // ['branchId' => $branchId, 'node' => $currentNode::class],
+                    new WorkflowNodeStart($currentNode::class, $workflow->resolveState()),
                     $workflow->getWorkflowId()
                 );
 
@@ -168,9 +159,10 @@ class AsyncExecutor extends SequentialExecutor
                 $this->runAfterMiddleware($workflow, $currentEvent, $currentNode, $branchState);
 
                 EventBus::emit(
-                    'workflow-branch-node-end',
+                    'workflow-node-end',
                     $workflow,
-                    ['branchId' => $branchId, 'node' => $currentNode::class],
+                    // ['branchId' => $branchId, 'node' => $currentNode::class],
+                    new WorkflowNodeEnd($currentNode::class, $workflow->resolveState()),
                     $workflow->getWorkflowId()
                 );
 
