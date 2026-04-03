@@ -73,7 +73,8 @@ class ParallelExecutorTest extends TestCase
 
     public function testParallelExecutorWithCustomExecutor(): void
     {
-        $workflow = Workflow::make(executor: new AsyncExecutor())
+        $workflow = Workflow::make()
+            ->setExecutor(new AsyncExecutor())
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
