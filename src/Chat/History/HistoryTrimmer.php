@@ -20,6 +20,7 @@ use function end;
 use function spl_object_hash;
 use function sprintf;
 use function max;
+use function min;
 
 /**
  * Trims chat history to fit within a context window using checkpoint-based calculation.
@@ -219,81 +220,71 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     /**
      * Adjust the trim index to ensure the trimmed history starts with a UserMessage.
      *
-     * A valid chat history must start with a user message. While searching for
-     * the next UserMessage, this method also updates the token count when passing
-     * messages with usage data (checkpoints), providing the most accurate token
-     * approximation for the trimmed portion.
+     * A valid chat history must start with a user message. This method searches
+     * outward from the initial trim index in both directions simultaneously,
+     * preferring the closest UserMessage (backward on tie).
      *
      * @param Message[] $messages
      * @return array{index: int, tokens: int}
      */
     protected function adjustTrimIndex(array $messages, int $trimIndex, int $tokens): array
     {
-        $backward = $this->adjustIndexBackward($messages, $trimIndex, $tokens);
-        $forward = $this->adjustIndexForward($messages, $trimIndex, $tokens);
-
-        // If only one direction found a valid UserMessage, use it
-        if ($backward === null) {
-            return $forward ?? ['index' => 0, 'tokens' => 0];
-        }
-        if ($forward === null) {
-            return $backward;
-        }
-
-        // Both found - pick the closest, preferring backward on tie
-        $backwardDistance = $trimIndex - $backward['index'];
-        $forwardDistance = $forward['index'] - $trimIndex;
-
-        return $backwardDistance <= $forwardDistance ? $backward : $forward;
-    }
-
-    protected function adjustIndexForward(array $messages, int $trimIndex, int $tokens): ?array
-    {
         $count = count($messages);
 
-        for ($i = $trimIndex; $i < $count - 1; $i++) {
-            $message = $messages[$i];
+        if ($count === 0) {
+            return ['index' => 0, 'tokens' => 0];
+        }
 
-            // Update tokens from checkpoint if available
-            $usage = $message->getUsage();
-            if ($usage instanceof Usage) {
-                $tokens = $usage->inputTokens + $usage->outputTokens;
+        // Clamp trimIndex to valid bounds
+        $trimIndex = max(0, min($trimIndex, $count - 1));
+
+        // Track tokens separately for each direction
+        $backwardTokens = $tokens;
+        $forwardTokens = $tokens;
+
+        // Search outward from trimIndex in both directions
+        $maxOffset = max($trimIndex, $count - 1 - $trimIndex);
+
+        for ($i = 0; $i <= $maxOffset; $i++) {
+            // Check backward direction
+            $backwardIndex = $trimIndex - $i;
+            if ($backwardIndex >= 0) {
+                $backwardTokens = $this->updateTokensFromMessage($messages[$backwardIndex], $backwardTokens);
+
+                if ($this->isUserMessage($messages[$backwardIndex])) {
+                    return ['index' => $backwardIndex, 'tokens' => $backwardTokens];
+                }
             }
 
-            if ($message::class === UserMessage::class) {
-                return ['index' => $i, 'tokens' => $tokens];
+            // Check forward direction (skip starting position on first iteration)
+            $forwardIndex = $trimIndex + $i;
+            if ($i > 0 && $forwardIndex < $count) {
+                $forwardTokens = $this->updateTokensFromMessage($messages[$forwardIndex], $forwardTokens);
+
+                if ($this->isUserMessage($messages[$forwardIndex])) {
+                    return ['index' => $forwardIndex, 'tokens' => $forwardTokens];
+                }
             }
         }
 
-        // No valid UserMessage found after the trim point
-        return null;
+        // No UserMessage found - return safe defaults
+        return ['index' => 0, 'tokens' => 0];
     }
 
-    protected function adjustIndexBackward(array $messages, int $trimIndex, int $tokens): ?array
+    protected function isUserMessage(Message $message): bool
     {
-        $count = count($messages);
+        return $message::class === UserMessage::class;
+    }
 
-        // Ensure trimIndex is within bounds
-        if ($trimIndex >= $count) {
-            $trimIndex = $count - 1;
+    protected function updateTokensFromMessage(Message $message, int $tokens): int
+    {
+        $usage = $message->getUsage();
+
+        if ($usage instanceof Usage) {
+            return $usage->inputTokens + $usage->outputTokens;
         }
 
-        for ($i = $trimIndex; $i >= 0; $i--) {
-            $message = $messages[$i];
-
-            // Update tokens from checkpoint if available
-            $usage = $message->getUsage();
-            if ($usage instanceof Usage) {
-                $tokens = $usage->inputTokens + $usage->outputTokens;
-            }
-
-            if ($message::class === UserMessage::class) {
-                return ['index' => $i, 'tokens' => $tokens];
-            }
-        }
-
-        // No valid UserMessage found before the trim point
-        return null;
+        return $tokens;
     }
 
     /**
