@@ -115,6 +115,6 @@ class ToolNode extends Node
 
         $errorMessage = ($this->errorHandler)($e, $tool);
         $tool->setCallable(new ToolRejectionHandler($errorMessage));
-        $tool->execute();
+        $tool->setResult($errorMessage);
     }
 }
