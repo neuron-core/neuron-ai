@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
 
 use function array_merge;
-use function json_encode;
 
 use const PHP_INT_MAX;
 
