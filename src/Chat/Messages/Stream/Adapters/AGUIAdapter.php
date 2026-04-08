@@ -59,6 +59,15 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
+        // Close reasoning if it was started (transition from reasoning to text)
+        if ($this->reasoningStarted) {
+            yield $this->sse([
+                'type' => 'ReasoningEnd',
+                'timestamp' => $this->timestamp(),
+            ]);
+            $this->reasoningStarted = false;
+        }
+        
         // Ensure the message has started
         if (! $this->messageStarted) {
             $this->currentMessageId = $this->generateId('msg');
