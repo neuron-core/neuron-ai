@@ -55,7 +55,8 @@ jobs:
                 dependency-version: [prefer-lowest, prefer-stable]
                 opensearch-version: ['latest']
                 include:
-                    - php: '8.5'
+                    - os: ubuntu-latest
+                      php: '8.5'
                       dependency-version: prefer-stable
                       opensearch-version: '3.5.0'
 
