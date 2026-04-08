@@ -35,6 +35,7 @@ class ChatMessage extends Model
     protected $table = 'chat_messages';
     protected $fillable = ['thread_id', 'role', 'content', 'meta'];
     protected $casts = [
+        'content' => 'array',
         'meta' => 'array',
     ];
 }
@@ -60,7 +61,7 @@ class EloquentChatHistoryTest extends TestCase
             $table->id();
             $table->string('thread_id');
             $table->string('role');
-            $table->text('content')->nullable();
+            $table->json('content')->nullable();
             $table->json('meta')->nullable();
             $table->timestamps();
 

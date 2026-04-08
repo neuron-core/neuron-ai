@@ -111,13 +111,15 @@ $result = $finalState->get('result');
 ```php
 class MyWorkflow extends Workflow
 {
-    public static function make(WorkflowState $state): self
+    /**
+     * @return NodeInterface[]
+     */
+    protected function nodes(): array
     {
-        return parent::make($state)
-            ->addNodes([
-                new ValidationNode(),
-                new ProcessingNode(),
-            ]);
+        return [
+            new ValidationNode(),
+            new ProcessingNode(),
+        ];
     }
 }
 ```
@@ -167,7 +169,7 @@ class DangerousOperationNode extends Node
     public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     {
         // Interrupt for approval
-        $this->interrupt(new ApprovalRequest(
+        $resumeRequest = $this->interrupt(new ApprovalRequest(
             actions: [
                 new Action(
                     id: 'delete_files',
@@ -182,9 +184,6 @@ class DangerousOperationNode extends Node
             ],
             message: 'These operations require approval'
         ));
-
-        // After resume, $actions contain user decisions
-        $resumeRequest = $this->consumeResumeRequest();
 
         foreach ($resumeRequest->actions as $action) {
             if ($action->decision === ActionDecision::Approved) {
@@ -205,7 +204,7 @@ public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     $cost = $state->get('estimated_cost');
 
     // Only interrupt if cost exceeds threshold
-    $this->interruptIf(
+    $resumeRequest = $this->interruptIf(
         $cost > 1000,
         new ApprovalRequest(
             actions: [/* ... */],
@@ -330,22 +329,26 @@ $finalState = $handler->run();
 
 ## Checkpoint System
 
-Checkpoints cache expensive operations across interruptions:
+Checkpoint cache operation results across interruptions:
 
 ```php
 class DataProcessingNode extends Node
 {
     public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     {
-        // This expensive operation runs only once
+        // When resumed, $data is retrieved from checkpoint
         $data = $this->checkpoint('fetch_data', function() {
             return $this->fetchExpensiveData();
         });
 
         // Might interrupt here
-        $this->interruptIf($needsApproval, new ApprovalRequest(...));
+        $resumeRequest = $this->interruptIf($needsApproval, new ApprovalRequest(...));
 
-        // When resumed, $data is retrieved from checkpoint
+        if (!$resumeRequest->isApproved()) {
+            // ...
+        }
+
+        // $data is retrieved from checkpoint
         $result = $this->process($data);
 
         return new ResultEvent($result);
@@ -378,7 +381,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Keep nodes focused and single-purpose
 - Use typed events for input/output
 - Make nodes testable in isolation
-- Use checkpoints for expensive operations
+- Use checkpoints for operations before interruption points
 
 ### State Management
 - Store shared data in WorkflowState, not node properties
@@ -391,7 +394,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Prefer node-specific middleware over global
 
 ### Interruptions
-- Always configure persistence when using interruptions
+- **ALWAYS configure persistence when using interruptions**
 - Provide clear, actionable descriptions in InterruptRequest
 - Use checkpoints to avoid re-running expensive operations
 
@@ -401,14 +404,16 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 ```php
 class SequentialWorkflow extends Workflow
 {
-    public static function make(WorkflowState $state): self
+    /**
+     * @return NodeInterface[]
+     */
+    protected function nodes(): array
     {
-        return parent::make($state)
-            ->addNodes([
-                new ValidationNode(),
-                new ProcessingNode(),
-                new OutputNode(),
-            ]);
+        return [
+            new ValidationNode(),
+            new ProcessingNode(),
+            new OutputNode(),
+        ];
     }
 }
 ```
@@ -450,31 +455,13 @@ class LoopNode extends Node
 ## Workflow vs Agent
 
 **Use Workflow when:**
-- You need complete control over execution flow
+- You need complete control over the execution flow
 - Building custom orchestration patterns
 - Need complex branching/looping logic
-- Want to use individual components (providers, embeddings, etc.) independently
+- Want to use individual components (audio providers, embeddings, etc.) independently
 
 **Use Agent when:**
 - Building chat-based applications
 - Need tool calling
-- Want built-in features (memory, streaming, structured output)
+- Want built-in features (chat history, streaming, structured output)
 - Following common conversational patterns
-
-## Testing Workflows
-
-```php
-use PHPUnit\Framework\TestCase;
-
-class MyWorkflowTest extends TestCase
-{
-    public function testWorkflowExecution(): void
-    {
-        $state = new WorkflowState(['input' => 'test']);
-        $workflow = MyWorkflow::make($state);
-        $finalState = $workflow->start()->run();
-
-        $this->assertTrue($finalState->has('result'));
-    }
-}
-```
