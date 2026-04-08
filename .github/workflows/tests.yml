@@ -32,7 +32,7 @@ jobs:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
             opensearch:
-                image: opensearchproject/opensearch:latest
+                image: opensearchproject/opensearch:${{ matrix.opensearch-version || 'latest' }}
                 ports:
                     - 9201:9200 # Avoid port conflict with Elasticsearch
                     - 9600:9600
@@ -53,6 +53,11 @@ jobs:
                 os: [ubuntu-latest]
                 php: ['8.1', '8.2', '8.3', '8.4', '8.5']
                 dependency-version: [prefer-lowest, prefer-stable]
+                opensearch-version: ['latest']
+                include:
+                    - php: '8.5'
+                      dependency-version: prefer-stable
+                      opensearch-version: '3.5.0'
 
         name: PHP ${{ matrix.php }} - ${{ matrix.os }} - ${{ matrix.dependency-version }}
 

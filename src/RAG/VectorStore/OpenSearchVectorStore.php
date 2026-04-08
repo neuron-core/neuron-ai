@@ -58,7 +58,10 @@ class OpenSearchVectorStore implements VectorStoreInterface
                     'space_type' => 'cosinesimil',
                     'parameters' => [
                         'encoder' => [
-                            'name' => 'sq'
+                            'name' => 'sq',
+                            'parameters' => [
+                                'bits' => 7,
+                            ],
                         ]
                     ]
                 ],
@@ -78,7 +81,6 @@ class OpenSearchVectorStore implements VectorStoreInterface
                 'settings' => [
                     'index' => [
                         'knn' => true,
-                        'number_of_replicas' => 0,
                     ],
                 ],
                 'mappings' => [
@@ -258,7 +260,10 @@ class OpenSearchVectorStore implements VectorStoreInterface
                             'space_type' => 'cosinesimil',
                             'parameters' => [
                                 'encoder' => [
-                                    'name' => 'sq'
+                                    'name' => 'sq',
+                                    'parameters' => [
+                                        'bits' => 7,
+                                    ],
                                 ]
                             ]
 
