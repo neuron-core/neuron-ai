@@ -419,7 +419,7 @@ to retrieval use cases, or tool calls, structured output, etc. Workflow allows y
 agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks
 as any other component if you need their built-in capabilities.
 
-[![Neuron Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
+[![Neuron Workflow](./docs/images/workflow.png)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
 
 Neuron Workflow supports a robust [**human-in-the-loop**](https://docs.neuron-ai.dev/workflow/human-in-the-loop)
 pattern, enabling human intervention at any point in an automated process. This is especially useful in
