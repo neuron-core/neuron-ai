@@ -37,7 +37,6 @@ class Anthropic implements AIProviderInterface
 
     /**
      * System instructions.
-     * https://docs.anthropic.com/claude/docs/system-prompts#how-to-use-system-prompts
      */
     protected ?string $system = null;
 
