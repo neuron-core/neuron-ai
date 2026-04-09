@@ -73,7 +73,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * is returned for standard routing to a join node.
      *
      * @return Generator<int, Event, mixed, Event>
-     * @throws InspectorException
+     * @throws WorkflowException|InspectorException
      */
     protected function executeNode(
         Workflow $workflow,
@@ -133,17 +133,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute parallel branches sequentially, one after the other.
      *
-     * After all branches complete, branch state changes are stored under
+     * After all branches are complete, branch state changes are stored under
      * "branches.{branchId}.*" in WorkflowState and the ParallelEvent is returned
      * for normal routing. Register a join node that handles the ParallelEvent subclass
-     * to continue the workflow and read branch results from state.
+     * to continue the workflow and read branch results from the state.
      *
      * Subclasses can override this method to change how branches run
      * (e.g. AsyncExecutor runs branches concurrently via Amp futures).
      *
      * @return Generator<int, Event, mixed, Event>
      *
-     * @throws WorkflowException
+     * @throws WorkflowException|InspectorException
      */
     protected function executeParallelBranches(
         Workflow $workflow,
@@ -169,6 +169,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      *
      * Runs the branch's node graph from branchEvent until StopEvent, collecting
      * state changes and streamed events. Shared by both sequential and async execution.
+     *
+     * @throws WorkflowException|InspectorException
      */
     protected function executeBranch(
         Workflow $workflow,
@@ -216,6 +218,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
     }
 
+    /**
+     * @throws InspectorException
+     */
     protected function runBeforeMiddleware(
         Workflow $workflow,
         Event $event,
@@ -230,6 +235,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws InspectorException
+     */
     protected function runAfterMiddleware(
         Workflow $workflow,
         Event $event,
