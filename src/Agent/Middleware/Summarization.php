@@ -199,17 +199,17 @@ class Summarization implements WorkflowMiddleware
     protected function getDefaultSummaryPrompt(): string
     {
         return <<<'PROMPT'
-Please provide a comprehensive summary of the following conversation.
-Extract the highest quality and most relevant pieces of information, including:
-- Key topics discussed
-- Important decisions made
-- Critical information exchanged
-- Action items or next steps
-- Any unresolved questions or issues
+            Please provide a comprehensive summary of the following conversation.
+            Extract the highest quality and most relevant pieces of information, including:
+            - Key topics discussed
+            - Important decisions made
+            - Critical information exchanged
+            - Action items or next steps
+            - Any unresolved questions or issues
 
-Your summary should be concise yet informative, capturing the essential context
-that would be needed to continue the conversation meaningfully.
-PROMPT;
+            Your summary should be concise yet informative, capturing the essential context
+            that would be needed to continue the conversation meaningfully.
+            PROMPT;
     }
 
     /**

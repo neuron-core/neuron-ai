@@ -33,7 +33,7 @@ class SupadataYoutubeChannelTool extends Tool
                 type: PropertyType::STRING,
                 description: 'YouTube channel URL or ID',
                 required: true
-            )
+            ),
         ];
     }
 

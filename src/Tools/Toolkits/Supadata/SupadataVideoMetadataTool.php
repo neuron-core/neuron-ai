@@ -33,7 +33,7 @@ class SupadataVideoMetadataTool extends Tool
                 type: PropertyType::STRING,
                 description: 'The URL or the ID of the YouTube video you want to retrieve the metadata.',
                 required: true
-            )
+            ),
         ];
     }
 

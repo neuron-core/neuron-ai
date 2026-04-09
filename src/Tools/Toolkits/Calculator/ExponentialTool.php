@@ -32,7 +32,7 @@ class ExponentialTool extends Tool
                 type: PropertyType::NUMBER,
                 description: 'The exponent',
                 required: true,
-            )
+            ),
         ];
     }
 

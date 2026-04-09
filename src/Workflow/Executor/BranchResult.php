@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Execution;
+namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Events\Event;
 use Throwable;
@@ -32,6 +32,6 @@ class BranchResult
 
     public function isSuccessful(): bool
     {
-        return !$this->error instanceof Throwable && $this->finalEvent instanceof \NeuronAI\Workflow\Events\Event;
+        return !$this->error instanceof Throwable && $this->finalEvent instanceof Event;
     }
 }

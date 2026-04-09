@@ -165,7 +165,7 @@ class Message implements JsonSerializable
     {
         $data = [
             'role' => $this->getRole(),
-            'content' => array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->contents)
+            'content' => array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->contents),
         ];
 
         if ($this->getUsage() instanceof Usage) {

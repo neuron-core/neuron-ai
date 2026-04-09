@@ -15,8 +15,8 @@ use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Execution\SequentialExecutor;
-use NeuronAI\Workflow\Execution\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -80,7 +80,7 @@ class Workflow implements WorkflowInterface
 
         $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $resumeToken ?? uniqid('workflow_');
-        $this->executor = new SequentialExecutor();
+        $this->executor = new WorkflowExecutor();
 
         // Register the node middleware
         $this->addGlobalMiddleware($this->globalMiddleware());
@@ -172,9 +172,6 @@ class Workflow implements WorkflowInterface
         $startEvent = $this->resolveStartEvent();
         yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
 
-        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
-        EventBus::clear($this->workflowId);
-
         return $this->resolveState();
     }
 
@@ -199,8 +196,6 @@ class Workflow implements WorkflowInterface
             $resumeRequest
         );
 
-        $this->workflowEnd();
-
         return $this->resolveState();
     }
 
@@ -212,13 +207,25 @@ class Workflow implements WorkflowInterface
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null
     ): Generator {
-        // Delegate to executor
-        yield from $this->getExecutor()->execute(
-            $this,
-            $currentEvent,
-            $currentNode,
-            $resumeRequest
-        );
+        try {
+            yield from $this->getExecutor()->execute(
+                $this,
+                $currentEvent,
+                $currentNode,
+                $resumeRequest
+            );
+
+            $this->persistence->delete($this->workflowId);
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->persistence->save($this->workflowId, $interrupt);
+            EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
+            throw $interrupt;
+        } catch (Throwable $exception) {
+            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
+            throw $exception;
+        } finally {
+            $this->workflowEnd();
+        }
     }
 
     /**
@@ -360,30 +367,6 @@ class Workflow implements WorkflowInterface
     public function getWorkflowId(): string
     {
         return $this->workflowId;
-    }
-
-    /**
-     * Delete persisted state.
-     */
-    public function deletePersistedState(): void
-    {
-        $this->persistence->delete($this->workflowId);
-    }
-
-    /**
-     * Persist an interrupt.
-     */
-    public function persistInterrupt(WorkflowInterrupt $interrupt): void
-    {
-        $this->persistence->save($this->workflowId, $interrupt);
-    }
-
-    /**
-     * Emit workflow end event.
-     */
-    public function emitWorkflowEnd(): void
-    {
-        $this->workflowEnd();
     }
 
     /**

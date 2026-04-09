@@ -78,7 +78,7 @@ class OpenAIImage implements AIProviderInterface
             'model' => $this->model,
             'prompt' => $message->getContent(),
             'output_format' => $this->output_format,
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->request(
@@ -132,7 +132,7 @@ class OpenAIImage implements AIProviderInterface
             'model' => $this->model,
             'prompt' => $message->getContent(),
             'output_format' => $this->output_format,
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         $stream = $this->httpClient->stream(

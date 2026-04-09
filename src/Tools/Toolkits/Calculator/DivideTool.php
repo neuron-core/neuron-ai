@@ -34,7 +34,7 @@ class DivideTool extends Tool
                 type: PropertyType::NUMBER,
                 description: 'The denominator of the division',
                 required: true,
-            )
+            ),
         ];
     }
 
@@ -43,7 +43,7 @@ class DivideTool extends Tool
         if (floatval($number2) === 0.0) {
             return [
                 'operation' => $this->name,
-                'error' => 'Division by zero is not allowed.'
+                'error' => 'Division by zero is not allowed.',
             ];
         }
 

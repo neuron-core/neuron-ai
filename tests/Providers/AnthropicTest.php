@@ -298,7 +298,7 @@ class AnthropicTest extends TestCase
                             'description',
                             true
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -327,12 +327,12 @@ class AnthropicTest extends TestCase
                             'prop' => [
                                 'type' => 'string',
                                 'description' => 'description',
-                            ]
+                            ],
                         ],
                         'required' => ['prop'],
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -366,10 +366,10 @@ class AnthropicTest extends TestCase
                                     PropertyType::STRING,
                                     'description',
                                     true
-                                )
+                                ),
                             ]
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -402,15 +402,15 @@ class AnthropicTest extends TestCase
                                     'simple_prop' => [
                                         'type' => 'string',
                                         'description' => 'description',
-                                    ]
+                                    ],
                                 ],
-                                'required' => ['simple_prop']
-                            ]
+                                'required' => ['simple_prop'],
+                            ],
                         ],
                         'required' => [],
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -440,7 +440,7 @@ class AnthropicTest extends TestCase
                             required: true,
                             class: Color::class
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -481,15 +481,15 @@ class AnthropicTest extends TestCase
                                     'b' => [
                                         'type' => 'number',
                                         'description' => 'The BLUE',
-                                    ]
+                                    ],
                                 ],
                                 'required' => ["r", "g", "b"],
-                            ]
+                            ],
                         ],
                         'required' => ["color"],
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -542,7 +542,7 @@ class AnthropicTest extends TestCase
                                 ]
                             )
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -586,16 +586,16 @@ class AnthropicTest extends TestCase
                                         'simple_prop_c' => [
                                             'type' => 'number',
                                             'description' => 'description for c',
-                                        ]
+                                        ],
                                     ],
-                                    'required' => ['simple_prop_a']
+                                    'required' => ['simple_prop_a'],
                                 ],
-                            ]
+                            ],
                         ],
                         'required' => ['array_prop'],
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));

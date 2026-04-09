@@ -33,7 +33,7 @@ class SupadataYoutubePlaylistTool extends Tool
                 type: PropertyType::STRING,
                 description: 'YouTube playlist URL or ID',
                 required: true
-            )
+            ),
         ];
     }
 

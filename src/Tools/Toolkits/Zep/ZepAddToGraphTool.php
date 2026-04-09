@@ -46,7 +46,7 @@ Look for facts, news or any relevant information in the conversation that you th
                 'The scope of the search to perform. Can be "facts" or "nodes"',
                 true,
                 ['text', 'json', 'message']
-            )
+            ),
         ];
     }
 
@@ -57,7 +57,7 @@ Look for facts, news or any relevant information in the conversation that you th
                 'user_id' => $this->user_id,
                 'data' => $data,
                 'type' => $type,
-            ]
+            ],
         ])->getBody()->getContents();
 
         $response = json_decode($response, true);

@@ -27,7 +27,7 @@ trait HandleChat
         $body = [
             'model' => $this->model,
             'input' => $this->messageMapper()->map($messages),
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         // Attach the system prompt

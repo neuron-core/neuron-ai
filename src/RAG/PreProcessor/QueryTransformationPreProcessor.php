@@ -79,7 +79,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
     {
         return (string) new SystemPrompt(
             background: [
-                'You are an AI assistant tasked with reformulating user queries to improve retrieval in a RAG system.'
+                'You are an AI assistant tasked with reformulating user queries to improve retrieval in a RAG system.',
             ],
             steps: [
                 'Given the original query, rewrite it to be more specific, detailed, and likely to retrieve relevant information.',
@@ -87,7 +87,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
             ],
             output: [
                 'Output only the reformulated query',
-                'Do not add temporal references, dates, or years unless they are present in the original query'
+                'Do not add temporal references, dates, or years unless they are present in the original query',
             ]
         );
     }
@@ -96,7 +96,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
     {
         return (string) new SystemPrompt(
             background: [
-                'You are an AI assistant that breaks down complex queries into simpler sub-queries for comprehensive information retrieval in a RAG system.'
+                'You are an AI assistant that breaks down complex queries into simpler sub-queries for comprehensive information retrieval in a RAG system.',
             ],
             steps: [
                 'Given the original complex query, decompose it into focused sub-queries.',
@@ -115,7 +115,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
     {
         return (string) new SystemPrompt(
             background: [
-                'You are an AI assistant that generates hypothetical answer to the user query, to improve retrieval in a RAG system.'
+                'You are an AI assistant that generates hypothetical answer to the user query, to improve retrieval in a RAG system.',
             ],
             steps: [
                 'Given the original query, write a hypothetical document passage that would directly answer this question.',
@@ -124,7 +124,7 @@ class QueryTransformationPreProcessor implements PreProcessorInterface
             output: [
                 'Output only the hypothetical document passage',
                 'Do not add temporal references, dates, or years unless they are present in the original query',
-                'Keep the response as concise as possible'
+                'Keep the response as concise as possible',
             ]
         );
     }

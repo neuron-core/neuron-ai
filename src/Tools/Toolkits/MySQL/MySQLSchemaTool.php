@@ -40,7 +40,7 @@ class MySQLSchemaTool extends Tool
             'tables' => $this->getTables(),
             'relationships' => $this->getRelationships(),
             'indexes' => $this->getIndexes(),
-            'constraints' => $this->getConstraints()
+            'constraints' => $this->getConstraints(),
         ]);
     }
 
@@ -188,7 +188,7 @@ class MySQLSchemaTool extends Tool
                     'columns' => [],
                     'primary_key' => [],
                     'unique_keys' => [],
-                    'indexes' => []
+                    'indexes' => [],
                 ];
             }
 
@@ -200,7 +200,7 @@ class MySQLSchemaTool extends Tool
                     'nullable' => $row['IS_NULLABLE'] === 'YES',
                     'default' => $row['COLUMN_DEFAULT'],
                     'auto_increment' => str_contains((string) $row['EXTRA'], 'auto_increment'),
-                    'comment' => $row['COLUMN_COMMENT']
+                    'comment' => $row['COLUMN_COMMENT'],
                 ];
 
                 // Add length/precision info for better LLM understanding
@@ -290,7 +290,7 @@ class MySQLSchemaTool extends Tool
                     'name' => $row['INDEX_NAME'],
                     'unique' => $row['NON_UNIQUE'] == 0,
                     'type' => $row['INDEX_TYPE'],
-                    'columns' => []
+                    'columns' => [],
                 ];
             }
             $indexes[$key]['columns'][] = $row['COLUMN_NAME'];

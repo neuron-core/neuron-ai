@@ -178,8 +178,8 @@ class InspectorObserver implements ObserverInterface
                 'properties' => array_map(
                     fn (ToolPropertyInterface $property) => $property->jsonSerialize(),
                     $tool->getProperties()
-                )
-            ]
+                ),
+            ],
         ];
 
         return [

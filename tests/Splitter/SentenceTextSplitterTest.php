@@ -93,7 +93,7 @@ class SentenceTextSplitterTest extends TestCase
         $sentences = [
             'This is the first sentence.',
             'This is the second sentence.',
-            'This is the third sentence.'
+            'This is the third sentence.',
         ];
 
         $allContent = implode(' ', array_map(fn (Document $c): string => $c->getContent(), $result));

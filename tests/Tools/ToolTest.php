@@ -62,7 +62,7 @@ class ToolTest extends TestCase
             )->setCallable(fn (string $name): string => $name);
 
         $tool->setInputs([
-            "test" => "test"
+            "test" => "test",
         ]);
 
         $this->expectException(MissingCallbackParameter::class);
@@ -152,7 +152,7 @@ class ToolTest extends TestCase
         ))->setCallable(fn (?string $optional_prop_1, ?string $optional_prop_2, ?string $optional_prop_3): array => [
             'optional_prop_1' => $optional_prop_1,
             'optional_prop_2' => $optional_prop_2,
-            'optional_prop_3' => $optional_prop_3
+            'optional_prop_3' => $optional_prop_3,
         ]);
 
         // Example: none of the optional parameters are provided
@@ -231,7 +231,7 @@ class ToolTest extends TestCase
                         type: PropertyType::STRING,
                         description: "description b",
                         required: true,
-                    )
+                    ),
                 ]
             )
         )->addProperty(
@@ -251,7 +251,7 @@ class ToolTest extends TestCase
                             type: PropertyType::STRING,
                             description: "description y",
                             required: true,
-                        )
+                        ),
                     ]
             )
         )->setCallable(fn (...$data): array => $data);
@@ -261,7 +261,7 @@ class ToolTest extends TestCase
             "obj_prop_1" => [
                 "a" => "a_input",
                 "b" => "b_input",
-            ]
+            ],
         ]);
 
         $tool->execute();
@@ -294,7 +294,7 @@ class ToolTest extends TestCase
                 "r" => 255,
                 "g" => 127,
                 "b" => 63,
-            ]
+            ],
         ]);
 
         $tool->execute();
@@ -339,7 +339,7 @@ class ToolTest extends TestCase
                         type: PropertyType::INTEGER,
                         description: "height",
                         required: true,
-                    )
+                    ),
                 ]
             )
         )->setCallable(fn (...$data): array => $data);
@@ -349,7 +349,7 @@ class ToolTest extends TestCase
             "dimensions" => [
                 "width" => 600,
                 "height" => 800,
-            ]
+            ],
         ]);
 
         $tool->execute();

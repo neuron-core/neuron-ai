@@ -27,12 +27,12 @@ class DataAnalystAgent extends Agent
     protected function instructions(): string
     {
         return <<<'INSTRUCTIONS'
-You are a data analyst AI assistant. Your role is to:
-- Analyze data and provide insights
-- Perform calculations accurately
-- Explain your reasoning clearly
-- Present findings in a structured format
-INSTRUCTIONS;
+            You are a data analyst AI assistant. Your role is to:
+            - Analyze data and provide insights
+            - Perform calculations accurately
+            - Explain your reasoning clearly
+            - Present findings in a structured format
+            INSTRUCTIONS;
     }
 
     protected function tools(): array

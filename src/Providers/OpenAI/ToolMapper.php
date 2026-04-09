@@ -46,7 +46,7 @@ class ToolMapper implements ToolMapperInterface
                     'properties' => new stdClass(),
                     'required' => [],
                 ],
-            ]
+            ],
         ];
 
         $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {

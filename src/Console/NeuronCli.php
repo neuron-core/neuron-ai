@@ -79,34 +79,34 @@ class NeuronCli
     private function printUsage(): void
     {
         $usage = <<<'USAGE'
-Neuron AI CLI Tool
+            Neuron AI CLI Tool
 
-Usage: neuron <command> [options]
+            Usage: neuron <command> [options]
 
-Available Commands:
-  evaluation      Run AI evaluation tests on a directory of evaluators
-  make:agent      Create a new Agent class
-  make:middleware Create a new Workflow Middleware class
-  make:node       Create a new Node class
-  make:tool       Create a new Tool class
-  make:rag        Create a new RAG class
-  make:workflow   Create a new Workflow class
-  make:event      Create a new Event class
+            Available Commands:
+              evaluation      Run AI evaluation tests on a directory of evaluators
+              make:agent      Create a new Agent class
+              make:middleware Create a new Workflow Middleware class
+              make:node       Create a new Node class
+              make:tool       Create a new Tool class
+              make:rag        Create a new RAG class
+              make:workflow   Create a new Workflow class
+              make:event      Create a new Event class
 
-Options:
-  --help, -h   Show this help message
+            Options:
+              --help, -h   Show this help message
 
-Examples:
-  neuron evaluation --path=/path/to/evaluators
-  neuron evaluation /path/to/evaluators --verbose
-  neuron make:agent MyAgent
-  neuron make:tool MyApp\Tools\MyTool
-  neuron --help
+            Examples:
+              neuron evaluation --path=/path/to/evaluators
+              neuron evaluation /path/to/evaluators --verbose
+              neuron make:agent MyAgent
+              neuron make:tool MyApp\Tools\MyTool
+              neuron --help
 
-For command-specific help, use:
-  neuron <command> --help
+            For command-specific help, use:
+              neuron <command> --help
 
-USAGE;
+            USAGE;
 
         echo $usage . PHP_EOL;
     }

@@ -8,8 +8,10 @@ $finder = Finder::create()
     ->exclude('vendor');
 
 return (new Config())
+    ->setParallelConfig(PhpCsFixer\Runner\Parallel\ParallelConfigFactory::detect())
     ->setRules([
         '@PSR12' => true,
+        '@PHP8x1Migration' => true,
         'no_unused_imports' => true,
         'native_function_invocation' => [
             'scope' => 'all',
