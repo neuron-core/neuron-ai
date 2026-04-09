@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Events\Event;
-use Throwable;
 
 /**
  * Encapsulates the result of a parallel branch execution.
@@ -18,20 +17,8 @@ class BranchResult
      */
     public function __construct(
         public readonly string $branchId,
-        public readonly ?Event $finalEvent = null,
         public readonly array $stateChanges = [],
-        public readonly array $streamedEvents = [],
-        public readonly ?Throwable $error = null
+        public readonly array $streamedEvents = []
     ) {
-    }
-
-    public function hasError(): bool
-    {
-        return $this->error instanceof Throwable;
-    }
-
-    public function isSuccessful(): bool
-    {
-        return !$this->error instanceof Throwable && $this->finalEvent instanceof Event;
     }
 }

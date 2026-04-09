@@ -19,7 +19,6 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use Throwable;
 
 use function array_diff_assoc;
 use function sprintf;
@@ -143,6 +142,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * (e.g. AsyncExecutor runs branches concurrently via Amp futures).
      *
      * @return Generator<int, Event, mixed, Event>
+     *
+     * @throws WorkflowException
      */
     protected function executeParallelBranches(
         Workflow $workflow,
@@ -177,52 +178,42 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $streamedEvents = [];
         $originalStateData = $workflow->resolveState()->all();
 
-        try {
-            $branchState = clone $workflow->resolveState();
+        $branchState = clone $workflow->resolveState();
 
-            if (!$workflow->hasNodeForEvent($branchEvent::class)) {
+        if (!$workflow->hasNodeForEvent($branchEvent::class)) {
+            throw new WorkflowException(
+                sprintf("No node found for branch '%s' event: %s", $branchId, $branchEvent::class)
+            );
+        }
+
+        $currentNode = $workflow->getNodeForEvent($branchEvent::class);
+        $currentEvent = $branchEvent;
+
+        while (!($currentEvent instanceof StopEvent)) {
+            $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, null, $branchState);
+            foreach ($nodeGenerator as $streamedEvent) {
+                $streamedEvents[] = $streamedEvent;
+            }
+            $currentEvent = $nodeGenerator->getReturn();
+
+            if ($currentEvent instanceof StopEvent) {
+                break;
+            }
+
+            if (!$workflow->hasNodeForEvent($currentEvent::class)) {
                 throw new WorkflowException(
-                    sprintf("No node found for branch '%s' event: %s", $branchId, $branchEvent::class)
+                    sprintf("Branch '%s': No node for event %s", $branchId, $currentEvent::class)
                 );
             }
 
-            $currentNode = $workflow->getNodeForEvent($branchEvent::class);
-            $currentEvent = $branchEvent;
-
-            while (!($currentEvent instanceof StopEvent)) {
-                $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, null, $branchState);
-                foreach ($nodeGenerator as $streamedEvent) {
-                    $streamedEvents[] = $streamedEvent;
-                }
-                $currentEvent = $nodeGenerator->getReturn();
-
-                if ($currentEvent instanceof StopEvent) {
-                    break;
-                }
-
-                if (!$workflow->hasNodeForEvent($currentEvent::class)) {
-                    throw new WorkflowException(
-                        sprintf("Branch '%s': No node for event %s", $branchId, $currentEvent::class)
-                    );
-                }
-
-                $currentNode = $workflow->getNodeForEvent($currentEvent::class);
-            }
-
-            return new BranchResult(
-                branchId: $branchId,
-                finalEvent: $currentEvent,
-                stateChanges: array_diff_assoc($branchState->all(), $originalStateData),
-                streamedEvents: $streamedEvents,
-            );
-        } catch (Throwable $e) {
-            return new BranchResult(
-                branchId: $branchId,
-                finalEvent: $currentEvent ?? $branchEvent,
-                streamedEvents: $streamedEvents,
-                error: $e,
-            );
+            $currentNode = $workflow->getNodeForEvent($currentEvent::class);
         }
+
+        return new BranchResult(
+            branchId: $branchId,
+            stateChanges: array_diff_assoc($branchState->all(), $originalStateData),
+            streamedEvents: $streamedEvents,
+        );
     }
 
     protected function runBeforeMiddleware(
