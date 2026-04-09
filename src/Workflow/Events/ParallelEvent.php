@@ -11,25 +11,24 @@ use function array_is_list;
 /**
  * Event that triggers parallel branch execution.
  *
- * When a node's __invoke() returns a ParallelEvent, the executor runs all branches
- * (sequentially with SequentialExecutor, concurrently with AsyncExecutor). After all
- * branches complete, the workflow continues in one of two ways:
+ * When a node's __invoke() returns a ParallelEvent subclass, the executor runs all
+ * branches (sequentially by default, concurrently with AsyncExecutor). After all
+ * branches complete, branch state changes are stored under "branches.{branchId}.*"
+ * in WorkflowState, and the ParallelEvent instance is routed through the event→node
+ * map to a join node.
  *
- *  - If the returning node extends ParallelNode (i.e. it has a merge() method), that
- *    method is called and its returned event is routed to the next node normally.
- *
- *  - Otherwise (JoinNode pattern), the ParallelEvent instance itself is routed through
- *    the event→node map. Register a separate join node that handles the specific
- *    ParallelEvent subclass to continue the workflow after the parallel section.
+ * Pattern:
+ *  1. Extend ParallelEvent for your specific parallel operation.
+ *  2. Return it from a fork node's __invoke(), passing the branch-starting events.
+ *  3. Register a join node whose __invoke() accepts your ParallelEvent subclass.
+ *     Read branch results from state under "branches.{branchId}.*".
  *
  * Branch IDs:
  *  - Associative array keys are used as-is as branch IDs.
  *  - Sequential (integer-indexed) arrays auto-derive IDs from the event class short name
  *    (e.g. new ExtractTextEvent() → branch ID "ExtractTextEvent").
  *
- * Branch state changes are stored under "branches.{branchId}.*" in WorkflowState.
- *
- * Example — JoinNode pattern (no merge method needed):
+ * Example:
  *
  *   class DocumentParallelEvent extends ParallelEvent {}
  *
@@ -47,8 +46,8 @@ use function array_is_list;
  *       public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
  *       {
  *           $state->set('result', [
- *               'text'   => $state->get('branches.text.result'),
- *               'images' => $state->get('branches.images.result'),
+ *               'text'   => $state->get('branches.text.extractedText'),
+ *               'images' => $state->get('branches.images.imageAnalysis'),
  *           ]);
  *           return new StopEvent();
  *       }

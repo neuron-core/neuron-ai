@@ -16,7 +16,6 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Node\ParallelNode;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -71,8 +70,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute a single node, yielding any streamed events and returning the next event.
      *
-     * If the node returns a ParallelEvent, branches are executed and the result of
-     * the join (either from merge() or from standard routing) is returned.
+     * If the node returns a ParallelEvent, branches are executed and the ParallelEvent
+     * is returned for standard routing to a join node.
      *
      * @return Generator<int, Event, mixed, Event>
      * @throws InspectorException
@@ -114,7 +113,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             if ($nodeResult instanceof ParallelEvent) {
-                $parallelGen = $this->executeParallelBranches($workflow, $currentNode, $nodeResult);
+                $parallelGen = $this->executeParallelBranches($workflow, $nodeResult);
                 yield from $parallelGen;
                 $nodeResult = $parallelGen->getReturn();
             }
@@ -135,10 +134,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute parallel branches sequentially, one after the other.
      *
-     * After all branches complete the join strategy is determined by the forking node:
-     *  - If it extends ParallelNode, merge() is called and its result is returned.
-     *  - Otherwise the ParallelEvent instance is returned to be routed normally through
-     *    the event→node map (JoinNode pattern).
+     * After all branches complete, branch state changes are stored under
+     * "branches.{branchId}.*" in WorkflowState and the ParallelEvent is returned
+     * for normal routing. Register a join node that handles the ParallelEvent subclass
+     * to continue the workflow and read branch results from state.
      *
      * Subclasses can override this method to change how branches run
      * (e.g. AsyncExecutor runs branches concurrently via Amp futures).
@@ -147,15 +146,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function executeParallelBranches(
         Workflow $workflow,
-        NodeInterface $node,
         ParallelEvent $parallelEvent
     ): Generator {
-        $mergedResults = [];
-
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
             $result = $this->executeBranch($workflow, $branchId, $branchEvent);
-
-            $mergedResults[$branchId] = $result->finalEvent;
 
             foreach ($result->stateChanges as $key => $value) {
                 $workflow->resolveState()->set("branches.{$branchId}.{$key}", $value);
@@ -164,10 +158,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             foreach ($result->streamedEvents as $streamedEvent) {
                 yield $streamedEvent;
             }
-        }
-
-        if ($node instanceof ParallelNode) {
-            return $node->merge($mergedResults, $workflow->resolveState());
         }
 
         return $parallelEvent;

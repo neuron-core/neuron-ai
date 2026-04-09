@@ -7,8 +7,6 @@ namespace NeuronAI\Workflow\Executor;
 use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
-use NeuronAI\Workflow\Node\ParallelNode;
-use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 
 use function Amp\async;
@@ -17,7 +15,7 @@ use function Amp\Future\await;
 /**
  * Executor that runs parallel branches concurrently using Amp fibers.
  *
- * Drop-in replacement for SequentialExecutor: regular nodes execute sequentially
+ * Drop-in replacement for WorkflowExecutor: regular nodes execute sequentially
  * as usual; branches from any node returning ParallelEvent execute as concurrent
  * Amp futures.
  *
@@ -33,7 +31,6 @@ class AsyncExecutor extends WorkflowExecutor
      */
     protected function executeParallelBranches(
         Workflow $workflow,
-        NodeInterface $node,
         ParallelEvent $parallelEvent
     ): Generator {
         $futures = [];
@@ -46,11 +43,7 @@ class AsyncExecutor extends WorkflowExecutor
         /** @var array<string, BranchResult> $branchResults */
         $branchResults = await($futures);
 
-        $mergedResults = [];
-
         foreach ($branchResults as $branchId => $result) {
-            $mergedResults[$branchId] = $result->finalEvent;
-
             foreach ($result->stateChanges as $key => $value) {
                 $workflow->resolveState()->set("branches.{$branchId}.{$key}", $value);
             }
@@ -58,10 +51,6 @@ class AsyncExecutor extends WorkflowExecutor
             foreach ($result->streamedEvents as $streamedEvent) {
                 yield $streamedEvent;
             }
-        }
-
-        if ($node instanceof ParallelNode) {
-            return $node->merge($mergedResults, $workflow->resolveState());
         }
 
         return $parallelEvent;
