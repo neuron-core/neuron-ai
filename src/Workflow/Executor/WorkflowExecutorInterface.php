@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Execution;
+namespace NeuronAI\Workflow\Executor;
 
 use Generator;
 use NeuronAI\Workflow\Events\Event;

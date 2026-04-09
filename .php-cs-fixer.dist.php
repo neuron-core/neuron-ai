@@ -8,6 +8,7 @@ $finder = Finder::create()
     ->exclude('vendor');
 
 return (new Config())
+    ->setParallelConfig(PhpCsFixer\Runner\Parallel\ParallelConfigFactory::detect())
     ->setRules([
         '@PSR12' => true,
         '@PHP8x1Migration' => true,
