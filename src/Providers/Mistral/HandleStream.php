@@ -26,6 +26,8 @@ use function array_filter;
 use function array_reduce;
 use function array_unshift;
 use function is_array;
+use function array_key_exists;
+use function array_merge;
 
 trait HandleStream
 {
@@ -49,7 +51,7 @@ trait HandleStream
             'stream' => true,
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
+            ...array_merge($this->parameters, ['stream_options' => ['include_usage' => true]]),
         ];
 
         // Attach tools
@@ -65,6 +67,7 @@ trait HandleStream
         );
 
         $this->streamState = new StreamState();
+        $lastFinishReason = null;
 
         while (! $stream->eof()) {
             if (($line = SSEParser::parseNextSSEEvent($stream)) === null) {
@@ -72,10 +75,9 @@ trait HandleStream
             }
 
             // Capture usage information
-            if (empty($line['choices']) && !empty($line['usage'])) {
+            if (!empty($line['usage'])) {
                 $this->streamState->addInputTokens($line['usage']['prompt_tokens'] ?? 0);
                 $this->streamState->addOutputTokens($line['usage']['completion_tokens'] ?? 0);
-                continue;
             }
 
             if (empty($line['choices'])) {
@@ -134,10 +136,18 @@ trait HandleStream
             if ($chunk !== null) {
                 yield $chunk;
             }
+
+            if (array_key_exists('finish_reason', $choice)) {
+                $lastFinishReason = $choice['finish_reason'];
+            }
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
+
+        if ($lastFinishReason !== null) {
+            $message->setStopReason($lastFinishReason);
+        }
 
         return $message;
     }
