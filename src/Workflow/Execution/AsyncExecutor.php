@@ -45,7 +45,7 @@ class AsyncExecutor extends SequentialExecutor
         ?InterruptRequest $resumeRequest = null
     ): Generator {
         if ($currentNode instanceof ParallelNode) {
-            return $this->executeParallel($workflow, $currentNode, $currentEvent);
+            return $this->executeAsync($workflow, $currentNode, $currentEvent);
         }
 
         return parent::executeNode($workflow, $currentEvent, $currentNode, $resumeRequest);
@@ -55,9 +55,8 @@ class AsyncExecutor extends SequentialExecutor
      * Execute parallel branches concurrently.
      *
      * @return Generator<int, Event, mixed, Event>
-     * @throws InspectorException
      */
-    protected function executeParallel(
+    protected function executeAsync(
         Workflow $workflow,
         ParallelNode $node,
         Event $event
@@ -172,7 +171,7 @@ class AsyncExecutor extends SequentialExecutor
 
                 // Handle nested ParallelNode
                 if ($currentNode instanceof ParallelNode) {
-                    $nestedResult = $this->executeParallel($workflow, $currentNode, $currentEvent);
+                    $nestedResult = $this->executeAsync($workflow, $currentNode, $currentEvent);
 
                     foreach ($nestedResult as $event) {
                         $streamedEvents[] = $event;
