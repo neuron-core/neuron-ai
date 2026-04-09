@@ -10,8 +10,12 @@ use NeuronAI\Workflow\WorkflowState;
 
 class MergeNode extends Node
 {
-    public function __invoke(MergeEvent $event, WorkflowState $state): StopEvent
+    public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
     {
+        $state->set('analysis', [
+            'text' => $state->get('branches.text.processedText'),
+            'image' => $state->get('branches.image.processedImage'),
+        ]);
         $state->set('merge_node_executed', true);
         return new StopEvent();
     }

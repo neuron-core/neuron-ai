@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Execution;
 
-use NeuronAI\Tests\Workflow\Execution\Stubs\DocumentProcessingNode;
+use NeuronAI\Tests\Workflow\Execution\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Execution\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Execution\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Execution\Stubs\SlowImageProcessNode;
@@ -43,7 +43,7 @@ class AsyncExecutorTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new DocumentProcessingNode(),
+                new DocumentParallelProcessing(),
                 new TextProcessNode(),
                 new ImageProcessNode(),
                 new MergeNode(),
@@ -61,7 +61,7 @@ class AsyncExecutorTest extends TestCase
         $workflow = Workflow::make()
             ->setExecutor(new AsyncExecutor())
             ->addNodes([
-                new DocumentProcessingNode(),
+                new DocumentParallelProcessing(),
                 new TextProcessNode(),
                 new ImageProcessNode(),
                 new MergeNode(),
@@ -79,7 +79,7 @@ class AsyncExecutorTest extends TestCase
         $workflow = Workflow::make()
             ->setExecutor(new AsyncExecutor())
             ->addNodes([
-                new DocumentProcessingNode(),
+                new DocumentParallelProcessing(),
                 new TextProcessNode(),
                 new ImageProcessNode(),
                 new MergeNode(),
@@ -102,7 +102,7 @@ class AsyncExecutorTest extends TestCase
         $workflow = Workflow::make()
             ->setExecutor(new AsyncExecutor())
             ->addNodes([
-                new DocumentProcessingNode(),
+                new DocumentParallelProcessing(),
                 new SlowTextProcessNode(),   // 0.1 s delay
                 new SlowImageProcessNode(),  // 0.1 s delay
                 new MergeNode(),
@@ -120,7 +120,7 @@ class AsyncExecutorTest extends TestCase
     {
         $workflow = Workflow::make()
             ->addNodes([
-                new DocumentProcessingNode(),
+                new DocumentParallelProcessing(),
                 new SlowTextProcessNode(),   // 0.1 s delay
                 new SlowImageProcessNode(),  // 0.1 s delay
                 new MergeNode(),
