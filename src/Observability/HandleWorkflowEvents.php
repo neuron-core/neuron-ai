@@ -84,7 +84,7 @@ trait HandleWorkflowEvents
         $inspector = $data->fork ? $this->inspector->fork() : $this->inspector;
 
         $segment = $inspector->startSegment(
-            self::SEGMENT_TYPE.'.workflow',
+            self::SEGMENT_TYPE.'.node',
             $this->getBaseClassName($data->node)
         )
             ->setColor(self::STANDARD_COLOR);
