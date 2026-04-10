@@ -64,7 +64,7 @@ class ParallelToolNode extends ToolNode
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
-            $this->emit('tool-calling', new ToolCalling($tool));
+            $this->emit('tool-calling', new ToolCalling($tool, true));
 
             yield new ToolCallChunk($tool);
         }

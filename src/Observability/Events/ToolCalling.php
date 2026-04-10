@@ -8,7 +8,7 @@ use NeuronAI\Tools\ToolInterface;
 
 class ToolCalling
 {
-    public function __construct(public ToolInterface $tool)
+    public function __construct(public ToolInterface $tool, public readonly bool $fork = false)
     {
     }
 }
