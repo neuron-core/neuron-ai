@@ -57,11 +57,11 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
-        if (array_key_exists('error', $result)) {
+        if (isset($result['error']) {
             throw new ProviderException("OpenAI API Error: " . ($result['error']['message'] ?? json_encode($result['error'])));
         }
 
-        if (!array_key_exists('output', $result)) {
+        if (empty($result['output'])) {
             throw new ProviderException("OpenAI API Error: " . json_encode($result));
         }
 
