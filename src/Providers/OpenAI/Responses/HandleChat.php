@@ -55,6 +55,14 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
+        if (array_key_exists('error', $result)) {
+            throw new ProviderException("OpenAI API Error: " . ($result['error']['message'] ?? json_encode($result['error'])));
+        }
+
+        if (!array_key_exists('output', $result)) {
+            throw new ProviderException("OpenAI API Error: " . json_encode($result)));
+        }
+        
         $toolCalls = array_filter($result['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
         $usage = new Usage($result['usage']['input_tokens'] ?? 0, $result['usage']['output_tokens'] ?? 0);
