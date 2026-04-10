@@ -94,7 +94,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         EventBus::emit(
             'workflow-node-start',
             $workflow,
-            new WorkflowNodeStart($currentNode::class, $state),
+            $this->buildNodeStartEvent($currentNode::class, $state),
             $workflow->getWorkflowId()
         );
 
@@ -251,5 +251,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $m->after($node, $event, $state);
             EventBus::emit('middleware-after-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId());
         }
+    }
+
+    protected function buildNodeStartEvent(string $currentNode, WorkflowState $state): WorkflowNodeStart
+    {
+        return new WorkflowNodeStart($currentNode, $state);
     }
 }

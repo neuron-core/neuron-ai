@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
+use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 
+use NeuronAI\Workflow\WorkflowState;
 use function Amp\async;
 use function Amp\Future\await;
 
@@ -55,5 +57,10 @@ class AsyncExecutor extends WorkflowExecutor
         }
 
         return $parallelEvent;
+    }
+
+    protected function buildNodeStartEvent(string $currentNode, WorkflowState $state): WorkflowNodeStart
+    {
+        return new WorkflowNodeStart($currentNode, $state, true);
     }
 }
