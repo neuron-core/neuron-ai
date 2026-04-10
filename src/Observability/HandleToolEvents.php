@@ -61,8 +61,9 @@ trait HandleToolEvents
             return;
         }
 
-        $this->toolCalls[$data->tool::class] = $this->inspector
-            ->startSegment(
+        $inspector = $data->fork ? $this->inspector->fork() : $this->inspector;
+
+        $this->toolCalls[$data->tool::class] = $inspector->startSegment(
                 self::SEGMENT_TYPE.'.tool',
                 "tool_call( {$data->tool->getName()} )"
             )
