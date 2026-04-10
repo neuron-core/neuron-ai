@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 
 use function Amp\async;
 use function Amp\Future\await;
@@ -30,7 +31,7 @@ class AsyncExecutor extends WorkflowExecutor
      * @return Generator<int, Event, mixed, Event>
      */
     protected function executeParallelBranches(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         ParallelEvent $parallelEvent
     ): Generator {
         $futures = [];

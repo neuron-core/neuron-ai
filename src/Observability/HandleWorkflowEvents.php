@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
@@ -71,16 +72,25 @@ trait HandleWorkflowEvents
         }
     }
 
+    /**
+     * @throws InspectorException
+     */
     public function nodeStart(object $workflow, string $event, WorkflowNodeStart $data): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $segment = $this->inspector
-            ->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($data->node))
+        $inspector = $data->fork ? $this->inspector->fork() : $this->inspector;
+
+        $segment = $inspector->startSegment(
+            self::SEGMENT_TYPE.'.workflow',
+            $this->getBaseClassName($data->node)
+        )
             ->setColor(self::STANDARD_COLOR);
+
         $segment->addContext('State Before', $data->state->except('__steps'));
+
         $this->segments[$data->node] = $segment;
     }
 

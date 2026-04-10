@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use Inspector\Exceptions\InspectorException;
 use Inspector\Models\Segment;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Observability\Events\ToolCalled;
@@ -55,6 +56,9 @@ trait HandleToolEvents
         }
     }
 
+    /**
+     * @throws InspectorException
+     */
     public function toolCalling(object $source, string $event, ToolCalling $data): void
     {
         if (!$this->inspector->canAddSegments()) {
@@ -64,9 +68,9 @@ trait HandleToolEvents
         $inspector = $data->fork ? $this->inspector->fork() : $this->inspector;
 
         $this->toolCalls[$data->tool::class] = $inspector->startSegment(
-                self::SEGMENT_TYPE.'.tool',
-                "tool_call( {$data->tool->getName()} )"
-            )
+            self::SEGMENT_TYPE.'.tool',
+            "tool_call( {$data->tool->getName()} )"
+        )
             ->setColor(self::STANDARD_COLOR);
     }
 
