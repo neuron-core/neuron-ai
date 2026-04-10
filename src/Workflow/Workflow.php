@@ -125,14 +125,6 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Initialize the workflow handler.
-     */
-    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
-    {
-        return new WorkflowHandler($this, $resumeRequest);
-    }
-
-    /**
      * Set a custom start event with initial data.
      */
     public function setStartEvent(Event $event): WorkflowInterface
@@ -155,6 +147,14 @@ class Workflow implements WorkflowInterface
     protected function resolveStartEvent(): Event
     {
         return $this->startEvent ??= $this->startEvent();
+    }
+
+    /**
+     * Initialize the workflow handler.
+     */
+    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
+    {
+        return new WorkflowHandler($this, $resumeRequest);
     }
 
     /**
