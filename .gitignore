@@ -7,8 +7,10 @@ composer.lock
 /tests/VectorStore/*.store
 /**/CLAUDE.md
 .claude
+.agents
 .artiforge
 .junie
 .env
 scripts
 phpunit.xml.local
+/skills-lock.json
