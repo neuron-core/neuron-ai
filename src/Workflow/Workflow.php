@@ -208,7 +208,7 @@ class Workflow implements WorkflowInterface
         ?InterruptRequest $resumeRequest = null
     ): Generator {
         try {
-            yield from $this->getExecutor()->execute(
+            yield from $this->executor()->execute(
                 $this,
                 $currentEvent,
                 $currentNode,
@@ -356,7 +356,7 @@ class Workflow implements WorkflowInterface
     /**
      * Get the current executor.
      */
-    public function getExecutor(): WorkflowExecutorInterface
+    protected function executor(): WorkflowExecutorInterface
     {
         return $this->executor;
     }
