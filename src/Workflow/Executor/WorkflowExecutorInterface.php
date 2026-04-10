@@ -9,6 +9,7 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 
 interface WorkflowExecutorInterface
 {
@@ -18,7 +19,7 @@ interface WorkflowExecutorInterface
      * @return Generator<int, Event, mixed, void>
      */
     public function execute(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         Event $currentEvent,
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null

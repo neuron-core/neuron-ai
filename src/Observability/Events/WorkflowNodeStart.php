@@ -11,6 +11,7 @@ class WorkflowNodeStart
     public function __construct(
         public string $node,
         public WorkflowState $state,
+        public readonly bool $fork = false,
     ) {
     }
 }

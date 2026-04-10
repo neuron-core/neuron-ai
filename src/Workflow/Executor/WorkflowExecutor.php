@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_diff_assoc;
@@ -40,7 +41,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws WorkflowException
      */
     public function execute(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         Event $currentEvent,
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null
@@ -76,7 +77,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws WorkflowException|InspectorException
      */
     protected function executeNode(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         Event $currentEvent,
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null,
@@ -146,7 +147,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws WorkflowException|InspectorException
      */
     protected function executeParallelBranches(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         ParallelEvent $parallelEvent
     ): Generator {
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
@@ -173,7 +174,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws WorkflowException|InspectorException
      */
     protected function executeBranch(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         string $branchId,
         Event $branchEvent
     ): BranchResult {
@@ -222,7 +223,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws InspectorException
      */
     protected function runBeforeMiddleware(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         Event $event,
         NodeInterface $node,
         ?WorkflowState $state = null
@@ -239,7 +240,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws InspectorException
      */
     protected function runAfterMiddleware(
-        Workflow $workflow,
+        WorkflowInterface $workflow,
         Event $event,
         NodeInterface $node,
         ?WorkflowState $state = null

@@ -96,7 +96,7 @@ class Workflow implements WorkflowInterface
      * Observers are scoped to the workflow instance, ensuring proper
      * isolation when running multiple workflows concurrently.
      */
-    public function observe(ObserverInterface $observer): self
+    public function observe(ObserverInterface $observer): WorkflowInterface
     {
         EventBus::observe($observer, $this->workflowId);
         return $this;
@@ -105,7 +105,7 @@ class Workflow implements WorkflowInterface
     /**
      * Configure workflow persistence.
      */
-    public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): self
+    public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): WorkflowInterface
     {
         $this->persistence = $persistence;
 
@@ -119,7 +119,7 @@ class Workflow implements WorkflowInterface
     /**
      * @deprecated Use init() instead.
      */
-    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandler
+    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
         return new WorkflowHandler($this, $resumeRequest);
     }
@@ -135,7 +135,7 @@ class Workflow implements WorkflowInterface
     /**
      * Set a custom start event with initial data.
      */
-    public function setStartEvent(Event $event): self
+    public function setStartEvent(Event $event): WorkflowInterface
     {
         $this->startEvent = $event;
         return $this;
@@ -347,7 +347,7 @@ class Workflow implements WorkflowInterface
     /**
      * Set a custom executor for workflow execution.
      */
-    public function setExecutor(WorkflowExecutorInterface $executor): self
+    public function setExecutor(WorkflowExecutorInterface $executor): WorkflowInterface
     {
         $this->executor = $executor;
         return $this;

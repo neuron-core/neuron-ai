@@ -37,7 +37,7 @@ trait HandleMiddleware
     }
 
     /**
-     * Define nodes middleware here.
+     * Define node middleware here.
      *
      * @return array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
      */
@@ -52,7 +52,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): self
+    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): WorkflowInterface
     {
         $middlewareArray = is_array($middleware) ? $middleware : [$middleware];
 
@@ -74,7 +74,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): self
+    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): WorkflowInterface
     {
         $nodeClasses = is_array($node) ? $node : [$node];
         $middlewareList = is_array($middleware) ? $middleware : [$middleware];
