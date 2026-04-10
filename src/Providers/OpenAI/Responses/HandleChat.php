@@ -60,7 +60,7 @@ trait HandleChat
         }
 
         if (!array_key_exists('output', $result)) {
-            throw new ProviderException("OpenAI API Error: " . json_encode($result)));
+            throw new ProviderException("OpenAI API Error: " . json_encode($result));
         }
         
         $toolCalls = array_filter($result['output'], fn (array $item): bool => $item['type'] == 'function_call');
