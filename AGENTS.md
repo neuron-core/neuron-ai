@@ -66,6 +66,7 @@ Read module-specific `AGENTS.md` files when working on that area:
 - 100% type coverage (params, returns, properties)
 - PHP 8.1+ features (enums, constructor promotion)
 - Protected visibility for non-public members (never private)
+- Focus on minimal code implementation, don't be verbose
 
 ## Key Patterns
 

@@ -18,47 +18,58 @@ use function json_decode;
 
 trait HandleStructuredEvents
 {
-    protected Segment $schema;
-    protected Segment $extract;
-    protected Segment $deserialize;
-    protected Segment $validate;
+    /**
+     * Open structured-output segments keyed by "{branchId}:{phase}".
+     *
+     * @var array<string, Segment>
+     */
+    protected array $structuredSegments = [];
 
-    protected function schemaGeneration(object $source, string $event, SchemaGeneration $data): void
+    protected function schemaGeneration(object $source, string $event, SchemaGeneration $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $this->schema = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( ".$this->getBaseClassName($data->class)." )")
+        $key = $branchId.':schema';
+        $this->structuredSegments[$key] = $this->resolveScope($branchId)
+            ->startSegment(self::SEGMENT_TYPE.'.structured-output', "schema_generate( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function schemaGenerated(object $source, string $event, SchemaGenerated $data): void
+    protected function schemaGenerated(object $source, string $event, SchemaGenerated $data, ?string $branchId = null): void
     {
-        if (isset($this->schema)) {
-            $this->schema->end();
-            $this->schema->addContext('Schema', $data->schema);
+        $key = $branchId.':schema';
+
+        if (isset($this->structuredSegments[$key])) {
+            $this->structuredSegments[$key]->end();
+            $this->structuredSegments[$key]->addContext('Schema', $data->schema);
+            unset($this->structuredSegments[$key]);
         }
     }
 
-    protected function extracting(object $source, string $event, Extracting $data): void
+    protected function extracting(object $source, string $event, Extracting $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $this->extract = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
+        $key = $branchId.':extract';
+        $this->structuredSegments[$key] = $this->resolveScope($branchId)
+            ->startSegment(self::SEGMENT_TYPE.'.structured-output', 'extract_output')
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function extracted(object $source, string $event, Extracted $data): void
+    protected function extracted(object $source, string $event, Extracted $data, ?string $branchId = null): void
     {
-        if (!isset($this->extract)) {
+        $key = $branchId.':extract';
+
+        if (!isset($this->structuredSegments[$key])) {
             return;
         }
 
-        $this->extract->end();
-        $this->extract->addContext(
+        $this->structuredSegments[$key]->end();
+        $this->structuredSegments[$key]->addContext(
             'Data',
             [
                 'response' => $data->message->jsonSerialize(),
@@ -68,44 +79,55 @@ trait HandleStructuredEvents
             'Schema',
             $data->schema
         );
+        unset($this->structuredSegments[$key]);
     }
 
-    protected function deserializing(object $source, string $event, Deserializing $data): void
+    protected function deserializing(object $source, string $event, Deserializing $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $this->deserialize = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( ".$this->getBaseClassName($data->class)." )")
+        $key = $branchId.':deserialize';
+        $this->structuredSegments[$key] = $this->resolveScope($branchId)
+            ->startSegment(self::SEGMENT_TYPE.'.structured-output', "deserialize( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function deserialized(object $source, string $event, Deserialized $data): void
+    protected function deserialized(object $source, string $event, Deserialized $data, ?string $branchId = null): void
     {
-        if (isset($this->deserialize)) {
-            $this->deserialize->addContext('Class', $data->class);
-            $this->deserialize->end();
+        $key = $branchId.':deserialize';
+
+        if (isset($this->structuredSegments[$key])) {
+            $this->structuredSegments[$key]->addContext('Class', $data->class);
+            $this->structuredSegments[$key]->end();
+            unset($this->structuredSegments[$key]);
         }
     }
 
-    protected function validating(object $source, string $event, Validating $data): void
+    protected function validating(object $source, string $event, Validating $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $this->validate = $this->inspector->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( ".$this->getBaseClassName($data->class)." )")
+        $key = $branchId.':validate';
+        $this->structuredSegments[$key] = $this->resolveScope($branchId)
+            ->startSegment(self::SEGMENT_TYPE.'.structured-output', "validate( ".$this->getBaseClassName($data->class)." )")
             ->setColor(self::STANDARD_COLOR);
     }
 
-    protected function validated(object $source, string $event, Validated $data): void
+    protected function validated(object $source, string $event, Validated $data, ?string $branchId = null): void
     {
-        if (isset($this->validate)) {
-            $this->validate->end();
-            $this->validate->addContext('Json', json_decode($data->json));
+        $key = $branchId.':validate';
+
+        if (isset($this->structuredSegments[$key])) {
+            $this->structuredSegments[$key]->end();
+            $this->structuredSegments[$key]->addContext('Json', json_decode($data->json));
             if ($data->violations !== []) {
-                $this->validate->addContext('Violations', $data->violations);
+                $this->structuredSegments[$key]->addContext('Violations', $data->violations);
             }
+            unset($this->structuredSegments[$key]);
         }
     }
 }
