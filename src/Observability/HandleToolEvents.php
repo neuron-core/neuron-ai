@@ -34,6 +34,8 @@ trait HandleToolEvents
 
     public function toolsBootstrapping(AgentInterface $agent, string $event, mixed $data, ?string $branchId = null): void
     {
+        $branchId ??= '__main__';
+
         if (!$this->inspector->canAddSegments() || $agent->getTools() === []) {
             return;
         }
@@ -48,7 +50,9 @@ trait HandleToolEvents
 
     public function toolsBootstrapped(object $source, string $event, ToolsBootstrapped $data, ?string $branchId = null): void
     {
-        if (is_string($branchId) && !array_key_exists($branchId, $this->toolBootstraps)) {
+        $branchId ??= '__main__';
+
+        if (!array_key_exists($branchId, $this->toolBootstraps)) {
             return;
         }
 
