@@ -25,14 +25,14 @@ trait HandleToolEvents
      *
      * @var array<string, Segment>
      */
-    protected array $toolBootstraps = [];
+    //protected array $toolBootstraps = [];
 
     /**
      * @var array<string, Segment>
      */
     protected array $toolCalls = [];
 
-    public function toolsBootstrapping(AgentInterface $agent, string $event, mixed $data, ?string $branchId = null): void
+    /*public function toolsBootstrapping(AgentInterface $agent, string $event, mixed $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments() || $agent->getTools() === []) {
             return;
@@ -63,7 +63,7 @@ trait HandleToolEvents
         }, []));
         $this->toolBootstraps[$branchId]->addContext('Guidelines', $data->guidelines);
         unset($this->toolBootstraps[$branchId]);
-    }
+    }*/
 
     /**
      * @throws InspectorException

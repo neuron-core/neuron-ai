@@ -114,19 +114,19 @@ trait HandleTools
      */
     public function bootstrapTools(): array
     {
-        $guidelines = [];
-
         if (!empty($this->toolsBootstrapCache)) {
             return $this->toolsBootstrapCache;
         }
 
-        EventBus::emit(
+        /*EventBus::emit(
             'tools-bootstrapping',
             $this,
             null,
             $this->workflowId,
             $this->resolveState()->get('__branchId', '__main__')
-        );
+        );*/
+
+        $guidelines = [];
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
@@ -163,13 +163,13 @@ trait HandleTools
             );
         }
 
-        EventBus::emit(
+        /*EventBus::emit(
             'tools-bootstrapped',
             $this,
             new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines),
             $this->workflowId,
             $this->resolveState()->get('__branchId', '__main__')
-        );
+        );*/
 
         return $this->toolsBootstrapCache;
     }
