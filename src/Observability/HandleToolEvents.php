@@ -47,7 +47,7 @@ trait HandleToolEvents
 
     public function toolsBootstrapped(object $source, string $event, ToolsBootstrapped $data, ?string $branchId = null): void
     {
-        if (!array_key_exists($branchId, $this->toolBootstraps)) {
+        if (is_string($branchId) && !array_key_exists($branchId, $this->toolBootstraps)) {
             return;
         }
 
