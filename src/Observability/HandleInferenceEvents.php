@@ -18,9 +18,14 @@ use function array_key_exists;
 
 trait HandleInferenceEvents
 {
-    protected Segment $inference;
+    /**
+     * Open inference segments keyed by branch scope key.
+     *
+     * @var array<string, Segment>
+     */
+    protected array $inferences = [];
 
-    public function messageSaving(object $source, string $event, MessageSaving $data): void
+    public function messageSaving(object $source, string $event, MessageSaving $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -29,7 +34,7 @@ trait HandleInferenceEvents
         $label = $this->getBaseClassName($data->message::class);
         $key = $data->message->getMetadata('__id') ?? $data->message::class;
 
-        $this->segments[$key] = $this->inspector
+        $this->segments[$key] = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
 
@@ -41,7 +46,7 @@ trait HandleInferenceEvents
         }
     }
 
-    public function messageSaved(object $source, string $event, MessageSaved $data): void
+    public function messageSaved(object $source, string $event, MessageSaved $data, ?string $branchId = null): void
     {
         $key = $data->message->getMetadata('__id') ?? $data->message::class;
 
@@ -55,7 +60,7 @@ trait HandleInferenceEvents
         unset($this->segments[$key]);
     }
 
-    public function inferenceStart(object $source, string $event, InferenceStart $data): void
+    public function inferenceStart(object $source, string $event, InferenceStart $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -63,19 +68,22 @@ trait HandleInferenceEvents
 
         $label = $this->getBaseClassName($data->message::class);
 
-        $this->inference = $this->inspector
+        $this->inferences[$branchId] = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.inference', "inference( {$label} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
-    public function inferenceStop(object $source, string $event, InferenceStop $data): void
+    public function inferenceStop(object $source, string $event, InferenceStop $data, ?string $branchId = null): void
     {
-        if (isset($this->inference)) {
-            $this->inference->end();
-            if ($data->message instanceof Message) {
-                $this->inference->addContext('Message', $this->prepareMessageItem($data->message));
-            }
-            $this->inference->addContext('Response', $this->prepareMessageItem($data->response));
+        if (!isset($this->inferences[$branchId])) {
+            return;
         }
+
+        $this->inferences[$branchId]->end();
+        if ($data->message instanceof Message) {
+            $this->inferences[$branchId]->addContext('Message', $this->prepareMessageItem($data->message));
+        }
+        $this->inferences[$branchId]->addContext('Response', $this->prepareMessageItem($data->response));
+        unset($this->inferences[$branchId]);
     }
 }

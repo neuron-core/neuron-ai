@@ -145,6 +145,7 @@ abstract class Node implements NodeInterface
     protected function emit(string $event, mixed $data = null): void
     {
         $workflowId = $this->state->get('__workflowId');
-        EventBus::emit($event, $this, $data, $workflowId);
+        $branchId = $this->state->get('__branchId', '__main__');
+        EventBus::emit($event, $this, $data, $workflowId, $branchId);
     }
 }

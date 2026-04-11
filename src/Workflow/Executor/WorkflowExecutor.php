@@ -8,6 +8,8 @@ use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
+use NeuronAI\Observability\Events\BranchEnd;
+use NeuronAI\Observability\Events\BranchStart;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
@@ -81,7 +83,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         Event $currentEvent,
         NodeInterface $currentNode,
         ?InterruptRequest $resumeRequest = null,
-        ?WorkflowState $state = null
+        ?WorkflowState $state = null,
+        ?string $branchId = null
     ): Generator {
         $state ??= $workflow->resolveState();
 
@@ -94,12 +97,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         EventBus::emit(
             'workflow-node-start',
             $workflow,
-            $this->buildNodeStartEvent($currentNode::class, $state),
-            $workflow->getWorkflowId()
+            new WorkflowNodeStart($currentNode::class, $state),
+            $workflow->getWorkflowId(),
+            $branchId
         );
 
         try {
-            $this->runBeforeMiddleware($workflow, $currentEvent, $currentNode, $state);
+            $this->runBeforeMiddleware($workflow, $currentEvent, $currentNode, $state, $branchId);
 
             $result = $currentNode->run($currentEvent, $state);
 
@@ -118,13 +122,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $nodeResult = $parallelGen->getReturn();
             }
 
-            $this->runAfterMiddleware($workflow, $nodeResult, $currentNode, $state);
+            $this->runAfterMiddleware($workflow, $nodeResult, $currentNode, $state, $branchId);
         } finally {
             EventBus::emit(
                 'workflow-node-end',
                 $workflow,
                 new WorkflowNodeEnd($currentNode::class, $state),
-                $workflow->getWorkflowId()
+                $workflow->getWorkflowId(),
+                $branchId
             );
         }
 
@@ -182,34 +187,53 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $originalStateData = $workflow->resolveState()->all();
 
         $branchState = clone $workflow->resolveState();
+        $branchState->set('__branchId', $branchId);
 
-        if (!$workflow->hasNodeForEvent($branchEvent::class)) {
-            throw new WorkflowException(
-                sprintf("No node found for branch '%s' event: %s", $branchId, $branchEvent::class)
-            );
-        }
+        EventBus::emit(
+            'branch-start',
+            $workflow,
+            new BranchStart($branchId),
+            $workflow->getWorkflowId(),
+            $branchId
+        );
 
-        $currentNode = $workflow->getNodeForEvent($branchEvent::class);
-        $currentEvent = $branchEvent;
-
-        while (!($currentEvent instanceof StopEvent)) {
-            $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, null, $branchState);
-            foreach ($nodeGenerator as $streamedEvent) {
-                $streamedEvents[] = $streamedEvent;
-            }
-            $currentEvent = $nodeGenerator->getReturn();
-
-            if ($currentEvent instanceof StopEvent) {
-                break;
-            }
-
-            if (!$workflow->hasNodeForEvent($currentEvent::class)) {
+        try {
+            if (!$workflow->hasNodeForEvent($branchEvent::class)) {
                 throw new WorkflowException(
-                    sprintf("Branch '%s': No node for event %s", $branchId, $currentEvent::class)
+                    sprintf("No node found for branch '%s' event: %s", $branchId, $branchEvent::class)
                 );
             }
 
-            $currentNode = $workflow->getNodeForEvent($currentEvent::class);
+            $currentNode = $workflow->getNodeForEvent($branchEvent::class);
+            $currentEvent = $branchEvent;
+
+            while (!($currentEvent instanceof StopEvent)) {
+                $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, null, $branchState, $branchId);
+                foreach ($nodeGenerator as $streamedEvent) {
+                    $streamedEvents[] = $streamedEvent;
+                }
+                $currentEvent = $nodeGenerator->getReturn();
+
+                if ($currentEvent instanceof StopEvent) {
+                    break;
+                }
+
+                if (!$workflow->hasNodeForEvent($currentEvent::class)) {
+                    throw new WorkflowException(
+                        sprintf("Branch '%s': No node for event %s", $branchId, $currentEvent::class)
+                    );
+                }
+
+                $currentNode = $workflow->getNodeForEvent($currentEvent::class);
+            }
+        } finally {
+            EventBus::emit(
+                'branch-end',
+                $workflow,
+                new BranchEnd($branchId),
+                $workflow->getWorkflowId(),
+                $branchId
+            );
         }
 
         return new BranchResult(
@@ -226,13 +250,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowInterface $workflow,
         Event $event,
         NodeInterface $node,
-        ?WorkflowState $state = null
+        ?WorkflowState $state = null,
+        ?string $branchId = null
     ): void {
         $state ??= $workflow->resolveState();
         foreach ($workflow->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-before-start', $workflow, new MiddlewareStart($m, $event), $workflow->getWorkflowId());
+            EventBus::emit('middleware-before-start', $workflow, new MiddlewareStart($m, $event), $workflow->getWorkflowId(), $branchId);
             $m->before($node, $event, $state);
-            EventBus::emit('middleware-before-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId());
+            EventBus::emit('middleware-before-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId(), $branchId);
         }
     }
 
@@ -243,18 +268,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowInterface $workflow,
         Event $event,
         NodeInterface $node,
-        ?WorkflowState $state = null
+        ?WorkflowState $state = null,
+        ?string $branchId = null
     ): void {
         $state ??= $workflow->resolveState();
         foreach ($workflow->getMiddlewareForNode($node) as $m) {
-            EventBus::emit('middleware-after-start', $workflow, new MiddlewareStart($m, $event), $workflow->getWorkflowId());
+            EventBus::emit('middleware-after-start', $workflow, new MiddlewareStart($m, $event), $workflow->getWorkflowId(), $branchId);
             $m->after($node, $event, $state);
-            EventBus::emit('middleware-after-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId());
+            EventBus::emit('middleware-after-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId(), $branchId);
         }
-    }
-
-    protected function buildNodeStartEvent(string $currentNode, WorkflowState $state): WorkflowNodeStart
-    {
-        return new WorkflowNodeStart($currentNode, $state);
     }
 }

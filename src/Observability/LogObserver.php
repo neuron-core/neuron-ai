@@ -53,7 +53,7 @@ class LogObserver implements ObserverInterface
     ) {
     }
 
-    public function onEvent(string $event, object $source, mixed $data = null): void
+    public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
     {
         $this->logger->log($this->level, $event, $this->serializeData($data));
     }

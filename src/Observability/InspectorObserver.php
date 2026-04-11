@@ -9,6 +9,7 @@ use Inspector\Configuration;
 use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 use Inspector\Models\Segment;
+use Inspector\Scope;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
@@ -47,6 +48,13 @@ class InspectorObserver implements ObserverInterface
     protected array $segments = [];
 
     /**
+     * Forked Inspector scopes for concurrent parallel branches, keyed by branchId.
+     *
+     * @var array<string, Scope>
+     */
+    protected array $branchScopes = [];
+
+    /**
      * @var array<string, string>
      */
     protected array $methodsMap = [
@@ -55,6 +63,8 @@ class InspectorObserver implements ObserverInterface
         'workflow-start' => 'workflowStart',
         'workflow-resume' => 'workflowStart',
         'workflow-end' => 'workflowEnd',
+        'branch-start' => 'branchStart',
+        'branch-end' => 'branchEnd',
         'workflow-node-start' => 'nodeStart',
         'workflow-node-end' => 'nodeEnd',
         'middleware-after-start' => 'middlewareStart',
@@ -128,12 +138,28 @@ class InspectorObserver implements ObserverInterface
         return self::$instance;
     }
 
-    public function onEvent(string $event, object $source, mixed $data = null): void
+    public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
     {
         if (array_key_exists($event, $this->methodsMap)) {
             $method = $this->methodsMap[$event];
-            $this->$method($source, $event, $data);
+            $this->$method($source, $event, $data, $branchId);
         }
+    }
+
+    /**
+     * Resolve the Inspector Scope for a given branch.
+     *
+     * Returns the forked Scope for known parallel branches, or the main Inspector
+     * for the main execution path (null branchId) and for non-branch node events
+     * that carry the '__main__' sentinel.
+     */
+    protected function resolveScope(?string $branchId): Inspector|Scope
+    {
+        if ($branchId !== null && isset($this->branchScopes[$branchId])) {
+            return $this->branchScopes[$branchId];
+        }
+
+        return $this->inspector;
     }
 
     /**

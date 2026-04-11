@@ -58,10 +58,12 @@ class EventBus
      *
      * When workflowId is provided, emits only to observers registered for that workflow.
      * When workflowId is null, emits to global observers (backward compatibility).
+     * When branchId is provided, it is forwarded to the observer so branch-scoped events
+     * can be routed to the correct Inspector Scope.
      *
      * @throws InspectorException
      */
-    public static function emit(string $event, object $source, mixed $data = null, ?string $workflowId = null): void
+    public static function emit(string $event, object $source, mixed $data = null, ?string $workflowId = null, ?string $branchId = null): void
     {
         $scope = $workflowId ?? '__global__';
 
@@ -72,12 +74,12 @@ class EventBus
         if ($workflowId !== null) {
             // Emit to scoped observers only
             foreach (self::$scopedObservers[$workflowId] ?? [] as $observer) {
-                $observer->onEvent($event, $source, $data);
+                $observer->onEvent($event, $source, $data, $branchId);
             }
         } else {
             // Emit to global observers (backward compatibility)
             foreach (self::$observers as $observer) {
-                $observer->onEvent($event, $source, $data);
+                $observer->onEvent($event, $source, $data, $branchId);
             }
         }
     }

@@ -6,6 +6,8 @@ namespace NeuronAI\Observability;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Observability\Events\BranchEnd;
+use NeuronAI\Observability\Events\BranchStart;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
@@ -27,7 +29,7 @@ trait HandleWorkflowEvents
     /**
      * @throws Exception
      */
-    public function workflowStart(Workflow $workflow, string $event, WorkflowStart $data): void
+    public function workflowStart(Workflow $workflow, string $event, WorkflowStart $data, ?string $branchId = null): void
     {
         if (!$this->inspector->isRecording()) {
             return;
@@ -50,7 +52,7 @@ trait HandleWorkflowEvents
     /**
      * @throws Exception
      */
-    public function workflowEnd(Workflow $workflow, string $event, WorkflowEnd $data): void
+    public function workflowEnd(Workflow $workflow, string $event, WorkflowEnd $data, ?string $branchId = null): void
     {
         if (array_key_exists($workflow::class, $this->segments)) {
             $this->segments[$workflow::class]
@@ -75,15 +77,32 @@ trait HandleWorkflowEvents
     /**
      * @throws InspectorException
      */
-    public function nodeStart(object $workflow, string $event, WorkflowNodeStart $data): void
+    public function branchStart(object $workflow, string $event, BranchStart $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $inspector = $data->fork ? $this->inspector->fork() : $this->inspector;
+        // Fork at the moment the branch starts, while the triggering node's segment
+        // is still open in the parent scope — this gives branches correct nesting.
+        $this->branchScopes[$data->branchId] = $this->inspector->fork();
+    }
 
-        $segment = $inspector->startSegment(
+    public function branchEnd(object $workflow, string $event, BranchEnd $data, ?string $branchId = null): void
+    {
+        unset($this->branchScopes[$data->branchId]);
+    }
+
+    /**
+     * @throws InspectorException
+     */
+    public function nodeStart(object $workflow, string $event, WorkflowNodeStart $data, ?string $branchId = null): void
+    {
+        if (!$this->inspector->canAddSegments()) {
+            return;
+        }
+
+        $segment = $this->resolveScope($branchId)->startSegment(
             self::SEGMENT_TYPE.'.node',
             $this->getBaseClassName($data->node)
         )
@@ -91,19 +110,22 @@ trait HandleWorkflowEvents
 
         $segment->addContext('State Before', $data->state->except('__steps'));
 
-        $this->segments[$data->node] = $segment;
+        $key = $branchId !== null ? "{$branchId}::{$data->node}" : $data->node;
+        $this->segments[$key] = $segment;
     }
 
-    public function nodeEnd(object $workflow, string $event, WorkflowNodeEnd $data): void
+    public function nodeEnd(object $workflow, string $event, WorkflowNodeEnd $data, ?string $branchId = null): void
     {
-        if (array_key_exists($data->node, $this->segments)) {
-            $segment = $this->segments[$data->node]->end();
+        $key = $branchId !== null ? "{$branchId}::{$data->node}" : $data->node;
+
+        if (array_key_exists($key, $this->segments)) {
+            $segment = $this->segments[$key]->end();
             $segment->addContext('State After', $data->state->except('__steps'));
-            unset($this->segments[$data->node]);
+            unset($this->segments[$key]);
         }
     }
 
-    public function middlewareStart(object $workflow, string $event, MiddlewareStart $data): void
+    public function middlewareStart(object $workflow, string $event, MiddlewareStart $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
@@ -111,20 +133,22 @@ trait HandleWorkflowEvents
 
         $class = $data->middleware::class;
         $action = str_contains($event, 'before') ? 'before' : 'after';
+        $key = $branchId !== null ? "{$branchId}::{$class}" : $class;
 
-        $segment = $this->inspector
+        $segment = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.middleware', $this->getBaseClassName($class)."::{$action}()")
             ->setColor(self::STANDARD_COLOR);
         $segment->addContext('Event', $data->event);
-        $this->segments[$class] = $segment;
+        $this->segments[$key] = $segment;
     }
 
-    public function middlewareEnd(object $workflow, string $event, MiddlewareEnd $data): void
+    public function middlewareEnd(object $workflow, string $event, MiddlewareEnd $data, ?string $branchId = null): void
     {
         $class = $data->middleware::class;
+        $key = $branchId !== null ? "{$branchId}::{$class}" : $class;
 
-        if (array_key_exists($class, $this->segments)) {
-            $this->segments[$class]->end();
+        if (array_key_exists($key, $this->segments)) {
+            $this->segments[$key]->end();
         }
     }
 }
