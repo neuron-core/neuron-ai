@@ -124,7 +124,8 @@ trait HandleTools
             'tools-bootstrapping',
             $this,
             null,
-            $this->workflowId
+            $this->workflowId,
+            $this->resolveState()->get('__branchId', '__main__')
         );
 
         foreach ($this->getTools() as $tool) {
@@ -166,7 +167,8 @@ trait HandleTools
             'tools-bootstrapped',
             $this,
             new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines),
-            $this->workflowId
+            $this->workflowId,
+            $this->resolveState()->get('__branchId', '__main__')
         );
 
         return $this->toolsBootstrapCache;
