@@ -16,6 +16,7 @@ use TypeError;
 
 use function array_key_exists;
 use function array_reduce;
+use function is_string;
 
 trait HandleToolEvents
 {
