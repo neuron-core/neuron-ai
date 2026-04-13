@@ -22,8 +22,10 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
+use NeuronAI\UniqueIdGenerator;
 
 use function end;
+use function is_string;
 
 class OpenAIImage implements AIProviderInterface
 {
@@ -142,7 +144,8 @@ class OpenAIImage implements AIProviderInterface
             )
         );
 
-        $content = '';
+        $messageId = UniqueIdGenerator::generateId('msg_');
+        $content = null;
         $usage = new Usage(0, 0);
 
         while (! $stream->eof()) {
@@ -150,17 +153,38 @@ class OpenAIImage implements AIProviderInterface
                 continue;
             }
 
-            // Image APIs stream entire partially generated images, not base64 chunks.
-            // The last content streamed is the final image.
-            if ($line['type'] === 'image_generation.partial_image') {
-                $content = $line['b64_json'];
-                yield new ImageChunk($line['partial_image_index'], $line['b64_json']);
+            $type = $line['type'] ?? null;
+
+            if ($type === 'error') {
+                throw new ProviderException(
+                    $line['error']['message'] ?? 'Image generation failed.'
+                );
             }
 
-            if (isset($line['usage'])) {
-                $usage->inputTokens = $line['usage']['input_tokens'] ?? 0;
-                $usage->outputTokens = $line['usage']['output_tokens'] ?? 0;
+            if ($type === 'image_generation.partial_image') {
+                $b64 = $line['b64_json'] ?? null;
+                if (!is_string($b64) || $b64 === '') {
+                    throw new ProviderException('Received a partial image event without b64_json payload.');
+                }
+                yield new ImageChunk($messageId, $b64);
             }
+
+            if ($type === 'image_generation.completed') {
+                $b64 = $line['b64_json'] ?? null;
+                if (!is_string($b64) || $b64 === '') {
+                    throw new ProviderException('Received a completed image event without b64_json payload.');
+                }
+                $content = $b64;
+
+                if (isset($line['usage'])) {
+                    $usage->inputTokens = $line['usage']['input_tokens'] ?? 0;
+                    $usage->outputTokens = $line['usage']['output_tokens'] ?? 0;
+                }
+            }
+        }
+
+        if ($content === null) {
+            throw new ProviderException('Image generation stream ended before a completed image was received.');
         }
 
         $result = new AssistantMessage(
