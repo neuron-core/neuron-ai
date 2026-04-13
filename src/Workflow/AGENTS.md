@@ -52,11 +52,14 @@ $this->interrupt(new ApprovalRequest(actions: [...]));
 Workflow throws `WorkflowInterrupt`. Resume later:
 ```php
 try {
-    $handler = $workflow->init();
+    $handler = MyWorkflow::make()->run();
 } catch (WorkflowInterrupt $interrupt) {
     $request = $interrupt->getRequest();
+    $token = $interrupt->getResumeToken();
+
     // ... user approves/rejects ...
-    $handler = $workflow->init($resumeRequest);
+
+    $handler = MyWorkflow::make(resumeToken: $token)->init($resumeRequest)->run();
 }
 ```
 
