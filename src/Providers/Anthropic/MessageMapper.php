@@ -55,7 +55,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapBlocks(array $blocks): array
     {
-        return array_filter(array_map($this->mapSingleBlock(...), $blocks));
+        return array_values(array_filter(array_map($this->mapSingleBlock(...), $blocks)));
     }
 
     protected function mapSingleBlock(ContentBlockInterface $block): ?array
@@ -94,7 +94,13 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $block->content,
                 ],
             ],
-            default => null
+            SourceType::ID => [
+                'type' => 'image',
+                'source' => [
+                    'type' => 'file',
+                    'file_id' => $block->content,
+                ],
+            ],
         };
     }
 

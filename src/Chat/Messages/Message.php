@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\StaticConstructor;
 use JsonSerializable;
+use NeuronAI\UniqueIdGenerator;
 
 use function array_map;
 use function array_merge;
@@ -42,6 +43,8 @@ class Message implements JsonSerializable
         if ($content !== null) {
             $this->setContents($content);
         }
+
+        $this->addMetadata('__id', UniqueIdGenerator::generateId('msg_'));
     }
 
     public function getRole(): string

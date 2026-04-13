@@ -150,7 +150,7 @@ class Tool implements ToolInterface
 
     public function getInputs(): array
     {
-        return $this->inputs ?? [];
+        return $this->inputs;
     }
 
     public function getInput(string $key): mixed
@@ -180,6 +180,9 @@ class Tool implements ToolInterface
         return $this->result;
     }
 
+    /**
+     * todo: Add to the underlying ToolInterface in v4
+     */
     public function setResult(mixed $result): self
     {
         $this->result = is_array($result) ? json_encode($result) : (string) $result;

@@ -37,7 +37,7 @@ class ConfigLoader
     /**
      * @return array<string, mixed>
      */
-    private function getDefaultConfig(): array
+    protected function getDefaultConfig(): array
     {
         return [
             'output' => [ConsoleOutput::class],

@@ -18,7 +18,7 @@ class EvaluationOutputFactory
     /**
      * @var array<string, callable(string, array): EvaluationOutputInterface>
      */
-    private array $customConstructors = [];
+    protected array $customConstructors = [];
 
     /**
      * @throws ReflectionException

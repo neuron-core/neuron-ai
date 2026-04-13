@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\ChatHistory;
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\EloquentChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -14,27 +15,39 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
 use function count;
 use function uniqid;
 
+/**
+ * Mock Eloquent Model for testing
+ *
+ * @property string $thread_id
+ * @property string $role
+ * @property string $content
+ * @property array $meta
+ */
+class ChatMessage extends Model
+{
+    protected $table = 'chat_messages';
+    protected $fillable = ['thread_id', 'role', 'content', 'meta'];
+    protected $casts = [
+        'content' => 'array',
+        'meta' => 'array',
+    ];
+}
+
 class EloquentChatHistoryTest extends TestCase
 {
-    use CheckOpenPort;
-
     protected EloquentChatHistory $history;
     protected string $threadId;
 
     public function setUp(): void
     {
-        if (!$this->isPortOpen('127.0.0.1', 3306)) {
-            $this->markTestSkipped("MySQL not available on port 3306. Skipping test.");
-        }
-
-        // Set up in-memory SQLite database for testing
+        // Set up an in-memory SQLite database for testing
         $capsule = new Capsule();
         $capsule->addConnection([
             'driver' => 'sqlite',
@@ -48,7 +61,7 @@ class EloquentChatHistoryTest extends TestCase
             $table->id();
             $table->string('thread_id');
             $table->string('role');
-            $table->text('content')->nullable();
+            $table->json('content')->nullable();
             $table->json('meta')->nullable();
             $table->timestamps();
 
@@ -87,7 +100,7 @@ class EloquentChatHistoryTest extends TestCase
         // Verify message content
         $record = ChatMessage::query()->where('thread_id', $this->threadId)->first();
         $this->assertEquals('user', $record->role);
-        $this->assertEquals('[{"type":"text","content":"Hello from Eloquent!","meta":[]}]', $record->content);
+        $this->assertEquals([["type" => "text","content" => "Hello from Eloquent!","meta" => []]], $record->content);
     }
 
     public function test_loads_existing_messages_from_database(): void
@@ -170,8 +183,9 @@ class EloquentChatHistoryTest extends TestCase
         $smallHistory = new EloquentChatHistory($this->threadId, ChatMessage::class, contextWindow: 100);
 
         // Add many messages to exceed context window
+        // Start with UserMessage (i=1 is odd) to create valid sequence
         for ($i = 1; $i <= 20; $i++) {
-            $message = $i % 2 === 0
+            $message = $i % 2 === 1
                 ? new UserMessage("User message $i with some text")
                 : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
             $smallHistory->addMessage($message);
@@ -255,21 +269,14 @@ class EloquentChatHistoryTest extends TestCase
 
         $this->assertEquals('custom_value', $loadedMessage->getMetadata('custom_key'));
     }
-}
 
-/**
- * Mock Eloquent Model for testing
- *
- * @property string $thread_id
- * @property string $role
- * @property string $content
- * @property array $meta
- */
-class ChatMessage extends Model
-{
-    protected $table = 'chat_messages';
-    protected $fillable = ['thread_id', 'role', 'content', 'meta'];
-    protected $casts = [
-        'meta' => 'array',
-    ];
+    public function test_with_agent(): void
+    {
+        $agent = Agent::make()->setAiProvider(
+            new FakeAIProvider(new AssistantMessage('Hello!'))
+        )->setChatHistory($this->history);
+
+        $response = $agent->chat(new UserMessage('Hello'))->getMessage();
+        $this->assertEquals('Hello!', $response->getContent());
+    }
 }

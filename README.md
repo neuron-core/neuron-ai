@@ -7,7 +7,7 @@
 > Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
 > [Subscribe to the newsletter](https://neuron-ai.dev)
 
-> Before moving on, support the community giving a GitHub star ⭐️. Thank you!
+> Before moving on, support the Neuron AI community giving a GitHub star ⭐️. Thank you!
 
 ## What is Neuron?
 
@@ -35,13 +35,13 @@ https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 
 Neuron is the perfect AI architecture for your project.
 
-## Laravel
+## Laravel Demo
 Neuron offers a well-defined encapsulation pattern, allowing you to work on your agentic system in dedicated namespaces.
 You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, or Nova.
 
 [Example project (GitHub)](https://github.com/neuron-core/laravel-travel-agent)
 
-## Symfony
+## Symfony Demo
 
 All Neuron components belong to its own interface, so you can define dependencies and automate objects creation
 using the Symfony service container. Watch how it works in a real project.
@@ -176,7 +176,7 @@ After configuring the environment variable, you will see the agent execution tim
 
 [![](./docs/images/inspector.png)](https://inspector.dev)
 
-Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/advanced/observability).
+Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/agent/observability).
 
 <a name="providers">
 
@@ -185,7 +185,7 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ad
 With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
-- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic)
+- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic) (supports [prompt caching](#anthropic-prompt-caching))
 - [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#openai))
 - [OpenAI Responses API](https://docs.neuron-ai.dev/providers/ai-provider#openairesponses)
 - [OpenAI on Azure](https://docs.neuron-ai.dev/providers/ai-provider#azureopenai)
@@ -419,7 +419,7 @@ to retrieval use cases, or tool calls, structured output, etc. Workflow allows y
 agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks
 as any other component if you need their built-in capabilities.
 
-[![Neuron Workflow](./docs/images/workflow.avif)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
+[![Neuron Workflow](./docs/images/workflow.png)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
 
 Neuron Workflow supports a robust [**human-in-the-loop**](https://docs.neuron-ai.dev/workflow/human-in-the-loop)
 pattern, enabling human intervention at any point in an automated process. This is especially useful in

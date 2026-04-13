@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
 
 use function array_merge;
-use function json_encode;
 
 use const PHP_INT_MAX;
 
@@ -54,7 +53,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $model->newQuery()->create([
             'thread_id' => $this->threadId,
             'role' => $message->getRole(),
-            'content' => json_encode($message->getContentBlocks()) ?: null,
+            'content' => $message->getContentBlocks(),
             'meta' => $this->serializeMessageMeta($message),
         ]);
     }
@@ -105,7 +104,7 @@ class EloquentChatHistory extends AbstractChatHistory
             'content' => $record->getAttribute('content'),
         ];
 
-        // Merge meta fields if present
+        // Merge the "meta" field if present
         if ($meta = $record->getAttribute('meta')) {
             return array_merge($data, (array) $meta);
         }

@@ -5,7 +5,6 @@ composer.lock
 .store
 .php-cs-fixer.cache
 /tests/VectorStore/*.store
-/**/CLAUDE.md
 .claude
 .artiforge
 .junie

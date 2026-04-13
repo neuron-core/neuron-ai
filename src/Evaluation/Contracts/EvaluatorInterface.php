@@ -4,8 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Contracts;
 
+use NeuronAI\Evaluation\AssertionOutcomes;
+
 interface EvaluatorInterface
 {
+    /**
+     * Set up the method called before evaluation starts.
+     * Override this to initialize judge agents and other resources
+     */
+    public function setUp(): void;
+
     /**
      * Get the dataset for this evaluator
      */
@@ -19,9 +27,9 @@ interface EvaluatorInterface
     public function run(array $datasetItem): mixed;
 
     /**
-     * Evaluate the output against expected results
-     * @param mixed $output Output from run() method
-     * @param array<string, mixed> $datasetItem Reference dataset item for comparison
+     * Perform evaluation and return assertion outcomes.
+     * Called by the runner to execute evaluate() and collect results.
+     * @internal Used by EvaluatorRunner
      */
-    public function evaluate(mixed $output, array $datasetItem): void;
+    public function performEvaluation(mixed $output, array $datasetItem): AssertionOutcomes;
 }

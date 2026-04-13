@@ -17,6 +17,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use Throwable;
 
 class AgentTest extends TestCase
 {
@@ -177,5 +179,55 @@ class AgentTest extends TestCase
 
         $provider->assertSent(fn (RequestRecord $record): bool => $record->method === 'chat'
             && $record->messages[0]->getContent() === 'Hello');
+    }
+
+    public function test_tool_error_handler_catches_exception(): void
+    {
+        $failingTool = Tool::make('failing_tool', 'A tool that fails')
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
+            ->setCallable(fn (string $input): string => throw new RuntimeException('Tool failed!'));
+
+        // First response: model calls the failing tool
+        // Second response: model uses the error message from handler
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
+            ]),
+            new AssistantMessage('I see the tool failed. Let me try something else.')
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->addTool($failingTool);
+        $agent->toolErrorHandler(fn (Throwable $e, \NeuronAI\Tools\ToolInterface $tool): string => "Custom error: {$e->getMessage()}");
+
+        // Should NOT throw - error handler should catch it
+        $message = $agent->chat(new UserMessage('Test'))->getMessage();
+
+        $this->assertSame('I see the tool failed. Let me try something else.', $message->getContent());
+    }
+
+    public function test_tool_exception_thrown_without_error_handler(): void
+    {
+        $failingTool = Tool::make('failing_tool', 'A tool that fails')
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
+            ->setCallable(fn (string $input): string => throw new RuntimeException('Tool failed!'));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
+            ]),
+            new AssistantMessage('This should not be reached.')
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->addTool($failingTool);
+        // No error handler set - default behavior
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Tool failed!');
+
+        $agent->chat(new UserMessage('Test'))->getMessage();
     }
 }

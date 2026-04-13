@@ -13,8 +13,10 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
@@ -26,9 +28,16 @@ class ToolNode extends Node
 {
     use ChatHistoryHelper;
 
+    /**
+     * @var callable|null fn(Throwable $e, ToolInterface $tool): string
+     */
+    protected $errorHandler;
+
     public function __construct(
-        protected int $maxRuns = 10
+        protected int $maxRuns = 10,
+        ?callable $errorHandler = null
     ) {
+        $this->errorHandler = $errorHandler;
     }
 
     /**
@@ -69,7 +78,7 @@ class ToolNode extends Node
      * Execute a single tool with proper error handling and retry logic.
      *
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
-     * @throws Throwable If the tool execution fails
+     * @throws Throwable If the tool execution fails and no error handler is set
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
     {
@@ -85,8 +94,36 @@ class ToolNode extends Node
             }
 
             $tool->execute();
+        } catch (Throwable $e) {
+            $this->handleError($e, $tool);
         } finally {
             $this->emit('tool-called', new ToolCalled($tool));
+        }
+    }
+
+    /**
+     * Handle tool execution errors.
+     * If an error handler is set, the error message becomes the tool result.
+     * Otherwise, the exception is re-thrown.
+     *
+     * @throws Throwable If no error handler is set
+     */
+    protected function handleError(Throwable $e, ToolInterface $tool): void
+    {
+        if ($this->errorHandler === null) {
+            throw $e;
+        }
+
+        $errorMessage = ($this->errorHandler)($e, $tool);
+
+        if ($errorMessage !== null) {
+            if ($tool instanceof Tool) {
+                $tool->setResult($errorMessage);
+            } else {
+                // todo: Remove the else branch in v4
+                $tool->setCallable(new ToolRejectionHandler($errorMessage));
+                $tool->execute();
+            }
         }
     }
 }

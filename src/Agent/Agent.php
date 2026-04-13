@@ -34,8 +34,7 @@ class Agent extends Workflow implements AgentInterface
     use ResolveProvider;
     use HandleTools;
     use HandleContent;
-
-    protected string $instructions;
+    use HandleInstructions;
 
     protected bool $parallelToolCalls = false;
 
@@ -59,24 +58,6 @@ class Agent extends Workflow implements AgentInterface
         return $this;
     }
 
-    protected function instructions(): string
-    {
-        return (string) new SystemPrompt(
-            background: ['Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.']
-        );
-    }
-
-    public function setInstructions(string $instructions): self
-    {
-        $this->instructions = $instructions;
-        return $this;
-    }
-
-    public function resolveInstructions(): string
-    {
-        return $this->instructions ?? $this->instructions();
-    }
-
     /**
      * Prepare the agent workflow with mode-specific nodes.
      * Since Agent extends Workflow, we configure the current instance.
@@ -94,8 +75,8 @@ class Agent extends Workflow implements AgentInterface
 
         // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->toolMaxRuns)
-            : new ToolNode($this->toolMaxRuns);
+            ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         // Add nodes to the workflow instance
         $this->addNodes([
@@ -109,10 +90,11 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function startEvent(): AgentStartEvent
     {
-        return new AIInferenceEvent(
-            $this->resolveInstructions(),
-            $this->bootstrapTools()
-        );
+        // The bootstrapTools method modifies the instructions, adding the toolkit guidelines, so we need to resolve them first
+        $tools = $this->bootstrapTools();
+        $instructions = $this->resolveInstructions();
+
+        return new AIInferenceEvent($instructions, $tools);
     }
 
     /**

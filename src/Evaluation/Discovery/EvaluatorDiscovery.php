@@ -48,7 +48,7 @@ class EvaluatorDiscovery
     /**
      * @return array<string>
      */
-    private function getPhpFiles(string $directory): array
+    protected function getPhpFiles(string $directory): array
     {
         $files = [];
         $iterator = new RecursiveIteratorIterator(
@@ -67,7 +67,7 @@ class EvaluatorDiscovery
     /**
      * @return array<string>
      */
-    private function getClassesFromFile(string $filePath): array
+    protected function getClassesFromFile(string $filePath): array
     {
         $content = file_get_contents($filePath);
         if ($content === false) {
@@ -93,7 +93,7 @@ class EvaluatorDiscovery
         return $classes;
     }
 
-    private function isEvaluatorClass(string $className): bool
+    protected function isEvaluatorClass(string $className): bool
     {
         try {
             // Check if class exists (autoload it)

@@ -14,9 +14,10 @@ use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
 
+use function array_key_exists;
+
 trait HandleInferenceEvents
 {
-    protected Segment $message;
     protected Segment $inference;
 
     public function messageSaving(object $source, string $event, MessageSaving $data): void
@@ -26,8 +27,9 @@ trait HandleInferenceEvents
         }
 
         $label = $this->getBaseClassName($data->message::class);
+        $key = $data->message->getMetadata('__id') ?? $data->message::class;
 
-        $this->message = $this->inspector
+        $this->segments[$key] = $this->inspector
             ->startSegment(self::SEGMENT_TYPE.'.chathistory', "save_message( {$label} )")
             ->setColor(self::STANDARD_COLOR);
 
@@ -41,12 +43,16 @@ trait HandleInferenceEvents
 
     public function messageSaved(object $source, string $event, MessageSaved $data): void
     {
-        if (!isset($this->message)) {
+        $key = $data->message->getMetadata('__id') ?? $data->message::class;
+
+        if (!array_key_exists($key, $this->segments)) {
             return;
         }
 
-        $this->message->addContext('Message', $this->prepareMessageItem($data->message));
-        $this->message->end();
+        $segment = $this->segments[$key];
+        $segment->addContext('Message', $this->prepareMessageItem($data->message));
+        $segment->end();
+        unset($this->segments[$key]);
     }
 
     public function inferenceStart(object $source, string $event, InferenceStart $data): void

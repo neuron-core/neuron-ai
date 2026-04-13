@@ -27,8 +27,9 @@ For each dataset item:
 1. `setUp()` - Initialize resources (once per evaluator)
 2. `run(datasetItem)` - Execute your AI logic
 3. `evaluate(output, datasetItem)` - Assert against expected results
-4. Reset assertion state
-5. Repeat for next item
+4. Repeat for next item
+
+**Note:** Each evaluation starts with a fresh assertion executor - no manual reset needed.
 
 ## Creating Custom Evaluators
 
@@ -42,36 +43,25 @@ use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Agent;
 use NeuronAI\Agent\SystemPrompt;
 
-class SentimentEvaluator extends BaseEvaluator
+class ContainsEvaluator extends BaseEvaluator
 {
-    private Agent $agent;
-
-    public function setUp(): void
-    {
-        $this->agent = Agent::make(
-            new SystemPrompt(
-                background: ['You are a sentiment analyzer.']
-            )
-        );
-    }
-
     public function getDataset(): DatasetInterface
     {
         return new ArrayDataset([
             [
                 'text' => 'I love this product!',
-                'expected_sentiment' => 'positive',
+                'content' => 'product',
             ],
             [
                 'text' => 'This is terrible.',
-                'expected_sentiment' => 'negative',
+                'content' => 'positive',
             ],
         ]);
     }
 
     public function run(array $datasetItem): mixed
     {
-        $response = $this->agent->chat(
+        $response = MyAgent::make()->chat(
             new UserMessage($datasetItem['text'])
         )->getMessage();
 
@@ -81,7 +71,7 @@ class SentimentEvaluator extends BaseEvaluator
     public function evaluate(mixed $output, array $datasetItem): void
     {
         $this->assert(
-            new StringContains($datasetItem['expected_sentiment']),
+            new StringContains($datasetItem['content']),
             $output
         );
     }
@@ -114,42 +104,42 @@ JSON format (`sentiment.json`):
 ### String Assertions
 
 #### StringContains
-Check if output contains a substring:
+Check if the output contains a substring:
 
 ```php
 $this->assert(new StringContains('positive'), $output);
 ```
 
 #### StringContainsAll
-Check if output contains all keywords:
+Check if the output contains all keywords:
 
 ```php
 $this->assert(new StringContainsAll(['hello', 'world']), $output);
 ```
 
 #### StringContainsAny
-Check if output contains any of the keywords:
+Check if the output contains any of the keywords:
 
 ```php
 $this->assert(new StringContainsAny(['success', 'completed']), $output);
 ```
 
 #### StringStartsWith
-Check if output starts with a prefix:
+Check if the output starts with a prefix:
 
 ```php
 $this->assert(new StringStartsWith('Hello'), $output);
 ```
 
 #### StringEndsWith
-Check if output ends with a suffix:
+Check if the output ends with a suffix:
 
 ```php
 $this->assert(new StringEndsWith('!'), $output);
 ```
 
 #### StringLengthBetween
-Check if string length is within range:
+Check if the string length is within range:
 
 ```php
 $this->assert(new StringLengthBetween(10, 100), $output);
@@ -192,10 +182,88 @@ $this->assert(new MatchesRegex('/^\d{3}-\d{2}-\d{4}$/'), $output);
 ### Structure Assertions
 
 #### IsValidJson
-Check if output is valid JSON:
+Check if the output is valid JSON:
 
 ```php
 $this->assert(new IsValidJson(), $output);
+```
+
+### AI Judge Assertions
+
+#### AgentJudge
+Use an AI agent to evaluate outputs with custom criteria:
+
+```php
+use NeuronAI\Evaluation\Assertions\AgentJudge;
+use NeuronAI\Agent;
+
+$judge = Agent::make()
+    ->setInstructions('You are an expert evaluator for customer support responses.');
+
+// Reference-free evaluation (criteria only)
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'Response should be helpful, polite, and address the customer\'s question directly',
+    threshold: 0.7
+), $output);
+
+// Reference-based evaluation (compare to expected)
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'The response should convey the same meaning as the reference',
+    threshold: 0.8,
+    reference: $datasetItem['expected_answer']
+), $output);
+
+// With few-shot examples for calibration
+$this->assert(new AgentJudge(
+    judge: $judge,
+    criteria: 'Rate the factual accuracy of the response',
+    threshold: 0.7,
+    examples: [
+        [
+            'input' => 'What is 2+2?',
+            'output' => '2+2 equals 4',
+            'score' => 1.0,
+            'reasoning' => 'Mathematically correct and clear.',
+        ],
+    ]
+), $output);
+```
+
+#### Pre-configured Judges
+
+Built-in judges for common evaluation scenarios:
+
+```php
+use NeuronAI\Evaluation\Assertions\Judges\{FaithfulnessJudge, CorrectnessJudge, RelevanceJudge, HelpfulnessJudge};
+
+// Faithfulness - check if output is grounded in context (no hallucinations)
+$this->assert(new FaithfulnessJudge(
+    judge: $judge,
+    context: $retrievedDocuments,
+    threshold: 0.7
+), $output);
+
+// Correctness - compare to expected answer
+$this->assert(new CorrectnessJudge(
+    judge: $judge,
+    expected: $datasetItem['expected_answer'],
+    threshold: 0.7
+), $output);
+
+// Relevance - check if output addresses the question
+$this->assert(new RelevanceJudge(
+    judge: $judge,
+    question: $datasetItem['question'],
+    threshold: 0.7
+), $output);
+
+// Helpfulness - evaluate utility and actionability
+$this->assert(new HelpfulnessJudge(
+    judge: $judge,
+    threshold: 0.7
+), $output);
 ```
 
 ### Creating Custom Assertions
@@ -232,6 +300,7 @@ class GreaterThanAssertion extends AbstractAssertion
 ```
 
 Use it:
+
 ```php
 $this->assert(new GreaterThanAssertion(0.8), $score);
 ```
@@ -457,28 +526,33 @@ public function evaluate(mixed $output, array $datasetItem): void
 
 ### Using AI Judge for Scoring
 
+Use the built-in `AgentJudge` assertion for AI-powered evaluation:
+
 ```php
-use NeuronAI\Evaluation\JudgeScoreOutput;
+use NeuronAI\Evaluation\Assertions\AgentJudge;
+use NeuronAI\Evaluation\Assertions\Judges\CorrectnessJudge;
+
+public function setUp(): void
+{
+    $this->judge = Agent::make()
+        ->setInstructions('You are an expert evaluator for AI responses.');
+}
 
 public function evaluate(mixed $output, array $datasetItem): void
 {
-    $judge = Agent::make(
-        new SystemPrompt([
-            'You are an expert evaluator.',
-            'Rate the quality of responses from 0.0 to 1.0.',
-        ])
-    );
+    // Simple criteria-based evaluation
+    $this->assert(new AgentJudge(
+        judge: $this->judge,
+        criteria: 'Rate the quality and accuracy of the response',
+        threshold: 0.7
+    ), $output);
 
-    $prompt = "Expected: {$datasetItem['expected']}\n" .
-              "Actual: {$output}\n" .
-              "Rate the similarity.";
-
-    $result = $judge->structured(
-        new UserMessage($prompt),
-        JudgeScoreOutput::class
-    );
-
-    $this->assert(new GreaterThanAssertion(0.7), $result->score);
+    // Or use pre-configured judges
+    $this->assert(new CorrectnessJudge(
+        judge: $this->judge,
+        expected: $datasetItem['expected'],
+        threshold: 0.7
+    ), $output);
 }
 ```
 
@@ -612,20 +686,20 @@ name: Evaluation Tests
 on: [push, pull_request]
 
 jobs:
-  evaluate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-      - name: Install dependencies
-        run: composer install
-      - name: Run evaluations
-        run: vendor/bin/neuron evaluation evaluators --verbose
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    evaluate:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.2'
+            - name: Install dependencies
+              run: composer install
+            - name: Run evaluations
+              run: vendor/bin/neuron evaluation evaluators --verbose
+              env:
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ### Failing on Thresholds
@@ -640,21 +714,21 @@ vendor/bin/neuron evaluation evaluators || exit 1
 When helping users with evaluations:
 
 1. **Dataset format** depends on:
-   - Small datasets → `ArrayDataset` (in code)
-   - Large/external datasets → `JsonDataset` (files)
+    - Small datasets → `ArrayDataset` (in code)
+    - Large/external datasets → `JsonDataset` (files)
 
 2. **Assertion choice** depends on:
-   - Exact matching → `StringContains`, `StringStartsWith`
-   - Pattern matching → `MatchesRegex`
-   - Semantic similarity → `StringSimilarity` (embeddings)
-   - Fuzzy matching → `StringDistance`
+    - Exact matching → `StringContains`, `StringStartsWith`
+    - Pattern matching → `MatchesRegex`
+    - Semantic similarity → `StringSimilarity` (embeddings)
+    - Fuzzy matching → `StringDistance`
 
 3. **Output configuration** based on:
-   - Development → `ConsoleOutput` with verbose mode
-   - CI/CD → `JsonOutput` to file
-   - Analytics → Custom driver to database/API
+    - Development → `ConsoleOutput` with verbose mode
+    - CI/CD → `JsonOutput` to file
+    - Analytics → Custom driver to database/API
 
 4. **Evaluation granularity**:
-   - Unit tests → Single assertion per evaluator
-   - Integration tests → Multiple assertions
-   - System tests → Multiple evaluators covering different scenarios
+    - Unit tests → Single assertion per evaluator
+    - Integration tests → Multiple assertions
+    - System tests → Multiple evaluators covering different scenarios

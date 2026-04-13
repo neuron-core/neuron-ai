@@ -18,9 +18,9 @@ use NeuronAI\Tools\Tool;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
-use function count;
 use function json_decode;
 use function uniqid;
+use function count;
 
 class SQLChatHistoryTest extends TestCase
 {
@@ -109,6 +109,29 @@ class SQLChatHistoryTest extends TestCase
         $this->assertInstanceOf(AssistantMessage::class, $messages[1]);
     }
 
+    public function test_truncates_history_when_low_context_window_exceeded(): void
+    {
+        // Create history with small context window
+        $smallHistory = new SQLChatHistory(thread_id: $this->threadId, pdo: $this->pdo, contextWindow: 100);
+
+        // Add many messages to exceed context window
+        for ($i = 1; $i <= 20; $i++) {
+            $message = $i % 2 !== 0
+                ? new UserMessage("User message $i with some text")
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
+            $smallHistory->addMessage($message);
+        }
+
+        $messages = $smallHistory->getMessages();
+
+        // Should have fewer messages due to truncation
+        $this->assertLessThan(20, count($messages));
+        $this->assertGreaterThan(0, count($messages));
+
+        // First message should be a user message (valid sequence)
+        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+    }
+
     public function test_updates_messages_on_add(): void
     {
         $this->history->addMessage(new UserMessage('Message 1'));
@@ -195,29 +218,6 @@ class SQLChatHistoryTest extends TestCase
         $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
         $this->assertEquals('First text block', $contentBlocks[0]->content);
         $this->assertEquals('Second text block', $contentBlocks[1]->content);
-    }
-
-    public function test_truncates_history_when_context_window_exceeded(): void
-    {
-        // Create history with small context window
-        $smallHistory = new SQLChatHistory($this->threadId, $this->pdo, contextWindow: 100);
-
-        // Add many messages to exceed context window
-        for ($i = 1; $i <= 20; $i++) {
-            $message = $i % 2 === 0
-                ? new UserMessage("User message $i with some text")
-                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
-            $smallHistory->addMessage($message);
-        }
-
-        $messages = $smallHistory->getMessages();
-
-        // Should have fewer messages due to truncation
-        $this->assertLessThan(20, count($messages));
-        $this->assertGreaterThan(0, count($messages));
-
-        // First message should be a user message (valid sequence)
-        $this->assertInstanceOf(UserMessage::class, $messages[0]);
     }
 
     public function test_rejects_invalid_table_name(): void
