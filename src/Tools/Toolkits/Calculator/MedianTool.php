@@ -15,6 +15,7 @@ use function count;
 use function floor;
 use function round;
 use function sort;
+use function is_numeric;
 
 class MedianTool extends Tool
 {
@@ -56,7 +57,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

@@ -15,6 +15,7 @@ use function array_keys;
 use function array_map;
 use function max;
 use function sort;
+use function is_numeric;
 
 class ModeTool extends Tool
 {
@@ -57,7 +58,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

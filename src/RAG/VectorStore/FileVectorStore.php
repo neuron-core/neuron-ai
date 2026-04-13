@@ -25,6 +25,7 @@ use function rename;
 use function unlink;
 use function usort;
 use function mkdir;
+use function json_encode;
 
 use const DIRECTORY_SEPARATOR;
 use const FILE_APPEND;
@@ -143,7 +144,7 @@ class FileVectorStore implements VectorStoreInterface
     {
         file_put_contents(
             $this->getFilePath(),
-            implode(PHP_EOL, array_map(\json_encode(...), $documents)).PHP_EOL,
+            implode(PHP_EOL, array_map(json_encode(...), $documents)).PHP_EOL,
             FILE_APPEND
         );
     }
