@@ -43,19 +43,13 @@ class EloquentPersistence implements PersistenceInterface
             ->where('workflow_id', $workflowId)
             ->firstOr(['interrupt'], fn () => throw new WorkflowException("No saved workflow found for ID: {$workflowId}."));
 
-        $interruptData = @unserialize(
-            base64_decode($record->interrupt, true)
-        );
+        $interruptData = base64_decode($record->interrupt, true);
 
         if ($interruptData === false) {
-            $interruptData = unserialize($record->interrupt); // This makes sure that previous records still work
+            $interruptData = $record->interrupt; // This makes sure that previous records still work
         }
 
-        if ($interruptData === false) {
-            throw new WorkflowException("Failed to unserialize saved workflow for ID: {$workflowId}.");
-        }
-
-        return $interruptData;
+        return unserialize($interruptData);
     }
 
     public function delete(string $workflowId): void
