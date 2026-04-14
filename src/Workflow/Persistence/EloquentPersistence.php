@@ -27,9 +27,7 @@ class EloquentPersistence implements PersistenceInterface
         $model->newQuery()->updateOrCreate([
             'workflow_id' => $workflowId,
         ], [
-            'interrupt' => base64_encode(
-                serialize($interrupt)
-            ), // Simple Base64 string is compatible with all databases
+            'interrupt' => serialize($interrupt)
         ]);
     }
 
