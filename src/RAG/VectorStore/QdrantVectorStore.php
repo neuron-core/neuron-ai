@@ -34,7 +34,7 @@ class QdrantVectorStore implements VectorStoreInterface
             ->withBaseUri($this->collectionUrl)
             ->withHeaders([
                 'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : [])
+                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : []),
             ]);
 
         $this->initialize();
@@ -153,7 +153,7 @@ class QdrantVectorStore implements VectorStoreInterface
                 uri: 'points/query',
                 body: [
                     'query' => [
-                        'recommend' => ['positive' => [$embedding]]
+                        'recommend' => ['positive' => [$embedding]],
                     ],
                     'limit' => $this->topK,
                     'with_payload' => true,

@@ -17,7 +17,7 @@ trait HttpClient
             'headers' => [
                 'Content-Type' => 'application/json',
                 'x-api-key' => $key,
-            ]
+            ],
         ]);
     }
 }

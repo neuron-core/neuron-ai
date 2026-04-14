@@ -25,7 +25,7 @@ class TestToolClassOnlyParentConstructor extends \NeuronAI\Tools\Tool
                     'param',
                     PropertyType::STRING,
                     'the param'
-                )
+                ),
             ]
         );
     }

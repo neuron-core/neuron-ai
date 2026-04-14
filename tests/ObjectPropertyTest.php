@@ -84,7 +84,7 @@ class ObjectPropertyTest extends TestCase
             null,
             [
                 new ToolProperty('name', PropertyType::STRING, 'The name', true),
-                new ToolProperty('age', PropertyType::INTEGER, 'The age', false)
+                new ToolProperty('age', PropertyType::INTEGER, 'The age', false),
             ]
         );
 
@@ -113,7 +113,7 @@ class ObjectPropertyTest extends TestCase
                     'GPS coordinates',
                     false,
                     new ToolProperty('coordinate', PropertyType::NUMBER, 'A coordinate value')
-                )
+                ),
             ]
         );
 
@@ -126,7 +126,7 @@ class ObjectPropertyTest extends TestCase
             [
                 new ToolProperty('name', PropertyType::STRING, 'Full name', true),
                 new ToolProperty('age', PropertyType::INTEGER, 'Age in years', true),
-                $addressProperty
+                $addressProperty,
             ]
         );
 
@@ -154,7 +154,7 @@ class ObjectPropertyTest extends TestCase
             [
                 new ToolProperty('type', PropertyType::STRING, 'Contact type', true),
                 new ToolProperty('value', PropertyType::STRING, 'Contact value', true),
-                new ToolProperty('isPrimary', PropertyType::BOOLEAN, 'Is primary contact', false)
+                new ToolProperty('isPrimary', PropertyType::BOOLEAN, 'Is primary contact', false),
             ]
         );
 
@@ -200,7 +200,7 @@ class ObjectPropertyTest extends TestCase
                     false,
                     new ToolProperty('tag', PropertyType::STRING, 'A tag')
                 ),
-                $companyProperty
+                $companyProperty,
             ]
         );
 
@@ -218,8 +218,8 @@ class ObjectPropertyTest extends TestCase
                 new ToolProperty('id', PropertyType::STRING, 'Identifier', true),
                 new ObjectProperty('metadata', 'Metadata object', false, null, [
                     new ToolProperty('version', PropertyType::STRING, 'Version', false),
-                    new ToolProperty('timestamp', PropertyType::INTEGER, 'Timestamp', false)
-                ])
+                    new ToolProperty('timestamp', PropertyType::INTEGER, 'Timestamp', false),
+                ]),
             ]
         );
 
@@ -231,7 +231,7 @@ class ObjectPropertyTest extends TestCase
             'properties' => [
                 'id' => [
                     'type' => 'string',
-                    'description' => 'Identifier'
+                    'description' => 'Identifier',
                 ],
                 'metadata' => [
                     'type' => 'object',
@@ -239,17 +239,17 @@ class ObjectPropertyTest extends TestCase
                     'properties' => [
                         'version' => [
                             'type' => 'string',
-                            'description' => 'Version'
+                            'description' => 'Version',
                         ],
                         'timestamp' => [
                             'type' => 'integer',
-                            'description' => 'Timestamp'
-                        ]
+                            'description' => 'Timestamp',
+                        ],
                     ],
-                    'required' => []
-                ]
+                    'required' => [],
+                ],
             ],
-            'required' => ['id']
+            'required' => ['id'],
         ];
 
         $this->assertEquals($expectedSchema, $schema);
@@ -292,13 +292,13 @@ class ObjectPropertyTest extends TestCase
                                             'Item properties',
                                             false,
                                             new ToolProperty('property', PropertyType::STRING, 'A property')
-                                        )
+                                        ),
                                     ]
                                 )
-                            )
+                            ),
                         ]
                     )
-                )
+                ),
             ]
         );
 
@@ -348,7 +348,7 @@ class ObjectPropertyTest extends TestCase
                     null,
                     [
                         new ToolProperty('nested_required', PropertyType::STRING, 'Nested required', true),
-                        new ToolProperty('nested_optional', PropertyType::STRING, 'Nested optional', false)
+                        new ToolProperty('nested_optional', PropertyType::STRING, 'Nested optional', false),
                     ]
                 ),
                 new ArrayProperty(
@@ -361,10 +361,10 @@ class ObjectPropertyTest extends TestCase
                         false,
                         null,
                         [
-                            new ToolProperty('item_required', PropertyType::STRING, 'Item required', true)
+                            new ToolProperty('item_required', PropertyType::STRING, 'Item required', true),
                         ]
                     )
-                )
+                ),
             ]
         );
 
@@ -418,7 +418,7 @@ class ObjectPropertyTest extends TestCase
                     'Coordinates',
                     false,
                     new ToolProperty('coordinate', PropertyType::NUMBER, 'Coordinate')
-                )
+                ),
             ]
         );
     }
@@ -433,7 +433,7 @@ class ObjectPropertyTest extends TestCase
             [
                 new ToolProperty('type', PropertyType::STRING, 'Contact type', true),
                 new ToolProperty('value', PropertyType::STRING, 'Contact value', true),
-                new ToolProperty('isPrimary', PropertyType::BOOLEAN, 'Is primary', false)
+                new ToolProperty('isPrimary', PropertyType::BOOLEAN, 'Is primary', false),
             ]
         );
     }
@@ -448,7 +448,7 @@ class ObjectPropertyTest extends TestCase
             [
                 new ToolProperty('name', PropertyType::STRING, 'Company name', true),
                 clone $addressProperty, // headquarters
-                new ArrayProperty('offices', 'Office locations', false, clone $addressProperty)
+                new ArrayProperty('offices', 'Office locations', false, clone $addressProperty),
             ]
         );
     }
@@ -468,9 +468,9 @@ class ObjectPropertyTest extends TestCase
                     false,
                     null,
                     [
-                        new ToolProperty('value', PropertyType::STRING, 'Value', false)
+                        new ToolProperty('value', PropertyType::STRING, 'Value', false),
                     ]
-                )
+                ),
             ]
         );
     }

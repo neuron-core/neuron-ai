@@ -43,7 +43,7 @@ class Deepseek extends OpenAI
         $this->parameters = array_merge($this->parameters, [
             'response_format' => [
                 'type' => 'json_object',
-            ]
+            ],
         ]);
 
         $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL

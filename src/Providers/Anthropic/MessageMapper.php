@@ -127,7 +127,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'file',
                     'file_id' => $block->content,
-                ]
+                ],
             ],
         };
     }

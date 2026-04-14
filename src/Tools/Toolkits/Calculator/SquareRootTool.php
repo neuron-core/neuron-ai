@@ -17,12 +17,12 @@ class SquareRootTool extends Tool
         parent::__construct(
             name: 'calculate_square_root',
             description: <<<DESC
-Calculates the square root of a positive number. Use this tool when you need to find the square root
-of any positive number, whether it's for mathematical calculations, geometric problems, or statistical computations.
-The input must be a non-negative number (zero or positive).
-This tool is particularly useful for calculations involving areas, distances, standard deviations,
-or any scenario where you need to find what number, when multiplied by itself, equals the given input.
-DESC
+                Calculates the square root of a positive number. Use this tool when you need to find the square root
+                of any positive number, whether it's for mathematical calculations, geometric problems, or statistical computations.
+                The input must be a non-negative number (zero or positive).
+                This tool is particularly useful for calculations involving areas, distances, standard deviations,
+                or any scenario where you need to find what number, when multiplied by itself, equals the given input.
+                DESC
         );
     }
 
@@ -34,7 +34,7 @@ DESC
                 type: PropertyType::NUMBER,
                 description: 'The positive number to calculate the square root of',
                 required: true,
-            )
+            ),
         ];
     }
 

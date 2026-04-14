@@ -41,7 +41,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
                 uri: "{$this->model}:embedContent",
                 body: [
                     'content' => [
-                        'parts' => [['text' => $text]]
+                        'parts' => [['text' => $text]],
                     ],
                     ...$this->config,
                 ]

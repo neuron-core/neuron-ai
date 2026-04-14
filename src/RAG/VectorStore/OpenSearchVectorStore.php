@@ -62,10 +62,10 @@ class OpenSearchVectorStore implements VectorStoreInterface
                             'parameters' => [
                                 'bits' => 7,
                             ],
-                        ]
-                    ]
+                        ],
+                    ],
                 ],
-            ]
+            ],
         ];
 
         // Map metadata
@@ -84,9 +84,9 @@ class OpenSearchVectorStore implements VectorStoreInterface
                     ],
                 ],
                 'mappings' => [
-                    'properties' => $properties
-                ]
-            ]
+                    'properties' => $properties,
+                ],
+            ],
         ]);
     }
 
@@ -169,7 +169,7 @@ class OpenSearchVectorStore implements VectorStoreInterface
         $this->client->deleteByQuery([
             'index' => $this->index,
             'q' => $query,
-            'body' => []
+            'body' => [],
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);
         return $this;
@@ -264,8 +264,8 @@ class OpenSearchVectorStore implements VectorStoreInterface
                                     'parameters' => [
                                         'bits' => 7,
                                     ],
-                                ]
-                            ]
+                                ],
+                            ],
 
                         ],
                     ],

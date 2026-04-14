@@ -81,7 +81,7 @@ class LogObserver implements ObserverInterface
             ],
             Deserializing::class,
             Deserialized::class => [
-                'class' => $data->class
+                'class' => $data->class,
             ],
             Extracted::class => [
                 'message' => $data->message->jsonSerialize(),

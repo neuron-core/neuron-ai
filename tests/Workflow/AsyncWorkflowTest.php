@@ -82,7 +82,7 @@ class AsyncWorkflowTest extends TestCase
         [$result1, $result2, $result3] = Future\await([
             async(fn () => $workflow1->run()),
             async(fn () => $workflow2->run()),
-            async(fn () => $workflow3->run())
+            async(fn () => $workflow3->run()),
         ]);
 
         $duration = microtime(true) - $startTime;

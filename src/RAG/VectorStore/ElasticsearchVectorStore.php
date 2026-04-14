@@ -53,7 +53,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
             ],
             'sourceName' => [
                 'type' => 'keyword',
-            ]
+            ],
         ];
 
         // Map metadata
@@ -162,7 +162,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         $this->client->deleteByQuery([
             'index' => $this->index,
             'q' => $query,
-            'body' => []
+            'body' => [],
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);
         return $this;

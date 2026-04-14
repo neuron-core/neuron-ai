@@ -161,7 +161,7 @@ class GetTimezoneInfoToolTest extends TestCase
             'is_dst',
             'abbreviation',
             'location',
-            'reference_time'
+            'reference_time',
         ];
 
         foreach ($expectedFields as $field) {
