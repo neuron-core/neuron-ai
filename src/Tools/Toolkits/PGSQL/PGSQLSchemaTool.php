@@ -229,7 +229,7 @@ and performance optimization. If you already know the database structure, you ca
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT
+            SELECT DISTINCT
                 tc.constraint_name,
                 tc.table_name as source_table,
                 kcu.column_name as source_column,
