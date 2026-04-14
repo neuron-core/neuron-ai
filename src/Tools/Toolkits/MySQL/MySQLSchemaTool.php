@@ -241,7 +241,7 @@ class MySQLSchemaTool extends Tool
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT
+            SELECT DISTINCT
                 kcu.CONSTRAINT_NAME,
                 kcu.TABLE_NAME as source_table,
                 kcu.COLUMN_NAME as source_column,
