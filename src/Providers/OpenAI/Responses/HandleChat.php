@@ -12,6 +12,8 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 
 use function array_filter;
+use function array_key_exists;
+use function json_encode;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -55,6 +57,14 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
+        if (isset($result['error']) {
+            throw new ProviderException("OpenAI API Error: " . ($result['error']['message'] ?? json_encode($result['error'])));
+        }
+
+        if (!array_key_exists($result, 'output') || !is_array($result['output'])) {
+            throw new ProviderException("OpenAI API Error: No output - " . json_encode($result));
+        }
+
         $toolCalls = array_filter($result['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
         $usage = new Usage($result['usage']['input_tokens'] ?? 0, $result['usage']['output_tokens'] ?? 0);
