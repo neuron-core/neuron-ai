@@ -7,7 +7,7 @@ on:
     paths:
       - '**.php'
       - 'phpstan.neon'
-    pull_request:
+  pull_request:
 
 jobs:
   phpstan:
