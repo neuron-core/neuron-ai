@@ -75,7 +75,6 @@ class McpConnectorTest extends TestCase
 
         // Test serialization
         $serialized = serialize($callable);
-        $this->assertIsString($serialized);
 
         // Test unserialization
         $unserialized = unserialize($serialized);
@@ -99,7 +98,7 @@ class McpConnectorTest extends TestCase
                         ['type' => 'text', 'text' => 'The result is 42'],
                     ],
                 ],
-            ]
+            ],
             ]);
 
 
@@ -136,7 +135,7 @@ class McpConnectorTest extends TestCase
                     'error' => [
                         'message' => 'Tool execution failed',
                     ],
-                ]
+                ],
             ]
         );
 
@@ -259,7 +258,7 @@ class McpConnectorTest extends TestCase
                         ['type' => 'text', 'text' => 'The result is 42'],
                     ],
                 ],
-            ]
+            ],
             ]
         );
 

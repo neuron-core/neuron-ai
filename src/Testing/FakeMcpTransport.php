@@ -45,9 +45,9 @@ class FakeMcpTransport implements McpTransportInterface
         return [
             'queue' => [
                 ...$this->sent,
-                ...$this->responseQueue
+                ...$this->responseQueue,
             ],
-            'connected' => $this->connected
+            'connected' => $this->connected,
         ];
     }
 

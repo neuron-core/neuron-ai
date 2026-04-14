@@ -44,16 +44,17 @@ class McpConnector
 
     /**
      * @param array<string, mixed> $config
-     * @throws McpException
      */
     public function __construct(protected array $config)
     {
-        $this->connectClient();
     }
 
-    protected function connectClient()
+    /**
+     * @throws McpException
+     */
+    protected function client(): MCPClient
     {
-        $this->client = new McpClient($this->config);
+        return $this->client ??= new McpClient($this->config);
     }
 
     public function __serialize(): array
@@ -70,8 +71,6 @@ class McpConnector
         $this->config = $data['config'];
         $this->only = $data['only'];
         $this->exclude = $data['exclude'];
-
-        $this->connectClient();
     }
 
     /**
@@ -102,7 +101,7 @@ class McpConnector
     {
         // Filter by the only and exclude preferences.
         $tools = array_filter(
-            $this->client->listTools(),
+            $this->client()->listTools(),
             fn (array $tool): bool =>
                 !in_array($tool['name'], $this->exclude) &&
                 ($this->only === [] || in_array($tool['name'], $this->only)),
@@ -202,11 +201,12 @@ class McpConnector
 
     /**
      * This might look counter-intuitive, but when dealing with interrupts and serialization PHP doesnt allow for MCP connectors serialization
+     * @throws McpException
      */
     public function invokeTool(array $item, array $arguments): mixed
     {
         $response = call_user_func(
-            $this->client->callTool(...),
+            $this->client()->callTool(...),
             $item['name'],
             $arguments
         );

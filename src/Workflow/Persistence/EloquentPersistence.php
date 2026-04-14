@@ -33,6 +33,9 @@ class EloquentPersistence implements PersistenceInterface
         ]);
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function load(string $workflowId): WorkflowInterrupt
     {
         /** @var Model&object{interrupt: string} $model */
