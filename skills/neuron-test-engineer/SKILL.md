@@ -81,7 +81,29 @@ $embeddings = new FakeEmbeddingsProvider(dimensions: 1536);
 $embeddings = FakeEmbeddingsProvider::make();
 ```
 
-### 4. FakeMiddleware
+### 4. FakeMcpTransport
+
+For testing MCP (Model Context Protocol) integrations without a real MCP server.
+
+```php
+use NeuronAI\Testing\FakeMcpTransport;
+
+// Queue predetermined responses
+$transport = new FakeMcpTransport(
+    ['result' => ['tools' => [['name' => 'search', 'description' => 'Search the web']]]],
+    ['result' => ['content' => [['type' => 'text', 'text' => 'Search results...']]]],
+);
+
+// Or add responses later
+$transport->addResponses(['result' => ['content' => 'More data']]);
+```
+
+**Key Features:**
+- Responses returned sequentially from queue via `receive()`
+- Records all sent/received data for assertion
+- Fluent MCP-specific assertions (`assertInitialized`, `assertToolCalled`, etc.)
+
+### 5. FakeMiddleware
 
 For testing workflow middleware behavior.
 
@@ -434,6 +456,58 @@ class MyInterruptTest extends TestCase
 }
 ```
 
+### Testing MCP Integrations
+
+Use `FakeMcpTransport` to test code that interacts with MCP servers without running a real server.
+
+```php
+use NeuronAI\Testing\FakeMcpTransport;
+
+class McpIntegrationTest extends TestCase
+{
+    public function test_mcp_initialization_handshake(): void
+    {
+        $transport = new FakeMcpTransport(
+            ['result' => ['capabilities' => [], 'serverInfo' => ['name' => 'test-server']]],
+            ['result' => []],
+        );
+
+        $transport->connect();
+
+        // Simulate initialization handshake
+        $transport->send(['method' => 'initialize', 'params' => ['capabilities' => []]]);
+        $transport->receive(); // consume capabilities response
+
+        $transport->send(['method' => 'notifications/initialized']);
+        $transport->receive(); // consume ack
+
+        $transport->assertInitialized();
+        $transport->assertConnected();
+    }
+
+    public function test_mcp_tool_call(): void
+    {
+        $transport = new FakeMcpTransport(
+            ['result' => ['tools' => [['name' => 'search', 'description' => 'Search']]]],
+            ['result' => ['content' => [['type' => 'text', 'text' => 'Found 3 results']]]],
+        );
+
+        $transport->connect();
+
+        $transport->send(['method' => 'tools/list', 'params' => []]);
+        $transport->receive();
+
+        $transport->send(['method' => 'tools/call', 'params' => ['name' => 'search', 'arguments' => ['query' => 'test']]]);
+        $transport->receive();
+
+        $transport->assertToolsListCalled();
+        $transport->assertToolCalled('search');
+        $transport->assertSendCount(2);
+        $transport->assertReceiveCount(2);
+    }
+}
+```
+
 ## Assertion Reference
 
 ### FakeAIProvider Assertions
@@ -510,6 +584,35 @@ $middleware->assertAfterCalledForNode(NodeOne::class);
 // Verify total call count
 $middleware->assertCallCount(6);
 $middleware->assertNotCalled();
+```
+
+### FakeMcpTransport Assertions
+
+```php
+// Verify connection state
+$transport->assertConnected();
+$transport->assertDisconnected();
+
+// Verify send/receive counts
+$transport->assertSendCount(3);
+$transport->assertReceiveCount(3);
+$transport->assertNothingSent();
+$transport->assertNothingReceived();
+
+// Verify specific MCP methods
+$transport->assertMethodSent('initialize', 1);
+$transport->assertMethodReceived('initialize', 1);
+
+// Convenience assertions for common MCP patterns
+$transport->assertInitialized();          // initialize + notifications/initialized
+$transport->assertToolsListCalled(1);     // tools/list sent N times
+$transport->assertToolCalled('search', 2); // tools/call with specific tool name
+
+// Custom assertion with callback
+$transport->assertSent(function (array $data): bool {
+    return ($data['method'] ?? null) === 'tools/call'
+        && ($data['params']['name'] ?? null) === 'search';
+});
 ```
 
 ## Testing Multiple Turns
