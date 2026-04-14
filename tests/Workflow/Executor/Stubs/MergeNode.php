@@ -13,8 +13,8 @@ class MergeNode extends Node
     public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
     {
         $state->set('analysis', [
-            'text' => $state->get('branches.text.processedText'),
-            'image' => $state->get('branches.image.processedImage'),
+            'text' => $event->branchResults['text'],
+            'image' => $event->branchResults['image'],
         ]);
         $state->set('merge_node_executed', true);
         return new StopEvent();

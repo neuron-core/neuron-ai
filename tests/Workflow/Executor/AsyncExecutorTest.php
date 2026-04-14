@@ -89,11 +89,7 @@ class AsyncExecutorTest extends TestCase
 
         $result = $workflow->init()->run();
 
-        // Each branch's state changes land under branches.{branchId}.*
-        $this->assertSame('HELLO', $result->get('branches.text.processedText'));
-        $this->assertSame('processed_image.jpg', $result->get('branches.image.processedImage'));
-
-        // merge() combines them into the analysis key
+        // The merge node combines branch results from $event->branchResults
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);

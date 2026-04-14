@@ -15,7 +15,6 @@ class SlowImageProcessNode extends Node
     public function __invoke(ImageProcessEvent $event, WorkflowState $state): StopEvent
     {
         delay(0.1);
-        $state->set('processedImage', 'processed_image.jpg');
-        return new StopEvent();
+        return new StopEvent(result: 'processed_image.jpg');
     }
 }

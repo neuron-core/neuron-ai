@@ -45,9 +45,7 @@ class AsyncExecutor extends WorkflowExecutor
         $branchResults = await($futures);
 
         foreach ($branchResults as $branchId => $result) {
-            foreach ($result->stateChanges as $key => $value) {
-                $workflow->resolveState()->set("branches.{$branchId}.{$key}", $value);
-            }
+            $parallelEvent->branchResults[$branchId] = $result->result;
 
             foreach ($result->streamedEvents as $streamedEvent) {
                 yield $streamedEvent;

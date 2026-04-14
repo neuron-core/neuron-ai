@@ -12,7 +12,6 @@ class ImageProcessNode extends Node
 {
     public function __invoke(ImageProcessEvent $event, WorkflowState $state): StopEvent
     {
-        $state->set('processedImage', 'processed_image.jpg');
-        return new StopEvent();
+        return new StopEvent(result: 'processed_image.jpg');
     }
 }

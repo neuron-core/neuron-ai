@@ -23,7 +23,6 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
-use function array_diff_assoc;
 use function sprintf;
 
 /**
@@ -139,10 +138,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute parallel branches sequentially, one after the other.
      *
-     * After all branches are complete, branch state changes are stored under
-     * "branches.{branchId}.*" in WorkflowState and the ParallelEvent is returned
-     * for normal routing. Register a join node that handles the ParallelEvent subclass
-     * to continue the workflow and read branch results from the state.
+     * After all branches complete, each branch's result (from StopEvent::getResult())
+     * is stored in {@see ParallelEvent::$branchResults}. The ParallelEvent is then
+     * returned for normal routing to a join node.
      *
      * Subclasses can override this method to change how branches run
      * (e.g. AsyncExecutor runs branches concurrently via Amp futures).
@@ -158,9 +156,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
             $result = $this->executeBranch($workflow, $branchId, $branchEvent);
 
-            foreach ($result->stateChanges as $key => $value) {
-                $workflow->resolveState()->set("branches.{$branchId}.{$key}", $value);
-            }
+            $parallelEvent->branchResults[$branchId] = $result->result;
 
             foreach ($result->streamedEvents as $streamedEvent) {
                 yield $streamedEvent;
@@ -173,8 +169,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute a single branch in isolation with a cloned state.
      *
-     * Runs the branch's node graph from branchEvent until StopEvent, collecting
-     * state changes and streamed events. Shared by both sequential and async execution.
+     * Runs the branch's node graph from branchEvent until StopEvent, capturing
+     * the StopEvent's result and any streamed events. Shared by both sequential
+     * and async execution.
      *
      * @throws WorkflowException|InspectorException
      */
@@ -184,7 +181,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         Event $branchEvent
     ): BranchResult {
         $streamedEvents = [];
-        $originalStateData = $workflow->resolveState()->all();
 
         $branchState = clone $workflow->resolveState();
         $branchState->set('__branchId', $branchId);
@@ -238,7 +234,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         return new BranchResult(
             branchId: $branchId,
-            stateChanges: array_diff_assoc($branchState->all(), $originalStateData),
+            result: $currentEvent->getResult(),
             streamedEvents: $streamedEvents,
         );
     }

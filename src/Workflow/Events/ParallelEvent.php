@@ -13,15 +13,15 @@ use function array_is_list;
  *
  * When a node's __invoke() returns a ParallelEvent subclass, the executor runs all
  * branches (sequentially by default, concurrently with AsyncExecutor). After all
- * branches complete, branch state changes are stored under "branches.{branchId}.*"
- * in WorkflowState, and the ParallelEvent instance is routed through the event→node
- * map to a join node.
+ * branches complete, each branch's StopEvent::getResult() is stored in
+ * {@see $branchResults}, and the ParallelEvent instance is routed through the
+ * event→node map to a join node.
  *
  * Pattern:
  *  1. Extend ParallelEvent for your specific parallel operation.
  *  2. Return it from a fork node's __invoke(), passing the branch-starting events.
  *  3. Register a join node whose __invoke() accepts your ParallelEvent subclass.
- *     Read branch results from state under "branches.{branchId}.*".
+ *     Read branch results from {@see $branchResults}.
  *
  * Branch IDs:
  *  - Associative array keys are used as-is as branch IDs.
@@ -42,12 +42,19 @@ use function array_is_list;
  *       }
  *   }
  *
+ *   class ExtractText extends Node {
+ *       public function __invoke(ExtractTextEvent $event, WorkflowState $state): StopEvent
+ *       {
+ *           return new StopEvent(result: $extractedText);
+ *       }
+ *   }
+ *
  *   class CompileResults extends Node {
  *       public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
  *       {
  *           $state->set('result', [
- *               'text'   => $state->get('branches.text.extractedText'),
- *               'images' => $state->get('branches.images.imageAnalysis'),
+ *               'text'   => $event->branchResults['text'],
+ *               'images' => $event->branchResults['images'],
  *           ]);
  *           return new StopEvent();
  *       }
@@ -57,6 +64,16 @@ class ParallelEvent implements Event
 {
     /** @var array<string, Event> */
     public readonly array $branches;
+
+    /**
+     * Branch results, keyed by branch ID.
+     *
+     * Populated by the executor after all branches complete. Each value is
+     * whatever the branch's terminal node returned via `StopEvent::getResult()`.
+     *
+     * @var array<string, mixed>
+     */
+    public array $branchResults = [];
 
     /**
      * @param array<string, Event>|array<int, Event> $branches

@@ -15,7 +15,6 @@ class SlowTextProcessNode extends Node
     public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
     {
         delay(0.1);
-        $state->set('processedText', 'HELLO');
-        return new StopEvent();
+        return new StopEvent(result: 'HELLO');
     }
 }

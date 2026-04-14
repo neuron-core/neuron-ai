@@ -12,12 +12,11 @@ use NeuronAI\Workflow\Events\Event;
 class BranchResult
 {
     /**
-     * @param array<string, mixed> $stateChanges Changes made to state during branch execution
      * @param array<int, Event> $streamedEvents Events yielded during branch execution
      */
     public function __construct(
         public readonly string $branchId,
-        public readonly array $stateChanges = [],
+        public readonly mixed $result = null,
         public readonly array $streamedEvents = []
     ) {
     }

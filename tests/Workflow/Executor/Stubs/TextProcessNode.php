@@ -12,7 +12,6 @@ class TextProcessNode extends Node
 {
     public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
     {
-        $state->set('processedText', 'HELLO');
-        return new StopEvent();
+        return new StopEvent(result: 'HELLO');
     }
 }
