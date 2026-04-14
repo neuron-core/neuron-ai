@@ -38,6 +38,8 @@ class AGUIAdapter extends SSEAdapter
 
     protected bool $reasoningStarted = false;
 
+    protected ?string $reasoningMessageId = null;
+
     /**
      * @param string|null $threadId Optional thread ID for conversation context
      */
@@ -59,6 +61,17 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
+        // Close reasoning if it was started (transition from reasoning to text)
+        if ($this->reasoningStarted) {
+            yield $this->sse([
+                'type' => 'ReasoningEnd',
+                'messageId' => $this->reasoningMessageId,
+                'timestamp' => $this->timestamp(),
+            ]);
+            $this->reasoningStarted = false;
+            $this->reasoningMessageId = null;
+        }
+
         // Ensure the message has started
         if (! $this->messageStarted) {
             $this->currentMessageId = $this->generateId('msg');
@@ -88,6 +101,7 @@ class AGUIAdapter extends SSEAdapter
         // specialized into ReasoningMessageStart/Content/End pattern
         if (! $this->reasoningStarted) {
             $this->reasoningStarted = true;
+            $this->reasoningMessageId = $chunk->messageId;
 
             yield $this->sse([
                 'type' => 'ReasoningStart',
@@ -171,6 +185,17 @@ class AGUIAdapter extends SSEAdapter
 
     public function end(): iterable
     {
+        // Close any open reasoning
+        if ($this->reasoningStarted) {
+            yield $this->sse([
+                'type' => 'ReasoningEnd',
+                'messageId' => $this->reasoningMessageId,
+                'timestamp' => $this->timestamp(),
+            ]);
+            $this->reasoningStarted = false;
+            $this->reasoningMessageId = null;
+        }
+
         // Close any open text message
         if ($this->messageStarted && $this->currentMessageId !== null) {
             yield $this->sse([
