@@ -23,6 +23,9 @@ public function __invoke(SpecificEvent $event, WorkflowState $state): NextEvent
 | `Node.php` | Base class with `interrupt()`, `checkpoint()`, context access |
 | `WorkflowState.php` | Shared key-value state across nodes |
 | `WorkflowHandler.php` | Execution handler with `run()` and `events()` streaming |
+| `Executor/WorkflowExecutor.php` | Default sequential node executor |
+| `Executor/AsyncExecutor.php` | Concurrent executor using Amp fibers for parallel branches |
+| `Executor/WorkflowExecutorInterface.php` | Executor contract (`execute()` returns Generator) |
 | `StartEvent.php` | Triggers workflow start (required) |
 | `StopEvent.php` | Signals completion |
 
@@ -86,6 +89,7 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 ## Subdirectories
 
+- `Executor/` - `WorkflowExecutorInterface`, `WorkflowExecutor` (sequential), `AsyncExecutor` (concurrent Amp fibers), `BranchResult`
 - `Interrupt/` - `InterruptRequest` (abstract), `ApprovalRequest`, `Action`, `WorkflowInterrupt`
 - `Persistence/` - Storage backends for workflow state
 - `Middleware/` - `WorkflowMiddleware` interface
