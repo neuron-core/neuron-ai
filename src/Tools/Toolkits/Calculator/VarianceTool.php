@@ -14,6 +14,7 @@ use function array_map;
 use function array_sum;
 use function count;
 use function round;
+use function is_numeric;
 
 class VarianceTool extends Tool
 {
@@ -56,7 +57,7 @@ class VarianceTool extends Tool
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];
