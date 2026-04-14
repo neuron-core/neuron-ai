@@ -141,7 +141,7 @@ class PdfReader implements ReaderInterface
             return explode(' ', $content, 2);
         };
 
-        $reducer = \array_merge(...);
+        $reducer = array_merge(...);
 
         return array_reduce(array_map($mapper, $options), $reducer, []);
     }
