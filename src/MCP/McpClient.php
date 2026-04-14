@@ -20,12 +20,15 @@ class McpClient
     /**
      * Create a new MCP client with the given transport
      *
-     * @param array<string, mixed> $config
+     * @param  array<string, mixed>  $config
+     *
      * @throws McpException
      */
     public function __construct(array $config)
     {
-        if (isset($config['command'])) {
+        if (isset($config['transport']) && $config['transport'] instanceof McpTransportInterface) {
+            $this->transport = $config['transport'];
+        } elseif (isset($config['command'])) {
             $this->transport = new StdioTransport($config);
         } elseif (isset($config['url'])) {
             $isAsync = $config['async'] ?? false;
@@ -33,7 +36,7 @@ class McpClient
                 ? new SseHttpTransport($config)
                 : new StreamableHttpTransport($config);
         } else {
-            throw new McpException('Transport not supported! Provide either "command" for StdioTransport or "url" for StreamableHttpTransport/SseHttpTransport.');
+            throw new McpException('Transport not supported! Provide either "command" for StdioTransport, "url" for StreamableHttpTransport/SseHttpTransport, or a custom "transport" instance.');
         }
 
         $this->transport->connect();
@@ -46,16 +49,16 @@ class McpClient
     protected function initialize(): void
     {
         $request = [
-            "jsonrpc" => "2.0",
-            "id"      => ++$this->requestId,
-            "method"  => "initialize",
-            "params"  => [
+            'jsonrpc' => '2.0',
+            'id' => ++$this->requestId,
+            'method' => 'initialize',
+            'params' => [
                 'protocolVersion' => '2024-11-05',
-                'capabilities'    => (object)[
+                'capabilities' => (object) [
                     'sampling' => new stdClass(),
                 ],
-                'clientInfo'      => (object)[
-                    'name'    => 'neuron-ai',
+                'clientInfo' => (object) [
+                    'name' => 'neuron-ai',
                     'version' => '1.0.0',
                 ],
             ],
@@ -68,9 +71,10 @@ class McpClient
         }
 
         $request = [
-            "jsonrpc" => "2.0",
-            "method"  => "notifications/initialized",
+            'jsonrpc' => '2.0',
+            'method' => 'notifications/initialized',
         ];
+
         $this->transport->send($request);
     }
 
@@ -78,6 +82,7 @@ class McpClient
      * List all available tools from the MCP server
      *
      * @return array<string, mixed>
+     *
      * @throws Exception
      */
     public function listTools(): array
@@ -86,9 +91,9 @@ class McpClient
 
         do {
             $request = [
-                "jsonrpc" => "2.0",
-                "id" => ++$this->requestId,
-                "method" => "tools/list",
+                'jsonrpc' => '2.0',
+                'id' => ++$this->requestId,
+                'method' => 'tools/list',
             ];
 
             // Eventually add pagination
@@ -112,8 +117,9 @@ class McpClient
     /**
      * Call a tool on the MCP server
      *
-     * @param array<string, mixed> $arguments
+     * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
+     *
      * @throws Exception
      */
     public function callTool(string $toolName, array $arguments = []): array
@@ -121,16 +127,17 @@ class McpClient
         $arguments = array_filter($arguments, fn (mixed $value): bool => ! is_null($value));
 
         $request = [
-            "jsonrpc" => "2.0",
-            "id" => ++$this->requestId,
-            "method" => "tools/call",
-            "params" => [
-                "name" => $toolName,
+            'jsonrpc' => '2.0',
+            'id' => ++$this->requestId,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => $toolName,
                 ...($arguments !== [] ? ['arguments' => $arguments] : ['arguments' => new stdClass()]),
             ],
         ];
 
         $this->transport->send($request);
+
         return $this->transport->receive();
     }
 }

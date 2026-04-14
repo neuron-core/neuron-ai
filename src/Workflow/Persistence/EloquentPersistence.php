@@ -10,6 +10,8 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 use function serialize;
 use function unserialize;
+use function base64_decode;
+use function base64_encode;
 
 class EloquentPersistence implements PersistenceInterface
 {
@@ -25,7 +27,9 @@ class EloquentPersistence implements PersistenceInterface
         $model->newQuery()->updateOrCreate([
             'workflow_id' => $workflowId,
         ], [
-            'interrupt' => serialize($interrupt),
+            'interrupt' => base64_encode(
+                serialize($interrupt)
+            ), // Base64 is better suited for some database types (like CockroachDB)
         ]);
     }
 
@@ -38,7 +42,19 @@ class EloquentPersistence implements PersistenceInterface
             ->where('workflow_id', $workflowId)
             ->firstOr(['interrupt'], fn () => throw new WorkflowException("No saved workflow found for ID: {$workflowId}."));
 
-        return unserialize($record->interrupt);
+        $interruptData = @unserialize(
+            base64_decode($record->interrupt, true)
+        );
+
+        if ($interruptData === false) {
+            $interruptData = unserialize($record->interrupt); // This makes sure that previous records still work
+        }
+
+        if ($interruptData === false) {
+            throw new WorkflowException("Failed to unserialize saved workflow for ID: {$workflowId}.");
+        }
+
+        return $interruptData;
     }
 
     public function delete(string $workflowId): void
