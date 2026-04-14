@@ -29,7 +29,7 @@ class EloquentPersistence implements PersistenceInterface
         ], [
             'interrupt' => base64_encode(
                 serialize($interrupt)
-            ), // Base64 is better suited for some database types (like CockroachDB)
+            ), // Simple Base64 string is compatible with all databases
         ]);
     }
 

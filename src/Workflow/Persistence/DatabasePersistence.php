@@ -30,7 +30,9 @@ class DatabasePersistence implements PersistenceInterface
 
         $stmt->execute([
             'id' => $workflowId,
-            'interrupt' => serialize($interrupt),
+            'interrupt' => base64_encode(
+                serialize($interrupt)
+            ), // Simple Base64 string is compatible with all databases
         ]);
     }
 
