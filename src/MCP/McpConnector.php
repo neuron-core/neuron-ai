@@ -52,7 +52,7 @@ class McpConnector
     /**
      * @throws McpException
      */
-    protected function client(): MCPClient
+    protected function client(): McpClient
     {
         return $this->client ??= new McpClient($this->config);
     }
