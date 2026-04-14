@@ -11,6 +11,7 @@ use PDO;
 use function serialize;
 use function unserialize;
 use function base64_decode;
+use function base64_encode;
 
 class DatabasePersistence implements PersistenceInterface
 {
