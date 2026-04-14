@@ -33,7 +33,7 @@ class SupadataVideoTranscriptTool extends Tool
                 type: PropertyType::STRING,
                 description: 'The URL of the YouTube video you want to retrieve the transcription for.',
                 required: true
-            )
+            ),
         ];
     }
 

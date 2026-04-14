@@ -32,7 +32,7 @@ class TavilyToolkit extends AbstractToolkit
         return [
             new TavilyExtractTool($this->key),
             new TavilySearchTool($this->key),
-            new TavilyCrawlTool($this->key)
+            new TavilyCrawlTool($this->key),
         ];
     }
 }

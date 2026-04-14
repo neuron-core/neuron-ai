@@ -62,7 +62,7 @@ class TavilyExtractTool extends Tool
             RequestOptions::JSON => array_merge(
                 $this->options,
                 ['urls' => [$url]]
-            )
+            ),
         ])->getBody()->getContents();
 
         $result = json_decode($result, true);
@@ -79,7 +79,7 @@ class TavilyExtractTool extends Tool
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ]
+            ],
         ]);
     }
 

@@ -50,7 +50,7 @@ class JinaUrlReader extends Tool
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'X-Return-Format' => 'Markdown',
-            ]
+            ],
         ]);
     }
 
@@ -63,7 +63,7 @@ class JinaUrlReader extends Tool
         return $this->getClient()->post('https://r.jina.ai/', [
             RequestOptions::JSON => [
                 'url' => $url,
-            ]
+            ],
         ])->getBody()->getContents();
     }
 }

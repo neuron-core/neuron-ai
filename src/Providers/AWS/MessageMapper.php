@@ -45,10 +45,10 @@ class MessageMapper implements MessageMapperInterface
                             'json' => [
                                 'result' => $tool->getResult(),
                             ],
-                        ]
+                        ],
                     ],
                     'toolUseId' => $tool->getCallId(),
-                ]
+                ],
             ];
         }
 

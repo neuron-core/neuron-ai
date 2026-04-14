@@ -22,11 +22,11 @@ class MeanTool extends Tool
         parent::__construct(
             'calculate_mean',
             <<<DESC
-Calculates the arithmetic mean (average) of a dataset. The mean is the sum of all values divided
-by the number of values. Use this tool when you need the central tendency of numerical data,
-analyzing performance metrics, calculating average scores, or determining typical values in a
-dataset. Input should be an array of numbers.
-DESC
+                Calculates the arithmetic mean (average) of a dataset. The mean is the sum of all values divided
+                by the number of values. Use this tool when you need the central tendency of numerical data,
+                analyzing performance metrics, calculating average scores, or determining typical values in a
+                dataset. Input should be an array of numbers.
+                DESC
         );
     }
 

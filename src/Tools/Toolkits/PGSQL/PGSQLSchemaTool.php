@@ -41,7 +41,7 @@ and performance optimization. If you already know the database structure, you ca
             'tables' => $this->getTables(),
             'relationships' => $this->getRelationships(),
             'indexes' => $this->getIndexes(),
-            'constraints' => $this->getConstraints()
+            'constraints' => $this->getConstraints(),
         ]);
     }
 
@@ -129,7 +129,7 @@ and performance optimization. If you already know the database structure, you ca
                     'columns' => [],
                     'primary_key' => [],
                     'unique_keys' => [],
-                    'indexes' => []
+                    'indexes' => [],
                 ];
             }
 
@@ -144,7 +144,7 @@ and performance optimization. If you already know the database structure, you ca
                     'nullable' => $row['is_nullable'] === 'YES',
                     'default' => $row['column_default'],
                     'auto_increment' => str_contains((string) $row['extra'], 'auto_increment'),
-                    'comment' => $row['column_comment']
+                    'comment' => $row['column_comment'],
                 ];
 
                 if ($row['character_maximum_length']) {
@@ -305,7 +305,7 @@ and performance optimization. If you already know the database structure, you ca
                 'name' => $row['indexname'],
                 'unique' => str_contains((string) $row['indexdef'], 'UNIQUE'),
                 'type' => $this->extractIndexType($row['indexdef']),
-                'columns' => $cleanColumns === [] ? $columns : $cleanColumns
+                'columns' => $cleanColumns === [] ? $columns : $cleanColumns,
             ];
         }
 

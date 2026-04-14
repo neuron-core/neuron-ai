@@ -18,10 +18,10 @@ return RectorConfig::configure()
         earlyReturn: true,
     )
     ->withRules([
-        AddReturnTypeDeclarationRector::class
+        AddReturnTypeDeclarationRector::class,
     ])
     ->withSkip([
         \Rector\DeadCode\Rector\For_\RemoveDeadIfForeachForRector::class => [
-            __DIR__ . '/src/Workflow/WorkflowHandler.php'
+            __DIR__ . '/src/Workflow/WorkflowHandler.php',
         ],
     ]);

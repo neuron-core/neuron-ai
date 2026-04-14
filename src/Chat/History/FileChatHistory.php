@@ -30,7 +30,7 @@ class FileChatHistory extends AbstractChatHistory
     ) {
         parent::__construct($contextWindow);
 
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0755, true)) {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true)) {
             throw new ChatHistoryException(
                 "Directory '{$this->directory}' does not exist and could not be created."
             );
