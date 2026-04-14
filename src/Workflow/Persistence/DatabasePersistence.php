@@ -11,6 +11,7 @@ use PDO;
 use function serialize;
 use function unserialize;
 use function base64_decode;
+use function base64_encode;
 
 class DatabasePersistence implements PersistenceInterface
 {
@@ -30,7 +31,8 @@ class DatabasePersistence implements PersistenceInterface
 
         $stmt->execute([
             'id' => $workflowId,
-            'interrupt' => serialize($interrupt),
+            // Simple Base64 string is compatible with all databases
+            'interrupt' => base64_encode(serialize($interrupt)),
         ]);
     }
 
@@ -47,19 +49,13 @@ class DatabasePersistence implements PersistenceInterface
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        $interruptData = @unserialize(
-            base64_decode((string) $record['interrupt'], true)
-        );
+        $interruptData = base64_decode((string) $record['interrupt'], true);
 
         if ($interruptData === false) {
-            $interruptData = unserialize($record['interrupt']); // This makes sure that previous records still work
+            $interruptData = $record['interrupt']; // This makes sure that previous records still work
         }
 
-        if ($interruptData === false) {
-            throw new WorkflowException("Failed to unserialize saved workflow for ID: {$workflowId}.");
-        }
-
-        return $interruptData;
+        return unserialize($interruptData);
     }
 
     public function delete(string $workflowId): void
