@@ -14,6 +14,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use function array_filter;
 use function array_key_exists;
 use function json_encode;
+use function is_array;
 
 /**
  * Inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -57,11 +58,11 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
-        if (isset($result['error']) {
+        if (isset($result['error'])) {
             throw new ProviderException("OpenAI API Error: " . ($result['error']['message'] ?? json_encode($result['error'])));
         }
 
-        if (!array_key_exists($result, 'output') || !is_array($result['output'])) {
+        if (!array_key_exists('output', $result) || !is_array($result['output'])) {
             throw new ProviderException("OpenAI API Error: No output - " . json_encode($result));
         }
 
