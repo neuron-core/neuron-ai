@@ -49,6 +49,8 @@ class RAG extends Agent
 
     /**
      * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
+     *
+     * @throws InspectorException
      */
     protected function compose(array|Node $nodes): void
     {

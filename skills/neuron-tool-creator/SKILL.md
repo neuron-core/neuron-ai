@@ -18,7 +18,7 @@ Every tool has:
 - **Name**: Unique identifier
 - **Description**: Explains what the tool does (critical for LLM)
 - **Properties**: Input parameters with types and descriptions
-- **Execution**: The actual logic to run
+- **Callable**: The actual logic to run
 
 ## Creating Custom Tools
 

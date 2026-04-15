@@ -322,9 +322,11 @@ echo $response->getContent();
 ### Streaming
 
 ```php
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+
 foreach ($rag->stream(new UserMessage("Explain the architecture"))->events() as $event) {
-    if ($event instanceof AIResponseChunkEvent) {
-        echo $event->chunk;
+    if ($event instanceof TextChunk) {
+        echo $event->content;
     }
 }
 ```
@@ -336,26 +338,6 @@ $summary = $rag->structured(
     new UserMessage("Summarize the pricing information"),
     PricingSummary::class
 );
-```
-
-## Graph Stores (Knowledge Graphs)
-
-For relationship-based retrieval:
-
-```php
-use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
-
-class KnowledgeRAG extends RAG
-{
-    protected function graphStore(): GraphStoreInterface
-    {
-        return new Neo4jGraphStore(
-            uri: 'bolt://localhost:7687',
-            username: 'neo4j',
-            password: $_ENV['NEO4J_PASSWORD']
-        );
-    }
-}
 ```
 
 ## CLI Generation
@@ -391,17 +373,6 @@ $rag->chat(
 )->withMetadataFilter([
     'category' => 'pricing',
     'year' => 2024
-]);
-```
-
-### Configuring Top-K per Query
-
-```php
-$rag->chat(
-    new UserMessage("Search query")
-)->withRetrievalConfig([
-    'k' => 10,  // Retrieve 10 documents
-    'scoreThreshold' => 0.7  // Minimum similarity score
 ]);
 ```
 
@@ -454,36 +425,13 @@ class CompanyKnowledgeBot extends RAG
 ```php
 $rag = MyChatBot::make();
 
-$rag->addPostProcessor(new RerankProcessor(
-    reranker: new CohereReranker($_ENV['COHERE_API_KEY']),
-    topK: 5
-));
+$rag->addPostProcessor(new CohereRerankerPostProcessor(
+    key: $_ENV['COHERE_API_KEY'],
+    model: $_ENV['COHERE_MODEL'],
+    topN: 5
+);
 
 $rag->chat(new UserMessage("Your question here"));
-```
-
-### Multi-Source RAG
-
-```php
-class MultiSourceRAG extends RAG
-{
-    protected function vectorStore(): VectorStoreInterface
-    {
-        // Configure multiple sources with metadata
-        return new PineconeVectorStore(...);
-    }
-
-    public function queryWithSources(string $query, array $sources): string
-    {
-        $response = $this->chat(
-            new UserMessage($query)
-        )->withMetadataFilter([
-            'source' => ['$in' => $sources]
-        ]);
-
-        return $response->getMessage()->getContent();
-    }
-}
 ```
 
 ## Performance Considerations
@@ -495,11 +443,7 @@ class MultiSourceRAG extends RAG
 
 ### Top-K Selection
 - **3-5 documents**: Good for focused queries, faster responses
-- **10+ documents**: Better for comprehensive answers, but slower and noisier
-
-### Embedding Model Choice
-- **Fast/Light**: `text-embedding-3-small`, `nomic-embed-text` - Good for most use cases
-- **High Quality**: `text-embedding-3-large`, `voyage-3` - Better for complex queries
+- **10+ documents**: Better for comprehensive answers
 
 ## Testing RAG
 
@@ -523,19 +467,5 @@ class MyChatBotTest extends TestCase
 
         $this->assertStringContainsString('99', $response->getContent());
     }
-}
-```
-
-## Debugging RAG
-
-To see retrieved documents:
-
-```php
-$response = $rag->chat(new UserMessage("Your question"));
-$retrievedDocs = $response->getRetrievedDocuments();
-
-foreach ($retrievedDocs as $doc) {
-    echo "Score: {$doc->score}\n";
-    echo "Content: {$doc->content}\n\n";
 }
 ```
