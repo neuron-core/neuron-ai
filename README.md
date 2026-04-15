@@ -3,7 +3,7 @@
 [![Latest Stable Version](https://poser.pugx.org/neuron-core/neuron-ai/v/stable)](https://packagist.org/packages/neuron-core/neuron-ai)
 [![Total Downloads](http://poser.pugx.org/neuron-core/neuron-ai/downloads)](https://packagist.org/packages/neuron-core/neuron-ai)
 
-> [!IMPORTANT]
+> [!NEWSLETTER]
 > Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
 > [Subscribe to the newsletter](https://neuron-ai.dev)
 
