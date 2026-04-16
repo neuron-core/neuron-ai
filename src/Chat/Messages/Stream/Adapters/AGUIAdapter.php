@@ -72,19 +72,17 @@ class AGUIAdapter extends SSEAdapter
             $this->messageStarted = true;
 
             yield $this->sse([
-                'type' => 'TextMessageStart',
+                'type' => 'TEXT_MESSAGE_START',
                 'messageId' => $this->currentMessageId,
                 'role' => 'assistant',
-                'timestamp' => $this->timestamp(),
             ]);
         }
 
         // Stream content delta
         yield $this->sse([
-            'type' => 'TextMessageContent',
+            'type' => 'TEXT_MESSAGE_CONTENT',
             'messageId' => $this->currentMessageId,
             'delta' => $chunk->content,
-            'timestamp' => $this->timestamp(),
         ]);
     }
 
@@ -100,24 +98,21 @@ class AGUIAdapter extends SSEAdapter
             $this->reasoningMessageId = $chunk->messageId;
 
             yield $this->sse([
-                'type' => 'ReasoningStart',
+                'type' => 'REASONING_START',
                 'messageId' => $chunk->messageId,
-                'timestamp' => $this->timestamp(),
             ]);
 
             yield $this->sse([
-                'type' => 'ReasoningMessageStart',
+                'type' => 'REASONING_MESSAGE_START',
                 'messageId' => $chunk->messageId,
                 'role' => 'assistant',
-                'timestamp' => $this->timestamp(),
             ]);
         }
 
         yield $this->sse([
-            'type' => 'ReasoningMessageContent',
+            'type' => 'REASONING_MESSAGE_CONTENT',
             'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
-            'timestamp' => $this->timestamp(),
         ]);
     }
 
@@ -140,11 +135,10 @@ class AGUIAdapter extends SSEAdapter
             $this->toolCallStarted[$toolCallId] = true;
 
             yield $this->sse([
-                'type' => 'ToolCallStart',
+                'type' => 'TOOL_CALL_START',
                 'toolCallId' => $toolCallId,
                 'toolCallName' => $toolName,
                 'parentMessageId' => $this->currentMessageId,
-                'timestamp' => $this->timestamp(),
             ]);
         }
 
@@ -152,18 +146,16 @@ class AGUIAdapter extends SSEAdapter
         $args = $chunk->tool->getInputs();
         if ($args !== []) {
             yield $this->sse([
-                'type' => 'ToolCallArgs',
+                'type' => 'TOOL_CALL_ARGS',
                 'toolCallId' => $toolCallId,
                 'delta' => json_encode($args),
-                'timestamp' => $this->timestamp(),
             ]);
         }
 
         // Mark tool call arguments as complete
         yield $this->sse([
-            'type' => 'ToolCallEnd',
+            'type' => 'TOOL_CALL_END',
             'toolCallId' => $toolCallId,
-            'timestamp' => $this->timestamp(),
         ]);
     }
 
@@ -174,11 +166,10 @@ class AGUIAdapter extends SSEAdapter
 
         // Emit tool result
         yield $this->sse([
-            'type' => 'ToolCallResult',
+            'type' => 'TOOL_CALL_RESULT',
             'toolCallId' => $toolCallId,
             'content' => $chunk->tool->getResult(),
             'role' => 'tool',
-            'timestamp' => $this->timestamp(),
         ]);
     }
 
@@ -187,10 +178,9 @@ class AGUIAdapter extends SSEAdapter
         $this->runId = $this->generateId('run');
 
         yield $this->sse([
-            'type' => 'RunStarted',
+            'type' => 'RUN_STARTED',
             'runId' => $this->runId,
             'threadId' => $this->threadId,
-            'timestamp' => $this->timestamp(),
         ]);
     }
 
@@ -206,15 +196,13 @@ class AGUIAdapter extends SSEAdapter
         }
 
         yield $this->sse([
-            'type' => 'ReasoningMessageEnd',
+            'type' => 'REASONING_MESSAGE_END',
             'messageId' => $this->reasoningMessageId,
-            'timestamp' => $this->timestamp(),
         ]);
 
         yield $this->sse([
-            'type' => 'ReasoningEnd',
+            'type' => 'REASONING_END',
             'messageId' => $this->reasoningMessageId,
-            'timestamp' => $this->timestamp(),
         ]);
 
         $this->reasoningStarted = false;
@@ -233,9 +221,8 @@ class AGUIAdapter extends SSEAdapter
         }
 
         yield $this->sse([
-            'type' => 'TextMessageEnd',
+            'type' => 'TEXT_MESSAGE_END',
             'messageId' => $this->currentMessageId,
-            'timestamp' => $this->timestamp(),
         ]);
 
         $this->messageStarted = false;
@@ -254,9 +241,9 @@ class AGUIAdapter extends SSEAdapter
         // Emit RunFinished event
         if ($this->runId !== null) {
             yield $this->sse([
-                'type' => 'RunFinished',
+                'type' => 'RUN_FINISHED',
                 'runId' => $this->runId,
-                'timestamp' => $this->timestamp(),
+                'threadId' => $this->threadId,
             ]);
         }
     }
