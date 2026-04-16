@@ -65,7 +65,7 @@ Read module-specific `AGENTS.md` files when working on that area:
 - PHPStan level 5
 - 100% type coverage (params, returns, properties)
 - PHP 8.1+ features (enums, constructor promotion)
-- Protected visibility for non-public members (never private)
+- Use **protected** visibility for non-public properties and methods (never private)
 
 ## Think Before Coding
 

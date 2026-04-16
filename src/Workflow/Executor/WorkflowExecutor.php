@@ -17,13 +17,15 @@ use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
-use function sprintf;
+use function array_key_exists;
 
 /**
  * Default executor that processes nodes sequentially.
@@ -56,14 +58,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 break;
             }
 
-            $nextEventClass = $currentEvent::class;
-            if (!$workflow->hasNodeForEvent($nextEventClass)) {
-                throw new WorkflowException(
-                    "No node found that handle event: " . $nextEventClass
-                );
-            }
-
-            $currentNode = $workflow->getNodeForEvent($nextEventClass);
+            $currentNode = $workflow->getNodeForEvent($currentEvent::class);
             $resumeRequest = null;
         }
     }
@@ -138,7 +133,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Execute parallel branches sequentially, one after the other.
      *
-     * After all branches complete, each branch's result (from StopEvent::getResult())
+     * After all branches are complete, each branch's result (from StopEvent::getResult())
      * is stored in {@see ParallelEvent::$branchResults}. The ParallelEvent is then
      * returned for normal routing to a join node.
      *
@@ -151,15 +146,47 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function executeParallelBranches(
         WorkflowInterface $workflow,
-        ParallelEvent $parallelEvent
+        ParallelEvent $parallelEvent,
+        ?WorkflowInterrupt $interrupt = null,
+        ?InterruptRequest $resumeRequest = null,
     ): Generator {
+        $completedResults = $interrupt?->getCompletedBranchResults() ?? [];
+        $parallelEvent->branchResults = $completedResults;
+
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
-            $result = $this->executeBranch($workflow, $branchId, $branchEvent);
+            if (array_key_exists($branchId, $completedResults)) {
+                continue;
+            }
 
-            $parallelEvent->branchResults[$branchId] = $result->result;
+            // When $interrupt is non-null and its branch matches, $isResuming is true
+            // and $interrupt is guaranteed non-null for the rest of this iteration.
+            $isResuming = ($branchId === $interrupt?->getBranchId());
 
-            foreach ($result->streamedEvents as $streamedEvent) {
-                yield $streamedEvent;
+            try {
+                $result = $this->executeBranch(
+                    $workflow,
+                    $branchId,
+                    $isResuming ? $interrupt->getEvent() : $branchEvent,
+                    $isResuming ? $resumeRequest : null,
+                    $isResuming ? $interrupt->getNode() : null,
+                );
+
+                $completedResults[$branchId] = $result->result;
+                $parallelEvent->branchResults[$branchId] = $result->result;
+
+                foreach ($result->streamedEvents as $streamedEvent) {
+                    yield $streamedEvent;
+                }
+            } catch (BranchInterrupt $branchInterrupt) {
+                throw new WorkflowInterrupt(
+                    request: $branchInterrupt->original->getRequest(),
+                    node: $branchInterrupt->original->getNode(),
+                    state: $workflow->resolveState(),
+                    event: $branchInterrupt->original->getEvent(),
+                    branchId: $branchInterrupt->branchId,
+                    parallelEvent: $parallelEvent,
+                    completedBranchResults: $completedResults,
+                );
             }
         }
 
@@ -178,7 +205,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function executeBranch(
         WorkflowInterface $workflow,
         string $branchId,
-        Event $branchEvent
+        Event $branchEvent,
+        ?InterruptRequest $resumeRequest = null,
+        ?NodeInterface $startNode = null,
     ): BranchResult {
         $streamedEvents = [];
 
@@ -194,34 +223,26 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
 
         try {
-            if (!$workflow->hasNodeForEvent($branchEvent::class)) {
-                throw new WorkflowException(
-                    sprintf("No node found for branch '%s' event: %s", $branchId, $branchEvent::class)
-                );
-            }
-
-            $currentNode = $workflow->getNodeForEvent($branchEvent::class);
+            $currentNode = $startNode ?? $workflow->getNodeForEvent($branchEvent::class);
             $currentEvent = $branchEvent;
 
             while (!($currentEvent instanceof StopEvent)) {
-                $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, null, $branchState, $branchId);
+                $nodeGenerator = $this->executeNode($workflow, $currentEvent, $currentNode, $resumeRequest, $branchState, $branchId);
                 foreach ($nodeGenerator as $streamedEvent) {
                     $streamedEvents[] = $streamedEvent;
                 }
                 $currentEvent = $nodeGenerator->getReturn();
 
+                $resumeRequest = null;
+
                 if ($currentEvent instanceof StopEvent) {
                     break;
                 }
 
-                if (!$workflow->hasNodeForEvent($currentEvent::class)) {
-                    throw new WorkflowException(
-                        sprintf("Branch '%s': No node for event %s", $branchId, $currentEvent::class)
-                    );
-                }
-
                 $currentNode = $workflow->getNodeForEvent($currentEvent::class);
             }
+        } catch (WorkflowInterrupt $interrupt) {
+            throw new BranchInterrupt($branchId, $interrupt);
         } finally {
             EventBus::emit(
                 'branch-end',
@@ -274,4 +295,44 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             EventBus::emit('middleware-after-end', $workflow, new MiddlewareEnd($m), $workflow->getWorkflowId(), $branchId);
         }
     }
+
+    /**
+     * Resume the workflow from a persisted interrupt.
+     *
+     * Handles both linear and parallel interrupts: for parallel interrupts
+     * it resumes branches first, then continues linear execution to the join node.
+     *
+     * @return Generator<int, Event, mixed, void>
+     * @throws WorkflowException|InspectorException
+     */
+    public function resume(
+        WorkflowInterface $workflow,
+        WorkflowInterrupt $interrupt,
+        InterruptRequest $resumeRequest
+    ): Generator {
+        if ($interrupt->isParallelInterrupt()) {
+            $gen = $this->executeParallelBranches(
+                $workflow,
+                $interrupt->getParallelEvent(),
+                $interrupt,
+                $resumeRequest,
+            );
+            yield from $gen;
+            $parallelEvent = $gen->getReturn();
+
+            yield from $this->execute(
+                $workflow,
+                $parallelEvent,
+                $workflow->getNodeForEvent($parallelEvent::class)
+            );
+        } else {
+            yield from $this->execute(
+                $workflow,
+                $interrupt->getEvent(),
+                $interrupt->getNode(),
+                $resumeRequest
+            );
+        }
+    }
+
 }

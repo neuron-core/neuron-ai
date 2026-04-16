@@ -35,9 +35,7 @@ interface WorkflowInterface
      */
     public function addNodes(array $nodes): Workflow;
 
-    public function getNodeForEvent(string $eventClass): ?NodeInterface;
-
-    public function hasNodeForEvent(string $eventClass): bool;
+    public function getNodeForEvent(string $eventClass): NodeInterface;
 
     public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): WorkflowInterface;
 

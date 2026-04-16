@@ -169,8 +169,7 @@ class Workflow implements WorkflowInterface
 
         $this->bootstrap();
 
-        $startEvent = $this->resolveStartEvent();
-        yield from $this->execute($startEvent, $this->eventNodeMap[$startEvent::class]);
+        yield from $this->execute();
 
         return $this->resolveState();
     }
@@ -190,30 +189,31 @@ class Workflow implements WorkflowInterface
         $interrupt = $this->persistence->load($this->workflowId);
         $this->setState($interrupt->getState());
 
-        yield from $this->execute(
-            $interrupt->getEvent(),
-            $interrupt->getNode(),
-            $resumeRequest
-        );
+        yield from $this->execute($interrupt, $resumeRequest);
 
         return $this->resolveState();
     }
 
     /**
+     * Unified execution entry point.
+     *
+     * When called without an interrupt, starts from the beginning.
+     * When called with an interrupt, delegates resumption (linear or
+     * parallel) to the executor.
+     *
      * @throws WorkflowInterrupt|WorkflowException|Throwable
      */
     protected function execute(
-        Event $currentEvent,
-        NodeInterface $currentNode,
+        ?WorkflowInterrupt $interrupt = null,
         ?InterruptRequest $resumeRequest = null
     ): Generator {
         try {
-            yield from $this->executor()->execute(
-                $this,
-                $currentEvent,
-                $currentNode,
-                $resumeRequest
-            );
+            if ($interrupt instanceof WorkflowInterrupt) {
+                yield from $this->executor()->resume($this, $interrupt, $resumeRequest);
+            } else {
+                $event = $this->resolveStartEvent();
+                yield from $this->executor()->execute($this, $event, $this->eventNodeMap[$event::class]);
+            }
 
             $this->persistence->delete($this->workflowId);
         } catch (WorkflowInterrupt $interrupt) {
@@ -329,19 +329,19 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Check if a node exists for the given event class.
-     */
-    public function hasNodeForEvent(string $eventClass): bool
-    {
-        return isset($this->eventNodeMap[$eventClass]);
-    }
-
-    /**
      * Get the node that handles a specific event type.
+     *
+     * @throws WorkflowException if no node is registered for the given event class
      */
-    public function getNodeForEvent(string $eventClass): ?NodeInterface
+    public function getNodeForEvent(string $eventClass): NodeInterface
     {
-        return $this->eventNodeMap[$eventClass] ?? null;
+        if (!isset($this->eventNodeMap[$eventClass])) {
+            throw new WorkflowException(
+                "No node found that handle event: " . $eventClass
+            );
+        }
+
+        return $this->eventNodeMap[$eventClass];
     }
 
     /**
