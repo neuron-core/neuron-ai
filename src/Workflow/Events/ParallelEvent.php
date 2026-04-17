@@ -73,7 +73,7 @@ class ParallelEvent implements Event
      *
      * @var array<string, mixed>
      */
-    public array $branchResults = [];
+    protected array $results = [];
 
     /**
      * @param array<string, Event>|array<int, Event> $branches
@@ -92,5 +92,26 @@ class ParallelEvent implements Event
         } else {
             $this->branches = $branches;
         }
+    }
+
+    public function setResult(string $branch, mixed $result): self
+    {
+        $this->results[$branch] = $result;
+        return $this;
+    }
+
+    public function getResult(string $branch): mixed
+    {
+        return $this->results[$branch];
+    }
+
+    public function getAllResults(): array
+    {
+        return $this->results;
+    }
+
+    public function hasResult(string $branch): bool
+    {
+        return isset($this->results[$branch]);
     }
 }

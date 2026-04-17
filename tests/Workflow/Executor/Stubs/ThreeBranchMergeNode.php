@@ -12,7 +12,7 @@ class ThreeBranchMergeNode extends Node
 {
     public function __invoke(ThreeBranchParallelEvent $event, WorkflowState $state): StopEvent
     {
-        $state->set('merge_results', $event->branchResults);
+        $state->set('merge_results', $event->getAllResults());
         $state->set('merge_node_executed', true);
         return new StopEvent();
     }

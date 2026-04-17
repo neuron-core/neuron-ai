@@ -40,12 +40,9 @@ class AsyncExecutor extends WorkflowExecutor
         ?WorkflowInterrupt $interrupt = null,
         ?InterruptRequest $resumeRequest = null,
     ): Generator {
-        $completedResults = $interrupt?->getCompletedBranchResults() ?? [];
-        $parallelEvent->branchResults = $completedResults;
-
         $futures = [];
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
-            if (array_key_exists($branchId, $completedResults)) {
+            if ($parallelEvent->hasResult($branchId)) {
                 continue;
             }
 
@@ -68,8 +65,7 @@ class AsyncExecutor extends WorkflowExecutor
         foreach ($futures as $branchId => $future) {
             try {
                 $result = $future->await();
-                $completedResults[$branchId] = $result->result;
-                $parallelEvent->branchResults[$branchId] = $result->result;
+                $parallelEvent->setResult($branchId, $result->result);
 
                 foreach ($result->streamedEvents as $streamedEvent) {
                     yield $streamedEvent;
@@ -89,11 +85,9 @@ class AsyncExecutor extends WorkflowExecutor
                 event: $firstBranchInterrupt->original->getEvent(),
                 branchId: $firstBranchInterrupt->branchId,
                 parallelEvent: $parallelEvent,
-                completedBranchResults: $completedResults,
+                completedBranchResults: $parallelEvent->getAllResults(),
             );
         }
-
-        $parallelEvent->branchResults = $completedResults;
 
         return $parallelEvent;
     }

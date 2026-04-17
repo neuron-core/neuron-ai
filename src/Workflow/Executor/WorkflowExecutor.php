@@ -134,7 +134,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * Execute parallel branches sequentially, one after the other.
      *
      * After all branches are complete, each branch's result (from StopEvent::getResult())
-     * is stored in {@see ParallelEvent::$branchResults}. The ParallelEvent is then
+     * is stored in {@see ParallelEvent::$results}. The ParallelEvent is then
      * returned for normal routing to a join node.
      *
      * Subclasses can override this method to change how branches run
@@ -150,11 +150,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?WorkflowInterrupt $interrupt = null,
         ?InterruptRequest $resumeRequest = null,
     ): Generator {
-        $completedResults = $interrupt?->getCompletedBranchResults() ?? [];
-        $parallelEvent->branchResults = $completedResults;
-
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
-            if (array_key_exists($branchId, $completedResults)) {
+            if ($parallelEvent->hasResult($branchId)) {
                 continue;
             }
 
@@ -171,8 +168,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     $isResuming ? $interrupt->getNode() : null,
                 );
 
-                $completedResults[$branchId] = $result->result;
-                $parallelEvent->branchResults[$branchId] = $result->result;
+                $parallelEvent->setResult($branchId, $result->result);
 
                 foreach ($result->streamedEvents as $streamedEvent) {
                     yield $streamedEvent;
@@ -185,7 +181,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     event: $branchInterrupt->original->getEvent(),
                     branchId: $branchInterrupt->branchId,
                     parallelEvent: $parallelEvent,
-                    completedBranchResults: $completedResults,
+                    completedBranchResults: $parallelEvent->getAllResults(),
                 );
             }
         }
