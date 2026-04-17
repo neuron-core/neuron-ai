@@ -1,15 +1,9 @@
-# AGENTS.md
-
-Neuron is a PHP Agentic framework for building AI agents with chat, tools, RAG, structured output, and workflow orchestration.
-
 ## Development Commands
 
 ```bash
 composer test          # Run tests (PHPUnit)
-composer analyse       # Static analysis (PHPStan level 5)
 composer format        # Fix code style (PHP CS Fixer)
-composer refactor      # Refactor code (Rector)
-composer install       # Install dependencies
+composer analyse       # Static analysis (PHPStan level 5)
 ```
 
 Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`
@@ -29,21 +23,21 @@ Chat ◄────────────────────────
 
 ## Modules
 
-| Module | Purpose | Dependencies |
-|--------|---------|--------------|
+| Module | Purpose                                                       | Dependencies |
+|--------|---------------------------------------------------------------|--------------|
 | `src/Workflow/` | Event-driven orchestration, nodes, interruptions, persistence | None |
-| `src/Agent/` | AI agent with chat/stream/structured modes | Workflow, Chat, Providers, Tools |
-| `src/Chat/` | Messages, content blocks, chat history | None |
-| `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.) | Chat, HttpClient |
-| `src/Tools/` | Tool system and built-in toolkits | None |
-| `src/RAG/` | Document retrieval and vector stores | Agent, VectorStore |
-| `src/StructuredOutput/` | JSON schema extraction | Chat |
-| `src/HttpClient/` | HTTP client abstraction | None |
-| `src/MCP/` | Model Context Protocol connector | HttpClient |
-| `src/Observability/` | EventBus and observers | None |
-| `src/Console/` | CLI commands (make:*, evaluation) | Evaluation |
-| `src/Evaluation/` | AI evaluation framework | None |
-| `src/Testing/` | Test fakes and utilities | Providers |
+| `src/Agent/` | AI agent with chat/stream/structured modes                    | Workflow, Chat, Providers, Tools |
+| `src/Chat/` | Messages, stream content blocks, chat history                 | None |
+| `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.)            | Chat, HttpClient |
+| `src/Tools/` | Tool system and built-in toolkits                             | None |
+| `src/RAG/` | Document retrieval and vector stores                          | Agent, VectorStore |
+| `src/StructuredOutput/` | JSON schema extraction                                        | Chat |
+| `src/HttpClient/` | HTTP client abstraction                                       | None |
+| `src/MCP/` | Model Context Protocol connector                              | HttpClient |
+| `src/Observability/` | EventBus and observers                                        | None |
+| `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
+| `src/Evaluation/` | AI evaluation framework                                       | None |
+| `src/Testing/` | Test fakes and utilities                                      | Providers |
 
 ## Context Discovery
 
