@@ -242,6 +242,33 @@ try {
 }
 ```
 
+## Checkpoints
+
+Nodes can use checkpoints to cache operations happening before the interruption point.
+
+```php
+class DataProcessingNode extends Node
+{
+    public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
+    {
+        // When resumed,
+        // $data is retrieved from checkpoint
+        $data = $this->checkpoint('fetch_data', function() {
+            return $this->fetchExpensiveData();
+        });
+
+        // Might interrupt here
+        $resumeRequest = $this->interruptIf($needsApproval, new ApprovalRequest(...));
+
+        if ($resumeRequest->getAction('check')->isApproved()) {
+            return new ResultEvent($data);
+        }
+
+        return new AnotherEvent();
+    }
+}
+```
+
 ## Middleware System
 
 Middleware wraps node execution for cross-cutting concerns.
@@ -452,12 +479,238 @@ class LoopNode extends Node
 }
 ```
 
+## Parallel Execution
+
+When a node needs to run multiple sub-tasks concurrently (e.g. extracting structured data from an image while also generating a description), use `ParallelEvent` to fork execution into parallel branches.
+
+### How It Works
+
+```
+ForkNode → ParallelEvent([branch1 => EventA, branch2 => EventB])
+              ├─ BranchA → NodeA → StopEvent(resultA)
+              └─ BranchB → NodeB → StopEvent(resultB)
+           → JoinNode (reads results from ParallelEvent) → StopEvent
+```
+
+1. A **fork node** returns a `ParallelEvent` subclass with branch-starting events.
+2. The executor runs each branch independently until `StopEvent`.
+3. Each branch's `StopEvent::getResult()` is collected into the `ParallelEvent`.
+4. A **join node** (whose `__invoke()` accepts the `ParallelEvent` subclass) reads the results.
+
+### Step 1 — Define a ParallelEvent Subclass
+
+```php
+use NeuronAI\Workflow\Events\ParallelEvent;
+
+class ImageAnalysisParallelEvent extends ParallelEvent {}
+```
+
+### Step 2 — Create the Branch Events
+
+```php
+use NeuronAI\Workflow\Events\Event;
+
+class ExtractStructuredDataEvent implements Event
+{
+    public function __construct(public readonly string $imageUrl) {}
+}
+
+class GenerateDescriptionEvent implements Event
+{
+    public function __construct(public readonly string $imageUrl) {}
+}
+```
+
+### Step 3 — Create the Fork Node
+
+```php
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\WorkflowState;
+
+class AnalyzeImageForkNode extends Node
+{
+    public function __invoke(StartEvent $event, WorkflowState $state): ImageAnalysisParallelEvent
+    {
+        $imageUrl = $state->get('image_url');
+
+        return new ImageAnalysisParallelEvent([
+            'structured' => new ExtractStructuredDataEvent($imageUrl),
+            'description' => new GenerateDescriptionEvent($imageUrl),
+        ]);
+    }
+}
+```
+
+Branch IDs come from the array keys (`'structured'`, `'description'`). If you pass a sequential array, IDs are auto-derived from each event's short class name.
+
+### Step 4 — Create Branch Nodes (Each Ends with StopEvent)
+
+```php
+use NeuronAI\Agent;
+use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\HttpClient\AmpHttpClient;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\WorkflowState;
+
+class ExtractStructuredDataNode extends Node
+{
+    public function __invoke(ExtractStructuredDataEvent $event, WorkflowState $state): StopEvent
+    {
+        $agent = Agent::make()
+            ->setProvider(
+                (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
+                    ->setHttpClient(new AmpHttpClient())
+            )
+            ->setTools([/* ... */])
+            ->addSystemTip('Extract structured data from the image.');
+
+        $result = $agent->structured(/* your structured output class */);
+
+        return new StopEvent(result: $result);
+    }
+}
+
+class GenerateDescriptionNode extends Node
+{
+    public function __invoke(GenerateDescriptionEvent $event, WorkflowState $state): StopEvent
+    {
+        $agent = Agent::make()
+            ->setProvider(
+                (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
+                    ->setHttpClient(new AmpHttpClient())
+            )
+            ->addSystemTip('Describe the image in detail.');
+
+        $description = $agent->chat($event->imageUrl);
+
+        return new StopEvent(result: $description);
+    }
+}
+```
+
+### Step 5 — Create the Join Node
+
+```php
+class MergeAnalysisNode extends Node
+{
+    public function __invoke(ImageAnalysisParallelEvent $event, WorkflowState $state): StopEvent
+    {
+        $structuredData = $event->getResult('structured');
+        $description = $event->getResult('description');
+
+        $state->set('analysis', [
+            'data' => $structuredData,
+            'description' => $description,
+        ]);
+
+        return new StopEvent();
+    }
+}
+```
+
+### Step 6 — Wire Up the Workflow
+
+```php
+$workflow = Workflow::make()
+    ->addNodes([
+        new AnalyzeImageForkNode(),
+        new ExtractStructuredDataNode(),
+        new GenerateDescriptionNode(),
+        new MergeAnalysisNode(),
+    ]);
+
+$state = $workflow->init(new WorkflowState(['image_url' => 'https://example.com/photo.jpg']));
+$result = $state->run();
+```
+
+### Sequential vs Concurrent Execution
+
+By default, `WorkflowExecutor` runs branches **sequentially** (one after another). For true concurrency, use `AsyncExecutor`:
+
+```php
+use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Workflow;
+
+$workflow = Workflow::make()
+    ->setExecutor(new AsyncExecutor())
+    ->addNodes([
+        new AnalyzeImageForkNode(),
+        new ExtractStructuredDataNode(),
+        new GenerateDescriptionNode(),
+        new MergeAnalysisNode(),
+    ]);
+```
+
+`AsyncExecutor` is a drop-in replacement — it runs branches as concurrent Amp futures while keeping linear (non-parallel) nodes sequential as usual.
+
+### AsyncWorkflow with AmpHttpClient
+
+For fully asynchronous execution where branches make HTTP calls to AI providers concurrently, combine `AsyncExecutor` with `AmpHttpClient`:
+
+- **`AsyncExecutor`** runs parallel branches as concurrent Amp fibers (non-blocking).
+- **`AmpHttpClient`** is the async HTTP client built on `amphp/http-client`. Inject it on the provider via `->setHttpClient(new AmpHttpClient())` to ensure HTTP calls inside each branch are non-blocking.
+
+Without `AmpHttpClient`, each branch's HTTP call would block its fiber, negating the concurrency benefit. With it, all branches make their API calls truly in parallel — a workflow that extracts structured data and generates a description simultaneously completes in the time of the slower branch, not the sum of both.
+
+```php
+use NeuronAI\HttpClient\AmpHttpClient;
+use NeuronAI\Providers\OpenAI\OpenAI;
+
+$provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
+    ->setHttpClient(new AmpHttpClient());
+```
+
+### Parallel Branches with Interruptions
+
+Parallel branches fully support human-in-the-loop. If any branch calls `$this->interrupt()`, the executor throws a `WorkflowInterrupt` with parallel context:
+
+```php
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+
+try {
+    $result = $workflow->init()->run();
+} catch (WorkflowInterrupt $interrupt) {
+    if ($interrupt->isParallelInterrupt()) {
+        // $interrupt->getBranchId() — which branch interrupted
+        // $interrupt->getCompletedBranchResults() — results from branches that finished
+        // Present interrupt to user...
+    }
+}
+
+// After user responds:
+$handler = $workflow->init($interrupt->getRequest());
+$result = $handler->run();
+// Resuming skips already-completed branches, only re-runs the interrupted one.
+```
+
+Use `Checkpoint` inside branch nodes for expensive operations that should not re-run after resume:
+
+```php
+class ExtractStructuredDataNode extends Node
+{
+    public function __invoke(ExtractStructuredDataEvent $event, WorkflowState $state): StopEvent
+    {
+        $data = $this->checkpoint('fetch_image', fn() => $this->fetchExpensiveImageData());
+
+        $resumeRequest = $this->interruptIf(
+            $this->needsApproval($data),
+            new ApprovalRequest(actions: [...], message: 'Review extracted data')
+        );
+
+        return new StopEvent(result: $data);
+    }
+}
+```
+
 ## Workflow vs Agent
 
 **Use Workflow when:**
 - You need complete control over the execution flow
 - Building custom orchestration patterns
 - Need complex branching/looping logic
+- Want to run multiple agents in parallel for heavy tasks
 - Want to use individual components (audio providers, embeddings, etc.) independently
 
 **Use Agent when:**
