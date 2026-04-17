@@ -6,10 +6,12 @@ namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
@@ -255,5 +257,91 @@ class ParallelToolsTest extends TestCase
         $this->expectExceptionMessage('Tool execution failed');
 
         $agent->chat(new UserMessage('Run failing tool'))->run();
+    }
+
+    public function test_parallel_tools_work_in_streaming_mode(): void
+    {
+        $toolA = new TestToolA('tool_a', 'Tool A');
+        $toolA->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
+
+        $toolB = new TestToolB('tool_b', 'Tool B');
+        $toolB->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+            ]),
+            new AssistantMessage('I have results from both tools.')
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(true);
+        $agent->addTool($toolA);
+        $agent->addTool($toolB);
+
+        $handler = $agent->stream(new UserMessage('Run tools in parallel'));
+
+        $toolCallChunks = [];
+        $toolResultChunks = [];
+        $textChunks = [];
+        foreach ($handler->events() as $event) {
+            if ($event instanceof ToolCallChunk) {
+                $toolCallChunks[] = $event->tool->getName();
+            }
+            if ($event instanceof ToolResultChunk) {
+                $toolResultChunks[] = $event->tool->getName();
+            }
+            if ($event instanceof TextChunk) {
+                $textChunks[] = $event->content;
+            }
+        }
+
+        $this->assertContains('tool_a', $toolCallChunks);
+        $this->assertContains('tool_b', $toolCallChunks);
+
+        $this->assertContains('tool_a', $toolResultChunks);
+        $this->assertContains('tool_b', $toolResultChunks);
+
+        // The final response should be streamed as text chunks
+        $this->assertNotEmpty($textChunks);
+        $this->assertSame('I have results from both tools.', implode('', $textChunks));
+
+        // Provider should have been called twice via stream()
+        $provider->assertCallCount(2);
+        $provider->assertMethodCallCount('stream', 2);
+    }
+
+    public function test_parallel_tool_node_throws_tool_runs_exceeded_exception(): void
+    {
+        $toolA = new TestToolA('tool_a', 'Tool A');
+        $toolA->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
+
+        $toolB = new TestToolB('tool_b', 'Tool B');
+        $toolB->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+            ]),
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_3')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_4')->setInputs(['input' => 'test B']),
+            ]),
+            new AssistantMessage('Done')
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(true);
+        $agent->toolMaxRuns(1);
+        $agent->addTool($toolA);
+        $agent->addTool($toolB);
+
+        $this->expectException(ToolRunsExceededException::class);
+
+        $agent->chat(new UserMessage('Exceed tool runs'))->run();
     }
 }
