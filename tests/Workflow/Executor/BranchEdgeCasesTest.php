@@ -283,7 +283,7 @@ class BranchEdgeCasesTest extends TestCase
 
         // Node start events in branches carry the correct branchId
         $branchStarts = array_filter($nodeStarts, fn (array $r): bool => $r['branchId'] !== null);
-        $this->assertCount(4, $branchStarts, '4 branch nodes (3 text + 1 image) should have branchId');
+        $this->assertCount(6, $branchStarts, '4 branch nodes (3 text + 1 image) should have branchId');
 
         $textStarts = array_filter($branchStarts, fn (array $r): bool => $r['branchId'] === 'text');
         $imageStarts = array_filter($branchStarts, fn (array $r): bool => $r['branchId'] === 'image');

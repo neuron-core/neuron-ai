@@ -66,6 +66,7 @@ class EventBus
     public static function emit(string $event, object $source, mixed $data = null, ?string $workflowId = null, ?string $branchId = null): void
     {
         $scope = $workflowId ?? '__global__';
+        $branchId ??= '__main__';
 
         if (!isset(self::$initialized[$scope]) || !self::$initialized[$scope]) {
             self::observe(self::$defaultObserver ?? InspectorObserver::instance(), $workflowId);

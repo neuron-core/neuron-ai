@@ -85,8 +85,7 @@ class ParallelEvent implements Event
         if (array_is_list($branches)) {
             $named = [];
             foreach ($branches as $branchEvent) {
-                $id = (new ReflectionClass($branchEvent))->getShortName();
-                $named[$id] = $branchEvent;
+                $named[$branchEvent::class] = $branchEvent;
             }
             $this->branches = $named;
         } else {
