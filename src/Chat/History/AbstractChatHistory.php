@@ -183,6 +183,10 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
         $this->deserializeMeta($message, $item);
 
+        if ($content = $this->deserializeContent($message['content'] ?? null)) {
+            $item->setContents($content);
+        }
+
         return $item;
     }
 
