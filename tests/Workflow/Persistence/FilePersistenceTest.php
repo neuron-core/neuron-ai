@@ -13,6 +13,13 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 use function uniqid;
+use function glob;
+use function is_dir;
+use function is_file;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function unlink;
 
 class FilePersistenceTest extends TestCase
 {
@@ -23,7 +30,7 @@ class FilePersistenceTest extends TestCase
     protected function setUp(): void
     {
         $this->tmpDir = sys_get_temp_dir() . '/neuron_test_' . uniqid();
-        mkdir($this->tmpDir, 0777, true);
+        mkdir($this->tmpDir, 0o777, true);
         $this->workflowId = uniqid('test-wf-');
         $this->persistence = new FilePersistence($this->tmpDir);
     }
@@ -95,7 +102,7 @@ class FilePersistenceTest extends TestCase
     {
         // Should not throw — delete of a missing file is a no-op
         $this->persistence->delete($this->workflowId);
-        $this->assertTrue(true); // No exception means success
+        $this->assertFalse(is_file($this->tmpDir . '/neuron_workflow_' . $this->workflowId.'.store'));
     }
 
     public function testLoadNonExistentWorkflowThrowsException(): void

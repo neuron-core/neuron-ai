@@ -25,8 +25,6 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
-use function array_key_exists;
-
 /**
  * Default executor that processes nodes sequentially.
  */

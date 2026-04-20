@@ -10,6 +10,8 @@ use function array_key_exists;
 use function array_diff_key;
 use function is_array;
 use function is_object;
+use function serialize;
+use function unserialize;
 
 class WorkflowState
 {

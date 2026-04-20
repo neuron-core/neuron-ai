@@ -25,6 +25,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
 use ReflectionException;
+use ReflectionIntersectionType;
 use ReflectionNamedType;
 use ReflectionType;
 use ReflectionUnionType;
@@ -36,6 +37,8 @@ use function is_a;
 use function is_array;
 use function is_null;
 use function uniqid;
+use function array_filter;
+use function reset;
 
 /**
  * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null, ?WorkflowExecutorInterface $executor = null)
@@ -308,9 +311,20 @@ class Workflow implements WorkflowInterface
                 $firstParam = $parameters[0];
                 $firstParamType = $firstParam->getType();
 
+                $eventClass = null;
+
                 if ($firstParamType instanceof ReflectionNamedType) {
                     $eventClass = $firstParamType->getName();
+                } elseif ($firstParamType instanceof ReflectionIntersectionType) {
+                    $eventTypes = array_filter(
+                        $firstParamType->getTypes(),
+                        fn (ReflectionType $type): bool => $type instanceof ReflectionNamedType && is_a($type->getName(), Event::class, true)
+                    );
+                    $firstEventType = reset($eventTypes);
+                    $eventClass = $firstEventType instanceof ReflectionNamedType ? $firstEventType->getName() : null;
+                }
 
+                if (isset($eventClass)) {
                     if (isset($this->eventNodeMap[$eventClass])) {
                         throw new WorkflowException("Node for event {$eventClass} already exists");
                     }
@@ -417,6 +431,17 @@ class Workflow implements WorkflowInterface
 
             if ($firstParamType instanceof ReflectionUnionType) {
                 throw new WorkflowException('Failed to validate '.$node::class.': Nodes can handle only one event type.');
+            }
+
+            if ($firstParamType instanceof ReflectionIntersectionType) {
+                $eventTypes = array_filter(
+                    $firstParamType->getTypes(),
+                    fn (ReflectionType $type): bool => $type instanceof ReflectionNamedType && is_a($type->getName(), Event::class, true)
+                );
+
+                if (count($eventTypes) !== 1) {
+                    throw new WorkflowException('Failed to validate '.$node::class.': Intersection type must contain exactly one type that implements ' . Event::class);
+                }
             }
 
             if (!($firstParamType instanceof ReflectionNamedType) || !is_a($firstParamType->getName(), Event::class, true)) {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor;
 
 use NeuronAI\Tests\Workflow\Executor\Stubs\CheckpointableTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableBranchProcessing;
@@ -15,6 +14,7 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 class CheckpointParallelTest extends TestCase
 {
@@ -48,7 +48,7 @@ class CheckpointParallelTest extends TestCase
         $this->assertInstanceOf(CheckpointableTextProcessNode::class, $node);
         // Branch state is cloned — checkpoint_result lives on the branch, not the main state.
         // Verify the node's checkpoints array was populated before the interrupt was thrown.
-        $reflection = new \ReflectionProperty($node, 'checkpoints');
+        $reflection = new ReflectionProperty($node, 'checkpoints');
         $checkpoints = $reflection->getValue($node);
         $this->assertArrayHasKey('expensive_computation', $checkpoints);
         $this->assertSame('computed_value', $checkpoints['expensive_computation']);

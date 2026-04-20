@@ -14,7 +14,6 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 
 use function Amp\async;
-use function array_key_exists;
 
 /**
  * Executor that runs parallel branches concurrently using Amp fibers.

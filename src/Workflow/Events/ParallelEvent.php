@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Events;
 
-use ReflectionClass;
-
 use function array_is_list;
 
 /**

@@ -23,6 +23,7 @@ use ReflectionClass;
 use function extension_loaded;
 use function usleep;
 use function class_exists;
+use function implode;
 
 /**
  * Simple test tool that can be serialized for parallel execution.
