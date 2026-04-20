@@ -76,7 +76,9 @@ class WorkflowState
             if (is_array($value)) {
                 $result[$key] = $this->deepCloneArray($value);
             } elseif (is_object($value)) {
-                $result[$key] = clone $value;
+                // rue deep copy — nested objects get their own independent instances,
+                // eliminating state leakage between parallel branches.
+                $result[$key] = unserialize(serialize($value));
             } else {
                 $result[$key] = $value;
             }
