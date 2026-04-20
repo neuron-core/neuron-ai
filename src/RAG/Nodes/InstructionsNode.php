@@ -38,18 +38,18 @@ class InstructionsNode extends Node
         // Remove old context to avoid infinite growth
         $instructions = $this->removeDelimitedContent(
             $this->baseInstructions,
-            '<EXTRA-CONTEXT>',
-            '</EXTRA-CONTEXT>'
+            "\n\n<EXTRA-CONTEXT>",
+            "</EXTRA-CONTEXT>\n\n"
         );
 
         // Add document context
-        $instructions .= '<EXTRA-CONTEXT>';
+        $instructions .= "\n\n<EXTRA-CONTEXT>";
         foreach ($documents as $document) {
-            $instructions .= "Source Type: " . $document->getSourceType() . PHP_EOL .
-                "Source Name: " . $document->getSourceName() . PHP_EOL .
-                "Content: " . $document->getContent() . PHP_EOL . PHP_EOL;
+            $instructions .= "Source Type: " . $document->getSourceType() . "\n" .
+                "Source Name: " . $document->getSourceName() . "\n" .
+                "Content: " . $document->getContent() . "\n\n";
         }
-        $instructions .= '</EXTRA-CONTEXT>';
+        $instructions .= "</EXTRA-CONTEXT>\n\n";
 
         return new AIInferenceEvent(
             instructions: $instructions,
