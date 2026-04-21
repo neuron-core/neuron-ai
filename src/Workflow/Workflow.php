@@ -368,7 +368,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Get the current executor.
+     * Get the executor instance.
      */
     protected function executor(): WorkflowExecutorInterface
     {
