@@ -11,6 +11,7 @@ use ReflectionEnumBackedCase;
 use ReflectionException;
 use ReflectionNamedType;
 use ReflectionProperty;
+use ReflectionUnionType;
 
 use function array_merge;
 use function array_pop;
@@ -20,9 +21,9 @@ use function class_exists;
 use function count;
 use function enum_exists;
 use function in_array;
+use function is_array;
 use function str_replace;
 use function strtolower;
-use function is_array;
 
 /**
  * @method static static make(string $discriminator = '__classname__')
@@ -43,7 +44,7 @@ class JsonSchema
     /**
      * Generate JSON schema from a PHP class
      *
-     * @param string $class Fully qualified class name
+     * @param  string  $class  Fully qualified class name
      * @return array JSON schema definition
      * @throws ReflectionException
      */
@@ -62,7 +63,7 @@ class JsonSchema
     /**
      * Generate schema for a class
      *
-     * @param string $class Class name
+     * @param  string  $class  Class name
      * @return array The schema
      * @throws ReflectionException
      */
@@ -157,12 +158,17 @@ class JsonSchema
 
         /** @var ?ReflectionNamedType $type */
         $type = $property->getType();
-        $typeName = $type?->getName();
 
         // Handle default values
         if ($property->hasDefaultValue()) {
             $schema['default'] = $property->getDefaultValue();
         }
+
+        if ($type instanceof ReflectionUnionType) {
+            return array_merge($schema, $this->processUnionType($type));
+        }
+
+        $typeName = $type?->getName();
 
         // Process different types
         if ($typeName === 'array') {
@@ -188,18 +194,15 @@ class JsonSchema
                     $schema['maxItems'] = $attribute->max;
                 }
             }
-        }
-        // Handle enum types
+        } // Handle enum types
         elseif ($typeName && enum_exists($typeName)) {
             $enumReflection = new ReflectionEnum($typeName);
             $schema = array_merge($schema, $this->processEnum($enumReflection));
-        }
-        // Handle class types
+        } // Handle class types
         elseif ($typeName && class_exists($typeName)) {
             $classSchema = $this->generateClassSchema($typeName);
             $schema = array_merge($schema, $classSchema);
-        }
-        // Handle basic types
+        } // Handle basic types
         elseif ($typeName) {
             $typeSchema = $this->getBasicTypeSchema($typeName);
             $schema = array_merge($schema, $typeSchema);
@@ -230,7 +233,8 @@ class JsonSchema
         }
 
         // Handle nullable types - for basic types only
-        if ($type && $type->allowsNull() && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf'])) {
+        if ($type && $type->allowsNull(
+        ) && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf'])) {
             if (is_array($schema['type'])) {
                 if (!in_array('null', $schema['type'])) {
                     $schema['type'][] = 'null';
@@ -269,6 +273,24 @@ class JsonSchema
         return $schema;
     }
 
+    /*
+     * Process a union type to generate its schema
+     */
+    protected function processUnionType(ReflectionUnionType $type): array
+    {
+        $schema = [];
+        foreach ($type->getTypes() as $namedType) {
+            $basicTypeSchema = $this->getBasicTypeSchema($namedType->getName());
+            $schema['type'][] = $basicTypeSchema['type'];
+
+            if ($basicTypeSchema['type'] === 'array') {
+                $schema['items'] = $basicTypeSchema['items'];
+            }
+        }
+
+        return $schema;
+    }
+
     /**
      * Get the Property attribute if it exists on a property
      */
@@ -284,7 +306,7 @@ class JsonSchema
     /**
      * Get schema for a basic PHP type
      *
-     * @param string $type PHP type name
+     * @param  string  $type  PHP type name
      * @return array Schema for the type
      * @throws ReflectionException
      */
@@ -312,6 +334,9 @@ class JsonSchema
                     'items' => ['type' => 'string'],
                 ];
 
+            case 'null':
+                return ['type' => 'null'];
+
             default:
                 // Check if it's a class or enum
                 if (class_exists($type)) {
@@ -330,7 +355,7 @@ class JsonSchema
     /**
      * Generate anyOf schema for multiple class/enum types
      *
-     * @param array $types Array of class/enum type strings
+     * @param  array  $types  Array of class/enum type strings
      * @return array Schema with anyOf structure
      * @throws ReflectionException
      */
@@ -363,8 +388,8 @@ class JsonSchema
     /**
      * Inject __classname__ discriminator field into schema
      *
-     * @param array $schema The schema to inject into
-     * @param string $discriminatorValue The discriminator value (lowercase class name)
+     * @param  array  $schema  The schema to inject into
+     * @param  string  $discriminatorValue  The discriminator value (lowercase class name)
      * @return array Modified schema
      */
     protected function injectDiscriminator(array $schema, string $discriminatorValue): array
@@ -376,7 +401,7 @@ class JsonSchema
                 $this->discriminator => [
                     'type' => 'string',
                     'enum' => [$discriminatorValue],
-                    'description' => 'This property is mandatory and can only be filled with "'.$discriminatorValue.'". It is used as a discriminator for class type resolution.',
+                    'description' => 'This property is mandatory and can only be filled with "' . $discriminatorValue . '". It is used as a discriminator for class type resolution.',
                 ],
                 ...($schema['properties'] ?? []),
             ];
