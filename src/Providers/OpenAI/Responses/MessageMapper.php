@@ -21,7 +21,6 @@ use stdClass;
 
 use function array_filter;
 use function array_map;
-use function array_merge;
 use function array_values;
 use function json_encode;
 
@@ -133,7 +132,13 @@ class MessageMapper implements MessageMapperInterface
     {
         // Add content blocks if present
         if ($contentBlocks = $message->getContentBlocks()) {
-            $this->mapping = array_merge($this->mapping, $this->mapBlocks($contentBlocks, false));
+            $blocks = $this->mapBlocks($contentBlocks, false);
+            if (! empty($blocks)) {
+                $this->mapping[] = [
+                    'role' => 'assistant',
+                    'content' => $blocks,
+                ];
+            }
         }
 
         // Add function call items
