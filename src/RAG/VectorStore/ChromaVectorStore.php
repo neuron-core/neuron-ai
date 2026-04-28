@@ -41,7 +41,7 @@ class ChromaVectorStore implements VectorStoreInterface
             ->withBaseUri(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/")
             ->withHeaders([
                 'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : [])
+                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : []),
             ]);
 
         $this->initialize();

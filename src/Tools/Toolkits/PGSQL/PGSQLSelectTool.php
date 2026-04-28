@@ -99,7 +99,7 @@ This the tool to use only to gather information from the PostgreSQL database.'
         if (!$this->validateReadOnlyQuery($query)) {
             return [
                 "error" => "The query was rejected for security reasons.
-It looks like you are trying to run a write query using the read-only query tool."
+It looks like you are trying to run a write query using the read-only query tool.",
             ];
         }
 

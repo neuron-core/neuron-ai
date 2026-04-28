@@ -18,7 +18,7 @@ class WorkflowStreamTest extends TestCase
         $workflow = Workflow::make()->addNodes([
             new NodeOne(),
             new NodeTwo(),
-            new NodeThree()
+            new NodeThree(),
         ]);
 
         $handler = $workflow->init();

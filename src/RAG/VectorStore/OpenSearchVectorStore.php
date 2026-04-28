@@ -58,11 +58,14 @@ class OpenSearchVectorStore implements VectorStoreInterface
                     'space_type' => 'cosinesimil',
                     'parameters' => [
                         'encoder' => [
-                            'name' => 'sq'
-                        ]
-                    ]
+                            'name' => 'sq',
+                            'parameters' => [
+                                'bits' => 7,
+                            ],
+                        ],
+                    ],
                 ],
-            ]
+            ],
         ];
 
         // Map metadata
@@ -78,13 +81,12 @@ class OpenSearchVectorStore implements VectorStoreInterface
                 'settings' => [
                     'index' => [
                         'knn' => true,
-                        'number_of_replicas' => 0,
                     ],
                 ],
                 'mappings' => [
-                    'properties' => $properties
-                ]
-            ]
+                    'properties' => $properties,
+                ],
+            ],
         ]);
     }
 
@@ -167,7 +169,7 @@ class OpenSearchVectorStore implements VectorStoreInterface
         $this->client->deleteByQuery([
             'index' => $this->index,
             'q' => $query,
-            'body' => []
+            'body' => [],
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);
         return $this;
@@ -258,9 +260,12 @@ class OpenSearchVectorStore implements VectorStoreInterface
                             'space_type' => 'cosinesimil',
                             'parameters' => [
                                 'encoder' => [
-                                    'name' => 'sq'
-                                ]
-                            ]
+                                    'name' => 'sq',
+                                    'parameters' => [
+                                        'bits' => 7,
+                                    ],
+                                ],
+                            ],
 
                         ],
                     ],

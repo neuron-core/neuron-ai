@@ -114,7 +114,7 @@ class SseHttpTransport implements McpTransportInterface
                 'ssl' => [
                     'verify_peer' => $this->config['verify'] ?? true,
                     'verify_peer_name' => $this->config['verify'] ?? true,
-                ]
+                ],
             ]);
 
             $this->sseStream = @fopen($this->config['url'], 'r', false, $context);

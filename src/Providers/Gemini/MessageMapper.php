@@ -100,7 +100,7 @@ class MessageMapper implements MessageMapperInterface
                 'inline_data' => [
                     'data' => $block->content,
                     'mime_type' => $block->mediaType,
-                ]
+                ],
             ],
             default => null
         };
@@ -119,7 +119,7 @@ class MessageMapper implements MessageMapperInterface
                 'functionCall' => [
                     'name' => $tool->getName(),
                     'args' => $tool->getInputs() !== [] ? $tool->getInputs() : new stdClass(),
-                ]
+                ],
             ];
 
             if ($index === 0 && $signature = $message->getMetadata('thought_signature')) {
@@ -131,7 +131,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => MessageRole::MODEL,
-            'parts' => $parts
+            'parts' => $parts,
         ];
     }
 

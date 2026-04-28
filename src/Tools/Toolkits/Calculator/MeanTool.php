@@ -14,6 +14,7 @@ use function array_map;
 use function array_sum;
 use function count;
 use function round;
+use function is_numeric;
 
 class MeanTool extends Tool
 {
@@ -22,11 +23,11 @@ class MeanTool extends Tool
         parent::__construct(
             'calculate_mean',
             <<<DESC
-Calculates the arithmetic mean (average) of a dataset. The mean is the sum of all values divided
-by the number of values. Use this tool when you need the central tendency of numerical data,
-analyzing performance metrics, calculating average scores, or determining typical values in a
-dataset. Input should be an array of numbers.
-DESC
+                Calculates the arithmetic mean (average) of a dataset. The mean is the sum of all values divided
+                by the number of values. Use this tool when you need the central tendency of numerical data,
+                analyzing performance metrics, calculating average scores, or determining typical values in a
+                dataset. Input should be an array of numbers.
+                DESC
         );
     }
 
@@ -55,7 +56,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

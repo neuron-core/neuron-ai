@@ -44,11 +44,33 @@ class McpConnector
 
     /**
      * @param array<string, mixed> $config
+     */
+    public function __construct(protected array $config)
+    {
+    }
+
+    /**
      * @throws McpException
      */
-    public function __construct(array $config)
+    protected function client(): McpClient
     {
-        $this->client = new McpClient($config);
+        return $this->client ??= new McpClient($this->config);
+    }
+
+    public function __serialize(): array
+    {
+        return [
+            'config' => $this->config,
+            'only' => $this->only,
+            'exclude' => $this->exclude,
+        ];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->config = $data['config'];
+        $this->only = $data['only'];
+        $this->exclude = $data['exclude'];
     }
 
     /**
@@ -79,7 +101,7 @@ class McpConnector
     {
         // Filter by the only and exclude preferences.
         $tools = array_filter(
-            $this->client->listTools(),
+            $this->client()->listTools(),
             fn (array $tool): bool =>
                 !in_array($tool['name'], $this->exclude) &&
                 ($this->only === [] || in_array($tool['name'], $this->only)),
@@ -102,19 +124,12 @@ class McpConnector
             name: $item['name'],
             description: $item['description'] ?? null,
             annotations: $item['annotations'] ?? [],
-        )->setCallable(function (...$arguments) use ($item) {
-            $response = call_user_func($this->client->callTool(...), $item['name'], $arguments);
-
-            if (array_key_exists('error', $response)) {
-                throw new McpException($response['error']['message']);
-            }
-
-            if (array_key_exists('content', $response['result'])) {
-                return $response['result']['content'];
-            }
-
-            return "";
-        });
+        )->setCallable(
+            new CallableMcpTool(
+                connector: $this,
+                item: $item,
+            ) // This allows us to serialize MCP tools when dealing with interrupts
+        );
 
         // If the tool has no properties, return early
         if (!isset($item['inputSchema']['properties']) || !is_array($item['inputSchema']['properties'])) {
@@ -182,5 +197,28 @@ class McpConnector
             description: $prop['description'] ?? null,
             required: $required,
         );
+    }
+
+    /**
+     * This might look counter-intuitive, but when dealing with interrupts and serialization PHP doesnt allow for MCP connectors serialization
+     * @throws McpException
+     */
+    public function invokeTool(array $item, array $arguments): mixed
+    {
+        $response = call_user_func(
+            $this->client()->callTool(...),
+            $item['name'],
+            $arguments
+        );
+
+        if (array_key_exists('error', $response)) {
+            throw new McpException($response['error']['message']);
+        }
+
+        if (isset($response['result']) && is_array($response['result']) && array_key_exists('content', $response['result'])) {
+            return $response['result']['content'];
+        }
+
+        return '';
     }
 }

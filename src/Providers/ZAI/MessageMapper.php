@@ -51,7 +51,7 @@ class MessageMapper extends OpenAIMessageMapper
                 'type' => 'file_url',
                 'file_url' => [
                     'url' => $block->content,
-                ]
+                ],
             ]
         };
     }
@@ -64,7 +64,7 @@ class MessageMapper extends OpenAIMessageMapper
                 'type' => 'video_url',
                 'video_url' => [
                     'url' => $block->content,
-                ]
+                ],
             ]
         };
     }

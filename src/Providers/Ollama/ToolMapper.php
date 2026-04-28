@@ -45,7 +45,7 @@ class ToolMapper implements ToolMapperInterface
                     'type' => 'object',
                     'properties' => new stdClass(),
                     'required' => [],
-                ]
+                ],
             ],
         ];
 

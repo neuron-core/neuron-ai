@@ -38,6 +38,8 @@ class AGUIAdapter extends SSEAdapter
 
     protected bool $reasoningStarted = false;
 
+    protected ?string $reasoningMessageId = null;
+
     /**
      * @param string|null $threadId Optional thread ID for conversation context
      */
@@ -59,6 +61,11 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
+        // Close reasoning if it was started (transition from reasoning to text)
+        foreach ($this->endReasoning() as $event) {
+            yield $event;
+        }
+
         // Ensure the message has started
         if (! $this->messageStarted) {
             $this->currentMessageId = $this->generateId('msg');
@@ -83,15 +90,25 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleReasoning(ReasoningChunk $chunk): iterable
     {
-        // AG-UI supports reasoning as a draft extension
-        // We'll emit it as a custom event for now, but this could be
-        // specialized into ReasoningMessageStart/Content/End pattern
+        // Close text message if it was started (transition from text to reasoning)
+        foreach ($this->endText() as $event) {
+            yield $event;
+        }
+
         if (! $this->reasoningStarted) {
             $this->reasoningStarted = true;
+            $this->reasoningMessageId = $chunk->messageId;
 
             yield $this->sse([
                 'type' => 'ReasoningStart',
                 'messageId' => $chunk->messageId,
+                'timestamp' => $this->timestamp(),
+            ]);
+
+            yield $this->sse([
+                'type' => 'ReasoningMessageStart',
+                'messageId' => $chunk->messageId,
+                'role' => 'assistant',
                 'timestamp' => $this->timestamp(),
             ]);
         }
@@ -106,6 +123,14 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
+        // Close any open streams before starting tool calls
+        foreach ($this->endReasoning() as $event) {
+            yield $event;
+        }
+        foreach ($this->endText() as $event) {
+            yield $event;
+        }
+
         $toolName = $chunk->tool->getName();
         $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
         $this->toolCallIds[$toolName] = $toolCallId;
@@ -169,17 +194,61 @@ class AGUIAdapter extends SSEAdapter
         ]);
     }
 
+    /**
+     * End the reasoning stream if it is active.
+     *
+     * @return iterable<string>
+     */
+    protected function endReasoning(): iterable
+    {
+        if (! $this->reasoningStarted) {
+            return;
+        }
+
+        yield $this->sse([
+            'type' => 'ReasoningMessageEnd',
+            'messageId' => $this->reasoningMessageId,
+            'timestamp' => $this->timestamp(),
+        ]);
+
+        yield $this->sse([
+            'type' => 'ReasoningEnd',
+            'messageId' => $this->reasoningMessageId,
+            'timestamp' => $this->timestamp(),
+        ]);
+
+        $this->reasoningStarted = false;
+        $this->reasoningMessageId = null;
+    }
+
+    /**
+     * End the text message stream if it is active.
+     *
+     * @return iterable<string>
+     */
+    protected function endText(): iterable
+    {
+        if (! $this->messageStarted || $this->currentMessageId === null) {
+            return;
+        }
+
+        yield $this->sse([
+            'type' => 'TextMessageEnd',
+            'messageId' => $this->currentMessageId,
+            'timestamp' => $this->timestamp(),
+        ]);
+
+        $this->messageStarted = false;
+        $this->currentMessageId = null;
+    }
+
     public function end(): iterable
     {
-        // Close any open text message
-        if ($this->messageStarted && $this->currentMessageId !== null) {
-            yield $this->sse([
-                'type' => 'TextMessageEnd',
-                'messageId' => $this->currentMessageId,
-                'timestamp' => $this->timestamp(),
-            ]);
-
-            $this->messageStarted = false;
+        foreach ($this->endReasoning() as $event) {
+            yield $event;
+        }
+        foreach ($this->endText() as $event) {
+            yield $event;
         }
 
         // Emit RunFinished event

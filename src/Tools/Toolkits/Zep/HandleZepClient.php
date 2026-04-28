@@ -24,7 +24,7 @@ trait HandleZepClient
                 'Authorization' => "Api-Key {$this->key}",
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ]
+            ],
         ]);
     }
 
@@ -35,7 +35,7 @@ trait HandleZepClient
             $this->getClient()->get('users/'.$this->user_id);
         } catch (Exception) {
             $this->getClient()->post('users', [
-                RequestOptions::JSON => ['user_id' => $this->user_id]
+                RequestOptions::JSON => ['user_id' => $this->user_id],
             ]);
         }
 

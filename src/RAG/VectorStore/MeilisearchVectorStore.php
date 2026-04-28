@@ -41,7 +41,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ->withBaseUri($host)
             ->withHeaders([
                 'Content-Type' => 'application/json',
-                ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"])
+                ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"]),
             ]);
 
         try {
@@ -81,7 +81,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
                                 'embeddings' => $document->getEmbedding(),
                                 'regenerate' => false,
                             ],
-                        ]
+                        ],
                     ], $chunk),
                 )
             );
@@ -193,8 +193,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
                     $this->embedder => [
                         'dimensions' => $this->dimension,
                         'source' => 'userProvided',
-                        'binaryQuantized' => false
-                    ]
+                        'binaryQuantized' => false,
+                    ],
                 ]
             )
         );

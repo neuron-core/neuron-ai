@@ -77,7 +77,7 @@ class TavilySearchTool extends Tool
                 PropertyType::INTEGER,
                 'Filter search results for a certain range of days up to today.',
                 false,
-            )
+            ),
         ];
     }
 
@@ -89,7 +89,7 @@ class TavilySearchTool extends Tool
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ]
+            ],
         ]);
     }
 
@@ -112,7 +112,7 @@ class TavilySearchTool extends Tool
                 ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
                 $this->options,
                 ['query' => $search_query]
-            )
+            ),
         ])->getBody()->getContents();
 
         $result = json_decode($result, true);

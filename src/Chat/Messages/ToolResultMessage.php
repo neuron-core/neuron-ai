@@ -38,7 +38,7 @@ class ToolResultMessage extends UserMessage implements Stringable
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call_result',
-                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools)
+                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools),
             ]
         );
     }

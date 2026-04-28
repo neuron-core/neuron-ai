@@ -58,7 +58,7 @@ class Cohere extends OpenAI
             'response_format' => [
                 'type' => 'json_object',
                 'json_schema' => $response_format,
-            ]
+            ],
         ]);
 
         $messages = is_array($messages) ? $messages : [$messages];

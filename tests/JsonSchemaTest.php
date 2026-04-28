@@ -34,7 +34,7 @@ class JsonSchemaTest extends TestCase
                 ],
                 'lastName' => [
                     'type' => 'string',
-                ]
+                ],
             ],
             'required' => ['firstName', 'lastName'],
             'additionalProperties' => false,
@@ -57,8 +57,8 @@ class JsonSchemaTest extends TestCase
                 ],
                 'lastName' => [
                     'type' => ['string', 'null'],
-                    'default' => null
-                ]
+                    'default' => null,
+                ],
             ],
             'required' => ['firstName'],
             'additionalProperties' => false,
@@ -83,7 +83,7 @@ class JsonSchemaTest extends TestCase
                 'lastName' => [
                     'default' => 'last name',
                     'type' => ['string', 'null'],
-                ]
+                ],
             ],
             'required' => ['firstName'],
             'additionalProperties' => false,
@@ -106,7 +106,7 @@ class JsonSchemaTest extends TestCase
                     'title' => 'The user first name',
                     'description' => 'The user first name',
                     'type' => 'string',
-                ]
+                ],
             ],
             'required' => ['firstName'],
             'additionalProperties' => false,
@@ -129,7 +129,7 @@ class JsonSchemaTest extends TestCase
                     'title' => 'The user first name',
                     'description' => 'The user first name',
                     'type' => 'string',
-                ]
+                ],
             ],
             'additionalProperties' => false,
         ], $schema);
@@ -161,7 +161,7 @@ class JsonSchemaTest extends TestCase
                         'zip' => [
                             'description' => 'The zip code of the address',
                             'type' => 'string',
-                        ]
+                        ],
                     ],
                     'required' => ['street', 'city', 'zip'],
                     'additionalProperties' => false,
@@ -184,17 +184,17 @@ class JsonSchemaTest extends TestCase
                                         'value' => [
                                             'description' => 'The property value',
                                             'type' => 'string',
-                                        ]
+                                        ],
                                     ],
                                     'additionalProperties' => false,
-                                    'required' => ['value']
-                                ]
-                            ]
+                                    'required' => ['value'],
+                                ],
+                            ],
                         ],
                         'required' => ['name'],
                         'additionalProperties' => false,
-                    ]
-                ]
+                    ],
+                ],
             ],
             'required' => ['firstName', 'lastName', 'address', 'tags'],
             'additionalProperties' => false,
@@ -227,7 +227,7 @@ class JsonSchemaTest extends TestCase
                         'zip' => [
                             'description' => 'The zip code of the address',
                             'type' => 'string',
-                        ]
+                        ],
                     ],
                     'required' => ['street', 'city', 'zip'],
                     'additionalProperties' => false,
@@ -250,17 +250,17 @@ class JsonSchemaTest extends TestCase
                                         'value' => [
                                             'description' => 'The property value',
                                             'type' => 'string',
-                                        ]
+                                        ],
                                     ],
                                     'additionalProperties' => false,
-                                    'required' => ['value']
-                                ]
-                            ]
+                                    'required' => ['value'],
+                                ],
+                            ],
                         ],
                         'required' => ['name'],
                         'additionalProperties' => false,
-                    ]
-                ]
+                    ],
+                ],
             ],
             'required' => ['firstName', 'lastName', 'address', 'tags'],
             'additionalProperties' => false,
@@ -287,14 +287,14 @@ class JsonSchemaTest extends TestCase
                         'properties' => [
                             'name' => [
                                 'type' => 'string',
-                                'description' => 'The name of the user'
-                            ]
+                                'description' => 'The name of the user',
+                            ],
                         ],
                         'required' => ['name'],
                         'additionalProperties' => false,
                     ],
-                    'description' => 'The list of users'
-                ]
+                    'description' => 'The list of users',
+                ],
             ],
             'required' => ['people'],
             'additionalProperties' => false,
@@ -396,7 +396,7 @@ class JsonSchemaTest extends TestCase
                     'type' => 'string',
                     'minLength' => 1,
                     'maxLength' => 100,
-                ]
+                ],
             ],
             'required' => ['title'],
             'additionalProperties' => false,
@@ -420,7 +420,7 @@ class JsonSchemaTest extends TestCase
                     'type' => 'integer',
                     'minimum' => 1,
                     'maximum' => 5,
-                ]
+                ],
             ],
             'required' => ['rating'],
             'additionalProperties' => false,
@@ -445,7 +445,7 @@ class JsonSchemaTest extends TestCase
                     'items' => ['type' => 'string'],
                     'minItems' => 1,
                     'maxItems' => 10,
-                ]
+                ],
             ],
             'required' => ['tags'],
             'additionalProperties' => false,

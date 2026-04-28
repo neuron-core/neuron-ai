@@ -33,7 +33,7 @@ trait HandleChat
         $body = [
             'model' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         // Attach tools

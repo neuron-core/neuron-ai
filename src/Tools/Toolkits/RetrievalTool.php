@@ -29,7 +29,7 @@ class RetrievalTool extends Tool
                 type: PropertyType::STRING,
                 description: 'The query to retrieve documents for.',
                 required: true
-            )
+            ),
         ];
     }
 

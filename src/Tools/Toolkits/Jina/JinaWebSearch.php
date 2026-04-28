@@ -39,7 +39,7 @@ class JinaWebSearch extends Tool
                 PropertyType::STRING,
                 'The search query to perform web search.',
                 true
-            )
+            ),
         ];
     }
 
@@ -50,7 +50,7 @@ class JinaWebSearch extends Tool
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'X-Respond-With' => 'no-content',
-            ]
+            ],
         ]);
     }
 
@@ -59,7 +59,7 @@ class JinaWebSearch extends Tool
         return $this->getClient()->post('https://s.jina.ai/', [
             RequestOptions::JSON => [
                 'q' => $search_query,
-            ]
+            ],
         ])->getBody()->getContents();
     }
 }

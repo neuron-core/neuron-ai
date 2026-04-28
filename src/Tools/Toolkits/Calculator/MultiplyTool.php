@@ -32,7 +32,7 @@ class MultiplyTool extends Tool
                 type: PropertyType::NUMBER,
                 description: 'Second factor',
                 required: true,
-            )
+            ),
         ];
     }
 

@@ -20,6 +20,8 @@ trait HandleStream
 {
     protected StreamState $streamState;
 
+    protected ?string $stopReason = null;
+
     /**
      * Stream response from the LLM.
      *
@@ -91,9 +93,15 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        return $message->setUsage($this->streamState->getUsage())
+        $message->setUsage($this->streamState->getUsage())
             ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
             ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
+
+        if ($this->stopReason !== null) {
+            $message->setStopReason($this->stopReason);
+        }
+
+        return $message;
     }
 
     protected function handleMessageStart(array $message): void
@@ -117,6 +125,7 @@ trait HandleStream
     protected function handleMessageDelta(array $event): void
     {
         $this->streamState->addOutputTokens($event['usage']['output_tokens'] ?? 0);
+        $this->stopReason = $event['delta']['stop_reason'] ?? null;
     }
 
     protected function handleBlockStart(array $event): void

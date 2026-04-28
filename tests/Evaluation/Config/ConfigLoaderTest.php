@@ -31,7 +31,7 @@ class ConfigLoaderTest extends TestCase
     {
         $this->tempDir = sys_get_temp_dir() . '/neuron_test_' . bin2hex(random_bytes(8));
         if (!file_exists($this->tempDir)) {
-            mkdir($this->tempDir, 0777, true);
+            mkdir($this->tempDir, 0o777, true);
         }
     }
 

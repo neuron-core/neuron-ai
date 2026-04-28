@@ -149,7 +149,7 @@ class OllamaTest extends TestCase
                         'description',
                         true
                     )
-                )
+                ),
         ])->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $provider->chat(new UserMessage('Hi'));
@@ -180,13 +180,13 @@ class OllamaTest extends TestCase
                                 'prop' => [
                                     'type' => 'string',
                                     'description' => 'description',
-                                ]
+                                ],
                             ],
                             'required' => ['prop'],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));

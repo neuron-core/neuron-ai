@@ -59,7 +59,7 @@ class OpenAITest extends TestCase
                         [
                             'type' => 'text',
                             'text' => 'Hi',
-                        ]
+                        ],
                     ],
                 ],
             ],
@@ -207,7 +207,7 @@ class OpenAITest extends TestCase
                             'description',
                             true
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -240,13 +240,13 @@ class OpenAITest extends TestCase
                                 'prop' => [
                                     'type' => 'string',
                                     'description' => 'description',
-                                ]
+                                ],
                             ],
                             'required' => ['prop'],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -276,7 +276,7 @@ class OpenAITest extends TestCase
                                 'description',
                             )
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -312,14 +312,14 @@ class OpenAITest extends TestCase
                                     'items' => [
                                         'type' => 'string',
                                         'description' => 'description',
-                                    ]
-                                ]
+                                    ],
+                                ],
                             ],
                             'required' => [],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -344,7 +344,7 @@ class OpenAITest extends TestCase
                             'description',
                             false
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -379,14 +379,14 @@ class OpenAITest extends TestCase
                                     'description' => 'description',
                                     'items' => [
                                         'type' => 'string',
-                                    ]
-                                ]
+                                    ],
+                                ],
                             ],
                             'required' => [],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
@@ -418,7 +418,7 @@ class OpenAITest extends TestCase
                                 Color::class
                             )
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -466,17 +466,17 @@ class OpenAITest extends TestCase
                                             "b" => [
                                                 'type' => 'number',
                                                 'description' => 'The BLUE',
-                                            ]
+                                            ],
                                         ],
-                                        "required" => ["r", "g", "b"]
-                                    ]
-                                ]
+                                        "required" => ["r", "g", "b"],
+                                    ],
+                                ],
                             ],
                             'required' => ["array_prop"],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));

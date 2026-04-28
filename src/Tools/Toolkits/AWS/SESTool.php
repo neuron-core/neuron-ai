@@ -31,10 +31,10 @@ class SESTool extends Tool
         parent::__construct(
             'send_email',
             <<<DESC
-Send an email message to one or more recipients. Use this tool when you need to communicate with users via email,
-send notifications, confirmations, reports, or any other email-based communication. The tool handles proper email
-formatting, delivery, and basic error handling automatically.
-DESC
+                Send an email message to one or more recipients. Use this tool when you need to communicate with users via email,
+                send notifications, confirmations, reports, or any other email-based communication. The tool handles proper email
+                formatting, delivery, and basic error handling automatically.
+                DESC
         );
     }
 
@@ -95,14 +95,14 @@ DESC
                 'message_id' => $result['MessageId'] ?? null,
                 'status' => 'sent',
                 'recipients_count' => count($to),
-                'aws_request_id' => $result['@metadata']['requestId'] ?? null
+                'aws_request_id' => $result['@metadata']['requestId'] ?? null,
             ];
         } catch (Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'error_type' => $e::class,
-                'status' => 'failed'
+                'status' => 'failed',
             ];
         }
     }
@@ -142,18 +142,18 @@ DESC
         return [
             'Subject' => [
                 'Data' => $subject,
-                'Charset' => 'UTF-8'
+                'Charset' => 'UTF-8',
             ],
             'Body' => [
                 'Html' => [
                     'Data' => $body,
-                    'Charset' => 'UTF-8'
+                    'Charset' => 'UTF-8',
                 ],
                 'Text' => [
                     'Data' => strip_tags($body),
-                    'Charset' => 'UTF-8'
-                ]
-            ]
+                    'Charset' => 'UTF-8',
+                ],
+            ],
         ];
     }
 }

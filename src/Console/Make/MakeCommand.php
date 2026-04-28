@@ -108,7 +108,7 @@ abstract class MakeCommand
         }
 
         $directory = dirname($filePath);
-        if (!is_dir($directory) && !mkdir($directory, 0755, true)) {
+        if (!is_dir($directory) && !mkdir($directory, 0o755, true)) {
             $this->printError("Failed to create directory: {$directory}");
             return 1;
         }
@@ -228,23 +228,23 @@ abstract class MakeCommand
     protected function printUsage(): void
     {
         $usage = <<<USAGE
-Create a new {$this->resourceType}
+            Create a new {$this->resourceType}
 
-Usage: neuron make:{$this->resourceType} [namespace\\]ClassName
+            Usage: neuron make:{$this->resourceType} [namespace\\]ClassName
 
-Arguments:
-  name    The name of the {$this->resourceType} class (with optional namespace)
+            Arguments:
+              name    The name of the {$this->resourceType} class (with optional namespace)
 
-Options:
-  --help, -h   Show this help message
+            Options:
+              --help, -h   Show this help message
 
-Examples:
-  neuron make:{$this->resourceType} MyClass
-  neuron make:{$this->resourceType} MyApp\\Services\\MyClass
+            Examples:
+              neuron make:{$this->resourceType} MyClass
+              neuron make:{$this->resourceType} MyApp\\Services\\MyClass
 
-If no namespace is provided, the default PSR-4 namespace from composer.json will be used.
+            If no namespace is provided, the default PSR-4 namespace from composer.json will be used.
 
-USAGE;
+            USAGE;
 
         echo $usage . PHP_EOL;
     }

@@ -25,10 +25,11 @@ class GuzzleHttpClient implements HttpClientInterface
      * @param array<string, mixed> $customHeaders
      */
     public function __construct(
-        private readonly array $customHeaders = [],
-        private readonly float $timeout = 60.0,
-        private readonly float $connectTimeout = 10.0,
-        private readonly ?HandlerStack $handler = null,
+        protected readonly array $customHeaders = [],
+        protected readonly float $timeout = 60.0,
+        protected readonly float $connectTimeout = 10.0,
+        protected readonly ?HandlerStack $handler = null,
+        protected readonly array $options = [],
     ) {
     }
 
@@ -38,6 +39,7 @@ class GuzzleHttpClient implements HttpClientInterface
 
         try {
             $options = [
+                ...$this->options,
                 RequestOptions::HEADERS => [...$this->customHeaders, ...$request->headers],
                 RequestOptions::TIMEOUT => $this->timeout,
                 RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
@@ -177,7 +179,6 @@ class GuzzleHttpClient implements HttpClientInterface
     }
 
     /**
-     * @param HttpRequest $request
      * @param array<string, mixed> $options
      * @throws GuzzleException
      */

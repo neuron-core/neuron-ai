@@ -14,6 +14,7 @@ use function array_map;
 use function array_sum;
 use function count;
 use function round;
+use function is_numeric;
 
 class VarianceTool extends Tool
 {
@@ -22,12 +23,12 @@ class VarianceTool extends Tool
         parent::__construct(
             'calculate_variance',
             <<<DESC
-Calculates the variance, which measures the average squared deviation from the mean.
-Variance quantifies how much the data points differ from the average value.
-Use this tool for statistical analysis, understanding data spread, portfolio risk analysis,
-or quality control measurements. The square root of variance gives the standard deviation.
-Choose sample (n-1) for sample data or population (n) for complete populations.
-DESC
+                Calculates the variance, which measures the average squared deviation from the mean.
+                Variance quantifies how much the data points differ from the average value.
+                Use this tool for statistical analysis, understanding data spread, portfolio risk analysis,
+                or quality control measurements. The square root of variance gives the standard deviation.
+                Choose sample (n-1) for sample data or population (n) for complete populations.
+                DESC
         );
     }
 
@@ -56,7 +57,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

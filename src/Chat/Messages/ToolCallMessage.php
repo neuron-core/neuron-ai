@@ -41,7 +41,7 @@ class ToolCallMessage extends AssistantMessage implements Stringable
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call',
-                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools)
+                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools),
             ]
         );
     }

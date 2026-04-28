@@ -38,10 +38,10 @@ class BedrockRuntimeTest extends TestCase
                     'content' => [
                         ['text' => 'Hello'],
                         ['text' => ' world'],
-                    ]
-                ]
+                    ],
+                ],
             ],
-            'stopReason' => 'end_turn'
+            'stopReason' => 'end_turn',
         ]);
 
         $capturedPayload = null;
@@ -59,7 +59,7 @@ class BedrockRuntimeTest extends TestCase
             [
                 'maxTokens' => 100,
                 'temperature' => 0.5,
-                'topP' => 0.9
+                'topP' => 0.9,
             ],
         );
 
@@ -105,13 +105,13 @@ class BedrockRuntimeTest extends TestCase
                             'toolUse' => [
                                 'name' => 'my_tool',
                                 'toolUseId' => 'call-123',
-                                'input' => '{"param":"value"}'
-                            ]
-                        ]
-                    ]
-                ]
+                                'input' => '{"param":"value"}',
+                            ],
+                        ],
+                    ],
+                ],
             ],
-            'stopReason' => 'tool_use'
+            'stopReason' => 'tool_use',
         ]);
 
         $capturedPayload = null;
@@ -159,10 +159,10 @@ class BedrockRuntimeTest extends TestCase
             'properties' => [
                 'param' => [
                     'type' => 'string',
-                    'description' => 'Param description'
-                ]
+                    'description' => 'Param description',
+                ],
             ],
-            'required' => ['param']
+            'required' => ['param'],
         ], $toolSpec['inputSchema']['json']);
     }
 
@@ -180,10 +180,10 @@ class BedrockRuntimeTest extends TestCase
             ],
             'output' => [
                 'message' => [
-                    'content' => [ ['text' => 'Ok'] ]
-                ]
+                    'content' => [ ['text' => 'Ok'] ],
+                ],
             ],
-            'stopReason' => 'end_turn'
+            'stopReason' => 'end_turn',
         ]);
 
         $capturedPayload = null;

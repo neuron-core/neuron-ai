@@ -29,7 +29,7 @@ class TavilyCrawlTool extends Tool
 
     protected array $options = [
         'include_images' => false,
-        'allow_external' => false
+        'allow_external' => false,
     ];
 
     /**
@@ -66,7 +66,7 @@ class TavilyCrawlTool extends Tool
             RequestOptions::JSON => array_merge(
                 $this->options,
                 ['url' => $url]
-            )
+            ),
         ])->getBody()->getContents();
 
         return json_decode($result, true);
@@ -81,7 +81,7 @@ class TavilyCrawlTool extends Tool
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ]
+            ],
         ]);
     }
 

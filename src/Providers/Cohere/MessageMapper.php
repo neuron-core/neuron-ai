@@ -41,7 +41,7 @@ class MessageMapper extends OpenAIMessageMapper
                     'name' => $tool->getName(),
                     'arguments' => $tool->getInputs() === [] ? '{}' : json_encode($tool->getInputs()),
                 ],
-            ], $message->getTools())
+            ], $message->getTools()),
         ];
     }
 }

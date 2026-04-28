@@ -15,6 +15,7 @@ use function array_sum;
 use function count;
 use function round;
 use function sqrt;
+use function is_numeric;
 
 class StandardDeviationTool extends Tool
 {
@@ -23,11 +24,11 @@ class StandardDeviationTool extends Tool
         parent::__construct(
             'calculate_standard_deviation',
             <<<DESC
-Calculates the standard deviation, which measures how spread out the data points are from the mean.
-A low standard deviation indicates data points are close to the mean, while a high standard deviation
-indicates greater variability. Use this tool for risk assessment, quality control, measuring consistency,
-or understanding data distribution. Choose sample (n-1) for sample data or population (n) for complete populations.
-DESC
+                Calculates the standard deviation, which measures how spread out the data points are from the mean.
+                A low standard deviation indicates data points are close to the mean, while a high standard deviation
+                indicates greater variability. Use this tool for risk assessment, quality control, measuring consistency,
+                or understanding data distribution. Choose sample (n-1) for sample data or population (n) for complete populations.
+                DESC
         );
     }
 
@@ -56,7 +57,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

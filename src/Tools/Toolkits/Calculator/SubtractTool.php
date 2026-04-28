@@ -32,7 +32,7 @@ class SubtractTool extends Tool
                 type: PropertyType::NUMBER,
                 description: 'Subtrahend number',
                 required: true,
-            )
+            ),
         ];
     }
 

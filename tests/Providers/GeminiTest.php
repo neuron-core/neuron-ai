@@ -63,7 +63,7 @@ class GeminiTest extends TestCase
                 [
                     'role' => 'user',
                     'parts' => [
-                        ['text' => 'Hi']
+                        ['text' => 'Hi'],
                     ],
                 ],
             ],
@@ -262,7 +262,7 @@ class GeminiTest extends TestCase
                             'description',
                             true
                         )
-                    )
+                    ),
             ])
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
@@ -293,13 +293,13 @@ class GeminiTest extends TestCase
                                 'prop' => [
                                     'type' => 'string',
                                     'description' => 'description',
-                                ]
+                                ],
                             ],
                             'required' => ['prop'],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));

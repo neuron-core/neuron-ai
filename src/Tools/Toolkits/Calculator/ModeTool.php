@@ -15,6 +15,7 @@ use function array_keys;
 use function array_map;
 use function max;
 use function sort;
+use function is_numeric;
 
 class ModeTool extends Tool
 {
@@ -23,12 +24,12 @@ class ModeTool extends Tool
         parent::__construct(
             'calculate_mode',
             <<<DESC
-Finds the mode(s) - the most frequently occurring value(s) in a dataset.
-Returns all values that appear with the highest frequency. Use this tool to identify
-the most common values, analyze categorical data converted to numbers, find typical
-responses in surveys, or detect patterns in discrete data. Can return multiple modes
-if several values tie for highest frequency.
-DESC
+                Finds the mode(s) - the most frequently occurring value(s) in a dataset.
+                Returns all values that appear with the highest frequency. Use this tool to identify
+                the most common values, analyze categorical data converted to numbers, find typical
+                responses in surveys, or detect patterns in discrete data. Can return multiple modes
+                if several values tie for highest frequency.
+                DESC
         );
     }
 
@@ -57,7 +58,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

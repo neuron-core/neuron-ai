@@ -30,7 +30,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['hello world', [1.0, 0.0, 0.0]],
-                ['hello earth', [0.9, 0.1, 0.0]]
+                ['hello earth', [0.9, 0.1, 0.0]],
             ]);
 
         $assertion = new StringSimilarity('hello world', $this->embeddingsProvider, 0.8);
@@ -48,7 +48,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['hello world', [1.0, 0.0, 0.0]],
-                ['hello world', [1.0, 0.0, 0.0]]
+                ['hello world', [1.0, 0.0, 0.0]],
             ]);
 
         $assertion = new StringSimilarity('hello world', $this->embeddingsProvider, 0.6);
@@ -65,7 +65,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['hello world', [1.0, 0.0, 0.0]],
-                ['goodbye universe', [0.0, 1.0, 0.0]]
+                ['goodbye universe', [0.0, 1.0, 0.0]],
             ]);
 
         $assertion = new StringSimilarity('hello world', $this->embeddingsProvider, 0.8);
@@ -138,7 +138,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['hello world', [1.0, 0.0, 0.0]],
-                ['hello earth', [0.7, 0.3, 0.0]]
+                ['hello earth', [0.7, 0.3, 0.0]],
             ]);
 
         $assertion = new StringSimilarity('hello world', $this->embeddingsProvider); // Default threshold 0.6
@@ -155,7 +155,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['hello world', [1.0, 0.0, 0.0]],
-                ['completely different', [0.0, 0.0, 1.0]]
+                ['completely different', [0.0, 0.0, 1.0]],
             ]);
 
         $assertion = new StringSimilarity('hello world', $this->embeddingsProvider); // Default threshold 0.6
@@ -173,7 +173,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['café naïve', [1.0, 0.0, 0.0]],
-                ['café native', [0.9, 0.1, 0.0]]
+                ['café native', [0.9, 0.1, 0.0]],
             ]);
 
         $assertion = new StringSimilarity('café naïve', $this->embeddingsProvider, 0.8);
@@ -196,7 +196,7 @@ class StringSimilarityTest extends TestCase
             ->method('embedText')
             ->willReturnMap([
                 ['complex text', $highDimVector1],
-                ['similar text', $highDimVector2]
+                ['similar text', $highDimVector2],
             ]);
 
         $assertion = new StringSimilarity('complex text', $this->embeddingsProvider, 0.7);

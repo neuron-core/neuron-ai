@@ -72,7 +72,7 @@ class ZAIImage implements AIProviderInterface
         $body = [
             'model' => $this->model,
             'prompt' => $message->getContent(),
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->request(

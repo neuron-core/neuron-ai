@@ -58,7 +58,7 @@ class BedrockRuntime implements AIProviderInterface
             'modelId' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
             'system' => [
-                ['text' => $this->system]
+                ['text' => $this->system],
             ],
         ];
 

@@ -41,9 +41,9 @@ class TypesenseTest extends TestCase
                 [
                     'host' => '127.0.0.1',
                     'port' => '8108',
-                    'protocol' => 'http'
+                    'protocol' => 'http',
                 ],
-            ]
+            ],
         ]);
 
         // embedding "Hello World!"

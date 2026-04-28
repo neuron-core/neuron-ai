@@ -25,6 +25,9 @@ trait HandleWithTools
         return $this;
     }
 
+    /**
+     * @throws ProviderException
+     */
     public function findTool(string $name): ToolInterface
     {
         // Remove provider tools
@@ -38,7 +41,7 @@ trait HandleWithTools
         }
 
         throw new ProviderException(
-            "It seems the model is asking for a non-existing tool: {$name}. You could try writing more verbose tool descriptions and prompts to help the model in the task."
+            "The model is asking for a non-existing tool: {$name}. You could try writing more verbose tool descriptions and prompts to help the model in the task."
         );
     }
 }

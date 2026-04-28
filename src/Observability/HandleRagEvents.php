@@ -40,7 +40,7 @@ trait HandleRagEvents
             $segment = $this->segments[$id];
             $segment->addContext('Data', [
                     'question' => $questionText,
-                    'documents' => count($data->documents)
+                    'documents' => count($data->documents),
                 ]);
             $segment->end();
         }

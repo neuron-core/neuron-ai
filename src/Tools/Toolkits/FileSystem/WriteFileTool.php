@@ -49,7 +49,7 @@ class WriteFileTool extends Tool
     public function __invoke(string $file_path, string $content): array
     {
         $dir = dirname($file_path);
-        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        if (!is_dir($dir) && !mkdir($dir, 0o755, true) && !is_dir($dir)) {
             return [
                 'status' => 'error',
                 'operation' => 'write_file',

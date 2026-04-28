@@ -76,7 +76,7 @@ class OpenAITextToSpeech implements AIProviderInterface
             'input' => $message->getContent(),
             'voice' => $this->voice,
             'instructions' => $this->system ?? '',
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->request(
@@ -106,7 +106,7 @@ class OpenAITextToSpeech implements AIProviderInterface
             'input' => $message->getContent(),
             'voice' => $this->voice,
             'instructions' => $this->system ?? '',
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         $stream = $this->httpClient->stream(

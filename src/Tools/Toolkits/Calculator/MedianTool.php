@@ -15,6 +15,7 @@ use function count;
 use function floor;
 use function round;
 use function sort;
+use function is_numeric;
 
 class MedianTool extends Tool
 {
@@ -23,11 +24,11 @@ class MedianTool extends Tool
         parent::__construct(
             'calculate_median',
             <<<DESC
-Calculates the median (middle value) of a dataset when sorted in ascending order.
-For datasets with an even number of values, returns the average of the two middle values.
-The median is less affected by outliers than the mean, making it useful for skewed distributions,
-income analysis, or when you need a robust measure of central tendency.
-DESC
+                Calculates the median (middle value) of a dataset when sorted in ascending order.
+                For datasets with an even number of values, returns the average of the two middle values.
+                The median is less affected by outliers than the mean, making it useful for skewed distributions,
+                income analysis, or when you need a robust measure of central tendency.
+                DESC
         );
     }
 
@@ -56,7 +57,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

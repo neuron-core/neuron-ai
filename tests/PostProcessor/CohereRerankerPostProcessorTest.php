@@ -29,20 +29,20 @@ class CohereRerankerPostProcessorTest extends TestCase
                     'results' => [
                         ['index' => 1, 'relevance_score' => 0.9],
                         ['index' => 0, 'relevance_score' => 0.2],
-                        ['index' => 2, 'relevance_score' => 0.1]
+                        ['index' => 2, 'relevance_score' => 0.1],
                     ],
                     'meta' => [
                         'api_version' => [
                             'version' => '2',
-                            'is_experimental' => false
+                            'is_experimental' => false,
                         ],
                         'billed_units' => [
-                            'search_units' => 1
-                        ]
+                            'search_units' => 1,
+                        ],
                     ],
-                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf'
+                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf',
                 ])
-            )
+            ),
         ]);
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
@@ -54,7 +54,7 @@ class CohereRerankerPostProcessorTest extends TestCase
             new Document("Paris is the capital of France"),
             new Document("Rome is the capital of Italy"),
             new Document("Madrid is the capital of Spain"),
-            new Document("London is the capital of the United Kingdom")
+            new Document("London is the capital of the United Kingdom"),
         ];
 
         $result = $postProcessor->process($question, $documents);
@@ -77,20 +77,20 @@ class CohereRerankerPostProcessorTest extends TestCase
                 body: json_encode([
                     'results' => [
                         ['index' => 1, 'relevance_score' => 0.9],
-                        ['index' => 0, 'relevance_score' => 0.2]
+                        ['index' => 0, 'relevance_score' => 0.2],
                     ],
                     'meta' => [
                         'api_version' => [
                             'version' => '2',
-                            'is_experimental' => false
+                            'is_experimental' => false,
                         ],
                         'billed_units' => [
-                            'search_units' => 1
-                        ]
+                            'search_units' => 1,
+                        ],
                     ],
-                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf'
+                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf',
                 ])
-            )
+            ),
         ]);
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
@@ -107,7 +107,7 @@ class CohereRerankerPostProcessorTest extends TestCase
             new Document("Paris is the capital of France"),
             new Document("Rome is the capital of Italy"),
             new Document("Madrid is the capital of Spain"),
-            new Document("London is the capital of the United Kingdom")
+            new Document("London is the capital of the United Kingdom"),
         ];
 
         $result = $postProcessor->process($question, $documents);

@@ -39,14 +39,14 @@ trait HandleStream
     {
         $body = [
             'contents' => $this->messageMapper()->map($messages),
-            ...$this->parameters
+            ...$this->parameters,
         ];
 
         if (isset($this->system)) {
             $body['system_instruction'] = [
                 'parts' => [
-                    ['text' => $this->system]
-                ]
+                    ['text' => $this->system],
+                ],
             ];
         }
 

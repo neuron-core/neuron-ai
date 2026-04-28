@@ -99,7 +99,7 @@ class MessageMapper implements MessageMapperInterface
         foreach ($message->getTools() as $tool) {
             $this->mapping[] = [
                 'role' => MessageRole::TOOL->value,
-                'content' => $tool->getResult()
+                'content' => $tool->getResult(),
             ];
         }
     }

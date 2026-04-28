@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Providers\AWS\MessageMapper as AWSMessageMapper;
-use NeuronAI\Providers\Anthropic\MessageMapper as AnthropicMessageMapper;
 use NeuronAI\Providers\Gemini\MessageMapper as GeminiMessageMapper;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\Mistral\MessageMapper as MistralMessageMapper;
@@ -68,18 +67,6 @@ class MessageMapperReindexingTest extends TestCase
             new OpenAIMessageMapper(),
             new AssistantMessage([
                 new ReasoningContent('Thinking'),
-                new TextContent('Hello'),
-            ]),
-            'content',
-            [
-                ['type' => 'text', 'text' => 'Hello'],
-            ],
-        ];
-
-        yield 'anthropic unsupported image id then text' => [
-            new AnthropicMessageMapper(),
-            new AssistantMessage([
-                new ImageContent('file_123', SourceType::ID),
                 new TextContent('Hello'),
             ]),
             'content',

@@ -94,7 +94,13 @@ class MessageMapper implements MessageMapperInterface
                     'data' => $block->content,
                 ],
             ],
-            default => null
+            SourceType::ID => [
+                'type' => 'image',
+                'source' => [
+                    'type' => 'file',
+                    'file_id' => $block->content,
+                ],
+            ],
         };
     }
 
@@ -121,7 +127,7 @@ class MessageMapper implements MessageMapperInterface
                 'source' => [
                     'type' => 'file',
                     'file_id' => $block->content,
-                ]
+                ],
             ],
         };
     }

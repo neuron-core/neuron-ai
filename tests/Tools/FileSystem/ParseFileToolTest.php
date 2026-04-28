@@ -92,24 +92,24 @@ class ParseFileToolTest extends TestCase
     {
         $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
         $htmlContent = <<<'HTML'
-<!DOCTYPE html>
-<html>
-<head><title>Test Page</title></head>
-<body>
-    <nav>
-        <ul>
-            <li>Home</li>
-            <li>About</li>
-            <li>Contact</li>
-        </ul>
-    </nav>
-    <main>
-        <h1>Main Heading</h1>
-        <p>Paragraph text.</p>
-    </main>
-</body>
-</html>
-HTML;
+            <!DOCTYPE html>
+            <html>
+            <head><title>Test Page</title></head>
+            <body>
+                <nav>
+                    <ul>
+                        <li>Home</li>
+                        <li>About</li>
+                        <li>Contact</li>
+                    </ul>
+                </nav>
+                <main>
+                    <h1>Main Heading</h1>
+                    <p>Paragraph text.</p>
+                </main>
+            </body>
+            </html>
+            HTML;
         file_put_contents($tempFile, $htmlContent);
         rename($tempFile, $tempFile . '.html');
         $htmlFile = $tempFile . '.html';

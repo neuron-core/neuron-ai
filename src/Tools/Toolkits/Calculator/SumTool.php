@@ -32,7 +32,7 @@ class SumTool extends Tool
                 type: PropertyType::NUMBER,
                 description: 'Second addend',
                 required: true,
-            )
+            ),
         ];
     }
 

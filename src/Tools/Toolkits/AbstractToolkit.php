@@ -6,7 +6,6 @@ namespace NeuronAI\Tools\Toolkits;
 
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ToolInterface;
-use Closure;
 
 use function array_filter;
 use function array_map;
@@ -43,7 +42,7 @@ abstract class AbstractToolkit implements ToolkitInterface
         return $this;
     }
 
-    public function with(string $class, Closure $callback): ToolkitInterface
+    public function with(string $class, callable $callback): ToolkitInterface
     {
         $this->with[$class] = $callback;
         return $this;

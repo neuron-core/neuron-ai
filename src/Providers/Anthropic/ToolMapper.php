@@ -62,7 +62,7 @@ class ToolMapper implements ToolMapperInterface
     {
         $payload = [
             'type' => $tool->getType(),
-            ...$tool->getOptions()
+            ...$tool->getOptions(),
         ];
 
         if (is_string($tool->getName())) {

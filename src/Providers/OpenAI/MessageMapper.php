@@ -102,13 +102,13 @@ class MessageMapper implements MessageMapperInterface
                 'file' => [
                     'filename' => $block->filename,
                     'file_data' => "data:{$block->mediaType};base64,{$block->content}",
-                ]
+                ],
             ],
             SourceType::ID => [
                 'type' => 'file',
                 'file' => [
                     'file_id' => $block->content,
-                ]
+                ],
             ],
             SourceType::URL => null
         };
@@ -125,7 +125,7 @@ class MessageMapper implements MessageMapperInterface
                     'name' => $tool->getName(),
                     'arguments' => json_encode($tool->getInputs() === [] ? new stdClass() : $tool->getInputs()),
                 ],
-            ], $message->getTools())
+            ], $message->getTools()),
         ];
 
         $content = $this->mapBlocks($message->getContentBlocks());
@@ -141,7 +141,7 @@ class MessageMapper implements MessageMapperInterface
         return array_map(fn (ToolInterface $tool): array => [
             'role' => MessageRole::TOOL,
             'tool_call_id' => $tool->getCallId(),
-            'content' => $tool->getResult()
+            'content' => $tool->getResult(),
         ], $message->getTools());
     }
 }

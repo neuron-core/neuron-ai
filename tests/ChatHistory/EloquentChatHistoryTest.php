@@ -35,6 +35,7 @@ class ChatMessage extends Model
     protected $table = 'chat_messages';
     protected $fillable = ['thread_id', 'role', 'content', 'meta'];
     protected $casts = [
+        'content' => 'array',
         'meta' => 'array',
     ];
 }
@@ -60,7 +61,7 @@ class EloquentChatHistoryTest extends TestCase
             $table->id();
             $table->string('thread_id');
             $table->string('role');
-            $table->text('content')->nullable();
+            $table->json('content')->nullable();
             $table->json('meta')->nullable();
             $table->timestamps();
 
@@ -99,7 +100,7 @@ class EloquentChatHistoryTest extends TestCase
         // Verify message content
         $record = ChatMessage::query()->where('thread_id', $this->threadId)->first();
         $this->assertEquals('user', $record->role);
-        $this->assertEquals('[{"type":"text","content":"Hello from Eloquent!","meta":[]}]', $record->content);
+        $this->assertEquals([["type" => "text","content" => "Hello from Eloquent!","meta" => []]], $record->content);
     }
 
     public function test_loads_existing_messages_from_database(): void

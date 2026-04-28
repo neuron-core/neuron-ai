@@ -37,7 +37,7 @@ trait HandleStructured
                     "name" => $this->sanitizeClassName($className),
                     "schema" => $response_format,
                 ],
-            ]
+            ],
         ]);
 
         return $this->chat(...(is_array($messages) ? $messages : [$messages]));

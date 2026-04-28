@@ -24,7 +24,7 @@ class OllamaMessageMapperTest extends TestCase
             'content' => '',
             'tool_calls' => [
                 ['function' => ['name' => 'test', 'arguments' => new stdClass()]],
-            ]
+            ],
         ]], $mapper->map([$message]));
     }
 }

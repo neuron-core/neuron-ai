@@ -49,7 +49,7 @@ Use this tool if you need to retrieve user information that can help you provide
                 'The scope of the search to perform. Can be "facts" or "nodes"',
                 false,
                 ['facts', 'nodes']
-            )
+            ),
         ];
     }
 
@@ -61,7 +61,7 @@ Use this tool if you need to retrieve user information that can help you provide
                 'query' => $query,
                 'scope' => $search_scope === 'facts' ? 'edges' : 'nodes',
                 'limit' => $limit,
-            ]
+            ],
         ])->getBody()->getContents();
 
         $response = json_decode($response, true);

@@ -104,10 +104,6 @@ trait HandleStream
 
         $json = json_decode($line, true);
 
-        if ($json['done']) {
-            return null;
-        }
-
         if (! isset($json['message']) || $json['message']['role'] !== 'assistant') {
             return null;
         }

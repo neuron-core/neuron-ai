@@ -26,7 +26,7 @@ trait HandleStructured
         array $response_format,
     ): Message {
         $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => ['type' => 'json_object']
+            'response_format' => ['type' => 'json_object'],
         ]);
 
         $this->system .= "\n\n---\n\nGenerate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT);

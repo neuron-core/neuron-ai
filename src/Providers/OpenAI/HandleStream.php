@@ -68,7 +68,7 @@ trait HandleStream
                 continue;
             }
 
-            $this->streamState->messageId($line['id']);
+            $this->streamState->messageId($line['id'] ?? null);
 
             // Capture usage information
             if (!empty($line['usage'])) {
@@ -152,7 +152,7 @@ trait HandleStream
     {
         $content = $choice['delta']['content'] ?? null;
         if ($content !== null) {
-            $this->streamState->updateContentBlock($choice['index'], new TextContent($content));
+            $this->streamState->updateContentBlock($choice['index'] ?? 0, new TextContent($content));
             yield new TextChunk($this->streamState->messageId(), $content);
         }
     }

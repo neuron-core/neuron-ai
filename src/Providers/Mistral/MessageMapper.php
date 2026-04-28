@@ -128,7 +128,7 @@ class MessageMapper implements MessageMapperInterface
                     'name' => $tool->getName(),
                     'arguments' => json_encode($tool->getInputs() ?: new stdClass()),
                 ],
-            ], $message->getTools())
+            ], $message->getTools()),
         ];
 
         $contents = $this->mapBlocks($message->getContentBlocks());
@@ -145,7 +145,7 @@ class MessageMapper implements MessageMapperInterface
             $this->mapping[] = [
                 'role' => MessageRole::TOOL,
                 'tool_call_id' => $tool->getCallId(),
-                'content' => $tool->getResult()
+                'content' => $tool->getResult(),
             ];
         }
     }

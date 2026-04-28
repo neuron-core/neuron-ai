@@ -44,7 +44,7 @@ class ConsoleExporter implements ExporterInterface
                 'node' => $nodeName,
                 'produces' => $producedEvents,
                 'eventClass' => $eventClass,
-                'nodeClass' => $node::class
+                'nodeClass' => $node::class,
             ];
         }
 
