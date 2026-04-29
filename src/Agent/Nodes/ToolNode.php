@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
@@ -44,7 +45,7 @@ class ToolNode extends Node
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): Generator
+    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history.
