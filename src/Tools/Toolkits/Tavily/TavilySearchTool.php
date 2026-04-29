@@ -70,7 +70,7 @@ class TavilySearchTool extends Tool
                 PropertyType::STRING,
                 'How far back to search for relevant contents.',
                 false,
-                ['day, week, month, year']
+                ['day', 'week', 'month', 'year']
             ),
             new ToolProperty(
                 'days',
