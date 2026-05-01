@@ -139,27 +139,24 @@ class GuzzleHttpClientTest extends TestCase
     public function test_with_base_uri(): void
     {
         $client = new GuzzleHttpClient();
-        $newClient = $client->withBaseUri('https://api.example.com');
+        $result = $client->withBaseUri('https://api.example.com');
 
-        $this->assertInstanceOf(GuzzleHttpClient::class, $newClient);
-        $this->assertNotSame($client, $newClient);
+        $this->assertSame($client, $result);
     }
 
     public function test_with_headers(): void
     {
         $client = new GuzzleHttpClient();
-        $newClient = $client->withHeaders(['X-Custom-Header' => 'value']);
+        $result = $client->withHeaders(['X-Custom-Header' => 'value']);
 
-        $this->assertInstanceOf(GuzzleHttpClient::class, $newClient);
-        $this->assertNotSame($client, $newClient);
+        $this->assertSame($client, $result);
     }
 
     public function test_with_timeout(): void
     {
         $client = new GuzzleHttpClient();
-        $newClient = $client->withTimeout(60.0);
+        $result = $client->withTimeout(60.0);
 
-        $this->assertInstanceOf(GuzzleHttpClient::class, $newClient);
-        $this->assertNotSame($client, $newClient);
+        $this->assertSame($client, $result);
     }
 }
