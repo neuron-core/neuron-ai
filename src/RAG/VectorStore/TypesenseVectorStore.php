@@ -137,10 +137,6 @@ class TypesenseVectorStore implements VectorStoreInterface
             return $this;
         }
 
-        if (empty($documents[0]->getEmbedding())) {
-            throw new \Exception('document embedding must be set before adding a document');
-        }
-
         $this->checkIndexStatus($documents[0]);
 
         $lines = [];
