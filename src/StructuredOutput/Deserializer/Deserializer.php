@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Deserializer;
 
 use BackedEnum;
-use NeuronAI\StaticConstructor;
-use NeuronAI\StructuredOutput\SchemaProperty;
 use DateTime;
 use DateTimeImmutable;
 use Exception;
+use NeuronAI\StaticConstructor;
+use NeuronAI\StructuredOutput\SchemaProperty;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionNamedType;
@@ -38,6 +38,7 @@ use function preg_replace;
 use function str_replace;
 use function strtolower;
 use function ucwords;
+use function array_search;
 
 use const JSON_ERROR_NONE;
 
@@ -64,7 +65,7 @@ class Deserializer
         $data = json_decode($jsonData, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new DeserializerException('Invalid JSON: '.json_last_error_msg());
+            throw new DeserializerException('Invalid JSON: ' . json_last_error_msg());
         }
 
         return $this->deserializeObject($data, $className);
@@ -112,7 +113,7 @@ class Deserializer
 
                 // Track any promoted arguments that are being set
                 if ($property->isPromoted()) {
-                    $promotedArgs[ $propertyName ] = $value;
+                    $promotedArgs[$propertyName] = $value;
                 }
             }
         }
@@ -159,15 +160,30 @@ class Deserializer
     protected function castValue(mixed $value, ReflectionType $type, ReflectionProperty $property): mixed
     {
         if ($type instanceof ReflectionUnionType) {
-            // Handle union types
-            foreach ($type->getTypes() as $unionType) {
-                try {
-                    return $this->castToSingleType($value, $unionType, $property);
-                } catch (Exception) {
-                    continue;
+            // Figure out what type the data is.
+            $dataType = str_replace('double', 'float', gettype($value));
+            $typesInUnion = array_map(fn (ReflectionNamedType $t) => $t->getName(), $type->getTypes());
+
+            // Try casting to the data type if it exists in the union.
+            try {
+                return $this->castToSingleType(
+                    $value,
+                    $type->getTypes()[array_search($dataType, $typesInUnion, true)],
+                    $property,
+                );
+            } catch (Exception) {
+                // Fallthrough method that tries each type in order for success.
+                foreach ($type->getTypes() as $unionType) {
+                    try {
+                        return $this->castToSingleType($value, $unionType, $property);
+                    } catch (Exception) {
+                        continue;
+                    }
                 }
+                throw new DeserializerException(
+                    "Cannot cast value to any type in union for property {$property->getName()}",
+                );
             }
-            throw new DeserializerException("Cannot cast value to any type in union for property {$property->getName()}");
         }
 
         // @phpstan-ignore-next-line
@@ -182,7 +198,7 @@ class Deserializer
     protected function castToSingleType(
         mixed $value,
         ReflectionNamedType $type,
-        ReflectionProperty $property
+        ReflectionProperty $property,
     ): mixed {
         $typeName = $type->getName();
 
@@ -240,10 +256,16 @@ class Deserializer
                 if (count($attribute->anyOf) === 1) {
                     $elementType = $attribute->anyOf[0];
                     if (class_exists($elementType)) {
-                        return array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
+                        return array_map(
+                            fn (array $item): object => $this->deserializeObject($item, $elementType),
+                            $value
+                        );
                     }
                 } else {
-                    return array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $attribute->anyOf), $value);
+                    return array_map(
+                        fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $attribute->anyOf),
+                        $value,
+                    );
                 }
             }
         }
@@ -262,7 +284,9 @@ class Deserializer
     {
         // Check for the discriminator field
         if (!isset($data[$this->discriminator])) {
-            throw new DeserializerException("Missing {$this->discriminator} discriminator field in data for multi-type array deserialization");
+            throw new DeserializerException(
+                "Missing {$this->discriminator} discriminator field in data for multi-type array deserialization",
+            );
         }
 
         $discriminatorValue = strtolower((string) $data[$this->discriminator]);
@@ -276,7 +300,12 @@ class Deserializer
 
         // Find a matching class
         if (!isset($mapping[$discriminatorValue])) {
-            throw new DeserializerException("Unknown discriminator value '{$discriminatorValue}'. Expected one of: " . implode(', ', array_keys($mapping)));
+            throw new DeserializerException(
+                "Unknown discriminator value '{$discriminatorValue}'. Expected one of: " . implode(
+                    ', ',
+                    array_keys($mapping),
+                ),
+            );
         }
 
         $className = $mapping[$discriminatorValue];
@@ -308,10 +337,10 @@ class Deserializer
         }
 
         if (is_numeric($value)) {
-            return new DateTime('@'.$value);
+            return new DateTime('@' . $value);
         }
 
-        throw new DeserializerException("Cannot create DateTime from value type: ".gettype($value));
+        throw new DeserializerException("Cannot create DateTime from value type: " . gettype($value));
     }
 
     /**
@@ -334,10 +363,10 @@ class Deserializer
         }
 
         if (is_numeric($value)) {
-            return new DateTimeImmutable('@'.$value);
+            return new DateTimeImmutable('@' . $value);
         }
 
-        throw new DeserializerException("Cannot create DateTimeImmutable from value type: ".gettype($value));
+        throw new DeserializerException("Cannot create DateTimeImmutable from value type: " . gettype($value));
     }
 
     protected function handleEnum(BackedEnum|string $typeName, mixed $value): BackedEnum
