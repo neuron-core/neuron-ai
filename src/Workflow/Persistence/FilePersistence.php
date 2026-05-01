@@ -12,13 +12,13 @@ use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
-use function serialize;
 use function unlink;
+use function serialize;
 use function unserialize;
 
 use const DIRECTORY_SEPARATOR;
 
-class FilePersistence implements PersistenceInterface
+class FilePersistence implements PersistenceInterface, SerializablePersistenceInterface
 {
     public function __construct(
         protected string $directory,
@@ -30,9 +30,19 @@ class FilePersistence implements PersistenceInterface
         }
     }
 
+    public function serialize(WorkflowInterrupt $interrupt): string
+    {
+        return serialize($interrupt);
+    }
+
+    public function unserialize(string $data): WorkflowInterrupt
+    {
+        return unserialize($data);
+    }
+
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
-        file_put_contents($this->getFilePath($workflowId), serialize($interrupt));
+        file_put_contents($this->getFilePath($workflowId), $this->serialize($interrupt));
     }
 
     public function load(string $workflowId): WorkflowInterrupt
@@ -41,7 +51,7 @@ class FilePersistence implements PersistenceInterface
             throw new WorkflowException("No saved workflow found for ID: {$workflowId}.");
         }
 
-        return unserialize(file_get_contents($this->getFilePath($workflowId)));
+        return $this->unserialize(file_get_contents($this->getFilePath($workflowId)));
     }
 
     public function delete(string $workflowId): void
