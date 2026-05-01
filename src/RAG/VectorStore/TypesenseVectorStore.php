@@ -82,6 +82,10 @@ class TypesenseVectorStore implements VectorStoreInterface
         }
     }
 
+    /**
+     * @throws Exception
+     * @throws TypesenseClientError
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         if ($document->getEmbedding() === []) {
