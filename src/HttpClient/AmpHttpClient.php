@@ -112,21 +112,21 @@ class AmpHttpClient implements HttpClientInterface
 
     public function withBaseUri(string $baseUri): AmpHttpClient
     {
-        $new = new self($this->customHeaders, $this->timeout);
+        $new = new static($this->customHeaders, $this->timeout);
         $new->baseUri = $baseUri;
         return $new;
     }
 
     public function withHeaders(array $headers): AmpHttpClient
     {
-        $new = new self([...$this->customHeaders, ...$headers], $this->timeout);
+        $new = new static([...$this->customHeaders, ...$headers], $this->timeout);
         $new->baseUri = $this->baseUri;
         return $new;
     }
 
     public function withTimeout(float $timeout): AmpHttpClient
     {
-        $new = new self($this->customHeaders, $timeout);
+        $new = new static($this->customHeaders, $timeout);
         $new->baseUri = $this->baseUri;
         return $new;
     }
