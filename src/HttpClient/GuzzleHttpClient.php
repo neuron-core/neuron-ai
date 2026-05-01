@@ -25,11 +25,11 @@ class GuzzleHttpClient implements HttpClientInterface
      * @param array<string, mixed> $customHeaders
      */
     public function __construct(
-        protected readonly array $customHeaders = [],
-        protected readonly float $timeout = 60.0,
-        protected readonly float $connectTimeout = 10.0,
-        protected readonly ?HandlerStack $handler = null,
-        protected readonly array $options = [],
+        protected array $customHeaders = [],
+        protected float $timeout = 60.0,
+        protected float $connectTimeout = 10.0,
+        protected ?HandlerStack $handler = null,
+        protected array $options = [],
     ) {
     }
 
@@ -77,30 +77,22 @@ class GuzzleHttpClient implements HttpClientInterface
         }
     }
 
-    public function withBaseUri(string $baseUri): GuzzleHttpClient
+    public function withBaseUri(string $baseUri): static
     {
-        $new = new static($this->customHeaders, $this->timeout, $this->connectTimeout, $this->handler);
-        $new->baseUri = $baseUri;
-        return $new;
+        $this->baseUri = $baseUri;
+        return $this;
     }
 
-    public function withHeaders(array $headers): GuzzleHttpClient
+    public function withHeaders(array $headers): static
     {
-        $new = new static(
-            [...$this->customHeaders, ...$headers],
-            $this->timeout,
-            $this->connectTimeout,
-            $this->handler
-        );
-        $new->baseUri = $this->baseUri;
-        return $new;
+        $this->customHeaders = [...$this->customHeaders, ...$headers];
+        return $this;
     }
 
-    public function withTimeout(float $timeout): GuzzleHttpClient
+    public function withTimeout(float $timeout): static
     {
-        $new = new static($this->customHeaders, $timeout, $this->connectTimeout, $this->handler);
-        $new->baseUri = $this->baseUri;
-        return $new;
+        $this->timeout = $timeout;
+        return $this;
     }
 
     protected function createClient(): Client

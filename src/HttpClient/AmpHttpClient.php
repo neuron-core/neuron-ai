@@ -29,8 +29,8 @@ class AmpHttpClient implements HttpClientInterface
      * @param array<string, string> $customHeaders
      */
     public function __construct(
-        protected readonly array $customHeaders = [],
-        protected readonly float $timeout = 60.0,
+        protected array $customHeaders = [],
+        protected float $timeout = 60.0,
     ) {
     }
 
@@ -110,25 +110,22 @@ class AmpHttpClient implements HttpClientInterface
         }
     }
 
-    public function withBaseUri(string $baseUri): AmpHttpClient
+    public function withBaseUri(string $baseUri): static
     {
-        $new = new static($this->customHeaders, $this->timeout);
-        $new->baseUri = $baseUri;
-        return $new;
+        $this->baseUri = $baseUri;
+        return $this;
     }
 
-    public function withHeaders(array $headers): AmpHttpClient
+    public function withHeaders(array $headers): static
     {
-        $new = new static([...$this->customHeaders, ...$headers], $this->timeout);
-        $new->baseUri = $this->baseUri;
-        return $new;
+        $this->customHeaders = [...$this->customHeaders, ...$headers];
+        return $this;
     }
 
-    public function withTimeout(float $timeout): AmpHttpClient
+    public function withTimeout(float $timeout): static
     {
-        $new = new static($this->customHeaders, $timeout);
-        $new->baseUri = $this->baseUri;
-        return $new;
+        $this->timeout = $timeout;
+        return $this;
     }
 
     /**
