@@ -133,9 +133,9 @@ class MessageMapper implements MessageMapperInterface
         // Add content blocks if present
         if ($contentBlocks = $message->getContentBlocks()) {
             $blocks = $this->mapBlocks($contentBlocks, false);
-            if (! empty($blocks)) {
+            if ($blocks !== []) {
                 $this->mapping[] = [
-                    'role' => 'assistant',
+                    'role' => $message->getRole(),
                     'content' => $blocks,
                 ];
             }
