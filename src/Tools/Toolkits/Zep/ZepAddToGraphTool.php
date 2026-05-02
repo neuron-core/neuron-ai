@@ -58,9 +58,9 @@ Look for facts, news or any relevant information in the conversation that you th
                 'data' => $data,
                 'type' => $type,
             ],
-        ])->getBody()->getContents();
+        ]);
 
-        $response = json_decode($response, true);
+        $response = json_decode((string) $response->getBody(), true);
 
         return $response['content'];
     }

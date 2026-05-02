@@ -63,9 +63,9 @@ class TavilyExtractTool extends Tool
                 $this->options,
                 ['urls' => [$url]]
             ),
-        ])->getBody()->getContents();
+        ]);
 
-        $result = json_decode($result, true);
+        $result = json_decode((string) $result->getBody(), true);
 
         return $result['results'][0];
     }
