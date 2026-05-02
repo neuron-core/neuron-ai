@@ -40,10 +40,8 @@ class SupadataVideoMetadataTool extends Tool
     public function __invoke(string $video): array
     {
         $response = $this->getClient($this->key)
-            ->get('youtube/video?id=' . $video)
-            ->getBody()
-            ->getContents();
+            ->get('youtube/video?id=' . $video);
 
-        return json_decode($response, true);
+        return json_decode((string) $response->getBody(), true);
     }
 }

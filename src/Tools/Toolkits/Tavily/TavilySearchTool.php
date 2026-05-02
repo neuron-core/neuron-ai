@@ -113,9 +113,9 @@ class TavilySearchTool extends Tool
                 $this->options,
                 ['query' => $search_query]
             ),
-        ])->getBody()->getContents();
+        ]);
 
-        $result = json_decode($result, true);
+        $result = json_decode((string) $result->getBody(), true);
 
         return [
             'answer' => $result['answer'],
