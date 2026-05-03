@@ -222,9 +222,8 @@ public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
 $persistence = new FilePersistence('/tmp/workflows');
-$workflowId = 'workflow_' . uniqid();
 
-$workflow = Workflow::make($state, $persistence, $workflowId)
+$workflow = Workflow::make($persistence)
     ->addNodes([...]);
 
 try {
@@ -233,12 +232,11 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     // Present to user
     $request = $interrupt->getRequest();
-    $state = $interrupt->getState();
+    $workflowId = $interrupt->getWorkflowId();
 
     // After user makes decisions:
     $resumeRequest = $this->getUserDecisions($request);
-    $handler = $workflow->start($resumeRequest);
-    $result = $handler->run();
+    $result = $workflow->init($resumeRequest)->run();
 }
 ```
 
