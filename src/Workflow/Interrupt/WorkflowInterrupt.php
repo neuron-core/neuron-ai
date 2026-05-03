@@ -87,6 +87,14 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
      * Pass this token back when resuming the workflow to identify
      * which persisted state to restore.
      */
+    public function getWorkflowId(): string
+    {
+        return $this->state->get('__workflowId');
+    }
+
+    /**
+     * @deprecated Use getWorkflowId() instead.
+     */
     public function getResumeToken(): string
     {
         return $this->state->get('__workflowId');
@@ -95,7 +103,7 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'resumeToken' => $this->getResumeToken(),
+            'resumeToken' => $this->getWorkflowId(),
             'message' => $this->message,
             'request' => serialize($this->request),
             'node' => serialize($this->node),

@@ -58,7 +58,7 @@ try {
     $handler = MyWorkflow::make()->run();
 } catch (WorkflowInterrupt $interrupt) {
     $request = $interrupt->getRequest();
-    $token = $interrupt->getResumeToken();
+    $token = $interrupt->getWorkflowId();
 
     // ... user approves/rejects ...
 

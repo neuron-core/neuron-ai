@@ -478,6 +478,9 @@ class Workflow implements WorkflowInterface
         }
     }
 
+    /**
+     * @deprecated Use getWorkflowId() instead.
+     */
     public function getResumeToken(): string
     {
         return $this->workflowId;
