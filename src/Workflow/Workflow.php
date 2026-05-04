@@ -120,6 +120,23 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Bootstrap the workflow (load event-node map, validate).
+     */
+    public function initialize(): static
+    {
+        $this->bootstrap();
+        return $this;
+    }
+
+    /**
+     * Get the resolved start event for the workflow.
+     */
+    public function getStartEvent(): Event
+    {
+        return $this->resolveStartEvent();
+    }
+
+    /**
      * @deprecated Use init() instead.
      */
     public function start(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface

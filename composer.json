@@ -70,7 +70,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "NeuronAI\\Tests\\": "tests/"
+            "NeuronAI\\Tests\\": "tests/",
+            "Flowline\\": "flowline/src/"
         }
     },
     "config": {
