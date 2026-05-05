@@ -5,12 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\WorkflowEnd;
-use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
@@ -20,7 +16,6 @@ use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
@@ -41,7 +36,7 @@ use function array_filter;
 use function reset;
 
 /**
- * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null, ?WorkflowExecutorInterface $executor = null)
+ * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null)
  */
 class Workflow implements WorkflowInterface
 {
@@ -71,7 +66,7 @@ class Workflow implements WorkflowInterface
      * @throws WorkflowException
      */
     public function __construct(
-        protected ?PersistenceInterface $persistence = null,
+        ?PersistenceInterface $persistence = null,
         ?string $resumeToken = null,
         protected ?WorkflowState $state = null,
     ) {
@@ -81,9 +76,9 @@ class Workflow implements WorkflowInterface
             throw new WorkflowException('Persistence must be defined when resumeToken is defined');
         }
 
-        $this->persistence = $persistence ?? new InMemoryPersistence();
         $this->workflowId = $resumeToken ?? uniqid('workflow_');
         $this->executor = new WorkflowExecutor();
+        $this->executor->setPersistence($persistence ?? new InMemoryPersistence());
 
         // Register the node middleware
         $this->addGlobalMiddleware($this->globalMiddleware());
@@ -110,7 +105,7 @@ class Workflow implements WorkflowInterface
      */
     public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): WorkflowInterface
     {
-        $this->persistence = $persistence;
+        $this->executor()->setPersistence($persistence);
 
         if ($resumeToken !== null) {
             $this->workflowId = $resumeToken;
@@ -121,10 +116,13 @@ class Workflow implements WorkflowInterface
 
     /**
      * Bootstrap the workflow (load event-node map, validate).
+     *
+     * @throws WorkflowException
      */
-    public function initialize(): static
+    public function bootstrap(): static
     {
-        $this->bootstrap();
+        $this->loadEventNodeMap();
+        $this->validate();
         return $this;
     }
 
@@ -178,83 +176,23 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowInterrupt|WorkflowException|Throwable
+     * @throws Throwable
      */
     public function run(): Generator
     {
-        $this->bootstrap();
-
-        EventBus::emit('workflow-start', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
-
-        // Store workflow ID in state for nodes to access when emitting events
-        $this->resolveState()->set('__workflowId', $this->workflowId);
-
-        yield from $this->execute();
+        yield from $this->executor()->run($this);
 
         return $this->resolveState();
     }
 
     /**
-     * @throws WorkflowInterrupt|WorkflowException|Throwable
+     * @throws Throwable
      */
     public function resume(InterruptRequest $resumeRequest): Generator
     {
-        $this->bootstrap();
-
-        EventBus::emit('workflow-resume', $this, new WorkflowStart($this->eventNodeMap), $this->workflowId);
-
-        // Store workflow ID in state for nodes to access when emitting events
-        $this->resolveState()->set('__workflowId', $this->workflowId);
-
-        $interrupt = $this->persistence->load($this->workflowId);
-        $this->setState($interrupt->getState());
-
-        yield from $this->execute($interrupt, $resumeRequest);
+        yield from $this->executor()->resume($this, $resumeRequest);
 
         return $this->resolveState();
-    }
-
-    /**
-     * Unified execution entry point.
-     *
-     * When called without an interrupt, starts from the beginning.
-     * When called with an interrupt, delegates resumption (linear or
-     * parallel) to the executor.
-     *
-     * @throws WorkflowInterrupt|WorkflowException|Throwable
-     */
-    protected function execute(
-        ?WorkflowInterrupt $interrupt = null,
-        ?InterruptRequest $resumeRequest = null
-    ): Generator {
-        try {
-            if ($interrupt instanceof WorkflowInterrupt) {
-                yield from $this->executor()->resume($this, $interrupt, $resumeRequest);
-            } else {
-                $event = $this->resolveStartEvent();
-                yield from $this->executor()->execute($this, $event, $this->eventNodeMap[$event::class]);
-            }
-
-            $this->persistence->delete($this->workflowId);
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->persistence->save($this->workflowId, $interrupt);
-            EventBus::emit('error', $this, new AgentError($interrupt, false), $this->workflowId);
-            throw $interrupt;
-        } catch (Throwable $exception) {
-            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            throw $exception;
-        } finally {
-            $this->workflowEnd();
-        }
-    }
-
-    /**
-     * @throws InspectorException
-     */
-    protected function workflowEnd(): void
-    {
-        EventBus::emit('workflow-end', $this, new WorkflowEnd($this->resolveState()), $this->workflowId);
-        EventBus::clear($this->workflowId);
     }
 
     /**
@@ -290,21 +228,6 @@ class Workflow implements WorkflowInterface
     protected function getNodes(): array
     {
         return array_merge($this->nodes(), $this->nodes);
-    }
-
-    /**
-     * @throws WorkflowException
-     * @throws InspectorException
-     */
-    protected function bootstrap(): void
-    {
-        try {
-            $this->loadEventNodeMap();
-            $this->validate();
-        } catch (Throwable $exception) {
-            EventBus::emit('error', $this, new AgentError($exception), $this->workflowId);
-            throw $exception;
-        }
     }
 
     /**
@@ -380,6 +303,12 @@ class Workflow implements WorkflowInterface
      */
     public function setExecutor(WorkflowExecutorInterface $executor): WorkflowInterface
     {
+        // Transfer persistence from the current executor to the new one
+        $persistence = $this->executor->getPersistence();
+        if ($persistence instanceof \NeuronAI\Workflow\Persistence\PersistenceInterface) {
+            $executor->setPersistence($persistence);
+        }
+
         $this->executor = $executor;
         return $this;
     }
@@ -504,7 +433,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @throws WorkflowException|InspectorException
+     * @throws WorkflowException
      */
     public function export(): string
     {

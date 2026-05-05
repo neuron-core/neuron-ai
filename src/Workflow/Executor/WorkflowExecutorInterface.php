@@ -7,36 +7,35 @@ namespace NeuronAI\Workflow\Executor;
 use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 
 interface WorkflowExecutorInterface
 {
     /**
-     * Execute the workflow starting from the given event and node.
+     * Run the workflow from the beginning.
+     *
+     * The executor owns the full lifecycle: bootstrap, start event resolution,
+     * node traversal, persistence, error handling, and observability.
      *
      * @return Generator<int, Event, mixed, void>
      */
-    public function execute(
-        WorkflowInterface $workflow,
-        Event $currentEvent,
-        NodeInterface $currentNode,
-        ?InterruptRequest $resumeRequest = null
-    ): Generator;
+    public function run(WorkflowInterface $workflow): Generator;
 
     /**
      * Resume the workflow from a persisted interrupt.
      *
-     * Handles both linear and parallel interrupts internally,
-     * routing to the appropriate execution path.
-     *
      * @return Generator<int, Event, mixed, void>
      */
-    public function resume(
-        WorkflowInterface $workflow,
-        WorkflowInterrupt $interrupt,
-        InterruptRequest $resumeRequest
-    ): Generator;
+    public function resume(WorkflowInterface $workflow, InterruptRequest $request): Generator;
+
+    /**
+     * Set the persistence backend for interrupt/resume storage.
+     */
+    public function setPersistence(PersistenceInterface $persistence): static;
+
+    /**
+     * Get the configured persistence backend.
+     */
+    public function getPersistence(): ?PersistenceInterface;
 }

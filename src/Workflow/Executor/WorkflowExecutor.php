@@ -8,12 +8,15 @@ use Generator;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
+use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
 use NeuronAI\Observability\Events\BranchStart;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
+use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
+use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
@@ -21,27 +24,138 @@ use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
+use Throwable;
 
 /**
  * Default executor that processes nodes sequentially.
+ *
+ * Owns the full execution lifecycle: bootstrap, start event resolution,
+ * node traversal, persistence, error handling, and observability.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
+    protected ?PersistenceInterface $persistence = null;
+
+    public function setPersistence(PersistenceInterface $persistence): static
+    {
+        $this->persistence = $persistence;
+        return $this;
+    }
+
+    public function getPersistence(): ?PersistenceInterface
+    {
+        return $this->persistence;
+    }
+
     /**
-     * Execute the workflow starting from the given event and node.
+     * Run the workflow from the beginning.
      *
-     * Runs nodes sequentially until a StopEvent is reached. Any exception
-     * (including WorkflowInterrupt) propagates up to the caller — interrupt
-     * persistence and lifecycle events are the caller's responsibility.
+     * Bootstraps the workflow, emits lifecycle events, resolves the start
+     * event and first node, then traverses the node graph. Owns persistence
+     * cleanup and error handling.
+     *
+     * @return Generator<int, Event, mixed, void>
+     * @throws InspectorException
+     * @throws Throwable
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
+     */
+    public function run(WorkflowInterface $workflow): Generator
+    {
+        $workflow->bootstrap();
+
+        $workflowId = $workflow->getWorkflowId();
+        EventBus::emit('workflow-start', $workflow, new WorkflowStart($workflow->getEventNodeMap()), $workflowId);
+        $workflow->resolveState()->set('__workflowId', $workflowId);
+
+        try {
+            $startEvent = $workflow->getStartEvent();
+            yield from $this->traverseNodes($workflow, $startEvent, $workflow->getNodeForEvent($startEvent::class));
+
+            $this->persistence?->delete($workflowId);
+        } catch (WorkflowInterrupt $interrupt) {
+            $this->persistence?->save($workflowId, $interrupt);
+            EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
+            throw $interrupt;
+        } catch (Throwable $exception) {
+            EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
+            throw $exception;
+        } finally {
+            $this->workflowEnd($workflow);
+        }
+    }
+
+    /**
+     * Resume the workflow from a persisted interrupt.
+     *
+     * Loads the interrupt from persistence, restores state, and resumes
+     * execution from the interrupted point. Handles both linear and
+     * parallel interrupts.
+     *
+     * @return Generator<int, Event, mixed, void>
+     * @throws WorkflowException|InspectorException
+     */
+    public function resume(WorkflowInterface $workflow, InterruptRequest $request): Generator
+    {
+        $workflow->bootstrap();
+
+        $workflowId = $workflow->getWorkflowId();
+
+        $interrupt = $this->persistence->load($workflowId);
+        $workflow->setState($interrupt->getState());
+
+        EventBus::emit('workflow-resume', $workflow, new WorkflowStart($workflow->getEventNodeMap()), $workflowId);
+        $workflow->resolveState()->set('__workflowId', $workflowId);
+
+        try {
+            if ($interrupt->isParallelInterrupt()) {
+                $gen = $this->executeParallelBranches(
+                    $workflow,
+                    $interrupt->getParallelEvent(),
+                    $interrupt,
+                    $request,
+                );
+                yield from $gen;
+                $parallelEvent = $gen->getReturn();
+
+                yield from $this->traverseNodes(
+                    $workflow,
+                    $parallelEvent,
+                    $workflow->getNodeForEvent($parallelEvent::class)
+                );
+            } else {
+                yield from $this->traverseNodes(
+                    $workflow,
+                    $interrupt->getEvent(),
+                    $interrupt->getNode(),
+                    $request
+                );
+            }
+
+            $this->persistence?->delete($workflowId);
+        } catch (WorkflowInterrupt $newInterrupt) {
+            $this->persistence?->save($workflowId, $newInterrupt);
+            EventBus::emit('error', $workflow, new AgentError($newInterrupt, false), $workflowId);
+            throw $newInterrupt;
+        } catch (Throwable $exception) {
+            EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
+            throw $exception;
+        } finally {
+            $this->workflowEnd($workflow);
+        }
+    }
+
+    /**
+     * Traverse nodes sequentially from the given starting point.
      *
      * @return Generator<int, Event, mixed, void>
      * @throws InspectorException
      * @throws WorkflowException
      */
-    public function execute(
+    protected function traverseNodes(
         WorkflowInterface $workflow,
         Event $currentEvent,
         NodeInterface $currentNode,
@@ -290,43 +404,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
-    /**
-     * Resume the workflow from a persisted interrupt.
-     *
-     * Handles both linear and parallel interrupts: for parallel interrupts
-     * it resumes branches first, then continues linear execution to the join node.
-     *
-     * @return Generator<int, Event, mixed, void>
-     * @throws WorkflowException|InspectorException
-     */
-    public function resume(
-        WorkflowInterface $workflow,
-        WorkflowInterrupt $interrupt,
-        InterruptRequest $resumeRequest
-    ): Generator {
-        if ($interrupt->isParallelInterrupt()) {
-            $gen = $this->executeParallelBranches(
-                $workflow,
-                $interrupt->getParallelEvent(),
-                $interrupt,
-                $resumeRequest,
-            );
-            yield from $gen;
-            $parallelEvent = $gen->getReturn();
-
-            yield from $this->execute(
-                $workflow,
-                $parallelEvent,
-                $workflow->getNodeForEvent($parallelEvent::class)
-            );
-        } else {
-            yield from $this->execute(
-                $workflow,
-                $interrupt->getEvent(),
-                $interrupt->getNode(),
-                $resumeRequest
-            );
-        }
+    protected function workflowEnd(WorkflowInterface $workflow): void
+    {
+        EventBus::emit('workflow-end', $workflow, new WorkflowEnd($workflow->resolveState()), $workflow->getWorkflowId());
+        EventBus::clear($workflow->getWorkflowId());
     }
-
 }

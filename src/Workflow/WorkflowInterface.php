@@ -22,6 +22,10 @@ interface WorkflowInterface
 
     public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): WorkflowInterface;
 
+    public function bootstrap(): static;
+
+    public function getStartEvent(): Event;
+
     public function setStartEvent(Event $event): WorkflowInterface;
 
     public function setState(WorkflowState $state): WorkflowInterface;
