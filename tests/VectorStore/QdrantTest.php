@@ -97,7 +97,7 @@ class QdrantTest extends TestCase
         $document2->embedding = [3, 4, 5];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBySource(self::SOURCE_TYPE, self::SOURCE_NAME);
+        $this->store->deleteBy(self::SOURCE_TYPE, self::SOURCE_NAME);
 
         $results = $this->store->similaritySearch([1, 2, 3]);
         $this->assertCount(0, $results);

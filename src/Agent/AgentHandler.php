@@ -7,8 +7,6 @@ namespace NeuronAI\Agent;
 use Generator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
-use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use Throwable;
 use RuntimeException;
 
@@ -23,6 +21,8 @@ class AgentHandler
 
     /**
      * Stream workflow events, optionally through a protocol adapter.
+     *
+     * @phpstan-impure
      */
     public function events(?StreamAdapterInterface $adapter = null): Generator
     {
@@ -66,14 +66,14 @@ class AgentHandler
      */
     public function run(): AgentState
     {
-        if (isset($this->result)) {
+        if ($this->result instanceof \NeuronAI\Agent\AgentState) {
             return $this->result;
         }
 
         foreach ($this->events() as $event) {
         }
 
-        if (!isset($this->result)) {
+        if (!$this->result instanceof \NeuronAI\Agent\AgentState) {
             throw new RuntimeException('Agent execution produced no result');
         }
 

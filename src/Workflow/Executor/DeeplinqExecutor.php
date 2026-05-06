@@ -39,7 +39,8 @@ class DeeplinqExecutor
     public function __construct(
         protected WorkflowInterface $workflow,
         protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
-    ) {}
+    ) {
+    }
 
     /**
      * Return a Deeplinq-compatible task handler callable.
@@ -109,7 +110,7 @@ class DeeplinqExecutor
     ): Event {
         $state ??= $workflow->resolveState();
         $middleware = $workflow->getMiddlewareForNode($node);
-        $workflowId = $workflow->getWorkflowId();
+        $workflow->getWorkflowId();
 
         $stepId = $branchId !== null
             ? $branchId . '.' . $node::class

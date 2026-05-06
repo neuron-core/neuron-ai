@@ -33,6 +33,8 @@ class FakeAIProvider implements AIProviderInterface
     use StaticConstructor;
     use HandleWithTools;
 
+    protected string $model = 'fake';
+
     protected ?string $systemPrompt = null;
 
     /** @var Message[] */
@@ -49,6 +51,11 @@ class FakeAIProvider implements AIProviderInterface
     public function __construct(Message ...$responses)
     {
         $this->responseQueue = $responses;
+    }
+
+    public function getModel(): string
+    {
+        return $this->model;
     }
 
     public function systemPrompt(?string $prompt): AIProviderInterface

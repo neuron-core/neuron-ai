@@ -15,6 +15,11 @@ use NeuronAI\Tools\ToolInterface;
 interface AIProviderInterface
 {
     /**
+     * Get the model identifier used by this provider.
+     */
+    public function getModel(): string;
+
+    /**
      * Send predefined instruction to the LLM.
      */
     public function systemPrompt(?string $prompt): AIProviderInterface;

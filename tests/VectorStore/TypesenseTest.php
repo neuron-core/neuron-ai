@@ -92,7 +92,7 @@ class TypesenseTest extends TestCase
     {
         $store = new TypesenseVectorStore($this->client, 'test', $this->vectorDimension);
 
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);

@@ -20,7 +20,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchProcessing;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -35,7 +34,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -60,7 +59,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -82,7 +81,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new ThreeBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -103,7 +102,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new ImageFirstForkNode(),
                 new InterruptableTextProcessNode(),
@@ -126,7 +125,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -156,7 +155,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -185,7 +184,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new ThreeBranchImageFirstForkNode(),
                 new InterruptableTextProcessNode(),
@@ -218,7 +217,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-resume-token')
+        $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableStep1TextProcessNode(),
@@ -258,7 +257,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-linear-token')
+        $workflow = Workflow::make(resumeToken: 'test-linear-token')
             ->addNodes([new LinearInterruptNode()]);
 
         $interrupt = null;
@@ -280,7 +279,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = new AsyncExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-async-token')
+        $workflow = Workflow::make(resumeToken: 'test-async-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -305,7 +304,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = new AsyncExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-async-token')
+        $workflow = Workflow::make(resumeToken: 'test-async-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -335,7 +334,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-serialize-token')
+        $workflow = Workflow::make(resumeToken: 'test-serialize-token')
             ->addNodes([
                 new ImageFirstForkNode(),
                 new InterruptableTextProcessNode(),

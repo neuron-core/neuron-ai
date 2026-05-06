@@ -36,7 +36,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     public function __construct(
         protected ?PersistenceInterface $persistence = new InMemoryPersistence(),
         protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
-    ) {}
+    ) {
+    }
 
     /**
      * @return Generator<int, Event, mixed, WorkflowState>
@@ -141,8 +142,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $middleware = $workflow->getMiddlewareForNode($node);
 
             $nodeGen = $this->nodeRunner->run(
-                $node, $event, $workflow->resolveState(),
-                $middleware, null, $resumeRequest,
+                $node,
+                $event,
+                $workflow->resolveState(),
+                $middleware,
+                null,
+                $resumeRequest,
             );
             yield from $nodeGen;
             $event = $nodeGen->getReturn();
@@ -243,8 +248,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $middleware = $workflow->getMiddlewareForNode($node);
 
                 $nodeGen = $this->nodeRunner->run(
-                    $node, $event, $branchState,
-                    $middleware, $branchId, $resumeRequest,
+                    $node,
+                    $event,
+                    $branchState,
+                    $middleware,
+                    $branchId,
+                    $resumeRequest,
                 );
                 foreach ($nodeGen as $streamedEvent) {
                     $streamedEvents[] = $streamedEvent;

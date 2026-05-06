@@ -180,10 +180,7 @@ class Tool implements ToolInterface
         return $this->result;
     }
 
-    /**
-     * todo: Add to the underlying ToolInterface in v4
-     */
-    public function setResult(mixed $result): self
+    public function setResult(mixed $result): ToolInterface
     {
         $this->result = is_array($result) ? json_encode($result) : (string) $result;
 
@@ -196,15 +193,6 @@ class Tool implements ToolInterface
     }
 
     public function setMaxRuns(int $tries): self
-    {
-        $this->maxRuns = $tries;
-        return $this;
-    }
-
-    /**
-     * @deprecated Use setMaxRuns instead.
-     */
-    public function setMaxTries(int $tries): self
     {
         $this->maxRuns = $tries;
         return $this;

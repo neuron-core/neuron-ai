@@ -85,15 +85,6 @@ class PineconeVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @deprecated Use deleteBy() instead.
-     * @throws HttpException
-     */
-    public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
-    {
-        return $this->deleteBy($sourceType, $sourceName);
-    }
-
-    /**
      * @throws HttpException
      */
     public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface

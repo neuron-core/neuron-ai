@@ -9,10 +9,8 @@ use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -70,7 +68,7 @@ class AsyncWorkflowTest extends TestCase
 
         $executor = new WorkflowExecutor();
 
-        $result = async(fn () => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
         $this->assertEquals('executed', $result->get('first'));
@@ -88,9 +86,9 @@ class AsyncWorkflowTest extends TestCase
         $startTime = microtime(true);
 
         [$result1, $result2, $result3] = Future\await([
-            async(fn () => $this->execute($workflow1, $executor)),
-            async(fn () => $this->execute($workflow2, $executor)),
-            async(fn () => $this->execute($workflow3, $executor)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow1, $executor)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow2, $executor)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow3, $executor)),
         ]);
 
         $duration = microtime(true) - $startTime;
@@ -113,7 +111,7 @@ class AsyncWorkflowTest extends TestCase
                 new SecondNode(),
             ]);
 
-        $result = async(fn () => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
 
         $this->assertEquals('value', $result->get('initial'));
         $this->assertEquals('executed', $result->get('first'));

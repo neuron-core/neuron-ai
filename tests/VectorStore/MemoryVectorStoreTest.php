@@ -83,7 +83,7 @@ class MemoryVectorStoreTest extends TestCase
         $store = new MemoryVectorStore();
         $store->addDocuments([$document]);
 
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         $results = $store->similaritySearch([1, 0]);
         $this->assertCount(0, $results);

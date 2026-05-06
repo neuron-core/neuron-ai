@@ -64,6 +64,8 @@ interface ToolInterface extends JsonSerializable
 
     public function getResult(): string;
 
+    public function setResult(mixed $result): ToolInterface;
+
     /**
      * Define the maximum number of calls for the tool in a single agent session.
      */

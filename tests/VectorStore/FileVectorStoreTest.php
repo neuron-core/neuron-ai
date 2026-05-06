@@ -58,7 +58,7 @@ class FileVectorStoreTest extends TestCase
         $store = new FileVectorStore(__DIR__);
 
         $store->addDocuments([$document, $document2]);
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         $results = $store->similaritySearch([1, 2, 3]);
         $this->assertCount(0, $results);

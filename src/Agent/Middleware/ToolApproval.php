@@ -6,7 +6,6 @@ namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
@@ -31,17 +30,17 @@ use const JSON_PRETTY_PRINT;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param array<int|string, string|callable(array): bool> $tools Tools that require approval.
+     * @param array<int|string, string|callable(ToolInterface): bool> $tools Tools that require approval.
      *   - Empty array: all tools require approval (default)
      *   - Numeric key + string value: tool name or class-string always requires approval
      *   - String key + callable value: tool name or class-string with conditional callback.
-     *     The callback receives the tool's input arguments (array) and returns bool
+     *     The callback receives the tool instance and returns bool
      *     (true = requires approval, false = skip).
      *
      * Example:
      *   new ToolApproval([
      *       'delete_file',
-     *       'transfer_money' => fn(array $args) => $args['amount'] > 100,
+     *       'transfer_money' => fn(ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100,
      *   ])
      */
     public function __construct(
@@ -145,7 +144,7 @@ class ToolApproval implements WorkflowMiddleware
 
             // String key + callable value: conditional approval
             if (is_string($key) && is_callable($value) && ($key === $toolName || $key === $toolClass)) {
-                return $value($tool->getInputs());
+                return $value($tool);
             }
         }
 
@@ -174,7 +173,7 @@ class ToolApproval implements WorkflowMiddleware
      * Process human decisions and modify tools accordingly.
      *
      * This method modifies the tools in-place based on human decisions:
-     *  - Rejected: Tool callback is replaced to return rejection message
+     *  - Rejected: Tool result is set to a rejection message
      *  - Edited: Tool inputs are modified
      *  - Approved: No changes, tool executes normally
      */
@@ -206,13 +205,10 @@ class ToolApproval implements WorkflowMiddleware
     }
 
     /**
-     * Handle a rejected tool by replacing its callback with a rejection message.
+     * Handle a rejected tool by setting a rejection message as its result.
      *
      * This prevents the tool from executing its actual logic and instead
      * returns a human-readable rejection message that the AI can process.
-     *
-     * Uses ToolRejectionHandler instead of a closure to ensure serializability
-     * when workflows are interrupted multiple times.
      */
     protected function handleRejectedTool(ToolInterface $tool, Action $action): void
     {
@@ -222,7 +218,6 @@ class ToolApproval implements WorkflowMiddleware
             $feedback
         );
 
-        // Replace the tool's callback with a serializable rejection handler
-        $tool->setCallable(new ToolRejectionHandler($rejectionMessage));
+        $tool->setResult($rejectionMessage);
     }
 }

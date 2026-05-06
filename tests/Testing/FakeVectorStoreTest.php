@@ -47,7 +47,7 @@ class FakeVectorStoreTest extends TestCase
         $doc2->sourceName = 'delete.txt';
 
         $store->addDocuments([$doc1, $doc2]);
-        $store->deleteBySource('file', 'delete.txt');
+        $store->deleteBy('file', 'delete.txt');
 
         $this->assertCount(1, $store->getDocuments());
         $this->assertSame('Keep', $store->getDocuments()[0]->content);
@@ -112,7 +112,7 @@ class FakeVectorStoreTest extends TestCase
 
         $store->addDocument(new Document('A'));
         $store->addDocuments([new Document('B')]);
-        $store->deleteBySource('file', 'test.txt');
+        $store->deleteBy('file', 'test.txt');
         $store->similaritySearch([0.1]);
 
         $recorded = $store->getRecorded();

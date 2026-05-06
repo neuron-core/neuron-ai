@@ -53,8 +53,6 @@ interface WorkflowInterface
 
     public function getWorkflowId(): string;
 
-    public function getResumeToken(): string;
-
     public function observe(ObserverInterface $observer): WorkflowInterface;
 
     public function export(): string;

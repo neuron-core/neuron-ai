@@ -79,15 +79,6 @@ trait HandleTools
     }
 
     /**
-     * @deprecated Use toolMaxRuns instead.
-     */
-    public function toolMaxTries(int $tries): Agent
-    {
-        $this->toolMaxRuns = $tries;
-        return $this;
-    }
-
-    /**
      * Override to provide tools to the agent.
      *
      * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>

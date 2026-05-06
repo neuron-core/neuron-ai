@@ -21,7 +21,7 @@ return RectorConfig::configure()
         AddReturnTypeDeclarationRector::class,
     ])
     ->withSkip([
-        \Rector\DeadCode\Rector\For_\RemoveDeadIfForeachForRector::class => [
-            __DIR__ . '/src/Workflow/WorkflowHandler.php',
+        Rector\DeadCode\Rector\For_\RemoveDeadLoopRector::class => [
+            __DIR__ . '/tests/Workflow/Executor/ExecutorTestHelpers.php',
         ],
     ]);

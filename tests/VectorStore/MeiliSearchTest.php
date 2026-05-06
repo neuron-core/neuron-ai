@@ -59,7 +59,7 @@ class MeiliSearchTest extends TestCase
     public function test_meilisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
         sleep(5);

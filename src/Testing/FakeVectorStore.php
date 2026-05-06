@@ -56,14 +56,6 @@ class FakeVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    /**
-     * @deprecated Use deleteBy() instead.
-     */
-    public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
-    {
-        return $this->deleteBy($sourceType, $sourceName);
-    }
-
     public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
         $this->documents = array_values(array_filter(

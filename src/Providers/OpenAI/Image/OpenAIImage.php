@@ -57,6 +57,11 @@ class OpenAIImage implements AIProviderInterface
             ]);
     }
 
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
     public function systemPrompt(?string $prompt): AIProviderInterface
     {
         $this->system = $prompt;

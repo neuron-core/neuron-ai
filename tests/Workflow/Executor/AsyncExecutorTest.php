@@ -29,8 +29,8 @@ class AsyncExecutorTest extends TestCase
     private function createAsyncExecutor(): AsyncExecutor
     {
         return new AsyncExecutor(
-            new DefaultNodeRunner(),
             new InMemoryPersistence(),
+            new DefaultNodeRunner(),
         );
     }
 
@@ -44,7 +44,7 @@ class AsyncExecutorTest extends TestCase
             ]);
 
         $executor = $this->createAsyncExecutor();
-        $result = async(fn () => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
 
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));

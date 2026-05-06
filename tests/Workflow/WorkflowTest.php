@@ -157,7 +157,7 @@ class WorkflowTest extends TestCase
         $executor = $this->createExecutor($persistence);
         $workflowId = 'test-workflow';
 
-        $workflow = Workflow::make(workflowId: $workflowId)
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -173,7 +173,7 @@ class WorkflowTest extends TestCase
         $executor = $this->createExecutor($persistence);
         $workflowId = 'test-workflow';
 
-        $workflow = Workflow::make(workflowId: $workflowId)
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),

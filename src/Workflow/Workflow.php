@@ -11,13 +11,11 @@ use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionIntersectionType;
@@ -34,7 +32,7 @@ use function reset;
 use function uniqid;
 
 /**
- * @method static static make(?WorkflowExecutorInterface $executor = null, ?WorkflowState $state = null, ?string $workflowId = null)
+ * @method static static make(?string $resumeToken = null, ?WorkflowState $state = null)
  */
 class Workflow implements WorkflowInterface
 {
@@ -109,9 +107,6 @@ class Workflow implements WorkflowInterface
     public function run(?InterruptRequest $interrupt = null): WorkflowState
     {
         $generator = $this->events($interrupt);
-
-        foreach ($generator as $event) {
-        }
 
         return $generator->getReturn();
     }
@@ -278,14 +273,6 @@ class Workflow implements WorkflowInterface
      * Get the workflow ID.
      */
     public function getWorkflowId(): string
-    {
-        return $this->workflowId;
-    }
-
-    /**
-     * @deprecated Use getWorkflowId() instead.
-     */
-    public function getResumeToken(): string
     {
         return $this->workflowId;
     }

@@ -14,15 +14,15 @@ use NeuronAI\Workflow\WorkflowState;
 
 trait ExecutorTestHelpers
 {
-    private function createExecutor(?InMemoryPersistence $persistence = null): WorkflowExecutorInterface
+    protected function createExecutor(?InMemoryPersistence $persistence = null): WorkflowExecutorInterface
     {
         return new WorkflowExecutor(
-            new DefaultNodeRunner(),
             $persistence ?? new InMemoryPersistence(),
+            new DefaultNodeRunner(),
         );
     }
 
-    private function execute(WorkflowInterface $workflow, ?WorkflowExecutorInterface $executor = null, ?InterruptRequest $interrupt = null): WorkflowState
+    protected function execute(WorkflowInterface $workflow, ?WorkflowExecutorInterface $executor = null, ?InterruptRequest $interrupt = null): WorkflowState
     {
         $executor ??= $this->createExecutor();
         $gen = $executor->execute($workflow, $interrupt);
@@ -34,7 +34,7 @@ trait ExecutorTestHelpers
     /**
      * @return array{0: WorkflowState, 1: object[]}
      */
-    private function executeAndCollect(WorkflowInterface $workflow, ?WorkflowExecutorInterface $executor = null, ?InterruptRequest $interrupt = null): array
+    protected function executeAndCollect(WorkflowInterface $workflow, ?WorkflowExecutorInterface $executor = null, ?InterruptRequest $interrupt = null): array
     {
         $executor ??= $this->createExecutor();
         $events = [];

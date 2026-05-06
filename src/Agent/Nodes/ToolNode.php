@@ -14,10 +14,8 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
@@ -118,13 +116,7 @@ class ToolNode extends Node
         $errorMessage = ($this->errorHandler)($e, $tool);
 
         if ($errorMessage !== null) {
-            if ($tool instanceof Tool) {
-                $tool->setResult($errorMessage);
-            } else {
-                // todo: Remove the else branch in v4
-                $tool->setCallable(new ToolRejectionHandler($errorMessage));
-                $tool->execute();
-            }
+            $tool->setResult($errorMessage);
         }
     }
 }

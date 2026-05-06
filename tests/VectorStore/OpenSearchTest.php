@@ -62,7 +62,7 @@ class OpenSearchTest extends TestCase
     public function test_elasticsearch_delete_documents(): void
     {
         $store = new OpenSearchVectorStore($this->client, 'test');
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);

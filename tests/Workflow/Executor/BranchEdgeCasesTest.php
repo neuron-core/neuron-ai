@@ -33,8 +33,8 @@ class BranchEdgeCasesTest extends TestCase
     private function createAsyncExecutor(): AsyncExecutor
     {
         return new AsyncExecutor(
-            new DefaultNodeRunner(),
             new InMemoryPersistence(),
+            new DefaultNodeRunner(),
         );
     }
 

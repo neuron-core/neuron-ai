@@ -11,6 +11,7 @@ use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use PHPUnit\Framework\TestCase;
@@ -97,7 +98,7 @@ class ToolApprovalTest extends TestCase
     public function test_callable_returning_true_requires_approval(): void
     {
         $middleware = new ToolApproval([
-            'transfer_money' => fn (array $args): bool => ($args['amount'] ?? 0) > 100,
+            'transfer_money' => fn (ToolInterface $tool): bool => ($tool->getInputs()['amount'] ?? 0) > 100,
         ]);
         $node = new ToolNode();
         $state = new AgentState();
@@ -111,7 +112,7 @@ class ToolApprovalTest extends TestCase
     public function test_callable_returning_false_skips_approval(): void
     {
         $middleware = new ToolApproval([
-            'transfer_money' => fn (array $args): bool => ($args['amount'] ?? 0) > 100,
+            'transfer_money' => fn (ToolInterface $tool): bool => ($tool->getInputs()['amount'] ?? 0) > 100,
         ]);
         $node = new ToolNode();
         $state = new AgentState();
@@ -126,7 +127,7 @@ class ToolApprovalTest extends TestCase
     {
         $middleware = new ToolApproval([
             'delete_file',
-            'transfer_money' => fn (array $args): bool => ($args['amount'] ?? 0) > 100,
+            'transfer_money' => fn (ToolInterface $tool): bool => ($tool->getInputs()['amount'] ?? 0) > 100,
         ]);
         $node = new ToolNode();
         $state = new AgentState();
@@ -141,7 +142,7 @@ class ToolApprovalTest extends TestCase
     {
         $middleware = new ToolApproval([
             'delete_file',
-            'transfer_money' => fn (array $args): bool => ($args['amount'] ?? 0) > 100,
+            'transfer_money' => fn (ToolInterface $tool): bool => ($tool->getInputs()['amount'] ?? 0) > 100,
         ]);
         $node = new ToolNode();
         $state = new AgentState();
@@ -156,7 +157,7 @@ class ToolApprovalTest extends TestCase
     {
         $middleware = new ToolApproval([
             'delete_file',
-            'transfer_money' => fn (array $args): bool => ($args['amount'] ?? 0) > 100,
+            'transfer_money' => fn (ToolInterface $tool): bool => ($tool->getInputs()['amount'] ?? 0) > 100,
         ]);
         $node = new ToolNode();
         $state = new AgentState();
@@ -191,7 +192,7 @@ class ToolApprovalTest extends TestCase
     {
         $middleware = new ToolApproval([
             'dangerous_tool',
-            'conditional_tool' => fn (array $args): bool => ($args['risk'] ?? '') === 'high',
+            'conditional_tool' => fn (ToolInterface $tool): bool => ($tool->getInputs()['risk'] ?? '') === 'high',
         ]);
         $node = new ToolNode();
         $state = new AgentState();

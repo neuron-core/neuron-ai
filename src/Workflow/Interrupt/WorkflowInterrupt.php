@@ -92,14 +92,6 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
         return $this->state->get('__workflowId');
     }
 
-    /**
-     * @deprecated Use getWorkflowId() instead.
-     */
-    public function getResumeToken(): string
-    {
-        return $this->state->get('__workflowId');
-    }
-
     public function jsonSerialize(): array
     {
         return [

@@ -25,7 +25,7 @@ class CheckpointParallelTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-checkpoint-token')
+        $workflow = Workflow::make(resumeToken: 'test-checkpoint-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new CheckpointableTextProcessNode(),
@@ -57,7 +57,7 @@ class CheckpointParallelTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-checkpoint-resume')
+        $workflow = Workflow::make(resumeToken: 'test-checkpoint-resume')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new CheckpointableTextProcessNode(),
@@ -87,7 +87,7 @@ class CheckpointParallelTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-checkpoint-order')
+        $workflow = Workflow::make(resumeToken: 'test-checkpoint-order')
             ->addNodes([
                 new ImageFirstForkNode(),
                 new CheckpointableTextProcessNode(),
@@ -119,7 +119,7 @@ class CheckpointParallelTest extends TestCase
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make(workflowId: 'test-multi-checkpoint')
+        $workflow = Workflow::make(resumeToken: 'test-multi-checkpoint')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new MultiCheckpointTextProcessNode(),
