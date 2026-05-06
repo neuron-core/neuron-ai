@@ -83,7 +83,6 @@ trait HandleInferenceEvents
         if ($data->message instanceof Message) {
             $this->inferences[$branchId]->addContext('Message', $this->prepareMessageItem($data->message));
         }
-        $this->inferences[$branchId]->addContext('Response', $this->prepareMessageItem($data->response));
         unset($this->inferences[$branchId]);
     }
 }

@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
 trait HandleStream
@@ -84,12 +85,14 @@ trait HandleStream
 
         // Build the final message
         if ($this->streamState->hasToolCalls()) {
-            return $this->createToolCallMessage(
+            $message = $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
                 $this->streamState->getContentBlocks()
             )->setUsage($this->streamState->getUsage())
              ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
              ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
+
+            return new ProviderResponse(message: $message);
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
@@ -101,7 +104,7 @@ trait HandleStream
             $message->setStopReason($this->stopReason);
         }
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function handleMessageStart(array $message): void

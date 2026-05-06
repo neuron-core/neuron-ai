@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
 use function array_key_exists;
@@ -55,7 +56,7 @@ trait HandleStream
                     new TextContent($this->streamState->getToolPlan())
                 );
                 $message->setUsage($this->streamState->getUsage());
-                return $message;
+                return new ProviderResponse(message: $message);
             }
 
             if ($line['type'] === 'content-delta') {
@@ -80,6 +81,6 @@ trait HandleStream
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 }

@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
@@ -68,5 +69,16 @@ class AgentState extends WorkflowState
     public function resetSteps(): void
     {
         $this->delete('__steps');
+    }
+
+    public function setResponse(ProviderResponse $response): AgentState
+    {
+        $this->set('__provider_response', $response);
+        return $this;
+    }
+
+    public function getResponse(): ?ProviderResponse
+    {
+        return $this->get('__provider_response');
     }
 }

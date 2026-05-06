@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
@@ -41,17 +42,19 @@ class ChatNode extends Node
         $lastMessage = $chatHistory->getLastMessage();
 
         $this->emit('inference-start', new InferenceStart($lastMessage));
-        $response = $this->inference($event, $chatHistory->getMessages());
-        $this->emit('inference-stop', new InferenceStop($lastMessage, $response));
+        $providerResponse = $this->inference($event, $chatHistory->getMessages());
+        $state->setResponse($providerResponse);
+        $message = $providerResponse->message();
+        $this->emit('inference-stop', new InferenceStop($lastMessage, $providerResponse));
 
         // If the response is a tool call, route to the tool node.
         // It will be responsible to add the tool call message to the chat history.
-        if ($response instanceof ToolCallMessage) {
-            return new ToolCallEvent($response, $event);
+        if ($message instanceof ToolCallMessage) {
+            return new ToolCallEvent($message, $event);
         }
 
         // Add the final response to chat history (after tool loop)
-        $this->addToChatHistory($state, $response);
+        $this->addToChatHistory($state, $message);
 
         return new StopEvent();
     }
@@ -68,7 +71,7 @@ class ChatNode extends Node
      *
      * @param Message[] $messages
      */
-    protected function inference(AIInferenceEvent $event, array $messages): Message
+    protected function inference(AIInferenceEvent $event, array $messages): ProviderResponse
     {
         return $this->provider
             ->systemPrompt($event->instructions)

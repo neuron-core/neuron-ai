@@ -38,7 +38,7 @@ class OpenAIImageTest extends TestCase
             httpClient: new GuzzleHttpClient(handler: $stack),
         );
 
-        $message = $provider->chat(new UserMessage('A cat'));
+        $message = $provider->chat(new UserMessage('A cat'))->message();
 
         $this->assertInstanceOf(AssistantMessage::class, $message);
         $blocks = $message->getContentBlocks();
@@ -76,7 +76,7 @@ class OpenAIImageTest extends TestCase
             $chunks[] = $chunk;
         }
 
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
 
         // Only partial events yield chunks; the completed event does not.
         $this->assertCount(2, $chunks);
@@ -134,7 +134,7 @@ class OpenAIImageTest extends TestCase
             $chunks[] = $chunk;
         }
 
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
 
         $this->assertCount(0, $chunks);
         $image = $message->getContentBlocks()[0];

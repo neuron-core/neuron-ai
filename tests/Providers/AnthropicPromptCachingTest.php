@@ -44,7 +44,7 @@ class AnthropicPromptCachingTest extends TestCase
 
         $response = $provider->chat(new UserMessage('Test'));
 
-        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertInstanceOf(AssistantMessage::class, $response->message());
         $this->assertCount(1, $sentRequests);
 
         $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
@@ -74,7 +74,7 @@ class AnthropicPromptCachingTest extends TestCase
 
         $response = $provider->chat(new UserMessage('Test'));
 
-        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertInstanceOf(AssistantMessage::class, $response->message());
         $this->assertCount(1, $sentRequests);
 
         $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
@@ -99,12 +99,12 @@ class AnthropicPromptCachingTest extends TestCase
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Test'));
-        $usage = $response->getUsage();
+        $usage = $response->message()->getUsage();
 
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
-        $this->assertSame('50', $response->getMetadata('cacheWriteTokens'));
-        $this->assertSame('30', $response->getMetadata('cacheReadTokens'));
+        $this->assertSame('50', $response->message()->getMetadata('cacheWriteTokens'));
+        $this->assertSame('30', $response->message()->getMetadata('cacheReadTokens'));
     }
 
     public function test_usage_handles_new_cache_creation_object_format(): void
@@ -124,12 +124,12 @@ class AnthropicPromptCachingTest extends TestCase
             ->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Test'));
-        $usage = $response->getUsage();
+        $usage = $response->message()->getUsage();
 
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
-        $this->assertSame('50', $response->getMetadata('cacheWriteTokens')); // 30 + 20
-        $this->assertSame('40', $response->getMetadata('cacheReadTokens'));
+        $this->assertSame('50', $response->message()->getMetadata('cacheWriteTokens')); // 30 + 20
+        $this->assertSame('40', $response->message()->getMetadata('cacheReadTokens'));
     }
 
     public function test_tools_not_cached_by_default(): void
@@ -250,7 +250,7 @@ class AnthropicPromptCachingTest extends TestCase
         $this->assertNotEmpty($chunks);
 
         // Get final message from generator
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
         $usage = $message->getUsage();
 
         $this->assertSame(100, $usage->inputTokens);

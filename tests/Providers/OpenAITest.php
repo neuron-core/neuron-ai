@@ -43,7 +43,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Hi'));
-        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertInstanceOf(AssistantMessage::class, $response->message());
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -66,8 +66,8 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
-        $this->assertSame('stop', $response->stopReason());
+        $this->assertSame('test response', $response->message()->getContent());
+        $this->assertSame('stop', $response->message()->stopReason());
     }
 
     public function test_chat_with_url_image(): void
@@ -106,7 +106,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -145,7 +145,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_chat_with_base64_document(): void
@@ -184,7 +184,7 @@ class OpenAITest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_tools_payload(): void
@@ -507,7 +507,7 @@ class OpenAITest extends TestCase
         }
 
         // Get the final message from generator return value
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
 
         // Assert we received TextChunk instances (empty strings filtered out)
         $this->assertGreaterThanOrEqual(3, count($chunks));

@@ -17,6 +17,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\ProviderResponse;
 use Throwable;
 
 use function json_decode;
@@ -130,12 +131,14 @@ trait HandleStream
                     $this->streamState->addOutputTokens($usage['output_tokens'] ?? 0);
 
                     if ($this->streamState->hasToolCalls()) {
-                        return $this->createToolCallMessage(
+                        $message = $this->createToolCallMessage(
                             $this->streamState->getToolCalls(),
                             $this->streamState->getContentBlocks(),
                         )->setUsage($this->streamState->getUsage());
+                        return new ProviderResponse(message: $message);
                     }
-                    return $this->createAssistantMessage($event['response'])->setUsage($this->streamState->getUsage());
+                    $message = $this->createAssistantMessage($event['response'])->setUsage($this->streamState->getUsage());
+                    return new ProviderResponse(message: $message);
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
@@ -147,7 +150,7 @@ trait HandleStream
         }
 
         // If we reach here without a response.completed event, return an assistant message
-        return new AssistantMessage($this->streamState->getContentBlocks());
+        return new ProviderResponse(message: new AssistantMessage($this->streamState->getContentBlocks()));
     }
 
     /**

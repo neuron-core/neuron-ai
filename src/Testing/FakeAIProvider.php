@@ -12,6 +12,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -67,7 +68,7 @@ class FakeAIProvider implements AIProviderInterface
     /**
      * @throws ProviderException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $response = $this->nextResponse();
 
@@ -78,11 +79,11 @@ class FakeAIProvider implements AIProviderInterface
             tools: $this->tools,
         );
 
-        return $response;
+        return new ProviderResponse(message: $response);
     }
 
     /**
-     * @return Generator<int, TextChunk, mixed, Message>
+     * @return Generator<int, TextChunk, mixed, ProviderResponse>
      * @throws ProviderException
      */
     public function stream(Message ...$messages): Generator
@@ -102,7 +103,7 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * @return Generator<int, TextChunk, mixed, Message>
+     * @return Generator<int, TextChunk, mixed, ProviderResponse>
      */
     protected function streamChunks(Message $response): Generator
     {
@@ -117,7 +118,7 @@ class FakeAIProvider implements AIProviderInterface
             $offset += $this->streamChunkSize;
         }
 
-        return $response;
+        return new ProviderResponse(message: $response);
     }
 
     /**
@@ -125,7 +126,7 @@ class FakeAIProvider implements AIProviderInterface
      * @param array<string, mixed> $response_schema
      * @throws ProviderException
      */
-    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
         $messages = is_array($messages) ? $messages : [$messages];
 
@@ -140,7 +141,7 @@ class FakeAIProvider implements AIProviderInterface
             structuredSchema: $response_schema,
         );
 
-        return $response;
+        return new ProviderResponse(message: $response);
     }
 
     public function messageMapper(): MessageMapperInterface

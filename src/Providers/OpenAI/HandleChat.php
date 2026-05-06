@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_unshift;
 use function is_array;
@@ -23,7 +24,7 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -45,7 +46,11 @@ trait HandleChat
             $this->createChatHttpRequest($body)
         );
 
-        return $this->processChatResult($response->json());
+        return new ProviderResponse(
+            message: $this->processChatResult($response->json()),
+            body: $response->body,
+            headers: $response->headers,
+        );
     }
 
     /**

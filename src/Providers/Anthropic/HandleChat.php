@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\ProviderResponse;
 
 use function count;
 
@@ -21,7 +22,7 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $json = [
             'model' => $this->model,
@@ -53,7 +54,11 @@ trait HandleChat
             )
         );
 
-        return $this->processChatResult($response->json());
+        return new ProviderResponse(
+            message: $this->processChatResult($response->json()),
+            body: $response->body,
+            headers: $response->headers,
+        );
     }
 
     /**

@@ -52,7 +52,7 @@ class GeminiTest extends TestCase
         $provider = (new Gemini('', 'gemini-2.0-flash'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Hi'));
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\AssistantMessage::class, $response);
+        $this->assertInstanceOf(\NeuronAI\Chat\Messages\AssistantMessage::class, $response->message());
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -70,8 +70,8 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
-        $this->assertSame('STOP', $response->stopReason());
+        $this->assertSame('test response', $response->message()->getContent());
+        $this->assertSame('STOP', $response->message()->stopReason());
     }
 
     public function test_chat_with_url_image(): void
@@ -113,7 +113,7 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_chat_with_base64_image(): void
@@ -155,7 +155,7 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_chat_with_url_document(): void
@@ -197,7 +197,7 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_chat_with_base64_document(): void
@@ -239,7 +239,7 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('test response', $response->getContent());
+        $this->assertSame('test response', $response->message()->getContent());
     }
 
     public function test_tools_payload(): void

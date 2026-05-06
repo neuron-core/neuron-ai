@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
 use function array_unshift;
@@ -105,7 +106,7 @@ trait HandleStream
                 $message->setUsage($this->streamState->getUsage());
                 $this->enrichMessage($message);
 
-                return $message;
+                return new ProviderResponse(message: $message);
             }
 
             // Process provider-specific delta content and yield custom chunks
@@ -117,7 +118,7 @@ trait HandleStream
         $message->setUsage($this->streamState->getUsage());
         $this->enrichMessage($message);
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function finishForToolCall(array $choice): bool

@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\Anthropic;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function json_encode;
 use function is_array;
@@ -23,7 +24,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format
-    ): Message {
+    ): ProviderResponse {
         $this->system .= PHP_EOL."# OUTPUT CONSTRAINTS".PHP_EOL.
             "Your response must be a JSON string following this schema: ".PHP_EOL.
             json_encode($response_format);

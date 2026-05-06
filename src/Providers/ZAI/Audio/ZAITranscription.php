@@ -19,6 +19,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
@@ -69,7 +70,7 @@ class ZAITranscription implements AIProviderInterface
      * @throws HttpException
      * @throws ProviderException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
 
@@ -97,7 +98,7 @@ class ZAITranscription implements AIProviderInterface
                 $response['usage']['completion_tokens'] ?? 0
             )
         );
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     /**
@@ -148,7 +149,7 @@ class ZAITranscription implements AIProviderInterface
 
         $message = new AssistantMessage($content);
         $message->setUsage($usage);
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function addFile(array &$body, AudioContent $audio): void
@@ -162,7 +163,7 @@ class ZAITranscription implements AIProviderInterface
         }
     }
 
-    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
         throw new ProviderException('Structured output is not supported for transcription.');
     }

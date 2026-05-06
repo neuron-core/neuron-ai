@@ -10,6 +10,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_replace_recursive;
 use function end;
@@ -52,7 +53,7 @@ class Cohere extends OpenAI
         );
     }
 
-    public function structured(Message|array $messages, string $class, array $response_format): Message
+    public function structured(Message|array $messages, string $class, array $response_format): ProviderResponse
     {
         $this->parameters = array_replace_recursive($this->parameters, [
             'response_format' => [

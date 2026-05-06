@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\OpenAI\Responses;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function end;
 use function explode;
@@ -25,7 +26,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format,
-    ): Message {
+    ): ProviderResponse {
         $tk = explode('\\', $class);
         $className = end($tk);
 

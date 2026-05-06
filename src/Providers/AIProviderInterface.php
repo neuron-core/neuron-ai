@@ -44,16 +44,16 @@ interface AIProviderInterface
     /**
      * Send a prompt to the AI agent.
      */
-    public function chat(Message ...$messages): Message;
+    public function chat(Message ...$messages): ProviderResponse;
 
     /**
      * Stream response from the LLM.
      *
      * Yields intermediate chunks (TextChunk, ReasoningChunk, etc.) during streaming
-     * for real-time delivery to the user. The generator MUST return a complete
-     * Message object (AssistantMessage or ToolCallMessage) as its final value.
+     * for real-time delivery to the user. The generator MUST return a
+     * ProviderResponse as its final value.
      *
-     * @return Generator<int, TextChunk|ReasoningChunk|ToolCallChunk|array, mixed, Message>
+     * @return Generator<int, TextChunk|ReasoningChunk|ToolCallChunk|array, mixed, ProviderResponse>
      */
     public function stream(Message ...$messages): Generator;
 
@@ -61,7 +61,7 @@ interface AIProviderInterface
      * @param Message|Message[] $messages
      * @param array<string, mixed> $response_schema
      */
-    public function structured(array|Message $messages, string $class, array $response_schema): Message;
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse;
 
     /**
      * Set a custom HTTP client implementation.

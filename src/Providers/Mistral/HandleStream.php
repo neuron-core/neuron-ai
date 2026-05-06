@@ -20,6 +20,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\OpenAI\StreamState;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
 use function array_filter;
@@ -92,10 +93,11 @@ trait HandleStream
 
                 // Handle tool calls
                 if ($choice['finish_reason'] === 'tool_calls') {
-                    return $this->createToolCallMessage(
+                    $message = $this->createToolCallMessage(
                         $this->streamState->getToolCalls(),
                         $this->streamState->getContentBlocks()
                     )->setUsage($this->streamState->getUsage());
+                    return new ProviderResponse(message: $message);
                 }
 
                 continue;
@@ -149,7 +151,7 @@ trait HandleStream
             $message->setStopReason($lastFinishReason);
         }
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function isToolCallPart(array $line): bool

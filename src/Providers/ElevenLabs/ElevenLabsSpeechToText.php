@@ -15,6 +15,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
@@ -60,7 +61,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
     /**
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
 
@@ -76,7 +77,9 @@ class ElevenLabsSpeechToText implements AIProviderInterface
             )
         )->json();
 
-        return new AssistantMessage($response['text']);
+        return new ProviderResponse(
+            message: new AssistantMessage($response['text'])
+        );
     }
 
     /**
@@ -87,7 +90,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         throw new ProviderException('Streaming is not supported by OpenAI Text to Speech.');
     }
 
-    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
         throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
     }

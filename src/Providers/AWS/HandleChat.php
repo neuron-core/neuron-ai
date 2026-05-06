@@ -10,12 +10,14 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Providers\ProviderResponse;
 
 trait HandleChat
 {
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
-        return $this->chatAsync(...$messages)->wait();
+        $message = $this->chatAsync(...$messages)->wait();
+        return new ProviderResponse(message: $message);
     }
 
     public function chatAsync(Message ...$messages): PromiseInterface

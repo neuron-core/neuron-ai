@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\Ollama;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_merge;
 use function is_array;
@@ -21,7 +22,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format
-    ): Message {
+    ): ProviderResponse {
         $this->parameters = array_merge($this->parameters, [
             'format' => $response_format,
         ]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Providers\ProviderResponse;
 
 use function json_encode;
 use function is_array;
@@ -17,7 +18,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format
-    ): Message {
+    ): ProviderResponse {
         $this->system .= PHP_EOL."# OUTPUT CONSTRAINTS".PHP_EOL.
             "Your response should be a JSON string following this schema: ".PHP_EOL.
             json_encode($response_format);

@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function count;
 
@@ -94,6 +95,6 @@ trait HandleStream
 
         $message->setUsage($this->streamState->getUsage());
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 }

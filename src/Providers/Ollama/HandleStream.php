@@ -14,6 +14,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_unshift;
 use function json_decode;
@@ -62,10 +63,11 @@ trait HandleStream
 
             // Process tool calls
             if (isset($line['message']['tool_calls'])) {
-                return $this->createToolCallMessage(
+                $message = $this->createToolCallMessage(
                     $line['message']['tool_calls'],
                     $this->streamState->getContentBlocks()
                 )->setUsage($this->streamState->getUsage());
+                return new ProviderResponse(message: $message);
             }
 
             if ($thinking = $line['message']['thinking'] ?? null) {
@@ -91,7 +93,7 @@ trait HandleStream
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setUsage($this->streamState->getUsage());
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function parseNextJson(StreamInterface $stream): ?array

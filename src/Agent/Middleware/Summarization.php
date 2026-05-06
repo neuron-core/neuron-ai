@@ -183,7 +183,7 @@ class Summarization implements WorkflowMiddleware
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
                 ->chat(new UserMessage("{$prompt}\n\n{$conversation}"));
 
-            return $response->getContent();
+            return $response->message()->getContent();
         } catch (Exception) {
             // If summarization fails, return a basic fallback summary
             return sprintf(

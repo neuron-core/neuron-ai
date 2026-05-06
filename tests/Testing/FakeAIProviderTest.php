@@ -27,7 +27,7 @@ class FakeAIProviderTest extends TestCase
         $expected = new AssistantMessage('Hello!');
 
         $provider = new FakeAIProvider($expected);
-        $response = $provider->chat(new UserMessage('Hi'));
+        $response = $provider->chat(new UserMessage('Hi'))->message();
 
         $this->assertSame($expected, $response);
     }
@@ -39,8 +39,8 @@ class FakeAIProviderTest extends TestCase
 
         $provider = new FakeAIProvider($first, $second);
 
-        $this->assertSame($first, $provider->chat(new UserMessage('1')));
-        $this->assertSame($second, $provider->chat(new UserMessage('2')));
+        $this->assertSame($first, $provider->chat(new UserMessage('1'))->message());
+        $this->assertSame($second, $provider->chat(new UserMessage('2'))->message());
     }
 
     public function test_empty_queue_throws_exception(): void
@@ -59,7 +59,7 @@ class FakeAIProviderTest extends TestCase
         $message = new AssistantMessage('Added later');
 
         $provider->addResponses($message);
-        $response = $provider->chat(new UserMessage('Hi'));
+        $response = $provider->chat(new UserMessage('Hi'))->message();
 
         $this->assertSame($message, $response);
     }
@@ -119,7 +119,7 @@ class FakeAIProviderTest extends TestCase
         $this->assertSame(['Hello', ' worl', 'd'], $chunks);
 
         $finalMessage = $generator->getReturn();
-        $this->assertSame('Hello world', $finalMessage->getContent());
+        $this->assertSame('Hello world', $finalMessage->message()->getContent());
     }
 
     public function test_stream_records_request(): void
@@ -144,7 +144,7 @@ class FakeAIProviderTest extends TestCase
 
         $this->assertEmpty($chunks);
 
-        $finalMessage = $generator->getReturn();
+        $finalMessage = $generator->getReturn()->message();
         $this->assertInstanceOf(AssistantMessage::class, $finalMessage);
     }
 
@@ -307,7 +307,7 @@ class FakeAIProviderTest extends TestCase
         $provider = FakeAIProvider::make(new AssistantMessage('OK'));
 
         $response = $provider->chat(new UserMessage('Hi'));
-        $this->assertSame('OK', $response->getContent());
+        $this->assertSame('OK', $response->message()->getContent());
     }
 
     public function test_set_http_client_is_noop(): void
@@ -335,7 +335,7 @@ class FakeAIProviderTest extends TestCase
 
         $message = $provider->chat(new UserMessage('Hi'));
 
-        $this->assertSame(10, $message->getUsage()->inputTokens);
-        $this->assertSame(20, $message->getUsage()->outputTokens);
+        $this->assertSame(10, $message->message()->getUsage()->inputTokens);
+        $this->assertSame(20, $message->message()->getUsage()->outputTokens);
     }
 }

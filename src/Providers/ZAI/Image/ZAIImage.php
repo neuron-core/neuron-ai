@@ -19,6 +19,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
@@ -66,7 +67,7 @@ class ZAIImage implements AIProviderInterface
     /**
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
 
@@ -100,7 +101,7 @@ class ZAIImage implements AIProviderInterface
             );
         }
 
-        return $result;
+        return new ProviderResponse(message: $result);
     }
 
     public function stream(Message ...$messages): Generator
@@ -108,7 +109,7 @@ class ZAIImage implements AIProviderInterface
         throw new ProviderException('Streaming not supported for image generation. Use chat() instead.');
     }
 
-    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
         throw new ProviderException('Structured output not supported for image generation. Use chat() instead.');
     }

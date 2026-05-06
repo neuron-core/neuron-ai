@@ -80,7 +80,7 @@ class MyAgent extends Agent
 }
 
 // Usage
-$response = MyAgent::make()->chat(new UserMessage('Hello!'));
+$response = MyAgent::make()->chat(new UserMessage('Hello!'))->getMessage();
 ```
 
 ### Alternative Providers

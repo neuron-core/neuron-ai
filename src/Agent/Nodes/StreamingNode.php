@@ -52,9 +52,11 @@ class StreamingNode extends Node
             }
 
             // Get the final message from the generator return value
-            $message = $stream->getReturn();
+            $providerResponse = $stream->getReturn();
+            $state->setResponse($providerResponse);
+            $message = $providerResponse->message();
 
-            $this->emit('inference-stop', new InferenceStop($lastMessage, $message));
+            $this->emit('inference-stop', new InferenceStop($lastMessage, $providerResponse));
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {

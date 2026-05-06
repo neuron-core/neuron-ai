@@ -73,7 +73,7 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('System prompt');
 
-        $response = $provider->chat(new UserMessage('Hi'));
+        $response = $provider->chat(new UserMessage('Hi'))->message();
         $this->assertInstanceOf(AssistantMessage::class, $response);
 
         $this->assertSame('Hello world', $response->getContent());
@@ -141,7 +141,7 @@ class BedrockRuntimeTest extends TestCase
 
         $provider->systemPrompt('Sys');
 
-        $response = $provider->chat(new UserMessage('Use tool'));
+        $response = $provider->chat(new UserMessage('Use tool'))->message();
         $this->assertInstanceOf(ToolCallMessage::class, $response);
 
         // Response should be a ToolCallMessage (subclass) with tools

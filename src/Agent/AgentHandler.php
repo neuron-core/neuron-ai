@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use Generator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
+use NeuronAI\Providers\ProviderResponse;
 use Throwable;
 use RuntimeException;
 
@@ -66,14 +67,14 @@ class AgentHandler
      */
     public function run(): AgentState
     {
-        if ($this->result instanceof \NeuronAI\Agent\AgentState) {
+        if ($this->result instanceof AgentState) {
             return $this->result;
         }
 
         foreach ($this->events() as $event) {
         }
 
-        if (!$this->result instanceof \NeuronAI\Agent\AgentState) {
+        if (!$this->result instanceof AgentState) {
             throw new RuntimeException('Agent execution produced no result');
         }
 
@@ -88,5 +89,15 @@ class AgentHandler
     public function getMessage(): Message
     {
         return $this->run()->getMessage();
+    }
+
+    /**
+     * Convenience: run to completion and extract the ProviderResponse.
+     *
+     * @throws Throwable
+     */
+    public function getResponse(): ProviderResponse
+    {
+        return $this->run()->getResponse();
     }
 }

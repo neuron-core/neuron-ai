@@ -13,6 +13,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_merge;
 use function json_encode;
@@ -39,7 +40,7 @@ class Deepseek extends OpenAI
         string $class,
         array $response_format,
         bool $strict = false,
-    ): Message {
+    ): ProviderResponse {
         $this->parameters = array_merge($this->parameters, [
             'response_format' => [
                 'type' => 'json_object',

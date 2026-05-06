@@ -96,7 +96,6 @@ class LogObserver implements ObserverInterface
             ],
             InferenceStop::class => [
                 'message' => $data->message->jsonSerialize(),
-                'response' => $data->response->jsonSerialize(),
             ],
             InstructionsChanging::class => [
                 'instructions' => $data->instructions,

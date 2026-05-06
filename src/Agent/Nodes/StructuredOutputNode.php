@@ -92,26 +92,29 @@ class StructuredOutputNode extends Node
 
                 $this->emit('inference-start', new InferenceStart($last));
 
-                $response = $this->provider
+                $providerResponse = $this->provider
                     ->systemPrompt($event->instructions)
                     ->setTools($event->tools)
                     ->structured($messages, $this->outputClass, $schema);
 
-                $this->emit('inference-stop', new InferenceStop($last, $response));
+                $message = $providerResponse->message();
+
+                $this->emit('inference-stop', new InferenceStop($last, $providerResponse));
 
                 // If the response is a tool call, route to tool execution
-                if ($response instanceof ToolCallMessage) {
-                    return new ToolCallEvent($response, $event);
+                if ($message instanceof ToolCallMessage) {
+                    return new ToolCallEvent($message, $event);
                 }
 
                 // Add the final message to the chat history (after tool loop)
-                $this->addToChatHistory($state, $response);
+                $this->addToChatHistory($state, $message);
 
                 // Process the response: extract, deserialize, and validate
-                $output = $this->processResponse($response, $schema, $this->outputClass);
+                $output = $this->processResponse($message, $schema, $this->outputClass);
 
                 // Store the structured output in state
                 $state->set('structured_output', $output);
+                $state->setResponse($providerResponse);
 
                 return new StopEvent();
 

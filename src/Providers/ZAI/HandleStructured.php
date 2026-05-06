@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\ZAI;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_replace_recursive;
 use function is_array;
@@ -24,7 +25,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format,
-    ): Message {
+    ): ProviderResponse {
         $this->parameters = array_replace_recursive($this->parameters, [
             'response_format' => ['type' => 'json_object'],
         ]);

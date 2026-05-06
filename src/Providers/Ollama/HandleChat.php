@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_unshift;
 
@@ -20,7 +21,7 @@ trait HandleChat
      * @throws ProviderException
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         // Include the system prompt
         if (isset($this->system)) {
@@ -49,7 +50,11 @@ trait HandleChat
             throw new ProviderException("Ollama chat error: {$response->body}");
         }
 
-        return $this->processResponse($response->json());
+        return new ProviderResponse(
+            message: $this->processResponse($response->json()),
+            body: $response->body,
+            headers: $response->headers,
+        );
     }
 
     /**

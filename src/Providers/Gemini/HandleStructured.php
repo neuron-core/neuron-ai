@@ -8,6 +8,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_key_exists;
 use function end;
@@ -34,7 +35,7 @@ trait HandleStructured
         array|Message $messages,
         string $class,
         array $response_format
-    ): Message {
+    ): ProviderResponse {
         $messages = is_array($messages) ? $messages : [$messages];
 
         if (!array_key_exists('generationConfig', $this->parameters)) {

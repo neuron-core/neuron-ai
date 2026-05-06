@@ -47,7 +47,7 @@ class AnthropicTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Hi'));
-        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertInstanceOf(AssistantMessage::class, $response->message());
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -68,8 +68,8 @@ class AnthropicTest extends TestCase
         ];
 
         $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
-        $this->assertSame('How can I assist you today?', $response->getContent());
-        $this->assertSame('end_turn', $response->stopReason());
+        $this->assertSame('How can I assist you today?', $response->message()->getContent());
+        $this->assertSame('end_turn', $response->message()->stopReason());
     }
 
     public function test_chat_with_base64_image(): void
@@ -632,7 +632,7 @@ class AnthropicTest extends TestCase
         }
 
         // Get the final message from the generator return value
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
 
         // Assert we received TextChunk instances
         $this->assertCount(2, $chunks);
@@ -686,7 +686,7 @@ class AnthropicTest extends TestCase
         }
 
         // Get the final message from generator return value
-        $message = $generator->getReturn();
+        $message = $generator->getReturn()->message();
 
         // Assert we received both ReasoningChunk and TextChunk instances
         $this->assertCount(3, $chunks);

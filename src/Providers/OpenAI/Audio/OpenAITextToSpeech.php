@@ -19,6 +19,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
@@ -72,7 +73,7 @@ class OpenAITextToSpeech implements AIProviderInterface
      *
      * @throws HttpException
      */
-    public function chat(Message ...$messages): Message
+    public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
 
@@ -91,8 +92,10 @@ class OpenAITextToSpeech implements AIProviderInterface
             )
         );
 
-        return new AssistantMessage(
-            new AudioContent(base64_encode($response->body), SourceType::BASE64)
+        return new ProviderResponse(
+            message: new AssistantMessage(
+                new AudioContent(base64_encode($response->body), SourceType::BASE64)
+            )
         );
     }
     /**
@@ -148,10 +151,10 @@ class OpenAITextToSpeech implements AIProviderInterface
             new AudioContent($content, SourceType::BASE64)
         );
         $message->setUsage($usage);
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
-    public function structured(array|Message $messages, string $class, array $response_schema): Message
+    public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
         throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
     }

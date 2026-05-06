@@ -16,6 +16,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\ProviderResponse;
 
 use function array_key_exists;
 use function json_decode;
@@ -107,10 +108,11 @@ trait HandleStream
                 $this->streamState->hasToolCalls()
             ) {
                 toolcall:
-                return $this->createToolCallMessage(
+                $message = $this->createToolCallMessage(
                     $this->streamState->getContentBlocks(),
                     $this->streamState->getToolCalls()
                 )->setUsage($this->streamState->getUsage());
+                return new ProviderResponse(message: $message);
             }
 
             // Process content
@@ -148,7 +150,7 @@ trait HandleStream
             $message->setStopReason($lastFinishReason);
         }
 
-        return $message;
+        return new ProviderResponse(message: $message);
     }
 
     protected function handleTextData(array $part): Generator
