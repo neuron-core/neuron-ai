@@ -18,15 +18,14 @@ use ReflectionProperty;
 
 class CheckpointParallelTest extends TestCase
 {
-    /**
-     * Checkpoint closure executes on first run, saves its value,
-     * and is available in the interrupt state.
-     */
+    use ExecutorTestHelpers;
+
     public function testCheckpointValueSavedBeforeInterruptInBranch(): void
     {
         $persistence = new InMemoryPersistence();
+        $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make($persistence, 'test-checkpoint-token')
+        $workflow = Workflow::make(workflowId: 'test-checkpoint-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new CheckpointableTextProcessNode(),
@@ -36,70 +35,59 @@ class CheckpointParallelTest extends TestCase
 
         $interrupt = null;
         try {
-            $workflow->init()->run();
+            $this->execute($workflow, $executor);
         } catch (WorkflowInterrupt $e) {
             $interrupt = $e;
         }
 
         $this->assertNotNull($interrupt);
         $this->assertTrue($interrupt->isParallelInterrupt());
-        // The serialized node carries the checkpoint data
+
         $node = $interrupt->getNode();
         $this->assertInstanceOf(CheckpointableTextProcessNode::class, $node);
-        // Branch state is cloned — checkpoint_result lives on the branch, not the main state.
-        // Verify the node's checkpoints array was populated before the interrupt was thrown.
+
         $reflection = new ReflectionProperty($node, 'checkpoints');
         $checkpoints = $reflection->getValue($node);
         $this->assertArrayHasKey('expensive_computation', $checkpoints);
         $this->assertSame('computed_value', $checkpoints['expensive_computation']);
     }
 
-    /**
-     * On resume, the checkpoint closure is NOT re-executed — the cached value is returned.
-     */
     public function testCheckpointNotReExecutedOnParallelResume(): void
     {
         $persistence = new InMemoryPersistence();
-        $checkpointNode = new CheckpointableTextProcessNode();
+        $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make($persistence, 'test-checkpoint-resume')
+        $workflow = Workflow::make(workflowId: 'test-checkpoint-resume')
             ->addNodes([
                 new InterruptableBranchProcessing(),
-                $checkpointNode,
+                new CheckpointableTextProcessNode(),
                 new ImageProcessNode(),
                 new MergeNode(),
             ]);
 
         $interrupt = null;
         try {
-            $workflow->init()->run();
+            $this->execute($workflow, $executor);
         } catch (WorkflowInterrupt $e) {
             $interrupt = $e;
         }
 
         $this->assertNotNull($interrupt);
-        // Reset the flag — on resume, the deserialized node is used, not this instance.
-        // We verify via the final state instead.
 
-        $result = $workflow->init($interrupt->getRequest())->run();
+        $result = $this->execute($workflow, $executor, $interrupt->getRequest());
 
-        // Both branches completed — merge node ran
         $this->assertTrue($result->get('merge_node_executed'));
-        // The checkpoint value persisted through interrupt/resume
         $analysis = $result->get('analysis');
         $this->assertSame('CHECKPOINT_APPROVED', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    /**
-     * Checkpoint works when image branch completes first, then text branch
-     * (with checkpoint + interrupt) resumes.
-     */
     public function testCheckpointWithCompletedBranchResultsPreserved(): void
     {
         $persistence = new InMemoryPersistence();
+        $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make($persistence, 'test-checkpoint-order')
+        $workflow = Workflow::make(workflowId: 'test-checkpoint-order')
             ->addNodes([
                 new ImageFirstForkNode(),
                 new CheckpointableTextProcessNode(),
@@ -109,17 +97,16 @@ class CheckpointParallelTest extends TestCase
 
         $interrupt = null;
         try {
-            $workflow->init()->run();
+            $this->execute($workflow, $executor);
         } catch (WorkflowInterrupt $e) {
             $interrupt = $e;
-            // Image branch completed before text branch interrupted
             $this->assertArrayHasKey('image', $e->getCompletedBranchResults());
             $this->assertSame('processed_image.jpg', $e->getCompletedBranchResults()['image']);
         }
 
         $this->assertNotNull($interrupt);
 
-        $result = $workflow->init($interrupt->getRequest())->run();
+        $result = $this->execute($workflow, $executor, $interrupt->getRequest());
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');
@@ -127,14 +114,12 @@ class CheckpointParallelTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    /**
-     * A node with multiple checkpoints — each is saved and restored independently.
-     */
     public function testMultipleCheckpointsInParallelBranch(): void
     {
         $persistence = new InMemoryPersistence();
+        $executor = $this->createExecutor($persistence);
 
-        $workflow = Workflow::make($persistence, 'test-multi-checkpoint')
+        $workflow = Workflow::make(workflowId: 'test-multi-checkpoint')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new MultiCheckpointTextProcessNode(),
@@ -144,14 +129,14 @@ class CheckpointParallelTest extends TestCase
 
         $interrupt = null;
         try {
-            $workflow->init()->run();
+            $this->execute($workflow, $executor);
         } catch (WorkflowInterrupt $e) {
             $interrupt = $e;
         }
 
         $this->assertNotNull($interrupt);
 
-        $result = $workflow->init($interrupt->getRequest())->run();
+        $result = $this->execute($workflow, $executor, $interrupt->getRequest());
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');

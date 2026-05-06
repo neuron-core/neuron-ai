@@ -4,25 +4,24 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Generator;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 interface WorkflowInterface
 {
-    /**
-     * @deprecated Use init() instead
-     */
-    public function start(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface;
-
-    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface;
-
-    public function setPersistence(PersistenceInterface $persistence, ?string $resumeToken = null): WorkflowInterface;
-
     public function bootstrap(): static;
+
+    public function run(?InterruptRequest $interrupt = null): WorkflowState;
+
+    /**
+     * Execute the workflow, yielding events in real time.
+     *
+     * @return Generator<int, Event, mixed, WorkflowState>
+     */
+    public function events(?InterruptRequest $interrupt = null): Generator;
 
     public function getStartEvent(): Event;
 
@@ -56,9 +55,7 @@ interface WorkflowInterface
 
     public function getResumeToken(): string;
 
-    public function export(): string;
-
     public function observe(ObserverInterface $observer): WorkflowInterface;
 
-    public function setExecutor(WorkflowExecutorInterface $executor): WorkflowInterface;
+    public function export(): string;
 }

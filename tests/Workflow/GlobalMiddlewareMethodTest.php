@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Testing\FakeMiddleware;
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
@@ -16,11 +17,12 @@ use PHPUnit\Framework\TestCase;
 
 class GlobalMiddlewareMethodTest extends TestCase
 {
+    use ExecutorTestHelpers;
+
     public function testGlobalMiddlewareOverrideRunsOnAllNodes(): void
     {
         $middleware = FakeMiddleware::make();
 
-        // Test using a workflow class that overrides globalMiddleware()
         $workflow = new class ($middleware) extends Workflow {
             public function __construct(
                 private readonly FakeMiddleware $middleware,
@@ -39,9 +41,8 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
-        // 3 nodes = 3 before + 3 after
         $middleware->assertBeforeCalledTimes(3);
         $middleware->assertAfterCalledTimes(3);
         $middleware->assertCallCount(6);
@@ -51,7 +52,6 @@ class GlobalMiddlewareMethodTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        // Even without defining middleware(), globalMiddleware() should work
         $workflow = new class ($middleware) extends Workflow {
             public function __construct(
                 private readonly FakeMiddleware $middleware,
@@ -68,13 +68,10 @@ class GlobalMiddlewareMethodTest extends TestCase
             {
                 return [$this->middleware];
             }
-
-            // Note: middleware() not overridden (returns [])
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
-        // Should still run on all 3 nodes
         $middleware->assertBeforeCalledTimes(3);
         $middleware->assertAfterCalledTimes(3);
     }
@@ -110,13 +107,11 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
-        // Global middleware runs on all 3 nodes
         $global->assertBeforeCalledTimes(3);
         $global->assertAfterCalledTimes(3);
 
-        // Node-specific middleware runs only on NodeTwo
         $nodeSpecific->assertBeforeCalledTimes(1);
         $nodeSpecific->assertAfterCalledTimes(1);
     }
@@ -167,16 +162,11 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
-        // Order per node: global.before → node.before → [node] → global.after → node.after
-        // NodeOne has node-specific middleware, NodeTwo/Three only have global
         $this->assertSame([
-            // NodeOne
             'global.before', 'node.before', 'global.after', 'node.after',
-            // NodeTwo (only global)
             'global.before', 'global.after',
-            // NodeThree (only global)
             'global.before', 'global.after',
         ], $order);
     }
@@ -203,11 +193,10 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
         $beforeRecords = $middleware->getBeforeRecords();
 
-        // Each before() should receive the correct event for that node
         $this->assertCount(3, $beforeRecords);
         $this->assertInstanceOf(Event::class, $beforeRecords[0]->event);
         $this->assertInstanceOf(Event::class, $beforeRecords[1]->event);
@@ -243,7 +232,7 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $finalState = $workflow->init()->run();
+        $finalState = $this->execute($workflow);
 
         $this->assertTrue($finalState->get('injected_by_global'));
         $this->assertEquals(3, $finalState->get('execution_count'));
@@ -251,7 +240,6 @@ class GlobalMiddlewareMethodTest extends TestCase
 
     public function testEmptyGlobalMiddlewareOverrideDoesNotCauseErrors(): void
     {
-        // A workflow that explicitly returns empty array should work fine
         $workflow = new class () extends Workflow {
             protected function nodes(): array
             {
@@ -264,9 +252,8 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $finalState = $workflow->init()->run();
+        $finalState = $this->execute($workflow);
 
-        // Workflow should complete normally
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('node_two_executed'));
         $this->assertTrue($finalState->get('node_three_executed'));
@@ -311,17 +298,12 @@ class GlobalMiddlewareMethodTest extends TestCase
             }
         };
 
-        $workflow->init()->run();
+        $this->execute($workflow);
 
-        // Order per node: first.before → second.before → [node] → first.after → second.after
-        // 3 nodes, so pattern repeats 3 times
         $this->assertSame(
             [
-                // NodeOne
                 'first.before', 'second.before', 'first.after', 'second.after',
-                // NodeTwo
                 'first.before', 'second.before', 'first.after', 'second.after',
-                // NodeThree
                 'first.before', 'second.before', 'first.after', 'second.after',
             ],
             $order

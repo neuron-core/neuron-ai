@@ -101,8 +101,7 @@ $workflow = Workflow::make($state)
         new OutputNode(),
     ]);
 
-$handler = $workflow->start();
-$finalState = $handler->run();
+$finalState = $workflow->run();
 $result = $finalState->get('result');
 ```
 
@@ -227,8 +226,7 @@ $workflow = Workflow::make($persistence)
     ->addNodes([...]);
 
 try {
-    $handler = $workflow->start();
-    $result = $handler->run();
+    $result = $workflow->run();
 } catch (WorkflowInterrupt $interrupt) {
     // Present to user
     $request = $interrupt->getRequest();
@@ -236,7 +234,7 @@ try {
 
     // After user makes decisions:
     $resumeRequest = $this->getUserDecisions($request);
-    $result = $workflow->init($resumeRequest)->run();
+    $result = $workflow->run($resumeRequest);
 }
 ```
 
@@ -341,15 +339,15 @@ class ProcessingNode extends Node
 ### Consuming Streams
 
 ```php
-$handler = $workflow->start();
+$generator = $workflow->events();
 
-foreach ($handler->events() as $event) {
+foreach ($generator as $event) {
     if ($event instanceof ProgressEvent) {
         echo $event->message . PHP_EOL;
     }
 }
 
-$finalState = $handler->run();
+$finalState = $generator->getReturn();
 ```
 
 ## Checkpoint System
@@ -611,7 +609,9 @@ class MergeAnalysisNode extends Node
 ### Step 6 — Wire Up the Workflow
 
 ```php
-$workflow = Workflow::make()
+$workflow = Workflow::make(
+        state: new WorkflowState(['image_url' => 'https://example.com/photo.jpg'])
+    )
     ->addNodes([
         new AnalyzeImageForkNode(),
         new ExtractStructuredDataNode(),
@@ -619,8 +619,7 @@ $workflow = Workflow::make()
         new MergeAnalysisNode(),
     ]);
 
-$state = $workflow->init(new WorkflowState(['image_url' => 'https://example.com/photo.jpg']));
-$result = $state->run();
+$state = $workflow->run();
 ```
 
 ### Sequential vs Concurrent Execution
@@ -668,7 +667,7 @@ Parallel branches fully support human-in-the-loop. If any branch calls `$this->i
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
 try {
-    $result = $workflow->init()->run();
+    $result = $workflow->run();
 } catch (WorkflowInterrupt $interrupt) {
     if ($interrupt->isParallelInterrupt()) {
         // $interrupt->getBranchId() — which branch interrupted
@@ -678,8 +677,7 @@ try {
 }
 
 // After user responds:
-$handler = $workflow->init($interrupt->getRequest());
-$result = $handler->run();
+$result = $workflow->run($interrupt->getRequest());
 // Resuming skips already-completed branches, only re-runs the interrupted one.
 ```
 

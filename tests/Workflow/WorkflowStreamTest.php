@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
@@ -13,6 +14,8 @@ use PHPUnit\Framework\TestCase;
 
 class WorkflowStreamTest extends TestCase
 {
+    use ExecutorTestHelpers;
+
     public function testWorkflowStreaming(): void
     {
         $workflow = Workflow::make()->addNodes([
@@ -21,13 +24,12 @@ class WorkflowStreamTest extends TestCase
             new NodeThree(),
         ]);
 
-        $handler = $workflow->init();
+        [$finalState, $events] = $this->executeAndCollect($workflow);
 
-        foreach ($handler->events() as $event) {
+        foreach ($events as $event) {
             $this->assertInstanceOf(Event::class, $event);
         }
 
-        $finalState = $handler->run();
         $this->assertTrue($finalState->get('node_one_executed'));
     }
 }

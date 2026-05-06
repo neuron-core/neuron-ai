@@ -15,10 +15,10 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
+use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowHandlerInterface;
 use Throwable;
 
 use function is_array;
@@ -26,7 +26,6 @@ use function is_array;
 /**
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
- * @method AgentState run()
  */
 class Agent extends Workflow implements AgentInterface
 {
@@ -38,19 +37,16 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
-    public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
-    {
-        $this->resolveState()->resetToolRuns();
-        $this->resolveState()->resetSteps();
-
-        return parent::init($resumeRequest);
+    public function __construct(
+        ?WorkflowExecutorInterface $executor = null,
+        ?AgentState                $state = null,
+        ?string                    $resumeToken = null,
+    ) {
+        parent::__construct($executor, $state, $resumeToken);
     }
 
     /**
      * Determines whether tools should be executed in parallel.
-     * Override this method to return true to enable parallel tool execution.
-     *
-     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
     public function parallelToolCalls(bool $enabled): AgentInterface
     {
@@ -60,25 +56,21 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * Prepare the agent workflow with mode-specific nodes.
-     * Since Agent extends Workflow, we configure the current instance.
      *
      * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
      */
     protected function compose(array|Node $nodes): void
     {
         if ($this->eventNodeMap !== []) {
-            // it's already been bootstrapped
             return;
         }
 
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
-        // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
             : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
 
-        // Add nodes to the workflow instance
         $this->addNodes([
             ...$nodes,
             $toolNode,
@@ -90,7 +82,6 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function startEvent(): AgentStartEvent
     {
-        // The bootstrapTools method modifies the instructions, adding the toolkit guidelines, so we need to resolve them first
         $tools = $this->bootstrapTools();
         $instructions = $this->resolveInstructions();
 
@@ -108,17 +99,16 @@ class Agent extends Workflow implements AgentInterface
             ...(is_array($messages) ? $messages : [$messages])
         );
 
-        // Prepare the workflow for chat mode
         $this->compose(
             new ChatNode($this->resolveProvider()),
         );
 
-        return new AgentHandler($this, $interrupt);
+        return new AgentHandler(
+            $this->events($interrupt)
+        );
     }
 
     /**
-     * Stream agent response
-     *
      * @param Message|Message[] $messages
      */
     public function stream(
@@ -129,12 +119,13 @@ class Agent extends Workflow implements AgentInterface
             ...(is_array($messages) ? $messages : [$messages])
         );
 
-        // Prepare the workflow for streaming mode
         $this->compose(
             new StreamingNode($this->resolveProvider()),
         );
 
-        return new AgentHandler($this, $interrupt);
+        return new AgentHandler(
+            $this->events($interrupt)
+        );
     }
 
     /**
@@ -154,28 +145,23 @@ class Agent extends Workflow implements AgentInterface
 
         $class ??= $this->getOutputClass();
 
-        // Prepare workflow nodes for structured output mode
         $this->compose(
             new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
         );
 
-        $handler = parent::init($interrupt);
-
         /** @var AgentState $finalState */
-        $finalState = $handler->run();
+        $finalState = $this->run($interrupt);
 
-        // Return the structured output object
         return $finalState->get('structured_output');
     }
 
     /**
      * Get the class representing the structured output.
-     * Override this method in subclasses to provide a default output class.
      *
      * @throws AgentException
      */
     protected function getOutputClass(): string
     {
-        throw new AgentException('You need to specify a structured output class.');
+        throw new AgentException('You need to set a structured output class.');
     }
 }

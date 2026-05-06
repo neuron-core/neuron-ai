@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 
 use function Amp\async;
@@ -18,22 +16,18 @@ use function Amp\async;
 /**
  * Executor that runs parallel branches concurrently using Amp fibers.
  *
- * Drop-in replacement for WorkflowExecutor: regular nodes execute sequentially
- * as usual; branches from any node returning ParallelEvent execute as concurrent
- * Amp futures.
- *
- * Usage:
- *   Workflow::make()->setExecutor(new AsyncExecutor())
+ * Regular nodes execute sequentially as usual; branches from any node
+ * returning ParallelEvent execute as concurrent Amp futures.
  */
 class AsyncExecutor extends WorkflowExecutor
 {
     /**
-     * Override to run branches as concurrent Amp futures instead of sequentially.
+     * Override to run branches as concurrent Amp futures.
      *
-     * @return Generator<int, Event, mixed, Event>
+     * @return Generator<int, ParallelEvent, mixed, ParallelEvent>
      * @throws WorkflowInterrupt
      */
-    protected function executeParallelBranches(
+    protected function executeBranches(
         WorkflowInterface $workflow,
         ParallelEvent $parallelEvent,
         ?WorkflowInterrupt $interrupt = null,
@@ -45,8 +39,6 @@ class AsyncExecutor extends WorkflowExecutor
                 continue;
             }
 
-            // When $interrupt is non-null and its branch matches, $isResuming is true
-            // and $interrupt is guaranteed non-null for the rest of this iteration.
             $isResuming = ($branchId === $interrupt?->getBranchId());
             $futures[$branchId] = async(
                 fn (): BranchResult => $this->executeBranch(

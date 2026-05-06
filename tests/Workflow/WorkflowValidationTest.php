@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\CustomState;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
@@ -18,34 +19,33 @@ use PHPUnit\Framework\TestCase;
 
 class WorkflowValidationTest extends TestCase
 {
+    use ExecutorTestHelpers;
+
     public function testValidationFailsWithEmptyWorkflow(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
+        $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
 
         $workflow = Workflow::make();
-        $workflow->init()->run();
+        $this->execute($workflow);
     }
 
     public function testValidationFailsWithMissingStartNode(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No nodes found that handle '.StartEvent::class);
-
-        $node1 = new NodeTwo();
-        $node2 = new NodeThree();
+        $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
 
         $workflow = Workflow::make()
-            ->addNode($node1)
-            ->addNode($node2);
+            ->addNode(new NodeTwo())
+            ->addNode(new NodeThree());
 
-        $workflow->init()->run();
+        $this->execute($workflow);
     }
 
     public function testValidationWithMissingHandler(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No node found that handle event: '.FirstEvent::class);
+        $this->expectExceptionMessage('No node found that handle event: ' . FirstEvent::class);
 
         $invalidNode = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): FirstEvent
@@ -55,7 +55,7 @@ class WorkflowValidationTest extends TestCase
         };
 
         $workflow = Workflow::make()->addNode($invalidNode);
-        $workflow->init()->run();
+        $this->execute($workflow);
     }
 
     public function testValidationCustomState(): void
@@ -68,7 +68,7 @@ class WorkflowValidationTest extends TestCase
         };
 
         $workflow = Workflow::make(state: new CustomState())->addNode($node);
-        $state = $workflow->init()->run();
+        $state = $this->execute($workflow);
         $this->assertInstanceOf(CustomState::class, $state);
         $this->assertEquals('custom property', $state->custom);
     }

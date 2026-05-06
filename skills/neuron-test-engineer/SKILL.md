@@ -340,7 +340,7 @@ class MyWorkflowTest extends TestCase
                 new ThirdNode(),
             ]);
 
-        $finalState = $workflow->init()->run();
+        $finalState = $workflow->run();
 
         $this->assertTrue($finalState->get('first_executed'));
         $this->assertTrue($finalState->get('second_executed'));
@@ -355,7 +355,7 @@ class MyWorkflowTest extends TestCase
             new ProcessNode(),
         ]);
 
-        $finalState = $workflow->init()->run();
+        $finalState = $workflow->run();
 
         $this->assertEquals('test_value', $finalState->get('original_input'));
     }
@@ -376,7 +376,6 @@ class MyMiddlewareTest extends TestCase
         Workflow::make()
             ->addGlobalMiddleware($middleware)
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
-            ->init()
             ->run();
 
         // 3 nodes = 3 before + 3 after calls
@@ -392,7 +391,6 @@ class MyMiddlewareTest extends TestCase
         Workflow::make()
             ->addMiddleware(NodeTwo::class, $middleware)
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
-            ->init()
             ->run();
 
         $middleware->assertBeforeCalledTimes(1);
@@ -409,7 +407,6 @@ class MyMiddlewareTest extends TestCase
         $finalState = Workflow::make()
             ->addMiddleware(NodeOne::class, $middleware)
             ->addNodes([new NodeOne(), new NodeTwo()])
-            ->init()
             ->run();
 
         $this->assertTrue($finalState->get('injected_by_middleware'));
@@ -439,7 +436,7 @@ class MyInterruptTest extends TestCase
         // First run should interrupt
         $interrupt = null;
         try {
-            $workflow->init()->run();
+            $workflow->run();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $e) {
             $interrupt = $e;

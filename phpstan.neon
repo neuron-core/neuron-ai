@@ -25,6 +25,7 @@ parameters:
         - identifier: generator.valueType
 
     excludePaths:
+        - src/Workflow/Executor/FlowlineExecutor.php
 
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
 

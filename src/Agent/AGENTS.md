@@ -51,9 +51,11 @@ class YouTubeAgent extends Agent
 // Usage
 use NeuronAI\Chat\Messages\UserMessage;
 
-$response = YouTubeAgent::make()->chat(
-    new UserMessage('Summarize this: https://youtube.com/watch?v=...')
-);
+$response = YouTubeAgent::make()
+    ->chat(
+        new UserMessage('Summarize this: https://youtube.com/watch?v=...')
+    )
+    ->getMessage();
 ```
 
 ## Fluent Definition (Alternative)
@@ -69,7 +71,7 @@ $agent = Agent::make()
     ->setInstructions('You are a helpful assistant.')
     ->addTool($tool);
 
-$response = $agent->chat(new UserMessage('Hello'));
+$response = $agent->chat(new UserMessage('Hello'))->getMessage();
 ```
 
 ## Execution Modes
@@ -83,10 +85,15 @@ $response = $agent->chat(new UserMessage('Hello'));
 | `structured()` | `StructuredOutputNode` | Extracts typed output via JSON schema |
 
 ```php
+// Chat
+$response = YouTubeAgent::make()->chat(new UserMessage('Hello'))->getMessage();
+
 // Streaming
-foreach (YouTubeAgent::make()->stream($message) as $chunk) {
-    echo $chunk;
+$handler = YouTubeAgent::make()->stream(new UserMessage('Hello'));
+foreach ($handler->events() as $chunk) {
+    echo $chunk->content;
 }
+$response = $handler->getMessage();
 
 // Structured output
 $report = MyAgent::make()->structured($message, ReportSchema::class);
