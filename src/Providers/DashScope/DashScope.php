@@ -6,9 +6,7 @@ namespace NeuronAI\Providers\DashScope;
 
 use Generator;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
@@ -35,11 +33,7 @@ class DashScope extends OpenAI
             );
             yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
         } else {
-            $content = $choice['delta']['content'] ?? null;
-            if ($content !== null) {
-                $this->streamState->updateContentBlock($choice['index'] ?? 0, new TextContent($content));
-                yield new TextChunk($this->streamState->messageId(), $content);
-            }
+            yield from parent::processContentDelta($choice);
         }
     }
 }
