@@ -440,7 +440,55 @@ better understanding of component APIs, and fewer hallucinations when generating
 - [MCP server](https://docs.neuron-ai.dev/overview/agentic-development#mcp-server)
 
 <a name="security">
+<a name="faq">
 
+## FAQ
+
+### What is Neuron?
+
+Neuron is a PHP framework for creating and orchestrating AI Agents. It provides tools for the entire agentic application development lifecycle, from LLM interfaces, data loading, multi-agent orchestration, to monitoring and debugging.
+
+### How is Neuron different from other AI agent frameworks?
+
+Neuron is specifically designed for PHP developers. While most agent frameworks target Python or JavaScript ecosystems, Neuron brings full-featured agentic capabilities to PHP applications with familiar patterns similar to Laravel/Symfony ecosystems.
+
+### What PHP version is required?
+
+Neuron requires PHP 8.1 or higher.
+
+### Which AI providers are supported?
+
+Neuron supports multiple AI providers through its provider system. Check the [official documentation](https://docs.neuron-ai.dev) for the complete list of supported providers and configuration details.
+
+### Can I use local/self-hosted models?
+
+Yes, Neuron supports integration with self-hosted models. Configure your custom provider to connect to local inference servers like Ollama or vLLM.
+
+### What is an Agent in Neuron?
+
+An Agent is the core building block that combines AI provider, memory, tools, and function calling capabilities. You can extend the base Agent class to create specialized agents for your use case.
+
+### How does Workflow differ from Agent?
+
+Agent and RAG classes provide ready-to-use implementations for common patterns. Workflow allows you to build completely customized agentic systems from scratch, using Neuron components as building blocks.
+
+### Does Neuron support MCP tools?
+
+Yes, Neuron includes an MCP (Model Context Protocol) connector for tool integration. See the [MCP documentation](https://docs.neuron-ai.dev) for configuration details.
+
+### How do I handle human-in-the-loop scenarios?
+
+Neuron Workflow supports robust human-in-the-loop patterns, enabling human intervention at any point in automated processes. This is useful for LLM applications requiring validation or correction.
+
+### Where can I find tutorials and guides?
+
+Check the [technical guides and tutorials archive](https://docs.neuron-ai.dev/overview/fast-learning-by-video) for learning resources, including video tutorials.
+
+### Where can I get help?
+
+- **Documentation**: [docs.neuron-ai.dev](https://docs.neuron-ai.dev)
+- **Newsletter**: Subscribe at [neuron-ai.dev](https://neuron-ai.dev) for exclusive tutorials and tips
+- **GitHub Issues**: Report bugs or request features
 ## Security Vulnerabilities
 If you discover a security vulnerability within Neuron, please send an e-mail to the Inspector team via support@inspector.dev.
 All security vulnerabilities will be promptly addressed.
