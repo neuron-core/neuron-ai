@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Providers\DashScope;
+namespace NeuronAI\Providers\Alibaba;
 
 use Generator;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 
-class DashScope extends OpenAI
+class DashScopeOpenAI extends OpenAI
 {
     public function __construct(
         protected string $key,
