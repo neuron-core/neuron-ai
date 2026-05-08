@@ -27,7 +27,7 @@ class MariaDBTest extends TestCase
             $this->markTestSkipped('MariaDB not available on port 3307. Skipping test.');
         }
 
-        $this->pdo = new PDO('mysql:host=127.0.0.1;port=3307', 'root', '');
+        $this->pdo = new PDO('mysql:host=127.0.0.1;port=3307;dbname=neuron-ai', 'root', '');
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $this->tableName = 'test_vectors_' . uniqid();

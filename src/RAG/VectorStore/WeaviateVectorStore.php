@@ -20,6 +20,8 @@ use function sprintf;
 use function ucfirst;
 use function count;
 use function is_array;
+use function json_decode;
+use function json_encode;
 use function strcasecmp;
 
 class WeaviateVectorStore implements VectorStoreInterface
@@ -90,7 +92,7 @@ class WeaviateVectorStore implements VectorStoreInterface
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),
                 'sourceName' => $document->getSourceName(),
-                'metadata' => $document->metadata,
+                'metadata' => json_encode($document->metadata),
             ],
         ], $documents);
 
@@ -205,7 +207,7 @@ class WeaviateVectorStore implements VectorStoreInterface
             $distance = (float) ($item['_additional']['distance'] ?? 0);
             $document->score = 1 - $distance;
 
-            $metadata = $item['metadata'] ?? [];
+            $metadata = json_decode($item['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
                     if (!in_array($key, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
@@ -250,7 +252,7 @@ class WeaviateVectorStore implements VectorStoreInterface
                         ['name' => 'content', 'dataType' => ['text']],
                         ['name' => 'sourceType', 'dataType' => ['text']],
                         ['name' => 'sourceName', 'dataType' => ['text']],
-                        ['name' => 'metadata', 'dataType' => ['object']],
+                        ['name' => 'metadata', 'dataType' => ['text']],
                     ],
                 ]
             )
