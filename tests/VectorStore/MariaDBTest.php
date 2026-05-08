@@ -113,7 +113,7 @@ class MariaDBTest extends TestCase
         $document2->embedding = [0, 1, 0];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBySource('manual', 'manual');
+        $this->store->deleteBy('manual', 'manual');
 
         $results = $this->store->similaritySearch([1, 0, 0]);
         $this->assertCount(0, $results);
