@@ -22,9 +22,7 @@ use function count;
 use function is_array;
 use function json_decode;
 use function json_encode;
-use function md5;
 use function strcasecmp;
-use function substr;
 
 class WeaviateVectorStore implements VectorStoreInterface
 {
@@ -88,7 +86,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     {
         $objects = array_map(fn (Document $document): array => [
             'class' => ucfirst($this->collection),
-            'id' => $this->idToUuid($document->getId()),
+            'id' => (string) $document->getId(),
             'vector' => $document->getEmbedding(),
             'properties' => [
                 'content' => $document->getContent(),
@@ -259,16 +257,5 @@ class WeaviateVectorStore implements VectorStoreInterface
                 ]
             )
         );
-    }
-
-    protected function idToUuid(string|int $id): string
-    {
-        $hex = md5((string) $id);
-
-        return substr($hex, 0, 8) . '-'
-            . substr($hex, 8, 4) . '-'
-            . substr($hex, 12, 4) . '-'
-            . substr($hex, 16, 4) . '-'
-            . substr($hex, 20, 12);
     }
 }

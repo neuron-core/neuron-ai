@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI;
 
+use function md5;
 use function microtime;
 use function mt_rand;
+use function substr;
 use function usleep;
 
 /**
@@ -44,6 +46,17 @@ class UniqueIdGenerator
         $id = ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
 
         return $prefix . $id;
+    }
+
+    public static function generateUUID(?string|int $id = null): string
+    {
+        $hex = md5((string) ($id ?? self::generateId()));
+
+        return substr($hex, 0, 8) . '-'
+            . substr($hex, 8, 4) . '-'
+            . substr($hex, 12, 4) . '-'
+            . substr($hex, 16, 4) . '-'
+            . substr($hex, 20, 12);
     }
 
     protected static function getCurrentTimestamp(): int

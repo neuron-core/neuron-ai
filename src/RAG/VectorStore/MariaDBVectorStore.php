@@ -33,7 +33,7 @@ class MariaDBVectorStore implements VectorStoreInterface
         $this->pdo->exec(sprintf(
             <<<'SQL'
                 CREATE TABLE IF NOT EXISTS %s (
-                    id BIGINT PRIMARY KEY,
+                    id UUID NOT NULL PRIMARY KEY,
                     content TEXT,
                     sourceType VARCHAR(255),
                     sourceName VARCHAR(255),
@@ -146,7 +146,7 @@ class MariaDBVectorStore implements VectorStoreInterface
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $document = new Document($row['content']);
-            $document->id = (int) $row['id'];
+            $document->id = $row['id'];
             $document->sourceType = $row['sourceType'];
             $document->sourceName = $row['sourceName'];
             $document->score = VectorSimilarity::similarityFromDistance((float) $row['distance']);
