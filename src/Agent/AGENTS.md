@@ -135,12 +135,3 @@ Register via `$workflow->middleware(NodeClass::class, $middleware)`:
 | `AIInferenceEvent` | AI call starts |
 | `AIResponseEvent` | AI response received |
 
-## Workflow Flow
-
-```
-StartEvent → PrepareInferenceNode → AIInferenceEvent
-  → ChatNode → AIResponseEvent
-  → RouterNode → ToolCallEvent (if tools) or StopEvent
-  → ToolNode → StartEvent (loop)
-  [Repeat until no tool calls]
-```
