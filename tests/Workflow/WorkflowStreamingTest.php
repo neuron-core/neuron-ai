@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Workflow\Executor;
+namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stubs\FinalTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\Step2Event;
@@ -13,7 +14,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -35,8 +35,7 @@ class WorkflowStreamingTest extends TestCase
             new NodeThree(),
         ]);
 
-        $executor = $this->createExecutor();
-        $gen = $executor->execute($workflow);
+        $gen = $workflow->events();
 
         $events = [];
         foreach ($gen as $event) {
@@ -70,8 +69,7 @@ class WorkflowStreamingTest extends TestCase
             new FinalTextProcessNode(),
         ]);
 
-        $executor = $this->createExecutor();
-        $gen = $executor->execute($workflow);
+        $gen = $workflow->events();
 
         $events = [];
         foreach ($gen as $event) {
@@ -103,10 +101,8 @@ class WorkflowStreamingTest extends TestCase
             new NodeThree(),
         ]);
 
-        $executor = $this->createExecutor();
-
         // First run: collect events
-        $gen = $executor->execute($workflow);
+        $gen = $workflow->events();
         $eventsFirstRun = [];
         foreach ($gen as $event) {
             $eventsFirstRun[] = $event;
