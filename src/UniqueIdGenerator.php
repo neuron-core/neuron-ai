@@ -48,7 +48,7 @@ class UniqueIdGenerator
         return $prefix . $id;
     }
 
-    public static function generateUUID(?string|int $id = null): string
+    public static function generateUUID(string|int|null $id = null): string
     {
         $hex = md5((string) ($id ?? self::generateId()));
 
