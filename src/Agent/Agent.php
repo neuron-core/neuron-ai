@@ -44,7 +44,7 @@ class Agent extends Workflow implements AgentInterface
     ) {
         parent::__construct($resumeToken, $state);
 
-        if ($executor instanceof \NeuronAI\Workflow\Executor\WorkflowExecutorInterface) {
+        if ($executor instanceof WorkflowExecutorInterface) {
             $this->setExecutor($executor);
         }
     }

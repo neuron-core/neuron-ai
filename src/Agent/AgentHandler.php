@@ -82,7 +82,7 @@ class AgentHandler
     }
 
     /**
-     * Convenience: run to completion and extract the final Message.
+     * Convenience: run to completion and extract the final AssistantMessage.
      *
      * @throws Throwable
      */
@@ -96,8 +96,19 @@ class AgentHandler
      *
      * @throws Throwable
      */
-    public function getResponse(): ProviderResponse
+    public function getProviderResponse(): ProviderResponse
     {
         return $this->run()->getResponse();
+    }
+
+    /**
+     * Convenience: run to completion and extract the final agent workflow state.
+     *
+     * @return AgentState
+     * @throws Throwable
+     */
+    public function getState(): AgentState
+    {
+        return $this->run();
     }
 }
