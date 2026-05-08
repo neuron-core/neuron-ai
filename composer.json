@@ -1,6 +1,6 @@
 {
     "name": "neuron-core/neuron-ai",
-    "description": "The PHP Agentic Framework.",
+    "description": "The First Agentic Framework Of The PHP Ecosystem.",
     "minimum-stability": "stable",
     "authors": [
         {
@@ -9,6 +9,12 @@
         }
     ],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/mnt/c/GitHub/deeplinq"
+        }
+    ],
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.0",
@@ -20,6 +26,7 @@
         "amphp/amp": "^3.1.1",
         "amphp/http-client": "^5.3",
         "aws/aws-sdk-php": "^3.209",
+        "deeplinq/php-sdk": "@dev",
         "elasticsearch/elasticsearch": "^8.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "google/auth": "^1.49",

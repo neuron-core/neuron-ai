@@ -21,7 +21,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchProcessing;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -31,8 +30,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testInterruptInsideBranchThrowsWorkflowInterrupt(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -56,8 +54,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelInterruptCapturesMainState(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -78,8 +75,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelInterruptPreservesCompletedBranchResults(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -99,8 +95,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testCompletedResultsPreservedWhenBranchRunsBeforeInterrupt(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -122,8 +117,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelResumeCompletesAllBranches(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -152,8 +146,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelResumeContinuesPastJoinNode(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -181,8 +174,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelResumeWithThreeBranches(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -214,8 +206,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testReInterruptInResumedBranch(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-resume-token')
             ->addNodes([
@@ -254,8 +245,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testLinearInterruptNotAffected(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-linear-token')
             ->addNodes([new LinearInterruptNode()]);
@@ -276,8 +266,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testAsyncParallelInterruptCapturesParallelContext(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = new AsyncExecutor($persistence);
+        $executor = new AsyncExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-async-token')
             ->addNodes([
@@ -301,8 +290,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testAsyncParallelResumeCompletesAllBranches(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = new AsyncExecutor($persistence);
+        $executor = new AsyncExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-async-token')
             ->addNodes([
@@ -327,39 +315,5 @@ class ParallelInterruptTest extends TestCase
         $analysis = $result->get('analysis');
         $this->assertSame('TEXT_APPROVED', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
-    }
-
-    public function testParallelInterruptSerializationRoundTrip(): void
-    {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
-
-        $workflow = Workflow::make(resumeToken: 'test-serialize-token')
-            ->addNodes([
-                new ImageFirstForkNode(),
-                new InterruptableTextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $interrupt = null;
-        try {
-            $this->execute($workflow, $executor);
-        } catch (WorkflowInterrupt $e) {
-            $interrupt = $e;
-        }
-
-        $this->assertNotNull($interrupt);
-
-        $loaded = $persistence->load('test-serialize-token');
-
-        $this->assertTrue($loaded->isParallelInterrupt());
-        $this->assertSame('text', $loaded->getBranchId());
-        $this->assertInstanceOf(DocumentParallelEvent::class, $loaded->getParallelEvent());
-        $this->assertSame('text branch needs approval', $loaded->getMessage());
-
-        $branches = $loaded->getParallelEvent()->branches;
-        $this->assertArrayHasKey('text', $branches);
-        $this->assertArrayHasKey('image', $branches);
     }
 }

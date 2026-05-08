@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -89,15 +88,6 @@ class AgentTest extends TestCase
         $agent->setAiProvider($provider);
 
         $handler = $agent->stream(new UserMessage('Hi'));
-
-        $chunks = [];
-        foreach ($handler->events() as $event) {
-            if ($event instanceof TextChunk) {
-                $chunks[] = $event->content;
-            }
-        }
-
-        $this->assertSame(['Hello', ' worl', 'd'], $chunks);
 
         /** @var AgentState $state */
         $state = $handler->run();

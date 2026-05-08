@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Executor\StepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 trait ExecutorTestHelpers
 {
-    protected function createExecutor(?InMemoryPersistence $persistence = null): WorkflowExecutorInterface
+    protected function createExecutor(?StepEngine $stepEngine = null): WorkflowExecutorInterface
     {
         return new WorkflowExecutor(
-            $persistence ?? new InMemoryPersistence(),
-            new DefaultNodeRunner(),
+            $stepEngine ?? new LocalStepEngine(),
         );
     }
 

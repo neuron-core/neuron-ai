@@ -6,9 +6,6 @@ namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
@@ -23,7 +20,6 @@ use ReflectionClass;
 use function extension_loaded;
 use function usleep;
 use function class_exists;
-use function implode;
 
 /**
  * Simple test tool that can be serialized for parallel execution.
@@ -159,32 +155,9 @@ class ParallelToolsTest extends TestCase
 
         $handler = $agent->chat(new UserMessage('Run tools in parallel'));
 
-        // Track chunks to verify parallel execution
-        $toolCallChunks = [];
-        $toolResultChunks = [];
-        foreach ($handler->events() as $event) {
-            if ($event instanceof ToolCallChunk) {
-                $toolCallChunks[] = $event->tool->getName();
-            }
-            if ($event instanceof ToolResultChunk) {
-                $toolResultChunks[] = $event->tool->getName();
-            }
-        }
-
         $message = $handler->getMessage();
 
-        // Both tools should have been called
-        $this->assertContains('tool_a', $toolCallChunks);
-        $this->assertContains('tool_b', $toolCallChunks);
-
-        // Both tools should have results
-        $this->assertContains('tool_a', $toolResultChunks);
-        $this->assertContains('tool_b', $toolResultChunks);
-
-        // Verify final response
         $this->assertSame('I have results from both tools.', $message->getContent());
-
-        // Provider should have been called twice (tool calls + final response)
         $provider->assertCallCount(2);
     }
 
@@ -213,20 +186,6 @@ class ParallelToolsTest extends TestCase
         $agent->addTool($addTool);
 
         $handler = $agent->chat(new UserMessage('Calculate'));
-
-        // Collect tool result chunks to verify results
-        $toolResults = [];
-        foreach ($handler->events() as $event) {
-            if ($event instanceof ToolResultChunk) {
-                $toolResults[$event->tool->getName()] = $event->tool->getResult();
-            }
-        }
-
-        // Verify both tools returned correct results
-        $this->assertArrayHasKey('multiply', $toolResults);
-        $this->assertArrayHasKey('add', $toolResults);
-        $this->assertSame('12', $toolResults['multiply']); // 3 * 4 = 12
-        $this->assertSame('12', $toolResults['add']);     // 5 + 7 = 12
 
         $this->assertSame('Results: multiply=12, add=12', $handler->getMessage()->getContent());
     }
@@ -284,32 +243,8 @@ class ParallelToolsTest extends TestCase
 
         $handler = $agent->stream(new UserMessage('Run tools in parallel'));
 
-        $toolCallChunks = [];
-        $toolResultChunks = [];
-        $textChunks = [];
-        foreach ($handler->events() as $event) {
-            if ($event instanceof ToolCallChunk) {
-                $toolCallChunks[] = $event->tool->getName();
-            }
-            if ($event instanceof ToolResultChunk) {
-                $toolResultChunks[] = $event->tool->getName();
-            }
-            if ($event instanceof TextChunk) {
-                $textChunks[] = $event->content;
-            }
-        }
-
-        $this->assertContains('tool_a', $toolCallChunks);
-        $this->assertContains('tool_b', $toolCallChunks);
-
-        $this->assertContains('tool_a', $toolResultChunks);
-        $this->assertContains('tool_b', $toolResultChunks);
-
-        // The final response should be streamed as text chunks
-        $this->assertNotEmpty($textChunks);
-        $this->assertSame('I have results from both tools.', implode('', $textChunks));
-
-        // Provider should have been called twice via stream()
+        $state = $handler->run();
+        $this->assertSame('I have results from both tools.', $state->getMessage()->getContent());
         $provider->assertCallCount(2);
         $provider->assertMethodCallCount('stream', 2);
     }

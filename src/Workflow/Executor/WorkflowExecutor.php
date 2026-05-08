@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Executor;
 
 use Generator;
 use Inspector\Exceptions\InspectorException;
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
@@ -20,21 +19,24 @@ use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
+use function iterator_to_array;
+
 /**
- * Traverses the workflow graph one node at a time. ParallelEvent branches execute sequentially.
+ * Durable workflow executor with replay-based traversal.
  *
- * Supports interrupt/resume via an optional PersistenceInterface.
+ * Every node executes as a memoized step via a StepEngine.
+ * Completed steps skip on replay. Interrupted steps resume
+ * from the stored InterruptRequest. Crash recovery and
+ * interrupt resume share the same replay path.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
     public function __construct(
-        protected ?PersistenceInterface $persistence = new InMemoryPersistence(),
+        protected StepEngine $stepEngine = new LocalStepEngine(),
         protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
     ) {
     }
@@ -42,7 +44,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
-     * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
     public function execute(
@@ -56,19 +57,22 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->resolveState()->set('__workflowId', $workflowId);
 
         try {
+            $this->stepEngine->prepareExecution();
+
             if ($interrupt instanceof InterruptRequest) {
-                yield from $this->executeResume($workflow, $interrupt);
-            } else {
-                yield from $this->traverse(
-                    $workflow,
-                    $workflow->getStartEvent(),
-                    $workflow->getNodeForEvent($workflow->getStartEvent()::class),
-                );
+                $this->stepEngine->setResumeRequest($interrupt);
             }
 
-            $this->persistence?->delete($workflowId);
+            yield from $this->traverse(
+                $workflow,
+                $workflow->getStartEvent(),
+                $workflow->getNodeForEvent($workflow->getStartEvent()::class),
+            );
+
+            $this->stepEngine->deleteSteps();
         } catch (WorkflowInterrupt $interrupt) {
-            $this->persistence?->save($workflowId, $interrupt);
+            $stepId = $this->buildStepId($interrupt->getNode(), $interrupt->getBranchId());
+            $this->stepEngine->interruptStep($stepId, $interrupt->getRequest());
             EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
             throw $interrupt;
         } catch (Throwable $exception) {
@@ -82,47 +86,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Resume execution from a persisted interrupt.
-     *
-     * @return Generator<int, Event, mixed, void>
-     * @throws WorkflowInterrupt
-     * @throws InspectorException
-     * @throws WorkflowException
+     * Build a unique step identifier for memoization.
      */
-    protected function executeResume(WorkflowInterface $workflow, InterruptRequest $userDecision): Generator
+    protected function buildStepId(NodeInterface $node, ?string $branchId): string
     {
-        $workflowId = $workflow->getWorkflowId();
-        $interrupt = $this->persistence?->load($workflowId)
-            ?? throw new WorkflowException('Persistence is required to resume from an interrupt');
-
-        $workflow->setState($interrupt->getState());
-
-        EventBus::emit('workflow-resume', $workflow, new WorkflowStart($workflow->getEventNodeMap()), $workflowId);
-        $workflow->resolveState()->set('__workflowId', $workflowId);
-
-        if ($interrupt->isParallelInterrupt()) {
-            $branchGen = $this->executeBranches(
-                $workflow,
-                $interrupt->getParallelEvent(),
-                $interrupt,
-                $userDecision,
-            );
-            yield from $branchGen;
-            $parallelEvent = $branchGen->getReturn();
-
-            yield from $this->traverse(
-                $workflow,
-                $parallelEvent,
-                $workflow->getNodeForEvent($parallelEvent::class),
-            );
-        } else {
-            yield from $this->traverse(
-                $workflow,
-                $interrupt->getEvent(),
-                $interrupt->getNode(),
-                $userDecision,
-            );
-        }
+        return $branchId !== null
+            ? $branchId . '.' . $node::class
+            : $node::class;
     }
 
     /**
@@ -136,21 +106,38 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowInterface $workflow,
         Event $event,
         NodeInterface $node,
-        ?InterruptRequest $resumeRequest = null,
     ): Generator {
         while (!($event instanceof StopEvent)) {
-            $middleware = $workflow->getMiddlewareForNode($node);
+            $stepId = $this->buildStepId($node, null);
+            $streamedEvents = [];
 
-            $nodeGen = $this->nodeRunner->run(
+            $result = $this->stepEngine->runStep($stepId, function (?InterruptRequest $resumeRequest) use (
                 $node,
                 $event,
-                $workflow->resolveState(),
-                $middleware,
-                null,
-                $resumeRequest,
-            );
-            yield from $nodeGen;
-            $event = $nodeGen->getReturn();
+                $workflow,
+                &$streamedEvents,
+            ): StepResult {
+                $state = $workflow->resolveState();
+                $middleware = $workflow->getMiddlewareForNode($node);
+                $nodeGen = $this->nodeRunner->run($node, $event, $state, $middleware, null, $resumeRequest);
+                foreach ($nodeGen as $streamedEvent) {
+                    $streamedEvents[] = $streamedEvent;
+                }
+                return new StepResult(
+                    stepId: $node::class,
+                    event: $nodeGen->getReturn(),
+                    state: $state,
+                );
+            });
+
+            foreach ($streamedEvents as $streamedEvent) {
+                yield $streamedEvent;
+            }
+
+            $event = $result->getEvent();
+            if ($result->getState() instanceof WorkflowState) {
+                $workflow->setState($result->getState());
+            }
 
             if ($event instanceof ParallelEvent) {
                 $branchGen = $this->executeBranches($workflow, $event);
@@ -163,7 +150,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             $node = $workflow->getNodeForEvent($event::class);
-            $resumeRequest = null;
         }
     }
 
@@ -245,20 +231,32 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $event = $branchEvent;
 
             while (!($event instanceof StopEvent)) {
-                $middleware = $workflow->getMiddlewareForNode($node);
+                $stepId = $this->buildStepId($node, $branchId);
 
-                $nodeGen = $this->nodeRunner->run(
+                $result = $this->stepEngine->runStep($stepId, function (?InterruptRequest $stepResume) use (
                     $node,
                     $event,
                     $branchState,
-                    $middleware,
+                    $workflow,
                     $branchId,
-                    $resumeRequest,
-                );
-                foreach ($nodeGen as $streamedEvent) {
-                    $streamedEvents[] = $streamedEvent;
+                    &$streamedEvents,
+                ): StepResult {
+                    $middleware = $workflow->getMiddlewareForNode($node);
+                    $nodeGen = $this->nodeRunner->run($node, $event, $branchState, $middleware, $branchId, $stepResume);
+                    foreach ($nodeGen as $streamedEvent) {
+                        $streamedEvents[] = $streamedEvent;
+                    }
+                    return new StepResult(
+                        stepId: $node::class,
+                        event: $nodeGen->getReturn(),
+                        state: $branchState,
+                    );
+                });
+
+                $event = $result->getEvent();
+                if ($result->getState() instanceof WorkflowState) {
+                    $branchState = $result->getState();
                 }
-                $event = $nodeGen->getReturn();
 
                 if ($event instanceof ParallelEvent) {
                     $branchGen = $this->executeBranches($workflow, $event);
@@ -267,8 +265,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     }
                     $event = $branchGen->getReturn();
                 }
-
-                $resumeRequest = null;
 
                 if ($event instanceof StopEvent) {
                     break;

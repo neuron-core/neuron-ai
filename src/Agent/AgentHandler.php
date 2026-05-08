@@ -104,7 +104,6 @@ class AgentHandler
     /**
      * Convenience: run to completion and extract the final agent workflow state.
      *
-     * @return AgentState
      * @throws Throwable
      */
     public function getState(): AgentState

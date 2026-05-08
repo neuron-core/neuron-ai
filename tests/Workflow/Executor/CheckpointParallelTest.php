@@ -11,7 +11,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableBranchProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MultiCheckpointTextProcessNode;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -22,8 +21,7 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointValueSavedBeforeInterruptInBranch(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-checkpoint-token')
             ->addNodes([
@@ -54,8 +52,7 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointNotReExecutedOnParallelResume(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-checkpoint-resume')
             ->addNodes([
@@ -84,8 +81,7 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointWithCompletedBranchResultsPreserved(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-checkpoint-order')
             ->addNodes([
@@ -116,8 +112,7 @@ class CheckpointParallelTest extends TestCase
 
     public function testMultipleCheckpointsInParallelBranch(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make(resumeToken: 'test-multi-checkpoint')
             ->addNodes([

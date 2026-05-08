@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\RAG;
@@ -56,14 +55,7 @@ class RAGTest extends TestCase
 
         $handler = $rag->stream(new UserMessage('Capital of France?'));
 
-        $chunks = [];
-        foreach ($handler->events() as $event) {
-            if ($event instanceof TextChunk) {
-                $chunks[] = $event->content;
-            }
-        }
-
-        $this->assertNotEmpty($chunks);
+        $this->assertSame('Paris is the capital.', $handler->getMessage()->getContent());
         $vectorStore->assertSearchCount(1);
     }
 

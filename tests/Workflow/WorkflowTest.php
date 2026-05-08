@@ -16,7 +16,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -153,8 +152,7 @@ class WorkflowTest extends TestCase
     {
         $this->expectException(WorkflowInterrupt::class);
 
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
         $workflowId = 'test-workflow';
 
         $workflow = Workflow::make(resumeToken: $workflowId)
@@ -169,8 +167,7 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowResume(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
         $workflowId = 'test-workflow';
 
         $workflow = Workflow::make(resumeToken: $workflowId)
@@ -210,8 +207,7 @@ class WorkflowTest extends TestCase
 
     public function testInterruptExposesResumeToken(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
+        $executor = $this->createExecutor();
 
         $workflow = Workflow::make()
             ->addNodes([

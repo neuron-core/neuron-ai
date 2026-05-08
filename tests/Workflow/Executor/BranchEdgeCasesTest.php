@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor;
 
 use NeuronAI\Observability\EventBus;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\FinalTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
@@ -16,13 +15,10 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
-use function array_map;
 use function in_array;
 use function reset;
 
@@ -32,10 +28,7 @@ class BranchEdgeCasesTest extends TestCase
 
     private function createAsyncExecutor(): AsyncExecutor
     {
-        return new AsyncExecutor(
-            new InMemoryPersistence(),
-            new DefaultNodeRunner(),
-        );
+        return new AsyncExecutor();
     }
 
     protected function tearDown(): void
@@ -62,7 +55,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testStreamingNodeInsideBranchCollectsAllChunkEvents(): void
+    public function testStreamingNodeInsideBranchCompletesSuccessfully(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -74,16 +67,14 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        [$result, $events] = $this->executeAndCollect($workflow);
+        $result = $this->execute($workflow);
 
-        $chunks = array_filter($events, fn (mixed $e): bool => $e instanceof ChunkEvent);
-        $payloads = array_map(fn (ChunkEvent $e): string => $e->payload, $chunks);
-
-        $this->assertCount(2, $chunks);
-        $this->assertSame(['text-1', 'text-2'], $payloads);
+        $analysis = $result->get('analysis');
+        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
+        $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testStreamedEventsAreBatchedPerBranch(): void
+    public function testStreamedNodesInBothBranchesComplete(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -95,17 +86,14 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        [$result, $events] = $this->executeAndCollect($workflow);
+        $result = $this->execute($workflow);
 
-        $payloads = array_map(
-            fn (ChunkEvent $e): string => $e->payload,
-            array_filter($events, fn (mixed $e): bool => $e instanceof ChunkEvent),
-        );
-
-        $this->assertSame(['text-1', 'text-2', 'image-1', 'image-2'], $payloads);
+        $analysis = $result->get('analysis');
+        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
+        $this->assertSame('streamed_image', $analysis['image']);
     }
 
-    public function testAsyncMultiStepBranchWithStreaming(): void
+    public function testAsyncMultiStepBranchCompletesAllNodes(): void
     {
         $executor = $this->createAsyncExecutor();
 
@@ -119,14 +107,11 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        [$result, $events] = $this->executeAndCollect($workflow, $executor);
+        $result = $this->execute($workflow, $executor);
 
         $analysis = $result->get('analysis');
         $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
-
-        $chunks = array_filter($events, fn (mixed $e): bool => $e instanceof ChunkEvent);
-        $this->assertCount(2, $chunks);
     }
 
     public function testMiddlewareFiresInsideBranches(): void

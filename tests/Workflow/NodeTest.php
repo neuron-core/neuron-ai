@@ -11,7 +11,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -48,8 +47,7 @@ class NodeTest extends TestCase
 
     public function testNodeCheckpoint(): void
     {
-        $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor();
 
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());
 
