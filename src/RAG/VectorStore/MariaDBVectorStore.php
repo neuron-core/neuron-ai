@@ -20,7 +20,7 @@ class MariaDBVectorStore implements VectorStoreInterface
 {
     public function __construct(
         protected PDO $pdo,
-        protected string $tableName = 'neuron_documents',
+        protected string $tableName = 'rag_documents',
         protected int $topK = 4,
     ) {
     }
@@ -131,7 +131,7 @@ class MariaDBVectorStore implements VectorStoreInterface
         $stmt = $this->pdo->prepare(sprintf(
             <<<'SQL'
                 SELECT id, content, sourceType, sourceName, metadata,
-                       VEC_DISTANCE(embedding, VEC_FromText(:embedding)) AS distance
+                       VEC_DISTANCE_EUCLIDEAN(embedding, VEC_FromText(:embedding)) AS distance
                 FROM %s
                 ORDER BY distance ASC
                 LIMIT %d
