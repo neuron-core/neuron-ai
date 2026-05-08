@@ -17,6 +17,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\ParameterizedRunKeyTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
@@ -86,11 +87,20 @@ class ToolNode extends Node
         $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
-            $state->incrementToolRun($tool->getName());
+            // Check if tool implements parameterized run key tracking
+            if ($tool instanceof ParameterizedRunKeyTool) {
+                $runKey = $tool->getRunKey($tool->getInputs());
+                $state->incrementToolRunByKey($runKey);
+                $currentRuns = $state->getToolRunsByKey($runKey);
+            } else {
+                // Fall back to name-only tracking (backwards compatible)
+                $state->incrementToolRun($tool->getName());
+                $currentRuns = $state->getToolRuns($tool->getName());
+            }
 
             // Single tool max tries have the highest priority over the global max tries
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($tool->getName()) > $runs) {
+            if ($currentRuns > $runs) {
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
             }
 

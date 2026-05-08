@@ -10,8 +10,12 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\MissingCallbackParameter;
+use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Tools\ParameterizedRunKeyTool;
+use NeuronAI\Tools\ToolPropertyInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Throwable;
@@ -110,5 +114,286 @@ class ToolNodeTest extends TestCase
         foreach ($generator as $_) {
             // Just iterate through
         }
+    }
+
+    public function test_parameterized_tool_tracked_by_run_key(): void
+    {
+        $tool = $this->createParameterizedTool('param_tool', 'offset=0');
+
+        $toolNode = new ToolNode(maxRuns: 2);
+        $state = new AgentState();
+
+        // First execution
+        $tool->setCallId('call_1');
+        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $toolNode->setWorkflowContext($state, $event);
+        foreach ($toolNode($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        // Second execution with same parameters
+        $tool->setCallId('call_2');
+        $toolCallMessage2 = new ToolCallMessage(null, [$tool]);
+        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+        $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
+        $toolNode->setWorkflowContext($state, $event2);
+        foreach ($toolNode($event2, $state) as $_) {
+        }
+
+        $this->assertSame(2, $state->getToolRunsByKey('param_tool:offset=0'));
+        $this->assertSame(0, $state->getToolRuns('param_tool')); // Name tracking unused
+    }
+
+    public function test_different_parameters_tracked_separately(): void
+    {
+        $tool1 = $this->createParameterizedTool('read_tool', 'offset=0');
+        $tool2 = $this->createParameterizedTool('read_tool', 'offset=100');
+
+        $toolNode = new ToolNode(maxRuns: 1);
+
+        // First call with offset=0
+        $state = new AgentState();
+        $toolCallMessage = new ToolCallMessage(null, [$tool1]);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1]);
+        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $toolNode->setWorkflowContext($state, $event);
+        foreach ($toolNode($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        // Second call with offset=100 - should succeed (different key)
+        $tool2->setCallId('call_2');
+        $toolCallMessage2 = new ToolCallMessage(null, [$tool2]);
+        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool2]);
+        $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
+        $toolNode->setWorkflowContext($state, $event2);
+        foreach ($toolNode($event2, $state) as $_) {
+        }
+
+        $this->assertSame(1, $state->getToolRunsByKey('read_tool:offset=0'));
+        $this->assertSame(1, $state->getToolRunsByKey('read_tool:offset=100'));
+    }
+
+    public function test_regular_tool_tracked_by_name(): void
+    {
+        $tool = Tool::make('regular_tool', 'A regular tool')
+            ->setCallable(fn (): string => 'result');
+        $tool->setCallId('call_1');
+        $tool->setInputs([]);
+
+        $toolNode = new ToolNode(maxRuns: 2);
+        $state = new AgentState();
+        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+
+        $toolNode->setWorkflowContext($state, $event);
+
+        foreach ($toolNode($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        $this->assertSame(1, $state->getToolRuns('regular_tool'));
+        $this->assertSame(0, $state->getToolRunsByKey('regular_tool:any_key'));
+    }
+
+    public function test_max_runs_enforced_per_run_key(): void
+    {
+        $tool = $this->createParameterizedTool('bounded_tool', 'id=123');
+
+        $toolNode = new ToolNode(maxRuns: 1);
+        $state = new AgentState();
+        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+
+        $toolNode->setWorkflowContext($state, $event);
+
+        // First call succeeds
+        foreach ($toolNode($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        // Second call with same parameters should throw
+        $this->expectException(ToolRunsExceededException::class);
+        $this->expectExceptionMessage('Tool bounded_tool has been executed too many times: 1');
+
+        $tool->setCallId('call_2');
+        $toolCallMessage2 = new ToolCallMessage(null, [$tool]);
+        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+        $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
+        $toolNode->setWorkflowContext($state, $event2);
+
+        foreach ($toolNode($event2, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+    }
+
+    public function test_different_parameters_allow_more_calls_than_max_runs(): void
+    {
+        $toolNode = new ToolNode(maxRuns: 1);
+        $state = new AgentState();
+
+        // Create tools with different parameters - each should get maxRuns calls
+        $tools = [
+            $this->createParameterizedTool('multi_tool', 'id=1'),
+            $this->createParameterizedTool('multi_tool', 'id=2'),
+            $this->createParameterizedTool('multi_tool', 'id=3'),
+        ];
+
+        foreach ($tools as $index => $tool) {
+            $tool->setCallId('call_' . $index);
+            $toolCallMessage = new ToolCallMessage(null, [$tool]);
+            $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
+            $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+            $toolNode->setWorkflowContext($state, $event);
+
+            foreach ($toolNode($event, $state) as $_) {
+                $_ = null; // This is to prevent rector from removing it.
+            }
+        }
+
+        // Each unique parameter combination was called once
+        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=1'));
+        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=2'));
+        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=3'));
+    }
+
+    private function createParameterizedTool(string $name, string $runKey): ToolInterface
+    {
+        return new class ($name, $runKey) implements ToolInterface, ParameterizedRunKeyTool {
+            private ?string $callId = null;
+            private array $inputs = [];
+            private string $result = 'executed';
+            private string $description = 'A parameterized test tool';
+            private bool $visible = true;
+            private ?int $maxRuns = null;
+
+            public function __construct(
+                private readonly string $name,
+                private readonly string $runKey
+            ) {
+            }
+
+            public function getName(): string
+            {
+                return $this->name;
+            }
+
+            public function setName(string $name): ToolInterface
+            {
+                return $this;
+            }
+
+            public function getDescription(): string
+            {
+                return $this->description;
+            }
+
+            public function setDescription(?string $description): ToolInterface
+            {
+                $this->description = $description ?? '';
+                return $this;
+            }
+
+            public function addProperty(ToolPropertyInterface $property): ToolInterface
+            {
+                return $this;
+            }
+
+            public function getProperties(): array
+            {
+                return [];
+            }
+
+            public function getRequiredProperties(): array
+            {
+                return [];
+            }
+
+            public function getParameters(): array
+            {
+                return [];
+            }
+
+            public function getInputs(): array
+            {
+                return $this->inputs;
+            }
+
+            public function getInput(string $key): mixed
+            {
+                return $this->inputs[$key] ?? null;
+            }
+
+            public function setInputs(array $inputs): ToolInterface
+            {
+                $this->inputs = $inputs;
+                return $this;
+            }
+
+            public function getCallId(): ?string
+            {
+                return $this->callId;
+            }
+
+            public function setCallId(string $callId): ToolInterface
+            {
+                $this->callId = $callId;
+                return $this;
+            }
+
+            public function getResult(): string
+            {
+                return $this->result;
+            }
+
+            public function getMaxRuns(): ?int
+            {
+                return $this->maxRuns;
+            }
+
+            public function setMaxRuns(int $tries): ToolInterface
+            {
+                $this->maxRuns = $tries;
+                return $this;
+            }
+
+            public function isVisible(): bool
+            {
+                return $this->visible;
+            }
+
+            public function visible(bool $visible): ToolInterface
+            {
+                $this->visible = $visible;
+                return $this;
+            }
+
+            public function setCallable(callable $callback): ToolInterface
+            {
+                return $this;
+            }
+
+            public function execute(): void
+            {
+                // Tool execution logic
+            }
+
+            public function getRunKey(array $inputs): string
+            {
+                return $this->name . ':' . $this->runKey;
+            }
+
+            public function jsonSerialize(): mixed
+            {
+                return [
+                    'name' => $this->name,
+                    'description' => $this->description,
+                ];
+            }
+        };
     }
 }
