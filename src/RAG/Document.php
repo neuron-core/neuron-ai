@@ -24,7 +24,7 @@ class Document implements JsonSerializable
     public function __construct(
         public string $content = '',
     ) {
-        $this->id = UniqueIdGenerator::generateId();
+        $this->id = UniqueIdGenerator::generateUUID();
     }
 
     public function getId(): string|int
