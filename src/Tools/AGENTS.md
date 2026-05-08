@@ -50,6 +50,64 @@ class GetTranscriptionTool extends Tool
 }
 ```
 
+## Parameter-Aware Tool Run Tracking
+
+By default, Neuron tracks tool runs by tool name only. This means a tool called multiple times with different parameters counts against the same run limit.
+
+For tools that should be tracked based on their parameters (e.g., reading different file offsets, querying different IDs), implement the `ParameterizedRunKeyTool` interface:
+
+```php
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\ParameterizedRunKeyTool;
+
+class ReadFileTool extends Tool implements ParameterizedRunKeyTool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'read_file',
+            'Read a portion of a file.',
+        );
+    }
+
+    protected function properties(): array
+    {
+        return [
+            ToolProperty::make('path', PropertyType::STRING, 'File path', true),
+            ToolProperty::make('offset', PropertyType::INTEGER, 'Byte offset', true),
+            ToolProperty::make('length', PropertyType::INTEGER, 'Bytes to read', true),
+        ];
+    }
+
+    public function __invoke(string $path, int $offset, int $length): string
+    {
+        // Read file portion
+        return file_get_contents($path, false, null, $offset, $length);
+    }
+
+    public function getRunKey(array $inputs): string
+    {
+        // Track runs by path and offset, allowing different offsets
+        return $this->getName() . ':' . $inputs['path'] . ':' . $inputs['offset'];
+    }
+}
+```
+
+**How it works:**
+
+- Tools implementing `ParameterizedRunKeyTool` provide a unique key based on their inputs
+- The same tool can be called multiple times with different parameters without hitting run limits
+- Identical parameters (same run key) still respect `getMaxRuns()` limits
+- Tools without the interface use default name-only tracking (backwards compatible)
+
+**Use cases:**
+
+- Chunked file reading with different offsets
+- Paginated API calls with different page numbers
+- Database queries with different IDs
+
 ## Property Types
 
 | Class | JSON Schema Type |
