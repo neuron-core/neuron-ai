@@ -6,7 +6,7 @@ namespace [namespace];
 
 use NeuronAI\Workflow\Events\Event;
 
-class [classname] implements Event
+class [classname] extends Event
 {
     /**
      * Add class properties to carry custom data.

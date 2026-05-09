@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Workflow\Executor\Stubs;
 
 use NeuronAI\Workflow\Events\Event;
 
-class Step3Event implements Event
+class Step3Event extends Event
 {
     public function __construct(public readonly string $message = 'step3')
     {

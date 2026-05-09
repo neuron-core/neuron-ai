@@ -6,6 +6,6 @@ namespace NeuronAI\Tests\Workflow\Executor\Stubs;
 
 use NeuronAI\Workflow\Events\Event;
 
-class DurableEventA implements Event
+class DurableEventA extends Event
 {
 }

@@ -78,11 +78,6 @@ interface ToolInterface extends JsonSerializable
     public function isVisible(): bool;
 
     /**
-     * Define the code to be executed.
-     */
-    public function setCallable(callable $callback): ToolInterface;
-
-    /**
      * Execute the tool's logic with input parameters.
      */
     public function execute(): void;

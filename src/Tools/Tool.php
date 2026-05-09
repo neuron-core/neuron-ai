@@ -15,26 +15,19 @@ use stdClass;
 use function array_key_exists;
 use function array_map;
 use function array_reduce;
-use function call_user_func;
 use function is_array;
-use function is_callable;
 use function json_encode;
 use function method_exists;
 
 /**
  * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $parameters = [], array $annotations = [])
  */
-class Tool implements ToolInterface
+abstract class Tool implements ToolInterface
 {
     use StaticConstructor;
 
     /**
-     * @var null|callable
-     */
-    protected $callback;
-
-    /**
-     * The arguments to pass in to the callback.
+     * The arguments to pass in to the tool callback.
      */
     protected array $inputs = [];
 
@@ -209,12 +202,6 @@ class Tool implements ToolInterface
         return $this->visible;
     }
 
-    public function setCallable(callable $callback): self
-    {
-        $this->callback = $callback;
-        return $this;
-    }
-
     /**
      * Execute the client side function.
      *
@@ -225,8 +212,11 @@ class Tool implements ToolInterface
      */
     public function execute(): void
     {
-        if (!is_callable($this->callback) && !method_exists($this, '__invoke')) {
-            throw new ToolCallableNotSet('No function defined for tool execution.');
+        if (!method_exists($this, '__invoke')) {
+            throw new ToolCallableNotSet(sprintf(
+                'Tool "%s" must implement __invoke() to define its execution logic.',
+                $this->name,
+            ));
         }
 
         // Validate required parameters
@@ -274,13 +264,7 @@ class Tool implements ToolInterface
 
         }, []);
 
-        if (is_callable($this->callback)) {
-            $this->setResult(call_user_func($this->callback, ...$parameters));
-        } elseif (method_exists($this, '__invoke')) {
-            $this->setResult($this->__invoke(...$parameters));
-        } else {
-            throw new ToolCallableNotSet('No function defined for tool execution.');
-        }
+        $this->setResult($this->__invoke(...$parameters));
     }
 
     public function jsonSerialize(): array

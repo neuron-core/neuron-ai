@@ -14,7 +14,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -171,11 +171,11 @@ class SQLChatHistoryTest extends TestCase
 
     public function test_persists_tool_calls_and_results(): void
     {
-        $tool = Tool::make('test_tool', 'A test tool')
+        $tool = ToolDefinition::make('test_tool', 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123');
 
-        $toolWithResult = Tool::make('test_tool', 'A test tool')
+        $toolWithResult = ToolDefinition::make('test_tool', 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123')
             ->setResult('Tool result');

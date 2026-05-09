@@ -19,7 +19,7 @@ use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -199,7 +199,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -264,7 +264,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',
@@ -337,7 +337,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',
@@ -405,7 +405,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',

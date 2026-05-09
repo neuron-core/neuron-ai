@@ -100,9 +100,9 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
             'request' => serialize($this->request),
             'node' => serialize($this->node),
             'state' => serialize($this->state),
-            'currentEvent' => serialize($this->event),
+            'currentEvent' => $this->event->toSnapshot(),
             'branchId' => $this->branchId,
-            'parallelEvent' => $this->parallelEvent instanceof ParallelEvent ? serialize($this->parallelEvent) : null,
+            'parallelEvent' => $this->parallelEvent instanceof ParallelEvent ? $this->parallelEvent->toSnapshot() : null,
             'completedBranchResults' => serialize($this->completedBranchResults),
         ];
     }
@@ -118,9 +118,9 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
         $this->request = unserialize($data['request']);
         $this->node = unserialize($data['node']);
         $this->state = unserialize($data['state']);
-        $this->event = unserialize($data['currentEvent']);
+        $this->event = Event::fromSnapshot($data['currentEvent']);
         $this->branchId = $data['branchId'] ?? null;
-        $this->parallelEvent = isset($data['parallelEvent']) ? unserialize($data['parallelEvent']) : null;
+        $this->parallelEvent = isset($data['parallelEvent']) ? ParallelEvent::fromSnapshot($data['parallelEvent']) : null;
         $this->completedBranchResults = isset($data['completedBranchResults']) ? unserialize($data['completedBranchResults']) : [];
     }
 }

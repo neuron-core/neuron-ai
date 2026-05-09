@@ -12,7 +12,7 @@ use NeuronAI\Workflow\Events\Event;
  *
  * Triggers instruction enrichment with document context.
  */
-class DocumentsProcessedEvent implements Event
+class DocumentsProcessedEvent extends Event
 {
     /**
      * @param Message $query The original query

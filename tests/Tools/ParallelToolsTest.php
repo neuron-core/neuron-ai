@@ -12,6 +12,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -111,7 +112,7 @@ class ParallelToolsTest extends TestCase
         $agent = Agent::make();
         $agent->parallelToolCalls(true);
 
-        $tool = Tool::make('test', 'Test tool');
+        $tool = ToolDefinition::make('test', 'Test tool');
         $agent->addTool($tool);
 
         $provider = new FakeAIProvider(

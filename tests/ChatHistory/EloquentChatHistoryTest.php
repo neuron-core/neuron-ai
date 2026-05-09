@@ -16,7 +16,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -150,11 +150,11 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_persists_tool_calls_and_results(): void
     {
-        $tool = Tool::make('test_tool', 'A test tool')
+        $tool = ToolDefinition::make('test_tool', 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123');
 
-        $toolWithResult = Tool::make('test_tool', 'A test tool')
+        $toolWithResult = ToolDefinition::make('test_tool', 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123')
             ->setResult('Tool result');

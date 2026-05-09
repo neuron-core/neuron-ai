@@ -10,7 +10,6 @@ use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use Exception;
@@ -120,15 +119,12 @@ class McpConnector
      */
     protected function createTool(array $item): ToolInterface
     {
-        $tool = Tool::make(
+        $tool = new McpTool(
             name: $item['name'],
             description: $item['description'] ?? null,
             annotations: $item['annotations'] ?? [],
-        )->setCallable(
-            new CallableMcpTool(
-                connector: $this,
-                item: $item,
-            ) // This allows us to serialize MCP tools when dealing with interrupts
+            connector: $this,
+            item: $item,
         );
 
         // If the tool has no properties, return early

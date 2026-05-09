@@ -15,7 +15,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -254,7 +254,7 @@ class GeminiTest extends TestCase
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ToolProperty(
                             'prop',

@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
 use function end;
@@ -80,20 +80,20 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_multiple_tool_call_pairs_are_handled_correctly(): void
     {
         // Create two different tools
-        $tool1 = Tool::make('tool_1', 'First tool')
+        $tool1 = ToolDefinition::make('tool_1', 'First tool')
             ->setInputs(['param1' => 'value1'])
             ->setCallId('call_1');
 
-        $tool1WithResult = Tool::make('tool_1', 'First tool')
+        $tool1WithResult = ToolDefinition::make('tool_1', 'First tool')
             ->setInputs(['param1' => 'value1'])
             ->setCallId('call_1')
             ->setResult('First tool result');
 
-        $tool2 = Tool::make('tool_2', 'Second tool')
+        $tool2 = ToolDefinition::make('tool_2', 'Second tool')
             ->setInputs(['param2' => 'value2'])
             ->setCallId('call_2');
 
-        $tool2WithResult = Tool::make('tool_2', 'Second tool')
+        $tool2WithResult = ToolDefinition::make('tool_2', 'Second tool')
             ->setInputs(['param2' => 'value2'])
             ->setCallId('call_2')
             ->setResult('Second tool result');
@@ -178,11 +178,11 @@ class InMemoryChatHistoryTest extends TestCase
         $this->expectException(ChatHistoryException::class);
         $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant, got user');
 
-        $tool = Tool::make('mixed_tool', 'A mixed tool')
+        $tool = ToolDefinition::make('mixed_tool', 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123');
 
-        $toolWithResult = Tool::make('mixed_tool', 'A mixed tool')
+        $toolWithResult = ToolDefinition::make('mixed_tool', 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123')
             ->setResult('Mixed tool result');
@@ -289,20 +289,20 @@ class InMemoryChatHistoryTest extends TestCase
         $history = new InMemoryChatHistory(300);
 
         // Create tools for multiple tool call/result pairs
-        $tool1 = Tool::make('search_tool', 'Search for information')
+        $tool1 = ToolDefinition::make('search_tool', 'Search for information')
             ->setInputs(['query' => 'test query 1'])
             ->setCallId('call_1');
 
-        $tool1WithResult = Tool::make('search_tool', 'Search for information')
+        $tool1WithResult = ToolDefinition::make('search_tool', 'Search for information')
             ->setInputs(['query' => 'test query 1'])
             ->setCallId('call_1')
             ->setResult('Search result 1');
 
-        $tool2 = Tool::make('weather_tool', 'Get weather info')
+        $tool2 = ToolDefinition::make('weather_tool', 'Get weather info')
             ->setInputs(['location' => 'London'])
             ->setCallId('call_2');
 
-        $tool2WithResult = Tool::make('weather_tool', 'Get weather info')
+        $tool2WithResult = ToolDefinition::make('weather_tool', 'Get weather info')
             ->setInputs(['location' => 'London'])
             ->setCallId('call_2')
             ->setResult('Sunny, 25°C');

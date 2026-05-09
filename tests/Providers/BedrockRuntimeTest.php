@@ -19,7 +19,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Providers\AWS\MessageMapper;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use stdClass;
@@ -131,7 +131,7 @@ class BedrockRuntimeTest extends TestCase
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $tool = Tool::make('my_tool', 'Tool description')
+        $tool = ToolDefinition::make('my_tool', 'Tool description')
             ->addProperty(new ToolProperty('param', PropertyType::STRING, 'Param description', true));
 
         $provider = (new BedrockRuntime(
@@ -203,7 +203,7 @@ class BedrockRuntimeTest extends TestCase
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $tool = Tool::make('empty_tool', 'No props'); // no properties added
+        $tool = ToolDefinition::make('empty_tool', 'No props'); // no properties added
 
         $provider = (new BedrockRuntime(
             $bedrockClient,
@@ -222,7 +222,7 @@ class BedrockRuntimeTest extends TestCase
 
     public function test_tool_call_with_empty_input_serializes_as_json_object(): void
     {
-        $tool = Tool::make('noop', 'no params');
+        $tool = ToolDefinition::make('noop', 'no params');
         $tool->setCallId('call-empty');
         $tool->setInputs([]);
 
@@ -239,7 +239,7 @@ class BedrockRuntimeTest extends TestCase
 
     public function test_tool_call_with_inputs_passes_through_unchanged(): void
     {
-        $tool = Tool::make('search', 'search the web');
+        $tool = ToolDefinition::make('search', 'search the web');
         $tool->setCallId('call-1');
         $tool->setInputs(['query' => 'php']);
 

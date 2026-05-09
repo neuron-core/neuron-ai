@@ -48,4 +48,24 @@ class StepResult
     {
         return $this->generation;
     }
+
+    public function __serialize(): array
+    {
+        return [
+            'stepId' => $this->stepId,
+            'event' => $this->event?->toSnapshot(),
+            'state' => $this->state,
+            'interrupt' => $this->interrupt,
+            'generation' => $this->generation,
+        ];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->stepId = $data['stepId'];
+        $this->event = $data['event'] !== null ? Event::fromSnapshot($data['event']) : null;
+        $this->state = $data['state'];
+        $this->interrupt = $data['interrupt'];
+        $this->generation = $data['generation'];
+    }
 }

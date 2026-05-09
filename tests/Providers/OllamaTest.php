@@ -15,7 +15,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Ollama\Ollama;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -141,7 +141,7 @@ class OllamaTest extends TestCase
             url: '',
             model: 'llama3.2',
         ))->setTools([
-            Tool::make('tool', 'description')
+            ToolDefinition::make('tool', 'description')
                 ->addProperty(
                     new ToolProperty(
                         'prop',

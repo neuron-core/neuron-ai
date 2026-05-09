@@ -13,7 +13,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -145,7 +145,7 @@ class AnthropicPromptCachingTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $tool = Tool::make('search', 'Search the web')
+        $tool = ToolDefinition::make('search', 'Search the web')
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
@@ -177,10 +177,10 @@ class AnthropicPromptCachingTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $tool1 = Tool::make('search', 'Search the web')
+        $tool1 = ToolDefinition::make('search', 'Search the web')
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
-        $tool2 = Tool::make('calculate', 'Perform calculation')
+        $tool2 = ToolDefinition::make('calculate', 'Perform calculation')
             ->addProperty(new ToolProperty('expression', PropertyType::STRING, 'Math expression', true));
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))

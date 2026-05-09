@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Events;
 
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Workflow\Events\Event;
 
 /**
  * Event carrying configuration for AI inference.

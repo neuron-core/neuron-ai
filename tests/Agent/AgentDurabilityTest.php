@@ -22,6 +22,51 @@ use NeuronAI\Workflow\Persistence\FilePersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+class CrashSearchTool extends Tool
+{
+    public function __construct(
+        protected object $counter = new \stdClass,
+    ) {
+        $this->counter->count = 0;
+        parent::__construct(
+            'search',
+            'Search the web',
+            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
+        );
+    }
+
+    public function __invoke(string $query): string
+    {
+        $this->counter->count++;
+        if ($this->counter->count === 1) {
+            throw new RuntimeException('Simulated crash during tool execution');
+        }
+        return 'Results for: PHP frameworks';
+    }
+
+    public function getCallCount(): int
+    {
+        return $this->counter->count;
+    }
+}
+
+class SearchTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'search',
+            'Search the web',
+            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
+        );
+    }
+
+    public function __invoke(string $query): string
+    {
+        return "Results for: {$query}";
+    }
+}
+
 class AgentDurabilityTest extends TestCase
 {
     public function testCrashRecoveryDuringToolExecution(): void
@@ -29,17 +74,8 @@ class AgentDurabilityTest extends TestCase
         $workflowId = 'agent_recovery_test';
         $stepEngine = new LocalStepEngine(workflowId: $workflowId);
         $executor = new WorkflowExecutor($stepEngine);
-        $toolCalls = 0;
 
-        $searchTool = Tool::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-            ->setCallable(function (string $query) use (&$toolCalls): string {
-                $toolCalls++;
-                if ($toolCalls === 1) {
-                    throw new RuntimeException('Simulated crash during tool execution');
-                }
-                return 'Results for: PHP frameworks';
-            });
+        $searchTool = new CrashSearchTool();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
@@ -49,10 +85,10 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, tool crashes
-        $agent1 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->setExecutor($executor);
+        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setAiProvider($provider);
+        $agent1->addTool($searchTool);
+        $agent1->setExecutor($executor);
 
         try {
             $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -62,19 +98,19 @@ class AgentDurabilityTest extends TestCase
         }
 
         $this->assertSame(1, $provider->getCallCount());
-        $this->assertSame(1, $toolCalls);
+        $this->assertSame(1, $searchTool->getCallCount());
 
         // Recovery: same workflowId, same step engine → ChatNode:0 memoized
-        $agent2 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->setExecutor($executor);
+        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->setExecutor($executor);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
         $this->assertSame('Based on my search, here are the top PHP frameworks...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
-        $this->assertSame(2, $toolCalls);
+        $this->assertSame(2, $searchTool->getCallCount());
     }
 
     public function testInterruptResumeWithToolApproval(): void
@@ -83,9 +119,7 @@ class AgentDurabilityTest extends TestCase
         $stepEngine = new LocalStepEngine(workflowId: $workflowId);
         $executor = new WorkflowExecutor($stepEngine);
 
-        $searchTool = Tool::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-            ->setCallable(fn (string $query): string => "Results for: {$query}");
+        $searchTool = new SearchTool();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
@@ -95,11 +129,11 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, ToolApproval interrupts before tool execution
-        $agent1 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->addMiddleware(ToolNode::class, new ToolApproval())
-            ->setExecutor($executor);
+        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setAiProvider($provider);
+        $agent1->addTool($searchTool);
+        $agent1->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent1->setExecutor($executor);
 
         try {
             $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -113,11 +147,11 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
 
         // Resume: same workflowId → ChatNode:0 memoized, ToolNode:1 resumes
-        $agent2 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->addMiddleware(ToolNode::class, new ToolApproval())
-            ->setExecutor($executor);
+        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent2->setExecutor($executor);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), $request)->getMessage();
 
@@ -135,9 +169,9 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Hello!'),
         );
 
-        $agent = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->setExecutor($executor);
+        $agent = Agent::make(resumeToken: $workflowId);
+        $agent->setAiProvider($provider);
+        $agent->setExecutor($executor);
 
         $message = $agent->chat(new UserMessage('Hi'))->getMessage();
 
@@ -154,9 +188,7 @@ class AgentDurabilityTest extends TestCase
         $stepEngine = new LocalStepEngine(workflowId: $workflowId);
         $executor = new WorkflowExecutor($stepEngine);
 
-        $searchTool = Tool::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-            ->setCallable(fn (string $query): string => "Results for: {$query}");
+        $searchTool = new SearchTool();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
@@ -165,11 +197,11 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('I see the search was rejected. Is there anything else I can help with?'),
         );
 
-        $agent1 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->addMiddleware(ToolNode::class, new ToolApproval())
-            ->setExecutor($executor);
+        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setAiProvider($provider);
+        $agent1->addTool($searchTool);
+        $agent1->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent1->setExecutor($executor);
 
         try {
             $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -181,11 +213,11 @@ class AgentDurabilityTest extends TestCase
         }
 
         // Resume with rejection
-        $agent2 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->addTool($searchTool)
-            ->addMiddleware(ToolNode::class, new ToolApproval())
-            ->setExecutor($executor);
+        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent2->setExecutor($executor);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), $request)->getMessage();
 
@@ -213,30 +245,22 @@ class AgentDurabilityTest extends TestCase
         $stepEngine = new LocalStepEngine(persistence: $persistence, workflowId: $workflowId);
         $executor = new WorkflowExecutor($stepEngine);
 
-        $agent1 = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->setExecutor($executor);
+        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setAiProvider($provider);
+        $agent1->setExecutor($executor);
 
         $message1 = $agent1->chat(new UserMessage('First question'))->getMessage();
         $this->assertSame('First response', $message1->getContent());
 
-        // Steps are cleaned up after successful completion, so we can't test
-        // recovery from a mid-workflow crash here — that would require a node
-        // to crash mid-traversal. Instead, verify the persistence layer works
-        // by checking no leftover files remain.
-        $this->assertDirectoryDoesNotExist($dir . '/' . $workflowId);
+        // Steps are cleaned up after successful completion — verify the
+        // persistence file was deleted.
+        $this->assertFileDoesNotExist($dir . '/' . $workflowId . '.workflow');
 
         $this->removeDirectory($dir);
     }
 
     public function testInterruptResumeWithFilePersistence(): void
     {
-        // FilePersistence cannot serialize closures (tools carry callables).
-        // Interrupt/resume with tool calls requires a serializable persistence
-        // backend (database) or serializable event payloads. This test verifies
-        // that the in-memory path + FilePersistence directory setup works for
-        // the cleanup lifecycle — interrupt stores files, resume cleans them up.
-
         $workflowId = 'agent_file_interrupt_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
         mkdir($dir, 0o777, true);
@@ -249,16 +273,15 @@ class AgentDurabilityTest extends TestCase
         $stepEngine = new LocalStepEngine(persistence: $persistence, workflowId: $workflowId);
         $executor = new WorkflowExecutor($stepEngine);
 
-        // Simple chat without tools — no closures in the StepResult
-        $agent = Agent::make(resumeToken: $workflowId)
-            ->setAiProvider($provider)
-            ->setExecutor($executor);
+        $agent = Agent::make(resumeToken: $workflowId);
+        $agent->setAiProvider($provider);
+        $agent->setExecutor($executor);
 
         $message = $agent->chat(new UserMessage('Hi'))->getMessage();
         $this->assertSame('Hello!', $message->getContent());
 
-        // After successful completion, persistence directory should be cleaned
-        $this->assertDirectoryDoesNotExist($dir . '/' . $workflowId);
+        // After successful completion, persistence file should be deleted
+        $this->assertFileDoesNotExist($dir . '/' . $workflowId . '.workflow');
 
         $this->removeDirectory($dir);
     }

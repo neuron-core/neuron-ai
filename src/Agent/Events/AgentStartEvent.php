@@ -7,7 +7,7 @@ namespace NeuronAI\Agent\Events;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Workflow\Events\Event;
 
-class AgentStartEvent implements Event
+class AgentStartEvent extends Event
 {
     /**
      * @var Message[]

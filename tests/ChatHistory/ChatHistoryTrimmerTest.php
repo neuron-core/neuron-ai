@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -150,11 +150,11 @@ class ChatHistoryTrimmerTest extends TestCase
         $toolName = "tool_{$iteration}";
         $callId = "call_{$iteration}_" . uniqid();
 
-        $tool = Tool::make($toolName, "Tool number {$iteration}")
+        $tool = ToolDefinition::make($toolName, "Tool number {$iteration}")
             ->setInputs(['param' => "value_{$iteration}", 'data' => $this->generateContent($iteration, 'tool_input')])
             ->setCallId($callId);
 
-        $toolWithResult = Tool::make($toolName, "Tool number {$iteration}")
+        $toolWithResult = ToolDefinition::make($toolName, "Tool number {$iteration}")
             ->setInputs(['param' => "value_{$iteration}", 'data' => $this->generateContent($iteration, 'tool_input')])
             ->setCallId($callId)
             ->setResult($this->generateContent($iteration, 'tool_result'));

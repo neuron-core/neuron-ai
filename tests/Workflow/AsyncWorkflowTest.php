@@ -19,7 +19,7 @@ use function Amp\async;
 use function Amp\delay;
 use function microtime;
 
-class ProcessEvent implements Event
+class ProcessEvent extends Event
 {
     public function __construct(public readonly string $value)
     {

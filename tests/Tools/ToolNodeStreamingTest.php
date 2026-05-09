@@ -15,20 +15,39 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+class CalculatorTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct('calculator', 'Performs calculations');
+    }
+
+    public function __invoke(): int
+    {
+        return 8; // 5 + 3
+    }
+}
+
+class GreeterTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct('greeter', 'Greets a person');
+    }
+
+    public function __invoke(): string
+    {
+        return "Hello, World!";
+    }
+}
+
 class ToolNodeStreamingTest extends TestCase
 {
     public function test_tool_node_streams_chunks_and_returns_final_event(): void
     {
         // Create two simple tools
-        $tool1 = Tool::make('calculator', 'Performs calculations')
-            ->setCallable(function (): int {
-                return 8; // 5 + 3
-            })
-            ->setInputs([]);
-
-        $tool2 = Tool::make('greeter', 'Greets a person')
-            ->setCallable(fn (): string => "Hello, World!")
-            ->setInputs([]);
+        $tool1 = (new CalculatorTool())->setInputs([]);
+        $tool2 = (new GreeterTool())->setInputs([]);
 
         // Create the ToolCallMessage
         $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);

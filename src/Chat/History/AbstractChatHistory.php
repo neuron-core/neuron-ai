@@ -22,7 +22,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 
 use function array_map;
 use function count;
@@ -174,7 +174,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+        $tools = array_map(fn (array $tool) => ToolDefinition::make($tool['name'], $tool['description'])
             ->setParameters($tool['parameters'] ?? [])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'] ?? null), $message['tools']);
@@ -195,7 +195,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
+        $tools = array_map(fn (array $tool) => ToolDefinition::make($tool['name'], $tool['description'])
             ->setInputs($tool['inputs'])
             ->setCallId($tool['callId'])
             ->setResult($tool['result']), $message['tools']);

@@ -19,6 +19,57 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
+class AgentSearchTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'search',
+            'Search the web',
+            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
+        );
+    }
+
+    public function __invoke(string $query): string
+    {
+        return "Results for: {$query}";
+    }
+}
+
+class AgentSecretTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'secret',
+            'Secret tool',
+            [new ToolProperty('input', PropertyType::STRING, 'Input', true)],
+        );
+    }
+
+    public function __invoke(string $input): string
+    {
+        return "Secret: {$input}";
+    }
+}
+
+class AgentFailingTool extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'failing_tool',
+            'A tool that fails',
+            [new ToolProperty('input', PropertyType::STRING, 'Input', true)],
+        );
+    }
+
+    public function __invoke(string $input): string
+    {
+        throw new RuntimeException('Tool failed!');
+    }
+}
+
 class AgentTest extends TestCase
 {
     public function test_chat(): void
@@ -53,9 +104,7 @@ class AgentTest extends TestCase
 
     public function test_chat_with_tools(): void
     {
-        $searchTool = Tool::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-            ->setCallable(fn (string $query): string => "Results for: {$query}");
+        $searchTool = new AgentSearchTool();
 
         // First response: the model calls the tool
         // Second response: the model uses the tool result to answer
@@ -133,14 +182,9 @@ class AgentTest extends TestCase
 
     public function test_hidden_tool_is_not_sent_to_provider(): void
     {
-        $visibleTool = Tool::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-            ->setCallable(fn (string $query): string => "Results for: {$query}");
+        $visibleTool = new AgentSearchTool();
 
-        $hiddenTool = Tool::make('secret', 'Secret tool')
-            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
-            ->setCallable(fn (string $input): string => "Secret: {$input}")
-            ->visible(false);
+        $hiddenTool = (new AgentSecretTool())->visible(false);
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Here is my answer.')
@@ -173,9 +217,7 @@ class AgentTest extends TestCase
 
     public function test_tool_error_handler_catches_exception(): void
     {
-        $failingTool = Tool::make('failing_tool', 'A tool that fails')
-            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
-            ->setCallable(fn (string $input): string => throw new RuntimeException('Tool failed!'));
+        $failingTool = new AgentFailingTool();
 
         // First response: model calls the failing tool
         // Second response: model uses the error message from handler
@@ -199,9 +241,7 @@ class AgentTest extends TestCase
 
     public function test_tool_exception_thrown_without_error_handler(): void
     {
-        $failingTool = Tool::make('failing_tool', 'A tool that fails')
-            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true))
-            ->setCallable(fn (string $input): string => throw new RuntimeException('Tool failed!'));
+        $failingTool = new AgentFailingTool();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [

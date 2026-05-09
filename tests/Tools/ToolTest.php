@@ -14,6 +14,7 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
@@ -23,7 +24,7 @@ class ToolTest extends TestCase
 {
     public function test_tool_instance(): void
     {
-        $tool = new Tool('example', 'example');
+        $tool = new ToolDefinition('example', 'example');
         $this->assertInstanceOf(ToolInterface::class, $tool);
 
         $tool->setInputs(null);
@@ -37,18 +38,18 @@ class ToolTest extends TestCase
 
     public function test_required_properties(): void
     {
-        $tool = Tool::make('test', 'Test tool')
-            ->addProperty(
-                new ToolProperty('name', PropertyType::STRING, 'User name', true)
-            )
-            ->addProperty(
-                new ToolProperty('surname', PropertyType::STRING, 'User surname', false)
-            )
-            ->addProperty(
-                new ToolProperty('age', PropertyType::INTEGER, 'User age', true)
-            )
-            ->setCallable(function (): void {
-            });
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+                $this->addProperty(new ToolProperty('name', PropertyType::STRING, 'User name', true));
+                $this->addProperty(new ToolProperty('surname', PropertyType::STRING, 'User surname', false));
+                $this->addProperty(new ToolProperty('age', PropertyType::INTEGER, 'User age', true));
+            }
+            public function __invoke(): void
+            {
+            }
+        };
 
         $properties = $tool->getRequiredProperties();
         $this->assertEquals(['name', 'age'], $properties);
@@ -56,10 +57,17 @@ class ToolTest extends TestCase
 
     public function test_missing_required_parameter_exception(): void
     {
-        $tool = Tool::make('test', 'Test tool')
-            ->addProperty(
-                new ToolProperty('name', PropertyType::STRING, 'User name', true)
-            )->setCallable(fn (string $name): string => $name);
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+                $this->addProperty(new ToolProperty('name', PropertyType::STRING, 'User name', true));
+            }
+            public function __invoke(string $name): string
+            {
+                return $name;
+            }
+        };
 
         $tool->setInputs([
             "test" => "test",
@@ -80,80 +88,142 @@ class ToolTest extends TestCase
 
     public function test_required_properties_with_mapped_object(): void
     {
-        $tool = Tool::make('test', 'Test tool')
-            ->addProperty(
-                new ObjectProperty(
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+                $this->addProperty(new ObjectProperty(
                     name: 'name',
                     description: 'User name',
                     required: true,
                     class: Color::class
-                )
-            )
-            ->setCallable(function (): void {
-            });
+                ));
+            }
+            public function __invoke(): void
+            {
+            }
+        };
 
         $toolRequiredProperties = $tool->getRequiredProperties();
-        $objRequiredProperties = $tool->getProperties()[0]->getRequiredProperties();
+        /** @var ObjectProperty $objProperty */
+        $objProperty = $tool->getProperties()[0];
+        $objRequiredProperties = $objProperty->getRequiredProperties();
         $this->assertEquals(['name'], $toolRequiredProperties);
         $this->assertEquals(['r', 'g', 'b'], $objRequiredProperties);
     }
 
     public function test_tool_return_value(): void
     {
-        $tool = Tool::make('test', 'Test tool');
-
-        $tool->setCallable(fn (): string => 'test')->execute();
-        $this->assertEquals('test', $tool->getResult());
-
-        $tool->setCallable(fn (): array => ['test'])->execute();
-        $this->assertEquals('["test"]', $tool->getResult());
-
-        $tool->setCallable(fn (): array => ['foo' => 'bar'])->execute();
-        $this->assertEquals('{"foo":"bar"}', $tool->getResult());
-
-        $tool->setCallable(fn (): object => new class () {
-            public function __toString(): string
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+            }
+            public function __invoke(): string
             {
                 return 'test';
             }
-        })->execute();
+        };
+        $tool->execute();
+        $this->assertEquals('test', $tool->getResult());
+
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+            }
+            public function __invoke(): array
+            {
+                return ['test'];
+            }
+        };
+        $tool->execute();
+        $this->assertEquals('["test"]', $tool->getResult());
+
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+            }
+            public function __invoke(): array
+            {
+                return ['foo' => 'bar'];
+            }
+        };
+        $tool->execute();
+        $this->assertEquals('{"foo":"bar"}', $tool->getResult());
+
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+            }
+            public function __invoke(): object
+            {
+                return new class {
+                    public function __toString(): string
+                    {
+                        return 'test';
+                    }
+                };
+            }
+        };
+        $tool->execute();
         $this->assertEquals('test', $tool->getResult());
     }
 
     public function test_invalid_return_type(): void
     {
-        $tool = Tool::make('test', 'Test tool');
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test', 'Test tool');
+            }
+            public function __invoke(): object
+            {
+                return new class {};
+            }
+        };
 
         $this->expectException(Error::class);
 
-        $tool->setCallable(fn (): object => new class () {})->execute();
+        $tool->execute();
     }
 
     public function test_tool_optional_parameters(): void
     {
-        $tool = Tool::make(
-            'test_tool',
-            "description"
-        )->addProperty(new ToolProperty(
-            name: 'optional_prop_1',
-            type: PropertyType::STRING,
-            description: "description",
-            required: false,
-        ))->addProperty(new ToolProperty(
-            name: 'optional_prop_2',
-            type: PropertyType::STRING,
-            description: "description",
-            required: false,
-        ))->addProperty(new ToolProperty(
-            name: 'optional_prop_3',
-            type: PropertyType::STRING,
-            description: "description",
-            required: false,
-        ))->setCallable(fn (?string $optional_prop_1, ?string $optional_prop_2, ?string $optional_prop_3): array => [
-            'optional_prop_1' => $optional_prop_1,
-            'optional_prop_2' => $optional_prop_2,
-            'optional_prop_3' => $optional_prop_3,
-        ]);
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test_tool', 'description');
+                $this->addProperty(new ToolProperty(
+                    name: 'optional_prop_1',
+                    type: PropertyType::STRING,
+                    description: "description",
+                    required: false,
+                ));
+                $this->addProperty(new ToolProperty(
+                    name: 'optional_prop_2',
+                    type: PropertyType::STRING,
+                    description: "description",
+                    required: false,
+                ));
+                $this->addProperty(new ToolProperty(
+                    name: 'optional_prop_3',
+                    type: PropertyType::STRING,
+                    description: "description",
+                    required: false,
+                ));
+            }
+            public function __invoke(?string $optional_prop_1, ?string $optional_prop_2, ?string $optional_prop_3): array
+            {
+                return [
+                    'optional_prop_1' => $optional_prop_1,
+                    'optional_prop_2' => $optional_prop_2,
+                    'optional_prop_3' => $optional_prop_3,
+                ];
+            }
+        };
 
         // Example: none of the optional parameters are provided
         $tool->setInputs([]);
@@ -168,31 +238,41 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_basic_properties(): void
     {
-        $tool = Tool::make(
-            'user_manager',
-            "Update user information"
-        )->addProperty(new ToolProperty(
-            name: 'lastname',
-            type: PropertyType::STRING,
-            description: "The user lastname",
-            required: false,
-        ))->addProperty(new ToolProperty(
-            name: 'firstname',
-            type: PropertyType::STRING,
-            description: "The user firstname",
-            required: false,
-        ))->addProperty(new ToolProperty(
-            name: 'email',
-            type: PropertyType::STRING,
-            description: "The user email",
-            required: true,
-        ))->addProperty(new ToolProperty(
-            name: 'language',
-            type: PropertyType::STRING,
-            description: "The user's language",
-            required: true,
-            enum: ['fr', 'en', 'it', 'de', 'es' ],
-        ))->setCallable(fn (...$data): array => $data);
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('user_manager', 'Update user information');
+                $this->addProperty(new ToolProperty(
+                    name: 'lastname',
+                    type: PropertyType::STRING,
+                    description: "The user lastname",
+                    required: false,
+                ));
+                $this->addProperty(new ToolProperty(
+                    name: 'firstname',
+                    type: PropertyType::STRING,
+                    description: "The user firstname",
+                    required: false,
+                ));
+                $this->addProperty(new ToolProperty(
+                    name: 'email',
+                    type: PropertyType::STRING,
+                    description: "The user email",
+                    required: true,
+                ));
+                $this->addProperty(new ToolProperty(
+                    name: 'language',
+                    type: PropertyType::STRING,
+                    description: "The user's language",
+                    required: true,
+                    enum: ['fr', 'en', 'it', 'de', 'es'],
+                ));
+            }
+            public function __invoke(mixed ...$data): array
+            {
+                return $data;
+            }
+        };
 
         // Example: the user's last name is not provided
         $tool->setInputs([
@@ -211,50 +291,58 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_object_properties(): void
     {
-        $tool = Tool::make(
-            'test_tool',
-            "description"
-        )->addProperty(
-            new ObjectProperty(
-                name: 'obj_prop_1',
-                description: "description obj_prop_1",
-                required: true,
-                properties: [
-                    new ToolProperty(
-                        name: 'a',
-                        type: PropertyType::STRING,
-                        description: "description a",
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test_tool', 'description');
+                $this->addProperty(
+                    new ObjectProperty(
+                        name: 'obj_prop_1',
+                        description: "description obj_prop_1",
                         required: true,
-                    ),
-                    new ToolProperty(
-                        name: 'b',
-                        type: PropertyType::STRING,
-                        description: "description b",
-                        required: true,
-                    ),
-                ]
-            )
-        )->addProperty(
-            new ObjectProperty(
-                name: 'obj_prop_2',
-                description: "description obj_prop_2",
-                required: false,
-                properties: [
-                        new ToolProperty(
-                            name: 'x',
-                            type: PropertyType::STRING,
-                            description: "description x",
-                            required: true,
-                        ),
-                        new ToolProperty(
-                            name: 'y',
-                            type: PropertyType::STRING,
-                            description: "description y",
-                            required: true,
-                        ),
-                    ]
-            )
-        )->setCallable(fn (...$data): array => $data);
+                        properties: [
+                            new ToolProperty(
+                                name: 'a',
+                                type: PropertyType::STRING,
+                                description: "description a",
+                                required: true,
+                            ),
+                            new ToolProperty(
+                                name: 'b',
+                                type: PropertyType::STRING,
+                                description: "description b",
+                                required: true,
+                            ),
+                        ]
+                    )
+                );
+                $this->addProperty(
+                    new ObjectProperty(
+                        name: 'obj_prop_2',
+                        description: "description obj_prop_2",
+                        required: false,
+                        properties: [
+                                new ToolProperty(
+                                    name: 'x',
+                                    type: PropertyType::STRING,
+                                    description: "description x",
+                                    required: true,
+                                ),
+                                new ToolProperty(
+                                    name: 'y',
+                                    type: PropertyType::STRING,
+                                    description: "description y",
+                                    required: true,
+                                ),
+                            ]
+                    )
+                );
+            }
+            public function __invoke(mixed ...$data): array
+            {
+                return $data;
+            }
+        };
 
         // Example, the second object property is not provided
         $tool->setInputs([
@@ -274,20 +362,24 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_mapped_object_properties(): void
     {
-        $tool = Tool::make(
-            'test_tool',
-            "description"
-        )->addProperty(
-            new ObjectProperty(
-                name: 'color',
-                description: "description color",
-                required: true,
-                class: Color::class
-            )
-        )->setCallable(function (...$data): array {
-            $this->assertInstanceOf(Color::class, $data['color']);
-            return $data;
-        });
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test_tool', 'description');
+                $this->addProperty(
+                    new ObjectProperty(
+                        name: 'color',
+                        description: "description color",
+                        required: true,
+                        class: Color::class
+                    )
+                );
+            }
+            public function __invoke(mixed ...$data): array
+            {
+                return $data;
+            }
+        };
 
         $tool->setInputs([
             "color" => [
@@ -307,42 +399,50 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_array_properties(): void
     {
-        $tool = Tool::make(
-            'test_tool',
-            "description"
-        )->addProperty(
-            new ArrayProperty(
-                name: 'colors',
-                description: "description color",
-                required: true,
-                items: new ToolProperty(
-                    name: 'colors',
-                    type: PropertyType::STRING,
-                    description: "description color",
-                    required: true,
-                )
-            )
-        )->addProperty(
-            new ObjectProperty(
-                name: 'dimensions',
-                description: "description dimensions",
-                required: true,
-                properties: [
-                    new ToolProperty(
-                        name: 'width',
-                        type: PropertyType::INTEGER,
-                        description: "width",
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test_tool', 'description');
+                $this->addProperty(
+                    new ArrayProperty(
+                        name: 'colors',
+                        description: "description color",
                         required: true,
-                    ),
-                    new ToolProperty(
-                        name: 'height',
-                        type: PropertyType::INTEGER,
-                        description: "height",
+                        items: new ToolProperty(
+                            name: 'colors',
+                            type: PropertyType::STRING,
+                            description: "description color",
+                            required: true,
+                        )
+                    )
+                );
+                $this->addProperty(
+                    new ObjectProperty(
+                        name: 'dimensions',
+                        description: "description dimensions",
                         required: true,
-                    ),
-                ]
-            )
-        )->setCallable(fn (...$data): array => $data);
+                        properties: [
+                            new ToolProperty(
+                                name: 'width',
+                                type: PropertyType::INTEGER,
+                                description: "width",
+                                required: true,
+                            ),
+                            new ToolProperty(
+                                name: 'height',
+                                type: PropertyType::INTEGER,
+                                description: "height",
+                                required: true,
+                            ),
+                        ]
+                    )
+                );
+            }
+            public function __invoke(mixed ...$data): array
+            {
+                return $data;
+            }
+        };
 
         $tool->setInputs([
             "colors" => ["red", "green", "red", "red", "green"],
@@ -362,38 +462,44 @@ class ToolTest extends TestCase
 
     public function test_tool_named_parameters(): void
     {
-        $callable = (fn (int $prop_2, string $prop_1, bool $prop_3): array => [
-            'prop_1' => $prop_1,
-            'prop_2' => $prop_2,
-            'prop_3' => $prop_3,
-        ]);
-
-        $tool = Tool::make(
-            'test_tool',
-            "description"
-        )->addProperty(
-            new ToolProperty(
-                name: 'prop_3',
-                type: PropertyType::BOOLEAN,
-                description: "description prop_1",
-                required: false,
-            )
-        )->addProperty(
-            new ToolProperty(
-                name: 'prop_1',
-                type: PropertyType::STRING,
-                description: "description prop_1",
-                required: true,
-            )
-        )->addProperty(
-            new ToolProperty(
-                name: 'prop_2',
-                type: PropertyType::INTEGER,
-                description: "description prop_2",
-                required: true,
-            )
-        )->setCallable($callable);
-
+        $tool = new class extends Tool {
+            public function __construct()
+            {
+                parent::__construct('test_tool', 'description');
+                $this->addProperty(
+                    new ToolProperty(
+                        name: 'prop_3',
+                        type: PropertyType::BOOLEAN,
+                        description: "description prop_1",
+                        required: false,
+                    )
+                );
+                $this->addProperty(
+                    new ToolProperty(
+                        name: 'prop_1',
+                        type: PropertyType::STRING,
+                        description: "description prop_1",
+                        required: true,
+                    )
+                );
+                $this->addProperty(
+                    new ToolProperty(
+                        name: 'prop_2',
+                        type: PropertyType::INTEGER,
+                        description: "description prop_2",
+                        required: true,
+                    )
+                );
+            }
+            public function __invoke(int $prop_2, string $prop_1, bool $prop_3): array
+            {
+                return [
+                    'prop_1' => $prop_1,
+                    'prop_2' => $prop_2,
+                    'prop_3' => $prop_3,
+                ];
+            }
+        };
 
         $input = [
             'prop_1' => 'a',
@@ -449,10 +555,10 @@ class ToolTest extends TestCase
 
     public function test_annotations(): void
     {
-        $tool = new Tool('test', 'test');
+        $tool = new ToolDefinition('test', 'test');
         $this->assertSame([], $tool->getAnnotations());
 
-        $tool = new Tool(
+        $tool = new ToolDefinition(
             name: 'test',
             description: 'test',
             annotations: ['foo' => 'bar'],
@@ -462,10 +568,10 @@ class ToolTest extends TestCase
 
     public function test_parameters(): void
     {
-        $tool = new Tool('test', 'test');
+        $tool = new ToolDefinition('test', 'test');
         $this->assertSame([], $tool->getAnnotations());
 
-        $tool = new Tool(
+        $tool = new ToolDefinition(
             name: 'test',
             description: 'test',
             parameters: ['foo' => 'bar'],
@@ -474,13 +580,5 @@ class ToolTest extends TestCase
 
         $tool->setParameters(['foo' => 'baz']);
         $this->assertEquals(['foo' => 'baz'], $tool->getParameters());
-    }
-
-    public function test_callback_precedence(): void
-    {
-        $tool = new Tool('test', 'test');
-        $tool->setCallable(fn (): string => 'test result');
-        $tool->execute();
-        $this->assertEquals('test result', $tool->getResult());
     }
 }

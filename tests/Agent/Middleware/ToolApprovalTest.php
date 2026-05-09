@@ -11,6 +11,7 @@ use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
@@ -20,7 +21,7 @@ class ToolApprovalTest extends TestCase
 {
     private function createToolWithInputs(string $name, array $inputs = []): Tool
     {
-        $tool = Tool::make($name, "Description for {$name}");
+        $tool = ToolDefinition::make($name, "Description for {$name}");
         $tool->setInputs($inputs);
         $tool->setCallId("call_{$name}");
         return $tool;

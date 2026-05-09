@@ -16,6 +16,23 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
+class TestToolWithRequiredInput extends Tool
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'test_tool',
+            'A test tool',
+            [new ToolProperty('required_input', PropertyType::STRING, 'A required input', true)],
+        );
+    }
+
+    public function __invoke(string $required_input): string
+    {
+        return "Processed: {$required_input}";
+    }
+}
+
 class ToolNodeTest extends TestCase
 {
     /**
@@ -25,9 +42,7 @@ class ToolNodeTest extends TestCase
     public function test_error_handler_catches_missing_required_parameter(): void
     {
         // Create a tool with a required property
-        $tool = Tool::make('test_tool', 'A test tool')
-            ->addProperty(new ToolProperty('required_input', PropertyType::STRING, 'A required input', true))
-            ->setCallable(fn (string $required_input): string => "Processed: {$required_input}");
+        $tool = new TestToolWithRequiredInput();
 
         // Set inputs WITHOUT the required property - this will trigger MissingCallbackParameter
         $tool->setCallId('call_1');
@@ -74,9 +89,7 @@ class ToolNodeTest extends TestCase
     public function test_missing_required_parameter_throws_without_error_handler(): void
     {
         // Create a tool with a required property
-        $tool = Tool::make('test_tool', 'A test tool')
-            ->addProperty(new ToolProperty('required_input', PropertyType::STRING, 'A required input', true))
-            ->setCallable(fn (string $required_input): string => "Processed: {$required_input}");
+        $tool = new TestToolWithRequiredInput();
 
         // Set inputs WITHOUT the required property
         $tool->setCallId('call_1');

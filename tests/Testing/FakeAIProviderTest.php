@@ -15,7 +15,7 @@ use NeuronAI\Testing\FakeMessageMapper;
 use NeuronAI\Testing\FakeToolMapper;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
@@ -78,7 +78,7 @@ class FakeAIProviderTest extends TestCase
 
     public function test_tools_are_stored(): void
     {
-        $tool = Tool::make('search', 'Search the web')
+        $tool = ToolDefinition::make('search', 'Search the web')
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
@@ -284,7 +284,7 @@ class FakeAIProviderTest extends TestCase
 
     public function test_assert_tools_configured_passes(): void
     {
-        $tool = Tool::make('search', 'Search the web');
+        $tool = ToolDefinition::make('search', 'Search the web');
 
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->setTools([$tool]);

@@ -23,7 +23,7 @@ use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -290,7 +290,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -354,7 +354,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ObjectProperty(
                             name: 'obj_prop',
@@ -432,7 +432,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ObjectProperty(
                             name: 'color',
@@ -511,7 +511,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                Tool::make('tool', 'description')
+                ToolDefinition::make('tool', 'description')
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',

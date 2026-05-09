@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Workflow\Events\Event;
 
-class ThirdEvent implements Event
+class ThirdEvent extends Event
 {
     public function __construct(public string $message = 'Third Event')
     {

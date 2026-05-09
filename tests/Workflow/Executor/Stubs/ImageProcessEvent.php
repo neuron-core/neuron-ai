@@ -6,6 +6,6 @@ namespace NeuronAI\Tests\Workflow\Executor\Stubs;
 
 use NeuronAI\Workflow\Events\Event;
 
-class ImageProcessEvent implements Event
+class ImageProcessEvent extends Event
 {
 }

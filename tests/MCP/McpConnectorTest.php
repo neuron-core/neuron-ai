@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\MCP;
 
-use NeuronAI\MCP\CallableMcpTool;
 use NeuronAI\MCP\McpClient;
 use NeuronAI\MCP\McpConnector;
+use NeuronAI\MCP\McpTool;
 use NeuronAI\Testing\FakeMcpTransport;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -60,7 +60,7 @@ class McpConnectorTest extends TestCase
         $this->assertSame($this->connector, $result);
     }
 
-    public function testCallableMcpToolsIsSerializable(): void
+    public function testMcpToolsAreSerializable(): void
     {
         $item = [
             'name' => 'test_tool',
@@ -68,17 +68,18 @@ class McpConnectorTest extends TestCase
             'inputSchema' => ['type' => 'object', 'properties' => []],
         ];
 
-        $callable = new CallableMcpTool(
+        $tool = new McpTool(
+            name: $item['name'],
+            description: $item['description'],
+            annotations: [],
             connector: $this->connector,
             item: $item,
         );
 
-        // Test serialization
-        $serialized = serialize($callable);
-
-        // Test unserialization
+        $serialized = serialize($tool);
         $unserialized = unserialize($serialized);
-        $this->assertInstanceOf(CallableMcpTool::class, $unserialized);
+        $this->assertInstanceOf(McpTool::class, $unserialized);
+        $this->assertSame('test_tool', $unserialized->getName());
     }
 
     public function testInvokeToolStaticMethodCreatesNewInstance(): void

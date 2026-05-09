@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Events\Event;
 /**
  * Event triggered when the AI provider requests tool execution.
  */
-class ToolCallEvent implements Event
+class ToolCallEvent extends Event
 {
     public function __construct(
         public readonly ToolCallMessage $toolCallMessage,
