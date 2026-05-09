@@ -8,6 +8,7 @@ use Deeplinq\Client;
 use Deeplinq\Context;
 use Deeplinq\Event as DeeplinqEvent;
 use Deeplinq\StepPendingException;
+use Generator;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
@@ -49,8 +50,10 @@ use function unserialize;
  *       handler: new DeeplinqExecutor($workflow),
  *   ));
  */
-class DeeplinqExecutor
+class DeeplinqExecutor implements WorkflowExecutorInterface
 {
+    protected Context $ctx;
+
     public function __construct(
         protected WorkflowInterface $workflow,
         protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
@@ -60,9 +63,14 @@ class DeeplinqExecutor
     /**
      * Deeplinq task handler entry point.
      */
-    public function __invoke(Context $ctx): WorkflowState
+    public function __invoke(Context $ctx): Generator
     {
-        $workflow = clone $this->workflow;
+        $this->ctx = $ctx;
+        return $this->execute($this->workflow);
+    }
+
+    public function execute(WorkflowInterface $workflow, ?InterruptRequest $interrupt = null,): Generator
+    {
         $workflow->bootstrap();
 
         $workflowId = $workflow->getWorkflowId();
@@ -70,16 +78,17 @@ class DeeplinqExecutor
         $workflow->resolveState()->set('__workflowId', $workflowId);
 
         try {
-            $this->traverse($workflow, $ctx);
-
-            $this->workflowEnd($workflow);
-            return $workflow->resolveState();
+            yield from $this->traverse($workflow);
         } catch (StepPendingException $e) {
             throw $e;
         } catch (Throwable $exception) {
             EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
             throw $exception;
         }
+
+        // Call the end of the workflow and return only when it fully runs successfully.
+        $this->workflowEnd($workflow);
+        return $workflow->resolveState();
     }
 
     /**
@@ -87,7 +96,7 @@ class DeeplinqExecutor
      *
      * @throws StepPendingException
      */
-    protected function traverse(WorkflowInterface $workflow, Context $ctx): void
+    protected function traverse(WorkflowInterface $workflow): Generator
     {
         $event = $workflow->getStartEvent();
         $node = $workflow->getNodeForEvent($event::class);
@@ -96,21 +105,19 @@ class DeeplinqExecutor
             $stepId = $node::class;
             $state = $workflow->resolveState();
 
-            $result = $ctx->step->run($stepId, function () use ($node, $event, $state, $workflow): array {
+            $packed = $this->ctx->step->run($stepId, function () use ($node, $event, $state, $workflow): array {
                 return $this->executeNode($node, $event, $state, $workflow);
             });
 
-            if ($result['interrupted'] ?? false) {
-                $result = $this->resumeInterruptedNode($ctx, $workflow, $stepId, $node, $event, $state);
+            if ($packed instanceof Generator) {
+                yield from $packed;
             }
 
-            $event = $this->unpackEvent($result);
-            $state = $this->unpackState($result);
-            $workflow->setState($state);
-
-            if ($event instanceof ParallelEvent) {
-                $this->executeBranches($workflow, $ctx, $event);
+            if ($packed['interrupted'] ?? false) {
+                $packed = $this->resumeInterruptedNode($workflow, $stepId, $node, $event, $state);
             }
+
+            $event = $this->processPackedResult($packed, $workflow);
 
             if ($event instanceof StopEvent) {
                 break;
@@ -131,11 +138,12 @@ class DeeplinqExecutor
         Event $event,
         WorkflowState $state,
         WorkflowInterface $workflow,
+        ?string $branchId = null,
         ?InterruptRequest $resumeRequest = null,
     ): array {
         try {
             $middleware = $workflow->getMiddlewareForNode($node);
-            $nodeGen = $this->nodeRunner->run($node, $event, $state, $middleware, null, $resumeRequest);
+            $nodeGen = $this->nodeRunner->run($node, $event, $state, $middleware, $branchId, $resumeRequest);
             foreach ($nodeGen as $_) {}
             $resultEvent = $nodeGen->getReturn();
 
@@ -149,6 +157,19 @@ class DeeplinqExecutor
         }
     }
 
+    protected function processPackedResult(array $packed, WorkflowInterface $workflow): Event
+    {
+        $event = $this->unpackEvent($packed['event']);
+        $state = $this->unpackState($packed['state']);
+        $workflow->setState($state);
+
+        if ($event instanceof ParallelEvent) {
+            $this->executeBranches($workflow, $event);
+        }
+
+        return $event;
+    }
+
     /**
      * Handle the 3-step interrupt pattern (steps 2 and 3).
      *
@@ -158,16 +179,16 @@ class DeeplinqExecutor
      * @throws StepPendingException
      */
     protected function resumeInterruptedNode(
-        Context $ctx,
         WorkflowInterface $workflow,
         string $stepId,
         NodeInterface $node,
         Event $event,
         WorkflowState $state,
+        ?string $branchId = null,
     ): array {
         $workflowId = $workflow->getWorkflowId();
 
-        $resumeData = $ctx->step->waitForEvent(
+        $resumeData = $this->ctx->step->waitForEvent(
             $stepId . '.interrupt',
             'workflow/interrupt/' . $workflowId,
             '7d',
@@ -175,14 +196,15 @@ class DeeplinqExecutor
 
         $resumeRequest = unserialize(base64_decode($resumeData));
 
-        return $ctx->step->run($stepId . '.resumed', function () use (
+        return $this->ctx->step->run($stepId . '.resumed', function () use (
             $node,
             $event,
             $state,
             $workflow,
+            $branchId,
             $resumeRequest,
         ): array {
-            return $this->executeNode($node, $event, $state, $workflow, $resumeRequest);
+            return $this->executeNode($node, $event, $state, $workflow, $branchId, $resumeRequest);
         });
     }
 
@@ -193,7 +215,6 @@ class DeeplinqExecutor
      */
     protected function executeBranches(
         WorkflowInterface $workflow,
-        Context $ctx,
         ParallelEvent $parallelEvent,
     ): void {
         $workflowId = $workflow->getWorkflowId();
@@ -206,7 +227,7 @@ class DeeplinqExecutor
             EventBus::emit('branch-start', $workflow, new BranchStart($branchId), $workflowId, $branchId);
 
             try {
-                $result = $this->executeBranch($workflow, $ctx, $branchId, $branchEvent);
+                $result = $this->executeBranch($workflow, $branchId, $branchEvent);
                 $parallelEvent->setResult($branchId, $result);
             } catch (BranchInterrupt $branchInterrupt) {
                 throw new WorkflowInterrupt(
@@ -232,7 +253,6 @@ class DeeplinqExecutor
      */
     protected function executeBranch(
         WorkflowInterface $workflow,
-        Context $ctx,
         string $branchId,
         Event $branchEvent,
     ): mixed {
@@ -246,21 +266,15 @@ class DeeplinqExecutor
             while (!($event instanceof StopEvent)) {
                 $stepId = $branchId . '.' . $node::class;
 
-                $packed = $ctx->step->run($stepId, function () use ($node, $event, $branchState, $workflow, $branchId): array {
-                    return $this->executeBranchNode($node, $event, $branchState, $workflow, $branchId);
+                $packed = $this->ctx->step->run($stepId, function () use ($node, $event, $branchState, $workflow, $branchId): array {
+                    return $this->executeNode($node, $event, $branchState, $workflow, $branchId);
                 });
 
                 if ($packed['interrupted'] ?? false) {
-                    $packed = $this->resumeInterruptedBranchNode($ctx, $workflow, $stepId, $node, $event, $branchState, $branchId);
+                    $packed = $this->resumeInterruptedNode($workflow, $stepId, $node, $event, $branchState, $branchId);
                 }
 
-                $event = $this->unpackEvent($packed['event']);
-                $branchState = $this->unpackState($packed['state']);
-                $workflow->setState($branchState);
-
-                if ($event instanceof ParallelEvent) {
-                    $this->executeBranches($workflow, $ctx, $event);
-                }
+                $event = $this->processPackedResult($packed, $workflow);
 
                 if ($event instanceof StopEvent) {
                     break;
@@ -273,69 +287,6 @@ class DeeplinqExecutor
         }
 
         return $event->getResult();
-    }
-
-    /**
-     * Execute a node inside a parallel branch, catching WorkflowInterrupt.
-     */
-    protected function executeBranchNode(
-        NodeInterface $node,
-        Event $event,
-        WorkflowState $state,
-        WorkflowInterface $workflow,
-        string $branchId,
-        ?InterruptRequest $resumeRequest = null,
-    ): array {
-        try {
-            $middleware = $workflow->getMiddlewareForNode($node);
-            $nodeGen = $this->nodeRunner->run($node, $event, $state, $middleware, $branchId, $resumeRequest);
-            foreach ($nodeGen as $_) {}
-            $resultEvent = $nodeGen->getReturn();
-
-            return $this->pack($resultEvent, $state);
-        } catch (WorkflowInterrupt $interrupt) {
-            return [
-                'interrupted' => true,
-                'state' => base64_encode(serialize($interrupt->getState())),
-                'request' => base64_encode(serialize($interrupt->getRequest())),
-            ];
-        }
-    }
-
-    /**
-     * Handle interrupt resume inside a branch.
-     *
-     * @throws StepPendingException
-     */
-    protected function resumeInterruptedBranchNode(
-        Context $ctx,
-        WorkflowInterface $workflow,
-        string $stepId,
-        NodeInterface $node,
-        Event $event,
-        WorkflowState $state,
-        string $branchId,
-    ): array {
-        $workflowId = $workflow->getWorkflowId();
-
-        $resumeData = $ctx->step->waitForEvent(
-            $stepId . '.interrupt',
-            'workflow/interrupt/' . $workflowId,
-            '7d',
-        );
-
-        $resumeRequest = unserialize(base64_decode($resumeData));
-
-        return $ctx->step->run($stepId . '.resumed', function () use (
-            $node,
-            $event,
-            $state,
-            $workflow,
-            $branchId,
-            $resumeRequest,
-        ): array {
-            return $this->executeBranchNode($node, $event, $state, $workflow, $branchId, $resumeRequest);
-        });
     }
 
     /**

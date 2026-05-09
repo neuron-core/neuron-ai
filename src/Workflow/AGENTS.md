@@ -15,21 +15,6 @@ Node signature determines routing via reflection:
 public function __invoke(SpecificEvent $event, WorkflowState $state): NextEvent
 ```
 
-## Key Files
-
-| File                                     | Purpose                                                                                                                |
-|------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `Workflow.php`                           | Main orchestrator, builds event→node mapping, manages execution with `run()` and `events()` streaming                  |
-| `Node.php`                               | Base class with `interrupt()`, `checkpoint()`, context access                                                          |
-| `WorkflowState.php`                      | Shared key-value state across nodes                                                                                    |
-| `Executor/WorkflowExecutorInterface.php` | Executor contract (`execute()` returns Generator)                                                                      |
-| `Executor/WorkflowExecutor.php`          | Default executor: sequential traversal with InMemoryPersistence takes a `NodeRunner` + optional `PersistenceInterface` |
-| `Executor/AsyncExecutor.php`             | Extends `WorkflowExecutor`, runs parallel branches concurrently via Amp fibers                                       |
-| `Executor/NodeRunner.php`                | Interface for single-node execution lifecycle                                                                          |
-| `Executor/DefaultNodeRunner.php`         | Default `NodeRunner`: context → node-start → before-middleware → execute → after-middleware → node-end                 |
-| `StartEvent.php`                         | Triggers workflow start (required)                                                                                     |
-| `StopEvent.php`                          | Signals completion                                                                                                     |
-
 ## Usage
 
 ```php
@@ -48,7 +33,7 @@ $finalState = $workflow->run();
 Nodes can pause execution for external input:
 
 ```php
-// In node
+// Inside a node
 $this->interrupt(new ApprovalRequest(actions: [...]));
 ```
 
@@ -72,7 +57,7 @@ try {
 
 Cache expensive operations across interruptions:
 ```php
-// In node
+// Inside node
 $data = $this->checkpoint('key', fn() => expensiveCall());
 ```
 
@@ -125,20 +110,7 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
 $workflow = Workflow::make()
     ->setExecutor(
-        new WorkflowExecutor(new DatabasePersistence($pdo))
+        new WorkflowExecutor(new LocalStepEngine(new DatabasePersistence($pdo)))
     );
 $workflow->run();
 ```
-
-### NodeRunner
-
-The `NodeRunner` interface owns the full node lifecycle:
-1. Set workflow context on the node
-2. Emit `workflow-node-start`
-3. Run before-middleware
-4. Execute the node (unwrap Generators for streaming)
-5. Run after-middleware
-6. Emit `workflow-node-end`
-
-Implement `NodeRunner` to customize node execution (e.g. tracing, error handling wrappers) independently of the graph traversal strategy.
-
