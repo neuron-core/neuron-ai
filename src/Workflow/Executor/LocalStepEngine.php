@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 class LocalStepEngine implements StepEngine
 {
-    /** @var array<string, StepResult> keyed by stepId */
+    /** @var array<string, StepResult> keyed by "{workflowId}.{stepId}" */
     protected array $steps = [];
 
     protected int $generation = 0;
@@ -111,7 +111,8 @@ class LocalStepEngine implements StepEngine
             return $this->persistence->load($this->workflowId, $stepId);
         }
 
-        return $this->steps[$stepId] ?? null;
+        $key = $this->stepsKey($stepId);
+        return $this->steps[$key] ?? null;
     }
 
     protected function setStepResult(string $stepId, StepResult $result): void
@@ -121,6 +122,14 @@ class LocalStepEngine implements StepEngine
             return;
         }
 
-        $this->steps[$stepId] = $result;
+        $key = $this->stepsKey($stepId);
+        $this->steps[$key] = $result;
+    }
+
+    protected function stepsKey(string $stepId): string
+    {
+        return $this->workflowId !== ''
+            ? $this->workflowId . '.' . $stepId
+            : $stepId;
     }
 }

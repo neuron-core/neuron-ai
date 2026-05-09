@@ -38,13 +38,14 @@ class DurableExecutorTest extends TestCase
 
     public function testMemoizationOnCrashRecovery(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $workflowId = 'durable_crash_test';
+        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
         // Node B is configured to crash on the first run
         $crashingNodeB = new DurableNodeB();
         $crashingNodeB->setShouldCrash(true);
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 $crashingNodeB,
@@ -61,9 +62,9 @@ class DurableExecutorTest extends TestCase
         // Node A executed (completed), node B executed and crashed, node C never ran
         $this->assertSame(2, CountableNode::getExecutionCount());
 
-        // Recovery run — node B won't crash
+        // Recovery run — same workflowId, node B won't crash
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make()
+        $workflow2 = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(),
@@ -81,9 +82,10 @@ class DurableExecutorTest extends TestCase
 
     public function testInterruptThenResumeMemoizesCompletedSteps(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $workflowId = 'durable_interrupt_test';
+        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -108,7 +110,7 @@ class DurableExecutorTest extends TestCase
         $request->getAction('approve_b')?->approve();
 
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make()
+        $workflow2 = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -130,9 +132,10 @@ class DurableExecutorTest extends TestCase
 
     public function testStepCleanupAfterCompletion(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $workflowId = 'durable_cleanup_test';
+        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(),
@@ -142,19 +145,20 @@ class DurableExecutorTest extends TestCase
         $this->execute($workflow, $this->createDurableExecutor($stepEngine));
 
         // Steps should be deleted after successful completion
-        $this->assertNull($stepEngine->getStep(DurableNodeA::class));
-        $this->assertNull($stepEngine->getStep(DurableNodeB::class));
-        $this->assertNull($stepEngine->getStep(DurableNodeC::class));
+        $this->assertNull($stepEngine->getStep(DurableNodeA::class . '-0'));
+        $this->assertNull($stepEngine->getStep(DurableNodeB::class . '-1'));
+        $this->assertNull($stepEngine->getStep(DurableNodeC::class . '-2'));
     }
 
     public function testStepsNotCleanedUpAfterCrash(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $workflowId = 'durable_crash_cleanup_test';
+        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
         $crashingNodeB = new DurableNodeB();
         $crashingNodeB->setShouldCrash(true);
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
                 $crashingNodeB,
@@ -166,7 +170,7 @@ class DurableExecutorTest extends TestCase
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException) {
             // After crash, completed steps should still be in the engine
-            $this->assertNotNull($stepEngine->getStep(DurableNodeA::class));
+            $this->assertNotNull($stepEngine->getStep(DurableNodeA::class . '-0'));
         }
     }
 

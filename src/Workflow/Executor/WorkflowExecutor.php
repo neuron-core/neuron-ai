@@ -85,11 +85,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * Build a unique step identifier for memoization.
      */
-    protected function buildStepId(NodeInterface $node, ?string $branchId): string
+    protected function buildStepId(NodeInterface $node, ?string $branchId, int $index): string
     {
-        return $branchId !== null
+        $base = $branchId !== null
             ? $branchId . '.' . $node::class
             : $node::class;
+
+        return $base . '-' . $index;
     }
 
     /**
@@ -104,8 +106,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         Event $event,
         NodeInterface $node,
     ): Generator {
+        $index = 0;
+
         while (!($event instanceof StopEvent)) {
-            $stepId = $this->buildStepId($node, null);
+            $stepId = $this->buildStepId($node, null, $index++);
             $streamedEvents = [];
 
             $result = $this->stepEngine->runStep($stepId, function (?InterruptRequest $resumeRequest) use (
@@ -226,9 +230,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         try {
             $node = $startNode ?? $workflow->getNodeForEvent($branchEvent::class);
             $event = $branchEvent;
+            $index = 0;
 
             while (!($event instanceof StopEvent)) {
-                $stepId = $this->buildStepId($node, $branchId);
+                $stepId = $this->buildStepId($node, $branchId, $index++);
 
                 $result = $this->stepEngine->runStep($stepId, function (?InterruptRequest $stepResume) use (
                     $node,

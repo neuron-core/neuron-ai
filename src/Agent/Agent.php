@@ -15,7 +15,6 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
-use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -24,6 +23,7 @@ use Throwable;
 use function is_array;
 
 /**
+ * @method static static make(?string $resumeToken = null)
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
  */
@@ -38,15 +38,9 @@ class Agent extends Workflow implements AgentInterface
     protected bool $parallelToolCalls = false;
 
     public function __construct(
-        ?WorkflowExecutorInterface $executor = null,
-        ?AgentState                $state = null,
-        ?string                    $resumeToken = null,
+        ?string $resumeToken = null,
     ) {
-        parent::__construct($resumeToken, $state);
-
-        if ($executor instanceof WorkflowExecutorInterface) {
-            $this->setExecutor($executor);
-        }
+        parent::__construct($resumeToken);
     }
 
     /**

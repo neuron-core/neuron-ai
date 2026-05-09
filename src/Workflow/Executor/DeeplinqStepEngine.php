@@ -82,7 +82,7 @@ class DeeplinqStepEngine implements StepEngine
                 '7d',
             );
 
-            $nextResume = unserialize(base64_decode($resumeData));
+            $nextResume = unserialize(base64_decode($resumeData['resume']));
 
             return $this->runWithInterruptLoop(
                 $stepId,
@@ -110,7 +110,7 @@ class DeeplinqStepEngine implements StepEngine
     {
         $client->sendEvent(new DeeplinqEvent(
             name: 'workflow/interrupt/' . $workflowId,
-            data: base64_encode(serialize($request)),
+            data: ['resume' => base64_encode(serialize($request))],
         ));
     }
 

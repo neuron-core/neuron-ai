@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use Closure;
 use Deeplinq\Context;
 use Generator;
 use NeuronAI\Workflow\Workflow;
@@ -21,8 +22,15 @@ use NeuronAI\Workflow\WorkflowState;
  */
 class DeeplinqTaskHandler
 {
+    /**
+     * @param Workflow $workflow The workflow to execute
+     * @param Closure|null $boot Callback to prepare the workflow before execution.
+     *   For Agents, pass fn(Agent $agent) => $agent->chat(...)->events() to set up the chat mode.
+     *   Receives the workflow and must return a Generator.
+     */
     public function __construct(
         protected Workflow $workflow,
+        protected ?Closure $boot = null,
     ) {
     }
 
@@ -32,7 +40,13 @@ class DeeplinqTaskHandler
             new WorkflowExecutor(new DeeplinqStepEngine($ctx, $this->workflow->getWorkflowId()))
         );
 
-        yield from $this->workflow->events();
+        if ($this->boot instanceof Closure) {
+            $events = ($this->boot)($this->workflow);
+        } else {
+            $events = $this->workflow->events();
+        }
+
+        yield from $events;
 
         return $this->workflow->resolveState();
     }
