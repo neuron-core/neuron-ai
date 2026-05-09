@@ -44,7 +44,7 @@ use function unserialize;
  *   3. Re-execute node with resume request
  *
  * Usage:
- *   $client->register(new Task(
+ *   $deeplinq->register(new Task(
  *       id: 'my-workflow',
  *       triggers: [...],
  *       handler: new DeeplinqExecutor($workflow),
@@ -69,7 +69,7 @@ class DeeplinqExecutor implements WorkflowExecutorInterface
         return $this->execute($this->workflow);
     }
 
-    public function execute(WorkflowInterface $workflow, ?InterruptRequest $interrupt = null,): Generator
+    public function execute(WorkflowInterface $workflow, ?InterruptRequest $interrupt = null): Generator
     {
         $workflow->bootstrap();
 
