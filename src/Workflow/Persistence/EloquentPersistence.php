@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Persistence;
 
 use Illuminate\Database\Eloquent\Model;
-
+use NeuronAI\Workflow\Executor\StepResult;
 use function base64_decode;
 use function base64_encode;
 use function serialize;
 use function unserialize;
 
-class EloquentStepStore implements StepStoreInterface
+class EloquentPersistence implements PersistenceInterface
 {
     public function __construct(protected string $modelClass)
     {

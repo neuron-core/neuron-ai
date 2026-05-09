@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Persistence;
 
-interface StepStoreInterface
+use NeuronAI\Workflow\Executor\StepResult;
+
+interface PersistenceInterface
 {
     public function save(string $workflowId, string $stepId, StepResult $result): void;
     public function load(string $workflowId, string $stepId): ?StepResult;

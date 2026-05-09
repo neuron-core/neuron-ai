@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 class LocalStepEngine implements StepEngine
 {
@@ -17,8 +18,8 @@ class LocalStepEngine implements StepEngine
     protected ?string $interruptedStepId = null;
 
     public function __construct(
-        protected ?StepStoreInterface $store = null,
-        protected string $workflowId = '',
+        protected ?PersistenceInterface $persistence = null,
+        protected string                $workflowId = '',
     ) {
     }
 
@@ -84,7 +85,7 @@ class LocalStepEngine implements StepEngine
         $this->interruptedStepId = null;
 
         if ($this->workflowId !== '') {
-            $this->store?->delete($this->workflowId);
+            $this->persistence?->delete($this->workflowId);
         }
     }
 
@@ -98,8 +99,8 @@ class LocalStepEngine implements StepEngine
 
     protected function getStepResult(string $stepId): ?StepResult
     {
-        if ($this->store instanceof StepStoreInterface && $this->workflowId !== '') {
-            return $this->store->load($this->workflowId, $stepId);
+        if ($this->persistence instanceof PersistenceInterface && $this->workflowId !== '') {
+            return $this->persistence->load($this->workflowId, $stepId);
         }
 
         return $this->steps[$stepId] ?? null;
@@ -107,8 +108,8 @@ class LocalStepEngine implements StepEngine
 
     protected function setStepResult(string $stepId, StepResult $result): void
     {
-        if ($this->store instanceof StepStoreInterface && $this->workflowId !== '') {
-            $this->store->save($this->workflowId, $stepId, $result);
+        if ($this->persistence instanceof PersistenceInterface && $this->workflowId !== '') {
+            $this->persistence->save($this->workflowId, $stepId, $result);
             return;
         }
 

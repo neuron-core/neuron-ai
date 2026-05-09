@@ -96,16 +96,16 @@ class DeeplinqExecutor
             $stepId = $node::class;
             $state = $workflow->resolveState();
 
-            $packed = $ctx->step->run($stepId, function () use ($node, $event, $state, $workflow): array {
+            $result = $ctx->step->run($stepId, function () use ($node, $event, $state, $workflow): array {
                 return $this->executeNode($node, $event, $state, $workflow);
             });
 
-            if ($packed['interrupted'] ?? false) {
-                $packed = $this->resumeInterruptedNode($ctx, $workflow, $stepId, $node, $event, $state);
+            if ($result['interrupted'] ?? false) {
+                $result = $this->resumeInterruptedNode($ctx, $workflow, $stepId, $node, $event, $state);
             }
 
-            $event = $this->unpackEvent($packed);
-            $state = $this->unpackState($packed);
+            $event = $this->unpackEvent($result);
+            $state = $this->unpackState($result);
             $workflow->setState($state);
 
             if ($event instanceof ParallelEvent) {
@@ -254,8 +254,8 @@ class DeeplinqExecutor
                     $packed = $this->resumeInterruptedBranchNode($ctx, $workflow, $stepId, $node, $event, $branchState, $branchId);
                 }
 
-                $event = $this->unpackEvent($packed);
-                $branchState = $this->unpackState($packed);
+                $event = $this->unpackEvent($packed['event']);
+                $branchState = $this->unpackState($packed['state']);
                 $workflow->setState($branchState);
 
                 if ($event instanceof ParallelEvent) {
@@ -364,14 +364,14 @@ class DeeplinqExecutor
         ];
     }
 
-    protected function unpackEvent(array $packed): Event
+    protected function unpackEvent(string $event): Event
     {
-        return unserialize(base64_decode($packed['event']));
+        return unserialize(base64_decode($event));
     }
 
-    protected function unpackState(array $packed): WorkflowState
+    protected function unpackState(string $state): WorkflowState
     {
-        return unserialize(base64_decode($packed['state']));
+        return unserialize(base64_decode($state));
     }
 
     protected function workflowEnd(WorkflowInterface $workflow): void

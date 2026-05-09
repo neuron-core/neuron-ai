@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Persistence;
 
+use NeuronAI\Workflow\Executor\StepResult;
 use function serialize;
 use function unserialize;
 
-class InMemoryStepStore implements StepStoreInterface
+class InMemoryPersistence implements PersistenceInterface
 {
     /** @var array<string, array<string, string>> keyed by workflowId then stepId */
     protected array $storage = [];

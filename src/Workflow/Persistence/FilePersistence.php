@@ -2,24 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
-
+use NeuronAI\Workflow\Executor\StepResult;
 use function file_get_contents;
 use function file_put_contents;
+use function glob;
 use function is_dir;
 use function is_file;
+use function mkdir;
+use function rmdir;
 use function serialize;
 use function unlink;
 use function unserialize;
-use function glob;
-use function mkdir;
-use function rmdir;
-
 use const DIRECTORY_SEPARATOR;
 
-class FileStepStore implements StepStoreInterface
+class FilePersistence implements PersistenceInterface
 {
     public function __construct(
         protected string $directory,

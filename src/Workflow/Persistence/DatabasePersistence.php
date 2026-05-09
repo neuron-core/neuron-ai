@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Persistence;
 
+use NeuronAI\Workflow\Executor\StepResult;
 use PDO;
-
 use function base64_decode;
 use function base64_encode;
 use function serialize;
 use function unserialize;
 
-class DatabaseStepStore implements StepStoreInterface
+class DatabasePersistence implements PersistenceInterface
 {
     public function __construct(
         protected PDO $pdo,
