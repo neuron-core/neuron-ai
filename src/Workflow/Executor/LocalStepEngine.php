@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 class LocalStepEngine implements StepEngine
@@ -15,17 +16,19 @@ class LocalStepEngine implements StepEngine
     protected int $generation = 0;
 
     protected ?InterruptRequest $pendingResume = null;
-    protected ?string $interruptedStepId = null;
 
     public function __construct(
         protected ?PersistenceInterface $persistence = null,
-        protected string                $workflowId = '',
+        protected string $workflowId = '',
     ) {
     }
 
-    public function prepareExecution(): void
+    public function prepareExecution(?InterruptRequest $resume = null): void
     {
         $this->generation++;
+        if ($resume instanceof InterruptRequest) {
+            $this->pendingResume = $resume;
+        }
     }
 
     public function runStep(string $stepId, callable $fn): StepResult
@@ -40,20 +43,42 @@ class LocalStepEngine implements StepEngine
             return $cached;
         }
 
-        // Determine if this step has a pending resume request
-        $resumeRequest = ($stepId === $this->interruptedStepId)
-            ? $this->pendingResume
-            : null;
+        // Resuming an interrupted step — pass the stored resume request
+        if ($cached instanceof StepResult
+            && $cached->isInterrupted()
+            && $this->pendingResume instanceof InterruptRequest
+        ) {
+            $result = $fn($this->pendingResume);
+
+            $stamped = new StepResult(
+                stepId: $result->getStepId(),
+                event: $result->getEvent(),
+                state: $result->getState(),
+                generation: $this->generation,
+            );
+            $this->setStepResult($stepId, $stamped);
+
+            return $stamped;
+        }
 
         // Execute the callable
-        $result = $fn($resumeRequest);
+        try {
+            $result = $fn(null);
+        } catch (WorkflowInterrupt $interrupt) {
+            $stamped = new StepResult(
+                stepId: $stepId,
+                interrupt: $interrupt->getRequest(),
+                generation: $this->generation,
+            );
+            $this->setStepResult($stepId, $stamped);
+            throw $interrupt;
+        }
 
         // Save internally with current generation
         $stamped = new StepResult(
             stepId: $result->getStepId(),
             event: $result->getEvent(),
             state: $result->getState(),
-            interrupt: $result->getInterrupt(),
             generation: $this->generation,
         );
         $this->setStepResult($stepId, $stamped);
@@ -61,28 +86,11 @@ class LocalStepEngine implements StepEngine
         return $stamped;
     }
 
-    public function interruptStep(string $stepId, InterruptRequest $request): void
-    {
-        $result = new StepResult(
-            stepId: $stepId,
-            interrupt: $request,
-            generation: $this->generation,
-        );
-        $this->setStepResult($stepId, $result);
-        $this->interruptedStepId = $stepId;
-    }
-
-    public function setResumeRequest(InterruptRequest $request): void
-    {
-        $this->pendingResume = $request;
-    }
-
     public function deleteSteps(): void
     {
         $this->steps = [];
         $this->generation = 0;
         $this->pendingResume = null;
-        $this->interruptedStepId = null;
 
         if ($this->workflowId !== '') {
             $this->persistence?->delete($this->workflowId);

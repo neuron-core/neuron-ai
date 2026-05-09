@@ -78,15 +78,16 @@ The executor controls **how** the workflow graph is traversed. `Workflow` delega
 
 ### Architecture
 
-Two layers: **Executor** (graph traversal, parallel branch strategy, interrupt/resume, persistence) and **NodeRunner** (single-node lifecycle: middleware + invocation).
+Two layers: **Executor** (graph traversal) and **StepEngine** (durability/memoization).
 
 ```
 Workflow
   └─ WorkflowExecutorInterface (execute the graph)
-       ├─ WorkflowExecutor   (default, self-contained, injectable NodeRunner + Persistence)
+       ├─ WorkflowExecutor   (traversal, delegates durability to StepEngine)
        │    └─ AsyncExecutor (concurrent branches via Amp fibers)
-  └─ NodeRunner (single node lifecycle)
-       └─ DefaultNodeRunner
+  └─ StepEngine (durability abstraction)
+       ├─ LocalStepEngine   (in-process, optional Persistence)
+       └─ DeeplinqStepEngine (Deeplinq platform durability)
 ```
 
 ### Choosing an executor
@@ -97,20 +98,37 @@ $workflow = Workflow::make();
 $workflow->run();
 
 // Async parallel branches (requires ext-amp)
-use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\DefaultNodeRunner;
-
 $workflow = Workflow::make()
     ->setExecutor(new AsyncExecutor());
 $workflow->run();
 
-// Custom persistence with WorkflowExecutor
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Persistence\DatabasePersistence;
-
+// Custom persistence
 $workflow = Workflow::make()
     ->setExecutor(
         new WorkflowExecutor(new LocalStepEngine(new DatabasePersistence($pdo)))
     );
 $workflow->run();
 ```
+
+### External platforms (Deeplinq)
+
+Use `DeeplinqTaskHandler` as the task handler, backed by `DeeplinqStepEngine`:
+
+```php
+use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
+
+$deeplinq->register(new Task(
+    id: 'my-workflow',
+    triggers: [new Event('event/name')],
+    handler: new DeeplinqTaskHandler($workflow),
+));
+```
+
+Resume an interrupted workflow:
+```php
+use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
+
+DeeplinqStepEngine::sendResume($client, $workflowId, $approvalRequest);
+```
+
+Every Node becomes a durable step. The `StepEngine` decides how steps are persisted and replayed — local persistence or external platform.

@@ -12,8 +12,11 @@ interface StepEngine
      * Execute a step with memoization.
      *
      * - If the step has a cached (completed) result: return it without executing $fn.
-     * - If the step was interrupted and has resume data: pass it to $fn as a parameter.
+     * - If the step was interrupted: pass the stored resume request to $fn.
      * - If no cached result: execute $fn, store the result, return it.
+     *
+     * Implementations may throw to yield control to an external platform
+     * (e.g., StepPendingException for HTTP-based durable execution).
      *
      * The callable receives (?InterruptRequest $resumeRequest) as its parameter.
      * Must return a StepResult carrying event and state.
@@ -23,21 +26,11 @@ interface StepEngine
     public function runStep(string $stepId, callable $fn): StepResult;
 
     /**
-     * Record an interrupt at this step position.
-     *
-     * Called when a node throws WorkflowInterrupt.
-     */
-    public function interruptStep(string $stepId, InterruptRequest $request): void;
-
-    /**
-     * Inject the user's resume decision before traversal begins.
-     */
-    public function setResumeRequest(InterruptRequest $request): void;
-
-    /**
      * Prepare for a new execute() call. Called once at the start of each traversal.
+     *
+     * @param InterruptRequest|null $resume User decision when resuming from an interrupt
      */
-    public function prepareExecution(): void;
+    public function prepareExecution(?InterruptRequest $resume = null): void;
 
     /**
      * Clean up step data after a workflow completes successfully.

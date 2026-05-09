@@ -57,11 +57,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->resolveState()->set('__workflowId', $workflowId);
 
         try {
-            $this->stepEngine->prepareExecution();
-
-            if ($interrupt instanceof InterruptRequest) {
-                $this->stepEngine->setResumeRequest($interrupt);
-            }
+            $this->stepEngine->prepareExecution($interrupt);
 
             yield from $this->traverse(
                 $workflow,
@@ -71,12 +67,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             $this->stepEngine->deleteSteps();
         } catch (WorkflowInterrupt $interrupt) {
-            $stepId = $this->buildStepId($interrupt->getNode(), $interrupt->getBranchId());
-            $this->stepEngine->interruptStep($stepId, $interrupt->getRequest());
             EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
             throw $interrupt;
         } catch (Throwable $exception) {
-            EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
+            // Don't emit error for platform step-pending (expected control flow)
+            if ($exception::class !== 'Deeplinq\StepPendingException') {
+                EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
+            }
             throw $exception;
         } finally {
             $this->workflowEnd($workflow);
