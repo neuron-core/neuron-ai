@@ -23,8 +23,6 @@ use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-use function iterator_to_array;
-
 /**
  * Durable workflow executor with replay-based traversal.
  *
@@ -71,7 +69,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             throw $interrupt;
         } catch (Throwable $exception) {
             // Don't emit error for platform step-pending (expected control flow)
-            if ($exception::class !== 'Deeplinq\StepPendingException') {
+            if ($exception::class !== \Deeplinq\StepPendingException::class) {
                 EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
             }
             throw $exception;

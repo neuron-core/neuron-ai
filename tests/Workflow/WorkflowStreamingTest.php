@@ -19,6 +19,9 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
+use function array_filter;
+use function array_map;
+
 class WorkflowStreamingTest extends TestCase
 {
     use ExecutorTestHelpers;
@@ -44,7 +47,7 @@ class WorkflowStreamingTest extends TestCase
         $gen->getReturn();
 
         // NodeTwo yields SecondEvent('Stream second event') and returns SecondEvent('Second complete')
-        $streamed = array_filter($events, fn(object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
+        $streamed = array_filter($events, fn (object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
         $this->assertCount(1, $streamed, 'NodeTwo should yield exactly one streamed SecondEvent');
     }
 
@@ -56,7 +59,7 @@ class WorkflowStreamingTest extends TestCase
     {
         $workflow = Workflow::make()->addNodes([
             // StartEvent → Step2Event
-            new class extends Node {
+            new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): Step2Event
                 {
                     $state->set('step1_executed', true);
@@ -79,8 +82,8 @@ class WorkflowStreamingTest extends TestCase
 
         // Filter ChunkEvents by payload
         $chunkPayloads = array_map(
-            fn(ChunkEvent $e): string => $e->payload,
-            array_filter($events, fn(object $e): bool => $e instanceof ChunkEvent),
+            fn (ChunkEvent $e): string => $e->payload,
+            array_filter($events, fn (object $e): bool => $e instanceof ChunkEvent),
         );
 
         $this->assertSame(['text-1', 'text-2'], $chunkPayloads);
@@ -110,7 +113,7 @@ class WorkflowStreamingTest extends TestCase
         $gen->getReturn();
 
         // The streamed event was emitted on the first run
-        $streamedFirstRun = array_filter($eventsFirstRun, fn(object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
+        $streamedFirstRun = array_filter($eventsFirstRun, fn (object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
         $this->assertCount(1, $streamedFirstRun);
     }
 }

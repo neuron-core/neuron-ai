@@ -37,12 +37,6 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
-    public function __construct(
-        ?string $resumeToken = null,
-    ) {
-        parent::__construct($resumeToken);
-    }
-
     /**
      * Determines whether tools should be executed in parallel.
      */

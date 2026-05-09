@@ -19,6 +19,8 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
+use function iterator_to_array;
+
 class DeeplinqStepEngineTest extends TestCase
 {
     /**
@@ -46,8 +48,7 @@ class DeeplinqStepEngineTest extends TestCase
 
             try {
                 $gen = $handler($context);
-                foreach ($gen as $_) {
-                }
+                iterator_to_array($gen);
                 return $gen->getReturn();
             } catch (StepPendingException) {
                 foreach ($step->getOps() as $op) {

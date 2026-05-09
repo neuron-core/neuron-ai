@@ -21,11 +21,21 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use stdClass;
+
+use function glob;
+use function is_dir;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function unlink;
+
+use const DIRECTORY_SEPARATOR;
 
 class CrashSearchTool extends Tool
 {
     public function __construct(
-        protected object $counter = new \stdClass,
+        protected object $counter = new stdClass(),
     ) {
         $this->counter->count = 0;
         parent::__construct(
@@ -225,6 +235,35 @@ class AgentDurabilityTest extends TestCase
             'I see the search was rejected. Is there anything else I can help with?',
             $message->getContent()
         );
+    }
+
+    public function testSuccessfulToolCallWithStepEngine(): void
+    {
+        $workflowId = 'agent_tool_success_test';
+        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $executor = new WorkflowExecutor($stepEngine);
+
+        $searchTool = new SearchTool();
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+            ]),
+            new AssistantMessage('Based on the search results, here are the top PHP frameworks...'),
+        );
+
+        $agent = Agent::make(resumeToken: $workflowId);
+        $agent->setAiProvider($provider);
+        $agent->addTool($searchTool);
+        $agent->setExecutor($executor);
+
+        $message = $agent->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
+
+        $this->assertSame('Based on the search results, here are the top PHP frameworks...', $message->getContent());
+        $this->assertSame(2, $provider->getCallCount());
+
+        // Steps should be cleaned up after successful completion
+        $this->assertNull($stepEngine->getStep(ChatNode::class . '-0'));
     }
 
     public function testCrashRecoveryWithFilePersistence(): void

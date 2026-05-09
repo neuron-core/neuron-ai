@@ -40,11 +40,7 @@ class DeeplinqTaskHandler
             new WorkflowExecutor(new DeeplinqStepEngine($ctx, $this->workflow->getWorkflowId()))
         );
 
-        if ($this->boot instanceof Closure) {
-            $events = ($this->boot)($this->workflow);
-        } else {
-            $events = $this->workflow->events();
-        }
+        $events = $this->boot instanceof Closure ? ($this->boot)($this->workflow) : $this->workflow->events();
 
         yield from $events;
 

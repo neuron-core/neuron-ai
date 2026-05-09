@@ -18,6 +18,7 @@ use function array_reduce;
 use function is_array;
 use function json_encode;
 use function method_exists;
+use function sprintf;
 
 /**
  * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $parameters = [], array $annotations = [])

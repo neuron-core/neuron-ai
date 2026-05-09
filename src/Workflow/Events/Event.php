@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Events;
 
+use function serialize;
+use function unserialize;
+
 abstract class Event
 {
     public function toSnapshot(): string

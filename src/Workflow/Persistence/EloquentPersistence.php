@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Persistence;
 
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Workflow\Executor\StepResult;
+
 use function base64_decode;
 use function base64_encode;
 use function serialize;

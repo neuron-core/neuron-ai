@@ -11,7 +11,6 @@ use Deeplinq\StepPendingException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\WorkflowState;
 
 use function base64_decode;
 use function base64_encode;
@@ -82,7 +81,7 @@ class DeeplinqStepEngine implements StepEngine
                 '7d',
             );
 
-            $nextResume = unserialize(base64_decode($resumeData['resume']));
+            $nextResume = unserialize(base64_decode((string) $resumeData['resume']));
 
             return $this->runWithInterruptLoop(
                 $stepId,
@@ -106,8 +105,7 @@ class DeeplinqStepEngine implements StepEngine
         Client $client,
         string $workflowId,
         InterruptRequest $request,
-    ): void
-    {
+    ): void {
         $client->sendEvent(new DeeplinqEvent(
             name: 'workflow/interrupt/' . $workflowId,
             data: ['resume' => base64_encode(serialize($request))],
@@ -133,8 +131,8 @@ class DeeplinqStepEngine implements StepEngine
 
     protected function unpackToStepResult(array $packed): StepResult
     {
-        $event = unserialize(base64_decode($packed['event']));
-        $state = unserialize(base64_decode($packed['state']));
+        $event = unserialize(base64_decode((string) $packed['event']));
+        $state = unserialize(base64_decode((string) $packed['state']));
 
         return new StepResult(
             stepId: $event instanceof Event ? $event::class : '',

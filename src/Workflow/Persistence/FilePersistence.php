@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Executor\StepResult;
+
 use function base64_decode;
 use function base64_encode;
 use function file_get_contents;
@@ -17,7 +18,9 @@ use function json_encode;
 use function serialize;
 use function unlink;
 use function unserialize;
+
 use const DIRECTORY_SEPARATOR;
+use const JSON_PRETTY_PRINT;
 
 class FilePersistence implements PersistenceInterface
 {

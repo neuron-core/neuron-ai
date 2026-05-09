@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Workflow\Executor\StepResult;
+
 use function serialize;
 use function unserialize;
 

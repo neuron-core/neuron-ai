@@ -19,6 +19,10 @@ use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
 use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
+use Generator;
+
+use function base64_decode;
+use function unserialize;
 
 class DeeplinqAgentTest extends TestCase
 {
@@ -44,13 +48,11 @@ class DeeplinqAgentTest extends TestCase
             $agent = $agentFactory();
             $handler = new DeeplinqTaskHandler(
                 $agent,
-                boot: fn (Agent $a) => $a->chat(new UserMessage('Hello'))->events(),
+                boot: fn (Agent $a): Generator => $a->chat(new UserMessage('Hello'))->events(),
             );
 
             try {
                 $gen = $handler($context);
-                foreach ($gen as $_) {
-                }
                 return $gen->getReturn();
             } catch (StepPendingException) {
                 foreach ($step->getOps() as $op) {
@@ -101,7 +103,7 @@ class DeeplinqAgentTest extends TestCase
         $this->assertSame('workflow/interrupt/workflow_123', $payload['name']);
 
         // The data.resume field is a base64-encoded serialized InterruptRequest
-        $resumed = unserialize(base64_decode($payload['data']['resume']));
+        $resumed = unserialize(base64_decode((string) $payload['data']['resume']));
         $this->assertInstanceOf(ApprovalRequest::class, $resumed);
     }
 }

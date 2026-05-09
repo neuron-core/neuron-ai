@@ -38,7 +38,7 @@ class ToolTest extends TestCase
 
     public function test_required_properties(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -57,7 +57,7 @@ class ToolTest extends TestCase
 
     public function test_missing_required_parameter_exception(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -88,7 +88,7 @@ class ToolTest extends TestCase
 
     public function test_required_properties_with_mapped_object(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -114,7 +114,7 @@ class ToolTest extends TestCase
 
     public function test_tool_return_value(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -127,7 +127,7 @@ class ToolTest extends TestCase
         $tool->execute();
         $this->assertEquals('test', $tool->getResult());
 
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -140,7 +140,7 @@ class ToolTest extends TestCase
         $tool->execute();
         $this->assertEquals('["test"]', $tool->getResult());
 
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
@@ -153,14 +153,14 @@ class ToolTest extends TestCase
         $tool->execute();
         $this->assertEquals('{"foo":"bar"}', $tool->getResult());
 
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
             }
             public function __invoke(): object
             {
-                return new class {
+                return new class () {
                     public function __toString(): string
                     {
                         return 'test';
@@ -174,14 +174,14 @@ class ToolTest extends TestCase
 
     public function test_invalid_return_type(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test', 'Test tool');
             }
             public function __invoke(): object
             {
-                return new class {};
+                return new class () {};
             }
         };
 
@@ -192,7 +192,7 @@ class ToolTest extends TestCase
 
     public function test_tool_optional_parameters(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test_tool', 'description');
@@ -238,7 +238,7 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_basic_properties(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('user_manager', 'Update user information');
@@ -291,7 +291,7 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_object_properties(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test_tool', 'description');
@@ -362,7 +362,7 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_mapped_object_properties(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test_tool', 'description');
@@ -399,7 +399,7 @@ class ToolTest extends TestCase
 
     public function test_tool_variadic_invocation_array_properties(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test_tool', 'description');
@@ -462,7 +462,7 @@ class ToolTest extends TestCase
 
     public function test_tool_named_parameters(): void
     {
-        $tool = new class extends Tool {
+        $tool = new class () extends Tool {
             public function __construct()
             {
                 parent::__construct('test_tool', 'description');
