@@ -61,6 +61,22 @@ class FilePersistence implements PersistenceInterface
         }
     }
 
+    public function getMaxGeneration(string $workflowId): int
+    {
+        $data = $this->readFile($this->filePath($workflowId));
+
+        if (empty($data)) {
+            return 0;
+        }
+
+        $max = 0;
+        foreach ($data as $serialized) {
+            $result = unserialize(base64_decode($serialized));
+            $max = max($max, $result->getGeneration());
+        }
+        return $max;
+    }
+
     /** @return array<string, string> */
     protected function readFile(string $path): array
     {

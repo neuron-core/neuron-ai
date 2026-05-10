@@ -15,6 +15,7 @@ use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -32,14 +33,14 @@ class DurableExecutorTest extends TestCase
     protected function createDurableExecutor(?LocalStepEngine $stepEngine = null): WorkflowExecutor
     {
         return new WorkflowExecutor(
-            $stepEngine ?? new LocalStepEngine(),
+            $stepEngine ?? new LocalStepEngine(new InMemoryPersistence()),
         );
     }
 
     public function testMemoizationOnCrashRecovery(): void
     {
         $workflowId = 'durable_crash_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -79,7 +80,7 @@ class DurableExecutorTest extends TestCase
     public function testInterruptThenResumeMemoizesCompletedSteps(): void
     {
         $workflowId = 'durable_interrupt_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -129,7 +130,7 @@ class DurableExecutorTest extends TestCase
     public function testStepCleanupAfterCompletion(): void
     {
         $workflowId = 'durable_cleanup_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -149,7 +150,7 @@ class DurableExecutorTest extends TestCase
     public function testStepsNotCleanedUpAfterCrash(): void
     {
         $workflowId = 'durable_crash_cleanup_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -169,7 +170,7 @@ class DurableExecutorTest extends TestCase
 
     public function testBackwardCompatWithoutStepEngine(): void
     {
-        $executor = new WorkflowExecutor();
+        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
         $workflow = Workflow::make()
             ->addNodes([
                 new NodeOne(),
@@ -182,5 +183,47 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));
         $this->assertTrue($result->get('node_three_executed'));
+    }
+
+    public function testMemoizationWithFreshStepEngine(): void
+    {
+        $workflowId = 'durable_fresh_engine_test';
+        $persistence = new InMemoryPersistence();
+
+        $workflow = Workflow::make(resumeToken: $workflowId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableNodeB(true), // crash
+                new DurableNodeC(),
+            ]);
+
+        // Run 1: Node A completes, node B crashes — using one step engine
+        $stepEngine1 = new LocalStepEngine($persistence);
+        try {
+            $this->execute($workflow, $this->createDurableExecutor($stepEngine1));
+            $this->fail('Expected RuntimeException');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Simulated crash', $e->getMessage());
+        }
+
+        $this->assertSame(2, CountableNode::getExecutionCount());
+
+        // Recovery with a completely fresh step engine (simulates process restart)
+        CountableNode::resetExecutionCount();
+        $workflow2 = Workflow::make(resumeToken: $workflowId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableNodeB(),
+                new DurableNodeC(),
+            ]);
+
+        $stepEngine2 = new LocalStepEngine($persistence);
+        $result = $this->execute($workflow2, $this->createDurableExecutor($stepEngine2));
+
+        // Node A memoized via fresh engine, nodes B and C execute
+        $this->assertSame(2, CountableNode::getExecutionCount());
+        $this->assertTrue($result->get('step_a_executed'));
+        $this->assertTrue($result->get('step_b_executed'));
+        $this->assertTrue($result->get('step_c_executed'));
     }
 }

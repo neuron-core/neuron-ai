@@ -63,4 +63,24 @@ class EloquentPersistence implements PersistenceInterface
             ->where('workflow_id', $workflowId)
             ->delete();
     }
+
+    public function getMaxGeneration(string $workflowId): int
+    {
+        /** @var Model $model */
+        $model = new $this->modelClass();
+        $records = $model->newQuery()
+            ->where('workflow_id', $workflowId)
+            ->get();
+
+        $max = 0;
+        foreach ($records as $record) {
+            $data = base64_decode($record->result, true);
+            if ($data === false) {
+                $data = $record->result;
+            }
+            $result = unserialize($data);
+            $max = max($max, $result->getGeneration());
+        }
+        return $max;
+    }
 }

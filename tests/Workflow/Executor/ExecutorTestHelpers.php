@@ -9,6 +9,7 @@ use NeuronAI\Workflow\Executor\StepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -19,7 +20,7 @@ trait ExecutorTestHelpers
     protected function createExecutor(?StepEngine $stepEngine = null): WorkflowExecutorInterface
     {
         return new WorkflowExecutor(
-            $stepEngine ?? new LocalStepEngine(),
+            $stepEngine ?? new LocalStepEngine(new InMemoryPersistence()),
         );
     }
 

@@ -10,6 +10,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -20,13 +21,13 @@ class DurableBranchTest extends TestCase
     protected function createDurableExecutor(?LocalStepEngine $stepEngine = null): WorkflowExecutor
     {
         return new WorkflowExecutor(
-            $stepEngine ?? new LocalStepEngine(),
+            $stepEngine ?? new LocalStepEngine(new InMemoryPersistence()),
         );
     }
 
     public function testParallelBranchWithStepEngineCompletesAllBranches(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -45,7 +46,7 @@ class DurableBranchTest extends TestCase
 
     public function testMainFlowWithStepEngine(): void
     {
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
 
         $workflow = Workflow::make()
             ->addNodes([

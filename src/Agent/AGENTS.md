@@ -99,25 +99,6 @@ $response = $handler->getMessage();
 $report = MyAgent::make()->structured($message, ReportSchema::class);
 ```
 
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `Agent.php` | Main class, builds workflow per mode |
-| `AgentState.php` | Extends `WorkflowState` with message history |
-| `SystemPrompt.php` | System prompt builder (background, steps, output) |
-| `ResolveProvider.php` | Trait for provider injection |
-
-## Nodes (`Nodes/`)
-
-| Node | Purpose |
-|------|---------|
-| `ChatNode` | Standard inference |
-| `StreamingNode` | Streaming inference |
-| `StructuredOutputNode` | JSON schema extraction |
-| `ToolNode` | Executes tool calls |
-| `ParallelToolNode` | Executes multiple tools concurrently |
-
 ## Middleware (`Middleware/`)
 
 Register via `$workflow->middleware(NodeClass::class, $middleware)`:
@@ -128,10 +109,16 @@ Register via `$workflow->middleware(NodeClass::class, $middleware)`:
 | `TodoPlanning` | Injects todo planning capabilities |
 | `Summarization` | Adds conversation summarization |
 
-## Events (`Events/`)
+## Persistence
 
-| Event | Triggers |
-|-------|----------|
-| `AIInferenceEvent` | AI call starts |
-| `AIResponseEvent` | AI response received |
+ToolApproval middleware will fire the interruption in case of tools that need human approval.
+To use this feature, you must attach the persistence layer to the agent workflow:
 
+```php
+use NeuronAI\Workflow\Persistence\FilePersistence;
+
+$response = YouTubeAgent::make()
+    ->setPersistence(new FilePersistence($directory))
+    ->chat(new UserMessage('Hello'))
+    ->getMessage();
+```

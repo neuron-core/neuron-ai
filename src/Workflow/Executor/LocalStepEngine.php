@@ -10,9 +10,6 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 class LocalStepEngine implements StepEngine
 {
-    /** @var array<string, StepResult> keyed by "{workflowId}.{stepId}" */
-    protected array $steps = [];
-
     protected string $workflowId;
 
     protected int $generation = 0;
@@ -20,14 +17,15 @@ class LocalStepEngine implements StepEngine
     protected ?InterruptRequest $pendingResume = null;
 
     public function __construct(
-        protected ?PersistenceInterface $persistence = null,
+        protected PersistenceInterface $persistence,
     ) {
     }
 
     public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
     {
         $this->workflowId = $workflowId;
-        $this->generation++;
+        $storedMax = $this->persistence->getMaxGeneration($workflowId);
+        $this->generation = max($this->generation + 1, $storedMax + 1);
         if ($resume instanceof InterruptRequest) {
             $this->pendingResume = $resume;
         }
@@ -90,11 +88,10 @@ class LocalStepEngine implements StepEngine
 
     public function deleteSteps(): void
     {
-        $this->steps = [];
         $this->generation = 0;
         $this->pendingResume = null;
 
-        $this->persistence?->delete($this->workflowId);
+        $this->persistence->delete($this->workflowId);
     }
 
     /**
@@ -107,27 +104,11 @@ class LocalStepEngine implements StepEngine
 
     protected function getStepResult(string $stepId): ?StepResult
     {
-        if ($this->persistence instanceof PersistenceInterface) {
-            return $this->persistence->load($this->workflowId, $stepId);
-        }
-
-        $key = $this->stepsKey($stepId);
-        return $this->steps[$key] ?? null;
+        return $this->persistence->load($this->workflowId, $stepId);
     }
 
     protected function setStepResult(string $stepId, StepResult $result): void
     {
-        if ($this->persistence instanceof PersistenceInterface) {
-            $this->persistence->save($this->workflowId, $stepId, $result);
-            return;
-        }
-
-        $key = $this->stepsKey($stepId);
-        $this->steps[$key] = $result;
-    }
-
-    protected function stepsKey(string $stepId): string
-    {
-        return $this->workflowId . '.' . $stepId;
+        $this->persistence->save($this->workflowId, $stepId, $result);
     }
 }

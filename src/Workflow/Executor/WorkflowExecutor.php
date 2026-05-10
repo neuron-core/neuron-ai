@@ -34,7 +34,7 @@ use Throwable;
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
     public function __construct(
-        protected StepEngine $stepEngine = new LocalStepEngine(),
+        protected StepEngine $stepEngine,
         protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
     ) {
     }

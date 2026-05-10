@@ -61,4 +61,23 @@ class DatabasePersistence implements PersistenceInterface
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE workflow_id = :workflow_id");
         $stmt->execute(['workflow_id' => $workflowId]);
     }
+
+    public function getMaxGeneration(string $workflowId): int
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT result FROM {$this->table} WHERE workflow_id = :workflow_id",
+        );
+        $stmt->execute(['workflow_id' => $workflowId]);
+
+        $max = 0;
+        while ($record = $stmt->fetch()) {
+            $data = base64_decode((string) $record['result'], true);
+            if ($data === false) {
+                $data = $record['result'];
+            }
+            $result = unserialize($data);
+            $max = max($max, $result->getGeneration());
+        }
+        return $max;
+    }
 }

@@ -15,6 +15,8 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -28,7 +30,7 @@ class BranchEdgeCasesTest extends TestCase
 
     private function createAsyncExecutor(): AsyncExecutor
     {
-        return new AsyncExecutor();
+        return new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
     }
 
     protected function tearDown(): void

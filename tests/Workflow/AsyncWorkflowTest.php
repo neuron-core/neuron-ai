@@ -9,8 +9,10 @@ use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -66,7 +68,7 @@ class AsyncWorkflowTest extends TestCase
                 new SecondNode(),
             ]);
 
-        $executor = new WorkflowExecutor();
+        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
 
@@ -77,7 +79,7 @@ class AsyncWorkflowTest extends TestCase
 
     public function testConcurrentWorkflowExecution(): void
     {
-        $executor = new WorkflowExecutor();
+        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow1 = Workflow::make()->addNodes([new AsyncDelayNode()]);
         $workflow2 = Workflow::make()->addNodes([new AsyncDelayNode()]);
@@ -103,7 +105,7 @@ class AsyncWorkflowTest extends TestCase
     public function testWorkflowStatePreservation(): void
     {
         $state = new WorkflowState(['initial' => 'value']);
-        $executor = new WorkflowExecutor();
+        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow = Workflow::make(state: $state)
             ->addNodes([

@@ -20,6 +20,7 @@ use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -37,7 +38,7 @@ class AgentDurabilityTest extends TestCase
     public function testCrashRecoveryDuringToolExecution(): void
     {
         $workflowId = 'agent_recovery_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new CrashSearchTool();
@@ -81,7 +82,7 @@ class AgentDurabilityTest extends TestCase
     public function testInterruptResumeWithToolApproval(): void
     {
         $workflowId = 'agent_approval_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -127,7 +128,7 @@ class AgentDurabilityTest extends TestCase
     public function testChatNoToolsStepCleanupAfterCompletion(): void
     {
         $workflowId = 'agent_cleanup_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
         $executor = new WorkflowExecutor($stepEngine);
 
         $provider = new FakeAIProvider(
@@ -150,7 +151,7 @@ class AgentDurabilityTest extends TestCase
     public function testToolApprovalRejectsTool(): void
     {
         $workflowId = 'agent_rejection_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -195,7 +196,7 @@ class AgentDurabilityTest extends TestCase
     public function testSuccessfulToolCallWithStepEngine(): void
     {
         $workflowId = 'agent_tool_success_test';
-        $stepEngine = new LocalStepEngine();
+        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -221,34 +222,67 @@ class AgentDurabilityTest extends TestCase
         $this->assertNull($stepEngine->getStep(ChatNode::class . '-0'));
     }
 
-    public function testCrashRecoveryWithFilePersistence(): void
+    /**
+     * Crash recovery with serialization-based persistence.
+     *
+     * This test exposes a known issue: when StepResult is serialized (File/Database/Eloquent),
+     * the ToolCallMessage inside the stored event contains tool clones frozen at their
+     * pre-execution state. On recovery, the deserialized tool clone has its counter reset
+     * to 0 (the value when ChatNode completed, before ToolNode ever ran). The tool then
+     * crashes again instead of succeeding on the second call.
+     *
+     * InMemoryPersistence does NOT have this issue because it preserves PHP object
+     * references — the tool clone inside the ToolCallMessage shares the same mutable
+     * stdClass counter as the original tool, so it correctly reflects the prior execution.
+     */
+    public function testCrashRecoveryWithSerializedPersistence(): void
     {
-        $workflowId = 'agent_file_recovery_test';
+        $workflowId = 'agent_serialized_recovery_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
         mkdir($dir, 0o777, true);
 
+        $searchTool = new CrashSearchTool();
+
         $provider = new FakeAIProvider(
-            new AssistantMessage('First response'),
-            new AssistantMessage('Second response'),
+            new ToolCallMessage(null, [
+                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+            ]),
+            new AssistantMessage('Based on my search, here are the top PHP frameworks...'),
         );
 
-        // Run 1: ChatNode completes, second chat call crashes
-        // We test file persistence by running two separate chat calls —
-        // the first completes and persists, the second simulates recovery.
-        $persistence = new FilePersistence($dir);
-        $stepEngine = new LocalStepEngine(persistence: $persistence);
+        // Same step engine + executor reused across both runs so the generation
+        // counter increments correctly (1 → 2). This isolates the serialization
+        // issue from the generation-counter-reset problem.
+        $stepEngine = new LocalStepEngine(persistence: new FilePersistence($dir));
         $executor = new WorkflowExecutor($stepEngine);
 
+        // Run 1: ChatNode completes, tool crashes
         $agent1 = Agent::make(resumeToken: $workflowId);
         $agent1->setAiProvider($provider);
+        $agent1->addTool($searchTool);
         $agent1->setExecutor($executor);
 
-        $message1 = $agent1->chat(new UserMessage('First question'))->getMessage();
-        $this->assertSame('First response', $message1->getContent());
+        try {
+            $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
+            $this->fail('Expected RuntimeException was not thrown');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Simulated crash', $e->getMessage());
+        }
 
-        // Steps are cleaned up after successful completion — verify the
-        // persistence file was deleted.
-        $this->assertFileDoesNotExist($dir . '/' . $workflowId . '.workflow');
+        // Recovery: same step engine → ChatNode:0 memoized via FilePersistence.
+        // The deserialized ToolCallMessage contains a tool clone with counter=0
+        // (frozen at ChatNode completion time, before ToolNode execution).
+        // ToolNode re-executes this clone → counter goes 0→1 → crashes again.
+        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->setExecutor($executor);
+
+        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
+
+        $this->assertSame('Based on my search, here are the top PHP frameworks...', $message->getContent());
+        $this->assertSame(2, $provider->getCallCount());
+        $this->assertSame(2, $searchTool->getCallCount());
 
         $this->removeDirectory($dir);
     }
