@@ -81,31 +81,7 @@ class WeatherTool extends Tool
 }
 ```
 
-### Method 2: Fluent Builder with `setCallable`
-
-For simpler tools or closures:
-
-```php
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\PropertyType;
-
-$weatherTool = Tool::make('get_weather', 'Get weather for a location')
-    ->addProperty(
-        ToolProperty::make(
-            name: 'location',
-            type: PropertyType::STRING,
-            description: 'City name',
-            required: true
-        )
-    )
-    ->setCallable(function (string $location): string {
-        // Your logic here
-        return "Weather in {$location}: Sunny, 22°C";
-    });
-```
-
-### Method 3: Class with Dependencies
+### Method 2: Class with Dependencies
 
 For tools that need external dependencies (database, API client):
 

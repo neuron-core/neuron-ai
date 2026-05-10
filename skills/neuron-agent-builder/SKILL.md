@@ -341,6 +341,44 @@ Execute tools in parallel (requires pcntl):
 $agent->parallelToolCalls(true);
 ```
 
+## Persistence and Durability
+
+Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **resume after interruptions** (e.g., `ToolApproval` middleware).
+
+```php
+use NeuronAI\Workflow\Persistence\FilePersistence;
+
+$response = MyAgent::make()
+    ->setPersistence(new FilePersistence('/path/to/storage'))
+    ->chat(new UserMessage('Hello'))
+    ->getMessage();
+```
+
+When the agent interrupts (e.g., waiting for tool approval), catch the `WorkflowInterrupt` and resume later using the same persistence backend and the `resumeToken`:
+
+```php
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+
+try {
+    $response = MyAgent::make()
+        ->setPersistence(new FilePersistence('/path/to/storage'))
+        ->chat(new UserMessage('Delete file /tmp/old.log'))
+        ->getMessage();
+} catch (WorkflowInterrupt $interrupt) {
+    $workflowId = $interrupt->getWorkflowId();
+    $request = $interrupt->getRequest();
+
+    // ... user approves/rejects ...
+
+    $response = MyAgent::make(resumeToken: $workflowId)
+        ->setPersistence(new FilePersistence('/path/to/storage'))
+        ->chat($request)
+        ->getMessage();
+}
+```
+
+Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements.
+
 ## Key Decisions
 
 When helping users build agents:
