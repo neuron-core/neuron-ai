@@ -97,12 +97,22 @@ Workflow
 $workflow = Workflow::make();
 $workflow->run();
 
+// Durable with persistence (shortcut)
+$workflow = Workflow::make()
+    ->setPersistence(new FilePersistence($dir));
+$workflow->run();
+
+// Or with a database backend
+$workflow = Workflow::make()
+    ->setPersistence(new DatabasePersistence($pdo));
+$workflow->run();
+
 // Async parallel branches (requires ext-amp)
 $workflow = Workflow::make()
     ->setExecutor(new AsyncExecutor());
 $workflow->run();
 
-// Custom persistence
+// Full control over executor + step engine
 $workflow = Workflow::make()
     ->setExecutor(
         new WorkflowExecutor(new LocalStepEngine(new DatabasePersistence($pdo)))

@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\ToolApproval;
+use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -13,9 +14,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
-use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
@@ -23,7 +22,6 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use stdClass;
 
 use function glob;
 use function is_dir;
@@ -39,7 +37,7 @@ class AgentDurabilityTest extends TestCase
     public function testCrashRecoveryDuringToolExecution(): void
     {
         $workflowId = 'agent_recovery_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new CrashSearchTool();
@@ -83,7 +81,7 @@ class AgentDurabilityTest extends TestCase
     public function testInterruptResumeWithToolApproval(): void
     {
         $workflowId = 'agent_approval_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -129,7 +127,7 @@ class AgentDurabilityTest extends TestCase
     public function testChatNoToolsStepCleanupAfterCompletion(): void
     {
         $workflowId = 'agent_cleanup_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
         $executor = new WorkflowExecutor($stepEngine);
 
         $provider = new FakeAIProvider(
@@ -152,7 +150,7 @@ class AgentDurabilityTest extends TestCase
     public function testToolApprovalRejectsTool(): void
     {
         $workflowId = 'agent_rejection_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -197,7 +195,7 @@ class AgentDurabilityTest extends TestCase
     public function testSuccessfulToolCallWithStepEngine(): void
     {
         $workflowId = 'agent_tool_success_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
         $executor = new WorkflowExecutor($stepEngine);
 
         $searchTool = new SearchTool();
@@ -238,7 +236,7 @@ class AgentDurabilityTest extends TestCase
         // We test file persistence by running two separate chat calls —
         // the first completes and persists, the second simulates recovery.
         $persistence = new FilePersistence($dir);
-        $stepEngine = new LocalStepEngine(persistence: $persistence, workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine(persistence: $persistence);
         $executor = new WorkflowExecutor($stepEngine);
 
         $agent1 = Agent::make(resumeToken: $workflowId);
@@ -266,7 +264,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         $persistence = new FilePersistence($dir);
-        $stepEngine = new LocalStepEngine(persistence: $persistence, workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine(persistence: $persistence);
         $executor = new WorkflowExecutor($stepEngine);
 
         $agent = Agent::make(resumeToken: $workflowId);

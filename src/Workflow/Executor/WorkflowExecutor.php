@@ -55,7 +55,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->resolveState()->set('__workflowId', $workflowId);
 
         try {
-            $this->stepEngine->prepareExecution($interrupt);
+            $this->stepEngine->prepareExecution($workflowId, $interrupt);
 
             yield from $this->traverse(
                 $workflow,

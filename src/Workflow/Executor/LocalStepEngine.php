@@ -13,18 +13,20 @@ class LocalStepEngine implements StepEngine
     /** @var array<string, StepResult> keyed by "{workflowId}.{stepId}" */
     protected array $steps = [];
 
+    protected string $workflowId;
+
     protected int $generation = 0;
 
     protected ?InterruptRequest $pendingResume = null;
 
     public function __construct(
         protected ?PersistenceInterface $persistence = null,
-        protected string $workflowId = '',
     ) {
     }
 
-    public function prepareExecution(?InterruptRequest $resume = null): void
+    public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
     {
+        $this->workflowId = $workflowId;
         $this->generation++;
         if ($resume instanceof InterruptRequest) {
             $this->pendingResume = $resume;
@@ -92,9 +94,7 @@ class LocalStepEngine implements StepEngine
         $this->generation = 0;
         $this->pendingResume = null;
 
-        if ($this->workflowId !== '') {
-            $this->persistence?->delete($this->workflowId);
-        }
+        $this->persistence?->delete($this->workflowId);
     }
 
     /**
@@ -107,7 +107,7 @@ class LocalStepEngine implements StepEngine
 
     protected function getStepResult(string $stepId): ?StepResult
     {
-        if ($this->persistence instanceof PersistenceInterface && $this->workflowId !== '') {
+        if ($this->persistence instanceof PersistenceInterface) {
             return $this->persistence->load($this->workflowId, $stepId);
         }
 
@@ -117,7 +117,7 @@ class LocalStepEngine implements StepEngine
 
     protected function setStepResult(string $stepId, StepResult $result): void
     {
-        if ($this->persistence instanceof PersistenceInterface && $this->workflowId !== '') {
+        if ($this->persistence instanceof PersistenceInterface) {
             $this->persistence->save($this->workflowId, $stepId, $result);
             return;
         }
@@ -128,8 +128,6 @@ class LocalStepEngine implements StepEngine
 
     protected function stepsKey(string $stepId): string
     {
-        return $this->workflowId !== ''
-            ? $this->workflowId . '.' . $stepId
-            : $stepId;
+        return $this->workflowId . '.' . $stepId;
     }
 }

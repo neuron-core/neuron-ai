@@ -28,9 +28,10 @@ interface StepEngine
     /**
      * Prepare for a new execute() call. Called once at the start of each traversal.
      *
+     * @param string $workflowId The workflow's unique identifier for persistence scoping
      * @param InterruptRequest|null $resume User decision when resuming from an interrupt
      */
-    public function prepareExecution(?InterruptRequest $resume = null): void;
+    public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void;
 
     /**
      * Clean up step data after a workflow completes successfully.

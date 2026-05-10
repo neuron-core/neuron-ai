@@ -15,11 +15,9 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
 use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
-use Generator;
 
 use function base64_decode;
 use function unserialize;
@@ -32,7 +30,7 @@ class DeeplinqAgentTest extends TestCase
      * Each iteration: create a fresh Step with memoized data, invoke the handler,
      * catch StepPendingException, collect ops for the next replay.
      */
-    private function replayUntilComplete(callable $agentFactory): AgentState
+    private function replayUntilComplete(Agent $agent): AgentState
     {
         $memoized = [];
 
@@ -45,15 +43,14 @@ class DeeplinqAgentTest extends TestCase
                 attempt: 0,
             );
 
-            $agent = $agentFactory();
             $handler = new DeeplinqTaskHandler(
                 $agent,
-                boot: fn (Agent $a): Generator => $a->chat(new UserMessage('Hello'))->events(),
+                boot: fn (Agent $a): \NeuronAI\Agent\AgentState => $a->chat(new UserMessage('Hello'))->run(),
             );
 
             try {
-                $gen = $handler($context);
-                return $gen->getReturn();
+                $handler($context);
+                return $agent->resolveState();
             } catch (StepPendingException) {
                 foreach ($step->getOps() as $op) {
                     if (isset($op['data'])) {
@@ -72,11 +69,10 @@ class DeeplinqAgentTest extends TestCase
             new AssistantMessage('Hello from AI!'),
         );
 
-        $state = $this->replayUntilComplete(function () use ($provider): Agent {
-            $agent = Agent::make();
-            $agent->setAiProvider($provider);
-            return $agent;
-        });
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+
+        $state = $this->replayUntilComplete($agent);
 
         $this->assertSame('Hello from AI!', $state->getMessage()->getContent());
     }
@@ -95,7 +91,7 @@ class DeeplinqAgentTest extends TestCase
 
         $request = new ApprovalRequest('test approval');
 
-        DeeplinqStepEngine::sendResume($client, 'workflow_123', $request);
+        DeeplinqTaskHandler::resume($client, 'workflow_123', $request);
 
         $this->assertCount(1, $transport->sent());
 

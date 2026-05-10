@@ -16,6 +16,7 @@ use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionIntersectionType;
@@ -58,6 +59,8 @@ class Workflow implements WorkflowInterface
 
     protected ?WorkflowExecutorInterface $executor = null;
 
+    protected ?PersistenceInterface $persistence = null;
+
     /**
      * @throws WorkflowException
      */
@@ -94,11 +97,28 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Enable durability by providing a persistence backend.
+     */
+    public function setPersistence(PersistenceInterface $persistence): static
+    {
+        $this->persistence = $persistence;
+        return $this;
+    }
+
+    /**
      * Resolve the executor, creating a default if none was configured.
      */
     public function resolveExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= new WorkflowExecutor();
+        if ($this->executor instanceof \NeuronAI\Workflow\Executor\WorkflowExecutorInterface) {
+            return $this->executor;
+        }
+
+        $stepEngine = $this->persistence instanceof PersistenceInterface
+            ? new Executor\LocalStepEngine(persistence: $this->persistence)
+            : new Executor\LocalStepEngine();
+
+        return $this->executor = new WorkflowExecutor($stepEngine);
     }
 
     /**

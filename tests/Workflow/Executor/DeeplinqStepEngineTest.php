@@ -20,8 +20,6 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
-use function iterator_to_array;
-
 class DeeplinqStepEngineTest extends TestCase
 {
     /**
@@ -31,7 +29,7 @@ class DeeplinqStepEngineTest extends TestCase
      * then throws StepPendingException. On replay (with memoized data), it returns
      * the cached result immediately. This helper replays until the workflow completes.
      */
-    private function replayUntilComplete(callable $workflowFactory): WorkflowState
+    private function replayUntilComplete(Workflow $workflow): WorkflowState
     {
         $memoized = [];
 
@@ -44,13 +42,11 @@ class DeeplinqStepEngineTest extends TestCase
                 attempt: 0,
             );
 
-            $workflow = $workflowFactory();
             $handler = new DeeplinqTaskHandler($workflow);
 
             try {
-                $gen = $handler($context);
-                iterator_to_array($gen);
-                return $gen->getReturn();
+                $handler($context);
+                return $workflow->resolveState();
             } catch (StepPendingException) {
                 foreach ($step->getOps() as $op) {
                     if (isset($op['data'])) {
@@ -65,10 +61,10 @@ class DeeplinqStepEngineTest extends TestCase
 
     public function testLinearWorkflowCompletesViaReplay(): void
     {
-        $factory = fn (): Workflow => Workflow::make()
+        $workflow = Workflow::make()
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
 
-        $result = $this->replayUntilComplete($factory);
+        $result = $this->replayUntilComplete($workflow);
 
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));
@@ -84,7 +80,7 @@ class DeeplinqStepEngineTest extends TestCase
             attempt: 0,
         );
 
-        $engine = new DeeplinqStepEngine($context, 'test-workflow');
+        $engine = new DeeplinqStepEngine($context);
 
         $event = new StopEvent('test');
         $state = new WorkflowState();

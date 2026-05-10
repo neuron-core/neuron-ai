@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
-use Deeplinq\Client;
 use Deeplinq\Context;
-use Deeplinq\Event as DeeplinqEvent;
 use Deeplinq\StepPendingException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -26,13 +24,13 @@ use function unserialize;
  */
 class DeeplinqStepEngine implements StepEngine
 {
+    public $workflowId;
     public function __construct(
         protected Context $ctx,
-        protected string $workflowId,
     ) {
     }
 
-    public function prepareExecution(?InterruptRequest $resume = null): void
+    public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
     {
         // No-op: Deeplinq platform handles replay via ctx->step->run() memoization.
     }

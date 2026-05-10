@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NeuronAI\Tests\Agent\Tools;
 
 use NeuronAI\Tools\PropertyType;
@@ -19,7 +21,7 @@ class SearchTool extends Tool
     protected function properties(): array
     {
         return [
-            new ToolProperty('query', PropertyType::STRING, 'Search query', true)
+            new ToolProperty('query', PropertyType::STRING, 'Search query', true),
         ];
     }
 

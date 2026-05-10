@@ -39,7 +39,7 @@ class DurableExecutorTest extends TestCase
     public function testMemoizationOnCrashRecovery(): void
     {
         $workflowId = 'durable_crash_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -79,7 +79,7 @@ class DurableExecutorTest extends TestCase
     public function testInterruptThenResumeMemoizesCompletedSteps(): void
     {
         $workflowId = 'durable_interrupt_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -129,7 +129,7 @@ class DurableExecutorTest extends TestCase
     public function testStepCleanupAfterCompletion(): void
     {
         $workflowId = 'durable_cleanup_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
@@ -149,7 +149,7 @@ class DurableExecutorTest extends TestCase
     public function testStepsNotCleanedUpAfterCrash(): void
     {
         $workflowId = 'durable_crash_cleanup_test';
-        $stepEngine = new LocalStepEngine(workflowId: $workflowId);
+        $stepEngine = new LocalStepEngine();
 
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
