@@ -226,7 +226,6 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_file_interrupt_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
-        mkdir($dir, 0o777, true);
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
