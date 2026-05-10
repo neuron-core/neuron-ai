@@ -153,6 +153,82 @@ $state->delete('data');
 $all = $state->all();
 ```
 
+## Persistence and Durability
+
+By default, workflows use `InMemoryPersistence` — results are kept in memory and lost when the process ends. To make workflows **survive crashes and resume after interruptions**, configure a persistent backend.
+
+### How It Works
+
+Each completed node becomes a durable **step** persisted via `PersistenceInterface`. When the workflow runs, the `LocalStepEngine` uses a **generation** counter (a monotonically increasing version number) to implement memoization:
+
+- Steps from a **previous generation** (a prior run) are reused from persistence — they are **not re-executed**.
+- Steps from the **current generation** are always re-executed.
+
+This means: if your process crashes mid-workflow, simply re-run it with the same persistence and workflow ID. The engine will replay all completed steps from cache and resume from the point of failure.
+
+### Persistence Backends
+
+```php
+use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Persistence\DatabasePersistence;
+use NeuronAI\Workflow\Persistence\EloquentPersistence;
+
+// File system — directory is auto-created if it doesn't exist
+$persistence = new FilePersistence('/path/to/storage');
+
+// Database via PDO — requires a workflow_steps table
+$persistence = new DatabasePersistence($pdo, 'workflow_steps');
+
+// Eloquent model — requires a model with workflow_id, step_id, result columns
+$persistence = new EloquentPersistence(WorkflowStep::class);
+```
+
+### Enabling Persistence
+
+Use the `setPersistence()` shortcut — it automatically wires a `LocalStepEngine` with the chosen backend:
+
+```php
+$workflow = Workflow::make()
+    ->setPersistence(new FilePersistence('/path/to/storage'))
+    ->addNodes([...]);
+
+$finalState = $workflow->run();
+```
+
+For full control, construct the executor manually:
+
+```php
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
+
+$workflow = Workflow::make()
+    ->setExecutor(
+        new WorkflowExecutor(new LocalStepEngine(new DatabasePersistence($pdo)))
+    )
+    ->addNodes([...]);
+```
+
+### Database Table Schema
+
+When using `DatabasePersistence`, create a table with these columns:
+
+```sql
+CREATE TABLE workflow_steps (
+    workflow_id VARCHAR(255) NOT NULL,
+    step_id VARCHAR(255) NOT NULL,
+    result TEXT NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    PRIMARY KEY (workflow_id, step_id)
+);
+```
+
+For `EloquentPersistence`, the model must have `workflow_id`, `step_id`, and `result` columns.
+
+### Workflow Lifecycle
+
+When the workflow completes successfully, the engine calls `delete()` on the persistence layer to clean up stored steps. Interrupted workflows retain their persisted state until resumed and completed, or manually cleaned up.
+
 ## Human-in-the-Loop Patterns
 
 Workflows support interruption for human intervention at any point.
@@ -222,7 +298,8 @@ use NeuronAI\Workflow\Persistence\FilePersistence;
 
 $persistence = new FilePersistence('/tmp/workflows');
 
-$workflow = Workflow::make($persistence)
+$workflow = Workflow::make()
+    ->setPersistence($persistence)
     ->addNodes([...]);
 
 try {
