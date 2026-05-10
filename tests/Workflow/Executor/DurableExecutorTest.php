@@ -41,14 +41,10 @@ class DurableExecutorTest extends TestCase
         $workflowId = 'durable_crash_test';
         $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
-        // Node B is configured to crash on the first run
-        $crashingNodeB = new DurableNodeB();
-        $crashingNodeB->setShouldCrash(true);
-
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
-                $crashingNodeB,
+                new DurableNodeB(true), // crush when run
                 new DurableNodeC(),
             ]);
 
@@ -155,13 +151,10 @@ class DurableExecutorTest extends TestCase
         $workflowId = 'durable_crash_cleanup_test';
         $stepEngine = new LocalStepEngine(workflowId: $workflowId);
 
-        $crashingNodeB = new DurableNodeB();
-        $crashingNodeB->setShouldCrash(true);
-
         $workflow = Workflow::make(resumeToken: $workflowId)
             ->addNodes([
                 new DurableNodeA(),
-                $crashingNodeB,
+                new DurableNodeB(true), // crush when run
                 new DurableNodeC(),
             ]);
 

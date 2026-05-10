@@ -9,11 +9,8 @@ use RuntimeException;
 
 class DurableNodeB extends CountableNode
 {
-    protected bool $shouldCrash = false;
-
-    public function setShouldCrash(bool $shouldCrash): void
+    public function __construct(protected bool $shouldCrash = false)
     {
-        $this->shouldCrash = $shouldCrash;
     }
 
     public function __invoke(DurableEventA $event, WorkflowState $state): DurableEventB
