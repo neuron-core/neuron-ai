@@ -11,6 +11,8 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
+use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -31,51 +33,6 @@ use function sys_get_temp_dir;
 use function unlink;
 
 use const DIRECTORY_SEPARATOR;
-
-class CrashSearchTool extends Tool
-{
-    public function __construct(
-        protected object $counter = new stdClass(),
-    ) {
-        $this->counter->count = 0;
-        parent::__construct(
-            'search',
-            'Search the web',
-            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
-        );
-    }
-
-    public function __invoke(string $query): string
-    {
-        $this->counter->count++;
-        if ($this->counter->count === 1) {
-            throw new RuntimeException('Simulated crash during tool execution');
-        }
-        return 'Results for: PHP frameworks';
-    }
-
-    public function getCallCount(): int
-    {
-        return $this->counter->count;
-    }
-}
-
-class SearchTool extends Tool
-{
-    public function __construct()
-    {
-        parent::__construct(
-            'search',
-            'Search the web',
-            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
-        );
-    }
-
-    public function __invoke(string $query): string
-    {
-        return "Results for: {$query}";
-    }
-}
 
 class AgentDurabilityTest extends TestCase
 {
