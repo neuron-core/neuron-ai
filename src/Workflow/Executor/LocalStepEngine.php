@@ -8,6 +8,8 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
+use function max;
+
 class LocalStepEngine implements StepEngine
 {
     protected string $workflowId;

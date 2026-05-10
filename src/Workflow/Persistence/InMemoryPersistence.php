@@ -6,6 +6,8 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Workflow\Executor\StepResult;
 
+use function max;
+
 class InMemoryPersistence implements PersistenceInterface
 {
     /** @var array<string, array<string, StepResult>> keyed by workflowId then stepId */

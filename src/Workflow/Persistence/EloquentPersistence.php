@@ -11,6 +11,7 @@ use function base64_decode;
 use function base64_encode;
 use function serialize;
 use function unserialize;
+use function max;
 
 class EloquentPersistence implements PersistenceInterface
 {
@@ -74,7 +75,7 @@ class EloquentPersistence implements PersistenceInterface
 
         $max = 0;
         foreach ($records as $record) {
-            $data = base64_decode($record->result, true);
+            $data = base64_decode((string) $record->result, true);
             if ($data === false) {
                 $data = $record->result;
             }

@@ -18,6 +18,8 @@ use function json_encode;
 use function serialize;
 use function unlink;
 use function unserialize;
+use function max;
+use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
 use const JSON_PRETTY_PRINT;
@@ -30,7 +32,7 @@ class FilePersistence implements PersistenceInterface
     public function __construct(
         protected string $directory,
     ) {
-        if (!is_dir($this->directory) && !mkdir($this->directory, 0755, true)) {
+        if (!is_dir($this->directory) && !mkdir($this->directory, 0o755, true)) {
             throw new WorkflowException("Unable to create directory '{$this->directory}'");
         }
     }
@@ -70,7 +72,7 @@ class FilePersistence implements PersistenceInterface
     {
         $data = $this->getData($workflowId);
 
-        if (empty($data)) {
+        if ($data === []) {
             return 0;
         }
 
@@ -85,11 +87,7 @@ class FilePersistence implements PersistenceInterface
     /** @return array<string, string> */
     protected function getData(string $workflowId): array
     {
-        if (isset($this->cache[$workflowId])) {
-            return $this->cache[$workflowId];
-        }
-
-        return $this->cache[$workflowId] = $this->readFile($this->filePath($workflowId));
+        return $this->cache[$workflowId] ?? $this->cache[$workflowId] = $this->readFile($this->filePath($workflowId));
     }
 
     /** @return array<string, string> */

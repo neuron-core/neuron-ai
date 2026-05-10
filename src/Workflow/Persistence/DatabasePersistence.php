@@ -11,6 +11,7 @@ use function base64_decode;
 use function base64_encode;
 use function serialize;
 use function unserialize;
+use function max;
 
 class DatabasePersistence implements PersistenceInterface
 {
