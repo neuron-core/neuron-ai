@@ -69,6 +69,7 @@ class EloquentPersistence implements PersistenceInterface
     {
         /** @var Model $model */
         $model = new $this->modelClass();
+        /** @var \Illuminate\Database\Eloquent\Collection<int, Model&object{result: string}> $records */
         $records = $model->newQuery()
             ->where('workflow_id', $workflowId)
             ->get();
