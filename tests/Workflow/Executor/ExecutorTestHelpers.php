@@ -25,8 +25,7 @@ trait ExecutorTestHelpers
     {
         $executor ??= $this->createExecutor();
         $gen = $executor->execute($workflow, $interrupt);
-        foreach ($gen as $event) {
-        }
+        iterator_to_array($gen);
         return $gen->getReturn();
     }
 

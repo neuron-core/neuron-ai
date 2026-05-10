@@ -94,24 +94,6 @@ class DeeplinqStepEngine implements StepEngine
         return $this->unpackToStepResult($packed);
     }
 
-    /**
-     * Send a resume event to the Deeplinq platform.
-     *
-     * Call this after a workflow interrupt to deliver the user's response:
-     *
-     *   DeeplinqStepEngine::sendResume($client, $workflowId, $approvalRequest);
-     */
-    public static function sendResume(
-        Client $client,
-        string $workflowId,
-        InterruptRequest $request,
-    ): void {
-        $client->sendEvent(new DeeplinqEvent(
-            name: 'workflow/interrupt/' . $workflowId,
-            data: ['resume' => base64_encode(serialize($request))],
-        ));
-    }
-
     protected function packStepResult(StepResult $result): array
     {
         return [

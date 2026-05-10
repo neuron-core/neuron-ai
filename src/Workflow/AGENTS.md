@@ -110,25 +110,36 @@ $workflow = Workflow::make()
 $workflow->run();
 ```
 
-### External platforms (Deeplinq)
+### External integration for durability (Deeplinq)
 
 Use `DeeplinqTaskHandler` as the task handler, backed by `DeeplinqStepEngine`:
 
 ```php
 use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
 
+// Pure Workflow
 $deeplinq->register(new Task(
     id: 'my-workflow',
     triggers: [new Event('event/name')],
     handler: new DeeplinqTaskHandler($workflow),
 ));
+
+// Agent
+$deeplinq->register(new Task(
+    id: 'my-agent',
+    triggers: [new Event('event/name')],
+    handler: new DeeplinqTaskHandler(
+        Agent::make(...),
+        fn(Agent $agent, Context $ctx) => $agent->chat(new UserMessage($ctx->event->data['prompt']))->run()
+    ),
+));
 ```
 
 Resume an interrupted workflow:
 ```php
-use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
+use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
 
-DeeplinqStepEngine::sendResume($client, $workflowId, $approvalRequest);
+DeeplinqTaskHandler::resume($client, $workflowId, $resumeRequest);
 ```
 
 Every Node becomes a durable step. The `StepEngine` decides how steps are persisted and replayed — local persistence or external platform.

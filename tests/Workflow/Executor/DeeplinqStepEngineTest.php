@@ -14,6 +14,7 @@ use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
 use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
+use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -89,7 +90,7 @@ class DeeplinqStepEngineTest extends TestCase
         $state = new WorkflowState();
         $state->set('key', 'value');
 
-        $stepResult = new \NeuronAI\Workflow\Executor\StepResult(
+        $stepResult = new StepResult(
             stepId: 'test',
             event: $event,
             state: $state,
