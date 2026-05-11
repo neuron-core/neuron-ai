@@ -9,6 +9,8 @@ use function microtime;
 use function mt_rand;
 use function substr;
 use function usleep;
+use function hexdec;
+use function sprintf;
 
 /**
  * Timestamp (41 bits) + Machine ID (10 bits) + Sequence (12 bits) = 64 bits PHP integer limit

@@ -17,6 +17,8 @@ use NeuronAI\UniqueIdGenerator;
 use function array_map;
 use function array_merge;
 use function is_string;
+use function array_filter;
+use function implode;
 
 /**
  * @method static static make(MessageRole $role, string|ContentBlockInterface|ContentBlockInterface[]|null $content = null)
@@ -102,8 +104,8 @@ class Message implements JsonSerializable
     public function getContent(): ?string
     {
         $text = implode(' ', array_map(
-            fn (TextContent $block) => $block->content,
-            array_filter($this->getContentBlocks(), fn ($block) => $block instanceof TextContent && !$block instanceof ReasoningContent)
+            fn (TextContent $block): string => $block->content,
+            array_filter($this->getContentBlocks(), fn (ContentBlockInterface $block): bool => $block instanceof TextContent && !$block instanceof ReasoningContent)
         ));
 
         return $text === '' ? null : $text;
@@ -114,7 +116,7 @@ class Message implements JsonSerializable
      */
     public function getText(): array
     {
-        return array_filter($this->getContentBlocks(), fn ($block) => $block instanceof TextContent && !$block instanceof ReasoningContent);
+        return array_filter($this->getContentBlocks(), fn (ContentBlockInterface $block): bool => $block instanceof TextContent && !$block instanceof ReasoningContent);
     }
 
     public function getReasoning(): ?ReasoningContent
