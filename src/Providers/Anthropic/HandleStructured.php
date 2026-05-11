@@ -25,9 +25,18 @@ trait HandleStructured
         string $class,
         array $response_format
     ): ProviderResponse {
-        $this->system .= PHP_EOL."# OUTPUT CONSTRAINTS".PHP_EOL.
+        $schemaText = "# OUTPUT CONSTRAINTS".PHP_EOL.
             "Your response must be a JSON string following this schema: ".PHP_EOL.
             json_encode($response_format);
+
+        if (isset($this->systemBlocks)) {
+            $this->systemBlocks[] = [
+                'type' => 'text',
+                'text' => $schemaText,
+            ];
+        } else {
+            $this->system .= PHP_EOL.$schemaText;
+        }
 
         return $this->chat(...(is_array($messages) ? $messages : [$messages]));
     }

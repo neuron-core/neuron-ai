@@ -36,7 +36,7 @@ class FakeAIProvider implements AIProviderInterface
 
     protected string $model = 'fake';
 
-    protected ?string $systemPrompt = null;
+    protected string|array|null $systemPrompt = null;
 
     /** @var Message[] */
     protected array $responseQueue = [];
@@ -59,7 +59,7 @@ class FakeAIProvider implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
         $this->systemPrompt = $prompt;
         return $this;

@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Mistral;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\HandleStructured;
 use NeuronAI\Providers\OpenAI\ToolMapper;
@@ -20,6 +21,8 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function json_decode;
+use function implode;
+use function is_array;
 
 class Mistral implements AIProviderInterface
 {
@@ -65,9 +68,11 @@ class Mistral implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
-        $this->system = $prompt;
+        $this->system = is_array($prompt)
+            ? implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt))
+            : $prompt;
         return $this;
     }
 

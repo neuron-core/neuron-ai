@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\AWS;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
@@ -16,6 +17,9 @@ use NeuronAI\Tools\ToolInterface;
 use function count;
 use function is_string;
 use function json_decode;
+use function array_map;
+use function implode;
+use function is_array;
 
 class BedrockRuntime implements AIProviderInterface
 {
@@ -41,8 +45,13 @@ class BedrockRuntime implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
+        if (is_array($prompt)) {
+            $this->system = implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt));
+            return $this;
+        }
+
         $this->system = $prompt;
         return $this;
     }

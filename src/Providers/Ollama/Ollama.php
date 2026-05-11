@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Ollama;
 
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
+use function implode;
+use function is_array;
 
 class Ollama implements AIProviderInterface
 {
@@ -50,8 +53,13 @@ class Ollama implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
+        if (is_array($prompt)) {
+            $this->system = implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt));
+            return $this;
+        }
+
         $this->system = $prompt;
 
         return $this;

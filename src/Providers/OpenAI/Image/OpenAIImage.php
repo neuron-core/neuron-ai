@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ImageChunk;
@@ -27,6 +28,9 @@ use NeuronAI\UniqueIdGenerator;
 
 use function end;
 use function is_string;
+use function array_map;
+use function implode;
+use function is_array;
 
 class OpenAIImage implements AIProviderInterface
 {
@@ -63,9 +67,11 @@ class OpenAIImage implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
-        $this->system = $prompt;
+        $this->system = is_array($prompt)
+            ? implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt))
+            : $prompt;
         return $this;
     }
 

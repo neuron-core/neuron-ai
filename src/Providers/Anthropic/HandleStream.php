@@ -37,10 +37,15 @@ trait HandleStream
             'stream' => true,
             'model' => $this->model,
             'max_tokens' => $this->max_tokens,
-            'system' => $this->system ?? null,
             'messages' => $this->messageMapper()->map($messages),
             ...$this->parameters,
         ];
+
+        if (isset($this->system)) {
+            $json['system'] = $this->system;
+        } elseif (isset($this->systemBlocks)) {
+            $json['system'] = $this->systemBlocks;
+        }
 
         if (!empty($this->tools)) {
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);

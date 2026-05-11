@@ -12,4 +12,5 @@ enum ContentBlockType: string
     case FILE = 'file';
     case AUDIO = 'audio';
     case VIDEO = 'video';
+    case SYSTEM = 'system';
 }

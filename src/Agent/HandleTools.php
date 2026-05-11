@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Observability\EventBus;
-use NeuronAI\Observability\Events\ToolsBootstrapped;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
@@ -147,11 +146,29 @@ trait HandleTools
             }
         }
 
-        $instructions = $this->removeDelimitedContent($this->resolveInstructions(), '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
-        if ($guidelines !== []) {
-            $this->setInstructions(
-                $instructions.PHP_EOL.'<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
-            );
+        $resolved = $this->resolveInstructions();
+
+        // Remove existing guidelines from SystemContent blocks
+        if (is_array($resolved)) {
+            /** @var SystemContent $block */
+            foreach ($resolved as $block) {
+                $block->content = $this->removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
+            }
+
+            if ($guidelines !== []) {
+                $resolved[] = new SystemContent(
+                    '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
+                );
+            }
+
+            $this->setInstructions($resolved);
+        } else {
+            $instructions = $this->removeDelimitedContent($resolved, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
+            if ($guidelines !== []) {
+                $this->setInstructions(
+                    $instructions.PHP_EOL.'<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
+                );
+            }
         }
 
         /*EventBus::emit(

@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -24,6 +25,8 @@ use function array_map;
 use function array_merge;
 use function json_decode;
 use function uniqid;
+use function implode;
+use function is_array;
 
 class OpenAIResponses implements AIProviderInterface
 {
@@ -72,8 +75,13 @@ class OpenAIResponses implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
+        if (is_array($prompt)) {
+            $this->system = implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt));
+            return $this;
+        }
+
         $this->system = $prompt;
         return $this;
     }

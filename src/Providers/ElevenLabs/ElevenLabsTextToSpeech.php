@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\AudioChunk;
 use NeuronAI\Exceptions\HttpException;
@@ -24,6 +25,9 @@ use NeuronAI\UniqueIdGenerator;
 
 use function base64_encode;
 use function end;
+use function array_map;
+use function implode;
+use function is_array;
 
 class ElevenLabsTextToSpeech implements AIProviderInterface
 {
@@ -57,9 +61,11 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
-        $this->system = $prompt;
+        $this->system = is_array($prompt)
+            ? implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt))
+            : $prompt;
         return $this;
     }
 

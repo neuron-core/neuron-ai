@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Events;
 
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Tools\ToolInterface;
 
 /**
@@ -15,12 +16,12 @@ use NeuronAI\Tools\ToolInterface;
 class AIInferenceEvent extends AgentStartEvent
 {
     /**
-     * @param string $instructions System instructions for the agent
+     * @param string|SystemContent[] $instructions System instructions for the agent
      * @param ToolInterface[] $tools Available tools for the agent
      * @param int|null $maxRetries Maximum retry attempts for structured output (StructuredOutputNode only)
      */
     public function __construct(
-        public string $instructions,
+        public string|array $instructions,
         public array $tools,
         public ?int $maxRetries = null,
     ) {

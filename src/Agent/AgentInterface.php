@@ -17,9 +17,9 @@ interface AgentInterface
 
     public function resolveProvider(): AIProviderInterface;
 
-    public function setInstructions(string $instructions): AgentInterface;
+    public function setInstructions(string|array $instructions): AgentInterface;
 
-    public function resolveInstructions(): string;
+    public function resolveInstructions(): string|array;
 
     /**
      * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools

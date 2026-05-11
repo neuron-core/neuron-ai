@@ -9,6 +9,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -37,9 +38,9 @@ class AnthropicPromptCachingTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setHttpClient(new GuzzleHttpClient(handler: $stack))
-            ->systemPromptBlocks([
-                ['type' => 'text', 'text' => 'Static instructions', 'cache_control' => ['type' => 'ephemeral']],
-                ['type' => 'text', 'text' => 'Dynamic context'],
+            ->systemPrompt([
+                (new SystemContent('Static instructions'))->cache(),
+                new SystemContent('Dynamic context'),
             ]);
 
         $response = $provider->chat(new UserMessage('Test'));
@@ -161,47 +162,6 @@ class AnthropicPromptCachingTest extends TestCase
         $this->assertCount(1, $requestBody['tools']);
 
         // Should NOT have cache_control by default
-        $this->assertArrayNotHasKey('cache_control', $requestBody['tools'][0]);
-    }
-
-    public function test_tools_cached_when_enabled(): void
-    {
-        $sentRequests = [];
-        $history = Middleware::history($sentRequests);
-        $mockHandler = new MockHandler([
-            new Response(
-                status: 200,
-                body: '{"model": "claude-3-7-sonnet-latest","role": "assistant","stop_reason": "end_turn","content":[{"type": "text","text": "Response"}],"usage": {"input_tokens": 100,"output_tokens": 20}}',
-            ),
-        ]);
-        $stack = HandlerStack::create($mockHandler);
-        $stack->push($history);
-
-        $tool1 = ToolDefinition::make('search', 'Search the web')
-            ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
-
-        $tool2 = ToolDefinition::make('calculate', 'Perform calculation')
-            ->addProperty(new ToolProperty('expression', PropertyType::STRING, 'Math expression', true));
-
-        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
-            ->setHttpClient(new GuzzleHttpClient(handler: $stack))
-            ->withPromptCaching()
-            ->setTools([$tool1, $tool2]);
-
-        $provider->chat(new UserMessage('Test'));
-
-        $this->assertCount(1, $sentRequests);
-        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
-
-        $this->assertArrayHasKey('tools', $requestBody);
-        $this->assertCount(2, $requestBody['tools']);
-
-        // Last tool should have cache_control
-        $lastTool = $requestBody['tools'][1];
-        $this->assertArrayHasKey('cache_control', $lastTool);
-        $this->assertSame('ephemeral', $lastTool['cache_control']['type']);
-
-        // First tool should not have cache_control
         $this->assertArrayNotHasKey('cache_control', $requestBody['tools'][0]);
     }
 

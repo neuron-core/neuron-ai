@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\OpenAI;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -20,6 +21,8 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function json_decode;
+use function implode;
+use function is_array;
 
 class OpenAI implements AIProviderInterface
 {
@@ -76,8 +79,13 @@ class OpenAI implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
+        if (is_array($prompt)) {
+            $this->system = implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt));
+            return $this;
+        }
+
         $this->system = $prompt;
         return $this;
     }

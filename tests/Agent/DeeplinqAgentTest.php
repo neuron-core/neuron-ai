@@ -85,7 +85,7 @@ class DeeplinqAgentTest extends TestCase
         $client = new Client(
             appName: 'test-app',
             serveUrl: 'https://example.com/api/deeplinq',
-            eventKey: 'test-key',
+            apiKey: 'test-key',
             transport: $transport,
         );
 

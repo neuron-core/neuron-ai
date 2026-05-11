@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
@@ -258,6 +259,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             ContentBlockType::REASONING => new ReasoningContent(
                 content: $block['content'],
                 id: $block['id'] ?? null
+            ),
+            ContentBlockType::SYSTEM => new SystemContent(
+                content: $block['content']
             ),
             ContentBlockType::IMAGE => new ImageContent(
                 content: $block['content'],

@@ -6,13 +6,14 @@ namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -42,14 +43,8 @@ class Anthropic implements AIProviderInterface
 
     /**
      * System prompt blocks for prompt caching.
-     * Use systemPromptBlocks() to set an array of content blocks with cache_control.
      */
     protected ?array $systemBlocks = null;
-
-    /**
-     * Enable prompt caching for tools.
-     */
-    protected bool $promptCachingEnabled = false;
 
     protected MessageMapperInterface $messageMapper;
     protected ToolMapperInterface $toolPayloadMapper;
@@ -79,38 +74,22 @@ class Anthropic implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(?string $prompt): AIProviderInterface
+    public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
+        if (is_array($prompt)) {
+            $this->systemBlocks = array_map(function (SystemContent $block): array {
+                $blockArray = ['text' => $block->content];
+                if ($block->isCached()) {
+                    $blockArray['cache_control'] = ['type' => 'ephemeral'];
+                }
+                return $blockArray;
+            }, $prompt);
+            $this->system = null;
+            return $this;
+        }
+
         $this->system = $prompt;
-        $this->systemBlocks = null; // Clear blocks when using string
-        return $this;
-    }
-
-    /**
-     * Set system prompt as content blocks for prompt caching.
-     *
-     * @param array $blocks Array of content blocks with optional cache_control
-     *
-     * @example
-     * $provider->systemPromptBlocks([
-     *     ['type' => 'text', 'text' => 'Static instructions...', 'cache_control' => ['type' => 'ephemeral']],
-     *     ['type' => 'text', 'text' => 'Dynamic context...']
-     * ]);
-     */
-    public function systemPromptBlocks(array $blocks): self
-    {
-        $this->systemBlocks = $blocks;
-        $this->system = null; // Clear string when using blocks
-        return $this;
-    }
-
-    /**
-     * Enable prompt caching for tools.
-     * When enabled, the last tool will be marked with cache_control.
-     */
-    public function withPromptCaching(bool $enabled = true): self
-    {
-        $this->promptCachingEnabled = $enabled;
+        $this->systemBlocks = null;
         return $this;
     }
 
