@@ -8,10 +8,15 @@ use Deeplinq\Context;
 use Deeplinq\Event as DeeplinqEvent;
 use Deeplinq\Step;
 use Deeplinq\StepPendingException;
+use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Executor\DeeplinqStepEngine;
 use NeuronAI\Workflow\Executor\DeeplinqTaskHandler;
 use NeuronAI\Workflow\Executor\StepResult;
@@ -19,52 +24,16 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use Closure;
 
 class DeeplinqStepEngineTest extends TestCase
 {
-    /**
-     * Simulate the Deeplinq platform replay loop.
-     *
-     * Step::run() executes the callback on first encounter, records the result,
-     * then throws StepPendingException. On replay (with memoized data), it returns
-     * the cached result immediately. This helper replays until the workflow completes.
-     */
-    private function replayUntilComplete(Workflow $workflow): WorkflowState
-    {
-        $memoized = [];
-
-        for ($i = 0; $i < 20; $i++) {
-            $step = new Step($memoized);
-            $context = new Context(
-                event: new DeeplinqEvent(name: 'test/trigger'),
-                step: $step,
-                runId: 'test-run-' . $i,
-                attempt: 0,
-            );
-
-            $handler = new DeeplinqTaskHandler($workflow);
-
-            try {
-                $handler($context);
-                return $workflow->resolveState();
-            } catch (StepPendingException) {
-                foreach ($step->getOps() as $op) {
-                    if (isset($op['data'])) {
-                        $memoized[$op['id']] = ['data' => $op['data']];
-                    }
-                }
-            }
-        }
-
-        $this->fail('Workflow did not complete within 20 replays');
-    }
-
     public function testLinearWorkflowCompletesViaReplay(): void
     {
         $workflow = Workflow::make()
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
 
-        $result = $this->replayUntilComplete($workflow);
+        $result = $this->replayWithHandler($workflow);
 
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));
@@ -100,5 +69,62 @@ class DeeplinqStepEngineTest extends TestCase
 
         $this->assertEquals($event, $restored->getEvent());
         $this->assertSame('value', $restored->getState()?->get('key'));
+    }
+
+    public function testParallelWorkflowWithAsyncExecutorCompletesViaReplay(): void
+    {
+        $workflow = Workflow::make()
+            ->addNodes([
+                new DocumentParallelProcessing(),
+                new TextProcessNode(),
+                new ImageProcessNode(),
+                new MergeNode(),
+            ]);
+
+        $result = $this->replayWithHandler(
+            $workflow,
+            executorFactory: fn (DeeplinqStepEngine $engine): AsyncExecutor => new AsyncExecutor($engine),
+        );
+
+        $analysis = $result->get('analysis');
+        $this->assertSame('HELLO', $analysis['text']);
+        $this->assertSame('processed_image.jpg', $analysis['image']);
+    }
+
+    /**
+     * Simulate the Deeplinq platform replay loop.
+     *
+     * Step::run() executes the callback on first encounter, records the result,
+     * then throws StepPendingException. On replay (with memoized data), it returns
+     * the cached result immediately. This helper replays until the workflow completes.
+     */
+    private function replayWithHandler(Workflow $workflow, ?Closure $executorFactory = null): WorkflowState
+    {
+        $memoized = [];
+
+        for ($i = 0; $i < 20; $i++) {
+            $step = new Step($memoized);
+            $context = new Context(
+                event: new DeeplinqEvent(name: 'test/trigger'),
+                step: $step,
+                runId: 'test-run-' . $i,
+                attempt: 0,
+            );
+
+            $handler = new DeeplinqTaskHandler($workflow, executorFactory: $executorFactory);
+
+            try {
+                $handler($context);
+                return $workflow->resolveState();
+            } catch (StepPendingException) {
+                foreach ($step->getOps() as $op) {
+                    if (isset($op['data'])) {
+                        $memoized[$op['id']] = ['data' => $op['data']];
+                    }
+                }
+            }
+        }
+
+        $this->fail('Workflow did not complete within 20 replays');
     }
 }

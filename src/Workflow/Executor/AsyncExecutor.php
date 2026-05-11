@@ -10,6 +10,7 @@ use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowInterface;
+use Throwable;
 
 use function Amp\async;
 
@@ -52,7 +53,10 @@ class AsyncExecutor extends WorkflowExecutor
         }
 
         $firstBranchInterrupt = null;
+        $firstError = null;
 
+        // Await ALL futures before propagating any exception,
+        // otherwise un-awaited futures trigger UnhandledFutureError on destruction.
         foreach ($futures as $branchId => $future) {
             try {
                 $result = $future->await();
@@ -65,7 +69,13 @@ class AsyncExecutor extends WorkflowExecutor
                 if (!$firstBranchInterrupt instanceof BranchInterrupt) {
                     $firstBranchInterrupt = $branchInterrupt;
                 }
+            } catch (Throwable $e) {
+                $firstError ??= $e;
             }
+        }
+
+        if ($firstError instanceof Throwable) {
+            throw $firstError;
         }
 
         if ($firstBranchInterrupt instanceof BranchInterrupt) {
