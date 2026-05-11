@@ -82,6 +82,7 @@ $response = WorkoutTipsAgent::make()->chat(
 | `OpenSearchVectorStore` | OpenSearch |
 | `TypesenseVectorStore` | Typesense |
 | `MeilisearchVectorStore` | Meilisearch |
+| `MongoDBVectorStore` | MongoDB Atlas Vector Search |
 | `FileVectorStore` | Local file storage |
 | `MemoryVectorStore` | In-memory (testing) |
 

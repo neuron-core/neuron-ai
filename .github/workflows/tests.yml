@@ -66,6 +66,10 @@ jobs:
                     - 7474:7474
                 env:
                     NEO4J_AUTH: none
+            mongodb:
+                image: mongo:8.0
+                ports:
+                    - 27017:27017
         strategy:
             matrix:
                 os: [ubuntu-latest]

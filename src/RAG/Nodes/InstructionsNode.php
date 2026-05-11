@@ -12,6 +12,8 @@ use NeuronAI\HandleContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
+use function is_array;
+
 /**
  * Enriches instructions with retrieved documents as context.
  *
@@ -60,8 +62,7 @@ class InstructionsNode extends Node
                 "Source Name: " . $document->getSourceName() . "\n" .
                 "Content: " . $document->getContent() . "\n\n";
         }
-        $context .= "</EXTRA-CONTEXT>\n\n";
-        return $context;
+        return $context . "</EXTRA-CONTEXT>\n\n";
     }
 
     /**
