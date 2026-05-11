@@ -114,7 +114,7 @@ class Message implements JsonSerializable
     /**
      * @return array<TextContent>
      */
-    public function getText(): array
+    public function getTextBlocks(): array
     {
         return array_filter($this->getContentBlocks(), fn (ContentBlockInterface $block): bool => $block instanceof TextContent && !$block instanceof ReasoningContent);
     }
