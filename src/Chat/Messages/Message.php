@@ -101,17 +101,31 @@ class Message implements JsonSerializable
      */
     public function getContent(): ?string
     {
-        $text = '';
-        foreach ($this->getContentBlocks() as $index => $block) {
-            if ($block instanceof TextContent) {
-                $text .= ($index > 0 ? " " : '').$block->content;
-            }
+        $text = implode(' ', array_map(
+            fn (TextContent $block) => $block->content,
+            array_filter($this->getContentBlocks(), fn ($block) => $block instanceof TextContent && !$block instanceof ReasoningContent)
+        ));
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * @return array<TextContent>
+     */
+    public function getText(): array
+    {
+        return array_filter($this->getContentBlocks(), fn ($block) => $block instanceof TextContent && !$block instanceof ReasoningContent);
+    }
+
+    public function getReasoning(): ?ReasoningContent
+    {
+        foreach ($this->getContentBlocks() as $block) {
             if ($block instanceof ReasoningContent) {
-                $text .= ($index > 0 ? "\n\n" : '').$block->content."\n\n";
+                return $block;
             }
         }
 
-        return $text === '' || $text === '0' ? null : $text;
+        return null;
     }
 
     public function getAudio(): ?AudioContent
@@ -129,17 +143,6 @@ class Message implements JsonSerializable
     {
         foreach ($this->getContentBlocks() as $block) {
             if ($block instanceof ImageContent) {
-                return $block;
-            }
-        }
-
-        return null;
-    }
-
-    public function getReasoning(): ?ReasoningContent
-    {
-        foreach ($this->getContentBlocks() as $block) {
-            if ($block instanceof ReasoningContent) {
                 return $block;
             }
         }
