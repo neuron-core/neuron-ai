@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use function json_encode;
+use function hash;
 
 /**
  * Trait for tools that want input-based run key generation.
@@ -27,6 +28,6 @@ trait TrackByInputs
 {
     public function getRunKey(): string
     {
-        return $this->getName() . ':' . json_encode($this->getInputs());
+        return $this->getName() . ':' . hash('sha1', json_encode($this->getInputs()));
     }
 }
