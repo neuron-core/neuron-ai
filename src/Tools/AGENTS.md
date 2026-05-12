@@ -50,19 +50,19 @@ class GetTranscriptionTool extends Tool
 }
 ```
 
-## Parameter-Aware Tool Run Tracking
+## Custom Run Key Tracking
 
 By default, Neuron tracks tool runs by tool name only. This means a tool called multiple times with different parameters counts against the same run limit.
 
-For tools that should be tracked based on their parameters (e.g., reading different file offsets, querying different IDs), implement the `ParameterizedRunKeyTool` interface:
+For tools that need custom tracking (e.g., parameter-aware), implement the `RunKeyInterface`:
 
 ```php
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ParameterizedRunKeyTool;
+use NeuronAI\Tools\RunKeyInterface;
 
-class ReadFileTool extends Tool implements ParameterizedRunKeyTool
+class ReadFileTool extends Tool implements RunKeyInterface
 {
     public function __construct()
     {
@@ -87,20 +87,34 @@ class ReadFileTool extends Tool implements ParameterizedRunKeyTool
         return file_get_contents($path, false, null, $offset, $length);
     }
 
-    public function getRunKey(array $inputs): string
+    public function getRunKey(): string
     {
         // Track runs by path and offset, allowing different offsets
-        return $this->getName() . ':' . $inputs['path'] . ':' . $inputs['offset'];
+        return $this->getName() . ':' . $this->getInput('path') . ':' . $this->getInput('offset');
     }
+}
+```
+
+Alternatively, use the `TrackByInputs` trait for automatic input-based keys:
+
+```php
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\TrackByInputs;
+use NeuronAI\Tools\RunKeyInterface;
+
+class ReadFileTool extends Tool implements RunKeyInterface
+{
+    use TrackByInputs;
+    // getRunKey() automatically uses all inputs via json_encode
 }
 ```
 
 **How it works:**
 
-- Tools implementing `ParameterizedRunKeyTool` provide a unique key based on their inputs
-- The same tool can be called multiple times with different parameters without hitting run limits
-- Identical parameters (same run key) still respect `getMaxRuns()` limits
-- Tools without the interface use default name-only tracking (backwards compatible)
+- Tools implementing `RunKeyInterface` provide a unique key via `getRunKey(): string`
+- `ToolNode` and `ParallelToolNode` use the custom key for run tracking
+- Tools without the interface use the tool name (backwards compatible)
+- The `TrackByInputs` trait provides input-based key generation automatically
 
 **Use cases:**
 
@@ -161,6 +175,8 @@ class YouTubeAgent extends Agent
 }
 
 // Usage
+use NeuronAI\Chat\Messages\UserMessage;
+
 $response = YouTubeAgent::make()->chat(
     new UserMessage('Summarize this: https://youtube.com/watch?v=...')
 );

@@ -11,7 +11,7 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Tools\ParameterizedRunKeyTool;
+use NeuronAI\Tools\RunKeyInterface;
 use NeuronAI\Tools\ToolPropertyInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
@@ -142,7 +142,7 @@ class ToolNodeTest extends TestCase
         foreach ($toolNode($event2, $state) as $_) {
         }
 
-        $this->assertSame(2, $state->getToolRunsByKey('param_tool:offset=0'));
+        $this->assertSame(2, $state->getToolRuns('param_tool:offset=0'));
         $this->assertSame(0, $state->getToolRuns('param_tool')); // Name tracking unused
     }
 
@@ -172,8 +172,8 @@ class ToolNodeTest extends TestCase
         foreach ($toolNode($event2, $state) as $_) {
         }
 
-        $this->assertSame(1, $state->getToolRunsByKey('read_tool:offset=0'));
-        $this->assertSame(1, $state->getToolRunsByKey('read_tool:offset=100'));
+        $this->assertSame(1, $state->getToolRuns('read_tool:offset=0'));
+        $this->assertSame(1, $state->getToolRuns('read_tool:offset=100'));
     }
 
     public function test_regular_tool_tracked_by_name(): void
@@ -196,7 +196,7 @@ class ToolNodeTest extends TestCase
         }
 
         $this->assertSame(1, $state->getToolRuns('regular_tool'));
-        $this->assertSame(0, $state->getToolRunsByKey('regular_tool:any_key'));
+        $this->assertSame(0, $state->getToolRuns('regular_tool:any_key'));
     }
 
     public function test_max_runs_enforced_per_run_key(): void
@@ -256,14 +256,14 @@ class ToolNodeTest extends TestCase
         }
 
         // Each unique parameter combination was called once
-        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=1'));
-        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=2'));
-        $this->assertSame(1, $state->getToolRunsByKey('multi_tool:id=3'));
+        $this->assertSame(1, $state->getToolRuns('multi_tool:id=1'));
+        $this->assertSame(1, $state->getToolRuns('multi_tool:id=2'));
+        $this->assertSame(1, $state->getToolRuns('multi_tool:id=3'));
     }
 
     private function createParameterizedTool(string $name, string $runKey): ToolInterface
     {
-        return new class ($name, $runKey) implements ToolInterface, ParameterizedRunKeyTool {
+        return new class ($name, $runKey) implements ToolInterface, RunKeyInterface {
             private ?string $callId = null;
             private array $inputs = [];
             private string $result = 'executed';
@@ -382,7 +382,7 @@ class ToolNodeTest extends TestCase
                 // Tool execution logic
             }
 
-            public function getRunKey(array $inputs): string
+            public function getRunKey(): string
             {
                 return $this->name . ':' . $this->runKey;
             }

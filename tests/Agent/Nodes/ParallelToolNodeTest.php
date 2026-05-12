@@ -40,8 +40,8 @@ class ParallelToolNodeTest extends TestCase
         }
 
         // Each unique parameter combination tracked separately
-        $this->assertSame(1, $state->getToolRunsByKey('parallel_tool:id=1'));
-        $this->assertSame(1, $state->getToolRunsByKey('parallel_tool:id=2'));
+        $this->assertSame(1, $state->getToolRuns('parallel_tool:id=1'));
+        $this->assertSame(1, $state->getToolRuns('parallel_tool:id=2'));
         $this->assertSame(0, $state->getToolRuns('parallel_tool'));
     }
 

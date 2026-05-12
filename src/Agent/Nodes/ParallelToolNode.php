@@ -14,7 +14,7 @@ use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\ParameterizedRunKeyTool;
+use NeuronAI\Tools\RunKeyInterface;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
@@ -57,16 +57,11 @@ class ParallelToolNode extends ToolNode
 
         // Check max tries and notify before execution
         foreach ($tools as $tool) {
-            // Check if tool implements parameterized run key tracking
-            if ($tool instanceof ParameterizedRunKeyTool) {
-                $runKey = $tool->getRunKey($tool->getInputs());
-                $state->incrementToolRunByKey($runKey);
-                $currentRuns = $state->getToolRunsByKey($runKey);
-            } else {
-                // Fall back to name-only tracking (backwards compatible)
-                $state->incrementToolRun($tool->getName());
-                $currentRuns = $state->getToolRuns($tool->getName());
-            }
+            // Use custom run key if tool implements RunKeyInterface, otherwise use tool name
+            $key = $tool instanceof RunKeyInterface ? $tool->getRunKey() : $tool->getName();
+
+            $state->incrementToolRun($key);
+            $currentRuns = $state->getToolRuns($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;

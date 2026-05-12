@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes\Fixtures;
 
-use NeuronAI\Tools\ParameterizedRunKeyTool;
+use NeuronAI\Tools\RunKeyInterface;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\TrackByInputs;
 
 /**
- * Test tool that implements ParameterizedRunKeyTool for testing parallel execution.
+ * Test tool that implements RunKeyInterface for testing parallel execution.
  * Named class required for serialization support in ParallelToolNode.
  */
-class TestParameterizedTool implements ToolInterface, ParameterizedRunKeyTool
+class TestParameterizedTool implements ToolInterface, RunKeyInterface
 {
+    use TrackByInputs;
     private ?string $callId = null;
     private array $inputs = [];
     private string $description = 'A parameterized test tool';
@@ -130,7 +132,7 @@ class TestParameterizedTool implements ToolInterface, ParameterizedRunKeyTool
         // Tool execution logic
     }
 
-    public function getRunKey(array $inputs): string
+    public function getRunKey(): string
     {
         return $this->name . ':' . $this->runKey;
     }

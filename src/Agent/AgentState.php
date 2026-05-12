@@ -32,6 +32,10 @@ class AgentState extends WorkflowState
         return $this;
     }
 
+    /**
+     * @param string $toolName The tool name for regular tools, or a custom run key
+     *                         when the tool implements RunKeyInterface.
+     */
     public function incrementToolRun(string $toolName): void
     {
         $attempts = $this->get('__tool_runs', []);
@@ -39,6 +43,10 @@ class AgentState extends WorkflowState
         $this->set('__tool_runs', $attempts);
     }
 
+    /**
+     * @param string $toolName The tool name for regular tools, or a custom run key
+     *                         when the tool implements RunKeyInterface.
+     */
     public function getToolRuns(string $toolName): int
     {
         $attempts = $this->get('__tool_runs', []);
@@ -48,24 +56,6 @@ class AgentState extends WorkflowState
     public function resetToolRuns(): void
     {
         $this->delete('__tool_runs');
-    }
-
-    public function incrementToolRunByKey(string $runKey): void
-    {
-        $attempts = $this->get('__tool_runs_by_key', []);
-        $attempts[$runKey] = ($attempts[$runKey] ?? 0) + 1;
-        $this->set('__tool_runs_by_key', $attempts);
-    }
-
-    public function getToolRunsByKey(string $runKey): int
-    {
-        $attempts = $this->get('__tool_runs_by_key', []);
-        return $attempts[$runKey] ?? 0;
-    }
-
-    public function resetToolRunsByKey(): void
-    {
-        $this->delete('__tool_runs_by_key');
     }
 
     public function addStep(Message $message): void
