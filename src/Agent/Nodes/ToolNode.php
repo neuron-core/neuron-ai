@@ -23,6 +23,8 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
+use function json_encode;
+
 /**
  * Node responsible for executing tool calls.
  */
@@ -91,12 +93,11 @@ class ToolNode extends Node
             $key = $tool instanceof RunKeyInterface ? $tool->getRunKey() : $tool->getName();
 
             $state->incrementToolRun($key);
-            $currentRuns = $state->getToolRuns($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($currentRuns > $runs) {
-                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
+            if ($state->getToolRuns($key) > $runs) {
+                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
             }
 
             $tool->execute();

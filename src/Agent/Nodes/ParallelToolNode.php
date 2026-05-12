@@ -61,11 +61,10 @@ class ParallelToolNode extends ToolNode
             $key = $tool instanceof RunKeyInterface ? $tool->getRunKey() : $tool->getName();
 
             $state->incrementToolRun($key);
-            $currentRuns = $state->getToolRuns($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($currentRuns > $maxTries) {
+            if ($state->getToolRuns($key) > $maxTries) {
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 

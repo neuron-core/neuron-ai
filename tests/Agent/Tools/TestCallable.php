@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Agent\Nodes\Fixtures;
+namespace NeuronAI\Tests\Agent\Tools;
 
 /**
  * Test callable that can be serialized.
  */
 class TestCallable
 {
-    public function execute(): string
+    public function __invoke(): string
     {
         return 'result';
     }

@@ -218,7 +218,7 @@ class ToolNodeTest extends TestCase
 
         // Second call with same parameters should throw
         $this->expectException(ToolRunsExceededException::class);
-        $this->expectExceptionMessage('Tool bounded_tool has been executed too many times: 1');
+        $this->expectExceptionMessage('Tool bounded_tool has been executed too many times - 1 - with arguments: []');
 
         $tool->setCallId('call_2');
         $toolCallMessage2 = new ToolCallMessage(null, [$tool]);

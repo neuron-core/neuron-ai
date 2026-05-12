@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Agent\Nodes\Fixtures;
+namespace NeuronAI\Tests\Agent\Tools;
 
 use NeuronAI\Tools\RunKeyInterface;
 use NeuronAI\Tools\ToolInterface;
