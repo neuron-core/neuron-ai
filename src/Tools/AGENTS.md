@@ -60,9 +60,9 @@ For tools that need custom tracking (e.g., parameter-aware), implement the `RunK
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 
-class ReadFileTool extends Tool implements RunKeyInterface
+class ReadFileTool extends Tool implements HasRunKey
 {
     public function __construct()
     {
@@ -100,9 +100,9 @@ Alternatively, use the `TrackByInputs` trait for automatic input-based keys:
 ```php
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\TrackByInputs;
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 
-class ReadFileTool extends Tool implements RunKeyInterface
+class ReadFileTool extends Tool implements HasRunKey
 {
     use TrackByInputs;
     // getRunKey() automatically uses all inputs via json_encode

@@ -14,7 +14,7 @@ use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
@@ -57,8 +57,8 @@ class ParallelToolNode extends ToolNode
 
         // Check max tries and notify before execution
         foreach ($tools as $tool) {
-            // Use custom run key if tool implements RunKeyInterface, otherwise use tool name
-            $key = $tool instanceof RunKeyInterface ? $tool->getRunKey() : $tool->getName();
+            // Use custom run key if tool implements HasRunKey, otherwise use tool name
+            $key = $tool instanceof HasRunKey ? $tool->getRunKey() : $tool->getName();
 
             $state->incrementToolRun($key);
 

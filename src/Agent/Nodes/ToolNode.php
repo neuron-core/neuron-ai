@@ -17,7 +17,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
@@ -89,8 +89,8 @@ class ToolNode extends Node
         $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
-            // Use custom run key if tool implements RunKeyInterface, otherwise use tool name
-            $key = $tool instanceof RunKeyInterface ? $tool->getRunKey() : $tool->getName();
+            // Use custom run key if tool implements HasRunKey, otherwise use tool name
+            $key = $tool instanceof HasRunKey ? $tool->getRunKey() : $tool->getName();
 
             $state->incrementToolRun($key);
 

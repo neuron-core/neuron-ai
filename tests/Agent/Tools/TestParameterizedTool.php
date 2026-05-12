@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Tools;
 
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\TrackByInputs;
 
 /**
- * Test tool that implements RunKeyInterface for testing parallel execution.
+ * Test tool that implements HasRunKey for testing parallel execution.
  * Named class required for serialization support in ParallelToolNode.
  */
-class TestParameterizedTool implements ToolInterface, RunKeyInterface
+class TestParameterizedTool implements ToolInterface, HasRunKey
 {
     use TrackByInputs;
     private ?string $callId = null;

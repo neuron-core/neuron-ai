@@ -34,7 +34,7 @@ class AgentState extends WorkflowState
 
     /**
      * @param string $toolName The tool name for regular tools, or a custom run key
-     *                         when the tool implements RunKeyInterface.
+     *                         when the tool implements HasRunKey.
      */
     public function incrementToolRun(string $toolName): void
     {
@@ -45,7 +45,7 @@ class AgentState extends WorkflowState
 
     /**
      * @param string $toolName The tool name for regular tools, or a custom run key
-     *                         when the tool implements RunKeyInterface.
+     *                         when the tool implements HasRunKey.
      */
     public function getToolRuns(string $toolName): int
     {

@@ -14,7 +14,7 @@ namespace NeuronAI\Tools;
  *
  * @see TrackByInputs Trait that provides input-based key generation
  */
-interface RunKeyInterface
+interface HasRunKey
 {
     /**
      * Get a unique key for tracking tool runs.

@@ -11,7 +11,7 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Tools\RunKeyInterface;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolPropertyInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
@@ -263,7 +263,7 @@ class ToolNodeTest extends TestCase
 
     private function createParameterizedTool(string $name, string $runKey): ToolInterface
     {
-        return new class ($name, $runKey) implements ToolInterface, RunKeyInterface {
+        return new class ($name, $runKey) implements ToolInterface, HasRunKey {
             private ?string $callId = null;
             private array $inputs = [];
             private string $result = 'executed';

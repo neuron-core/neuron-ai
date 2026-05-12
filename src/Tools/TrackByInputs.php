@@ -22,7 +22,7 @@ use function hash;
  * }
  * </code>
  *
- * @mixin RunKeyInterface&ToolInterface
+ * @mixin HasRunKey&ToolInterface
  */
 trait TrackByInputs
 {
