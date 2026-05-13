@@ -61,7 +61,7 @@ class SkillRealLLMTest extends TestCase
         {
             public array $events = [];
 
-            public function onEvent(string $event, object $source, mixed $data = null): void
+            public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
             {
                 $this->events[$event][] = $data;
             }
@@ -172,7 +172,7 @@ class SkillRealLLMTest extends TestCase
             ->addSkillDirectory([$this->toolsFixturesPath]);
 
         $content = $agent->chat(
-            new UserMessage('Test if this URL is reachable: https://httpbin.org/get. Also calculate the shipping cost (in CNY) for a 1.6kg package to Japan. And check the current weather in Shenzhen.')
+            new UserMessage('Test if this URL is reachable: https://docs.neuron-ai.dev. Also calculate the shipping cost (in CNY) for a 1.6kg package to Japan. And check the current weather in Shenzhen.')
         )->getMessage()->getContent();
 
         $this->assertNotEmpty($content);
