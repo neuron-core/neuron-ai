@@ -221,6 +221,11 @@ class Tool implements ToolInterface
         return $this->visible;
     }
 
+    public function getRunKey(): string
+    {
+        return $this->name;
+    }
+
     public function setCallable(callable $callback): self
     {
         $this->callback = $callback;

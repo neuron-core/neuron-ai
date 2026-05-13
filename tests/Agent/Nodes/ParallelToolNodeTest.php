@@ -11,7 +11,7 @@ use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Tools\TestCallable;
-use NeuronAI\Tests\Agent\Tools\TestParameterizedTool;
+use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
@@ -20,8 +20,8 @@ class ParallelToolNodeTest extends TestCase
     public function test_parameterized_tools_tracked_by_run_key_in_parallel(): void
     {
         $tools = [
-            new TestParameterizedTool('parallel_tool', 'id=1'),
-            new TestParameterizedTool('parallel_tool', 'id=2'),
+            new TestParametrizedTool('parallel_tool', 'id=1'),
+            new TestParametrizedTool('parallel_tool', 'id=2'),
         ];
 
         $tools[0]->setCallId('call_1');
@@ -76,8 +76,8 @@ class ParallelToolNodeTest extends TestCase
     public function test_max_runs_enforced_per_run_key_in_parallel(): void
     {
         $tools = [
-            new TestParameterizedTool('bounded_tool', 'id=1'),
-            new TestParameterizedTool('bounded_tool', 'id=1'),
+            new TestParametrizedTool('bounded_tool', 'id=1'),
+            new TestParametrizedTool('bounded_tool', 'id=1'),
         ];
 
         $tools[0]->setCallId('call_1');
