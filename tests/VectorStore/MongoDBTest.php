@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\VectorStore;
 
 use MongoDB\Client;
+use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
@@ -38,6 +39,12 @@ class MongoDBTest extends TestCase
         );
 
         $this->store->setupVectorIndex(dimensions: 3);
+
+        try {
+            $this->store->similaritySearch([0, 0, 0]);
+        } catch (SearchNotSupportedException $e) {
+            $this->markTestSkipped($e->getMessage());
+        }
     }
 
     protected function tearDown(): void

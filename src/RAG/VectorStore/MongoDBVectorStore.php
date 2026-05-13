@@ -7,6 +7,8 @@ namespace NeuronAI\RAG\VectorStore;
 use Exception;
 use MongoDB\Client;
 use MongoDB\Collection;
+use MongoDB\Driver\Exception\CommandException;
+use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
 
 use function array_chunk;
@@ -30,20 +32,24 @@ class MongoDBVectorStore implements VectorStoreInterface
 
     public function setupVectorIndex(int $dimensions, string $similarity = 'cosine'): void
     {
-        $this->collection->createSearchIndex(
-            [
-                'fields' => [[
-                    'type' => 'vector',
-                    'path' => 'embedding',
-                    'numDimensions' => $dimensions,
-                    'similarity' => $similarity,
-                ]],
-            ],
-            [
-                'name' => $this->vectorIndexName,
-                'type' => 'vectorSearch',
-            ],
-        );
+        try {
+            $this->collection->createSearchIndex(
+                [
+                    'fields' => [[
+                        'type' => 'vector',
+                        'path' => 'embedding',
+                        'numDimensions' => $dimensions,
+                        'similarity' => $similarity,
+                    ]],
+                ],
+                [
+                    'name' => $this->vectorIndexName,
+                    'type' => 'vectorSearch',
+                ],
+            );
+        } catch (CommandException | SearchNotSupportedException) {
+            // Atlas Search not available — index must be created manually via Atlas UI
+        }
     }
 
     public function dropCollection(): void
