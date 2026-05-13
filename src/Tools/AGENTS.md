@@ -50,6 +50,78 @@ class GetTranscriptionTool extends Tool
 }
 ```
 
+## Custom Run Key Tracking
+
+By default, Neuron tracks tool runs by tool name only. This means a tool called multiple times with different parameters counts against the same run limit.
+
+For tools that need custom tracking (e.g., parameter-aware), implement the `RunKeyInterface`:
+
+```php
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\HasRunKey;
+
+class ReadFileTool extends Tool implements HasRunKey
+{
+    public function __construct()
+    {
+        parent::__construct(
+            'read_file',
+            'Read a portion of a file.',
+        );
+    }
+
+    protected function properties(): array
+    {
+        return [
+            ToolProperty::make('path', PropertyType::STRING, 'File path', true),
+            ToolProperty::make('offset', PropertyType::INTEGER, 'Byte offset', true),
+            ToolProperty::make('length', PropertyType::INTEGER, 'Bytes to read', true),
+        ];
+    }
+
+    public function __invoke(string $path, int $offset, int $length): string
+    {
+        // Read file portion
+        return file_get_contents($path, false, null, $offset, $length);
+    }
+
+    public function getRunKey(): string
+    {
+        // Track runs by path and offset, allowing different offsets
+        return $this->getName() . ':' . $this->getInput('path') . ':' . $this->getInput('offset');
+    }
+}
+```
+
+Alternatively, use the `TrackByInputs` trait for automatic input-based keys:
+
+```php
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\TrackByInputs;
+use NeuronAI\Tools\HasRunKey;
+
+class ReadFileTool extends Tool implements HasRunKey
+{
+    use TrackByInputs;
+    // getRunKey() automatically uses all inputs via json_encode
+}
+```
+
+**How it works:**
+
+- Tools implementing `RunKeyInterface` provide a unique key via `getRunKey(): string`
+- `ToolNode` and `ParallelToolNode` use the custom key for run tracking
+- Tools without the interface use the tool name (backwards compatible)
+- The `TrackByInputs` trait provides input-based key generation automatically
+
+**Use cases:**
+
+- Chunked file reading with different offsets
+- Paginated API calls with different page numbers
+- Database queries with different IDs
+
 ## Property Types
 
 | Class | JSON Schema Type |
@@ -103,6 +175,8 @@ class YouTubeAgent extends Agent
 }
 
 // Usage
+use NeuronAI\Chat\Messages\UserMessage;
+
 $response = YouTubeAgent::make()->chat(
     new UserMessage('Summarize this: https://youtube.com/watch?v=...')
 );

@@ -78,6 +78,19 @@ interface ToolInterface extends JsonSerializable
     public function isVisible(): bool;
 
     /**
+     * Get a unique key for tracking tool runs.
+     *
+     * Tools can return any string — the tool name itself, a hash of inputs,
+     * a combination of specific parameter values, or any custom strategy.
+     */
+    public function getRunKey(): string;
+
+    /**
+     * Define the code to be executed.
+     */
+    public function setCallable(callable $callback): ToolInterface;
+
+    /**
      * Execute the tool's logic with input parameters.
      */
     public function execute(): void;

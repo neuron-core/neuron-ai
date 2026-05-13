@@ -56,11 +56,13 @@ class ParallelToolNode extends ToolNode
 
         // Check max tries and notify before execution
         foreach ($tools as $tool) {
-            $state->incrementToolRun($tool->getName());
+            $key = $tool->getRunKey();
+
+            $state->incrementToolRun($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($tool->getName()) > $maxTries) {
+            if ($state->getToolRuns($key) > $maxTries) {
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
