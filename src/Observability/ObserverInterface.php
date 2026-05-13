@@ -12,6 +12,7 @@ interface ObserverInterface
      * @param string $event The event name (e.g., 'inference-start', 'tool-called')
      * @param object $source The component that emitted the event
      * @param mixed $data Additional event data (optional)
+     * @param string|null $branchId The branch ID when the event originates from a parallel branch
      */
-    public function onEvent(string $event, object $source, mixed $data = null): void;
+    public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void;
 }

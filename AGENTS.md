@@ -1,15 +1,9 @@
-# AGENTS.md
-
-Neuron is a PHP Agentic framework for building AI agents with chat, tools, RAG, structured output, and workflow orchestration.
-
 ## Development Commands
 
 ```bash
 composer test          # Run tests (PHPUnit)
-composer analyse       # Static analysis (PHPStan level 5)
 composer format        # Fix code style (PHP CS Fixer)
-composer refactor      # Refactor code (Rector)
-composer install       # Install dependencies
+composer analyse       # Static analysis (PHPStan level 5)
 ```
 
 Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`
@@ -29,21 +23,21 @@ Chat ◄────────────────────────
 
 ## Modules
 
-| Module | Purpose | Dependencies |
-|--------|---------|--------------|
+| Module | Purpose                                                       | Dependencies |
+|--------|---------------------------------------------------------------|--------------|
 | `src/Workflow/` | Event-driven orchestration, nodes, interruptions, persistence | None |
-| `src/Agent/` | AI agent with chat/stream/structured modes, skills | Workflow, Chat, Providers, Tools |
-| `src/Chat/` | Messages, content blocks, chat history | None |
-| `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.) | Chat, HttpClient |
-| `src/Tools/` | Tool system and built-in toolkits | None |
-| `src/RAG/` | Document retrieval and vector stores | Agent, VectorStore |
-| `src/StructuredOutput/` | JSON schema extraction | Chat |
-| `src/HttpClient/` | HTTP client abstraction | None |
-| `src/MCP/` | Model Context Protocol connector | HttpClient |
-| `src/Observability/` | EventBus and observers | None |
-| `src/Console/` | CLI commands (make:*, evaluation) | Evaluation |
-| `src/Evaluation/` | AI evaluation framework | None |
-| `src/Testing/` | Test fakes and utilities | Providers |
+| `src/Agent/` | AI agent with chat/stream/structured modes, skills            | Workflow, Chat, Providers, Tools |
+| `src/Chat/` | Messages, stream content blocks, chat history                 | None |
+| `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.)            | Chat, HttpClient |
+| `src/Tools/` | Tool system and built-in toolkits                             | None |
+| `src/RAG/` | Document retrieval and vector stores                          | Agent, VectorStore |
+| `src/StructuredOutput/` | JSON schema extraction                                        | Chat |
+| `src/HttpClient/` | HTTP client abstraction                                       | None |
+| `src/MCP/` | Model Context Protocol connector                              | HttpClient |
+| `src/Observability/` | EventBus and observers                                        | None |
+| `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
+| `src/Evaluation/` | AI evaluation framework                                       | None |
+| `src/Testing/` | Test fakes and utilities                                      | Providers |
 
 ## Context Discovery
 
@@ -65,9 +59,31 @@ Read module-specific `AGENTS.md` files when working on that area:
 - PHPStan level 5
 - 100% type coverage (params, returns, properties)
 - PHP 8.1+ features (enums, constructor promotion)
-- Protected visibility for non-public members (never private)
+- Use **protected** visibility for non-public properties and methods (never private)
 
-## Key Patterns
+## Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## Surgical Changes
 
 - `StaticConstructor` trait → `::make()` factory method
 - `HasHttpClient` trait → HTTP client injection
@@ -75,3 +91,35 @@ Read module-specific `AGENTS.md` files when working on that area:
 - Node signature: `__invoke(SpecificEvent $event, WorkflowState $state): NextEvent`
 - Content blocks: `TextContent`, `ImageContent`, `FileContent`, etc.
 - Skills: self-contained bundles of instructions + tools, loaded from PHP classes or `SKILL.md` directories (agentskills.io spec). LLM-initiated activation via `[ACTIVATE_SKILL: name]` — no state machine, no forced execution phases.
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.

@@ -40,11 +40,9 @@ class SupadataVideoTranscriptTool extends Tool
     public function __invoke(string $video_url): string
     {
         $response = $this->getClient($this->key)
-            ->get('youtube/transcript?url=' . $video_url.'&text=true')
-            ->getBody()
-            ->getContents();
+            ->get('youtube/transcript?url=' . $video_url.'&text=true');
 
-        $response = json_decode($response, true);
+        $response = json_decode((string) $response->getBody(), true);
 
         return $response['content'];
     }

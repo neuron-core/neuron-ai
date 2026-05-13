@@ -10,8 +10,6 @@ use NeuronAI\HandleContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
-use const PHP_EOL;
-
 /**
  * Enriches instructions with retrieved documents as context.
  *

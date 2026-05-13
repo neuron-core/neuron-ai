@@ -7,13 +7,17 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Tools\ExecuteToolsTrait;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
+
+use function json_encode;
 
 /**
  * Node responsible for executing tool calls.
@@ -31,6 +35,10 @@ class ToolNode extends Node
         $this->errorHandler = $errorHandler;
     }
 
+    /**
+     * @throws ToolRunsExceededException
+     * @throws Throwable
+     */
     public function __invoke(ToolCallEvent $event, AgentState $state): Generator
     {
         // Store the tool call in chat history before execution so middleware
@@ -47,8 +55,10 @@ class ToolNode extends Node
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
+        // Only carry the tool result message as the next turn in the conversation
         $event->inferenceEvent->setMessages($toolCallResult);
 
+        // Go back to the AI provider
         return $event->inferenceEvent;
     }
 

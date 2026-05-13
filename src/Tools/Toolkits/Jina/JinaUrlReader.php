@@ -60,10 +60,12 @@ class JinaUrlReader extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        return $this->getClient()->post('https://r.jina.ai/', [
+        $response = $this->getClient()->post('https://r.jina.ai/', [
             RequestOptions::JSON => [
                 'url' => $url,
             ],
-        ])->getBody()->getContents();
+        ]);
+
+        return (string) $response->getBody();
     }
 }

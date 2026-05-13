@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI;
 
+use function md5;
 use function microtime;
 use function mt_rand;
+use function substr;
 use function usleep;
+use function hexdec;
+use function sprintf;
 
 /**
  * Timestamp (41 bits) + Machine ID (10 bits) + Sequence (12 bits) = 64 bits PHP integer limit
@@ -44,6 +48,23 @@ class UniqueIdGenerator
         $id = ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
 
         return $prefix . $id;
+    }
+
+    public static function generateUUID(string|int|null $id = null): string
+    {
+        $hex = md5((string) ($id ?? self::generateId()));
+
+        // Set version 4 (byte 6 high nibble)
+        $hex = substr($hex, 0, 12) . '4' . substr($hex, 13);
+        // Set RFC 4122 variant (byte 8 high bits = 10xx)
+        $variant = (hexdec($hex[16] . $hex[17]) & 0x3f) | 0x80;
+        $hex = substr($hex, 0, 16) . sprintf('%02x', $variant) . substr($hex, 18);
+
+        return substr($hex, 0, 8) . '-'
+            . substr($hex, 8, 4) . '-'
+            . substr($hex, 12, 4) . '-'
+            . substr($hex, 16, 4) . '-'
+            . substr($hex, 20, 12);
     }
 
     protected static function getCurrentTimestamp(): int

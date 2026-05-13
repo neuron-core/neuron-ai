@@ -62,9 +62,9 @@ Use this tool if you need to retrieve user information that can help you provide
                 'scope' => $search_scope === 'facts' ? 'edges' : 'nodes',
                 'limit' => $limit,
             ],
-        ])->getBody()->getContents();
+        ]);
 
-        $response = json_decode($response, true);
+        $response = json_decode((string) $response->getBody(), true);
 
         return match ($search_scope) {
             'nodes' => $this->mapNodes($response['nodes'] ?? []),

@@ -227,6 +227,7 @@ Supported providers:
 - [AWS Bedrock Runtime](https://docs.neuron-ai.dev/providers/ai-provider#aws-bedrock-runtime)
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
 - [ZAI](https://docs.neuron-ai.dev/providers/ai-provider#zai)
+- [Alibaba DashScope](https://docs.neuron-ai.dev/providers/ai-provider#alibaba-dashscope)
 
 <a name="tools">
 

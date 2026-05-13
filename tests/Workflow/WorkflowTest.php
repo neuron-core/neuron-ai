@@ -198,8 +198,8 @@ class WorkflowTest extends TestCase
              new NodeThree(),
         ]);
 
-        $this->assertNotEmpty($workflow->getResumeToken());
-        $this->assertStringStartsWith('workflow_', $workflow->getResumeToken());
+        $this->assertNotEmpty($workflow->getWorkflowId());
+        $this->assertStringStartsWith('workflow_', $workflow->getWorkflowId());
     }
 
     public function testInterruptExposesResumeToken(): void
@@ -212,13 +212,13 @@ class WorkflowTest extends TestCase
              new NodeThree(),
         ]);
 
-        $expectedToken = $workflow->getResumeToken();
+        $expectedToken = $workflow->getWorkflowId();
 
         try {
             $workflow->init()->run();
             $this->fail('Expected WorkflowInterrupt exception');
         } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals($expectedToken, $interrupt->getResumeToken());
+            $this->assertEquals($expectedToken, $interrupt->getWorkflowId());
         }
     }
 }
