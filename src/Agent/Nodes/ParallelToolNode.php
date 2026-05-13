@@ -113,7 +113,7 @@ class ParallelToolNode extends ToolNode
 
                 // Get the original tool to handle the error
                 $originalTool = $tools[$index];
-                $this->handleError($exception, $originalTool);
+                $this->handleToolError($exception, $originalTool);
                 $executedTools[$index] = $originalTool;
             } else {
                 // Collect the executed tool with its new state

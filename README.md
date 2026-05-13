@@ -56,6 +56,7 @@ using the Symfony service container. Watch how it works in a real project.
 - [Monitoring](#monitoring)
 - [AI Providers](#providers)
 - [Tools & Toolkits](#tools)
+- [Skills](#skills)
 - [MCP Connector](#mcp)
 - [Structured Output](#structured)
 - [RAG](#rag)
@@ -178,6 +179,32 @@ After configuring the environment variable, you will see the agent execution tim
 
 Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/agent/observability).
 
+### Debug Mode
+
+During development, you can print all LLM interactions to the console to inspect prompts, responses, and tool calls:
+
+```php
+$agent = Agent::make()
+    ->setAiProvider($provider)
+    ->debug()  // Enable debug output
+    ->chat(new UserMessage('Hello'));
+```
+
+Or enable globally via environment variable — no code changes needed:
+
+```bash
+NEURON_DEBUG=true php your-script.php
+
+# Works with PHPUnit too
+NEURON_DEBUG=true vendor/bin/phpunit --filter test_example
+```
+
+Debug output includes:
+- System prompt sent to the LLM
+- Available tools per round
+- LLM responses (including activation markers)
+- Tool execution inputs and results
+
 <a name="providers">
 
 ## Supported LLM Providers
@@ -261,6 +288,104 @@ echo $response->getContent();
 ```
 
 Learn more about Tools in the [documentation](https://docs.neuron-ai.dev/agent/tools).
+
+<a name="skills">
+
+## Skills
+
+Skills are self-contained bundles of instructions and tools. They allow you to package reusable capabilities and attach them to any agent.
+
+### PHP Class Skills
+
+Create a skill by extending `AbstractSkill`:
+
+```php
+use NeuronAI\Agent\Skills\AbstractSkill;
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\PropertyType;
+
+class WebSearchSkill extends AbstractSkill
+{
+    public function name(): string
+    {
+        return 'web-search';
+    }
+
+    public function instructions(): string
+    {
+        return 'You can search the web. Always cite your sources.';
+    }
+
+    public function tools(): array
+    {
+        return [
+            Tool::make('search', 'Search the web')
+                ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
+                ->setCallable(fn (string $query): string => /* search logic */),
+        ];
+    }
+}
+```
+
+Register skills with an agent:
+
+```php
+// In an agent subclass
+protected function skills(): array
+{
+    return [WebSearchSkill::make()];
+}
+
+// Or at runtime
+$agent->addSkill(WebSearchSkill::make());
+```
+
+### Markdown Skills (agentskills.io)
+
+Load skills from directories containing `SKILL.md` files following the [agentskills.io](https://agentskills.io/specification) open standard — no PHP code required:
+
+```
+skills/
+├── web-search/
+│   └── SKILL.md
+├── french-translator/
+│   └── SKILL.md
+```
+
+```yaml
+# skills/web-search/SKILL.md
+---
+name: web-search
+description: Search the web for information
+license: MIT
+---
+
+# Web Search
+
+When asked for current information:
+1. Use the search tool
+2. Summarize the results
+3. Always cite your sources
+```
+
+Auto-discover and register all skills from parent directories:
+
+```php
+// Scan parent directories for skill subdirectories
+$agent->addSkillDirectory(['/path/to/skills', '/path/to/custom-skills']);
+```
+
+Or register individual skill directories directly:
+
+```php
+// Register specific skill directories
+$agent->addSkillPaths(['/path/to/skills/web-search', '/path/to/skills/docker']);
+```
+
+When skill names collide across paths, later paths take precedence.
+
+Learn more about Skills in the [documentation](https://docs.neuron-ai.dev/agent/skills).
 
 <a name="mcp">
 

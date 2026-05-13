@@ -15,6 +15,7 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
+use NeuronAI\Observability\ConsoleDebugObserver;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -22,6 +23,8 @@ use NeuronAI\Workflow\WorkflowHandlerInterface;
 use Throwable;
 
 use function is_array;
+
+use const PHP_EOL;
 
 /**
  * @method AgentStartEvent resolveStartEvent()
@@ -35,8 +38,11 @@ class Agent extends Workflow implements AgentInterface
     use HandleTools;
     use HandleContent;
     use HandleInstructions;
+    use HandleSkills;
 
     protected bool $parallelToolCalls = false;
+
+    private bool $debugObserverAttached = false;
 
     public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
@@ -44,6 +50,27 @@ class Agent extends Workflow implements AgentInterface
         $this->resolveState()->resetSteps();
 
         return parent::init($resumeRequest);
+    }
+
+    /**
+     * Enable debug mode to print all LLM interactions to the console.
+     * Can also be enabled globally via NEURON_DEBUG=true environment variable.
+     */
+    public function debug(bool $enabled = true): AgentInterface
+    {
+        if ($enabled && !$this->debugObserverAttached) {
+            $this->observe(new ConsoleDebugObserver());
+            $this->debugObserverAttached = true;
+        }
+
+        return $this;
+    }
+
+    protected function ensureDebugObserver(): void
+    {
+        if (getenv('NEURON_DEBUG') === 'true') {
+            $this->debug();
+        }
     }
 
     /**
@@ -90,11 +117,39 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function startEvent(): AgentStartEvent
     {
-        // The bootstrapTools method modifies the instructions, adding the toolkit guidelines, so we need to resolve them first
+        // Bootstrap skills first so their tools and configuration are available
+        $this->bootstrapSkills();
+        // The bootstrapTools method resolves all tools (including skill-provided ones)
+        // and injects toolkit guidelines into the instructions
         $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
+        // Compose the final system prompt from all instruction sources
+        $instructions = $this->composeSystemPrompt();
 
         return new AIInferenceEvent($instructions, $tools);
+    }
+
+    /**
+     * Compose the final system prompt from all instruction providers.
+     * This is a pure computation — it does not mutate internal state.
+     */
+    public function composeSystemPrompt(): string
+    {
+        $prompt = $this->resolveInstructions();
+
+        $skillInstructions = $this->getSkillInstructions();
+        if ($skillInstructions !== []) {
+            $prompt = $this->removeDelimitedContent(
+                $prompt,
+                '<SKILL-GUIDELINES>',
+                '</SKILL-GUIDELINES>'
+            );
+
+            $prompt .= PHP_EOL.'<SKILL-GUIDELINES>'
+                .PHP_EOL.implode(PHP_EOL.PHP_EOL, $skillInstructions)
+                .PHP_EOL.'</SKILL-GUIDELINES>';
+        }
+
+        return $prompt;
     }
 
     /**
@@ -104,13 +159,15 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
+        $this->ensureDebugObserver();
+
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
         // Prepare the workflow for chat mode
         $this->compose(
-            new ChatNode($this->resolveProvider()),
+            new ChatNode($this->resolveProvider(), $this),
         );
 
         return new AgentHandler($this, $interrupt);
@@ -125,13 +182,15 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?InterruptRequest $interrupt = null
     ): AgentHandler {
+        $this->ensureDebugObserver();
+
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
         // Prepare the workflow for streaming mode
         $this->compose(
-            new StreamingNode($this->resolveProvider()),
+            new StreamingNode($this->resolveProvider(), $this),
         );
 
         return new AgentHandler($this, $interrupt);
@@ -148,6 +207,8 @@ class Agent extends Workflow implements AgentInterface
         int $maxRetries = 1,
         ?InterruptRequest $interrupt = null
     ): mixed {
+        $this->ensureDebugObserver();
+
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );

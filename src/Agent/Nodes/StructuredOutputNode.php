@@ -90,7 +90,7 @@ class StructuredOutputNode extends Node
 
                 $last = clone $chatHistory->getLastMessage();
 
-                $this->emit('inference-start', new InferenceStart($last));
+                $this->emit('inference-start', new InferenceStart($last, $event->instructions, $event->tools));
 
                 $response = $this->provider
                     ->systemPrompt($event->instructions)
