@@ -21,16 +21,15 @@ class ZepSearchGraphTool extends Tool
 {
     use HandleZepClient;
 
+    protected string $name = 'search_knowledge_graph';
+
+    protected ?string $description = 'Searches the knowledge graph for relevant facts or nodes.
+	Use this tool if you need to retrieve user information that can help you provide more accurate answers.';
+
     public function __construct(
         protected string $key,
         protected string $user_id
     ) {
-        parent::__construct(
-            'search_knowledge_graph',
-            'Searches the knowledge graph for relevant facts or nodes.
-Use this tool if you need to retrieve user information that can help you provide more accurate answers.'
-        );
-
         $this->createUser();
     }
 

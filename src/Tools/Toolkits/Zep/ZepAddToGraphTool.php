@@ -18,16 +18,15 @@ class ZepAddToGraphTool extends Tool
 {
     use HandleZepClient;
 
+    protected string $name = 'add_knowledge_graph_data';
+
+    protected ?string $description = 'Add relevant information to the knowledge graph for long term memory.
+	Look for facts, news or any relevant information in the conversation that you think is important to store for future use.';
+
     public function __construct(
         protected string $key,
         protected string $user_id
     ) {
-        parent::__construct(
-            'add_knowledge_graph_data',
-            'Add relevant information to the knowledge graph for long term memory.
-Look for facts, news or any relevant information in the conversation that you think is important to store for future use.'
-        );
-
         $this->createUser();
     }
 

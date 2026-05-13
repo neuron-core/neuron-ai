@@ -21,13 +21,15 @@ use Throwable;
 
 class AgentSearchTool extends Tool
 {
-    public function __construct()
+    protected string $name = 'search';
+
+    protected ?string $description = 'Search the web';
+
+    protected function properties(): array
     {
-        parent::__construct(
-            'search',
-            'Search the web',
-            [new ToolProperty('query', PropertyType::STRING, 'Search query', true)],
-        );
+        return [
+            new ToolProperty('query', PropertyType::STRING, 'Search query', true),
+        ];
     }
 
     public function __invoke(string $query): string
@@ -38,13 +40,15 @@ class AgentSearchTool extends Tool
 
 class AgentSecretTool extends Tool
 {
-    public function __construct()
+    protected string $name = 'secret';
+
+    protected ?string $description = 'Secret tool';
+
+    protected function properties(): array
     {
-        parent::__construct(
-            'secret',
-            'Secret tool',
-            [new ToolProperty('input', PropertyType::STRING, 'Input', true)],
-        );
+        return [
+            new ToolProperty('input', PropertyType::STRING, 'Input', true),
+        ];
     }
 
     public function __invoke(string $input): string
@@ -55,13 +59,15 @@ class AgentSecretTool extends Tool
 
 class AgentFailingTool extends Tool
 {
-    public function __construct()
+    protected string $name = 'failing_tool';
+
+    protected ?string $description = 'A tool that fails';
+
+    protected function properties(): array
     {
-        parent::__construct(
-            'failing_tool',
-            'A tool that fails',
-            [new ToolProperty('input', PropertyType::STRING, 'Input', true)],
-        );
+        return [
+            new ToolProperty('input', PropertyType::STRING, 'Input', true),
+        ];
     }
 
     public function __invoke(string $input): string

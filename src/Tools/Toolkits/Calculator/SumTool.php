@@ -10,13 +10,9 @@ use NeuronAI\Tools\ToolProperty;
 
 class SumTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'sum',
-            description: 'Calculate the sum between two numbers and return the result',
-        );
-    }
+    protected string $name = 'sum';
+
+    protected ?string $description = 'Calculate the sum between two numbers and return the result';
 
     protected function properties(): array
     {

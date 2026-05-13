@@ -17,12 +17,12 @@ class SupadataYoutubeChannelTool extends Tool
 {
     use HttpClient;
 
+    protected string $name = 'get_youtube_channel_metadata';
+
+    protected ?string $description = 'Retrieve metadata from a YouTube channel including name, description, subscriber count, and more.';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'get_youtube_channel_metadata',
-            'Retrieve metadata from a YouTube channel including name, description, subscriber count, and more.',
-        );
     }
 
     protected function properties(): array

@@ -12,13 +12,9 @@ use function json_encode;
 
 class IsLeapYearTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'is_leap_year',
-            description: 'Check if a given year is a leap year',
-        );
-    }
+    protected string $name = 'is_leap_year';
+
+    protected ?string $description = 'Check if a given year is a leap year';
 
     protected function properties(): array
     {

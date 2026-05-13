@@ -15,13 +15,9 @@ use function time;
 
 class GetTimestampTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_timestamp',
-            description: 'Get Unix timestamp for current time or convert a specific date to timestamp',
-        );
-    }
+    protected string $name = 'get_timestamp';
+
+    protected ?string $description = 'Get Unix timestamp for current time or convert a specific date to timestamp';
 
     protected function properties(): array
     {

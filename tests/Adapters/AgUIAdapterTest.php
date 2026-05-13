@@ -271,9 +271,10 @@ class AgUIAdapterTest extends TestCase
     private function createMockTool(string $name, array $inputs): Tool
     {
         return new class ($name, $inputs) extends Tool {
-            public function __construct(string $name, array $inputs)
+            protected ?string $description = 'Mock tool';
+
+            public function __construct(protected string $name, array $inputs)
             {
-                parent::__construct($name, 'Mock tool');
                 $this->inputs = $inputs;
             }
 

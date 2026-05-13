@@ -39,9 +39,10 @@ class ToolTest extends TestCase
     public function test_required_properties(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __construct()
             {
-                parent::__construct('test', 'Test tool');
                 $this->addProperty(new ToolProperty('name', PropertyType::STRING, 'User name', true));
                 $this->addProperty(new ToolProperty('surname', PropertyType::STRING, 'User surname', false));
                 $this->addProperty(new ToolProperty('age', PropertyType::INTEGER, 'User age', true));
@@ -58,9 +59,10 @@ class ToolTest extends TestCase
     public function test_missing_required_parameter_exception(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __construct()
             {
-                parent::__construct('test', 'Test tool');
                 $this->addProperty(new ToolProperty('name', PropertyType::STRING, 'User name', true));
             }
             public function __invoke(string $name): string
@@ -89,9 +91,10 @@ class ToolTest extends TestCase
     public function test_required_properties_with_mapped_object(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __construct()
             {
-                parent::__construct('test', 'Test tool');
                 $this->addProperty(new ObjectProperty(
                     name: 'name',
                     description: 'User name',
@@ -115,10 +118,8 @@ class ToolTest extends TestCase
     public function test_tool_return_value(): void
     {
         $tool = new class () extends Tool {
-            public function __construct()
-            {
-                parent::__construct('test', 'Test tool');
-            }
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __invoke(): string
             {
                 return 'test';
@@ -128,10 +129,8 @@ class ToolTest extends TestCase
         $this->assertEquals('test', $tool->getResult());
 
         $tool = new class () extends Tool {
-            public function __construct()
-            {
-                parent::__construct('test', 'Test tool');
-            }
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __invoke(): array
             {
                 return ['test'];
@@ -141,10 +140,8 @@ class ToolTest extends TestCase
         $this->assertEquals('["test"]', $tool->getResult());
 
         $tool = new class () extends Tool {
-            public function __construct()
-            {
-                parent::__construct('test', 'Test tool');
-            }
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __invoke(): array
             {
                 return ['foo' => 'bar'];
@@ -154,10 +151,8 @@ class ToolTest extends TestCase
         $this->assertEquals('{"foo":"bar"}', $tool->getResult());
 
         $tool = new class () extends Tool {
-            public function __construct()
-            {
-                parent::__construct('test', 'Test tool');
-            }
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __invoke(): object
             {
                 return new class () {
@@ -175,10 +170,8 @@ class ToolTest extends TestCase
     public function test_invalid_return_type(): void
     {
         $tool = new class () extends Tool {
-            public function __construct()
-            {
-                parent::__construct('test', 'Test tool');
-            }
+            protected string $name = 'test';
+            protected ?string $description = 'Test tool';
             public function __invoke(): object
             {
                 return new class () {};
@@ -193,9 +186,10 @@ class ToolTest extends TestCase
     public function test_tool_optional_parameters(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test_tool';
+            protected ?string $description = 'description';
             public function __construct()
             {
-                parent::__construct('test_tool', 'description');
                 $this->addProperty(new ToolProperty(
                     name: 'optional_prop_1',
                     type: PropertyType::STRING,
@@ -239,9 +233,10 @@ class ToolTest extends TestCase
     public function test_tool_variadic_invocation_basic_properties(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'user_manager';
+            protected ?string $description = 'Update user information';
             public function __construct()
             {
-                parent::__construct('user_manager', 'Update user information');
                 $this->addProperty(new ToolProperty(
                     name: 'lastname',
                     type: PropertyType::STRING,
@@ -292,9 +287,10 @@ class ToolTest extends TestCase
     public function test_tool_variadic_invocation_object_properties(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test_tool';
+            protected ?string $description = 'description';
             public function __construct()
             {
-                parent::__construct('test_tool', 'description');
                 $this->addProperty(
                     new ObjectProperty(
                         name: 'obj_prop_1',
@@ -363,9 +359,10 @@ class ToolTest extends TestCase
     public function test_tool_variadic_invocation_mapped_object_properties(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test_tool';
+            protected ?string $description = 'description';
             public function __construct()
             {
-                parent::__construct('test_tool', 'description');
                 $this->addProperty(
                     new ObjectProperty(
                         name: 'color',
@@ -400,9 +397,10 @@ class ToolTest extends TestCase
     public function test_tool_variadic_invocation_array_properties(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test_tool';
+            protected ?string $description = 'description';
             public function __construct()
             {
-                parent::__construct('test_tool', 'description');
                 $this->addProperty(
                     new ArrayProperty(
                         name: 'colors',
@@ -463,9 +461,10 @@ class ToolTest extends TestCase
     public function test_tool_named_parameters(): void
     {
         $tool = new class () extends Tool {
+            protected string $name = 'test_tool';
+            protected ?string $description = 'description';
             public function __construct()
             {
-                parent::__construct('test_tool', 'description');
                 $this->addProperty(
                     new ToolProperty(
                         name: 'prop_3',

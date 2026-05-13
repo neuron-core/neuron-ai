@@ -24,18 +24,18 @@ use const FILTER_VALIDATE_EMAIL;
  */
 class SESTool extends Tool
 {
+    protected string $name = 'send_email';
+
+    protected ?string $description = <<<DESC
+        Send an email message to one or more recipients. Use this tool when you need to communicate with users via email,
+        send notifications, confirmations, reports, or any other email-based communication. The tool handles proper email
+        formatting, delivery, and basic error handling automatically.
+        DESC;
+
     public function __construct(
         protected SesClient $sesClient,
         protected string $fromEmail
     ) {
-        parent::__construct(
-            'send_email',
-            <<<DESC
-                Send an email message to one or more recipients. Use this tool when you need to communicate with users via email,
-                send notifications, confirmations, reports, or any other email-based communication. The tool handles proper email
-                formatting, delivery, and basic error handling automatically.
-                DESC
-        );
     }
 
     /**

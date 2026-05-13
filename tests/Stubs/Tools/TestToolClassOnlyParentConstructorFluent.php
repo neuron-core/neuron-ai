@@ -10,26 +10,29 @@ use NeuronAI\Tools\ToolProperty;
 
 class TestToolClassOnlyParentConstructorFluent extends Tool
 {
+    protected string $name = 'test_tool';
+
+    protected ?string $description = 'test tool';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'test_tool',
-            'test tool'
-        );
-        $this->addProperty(
+    }
+
+    protected function properties(): array
+    {
+        return [
             new ToolProperty(
                 'url',
                 PropertyType::STRING,
                 'The URL to read.',
                 true
-            )
-        )->addProperty(
+            ),
             new ToolProperty(
                 'param',
                 PropertyType::STRING,
                 'the param'
-            )
-        );
+            ),
+        ];
     }
 
     public function getKey(): string

@@ -17,13 +17,8 @@ use function unlink;
  */
 class DeleteFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'delete_file',
-            description: 'Delete a file from the filesystem. This action is irreversible.',
-        );
-    }
+    protected string $name = 'delete_file';
+    protected ?string $description = 'Delete a file from the filesystem. This action is irreversible.';
 
     protected function properties(): array
     {

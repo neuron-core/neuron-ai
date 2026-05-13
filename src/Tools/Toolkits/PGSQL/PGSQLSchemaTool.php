@@ -22,17 +22,17 @@ use function strtolower;
  */
 class PGSQLSchemaTool extends Tool
 {
+    protected string $name = 'analyze_pgsql_database_schema';
+
+    protected ?string $description = 'Retrieves PostgreSQL database schema information including tables, columns, relationships, and indexes.
+	Use this tool first to understand the database structure before writing any SQL queries.
+	Essential for generating accurate queries with proper table/column names, JOIN conditions,
+	and performance optimization. If you already know the database structure, you can skip this step.';
+
     public function __construct(
         protected PDO $pdo,
         protected ?array $tables = null,
     ) {
-        parent::__construct(
-            'analyze_pgsql_database_schema',
-            'Retrieves PostgreSQL database schema information including tables, columns, relationships, and indexes.
-Use this tool first to understand the database structure before writing any SQL queries.
-Essential for generating accurate queries with proper table/column names, JOIN conditions,
-and performance optimization. If you already know the database structure, you can skip this step.'
-        );
     }
 
     public function __invoke(): string

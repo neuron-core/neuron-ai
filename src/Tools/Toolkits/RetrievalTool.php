@@ -12,13 +12,13 @@ use NeuronAI\Tools\ToolProperty;
 
 class RetrievalTool extends Tool
 {
+    protected string $name = 'context_retrieval';
+
+    protected ?string $description = 'Search for documents similar to a given query.';
+
     public function __construct(
         protected RetrievalInterface $retrieval
     ) {
-        parent::__construct(
-            name: 'context_retrieval',
-            description: 'Search for documents similar to a given query.',
-        );
     }
 
     protected function properties(): array

@@ -19,16 +19,18 @@ class JinaWebSearch extends Tool
 {
     protected Client $client;
 
+    protected string $name = 'web_search';
+    protected ?string $description = 'Use this tool to search the web for additional information if the question is outside the scope of the context you have.';
+
     public function __construct(
         protected string $key,
         array $topics = [],
     ) {
-        parent::__construct(
-            'web_search',
-            'Use this tool to search the web for additional information '.
-            ($topics === [] ? '' : 'about '.implode(', ', $topics).', or ').
-            'if the question is outside the scope of the context you have.'
-        );
+        if ($topics !== []) {
+            $this->description = 'Use this tool to search the web for additional information '.
+                'about '.implode(', ', $topics).', or '.
+                'if the question is outside the scope of the context you have.';
+        }
     }
 
     protected function properties(): array

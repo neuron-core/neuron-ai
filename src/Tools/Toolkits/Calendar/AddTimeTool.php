@@ -17,13 +17,9 @@ use function is_numeric;
 
 class AddTimeTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'add_time',
-            description: 'Add time periods to a date (supports days, weeks, months, years, hours, minutes, seconds)',
-        );
-    }
+    protected string $name = 'add_time';
+
+    protected ?string $description = 'Add time periods to a date (supports days, weeks, months, years, hours, minutes, seconds)';
 
     protected function properties(): array
     {

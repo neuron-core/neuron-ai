@@ -43,6 +43,11 @@ class PGSQLSelectTool extends Tool
         '/\bEXEC(UTE)?\s+/i',
     ];
 
+    protected string $name = 'pgsql_select_query';
+
+    protected ?string $description = 'Use this tool only to run SELECT query against the PostgreSQL database.
+This the tool to use only to gather information from the PostgreSQL database.';
+
     // Allowed read-only statements
     protected array $allowedPatterns = [
         '/^\s*SELECT\s+/i',
@@ -55,11 +60,6 @@ class PGSQLSelectTool extends Tool
 
     public function __construct(protected PDO $pdo)
     {
-        parent::__construct(
-            'pgsql_select_query',
-            'Use this tool only to run SELECT query against the PostgreSQL database.
-This the tool to use only to gather information from the PostgreSQL database.'
-        );
     }
 
     /**

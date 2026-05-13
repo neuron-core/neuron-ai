@@ -16,13 +16,9 @@ use function json_encode;
 
 class GetWeekdayTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_weekday',
-            description: 'Get the day of week name and number for a given date',
-        );
-    }
+    protected string $name = 'get_weekday';
+
+    protected ?string $description = 'Get the day of week name and number for a given date';
 
     protected function properties(): array
     {

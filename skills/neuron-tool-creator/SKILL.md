@@ -18,7 +18,7 @@ Every tool has:
 - **Name**: Unique identifier
 - **Description**: Explains what the tool does (critical for LLM)
 - **Properties**: Input parameters with types and descriptions
-- **Callable**: The actual logic to run
+- **`__invoke()`**: The actual logic to run
 
 ## Creating Custom Tools
 
@@ -33,13 +33,9 @@ use NeuronAI\Tools\PropertyType;
 
 class WeatherTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_weather',
-            description: 'Get the current weather for a location. Returns temperature, conditions, and humidity.'
-        );
-    }
+    protected string $name = 'get_weather';
+
+    protected ?string $description = 'Get the current weather for a location. Returns temperature, conditions, and humidity.';
 
     protected function properties(): array
     {
@@ -83,7 +79,7 @@ class WeatherTool extends Tool
 
 ### Method 2: Class with Dependencies
 
-For tools that need external dependencies (database, API client):
+For tools that need external dependencies (database, API client), keep the constructor for dependencies and set `name`/`description` as class property defaults:
 
 ```php
 use NeuronAI\Tools\Tool;
@@ -93,12 +89,12 @@ use PDO;
 
 class DatabaseQueryTool extends Tool
 {
+    protected string $name = 'query_users';
+
+    protected ?string $description = 'Query user data from the database';
+
     public function __construct(protected PDO $pdo)
     {
-        parent::__construct(
-            name: 'query_users',
-            description: 'Query user data from the database'
-        );
     }
 
     protected function properties(): array
@@ -716,15 +712,14 @@ use GuzzleHttp\Client;
 
 class GitHubSearchTool extends Tool
 {
+    protected string $name = 'github_search';
+
+    protected ?string $description = 'Search GitHub repositories. Returns repository names, descriptions, stars, and URLs.';
+
     private Client $client;
 
     public function __construct()
     {
-        parent::__construct(
-            name: 'github_search',
-            description: 'Search GitHub repositories. Returns repository names, descriptions, stars, and URLs.'
-        );
-
         $this->client = new Client([
             'base_uri' => 'https://api.github.com',
             'headers' => [

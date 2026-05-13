@@ -14,19 +14,22 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
 class TestToolWithRequiredInput extends Tool
 {
-    public function __construct()
+    protected string $name = 'test_tool';
+
+    protected ?string $description = 'A test tool';
+
+    protected function properties(): array
     {
-        parent::__construct(
-            'test_tool',
-            'A test tool',
-            [new ToolProperty('required_input', PropertyType::STRING, 'A required input', true)],
-        );
+        return [
+            new ToolProperty('required_input', PropertyType::STRING, 'A required input', true),
+        ];
     }
 
     public function __invoke(string $required_input): string
@@ -189,8 +192,7 @@ class ToolNodeTest extends TestCase
 
     public function test_regular_tool_tracked_by_name(): void
     {
-        $tool = Tool::make('regular_tool', 'A regular tool')
-            ->setCallable(fn (): string => 'result');
+        $tool = ToolDefinition::make('regular_tool', 'A regular tool');
         $tool->setCallId('call_1');
         $tool->setInputs([]);
 

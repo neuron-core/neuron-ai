@@ -22,13 +22,8 @@ use const DIRECTORY_SEPARATOR;
 
 class GlobPathTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'glob_path',
-            description: 'Find files matching a glob pattern in a directory.',
-        );
-    }
+    protected string $name = 'glob_path';
+    protected ?string $description = 'Find files matching a glob pattern in a directory.';
 
     protected function properties(): array
     {

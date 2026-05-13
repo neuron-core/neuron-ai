@@ -17,12 +17,12 @@ class SupadataVideoTranscriptTool extends Tool
 {
     use HttpClient;
 
+    protected string $name = 'get_transcription';
+
+    protected ?string $description = 'Retrieve the transcription of a youtube video.';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'get_transcription',
-            'Retrieve the transcription of a youtube video.',
-        );
     }
 
     protected function properties(): array

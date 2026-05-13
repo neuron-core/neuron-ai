@@ -17,10 +17,9 @@ use PHPUnit\Framework\TestCase;
 
 class CalculatorTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct('calculator', 'Performs calculations');
-    }
+    protected string $name = 'calculator';
+
+    protected ?string $description = 'Performs calculations';
 
     public function __invoke(): int
     {
@@ -30,10 +29,9 @@ class CalculatorTool extends Tool
 
 class GreeterTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct('greeter', 'Greets a person');
-    }
+    protected string $name = 'greeter';
+
+    protected ?string $description = 'Greets a person';
 
     public function __invoke(): string
     {

@@ -20,13 +20,8 @@ use function strlen;
  */
 class WriteFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'write_file',
-            description: 'Write content to a file, creating it if it does not exist or overwriting it if it does. Use for applying code changes to existing files or creating new ones.',
-        );
-    }
+    protected string $name = 'write_file';
+    protected ?string $description = 'Write content to a file, creating it if it does not exist or overwriting it if it does. Use for applying code changes to existing files or creating new ones.';
 
     protected function properties(): array
     {

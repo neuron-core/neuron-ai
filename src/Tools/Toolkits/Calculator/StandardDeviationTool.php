@@ -19,17 +19,17 @@ use function is_numeric;
 
 class StandardDeviationTool extends Tool
 {
+    protected string $name = 'calculate_standard_deviation';
+
+    protected ?string $description = <<<DESC
+        Calculates the standard deviation, which measures how spread out the data points are from the mean.
+        A low standard deviation indicates data points are close to the mean, while a high standard deviation
+        indicates greater variability. Use this tool for risk assessment, quality control, measuring consistency,
+        or understanding data distribution. Choose sample (n-1) for sample data or population (n) for complete populations.
+        DESC;
+
     public function __construct(protected int $precision = 2, protected bool $sample = true)
     {
-        parent::__construct(
-            'calculate_standard_deviation',
-            <<<DESC
-                Calculates the standard deviation, which measures how spread out the data points are from the mean.
-                A low standard deviation indicates data points are close to the mean, while a high standard deviation
-                indicates greater variability. Use this tool for risk assessment, quality control, measuring consistency,
-                or understanding data distribution. Choose sample (n-1) for sample data or population (n) for complete populations.
-                DESC
-        );
     }
 
     protected function properties(): array

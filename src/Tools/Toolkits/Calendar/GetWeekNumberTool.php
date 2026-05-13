@@ -19,13 +19,9 @@ use const STR_PAD_LEFT;
 
 class GetWeekNumberTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_week_number',
-            description: 'Get the ISO week number for a given date',
-        );
-    }
+    protected string $name = 'get_week_number';
+
+    protected ?string $description = 'Get the ISO week number for a given date';
 
     protected function properties(): array
     {

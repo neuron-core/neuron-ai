@@ -99,6 +99,11 @@ class TestParametrizedTool implements ToolInterface
         return 'executed';
     }
 
+    public function setResult(mixed $result): ToolInterface
+    {
+        return $this;
+    }
+
     public function getMaxRuns(): ?int
     {
         return $this->maxRuns;

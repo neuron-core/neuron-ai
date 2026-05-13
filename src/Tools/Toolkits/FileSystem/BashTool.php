@@ -20,13 +20,8 @@ use function stream_get_contents;
  */
 class BashTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'bash',
-            description: 'Execute a bash command and return its output. Use for running scripts, build tools, tests, linters, or any shell operation.',
-        );
-    }
+    protected string $name = 'bash';
+    protected ?string $description = 'Execute a bash command and return its output. Use for running scripts, build tools, tests, linters, or any shell operation.';
 
     protected function properties(): array
     {

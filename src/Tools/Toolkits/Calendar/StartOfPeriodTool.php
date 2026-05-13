@@ -16,13 +16,9 @@ use function is_numeric;
 
 class StartOfPeriodTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'start_of_period',
-            description: 'Get the start of week, month, quarter, or year for a given date',
-        );
-    }
+    protected string $name = 'start_of_period';
+
+    protected ?string $description = 'Get the start of week, month, quarter, or year for a given date';
 
     protected function properties(): array
     {

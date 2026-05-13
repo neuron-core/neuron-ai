@@ -19,19 +19,15 @@ use function is_numeric;
 
 class ModeTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'calculate_mode',
-            <<<DESC
-                Finds the mode(s) - the most frequently occurring value(s) in a dataset.
-                Returns all values that appear with the highest frequency. Use this tool to identify
-                the most common values, analyze categorical data converted to numbers, find typical
-                responses in surveys, or detect patterns in discrete data. Can return multiple modes
-                if several values tie for highest frequency.
-                DESC
-        );
-    }
+    protected string $name = 'calculate_mode';
+
+    protected ?string $description = <<<DESC
+        Finds the mode(s) - the most frequently occurring value(s) in a dataset.
+        Returns all values that appear with the highest frequency. Use this tool to identify
+        the most common values, analyze categorical data converted to numbers, find typical
+        responses in surveys, or detect patterns in discrete data. Can return multiple modes
+        if several values tie for highest frequency.
+        DESC;
 
     protected function properties(): array
     {

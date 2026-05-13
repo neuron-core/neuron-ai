@@ -17,12 +17,12 @@ class SupadataYoutubePlaylistTool extends Tool
 {
     use HttpClient;
 
+    protected string $name = 'get_youtube_playlist_metadata';
+
+    protected ?string $description = 'Retrieve metadata from a YouTube playlist including title, description, video count, and more.';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'get_youtube_playlist_metadata',
-            'Retrieve metadata from a YouTube playlist including title, description, video count, and more.',
-        );
     }
 
     protected function properties(): array

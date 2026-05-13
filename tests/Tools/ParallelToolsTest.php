@@ -27,6 +27,10 @@ use function class_exists;
  */
 class TestToolA extends Tool
 {
+    protected string $name = 'tool_a';
+
+    protected ?string $description = 'Tool A';
+
     public function __invoke(string $input): string
     {
         usleep(10000); // 10ms delay
@@ -39,6 +43,10 @@ class TestToolA extends Tool
  */
 class TestToolB extends Tool
 {
+    protected string $name = 'tool_b';
+
+    protected ?string $description = 'Tool B';
+
     public function __invoke(string $input): string
     {
         usleep(10000); // 10ms delay
@@ -51,6 +59,10 @@ class TestToolB extends Tool
  */
 class MultiplyTool extends Tool
 {
+    protected string $name = 'multiply';
+
+    protected ?string $description = 'Multiply two numbers';
+
     public function __invoke(int $a, int $b): string
     {
         usleep(10000); // 10ms delay
@@ -63,6 +75,10 @@ class MultiplyTool extends Tool
  */
 class AddTool extends Tool
 {
+    protected string $name = 'add';
+
+    protected ?string $description = 'Add two numbers';
+
     public function __invoke(int $x, int $y): string
     {
         usleep(10000); // 10ms delay
@@ -75,6 +91,10 @@ class AddTool extends Tool
  */
 class FailingTool extends Tool
 {
+    protected string $name = 'failing_tool';
+
+    protected ?string $description = 'This tool will fail';
+
     public function __invoke(string $input): string
     {
         throw new RuntimeException('Tool execution failed');
@@ -86,6 +106,10 @@ class FailingTool extends Tool
  */
 class WorkingTool extends Tool
 {
+    protected string $name = 'working_tool';
+
+    protected ?string $description = 'This tool works';
+
     public function __invoke(string $input): string
     {
         return "Success: {$input}";
@@ -132,10 +156,10 @@ class ParallelToolsTest extends TestCase
 
     public function test_two_tools_executed_in_parallel(): void
     {
-        $toolA = new TestToolA('tool_a', 'Tool A');
+        $toolA = new TestToolA();
         $toolA->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
 
-        $toolB = new TestToolB('tool_b', 'Tool B');
+        $toolB = new TestToolB();
         $toolB->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
 
         // First response: model calls both tools
@@ -164,11 +188,11 @@ class ParallelToolsTest extends TestCase
 
     public function test_parallel_execution_returns_correct_results(): void
     {
-        $multiplyTool = new MultiplyTool('multiply', 'Multiply two numbers');
+        $multiplyTool = new MultiplyTool();
         $multiplyTool->addProperty(new ToolProperty('a', PropertyType::INTEGER, 'First number', true));
         $multiplyTool->addProperty(new ToolProperty('b', PropertyType::INTEGER, 'Second number', true));
 
-        $addTool = new AddTool('add', 'Add two numbers');
+        $addTool = new AddTool();
         $addTool->addProperty(new ToolProperty('x', PropertyType::INTEGER, 'First number', true));
         $addTool->addProperty(new ToolProperty('y', PropertyType::INTEGER, 'Second number', true));
 
@@ -193,10 +217,10 @@ class ParallelToolsTest extends TestCase
 
     public function test_parallel_tool_node_handles_tool_execution_errors(): void
     {
-        $failingTool = new FailingTool('failing_tool', 'This tool will fail');
+        $failingTool = new FailingTool();
         $failingTool->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
 
-        $workingTool = new WorkingTool('working_tool', 'This tool works');
+        $workingTool = new WorkingTool();
         $workingTool->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
 
         $provider = new FakeAIProvider(
@@ -222,10 +246,10 @@ class ParallelToolsTest extends TestCase
 
     public function test_parallel_tools_work_in_streaming_mode(): void
     {
-        $toolA = new TestToolA('tool_a', 'Tool A');
+        $toolA = new TestToolA();
         $toolA->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
 
-        $toolB = new TestToolB('tool_b', 'Tool B');
+        $toolB = new TestToolB();
         $toolB->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
 
         $provider = new FakeAIProvider(
@@ -252,10 +276,10 @@ class ParallelToolsTest extends TestCase
 
     public function test_parallel_tool_node_throws_tool_runs_exceeded_exception(): void
     {
-        $toolA = new TestToolA('tool_a', 'Tool A');
+        $toolA = new TestToolA();
         $toolA->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
 
-        $toolB = new TestToolB('tool_b', 'Tool B');
+        $toolB = new TestToolB();
         $toolB->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
 
         $provider = new FakeAIProvider(

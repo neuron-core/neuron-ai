@@ -21,13 +21,9 @@ use const STR_PAD_LEFT;
 
 class GetDaysInMonthTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_days_in_month',
-            description: 'Get the number of days in a specific month and year',
-        );
-    }
+    protected string $name = 'get_days_in_month';
+
+    protected ?string $description = 'Get the number of days in a specific month and year';
 
     protected function properties(): array
     {

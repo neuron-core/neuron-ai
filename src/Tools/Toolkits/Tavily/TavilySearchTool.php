@@ -25,6 +25,10 @@ class TavilySearchTool extends Tool
 
     protected string $url = 'https://api.tavily.com/';
 
+    protected string $name = 'web_search';
+
+    protected ?string $description = null;
+
     protected array $options = [
         'search_depth' => 'basic',
         'chunks_per_source' => 3,
@@ -39,14 +43,9 @@ class TavilySearchTool extends Tool
         protected string $key,
         protected array $topics = [],
     ) {
-
-        parent::__construct(
-            'web_search',
-            'Use this tool to search the web for additional information '.
+        $this->description = 'Use this tool to search the web for additional information '.
             ($this->topics === [] ? '' : 'about '.implode(', ', $this->topics).', or ').
-            'if the question is outside the scope of the context you have.'
-        );
-
+            'if the question is outside the scope of the context you have.';
     }
 
     protected function properties(): array

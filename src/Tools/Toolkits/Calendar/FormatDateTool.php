@@ -15,13 +15,9 @@ use function is_numeric;
 
 class FormatDateTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'format_date',
-            description: 'Format a date string or timestamp into different representations',
-        );
-    }
+    protected string $name = 'format_date';
+
+    protected ?string $description = 'Format a date string or timestamp into different representations';
 
     protected function properties(): array
     {

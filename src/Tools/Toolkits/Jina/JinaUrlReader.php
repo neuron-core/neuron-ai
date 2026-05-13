@@ -22,12 +22,11 @@ class JinaUrlReader extends Tool
 {
     protected Client $client;
 
+    protected string $name = 'url_reader';
+    protected ?string $description = 'Get the content of a URL in markdown format.';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'url_reader',
-            'Get the content of a URL in markdown format.'
-        );
     }
 
     protected function properties(): array

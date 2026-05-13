@@ -21,12 +21,12 @@ use function str_starts_with;
  */
 class MySQLWriteTool extends Tool
 {
+    protected string $name = 'mysql_write_query';
+
+    protected ?string $description = 'Use this tool to perform write operations against the MySQL database (e.g. INSERT, UPDATE, DELETE).';
+
     public function __construct(protected PDO $pdo)
     {
-        parent::__construct(
-            'mysql_write_query',
-            'Use this tool to perform write operations against the MySQL database (e.g. INSERT, UPDATE, DELETE).'
-        );
     }
 
     /**

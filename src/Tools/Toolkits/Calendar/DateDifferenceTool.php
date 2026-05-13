@@ -18,13 +18,9 @@ use function round;
 
 class DateDifferenceTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'date_difference',
-            description: 'Calculate the difference between two dates in various units',
-        );
-    }
+    protected string $name = 'date_difference';
+
+    protected ?string $description = 'Calculate the difference between two dates in various units';
 
     protected function properties(): array
     {

@@ -13,13 +13,9 @@ use Exception;
 
 class CurrentDateTimeTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'current_datetime',
-            description: 'Get the current date and time in the specified timezone and format',
-        );
-    }
+    protected string $name = 'current_datetime';
+
+    protected ?string $description = 'Get the current date and time in the specified timezone and format';
 
     protected function properties(): array
     {

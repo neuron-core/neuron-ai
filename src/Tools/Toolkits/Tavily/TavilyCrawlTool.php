@@ -27,6 +27,10 @@ class TavilyCrawlTool extends Tool
 
     protected string $url = 'https://api.tavily.com/';
 
+    protected string $name = 'url_crawl';
+
+    protected ?string $description = 'Get the entire website in markdown format.';
+
     protected array $options = [
         'include_images' => false,
         'allow_external' => false,
@@ -38,10 +42,6 @@ class TavilyCrawlTool extends Tool
     public function __construct(
         protected string $key,
     ) {
-        parent::__construct(
-            'url_crawl',
-            'Get the entire website in markdown format.'
-        );
     }
 
     protected function properties(): array

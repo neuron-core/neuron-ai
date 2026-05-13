@@ -21,17 +21,17 @@ use function strtolower;
  */
 class MySQLSchemaTool extends Tool
 {
+    protected string $name = 'analyze_mysql_database_schema';
+
+    protected ?string $description = 'Retrieves MySQL database schema information including tables, columns, relationships, and indexes.
+            Use this tool first to understand the database structure before writing any SQL queries.
+            Essential for generating accurate queries with proper table/column names, JOIN conditions,
+            and performance optimization. DO NOT call this tool if you already have database schema information in the context.';
+
     public function __construct(
         protected PDO $pdo,
         protected ?array $tables = null,
     ) {
-        parent::__construct(
-            'analyze_mysql_database_schema',
-            'Retrieves MySQL database schema information including tables, columns, relationships, and indexes.
-            Use this tool first to understand the database structure before writing any SQL queries.
-            Essential for generating accurate queries with proper table/column names, JOIN conditions,
-            and performance optimization. DO NOT call this tool if you already have database schema information in the context.'
-        );
     }
 
     public function __invoke(): string

@@ -16,13 +16,9 @@ use function json_encode;
 
 class CompareDatesTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'compare_dates',
-            description: 'Compare two dates and determine their relationship (before, after, equal)',
-        );
-    }
+    protected string $name = 'compare_dates';
+
+    protected ?string $description = 'Compare two dates and determine their relationship (before, after, equal)';
 
     protected function properties(): array
     {

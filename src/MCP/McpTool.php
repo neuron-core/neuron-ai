@@ -15,7 +15,9 @@ class McpTool extends Tool
         protected McpConnector $connector,
         protected array $item,
     ) {
-        parent::__construct($name, $description, [], [], $annotations);
+        $this->name = $name;
+        $this->description = $description;
+        $this->annotations = $annotations;
     }
 
     public function __invoke(mixed ...$arguments): mixed

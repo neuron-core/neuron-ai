@@ -27,6 +27,10 @@ class TavilyExtractTool extends Tool
 
     protected string $url = 'https://api.tavily.com/';
 
+    protected string $name = 'url_reader';
+
+    protected ?string $description = 'Get the content of a URL in markdown format.';
+
     protected array $options = [];
 
     /**
@@ -34,10 +38,6 @@ class TavilyExtractTool extends Tool
      */
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'url_reader',
-            'Get the content of a URL in markdown format.'
-        );
     }
 
     protected function properties(): array

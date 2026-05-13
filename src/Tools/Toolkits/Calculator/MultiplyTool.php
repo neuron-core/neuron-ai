@@ -10,13 +10,9 @@ use NeuronAI\Tools\ToolProperty;
 
 class MultiplyTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'multiply',
-            description: 'Calculate the multiplication between two numbers and return the result',
-        );
-    }
+    protected string $name = 'multiply';
+
+    protected ?string $description = 'Calculate the multiplication between two numbers and return the result';
 
     public function properties(): array
     {

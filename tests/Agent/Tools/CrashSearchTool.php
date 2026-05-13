@@ -12,14 +12,14 @@ use stdClass;
 
 class CrashSearchTool extends Tool
 {
+    protected string $name = 'search';
+
+    protected ?string $description = 'Search the web';
+
     public function __construct(
         protected object $counter = new stdClass(),
     ) {
         $this->counter->count = 0;
-        parent::__construct(
-            'search',
-            'Search the web',
-        );
     }
 
     protected function properties(): array

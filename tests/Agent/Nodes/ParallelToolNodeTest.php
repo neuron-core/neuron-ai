@@ -10,10 +10,33 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Tests\Agent\Tools\TestCallable;
 use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+
+class ParallelRegularTool extends Tool
+{
+    protected string $name = 'regular_tool';
+
+    protected ?string $description = 'A regular tool';
+
+    public function __invoke(): string
+    {
+        return 'result';
+    }
+}
+
+class ParallelAnotherTool extends Tool
+{
+    protected string $name = 'another_tool';
+
+    protected ?string $description = 'Another tool';
+
+    public function __invoke(): string
+    {
+        return 'result';
+    }
+}
 
 class ParallelToolNodeTest extends TestCase
 {
@@ -47,13 +70,11 @@ class ParallelToolNodeTest extends TestCase
 
     public function test_regular_tools_tracked_by_name_in_parallel(): void
     {
-        $tool1 = Tool::make('regular_tool', 'A regular tool')
-            ->setCallable(new TestCallable());
+        $tool1 = new ParallelRegularTool();
         $tool1->setCallId('call_1');
         $tool1->setInputs([]);
 
-        $tool2 = Tool::make('another_tool', 'Another tool')
-            ->setCallable(new TestCallable());
+        $tool2 = new ParallelAnotherTool();
         $tool2->setCallId('call_2');
         $tool2->setInputs([]);
 

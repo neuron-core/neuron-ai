@@ -10,13 +10,9 @@ use NeuronAI\Tools\ToolProperty;
 
 class SearchTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'search',
-            'Search the web',
-        );
-    }
+    protected string $name = 'search';
+
+    protected ?string $description = 'Search the web';
 
     protected function properties(): array
     {

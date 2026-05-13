@@ -15,13 +15,9 @@ use function is_numeric;
 
 class ConvertTimezoneTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'convert_timezone',
-            description: 'Convert a date/time from one timezone to another',
-        );
-    }
+    protected string $name = 'convert_timezone';
+
+    protected ?string $description = 'Convert a date/time from one timezone to another';
 
     protected function properties(): array
     {

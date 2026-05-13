@@ -21,12 +21,12 @@ use function str_starts_with;
  */
 class PGSQLWriteTool extends Tool
 {
+    protected string $name = 'pgsql_write_query';
+
+    protected ?string $description = 'Use this tool to perform write operations against the PostgreSQL database (e.g. INSERT, UPDATE, DELETE).';
+
     public function __construct(protected PDO $pdo)
     {
-        parent::__construct(
-            'pgsql_write_query',
-            'Use this tool to perform write operations against the PostgreSQL database (e.g. INSERT, UPDATE, DELETE).'
-        );
     }
 
     /**

@@ -29,17 +29,9 @@ class MySQLSelectTool extends Tool
 {
     protected array $allowedStatements = ['SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN'];
 
-    protected array $forbiddenStatements = [
-        'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
-        'TRUNCATE', 'REPLACE', 'MERGE', 'CALL', 'EXECUTE',
-        'INTO', 'OUTFILE', 'DUMPFILE', 'LOAD_FILE',
-    ];
+    protected string $name = 'mysql_select_query';
 
-    public function __construct(protected PDO $pdo)
-    {
-        parent::__construct(
-            'mysql_select_query',
-            'Use this tool only to run SELECT query against the MySQL database to gather information.
+    protected ?string $description = 'Use this tool only to run SELECT query against the MySQL database to gather information.
 
 IMPORTANT: When table or column names are MySQL reserved keywords (e.g., character, order, group,
 index, key, value, date, time, etc.), you MUST wrap them in backticks (`) to avoid syntax errors.
@@ -50,8 +42,16 @@ Examples of correct usage:
 - SELECT user_id, `key`, value FROM settings WHERE `key` LIKE :pattern
 - SELECT COUNT(*) FROM `group` WHERE `group`.id IN (1, 2, 3)
 
-Always use backticks around identifiers that are reserved keywords.'
-        );
+Always use backticks around identifiers that are reserved keywords.';
+
+    protected array $forbiddenStatements = [
+        'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
+        'TRUNCATE', 'REPLACE', 'MERGE', 'CALL', 'EXECUTE',
+        'INTO', 'OUTFILE', 'DUMPFILE', 'LOAD_FILE',
+    ];
+
+    public function __construct(protected PDO $pdo)
+    {
     }
 
     /**

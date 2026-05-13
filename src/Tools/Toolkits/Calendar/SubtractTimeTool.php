@@ -17,13 +17,9 @@ use function is_numeric;
 
 class SubtractTimeTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'subtract_time',
-            description: 'Subtract time periods from a date (supports days, weeks, months, years, hours, minutes, seconds)',
-        );
-    }
+    protected string $name = 'subtract_time';
+
+    protected ?string $description = 'Subtract time periods from a date (supports days, weeks, months, years, hours, minutes, seconds)';
 
     protected function properties(): array
     {

@@ -16,13 +16,9 @@ use function json_encode;
 
 class IsWeekendTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'is_weekend',
-            description: 'Check if a given date falls on a weekend (Saturday or Sunday)',
-        );
-    }
+    protected string $name = 'is_weekend';
+
+    protected ?string $description = 'Check if a given date falls on a weekend (Saturday or Sunday)';
 
     protected function properties(): array
     {

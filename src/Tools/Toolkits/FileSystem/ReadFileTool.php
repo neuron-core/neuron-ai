@@ -15,13 +15,8 @@ use function mb_strlen;
 
 class ReadFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'read_file',
-            description: 'Read the contents of a text file.',
-        );
-    }
+    protected string $name = 'read_file';
+    protected ?string $description = 'Read the contents of a text file.';
 
     protected function properties(): array
     {

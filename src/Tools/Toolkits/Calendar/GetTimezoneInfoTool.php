@@ -20,13 +20,9 @@ use function str_contains;
 
 class GetTimezoneInfoTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'get_timezone_info',
-            description: 'Get detailed information about a timezone including offset and DST rules',
-        );
-    }
+    protected string $name = 'get_timezone_info';
+
+    protected ?string $description = 'Get detailed information about a timezone including offset and DST rules';
 
     protected function properties(): array
     {

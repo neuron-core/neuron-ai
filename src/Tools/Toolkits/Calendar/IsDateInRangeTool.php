@@ -16,13 +16,9 @@ use function json_encode;
 
 class IsDateInRangeTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'is_date_in_range',
-            description: 'Check if a date falls within a specified date range (inclusive)',
-        );
-    }
+    protected string $name = 'is_date_in_range';
+
+    protected ?string $description = 'Check if a date falls within a specified date range (inclusive)';
 
     protected function properties(): array
     {

@@ -22,13 +22,8 @@ use const PREG_OFFSET_CAPTURE;
 
 class GrepFileContentTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'grep_file_content',
-            description: 'Search for a regex pattern in a file.',
-        );
-    }
+    protected string $name = 'grep_file_content';
+    protected ?string $description = 'Search for a regex pattern in a file.';
 
     protected function properties(): array
     {

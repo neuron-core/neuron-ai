@@ -21,11 +21,24 @@ use function method_exists;
 use function sprintf;
 
 /**
- * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $parameters = [], array $annotations = [])
+ * @method static static make(...$arguments)
  */
 abstract class Tool implements ToolInterface
 {
     use StaticConstructor;
+
+    protected string $name;
+
+    protected ?string $description = null;
+
+    /**
+     * @var ToolPropertyInterface[]
+     */
+    protected array $properties = [];
+
+    protected array $parameters = [];
+
+    protected array $annotations = [];
 
     /**
      * The arguments to pass in to the tool callback.
@@ -48,22 +61,6 @@ abstract class Tool implements ToolInterface
     protected ?int $maxRuns = null;
 
     protected bool $visible = true;
-
-    /**
-     * Tool constructor.
-     *
-     * @param ToolPropertyInterface[] $properties
-     * @params array<int, mixed>|null $parameters
-     * @params array<int, mixed>|null $annotations
-     */
-    public function __construct(
-        protected string $name,
-        protected ?string $description = null,
-        protected array $properties = [],
-        protected array $parameters = [],
-        protected array $annotations = []
-    ) {
-    }
 
     public function getName(): string
     {
@@ -205,13 +202,7 @@ abstract class Tool implements ToolInterface
 
     public function getRunKey(): string
     {
-        return $this->name;
-    }
-
-    public function setCallable(callable $callback): self
-    {
-        $this->callback = $callback;
-        return $this;
+        return $this->getName();
     }
 
     /**

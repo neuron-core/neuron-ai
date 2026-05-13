@@ -4,12 +4,12 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 
 ## Core
 
-| File | Purpose |
-|------|---------|
-| `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `invoke()` |
-| `Tool.php` | Base class with property definitions |
-| `ProviderTool.php` | Wrapper for MCP server tools |
-| `ProviderToolInterface.php` | Contract for provider-exposed tools |
+| File | Purpose                                                                   |
+|------|---------------------------------------------------------------------------|
+| `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `execute()` |
+| `Tool.php` | Base class with property definitions                                      |
+| `ProviderTool.php` | Wrapper for MCP server tools                                              |
+| `ProviderToolInterface.php` | Contract for provider-exposed tools                                       |
 
 ## Creating Custom Tools
 
@@ -22,12 +22,47 @@ use NeuronAI\Tools\PropertyType;
 
 class GetTranscriptionTool extends Tool
 {
+    protected string $name = 'get_transcription';
+
+    protected ?string $description = 'Retrieve the transcription of a YouTube video.';
+
+    protected function properties(): array
+    {
+        return [
+            new ToolProperty(
+                name: 'video_url',
+                type: PropertyType::STRING,
+                description: 'The URL of the YouTube video.',
+                required: true
+            )
+        ];
+    }
+
+    public function __invoke(string $video_url): string
+    {
+        // Your API call logic here
+        return $transcription;
+    }
+}
+```
+
+### Tools with Dependencies
+
+For tools that need constructor dependencies, keep the constructor but set `name` and `description` as class property defaults:
+
+```php
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\PropertyType;
+
+class GetTranscriptionTool extends Tool
+{
+    protected string $name = 'get_transcription';
+
+    protected ?string $description = 'Retrieve the transcription of a YouTube video.';
+
     public function __construct(protected string $apiKey)
     {
-        parent::__construct(
-            'get_transcription',
-            'Retrieve the transcription of a YouTube video.',
-        );
     }
 
     protected function properties(): array
@@ -54,23 +89,18 @@ class GetTranscriptionTool extends Tool
 
 By default, Neuron tracks tool runs by tool name only. This means a tool called multiple times with different parameters counts against the same run limit.
 
-For tools that need custom tracking (e.g., parameter-aware), implement the `RunKeyInterface`:
+For tools that need custom tracking (e.g., parameter-aware), implement the `getRunKey()` method:
 
 ```php
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\HasRunKey;
 
-class ReadFileTool extends Tool implements HasRunKey
+class ReadFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'read_file',
-            'Read a portion of a file.',
-        );
-    }
+    protected string $name = 'read_file';
+
+    protected ?string $description = 'Read a portion of a file.';
 
     protected function properties(): array
     {
@@ -98,29 +128,13 @@ class ReadFileTool extends Tool implements HasRunKey
 Alternatively, use the `TrackByInputs` trait for automatic input-based keys:
 
 ```php
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\TrackByInputs;
-use NeuronAI\Tools\HasRunKey;
 
-class ReadFileTool extends Tool implements HasRunKey
+class ReadFileTool extends Tool
 {
     use TrackByInputs;
-    // getRunKey() automatically uses all inputs via json_encode
 }
 ```
-
-**How it works:**
-
-- Tools implementing `RunKeyInterface` provide a unique key via `getRunKey(): string`
-- `ToolNode` and `ParallelToolNode` use the custom key for run tracking
-- Tools without the interface use the tool name (backwards compatible)
-- The `TrackByInputs` trait provides input-based key generation automatically
-
-**Use cases:**
-
-- Chunked file reading with different offsets
-- Paginated API calls with different page numbers
-- Database queries with different IDs
 
 ## Property Types
 
@@ -169,7 +183,7 @@ class YouTubeAgent extends Agent
     protected function tools(): array
     {
         return [
-            GetTranscriptionTool::make(env('SUPADATA_API_KEY')),
+            new GetTranscriptionTool(env('SUPADATA_API_KEY')),
         ];
     }
 }

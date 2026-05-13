@@ -17,12 +17,12 @@ class SupadataVideoMetadataTool extends Tool
 {
     use HttpClient;
 
+    protected string $name = 'get_video_metadata';
+
+    protected ?string $description = 'Retrieve the metadata of a youtube video.';
+
     public function __construct(protected string $key)
     {
-        parent::__construct(
-            'get_video_metadata',
-            'Retrieve the metadata of a youtube video.',
-        );
     }
 
     protected function properties(): array

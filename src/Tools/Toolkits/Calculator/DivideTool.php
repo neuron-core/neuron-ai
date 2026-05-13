@@ -12,13 +12,9 @@ use function floatval;
 
 class DivideTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'divide',
-            'Calculate the division between two numbers and return the result'
-        );
-    }
+    protected string $name = 'divide';
+
+    protected ?string $description = 'Calculate the division between two numbers and return the result';
 
     public function properties(): array
     {

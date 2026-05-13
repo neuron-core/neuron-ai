@@ -10,9 +10,12 @@ use NeuronAI\Tools\ToolProperty;
 
 class TestToolClassWithParentConstructor extends Tool
 {
+    protected string $name = 'test_tool';
+
+    protected ?string $description = 'test tool';
+
     public function __construct(protected string $key)
     {
-        parent::__construct('test_tool', 'test tool');
     }
 
     public function properties(): array

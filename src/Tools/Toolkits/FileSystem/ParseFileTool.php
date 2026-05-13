@@ -21,13 +21,8 @@ use const PATHINFO_EXTENSION;
 
 class ParseFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'parse_file',
-            description: 'Parse and return the complete content of a document file. Use this after preview_file confirms the document is relevant, or when you need to find cross-references to other documents. Supported formats: PDF, HTML.',
-        );
-    }
+    protected string $name = 'parse_file';
+    protected ?string $description = 'Parse and return the complete content of a document file. Use this after preview_file confirms the document is relevant, or when you need to find cross-references to other documents. Supported formats: PDF, HTML.';
 
     protected function properties(): array
     {

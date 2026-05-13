@@ -18,18 +18,18 @@ use function is_numeric;
 
 class VarianceTool extends Tool
 {
+    protected string $name = 'calculate_variance';
+
+    protected ?string $description = <<<DESC
+        Calculates the variance, which measures the average squared deviation from the mean.
+        Variance quantifies how much the data points differ from the average value.
+        Use this tool for statistical analysis, understanding data spread, portfolio risk analysis,
+        or quality control measurements. The square root of variance gives the standard deviation.
+        Choose sample (n-1) for sample data or population (n) for complete populations.
+        DESC;
+
     public function __construct(protected int $precision = 2, protected bool $sample = true)
     {
-        parent::__construct(
-            'calculate_variance',
-            <<<DESC
-                Calculates the variance, which measures the average squared deviation from the mean.
-                Variance quantifies how much the data points differ from the average value.
-                Use this tool for statistical analysis, understanding data spread, portfolio risk analysis,
-                or quality control measurements. The square root of variance gives the standard deviation.
-                Choose sample (n-1) for sample data or population (n) for complete populations.
-                DESC
-        );
     }
 
     protected function properties(): array

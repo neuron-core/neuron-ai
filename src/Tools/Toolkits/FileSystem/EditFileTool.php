@@ -21,13 +21,8 @@ use function str_replace;
  */
 class EditFileTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            name: 'edit_file',
-            description: 'Edit a file by replacing an exact string or block of text with new content. The search string must match exactly (including whitespace and indentation). Use write_file if you need to replace the entire file.',
-        );
-    }
+    protected string $name = 'edit_file';
+    protected ?string $description = 'Edit a file by replacing an exact string or block of text with new content. The search string must match exactly (including whitespace and indentation). Use write_file if you need to replace the entire file.';
 
     protected function properties(): array
     {
