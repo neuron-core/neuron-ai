@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Observability\Events\SkillActivated;
@@ -23,7 +22,7 @@ class ConsoleDebugObserver implements ObserverInterface
 {
     private int $inferenceRound = 0;
 
-    public function onEvent(string $event, object $source, mixed $data = null): void
+    public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
     {
         match ($event) {
             'skills-bootstrapped' => $this->onSkillsBootstrapped($data),

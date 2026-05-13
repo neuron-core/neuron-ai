@@ -7,17 +7,14 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Tools\ExecuteToolsTrait;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
-
-use function json_encode;
 
 /**
  * Node responsible for executing tool calls.
@@ -37,7 +34,7 @@ class ToolNode extends Node
 
     /**
      * @throws ToolRunsExceededException
-     * @throws Throwable
+     * @throws \Throwable
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): Generator
     {
@@ -45,8 +42,6 @@ class ToolNode extends Node
         // can intercept the ToolNode before the call is recorded.
         // Clone tools to prevent execution mutations (setResult) from leaking
         // into the historical tool_call message.
-        $clonedTools = array_map(fn (ToolInterface $t) => clone $t, $event->toolCallMessage->getTools());
-        // (setResult) don't leak into the historical tool_call message.
         $clonedTools = array_map(fn (ToolInterface $t) => clone $t, $event->toolCallMessage->getTools());
         $this->addToChatHistory($state, new ToolCallMessage(
             $event->toolCallMessage->getContent(),

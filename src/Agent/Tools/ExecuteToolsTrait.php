@@ -11,9 +11,12 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use Throwable;
+
+use function json_encode;
 
 trait ExecuteToolsTrait
 {
@@ -38,11 +41,13 @@ trait ExecuteToolsTrait
         $this->onToolCalling($tool);
 
         try {
-            $state->incrementToolRun($tool->getName());
+            $key = $tool instanceof HasRunKey ? $tool->getRunKey() : $tool->getName();
+
+            $state->incrementToolRun($key);
 
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($tool->getName()) > $runs) {
-                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
+            if ($state->getToolRuns($key) > $runs) {
+                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
             }
 
             $tool->execute();
