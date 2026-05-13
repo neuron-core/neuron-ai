@@ -17,9 +17,13 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\HasInterrupt;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\ToolsInterruptRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
@@ -50,9 +54,17 @@ class ToolNode extends Node
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
-        // Adding the tool call message to the chat history here allows the middleware to hook
-        // the ToolNode before the tool call is added to the history.
-        $this->addToChatHistory($state, $event->toolCallMessage);
+        $resumeRequest = $this->consumeResumeRequest();
+
+        // Skip chat history on resume to avoid duplicating the tool call message
+        if (!$resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
+            // Adding the tool call message to the chat history here allows the middleware to hook
+            // the ToolNode before the tool call is added to the history.
+            $this->addToChatHistory($state, $event->toolCallMessage);
+        } else {
+            // Inject resume request into tools before execution
+            $this->injectResumeRequest($event->toolCallMessage->getTools(), $resumeRequest);
+        }
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
@@ -61,6 +73,33 @@ class ToolNode extends Node
 
         // Go back to the AI provider
         return $event->inferenceEvent;
+    }
+
+    /**
+     * Inject a resume request into tools that implement HasInterrupt.
+     *
+     * If the request is a ToolsInterruptRequest, each tool receives its
+     * specific sub-request. Otherwise, all tools receive the same request.
+     *
+     * @param ToolInterface[] $tools
+     */
+    protected function injectResumeRequest(array $tools, InterruptRequest $resumeRequest): void
+    {
+        if ($resumeRequest instanceof ToolsInterruptRequest) {
+            foreach ($tools as $tool) {
+                if ($tool instanceof HasInterrupt) {
+                    $tool->setInterruptRequest(null);
+                    $tool->setResumeRequest($resumeRequest->getRequest($tool->getName()));
+                }
+            }
+        } else {
+            foreach ($tools as $tool) {
+                if ($tool instanceof HasInterrupt) {
+                    $tool->setInterruptRequest(null);
+                    $tool->setResumeRequest($resumeRequest);
+                }
+            }
+        }
     }
 
     /**
@@ -101,6 +140,16 @@ class ToolNode extends Node
             }
 
             $tool->execute();
+
+            // Check if the tool signaled an interrupt request
+            if ($tool instanceof HasInterrupt && $tool->getInterruptRequest() instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
+                $interrupt = $tool->getInterruptRequest();
+                $toolsRequest = new ToolsInterruptRequest($interrupt->getMessage());
+                $toolsRequest->addRequest($tool->getName(), $interrupt);
+                throw new WorkflowInterrupt($toolsRequest, $this, $this->state, $this->event);
+            }
+        } catch (WorkflowInterrupt $interrupt) {
+            throw $interrupt;
         } catch (Throwable $e) {
             $this->handleError($e, $tool);
         } finally {

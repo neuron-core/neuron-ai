@@ -14,8 +14,11 @@ use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\HasInterrupt;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Workflow\Interrupt\ToolsInterruptRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use Spatie\Fork\Fork;
 use Closure;
 use Throwable;
@@ -123,14 +126,29 @@ class ParallelToolNode extends ToolNode
                 // Collect the executed tool with its new state
                 $executedTools[$index] = $data;
             }
-
-            yield new ToolResultChunk($executedTools[$index]);
-
-            // Notify that the tool was called
-            $this->emit('tool-called', new ToolCalled($executedTools[$index]));
         }
 
-        // Return a new ToolCallResultMessage with the executed tools
+        // Check if any tools signaled an interrupt request
+        $toolsRequest = new ToolsInterruptRequest('Tools require interruption');
+        foreach ($executedTools as $tool) {
+            if ($tool instanceof HasInterrupt && $tool->getInterruptRequest() instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
+                $toolsRequest->addRequest($tool->getName(), $tool->getInterruptRequest());
+            }
+        }
+
+        if ($toolsRequest->hasRequests()) {
+            throw new WorkflowInterrupt($toolsRequest, $this, $this->state, $this->event);
+        }
+
+        // Yield results for all executed tools
+        foreach ($executedTools as $tool) {
+            yield new ToolResultChunk($tool);
+
+            // Notify that the tool was called
+            $this->emit('tool-called', new ToolCalled($tool));
+        }
+
+        // Return a new ToolResultMessage with the executed tools
         return new ToolResultMessage($executedTools);
     }
 }
