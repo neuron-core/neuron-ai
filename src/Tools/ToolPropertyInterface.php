@@ -16,5 +16,7 @@ interface ToolPropertyInterface extends JsonSerializable
 
     public function isRequired(): bool;
 
+    public function isNullable(): bool;
+
     public function getJsonSchema(): array;
 }

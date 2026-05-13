@@ -135,12 +135,14 @@ class McpConnector
         foreach ($item['inputSchema']['properties'] as $name => $prop) {
             $required = in_array($name, $item['inputSchema']['required'] ?? []);
 
-            $type = PropertyType::fromSchema($prop['type'] ?? PropertyType::STRING->value);
+            $typeSchema = $prop['type'] ?? PropertyType::STRING->value;
+            $type = PropertyType::fromSchema($typeSchema);
+            $nullable = is_array($typeSchema) && in_array('null', $typeSchema, true);
 
             $property = match ($type) {
-                PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop),
-                PropertyType::OBJECT => $this->createObjectProperty($name, $required, $prop),
-                default => $this->createToolProperty($name, $type, $required, $prop),
+                PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop, $nullable),
+                PropertyType::OBJECT => $this->createObjectProperty($name, $required, $prop, $nullable),
+                default => $this->createToolProperty($name, $type, $required, $prop, $nullable),
             };
 
             $tool->addProperty($property);
@@ -152,14 +154,15 @@ class McpConnector
     /**
      * @param array<string, mixed> $prop
      */
-    protected function createToolProperty(string $name, PropertyType $type, bool $required, array $prop): ToolProperty
+    protected function createToolProperty(string $name, PropertyType $type, bool $required, array $prop, bool $nullable = false): ToolProperty
     {
         return new ToolProperty(
             name: $name,
             type: $type,
             description: $prop['description'] ?? null,
             required: $required,
-            enum: $prop['items']['enum'] ?? $prop['enum'] ?? []
+            enum: $prop['items']['enum'] ?? $prop['enum'] ?? [],
+            nullable: $nullable,
         );
     }
 
@@ -167,7 +170,7 @@ class McpConnector
      * @param array<string, mixed> $prop
      * @throws ArrayPropertyException
      */
-    protected function createArrayProperty(string $name, bool $required, array $prop): ArrayProperty
+    protected function createArrayProperty(string $name, bool $required, array $prop, bool $nullable = false): ArrayProperty
     {
         return new ArrayProperty(
             name: $name,
@@ -176,7 +179,8 @@ class McpConnector
             items: new ToolProperty(
                 name: 'type',
                 type: PropertyType::from($prop['items']['type'] ?? 'string'),
-            )
+            ),
+            nullable: $nullable,
         );
     }
 
@@ -186,12 +190,13 @@ class McpConnector
      * @throws ToolException
      * @throws ReflectionException
      */
-    protected function createObjectProperty(string $name, bool $required, array $prop): ObjectProperty
+    protected function createObjectProperty(string $name, bool $required, array $prop, bool $nullable = false): ObjectProperty
     {
         return new ObjectProperty(
             name: $name,
             description: $prop['description'] ?? null,
             required: $required,
+            nullable: $nullable,
         );
     }
 

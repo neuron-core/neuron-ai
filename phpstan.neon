@@ -25,7 +25,6 @@ parameters:
         - identifier: generator.valueType
 
     excludePaths:
-        - src/Workflow/Executor/DeeplinqStepEngine.php
 
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
 

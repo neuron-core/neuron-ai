@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests;
+namespace NeuronAI\Tests\Tools\Properties;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Tools\ArrayProperty;

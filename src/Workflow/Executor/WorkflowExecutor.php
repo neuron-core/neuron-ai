@@ -67,12 +67,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         } catch (WorkflowInterrupt $interrupt) {
             EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
             throw $interrupt;
-        } catch (Throwable $exception) {
-            // Don't emit error for platform step-pending (expected control flow)
-            if ($exception::class !== \Deeplinq\StepPendingException::class) {
-                EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
-            }
-            throw $exception;
         } finally {
             $this->workflowEnd($workflow);
         }

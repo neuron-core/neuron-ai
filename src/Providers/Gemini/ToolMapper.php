@@ -14,6 +14,9 @@ use function array_filter;
 use function array_map;
 use function array_reduce;
 use function array_merge;
+use function array_values;
+use function count;
+use function is_array;
 
 class ToolMapper implements ToolMapperInterface
 {
@@ -49,7 +52,7 @@ class ToolMapper implements ToolMapperInterface
         ];
 
         $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $carry[$property->getName()] = $property->getJsonSchema();
+            $carry[$property->getName()] = $this->stripNullableTypes($property->getJsonSchema());
             return $carry;
         }, []);
 
@@ -79,5 +82,32 @@ class ToolMapper implements ToolMapperInterface
         }
 
         return $payload;
+    }
+
+    protected function stripNullableTypes(array $schema): array
+    {
+        if (isset($schema['type']) && is_array($schema['type'])) {
+            $nonNullTypes = array_values(array_filter(
+                $schema['type'],
+                fn (string $type): bool => $type !== 'null',
+            ));
+            $schema['type'] = count($nonNullTypes) === 1
+                ? $nonNullTypes[0]
+                : $nonNullTypes;
+        }
+
+        if (isset($schema['properties']) && is_array($schema['properties'])) {
+            foreach ($schema['properties'] as $key => $value) {
+                if (is_array($value)) {
+                    $schema['properties'][$key] = $this->stripNullableTypes($value);
+                }
+            }
+        }
+
+        if (isset($schema['items']) && is_array($schema['items'])) {
+            $schema['items'] = $this->stripNullableTypes($schema['items']);
+        }
+
+        return $schema;
     }
 }

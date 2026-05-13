@@ -2,62 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests;
+namespace NeuronAI\Tests\Tools\Properties;
 
+use NeuronAI\Tests\Tools\Stub\Address;
+use NeuronAI\Tests\Tools\Stub\Company;
+use NeuronAI\Tests\Tools\Stub\Contact;
+use NeuronAI\Tests\Tools\Stub\Person;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
-
-/**
- * Test classes for complex nested structures
- */
-class Address
-{
-    public string $street;
-    public string $city;
-    public string $zipCode;
-    /** @var float[] */
-    public array $coordinates;
-}
-
-class Contact
-{
-    public string $type;
-    public string $value;
-    public bool $isPrimary;
-}
-
-class Company
-{
-    public string $name;
-    public Address $headquarters;
-    /** @var Address[] */
-    public array $offices;
-}
-
-class Person
-{
-    public string $name;
-    public int $age;
-    public Address $address;
-    /** @var Contact[] */
-    public array $contacts;
-    /** @var string[] */
-    public array $tags;
-    public ?Company $company = null;
-}
-
-class NestedComplexStructure
-{
-    public string $id;
-    /** @var Person[] */
-    public array $people;
-    /** @var array<string, Company> */
-    public array $companies;
-    public array $metadata; // Mixed array
-}
 
 class ObjectPropertyTest extends TestCase
 {

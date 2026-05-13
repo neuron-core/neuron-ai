@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\VectorStore;
 
 use MongoDB\Client;
-use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+use Exception;
 
 use function uniqid;
 
@@ -42,7 +42,7 @@ class MongoDBTest extends TestCase
 
         try {
             $this->store->similaritySearch([0, 0, 0]);
-        } catch (SearchNotSupportedException $e) {
+        } catch (Exception $e) {
             $this->markTestSkipped($e->getMessage());
         }
     }

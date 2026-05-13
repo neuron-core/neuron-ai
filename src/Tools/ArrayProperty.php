@@ -10,7 +10,7 @@ use NeuronAI\StaticConstructor;
 use function is_null;
 
 /**
- * @method static static make(string $name, string $description, bool $required = false, ?ToolPropertyInterface $items = null, ?int $minItems = null, ?int $maxItems = null)
+ * @method static static make(string $name, string $description, bool $required = false, ?ToolPropertyInterface $items = null, ?int $minItems = null, ?int $maxItems = null, bool $nullable = false)
  */
 class ArrayProperty implements ToolPropertyInterface
 {
@@ -28,6 +28,7 @@ class ArrayProperty implements ToolPropertyInterface
         protected ?ToolPropertyInterface $items = null,
         protected ?int $minItems = null,
         protected ?int $maxItems = null,
+        protected bool $nullable = false,
     ) {
         $this->validateConstraints();
     }
@@ -38,13 +39,16 @@ class ArrayProperty implements ToolPropertyInterface
             'name' => $this->name,
             ...$this->getJsonSchema(),
             'required' => $this->required,
+            'nullable' => $this->nullable,
         ];
     }
 
     public function getJsonSchema(): array
     {
         $schema = [
-            'type' => $this->type->value,
+            'type' => $this->nullable
+                ? [$this->type->value, 'null']
+                : $this->type->value,
         ];
 
         if (!is_null($this->description)) {
@@ -71,6 +75,11 @@ class ArrayProperty implements ToolPropertyInterface
     public function isRequired(): bool
     {
         return $this->required;
+    }
+
+    public function isNullable(): bool
+    {
+        return $this->nullable;
     }
 
     public function getName(): string

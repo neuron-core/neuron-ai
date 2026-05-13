@@ -8,7 +8,6 @@ use Exception;
 use MongoDB\Client;
 use MongoDB\Collection;
 use MongoDB\Driver\Exception\CommandException;
-use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
 
 use function array_chunk;
@@ -47,7 +46,7 @@ class MongoDBVectorStore implements VectorStoreInterface
                     'type' => 'vectorSearch',
                 ],
             );
-        } catch (CommandException | SearchNotSupportedException) {
+        } catch (CommandException) {
             // Atlas Search not available — index must be created manually via Atlas UI
         }
     }

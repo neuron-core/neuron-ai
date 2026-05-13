@@ -50,10 +50,7 @@ class ToolMapper implements ToolMapperInterface
         ];
 
         $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $carry[$property->getName()] = [
-                'type' => $property->getType()->value,
-                'description' => $property->getDescription(),
-            ];
+            $carry[$property->getName()] = $property->getJsonSchema();
 
             return $carry;
         }, []);

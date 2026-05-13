@@ -9,7 +9,7 @@ use NeuronAI\StaticConstructor;
 use function is_null;
 
 /**
- * @method static static make(string $name, PropertyType $type, string $description, bool $required = false, array $enum = [])
+ * @method static static make(string $name, PropertyType $type, string $description, bool $required = false, array $enum = [], bool $nullable = false)
  */
 class ToolProperty implements ToolPropertyInterface
 {
@@ -21,6 +21,7 @@ class ToolProperty implements ToolPropertyInterface
         protected ?string $description = null,
         protected bool $required = false,
         protected array $enum = [],
+        protected bool $nullable = false,
     ) {
     }
 
@@ -32,12 +33,18 @@ class ToolProperty implements ToolPropertyInterface
             'type' => $this->type->value,
             'enum' => $this->enum,
             'required' => $this->required,
+            'nullable' => $this->nullable,
         ];
     }
 
     public function isRequired(): bool
     {
         return $this->required;
+    }
+
+    public function isNullable(): bool
+    {
+        return $this->nullable;
     }
 
     public function getName(): string
@@ -63,7 +70,9 @@ class ToolProperty implements ToolPropertyInterface
     public function getJsonSchema(): array
     {
         $schema = [
-            'type' => $this->type->value,
+            'type' => $this->nullable
+                ? [$this->type->value, 'null']
+                : $this->type->value,
         ];
 
         if (!is_null($this->description)) {

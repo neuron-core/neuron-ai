@@ -17,9 +17,10 @@ use function array_values;
 use function class_exists;
 use function in_array;
 use function is_null;
+use function is_array;
 
 /**
- * @method static static make(string $name, string $description, bool $required = false, ?string $class = null, array $properties = [])
+ * @method static static make(string $name, string $description, bool $required = false, ?string $class = null, array $properties = [], bool $nullable = false)
  */
 class ObjectProperty implements ToolPropertyInterface
 {
@@ -40,6 +41,7 @@ class ObjectProperty implements ToolPropertyInterface
         protected bool $required = false,
         protected ?string $class = null,
         protected array $properties = [],
+        protected bool $nullable = false,
     ) {
         if ($this->properties === [] && !is_null($this->class) && class_exists($this->class)) {
             $schema = (new JsonSchema())->generate($this->class);
@@ -83,17 +85,23 @@ class ObjectProperty implements ToolPropertyInterface
     {
         $type = $propertyData['type'] ?? 'string';
         $description = $propertyData['description'] ?? null;
+        $nullable = is_array($type) && in_array('null', $type, true);
+
+        if (is_array($type)) {
+            $type = PropertyType::fromSchema($type)->value;
+        }
 
         return match ($type) {
-            'object' => $this->createObjectProperty($propertyName, $propertyData, $isRequired, $description),
-            'array' => $this->createArrayProperty($propertyName, $propertyData, $isRequired, $description),
-            'string', 'integer', 'number', 'boolean' => $this->createScalarProperty($propertyName, $propertyData, $isRequired, $description),
+            'object' => $this->createObjectPropertySchema($propertyName, $propertyData, $isRequired, $description, $nullable),
+            'array' => $this->createArrayPropertySchema($propertyName, $propertyData, $isRequired, $description, $nullable),
+            'string', 'integer', 'number', 'boolean' => $this->createScalarProperty($propertyName, $propertyData, $isRequired, $description, $nullable),
             default => new ToolProperty(
                 $propertyName,
                 PropertyType::STRING,
                 $description,
                 $isRequired,
-                $propertyData['enum'] ?? []
+                $propertyData['enum'] ?? [],
+                $nullable,
             ),
         };
     }
@@ -105,7 +113,7 @@ class ObjectProperty implements ToolPropertyInterface
      * @throws ToolException
      * @throws ArrayPropertyException
      */
-    protected function createObjectProperty(string $name, array $propertyData, bool $required, ?string $description): ObjectProperty
+    protected function createObjectPropertySchema(string $name, array $propertyData, bool $required, ?string $description, bool $nullable = false): ObjectProperty
     {
         $nestedProperties = [];
         $nestedRequired = $propertyData['required'] ?? [];
@@ -130,7 +138,8 @@ class ObjectProperty implements ToolPropertyInterface
             $description,
             $required,
             $className,
-            $nestedProperties
+            $nestedProperties,
+            $nullable,
         );
     }
 
@@ -141,7 +150,7 @@ class ObjectProperty implements ToolPropertyInterface
      * @throws ToolException
      * @throws ArrayPropertyException
      */
-    protected function createArrayProperty(string $name, array $propertyData, bool $required, ?string $description): ArrayProperty
+    protected function createArrayPropertySchema(string $name, array $propertyData, bool $required, ?string $description, bool $nullable = false): ArrayProperty
     {
         $items = null;
         $minItems = $propertyData['minItems'] ?? null;
@@ -159,7 +168,8 @@ class ObjectProperty implements ToolPropertyInterface
             $required,
             $items,
             $minItems,
-            $maxItems
+            $maxItems,
+            $nullable,
         );
     }
 
@@ -168,14 +178,15 @@ class ObjectProperty implements ToolPropertyInterface
      *
      * @throws ToolException
      */
-    protected function createScalarProperty(string $name, array $propertyData, bool $required, ?string $description): ToolProperty
+    protected function createScalarProperty(string $name, array $propertyData, bool $required, ?string $description, bool $nullable = false): ToolProperty
     {
         return new ToolProperty(
             $name,
             PropertyType::fromSchema($propertyData['type']),
             $description,
             $required,
-            $propertyData['enum'] ?? []
+            $propertyData['enum'] ?? [],
+            $nullable,
         );
     }
 
@@ -201,7 +212,9 @@ class ObjectProperty implements ToolPropertyInterface
     public function getJsonSchema(): array
     {
         $schema = [
-            'type' => $this->type->value,
+            'type' => $this->nullable
+                ? [$this->type->value, 'null']
+                : $this->type->value,
         ];
 
         if (!is_null($this->description)) {
@@ -224,6 +237,11 @@ class ObjectProperty implements ToolPropertyInterface
     public function isRequired(): bool
     {
         return $this->required;
+    }
+
+    public function isNullable(): bool
+    {
+        return $this->nullable;
     }
 
     public function getName(): string
