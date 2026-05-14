@@ -136,6 +136,17 @@ class Message implements JsonSerializable
         return null;
     }
 
+    public function getTextContent(): ?TextContent
+    {
+        foreach ($this->getContentBlocks() as $block) {
+            if ($block instanceof TextContent) {
+                return $block;
+            }
+        }
+
+        return null;
+    }
+
     public function getReasoning(): ?ReasoningContent
     {
         foreach ($this->getContentBlocks() as $block) {

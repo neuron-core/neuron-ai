@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Deepseek;
 
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
@@ -66,9 +67,7 @@ class Deepseek extends OpenAI
         // For chat context: extract reasoning_content from API response
         if (isset($response['choices'][0]['message']['reasoning_content'])) {
             $reasoningContent = $response['choices'][0]['message']['reasoning_content'];
-            if ($message->getMetadata('reasoning_content') === null) {
-                $message->addMetadata('reasoning_content', $reasoningContent);
-            }
+            $message->addContent(new ReasoningContent($reasoningContent));
         }
 
         return $message;
