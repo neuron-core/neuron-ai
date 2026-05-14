@@ -56,10 +56,12 @@ class JinaWebSearch extends Tool
 
     public function __invoke(string $search_query): string
     {
-        return $this->getClient()->post('https://s.jina.ai/', [
+        $response = $this->getClient()->post('https://s.jina.ai/', [
             RequestOptions::JSON => [
                 'q' => $search_query,
             ],
-        ])->getBody()->getContents();
+        ]);
+
+        return (string) $response->getBody();
     }
 }

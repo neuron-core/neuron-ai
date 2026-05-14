@@ -81,7 +81,7 @@ class QdrantVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $points = array_map(fn (Document $document): array => [
-            'id' => (int) $document->getId(),
+            'id' => (string) $document->getId(),
             'payload' => [
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),

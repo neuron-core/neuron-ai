@@ -21,17 +21,17 @@ $workflow = Workflow::make(persistence: $persistence)
     ]);
 
 $approvalRequest = null;
-$resumeToken = null;
+$workflowId = null;
 
 // Run the workflow and catch the interruption
 try {
     $finalState = $workflow->init()->run();
 } catch (WorkflowInterrupt $interrupt) {
     $approvalRequest = $interrupt->getRequest();
-    $resumeToken = $interrupt->getResumeToken();
+    $workflowId = $interrupt->getWorkflowId();
 
     // The resume token is auto-generated and available from the interrupt
-    echo "Resume token: {$resumeToken}\n";
+    echo "Resume token: {$workflowId}\n";
 }
 
 /*
@@ -41,7 +41,7 @@ try {
  *
  * Create the workflow instance with the resumeToken and the same persistence component.
  */
-$workflow = Workflow::make(persistence: $persistence, resumeToken: $resumeToken)
+$workflow = Workflow::make(persistence: $persistence, resumeToken: $workflowId)
     ->addNodes([
         new NodeOne(),
         new InterruptableNode(),

@@ -32,7 +32,7 @@ class HttpException extends Exception
         $message = $previous->getMessage();
 
         if ($previous instanceof RequestException) {
-            $message = $previous->getResponse()->getBody()->getContents();
+            $message = (string) $previous->getResponse()->getBody();
         }
 
         return new self(

@@ -31,6 +31,14 @@ jobs:
                 ports:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            mariadb:
+                image: mariadb:11.7
+                env:
+                    MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: yes
+                    MARIADB_DATABASE: neuron-ai
+                ports:
+                    - 3307:3306
+                options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=3
             opensearch:
                 image: opensearchproject/opensearch:${{ matrix.opensearch-version || 'latest' }}
                 ports:
@@ -41,6 +49,16 @@ jobs:
                     plugins.security.disabled: "true"
                     DISABLE_INSTALL_DEMO_CONFIG: true
                 options: --health-cmd="curl -s http://localhost:9200/_cluster/health | grep '\"status\":\"green\"'" --health-interval=10s --health-timeout=5s --health-retries=5
+            weaviate:
+                image: cr.weaviate.io/semitechnologies/weaviate:1.28.1
+                ports:
+                    - 8080:8080
+                env:
+                    QUERY_DEFAULTS_LIMIT: 25
+                    AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+                    PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+                    ENABLE_MODULES: ''
+                    CLUSTER_HOSTNAME: 'node1'
             neo4j:
                 image: neo4j:5.26.19-ubi9
                 ports:

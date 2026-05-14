@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
@@ -16,10 +17,13 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
+
+use function json_encode;
 
 /**
  * Node responsible for executing tool calls.
@@ -44,7 +48,7 @@ class ToolNode extends Node
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): Generator
+    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history.
@@ -85,12 +89,15 @@ class ToolNode extends Node
         $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
-            $state->incrementToolRun($tool->getName());
+            // Use custom run key if tool implements HasRunKey, otherwise use tool name
+            $key = $tool instanceof HasRunKey ? $tool->getRunKey() : $tool->getName();
+
+            $state->incrementToolRun($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($tool->getName()) > $runs) {
-                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times: {$runs}.");
+            if ($state->getToolRuns($key) > $runs) {
+                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
             }
 
             $tool->execute();

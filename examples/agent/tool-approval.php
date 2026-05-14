@@ -61,7 +61,7 @@ $agent = Agent::make(persistence: $persistence)
     );
 
 $interruptRequest = null;
-$resumeToken = null;
+$workflowId = null;
 
 try {
     chat:
@@ -79,10 +79,10 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
-    $resumeToken = $interrupt->getResumeToken();
+    $workflowId = $interrupt->getWorkflowId();
     $interruptRequest = $interrupt->getRequest();
 
-    echo "Resume token: {$resumeToken}\n";
+    echo "Resume token: {$workflowId}\n";
     echo "Message: {$interruptRequest->getMessage()}\n\n";
     echo "Actions requiring approval:\n";
 
@@ -103,7 +103,7 @@ try {
     goto chat;
 }
 
-$persistence->delete($resumeToken);
+$persistence->delete($workflowId);
 
 // Helper function to simulate user input
 function promptUserForApproval(): bool

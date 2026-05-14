@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow\Interrupt;
 use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -28,7 +29,10 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
         protected InterruptRequest $request,
         protected NodeInterface $node,
         protected WorkflowState $state,
-        protected Event $event
+        protected Event $event,
+        protected ?string $branchId = null,
+        protected ?ParallelEvent $parallelEvent = null,
+        protected array $completedBranchResults = [],
     ) {
         parent::__construct($request->getMessage());
     }
@@ -56,9 +60,40 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
         return $this->event;
     }
 
+    public function getBranchId(): ?string
+    {
+        return $this->branchId;
+    }
+
+    public function getParallelEvent(): ?ParallelEvent
+    {
+        return $this->parallelEvent;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getCompletedBranchResults(): array
+    {
+        return $this->completedBranchResults;
+    }
+
+    public function isParallelInterrupt(): bool
+    {
+        return $this->branchId !== null;
+    }
+
     /**
      * Pass this token back when resuming the workflow to identify
      * which persisted state to restore.
+     */
+    public function getWorkflowId(): string
+    {
+        return $this->state->get('__workflowId');
+    }
+
+    /**
+     * @deprecated Use getWorkflowId() instead.
      */
     public function getResumeToken(): string
     {
@@ -68,12 +103,15 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'resumeToken' => $this->getResumeToken(),
+            'resumeToken' => $this->getWorkflowId(),
             'message' => $this->message,
             'request' => serialize($this->request),
             'node' => serialize($this->node),
             'state' => serialize($this->state),
             'currentEvent' => serialize($this->event),
+            'branchId' => $this->branchId,
+            'parallelEvent' => $this->parallelEvent instanceof ParallelEvent ? serialize($this->parallelEvent) : null,
+            'completedBranchResults' => serialize($this->completedBranchResults),
         ];
     }
 
@@ -89,5 +127,8 @@ class WorkflowInterrupt extends WorkflowException implements JsonSerializable
         $this->node = unserialize($data['node']);
         $this->state = unserialize($data['state']);
         $this->event = unserialize($data['currentEvent']);
+        $this->branchId = $data['branchId'] ?? null;
+        $this->parallelEvent = isset($data['parallelEvent']) ? unserialize($data['parallelEvent']) : null;
+        $this->completedBranchResults = isset($data['completedBranchResults']) ? unserialize($data['completedBranchResults']) : [];
     }
 }

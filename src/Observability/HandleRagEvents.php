@@ -17,24 +17,24 @@ use function md5;
 
 trait HandleRagEvents
 {
-    public function ragRetrieving(object $source, string $event, Retrieving $data): void
+    public function ragRetrieving(object $source, string $event, Retrieving $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
         $questionText = $data->question->getContent();
-        $id = md5($questionText.$data->question->getRole());
+        $id = $branchId.':'.md5($questionText.$data->question->getRole());
 
-        $this->segments[$id] = $this->inspector
+        $this->segments[$id] = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.retrieval', "vector_retrieval( {$questionText} )")
             ->setColor(self::STANDARD_COLOR);
     }
 
-    public function ragRetrieved(object $source, string $event, Retrieved $data): void
+    public function ragRetrieved(object $source, string $event, Retrieved $data, ?string $branchId = null): void
     {
         $questionText = $data->question->getContent();
-        $id = md5($questionText.$data->question->getRole());
+        $id = $branchId.':'.md5($questionText.$data->question->getRole());
 
         if (array_key_exists($id, $this->segments)) {
             $segment = $this->segments[$id];
@@ -46,50 +46,58 @@ trait HandleRagEvents
         }
     }
 
-    public function preProcessing(object $source, string $event, PreProcessing $data): void
+    public function preProcessing(object $source, string $event, PreProcessing $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $segment = $this->inspector
+        $key = $branchId.':'.$data->processor;
+
+        $segment = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.preprocessing', $data->processor)
             ->setColor(self::STANDARD_COLOR);
 
         $segment->addContext('Original', $data->original->jsonSerialize());
 
-        $this->segments[$data->processor] = $segment;
+        $this->segments[$key] = $segment;
     }
 
-    public function preProcessed(object $source, string $event, PreProcessed $data): void
+    public function preProcessed(object $source, string $event, PreProcessed $data, ?string $branchId = null): void
     {
-        if (array_key_exists($data->processor, $this->segments)) {
-            $this->segments[$data->processor]
+        $key = $branchId.':'.$data->processor;
+
+        if (array_key_exists($key, $this->segments)) {
+            $this->segments[$key]
                 ->end()
                 ->addContext('Processed', $data->processed->jsonSerialize());
         }
     }
 
-    public function postProcessing(object $source, string $event, PostProcessing $data): void
+    public function postProcessing(object $source, string $event, PostProcessing $data, ?string $branchId = null): void
     {
         if (!$this->inspector->canAddSegments()) {
             return;
         }
 
-        $segment = $this->inspector
+        $key = $branchId.':'.$data->processor;
+
+        $segment = $this->resolveScope($branchId)
             ->startSegment(self::SEGMENT_TYPE.'.postprocessing', $data->processor)
             ->setColor(self::STANDARD_COLOR);
 
         $segment->addContext('Question', $data->question->jsonSerialize())
             ->addContext('Documents', $data->documents);
 
-        $this->segments[$data->processor] = $segment;
+        $this->segments[$key] = $segment;
     }
 
-    public function postProcessed(object $source, string $event, PostProcessed $data): void
+    public function postProcessed(object $source, string $event, PostProcessed $data, ?string $branchId = null): void
     {
-        if (array_key_exists($data->processor, $this->segments)) {
-            $this->segments[$data->processor]
+        $key = $branchId.':'.$data->processor;
+
+        if (array_key_exists($key, $this->segments)) {
+            $this->segments[$key]
                 ->end()
                 ->addContext('PostProcess', $data->documents);
         }

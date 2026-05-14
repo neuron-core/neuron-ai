@@ -17,6 +17,8 @@ use NeuronAI\UniqueIdGenerator;
 use function array_map;
 use function array_merge;
 use function is_string;
+use function array_filter;
+use function implode;
 
 /**
  * @method static static make(MessageRole $role, string|ContentBlockInterface|ContentBlockInterface[]|null $content = null)
@@ -101,39 +103,20 @@ class Message implements JsonSerializable
      */
     public function getContent(): ?string
     {
-        $text = '';
-        foreach ($this->getContentBlocks() as $index => $block) {
-            if ($block instanceof TextContent) {
-                $text .= ($index > 0 ? " " : '').$block->content;
-            }
-            if ($block instanceof ReasoningContent) {
-                $text .= ($index > 0 ? "\n\n" : '').$block->content."\n\n";
-            }
-        }
+        $text = implode(' ', array_map(
+            fn (TextContent $block): string => $block->content,
+            array_filter($this->getContentBlocks(), fn (ContentBlockInterface $block): bool => $block instanceof TextContent && !$block instanceof ReasoningContent)
+        ));
 
-        return $text === '' || $text === '0' ? null : $text;
+        return $text === '' ? null : $text;
     }
 
-    public function getAudio(): ?AudioContent
+    /**
+     * @return array<TextContent>
+     */
+    public function getTextBlocks(): array
     {
-        foreach ($this->getContentBlocks() as $block) {
-            if ($block instanceof AudioContent) {
-                return $block;
-            }
-        }
-
-        return null;
-    }
-
-    public function getImage(): ?ImageContent
-    {
-        foreach ($this->getContentBlocks() as $block) {
-            if ($block instanceof ImageContent) {
-                return $block;
-            }
-        }
-
-        return null;
+        return array_filter($this->getContentBlocks(), fn (ContentBlockInterface $block): bool => $block instanceof TextContent && !$block instanceof ReasoningContent);
     }
 
     public function getTextContent(): ?TextContent
@@ -151,6 +134,28 @@ class Message implements JsonSerializable
     {
         foreach ($this->getContentBlocks() as $block) {
             if ($block instanceof ReasoningContent) {
+                return $block;
+            }
+        }
+
+        return null;
+    }
+
+    public function getAudio(): ?AudioContent
+    {
+        foreach ($this->getContentBlocks() as $block) {
+            if ($block instanceof AudioContent) {
+                return $block;
+            }
+        }
+
+        return null;
+    }
+
+    public function getImage(): ?ImageContent
+    {
+        foreach ($this->getContentBlocks() as $block) {
+            if ($block instanceof ImageContent) {
                 return $block;
             }
         }

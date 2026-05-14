@@ -253,14 +253,10 @@ new SystemPrompt(
         "Query the database",
         "Generate a summary",
     ],
-    constraints: [
+    output: [
         "Always cite your sources",
         "Never make up data",
-    ],
-    outputFormat: [
-        "Provide executive summary first",
-        "Follow with detailed breakdown",
-    ],
+    ]
 )
 ```
 
@@ -305,7 +301,7 @@ $message = new UserMessage([
 
 ## CLI Generation
 
-Use the Neuron CLI to generate agent boilerplate:
+Use the Neuron CLI to generate an agent boilerplate:
 
 ```bash
 vendor/bin/neuron make:agent MyCustomAgent
@@ -342,7 +338,7 @@ INSPECTOR_INGESTION_KEY=your_key_here
 Execute tools in parallel (requires pcntl):
 
 ```php
-$agent->parallelToolCalls();
+$agent->parallelToolCalls(true);
 ```
 
 ## Key Decisions

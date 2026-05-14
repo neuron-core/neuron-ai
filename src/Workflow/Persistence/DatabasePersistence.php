@@ -8,17 +8,27 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use PDO;
 
-use function serialize;
-use function unserialize;
 use function base64_decode;
 use function base64_encode;
+use function serialize;
+use function unserialize;
 
-class DatabasePersistence implements PersistenceInterface
+class DatabasePersistence implements PersistenceInterface, SerializablePersistenceInterface
 {
     public function __construct(
         protected PDO $pdo,
         protected string $table = 'workflow_interrupts'
     ) {
+    }
+
+    public function serialize(WorkflowInterrupt $interrupt): string
+    {
+        return serialize($interrupt);
+    }
+
+    public function unserialize(string $data): WorkflowInterrupt
+    {
+        return unserialize($data);
     }
 
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
@@ -32,7 +42,7 @@ class DatabasePersistence implements PersistenceInterface
         $stmt->execute([
             'id' => $workflowId,
             // Simple Base64 string is compatible with all databases
-            'interrupt' => base64_encode(serialize($interrupt)),
+            'interrupt' => base64_encode($this->serialize($interrupt)),
         ]);
     }
 
@@ -55,7 +65,7 @@ class DatabasePersistence implements PersistenceInterface
             $interruptData = $record['interrupt']; // This makes sure that previous records still work
         }
 
-        return unserialize($interruptData);
+        return $this->unserialize($interruptData);
     }
 
     public function delete(string $workflowId): void

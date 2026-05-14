@@ -14,6 +14,7 @@ use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
@@ -39,32 +40,35 @@ class ParallelToolNode extends ToolNode
     {
         // Fallback to sequential execution if pcntl is not available (e.g., Windows)
         if (!extension_loaded('pcntl')) {
-            return parent::executeTools($toolCallMessage, $state);
+            return yield from parent::executeTools($toolCallMessage, $state);
         }
 
         // Fallback to sequential execution if spatie/fork is not installed
         if (!class_exists(Fork::class)) {
-            return parent::executeTools($toolCallMessage, $state);
+            return yield from parent::executeTools($toolCallMessage, $state);
         }
 
         $tools = $toolCallMessage->getTools();
 
         // If there's only one tool, no need for concurrency
         if (count($tools) === 1) {
-            return parent::executeTools($toolCallMessage, $state);
+            return yield from parent::executeTools($toolCallMessage, $state);
         }
 
         // Check max tries and notify before execution
         foreach ($tools as $tool) {
-            $state->incrementToolRun($tool->getName());
+            // Use custom run key if tool implements HasRunKey, otherwise use tool name
+            $key = $tool instanceof HasRunKey ? $tool->getRunKey() : $tool->getName();
+
+            $state->incrementToolRun($key);
 
             // Single tool max tries have the highest priority over the global max tries
             $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($tool->getName()) > $maxTries) {
+            if ($state->getToolRuns($key) > $maxTries) {
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
             }
 
-            $this->emit('tool-calling', new ToolCalling($tool));
+            $this->emit('tool-calling', new ToolCalling($tool, true));
 
             yield new ToolCallChunk($tool);
         }

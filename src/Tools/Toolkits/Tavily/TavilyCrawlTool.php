@@ -67,9 +67,9 @@ class TavilyCrawlTool extends Tool
                 $this->options,
                 ['url' => $url]
             ),
-        ])->getBody()->getContents();
+        ]);
 
-        return json_decode($result, true);
+        return json_decode((string) $result->getBody(), true);
     }
 
 

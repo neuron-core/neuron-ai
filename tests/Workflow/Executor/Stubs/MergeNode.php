@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\Workflow\Executor\Stubs;
+
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\WorkflowState;
+
+class MergeNode extends Node
+{
+    public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
+    {
+        $state->set('analysis', [
+            'text' => $event->getResult('text'),
+            'image' => $event->getResult('image'),
+        ]);
+        $state->set('merge_node_executed', true);
+        return new StopEvent();
+    }
+}

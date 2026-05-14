@@ -128,7 +128,7 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         try {
-            $response = $this->lastResponse->getBody()->getContents();
+            $response = (string) $this->lastResponse->getBody();
             $this->lastResponse = null; // Clear the stored response
 
             if ($response === '') {

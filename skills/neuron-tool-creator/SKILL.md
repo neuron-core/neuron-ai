@@ -18,7 +18,7 @@ Every tool has:
 - **Name**: Unique identifier
 - **Description**: Explains what the tool does (critical for LLM)
 - **Properties**: Input parameters with types and descriptions
-- **Execution**: The actual logic to run
+- **Callable**: The actual logic to run
 
 ## Creating Custom Tools
 
@@ -348,7 +348,7 @@ public function __invoke(string $url): string
 {
     try {
         $response = $this->httpClient->get($url);
-        return $response->getBody()->getContents();
+        return (string) $response->getBody();
     } catch (\Exception $e) {
         // Return error message for the LLM to understand
         return "Error fetching URL: {$e->getMessage()}";
@@ -799,7 +799,7 @@ class GitHubSearchTool extends Tool
                 ],
             ]);
 
-            $data = json_decode($response->getBody()->getContents(), true);
+            $data = json_decode((string) $response->getBody(), true);
 
             $results = array_map(function ($repo) {
                 return [
