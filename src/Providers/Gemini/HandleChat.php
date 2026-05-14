@@ -15,8 +15,11 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 
+use NeuronAI\Tools\ToolInterface;
+
 use function array_filter;
 use function array_key_exists;
+use function array_values;
 use function json_encode;
 
 trait HandleChat
@@ -42,6 +45,19 @@ trait HandleChat
 
         if (!empty($this->tools)) {
             $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            $functionTools = array_values(array_filter(
+                $this->tools,
+                fn ($tool): bool => $tool instanceof ToolInterface
+            ));
+
+            if ($functionTools !== []) {
+                $body['toolConfig'] = [
+                    'functionCallingConfig' => [
+                        'mode' => 'AUTO',
+                    ],
+                ];
+            }
         }
 
         $response = $this->httpClient->request(
