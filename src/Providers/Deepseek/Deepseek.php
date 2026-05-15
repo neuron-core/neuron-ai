@@ -48,7 +48,7 @@ class Deepseek extends OpenAI
         ]);
 
         $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL
-                         .'Generate a json respecting this schema: '.json_encode($response_format);
+            .'Generate a json respecting this schema: '.json_encode($response_format);
 
         $messages = is_array($messages) ? $messages : [$messages];
 
