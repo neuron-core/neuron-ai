@@ -43,7 +43,7 @@ class DashScopeOpenAI extends OpenAI
         $reasoningContent = $choice['delta']['reasoning_content'] ?? null;
         if ($reasoningContent !== null) {
             $this->streamState->updateContentBlock(
-                $choice['index'],
+                -1,
                 new ReasoningContent($reasoningContent)
             );
             yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
