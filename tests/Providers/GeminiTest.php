@@ -300,6 +300,11 @@ class GeminiTest extends TestCase
                     ],
                 ],
             ],
+            'toolConfig' => [
+                'functionCallingConfig' => [
+                    'mode' => 'AUTO',
+                ],
+            ],
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
