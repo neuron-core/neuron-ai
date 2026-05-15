@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Tools\ToolInterface;
 
 use function array_filter;
 use function array_key_exists;
@@ -42,6 +43,17 @@ trait HandleChat
 
         if (!empty($this->tools)) {
             $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            foreach ($this->tools as $tool) {
+                if ($tool instanceof ToolInterface) {
+                    $body['toolConfig'] = [
+                        'functionCallingConfig' => [
+                            'mode' => 'AUTO',
+                        ],
+                    ];
+                    break;
+                }
+            }
         }
 
         $response = $this->httpClient->request(
