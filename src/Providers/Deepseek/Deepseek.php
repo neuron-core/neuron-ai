@@ -67,6 +67,9 @@ class Deepseek extends OpenAI
         // For chat context: extract reasoning_content from API response
         if (isset($response['choices'][0]['message']['reasoning_content'])) {
             $reasoningContent = $response['choices'][0]['message']['reasoning_content'];
+            if ($message->getMetadata('reasoning_content') === null) {
+                $message->addMetadata('reasoning_content', $reasoningContent);
+            }
             $message->addContent(new ReasoningContent($reasoningContent));
         }
 
