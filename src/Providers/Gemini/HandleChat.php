@@ -15,8 +15,8 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\ProviderResponse;
-
 use NeuronAI\Tools\ToolInterface;
+
 use function array_filter;
 use function array_key_exists;
 use function json_encode;
