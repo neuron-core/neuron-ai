@@ -18,6 +18,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
 
+use NeuronAI\Tools\ToolInterface;
 use function array_key_exists;
 use function json_decode;
 use function json_encode;
@@ -53,6 +54,17 @@ trait HandleStream
 
         if (!empty($this->tools)) {
             $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            foreach ($this->tools as $tool) {
+                if ($tool instanceof ToolInterface) {
+                    $body['toolConfig'] = [
+                        'functionCallingConfig' => [
+                            'mode' => 'AUTO',
+                        ],
+                    ];
+                    break;
+                }
+            }
         }
 
         $stream = $this->httpClient->stream(
