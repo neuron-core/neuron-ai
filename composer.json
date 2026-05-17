@@ -9,11 +9,18 @@
         }
     ],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/mnt/c/GitHub/reloop-php"
+        }
+    ],
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.0",
         "inspector-apm/inspector-php": "^3.16.12",
-        "psr/http-message": "^1.0|^2.0"
+        "psr/http-message": "^1.0|^2.0",
+        "reloop/php": "@dev"
     },
     "require-dev": {
         "ext-pdo": "*",

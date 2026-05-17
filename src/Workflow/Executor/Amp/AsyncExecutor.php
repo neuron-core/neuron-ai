@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor;
+namespace NeuronAI\Workflow\Executor\Amp;
 
 use Generator;
 use NeuronAI\Workflow\Events\ParallelEvent;
+use NeuronAI\Workflow\Executor\BranchResult;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowInterface;
 use Throwable;
-
 use function Amp\async;
 
 /**
@@ -26,7 +27,7 @@ class AsyncExecutor extends WorkflowExecutor
      * Override to run branches as concurrent Amp futures.
      *
      * @return Generator<int, ParallelEvent, mixed, ParallelEvent>
-     * @throws WorkflowInterrupt
+     * @throws WorkflowInterrupt|Throwable
      */
     protected function executeBranches(
         WorkflowInterface $workflow,

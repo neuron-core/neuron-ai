@@ -704,8 +704,7 @@ $state = $workflow->run();
 By default, `WorkflowExecutor` runs branches **sequentially** (one after another). For true concurrency, use `AsyncExecutor`:
 
 ```php
-use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;use NeuronAI\Workflow\Workflow;
 
 $workflow = Workflow::make()
     ->setExecutor(new AsyncExecutor())
