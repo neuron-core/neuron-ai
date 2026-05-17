@@ -34,7 +34,7 @@ class ReloopStepEngine implements StepEngine
 
     public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
     {
-        // No-op: Reloop platform handles replay via ctx->step->run() memoization.
+        $this->workflowId = $workflowId;
     }
 
     public function deleteSteps(): void

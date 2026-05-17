@@ -36,7 +36,7 @@ use function serialize;
  *        boot: fn(Agent $agent, Context $ctx) => $agent->chat(new UserMessage($ctx->event->data['prompt']))->run(),
  *    );
  */
-class ReloopTaskHandler
+class ReloopWorkflowHandler
 {
     /**
      * @param Closure|null $boot Callback to prepare the workflow before execution.
