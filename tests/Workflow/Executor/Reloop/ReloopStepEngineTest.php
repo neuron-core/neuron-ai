@@ -2,13 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Workflow\Executor;
+namespace NeuronAI\Tests\Workflow\Executor\Reloop;
 
 use Closure;
-use Reloop\Context;
-use Reloop\Event;
-use Reloop\Step;
-use Reloop\StepPendingException;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
@@ -18,13 +14,17 @@ use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
+use NeuronAI\Workflow\Executor\Reloop\ReloopStepEngine;
+use NeuronAI\Workflow\Executor\Reloop\ReloopTaskHandler;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronAI\Workflow\Executor\Reloop\ReloopStepEngine;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
-use NeuronAI\Workflow\Executor\Reloop\ReloopTaskHandler;
+use Reloop\Context;
+use Reloop\Event;
+use Reloop\Step;
+use Reloop\StepPendingException;
 
 class ReloopStepEngineTest extends TestCase
 {

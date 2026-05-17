@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Workflow\Executor;
+namespace NeuronAI\Tests\Workflow\Executor\Reloop;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Workflow\Executor\Reloop\ReloopTaskHandler;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Workflow\Executor\Reloop\ReloopTaskHandler;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
 use Reloop\Client;
