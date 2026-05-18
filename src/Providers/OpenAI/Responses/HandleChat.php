@@ -68,7 +68,12 @@ trait HandleChat
 
         $toolCalls = array_filter($result['output'], fn (array $item): bool => $item['type'] == 'function_call');
 
-        $usage = new Usage($result['usage']['input_tokens'] ?? 0, $result['usage']['output_tokens'] ?? 0);
+        $usage = new Usage(
+            $result['usage']['input_tokens'] ?? 0,
+            $result['usage']['output_tokens'] ?? 0,
+            $result['usage']['input_tokens_details']['cached_tokens'] ?? 0,
+            $result['usage']['output_tokens_details']['reasoning_tokens'] ?? 0,
+        );
 
         if ($toolCalls !== []) {
             $message = $this->createToolCallMessage($toolCalls)->setUsage($usage);

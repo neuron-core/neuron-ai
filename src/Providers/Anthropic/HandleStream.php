@@ -117,9 +117,11 @@ trait HandleStream
             + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
             + ($message['usage']['cache_creation_input_tokens'] ?? 0)
         );
-        $this->streamState->addCacheReadTokens(
-            $message['usage']['cache_read_input_tokens'] ?? 0
-        );
+        $cacheRead = $message['usage']['cache_read_input_tokens'] ?? 0;
+        $this->streamState->addCacheReadTokens($cacheRead);
+        // Anthropic reports cache reads separately from `input_tokens`;
+        // surface the cache-read count as the standard cached metric too.
+        $this->streamState->addCachedInputTokens($cacheRead);
     }
 
     protected function handleMessageDelta(array $event): void
