@@ -98,6 +98,8 @@ trait HandleStream
             ) {
                 $this->streamState->getUsage()->inputTokens = $line['usageMetadata']['promptTokenCount'] ?? 0;
                 $this->streamState->getUsage()->outputTokens = $line['usageMetadata']['candidatesTokenCount'] ?? 0;
+                $this->streamState->getUsage()->cachedInputTokens = $line['usageMetadata']['cachedContentTokenCount'] ?? 0;
+                $this->streamState->getUsage()->reasoningTokens = $line['usageMetadata']['thoughtsTokenCount'] ?? 0;
             }
 
             // Track finishReason — the last value seen is authoritative
