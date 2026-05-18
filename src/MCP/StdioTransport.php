@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
+use TypeError;
 use function array_merge;
 use function escapeshellarg;
 use function fclose;
@@ -190,20 +191,24 @@ class StdioTransport implements McpTransportInterface
                     fclose($pipe);
                 }
             }
+            try {
+                // Try graceful termination first
+                $status = proc_get_status($this->process);
+                // On Unix systems, try sending SIGTERM
+                if ($status['running'] && function_exists('proc_terminate')) {
+                    proc_terminate($this->process);
+                    // Give the process a moment to shut down gracefully
+                    usleep(500000);
+                    // 500ms
+                }
 
-            // Try graceful termination first
-            $status = proc_get_status($this->process);
-            // On Unix systems, try sending SIGTERM
-            if ($status['running'] && function_exists('proc_terminate')) {
-                proc_terminate($this->process);
-                // Give the process a moment to shut down gracefully
-                usleep(500000);
-                // 500ms
+                // Close the process handle
+                proc_close($this->process);
+            } catch (TypeError) {
+                // Nothing to clean up.
             }
-
-            // Close the process handle
-            proc_close($this->process);
             $this->process = null;
+            $this->pipes = null;
         }
     }
 }
