@@ -22,6 +22,8 @@ trait HandleStructured
      * https://ai.google.dev/gemini-api/docs/structured-output?example=recipe#structured_outputs_with_tools
      */
     protected array $supportedModels = [
+        'gemini-3.1-flash-lite-preview',
+        'gemini-3.1-pro-preview',
         'gemini-3-pro-preview',
         'gemini-3-flash-preview',
     ];
