@@ -13,6 +13,8 @@ class ProviderTool implements ProviderToolInterface
 {
     use StaticConstructor;
 
+    protected bool $visible = true;
+
     public function __construct(
         protected string $type,
         protected ?string $name = null,
@@ -39,6 +41,17 @@ class ProviderTool implements ProviderToolInterface
     {
         $this->options = $options;
         return $this;
+    }
+
+    public function visible(bool $allow): ProviderToolInterface
+    {
+        $this->visible = $allow;
+        return $this;
+    }
+
+    public function isVisible(): bool
+    {
+        return $this->visible;
     }
 
     public function jsonSerialize(): array

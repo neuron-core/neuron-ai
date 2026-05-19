@@ -63,12 +63,12 @@ class TavilySearchTool extends Tool
                 PropertyType::STRING,
                 'Explicit the topic you want to perform the web search on.',
                 false,
-                ['general', 'news']
+                ['general', 'news', 'finance']
             ),
             new ToolProperty(
                 'time_range',
                 PropertyType::STRING,
-                '',
+                'How far back to search for relevant contents.',
                 false,
                 ['day, week, month, year']
             ),
@@ -83,7 +83,7 @@ class TavilySearchTool extends Tool
 
     protected function getClient(): Client
     {
-        return $this->client ?? $this->client = new Client([
+        return $this->client ??= new Client([
             'base_uri' => trim($this->url, '/').'/',
             'headers' => [
                 'Authorization' => 'Bearer '.$this->key,

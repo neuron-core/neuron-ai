@@ -58,6 +58,8 @@ class Tool implements ToolInterface
      */
     protected ?int $maxTries = null;
 
+    protected bool $visible = true;
+
     /**
      * Tool constructor.
      *
@@ -198,6 +200,17 @@ class Tool implements ToolInterface
     {
         $this->maxTries = $tries;
         return $this;
+    }
+
+    public function visible(bool $visible): ToolInterface
+    {
+        $this->visible = $visible;
+        return $this;
+    }
+
+    public function isVisible(): bool
+    {
+        return $this->visible;
     }
 
     /**

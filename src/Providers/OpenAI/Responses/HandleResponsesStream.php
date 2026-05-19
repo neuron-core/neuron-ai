@@ -139,7 +139,7 @@ trait HandleResponsesStream
         try {
             $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
-            throw new ProviderException('OpenAI streaming JSON decode error: ' . $exception->getMessage());
+            throw new ProviderException('OpenAI streaming JSON decode error: ' . $exception->getMessage(), $exception->getCode(), $exception);
         }
 
         if (!isset($event['type'])) {

@@ -31,20 +31,35 @@ jobs:
                 ports:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            opensearch:
+                image: opensearchproject/opensearch:latest
+                ports:
+                    - 9201:9200 # Avoid port conflict with Elasticsearch
+                    - 9600:9600
+                env:
+                    discovery.type: single-node
+                    plugins.security.disabled: "true"
+                    DISABLE_INSTALL_DEMO_CONFIG: true
+                options: --health-cmd="curl -s http://localhost:9200/_cluster/health | grep '\"status\":\"green\"'" --health-interval=10s --health-timeout=5s --health-retries=5
         strategy:
             matrix:
                 os: [ubuntu-latest]
-                php: ['8.1', '8.2', '8.3', '8.4']
+                php: ['8.1', '8.2', '8.3', '8.4', '8.5']
                 dependency-version: [prefer-lowest, prefer-stable]
 
         name: PHP ${{ matrix.php }} - ${{ matrix.os }} - ${{ matrix.dependency-version }}
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
+
+            - name: Upgrade Docker
+              run: |
+                sudo apt-get update
+                sudo apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io
 
             - name: Login to Docker Hub
-              uses: docker/login-action@v3
+              uses: docker/login-action@v4
               # This condition skips the step if the event is a Pull Request
               if: github.event_name != 'pull_request'
               with:

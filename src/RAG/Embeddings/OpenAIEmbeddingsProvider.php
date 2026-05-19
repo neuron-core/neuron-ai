@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Embeddings;
 
 use GuzzleHttp\Client;
+use NeuronAI\RAG\Document;
 
 use function json_decode;
+use function array_chunk;
+use function array_map;
+use function array_merge;
 
 class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
@@ -31,30 +35,27 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     public function embedDocuments(array $documents): array
     {
-        $inputs = [];
+        $chunks = array_chunk($documents, 100);
 
-        foreach ($documents as $document) {
-            $text = $document->content;
-            $inputs[] = $text;
+        foreach ($chunks as $chunk) {
+            $response = $this->client->post('', [
+                'json' => [
+                    'model' => $this->model,
+                    'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
+                    'encoding_format' => 'float',
+                    ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+
+                ]
+            ])->getBody()->getContents();
+
+            $response = json_decode($response, true);
+
+            foreach ($response['data'] as $index => $item) {
+                $chunk[$index]->embedding = $item['embedding'];
+            }
         }
 
-        $response = $this->client->post('', [
-            'json' => [
-                'model' => $this->model,
-                'input' => $inputs,
-                'encoding_format' => 'float',
-                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-
-            ]
-        ])->getBody()->getContents();
-
-        $response = json_decode($response, true);
-
-        foreach ($response['data'] as $key => $item) {
-            $documents[$key]->embedding = $item['embedding'];
-        }
-
-        return $documents;
+        return array_merge(...$chunks);
     }
 
     public function embedText(string $text): array

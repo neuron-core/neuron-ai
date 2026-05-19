@@ -4,8 +4,8 @@
 [![Total Downloads](http://poser.pugx.org/inspector-apm/neuron-ai/downloads)](https://packagist.org/packages/inspector-apm/neuron-ai)
 
 > [!IMPORTANT]
-> Get early access to new features, exclusive tutorials, and expert tips for building AI agents in PHP. Join a community of PHP developers pioneering the future of AI development.
-> [Subscribe to the newsletter](https://neuron-ai.dev)
+> **Neuron v3 release scheduled for the end of February.** Start with it or read the upgrade guide to prepare your project.
+> [Upgrade Guide](https://docs.neuron-ai.dev/neuron-v3/overview/upgrade)
 
 > Before moving on, support the community giving a GitHub star ⭐️. Thank you!
 
@@ -33,7 +33,7 @@ In addition, we provide tutorials and other educational content to help you get 
 Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
 https://docs.neuron-ai.dev/overview/fast-learning-by-video.
 
-Neuron is the perfect AI branch of your favorite framework.
+Neuron is the perfect AI architecture for your project.
 
 ## Laravel
 Neuron offers a well-defined encapsulation pattern, allowing you to work on your AI components in a dedicated namespace.

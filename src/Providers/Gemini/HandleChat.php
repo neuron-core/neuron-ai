@@ -6,6 +6,9 @@ namespace NeuronAI\Providers\Gemini;
 
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\RequestOptions;
+use NeuronAI\Chat\Attachments\Attachment;
+use NeuronAI\Chat\Enums\AttachmentContentType;
+use NeuronAI\Chat\Enums\AttachmentType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
@@ -17,6 +20,9 @@ use function in_array;
 use function json_decode;
 use function json_encode;
 use function trim;
+use function str_starts_with;
+use function array_filter;
+use function count;
 
 trait HandleChat
 {
@@ -89,10 +95,35 @@ trait HandleChat
 
                 $parts = $content['parts'];
 
-                if (array_key_exists('functionCall', $parts[0]) && !empty($parts[0]['functionCall'])) {
+                $hasFunctionCall = count(
+                    array_filter($parts, fn (array $part): bool => !empty($part['functionCall'] ?? null))
+                ) > 0;
+
+                if ($hasFunctionCall) {
                     $response = $this->createToolCallMessage($content);
                 } else {
                     $response = new AssistantMessage($parts[0]['text'] ?? '');
+
+                    foreach ($parts as $part) {
+                        if (isset($part['inlineData'])) {
+                            $mimeType = $part['inlineData']['mimeType'] ?? null;
+                            $attachmentData = $part['inlineData']['data'] ?? null;
+
+                            if ($mimeType && $attachmentData) {
+                                $response->addAttachment(
+                                    Attachment::make(
+                                        type: match(true) {
+                                            str_starts_with($mimeType, 'image/') => AttachmentType::IMAGE,
+                                            default => AttachmentType::DOCUMENT
+                                        },
+                                        content: $attachmentData,
+                                        contentType: AttachmentContentType::BASE64,
+                                        mediaType: $mimeType,
+                                    )
+                                );
+                            }
+                        }
+                    }
                 }
 
                 // Attach the stop reason

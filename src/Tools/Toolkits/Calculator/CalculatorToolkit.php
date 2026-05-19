@@ -32,6 +32,7 @@ class CalculatorToolkit extends AbstractToolkit
             ModeTool::make(),
             StandardDeviationTool::make(),
             VarianceTool::make(),
+            FactorialTool::make(),
         ];
     }
 

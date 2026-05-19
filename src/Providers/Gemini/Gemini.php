@@ -18,6 +18,7 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_filter;
 use function array_map;
+use function array_values;
 
 class Gemini implements AIProviderInterface
 {
@@ -95,6 +96,7 @@ class Gemini implements AIProviderInterface
                 return null;
             }
 
+            // https://ai.google.dev/gemini-api/docs/thought-signatures
             if ($item['thoughtSignature'] ?? false) {
                 $signature = $item['thoughtSignature'];
             }
@@ -105,9 +107,11 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']);
         }, $message['parts']);
 
+        // array_values() reindex so tools are always a 0-based sequential array,
+        // even when text/thought parts precede functionCall parts.
         $result = new ToolCallMessage(
             $message['content'] ?? null,
-            array_filter($tools)
+            array_values(array_filter($tools))
         );
 
         if ($signature !== null) {

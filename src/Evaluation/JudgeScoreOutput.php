@@ -10,11 +10,17 @@ use NeuronAI\StructuredOutput\Validation\Rules\OutOfRange;
 class JudgeScoreOutput
 {
     public function __construct(
-        #[SchemaProperty(description: 'Numeric score between 0.0 and 1.0', required: true)]
+        #[SchemaProperty(
+            description: 'Numeric score between 0.0 and 1.0',
+            required: true
+        )]
         #[OutOfRange(min: 0.0, max: 1.0)]
-        public readonly float $score,
-        #[SchemaProperty(description: 'Detailed reasoning for the given score', required: true)]
-        public readonly string $reasoning,
+        public float $score,
+        #[SchemaProperty(
+            description: 'Detailed reasoning for the given score',
+            required: true
+        )]
+        public string $reasoning,
     ) {
     }
 }
