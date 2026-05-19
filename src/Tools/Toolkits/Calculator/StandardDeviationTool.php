@@ -15,6 +15,7 @@ use function array_sum;
 use function count;
 use function round;
 use function sqrt;
+use function is_numeric;
 
 class StandardDeviationTool extends Tool
 {
@@ -56,7 +57,7 @@ DESC
         }
 
         // Filter and validate numeric values
-        $numericData = array_filter($numbers, \is_numeric(...));
+        $numericData = array_filter($numbers, is_numeric(...));
 
         if ($numericData === []) {
             return ['error' => 'Data array must contain at least one numeric value'];

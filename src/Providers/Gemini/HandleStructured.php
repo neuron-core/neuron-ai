@@ -40,7 +40,7 @@ trait HandleStructured
             ];
         }
 
-        // Gemini does not support structured output in combination with tools.
+        // Gemini does not support structured output in combination with built-in tools.
         // So we try to work with a JSON mode in case the agent has some tools defined.
         if (!empty($this->tools) && !in_array($this->model, $this->supportedModels)) {
             $last_message = end($messages);
