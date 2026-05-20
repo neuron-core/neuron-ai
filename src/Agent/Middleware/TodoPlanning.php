@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
@@ -51,7 +52,11 @@ class TodoPlanning implements WorkflowMiddleware
         }
 
         // Inject to-do planning instructions
-        $event->instructions .= "\n\n" . $this->systemPrompt;
+        if (is_array($event->instructions)) {
+            $event->instructions[] = new SystemContent($this->systemPrompt);
+        } else {
+            $event->instructions .= "\n\n" . $this->systemPrompt;
+        }
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
         if (!$this->hasWriteTodosTool($event->tools)) {
