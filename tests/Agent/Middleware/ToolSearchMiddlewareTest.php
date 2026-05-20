@@ -18,6 +18,10 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_filter;
+use function array_map;
+use function count;
+
 class ToolSearchMiddlewareTest extends TestCase
 {
     private function createTool(string $name, string $description): Tool
@@ -25,9 +29,9 @@ class ToolSearchMiddlewareTest extends TestCase
         return Tool::make($name, $description);
     }
 
-    private function createMiddleware(array $toolPool, ?string $prompt = null): ToolSearchMiddleware
+    private function createMiddleware(array $toolPool, ?callable $searchCallback = null): ToolSearchMiddleware
     {
-        return new ToolSearchMiddleware($toolPool, $prompt);
+        return new ToolSearchMiddleware($toolPool, $searchCallback);
     }
 
     // --- before() tests ---
@@ -44,7 +48,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $this->assertInstanceOf(ToolSearchTool::class, $event->tools[0]);
     }
 
-    public function test_before_appends_default_system_prompt(): void
+    public function test_before_does_not_modify_instructions(): void
     {
         $middleware = $this->createMiddleware([]);
         $event = new AIInferenceEvent('original instructions', []);
@@ -52,19 +56,20 @@ class ToolSearchMiddlewareTest extends TestCase
 
         $middleware->before($node, $event, new AgentState());
 
-        $this->assertStringContainsString('original instructions', $event->instructions);
-        $this->assertStringContainsString('tool_search', $event->instructions);
+        $this->assertSame('original instructions', $event->instructions);
     }
 
-    public function test_before_appends_custom_system_prompt(): void
+    public function test_before_passes_custom_search_callback_to_tool(): void
     {
-        $middleware = $this->createMiddleware([], 'Custom search prompt.');
-        $event = new AIInferenceEvent('original', []);
+        $callback = fn (string $query, ToolInterface $tool): bool => true;
+        $middleware = $this->createMiddleware([], $callback);
+        $event = new AIInferenceEvent('instructions', []);
         $node = new ToolNode();
 
         $middleware->before($node, $event, new AgentState());
 
-        $this->assertStringContainsString('Custom search prompt.', $event->instructions);
+        $this->assertCount(1, $event->tools);
+        $this->assertInstanceOf(ToolSearchTool::class, $event->tools[0]);
     }
 
     public function test_before_skips_non_inference_event(): void

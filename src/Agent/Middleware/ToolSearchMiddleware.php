@@ -16,36 +16,20 @@ use function in_array;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
-    protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
-        ---
-
-        ## `tool_search`
-
-        You have access to the `tool_search` tool to discover additional tools that are not currently available.
-        When you need a capability you don't have, use `tool_search` with a descriptive query to find relevant tools.
-        After searching, the matching tools will become available for you to use.
-        PROMPT;
-
-    /**
-     * @var ToolInterface[]
-     */
-    protected array $toolPool;
-
     /**
      * Custom search function.
      *
      * @var callable(string, ToolInterface): bool|null
      */
-    protected $searchCallback = null;
+    protected $searchCallback;
 
     /**
      * @param ToolInterface[] $toolPool
      * @param callable(string, ToolInterface): bool|null $searchCallback
      */
     public function __construct(
-        array $toolPool,
-        protected ?string $systemPrompt = null,
-        callable $searchCallback = null,
+        protected array $toolPool,
+        ?callable $searchCallback = null,
     ) {
         $this->searchCallback = $searchCallback;
         $this->toolPool = $toolPool;
@@ -56,8 +40,6 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         if (!$event instanceof AIInferenceEvent) {
             return;
         }
-
-        $event->instructions .= "\n\n" . ($this->systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT);
 
         if (!$this->hasToolSearchTool($event->tools)) {
             $event->tools[] = new ToolSearchTool($this->toolPool, $this->searchCallback);
