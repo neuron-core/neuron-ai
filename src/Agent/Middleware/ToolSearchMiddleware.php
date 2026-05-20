@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -49,7 +50,13 @@ class ToolSearchMiddleware implements WorkflowMiddleware
             return;
         }
 
-        $event->instructions .= "\n\n" . ($this->systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT);
+        $systemPrompt = $this->systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
+
+        if (is_array($event->instructions)) {
+            $event->instructions[] = new SystemContent($systemPrompt);
+        } else {
+            $event->instructions .= "\n\n" . $systemPrompt;
+        }
 
         if (!$this->hasToolSearchTool($event->tools)) {
             $event->tools[] = new ToolSearchTool($this->toolPool, $this->searchCallback);
