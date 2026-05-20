@@ -16,8 +16,8 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
-
 use NeuronAI\Tools\ToolInterface;
+
 use function array_key_exists;
 use function json_decode;
 use function json_encode;
