@@ -51,11 +51,6 @@ class ElevenLabsSpeechToText implements AIProviderInterface
             ]);
     }
 
-    public function getModel(): string
-    {
-        return $this->model;
-    }
-
     public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
         $this->system = is_array($prompt)
