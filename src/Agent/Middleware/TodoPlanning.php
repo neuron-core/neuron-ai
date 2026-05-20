@@ -13,6 +13,9 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
+use function is_array;
+use function str_contains;
+
 class TodoPlanning implements WorkflowMiddleware
 {
     protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
@@ -51,10 +54,12 @@ class TodoPlanning implements WorkflowMiddleware
             return;
         }
 
-        // Inject to-do planning instructions
+        // Inject to-do planning instructions (skip if already present from a previous turn)
         if (is_array($event->instructions)) {
-            $event->instructions[] = new SystemContent($this->systemPrompt);
-        } else {
+            if (!$this->instructionsContainPrompt($event->instructions)) {
+                $event->instructions[] = new SystemContent($this->systemPrompt);
+            }
+        } elseif (!str_contains($event->instructions, $this->systemPrompt)) {
             $event->instructions .= "\n\n" . $this->systemPrompt;
         }
 
@@ -81,6 +86,19 @@ class TodoPlanning implements WorkflowMiddleware
     {
         foreach ($tools as $tool) {
             if ($tool instanceof WriteTodosTool) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param SystemContent[] $instructions
+     */
+    private function instructionsContainPrompt(array $instructions): bool
+    {
+        foreach ($instructions as $block) {
+            if (str_contains($block->content, $this->systemPrompt)) {
                 return true;
             }
         }
