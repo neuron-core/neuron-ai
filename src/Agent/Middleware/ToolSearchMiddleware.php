@@ -26,8 +26,17 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         After searching, the matching tools will become available for you to use.
         PROMPT;
 
-    /** @var ToolInterface[] */
+    /**
+     * @var ToolInterface[]
+     */
     protected array $toolPool;
+
+    /**
+     * Custom search function.
+     *
+     * @var callable(string, ToolInterface): bool|null
+     */
+    protected $searchCallback = null;
 
     /**
      * @param ToolInterface[] $toolPool
@@ -36,8 +45,9 @@ class ToolSearchMiddleware implements WorkflowMiddleware
     public function __construct(
         array $toolPool,
         protected ?string $systemPrompt = null,
-        protected $searchCallback = null,
+        callable $searchCallback = null,
     ) {
+        $this->searchCallback = $searchCallback;
         $this->toolPool = $toolPool;
     }
 
