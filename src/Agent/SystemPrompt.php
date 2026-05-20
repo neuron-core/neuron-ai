@@ -10,9 +10,6 @@ use function implode;
 
 use const PHP_EOL;
 
-/**
- * @deprecated Use string or array<\NeuronAI\Chat\Messages\ContentBlocks\SystemContent> instead
- */
 class SystemPrompt implements Stringable
 {
     public function __construct(

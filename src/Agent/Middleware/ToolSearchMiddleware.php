@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -17,16 +16,6 @@ use function in_array;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
-    protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
-        ---
-
-        ## `tool_search`
-
-        You have access to the `tool_search` tool to discover additional tools that are not currently available.
-        When you need a capability you don't have, use `tool_search` with a descriptive query to find relevant tools.
-        After searching, the matching tools will become available for you to use.
-        PROMPT;
-
     /**
      * @var callable(string, ToolInterface): bool|null
      */
@@ -38,7 +27,6 @@ class ToolSearchMiddleware implements WorkflowMiddleware
      */
     public function __construct(
         protected array $toolPool,
-        protected ?string $systemPrompt = null,
         ?callable $searchCallback = null,
     ) {
         $this->searchCallback = $searchCallback;
@@ -48,14 +36,6 @@ class ToolSearchMiddleware implements WorkflowMiddleware
     {
         if (!$event instanceof AIInferenceEvent) {
             return;
-        }
-
-        $systemPrompt = $this->systemPrompt ?? self::DEFAULT_SYSTEM_PROMPT;
-
-        if (is_array($event->instructions)) {
-            $event->instructions[] = new SystemContent($systemPrompt);
-        } else {
-            $event->instructions .= "\n\n" . $systemPrompt;
         }
 
         if (!$this->hasToolSearchTool($event->tools)) {
