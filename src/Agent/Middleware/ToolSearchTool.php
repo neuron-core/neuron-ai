@@ -24,6 +24,8 @@ use function strlen;
 use function strtolower;
 use function trim;
 use function usort;
+use function array_column;
+use function array_slice;
 
 class ToolSearchTool extends Tool
 {
@@ -31,17 +33,29 @@ class ToolSearchTool extends Tool
     protected array $discovered = [];
 
     /**
+     * @var callable(string, ToolInterface): bool|null
+     */
+    protected $searchCallback;
+
+    /**
+     * @var array<int, array{tool: ToolInterface, nameLower: string, descLower: string, nameWords: string[], descWords: string[]}>|null
+     */
+    protected ?array $toolIndex = null;
+
+    /**
      * @param ToolInterface[] $toolPool
      * @param callable(string, ToolInterface): bool|null $searchCallback
      */
     public function __construct(
         protected array $toolPool,
-        protected $searchCallback = null,
+        ?callable $searchCallback = null,
     ) {
         parent::__construct(
             name: 'tool_search',
             description: 'Search for available tools by name or description. Returns matching tools that will become available for you to use.',
         );
+
+        $this->searchCallback = $searchCallback;
     }
 
     protected function properties(): array
@@ -98,27 +112,28 @@ class ToolSearchTool extends Tool
             return [];
         }
 
+        $this->toolIndex ??= $this->buildToolIndex();
+
         $scoredTools = [];
         $queryLower = strtolower(trim($query));
 
-        foreach ($this->toolPool as $tool) {
+        foreach ($this->toolIndex as $entry) {
             $score = 0;
-            $toolName = strtolower($tool->getName());
-            $toolDescription = strtolower($tool->getDescription() ?? '');
+            $toolName = $entry['nameLower'];
+            $toolDescription = $entry['descLower'];
+            $descEmpty = $toolDescription === '';
 
             // 1. Full query substring match
-            if ($queryLower !== '') {
-                if (str_contains($toolName, $queryLower)) {
-                    $score += 50;
-                }
-                if ($toolDescription !== '' && str_contains($toolDescription, $queryLower)) {
-                    $score += 20;
-                }
+            if (str_contains($toolName, $queryLower)) {
+                $score += 50;
+            }
+            if (!$descEmpty && str_contains($toolDescription, $queryLower)) {
+                $score += 20;
             }
 
             // 2. Keyword-based matching
-            $toolNameWords = $this->tokenize($tool->getName());
-            $toolDescriptionWords = $toolDescription !== '' ? $this->tokenize($toolDescription) : [];
+            $toolNameWords = $entry['nameWords'];
+            $toolDescriptionWords = $entry['descWords'];
 
             foreach ($queryKeywords as $keyword) {
                 // Check name matches (tiered check)
@@ -146,7 +161,7 @@ class ToolSearchTool extends Tool
                 if (in_array($keyword, $toolDescriptionWords, true)) {
                     $score += 5;
                     $descMatched = true;
-                } elseif ($toolDescription !== '' && str_contains($toolDescription, $keyword)) {
+                } elseif (!$descEmpty && str_contains($toolDescription, $keyword)) {
                     $score += 2;
                     $descMatched = true;
                 }
@@ -164,7 +179,7 @@ class ToolSearchTool extends Tool
 
             if ($score > 0) {
                 $scoredTools[] = [
-                    'tool' => $tool,
+                    'tool' => $entry['tool'],
                     'score' => $score,
                 ];
             }
@@ -173,17 +188,28 @@ class ToolSearchTool extends Tool
         // Sort by score descending
         usort($scoredTools, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
 
-        // Map back to ToolInterface[], limit to 10 results
-        $results = [];
-        $limit = 10;
-        foreach ($scoredTools as $item) {
-            $results[] = $item['tool'];
-            if (count($results) >= $limit) {
-                break;
-            }
-        }
+        return array_column(array_slice($scoredTools, 0, 10), 'tool');
+    }
 
-        return $results;
+    /**
+     * Precomputes lowercased names/descriptions and tokenized word arrays for every tool in the pool.
+     *
+     * @return array<int, array{tool: ToolInterface, nameLower: string, descLower: string, nameWords: string[], descWords: string[]}>
+     */
+    protected function buildToolIndex(): array
+    {
+        $index = [];
+        foreach ($this->toolPool as $tool) {
+            $descLower = strtolower($tool->getDescription() ?? '');
+            $index[] = [
+                'tool' => $tool,
+                'nameLower' => strtolower($tool->getName()),
+                'descLower' => $descLower,
+                'nameWords' => $this->tokenize($tool->getName()),
+                'descWords' => $descLower !== '' ? $this->tokenize($descLower) : [],
+            ];
+        }
+        return $index;
     }
 
     /**
