@@ -13,9 +13,22 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function in_array;
+use function str_contains;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
+    protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
+        ---
+
+        ## `tool_search`
+
+        You have access to the `tool_search` tool to discover additional tools that may help you complete your task.
+        When you need a capability that your current tools do not provide, use `tool_search` to find relevant tools from the available pool.
+
+        After searching, matching tools become available for you to use in subsequent steps.
+        Always search before concluding that a task cannot be completed — the right tool may exist but not be loaded yet.
+        PROMPT;
+
     /**
      * Custom search function.
      *
@@ -30,15 +43,19 @@ class ToolSearchMiddleware implements WorkflowMiddleware
     public function __construct(
         protected array $toolPool,
         ?callable $searchCallback = null,
+        protected string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
     ) {
         $this->searchCallback = $searchCallback;
-        $this->toolPool = $toolPool;
     }
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
         if (!$event instanceof AIInferenceEvent) {
             return;
+        }
+
+        if (!str_contains($event->instructions, 'tool_search')) {
+            $event->instructions .= "\n\n" . $this->systemPrompt;
         }
 
         if (!$this->hasToolSearchTool($event->tools)) {
