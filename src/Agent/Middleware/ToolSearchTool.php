@@ -65,7 +65,7 @@ class ToolSearchTool extends Tool
             ToolProperty::make(
                 name: 'query',
                 type: PropertyType::STRING,
-                description: 'Search query to find relevant tools by name or description',
+                description: 'Search query to find relevant tools. One word per query for strict matching, multiple words for fuzzy matching.',
                 required: true,
             ),
         ];
