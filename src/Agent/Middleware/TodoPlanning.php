@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Middleware;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\HandleContent;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
@@ -14,10 +15,11 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function is_array;
-use function str_contains;
 
 class TodoPlanning implements WorkflowMiddleware
 {
+    use HandleContent;
+
     protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
         ---
 
@@ -54,13 +56,12 @@ class TodoPlanning implements WorkflowMiddleware
             return;
         }
 
-        // Inject to-do planning instructions (skip if already present from a previous turn)
-        if (is_array($event->instructions)) {
-            if (!$this->instructionsContainPrompt($event->instructions)) {
+        if (!$this->instructionsContainPrompt($event->instructions, $this->systemPrompt)) {
+            if (is_array($event->instructions)) {
                 $event->instructions[] = new SystemContent($this->systemPrompt);
+            } else {
+                $event->instructions .= "\n\n" . $this->systemPrompt;
             }
-        } elseif (!str_contains($event->instructions, $this->systemPrompt)) {
-            $event->instructions .= "\n\n" . $this->systemPrompt;
         }
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
@@ -86,19 +87,6 @@ class TodoPlanning implements WorkflowMiddleware
     {
         foreach ($tools as $tool) {
             if ($tool instanceof WriteTodosTool) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param SystemContent[] $instructions
-     */
-    private function instructionsContainPrompt(array $instructions): bool
-    {
-        foreach ($instructions as $block) {
-            if (str_contains($block->content, $this->systemPrompt)) {
                 return true;
             }
         }
