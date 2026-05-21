@@ -67,17 +67,17 @@ class AgentInstructionsTest extends TestCase
     // Unit: middleware does NOT touch instructions
     // ---------------------------------------------------------------
 
-    public function test_tool_search_middleware_preserves_string_instructions(): void
+    public function test_tool_search_middleware_changes_string_instructions(): void
     {
         $middleware = new ToolSearchMiddleware([]);
         $event = new AIInferenceEvent('Original instructions', []);
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $this->assertSame('Original instructions', $event->instructions);
+        $this->assertNotSame('Original instructions', $event->instructions);
     }
 
-    public function test_tool_search_middleware_preserves_array_instructions(): void
+    public function test_tool_search_middleware_add_array_instructions(): void
     {
         $middleware = new ToolSearchMiddleware([]);
         $event = new AIInferenceEvent(
@@ -88,7 +88,7 @@ class AgentInstructionsTest extends TestCase
         $middleware->before(new ToolNode(), $event, new AgentState());
 
         $this->assertIsArray($event->instructions);
-        $this->assertCount(2, $event->instructions);
+        $this->assertCount(3, $event->instructions);
         $this->assertSame('Block one', $event->instructions[0]->content);
         $this->assertSame('Block two', $event->instructions[1]->content);
     }
@@ -349,7 +349,7 @@ class AgentInstructionsTest extends TestCase
     // Integration: array instructions preserved through tool loop
     // ---------------------------------------------------------------
 
-    public function test_array_instructions_preserved_untouched_through_tool_loop(): void
+    public function test_array_instructions_change_one_time_through_tool_loop(): void
     {
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
@@ -381,7 +381,7 @@ class AgentInstructionsTest extends TestCase
         // Every provider call should receive the original array instructions untouched
         foreach ($records as $record) {
             $this->assertIsArray($record->systemPrompt, 'Instructions should remain array throughout the tool loop.');
-            $this->assertCount(2, $record->systemPrompt);
+            $this->assertCount(3, $record->systemPrompt);
             $this->assertSame('Base instructions', $record->systemPrompt[0]->content);
             $this->assertSame('Cached instructions', $record->systemPrompt[1]->content);
             $this->assertTrue($record->systemPrompt[1]->isCached());

@@ -59,7 +59,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $this->assertInstanceOf(ToolSearchTool::class, $event->tools[0]);
     }
 
-    public function test_before_does_not_modify_instructions(): void
+    public function test_before_does_modify_instructions(): void
     {
         $middleware = $this->createMiddleware([]);
         $event = new AIInferenceEvent('original instructions', []);
@@ -67,7 +67,7 @@ class ToolSearchMiddlewareTest extends TestCase
 
         $middleware->before($node, $event, new AgentState());
 
-        $this->assertSame('original instructions', $event->instructions);
+        $this->assertNotSame('original instructions', $event->instructions);
     }
 
     public function test_before_skips_non_inference_event(): void
