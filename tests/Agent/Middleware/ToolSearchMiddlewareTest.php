@@ -367,4 +367,65 @@ class ToolSearchMiddlewareTest extends TestCase
         $this->assertCount(1, $event->tools);
         $this->assertSame('query_users', $event->tools[0]->getName());
     }
+
+    // --- Hybrid Search tests ---
+
+    public function test_search_finds_by_multi_word_query(): void
+    {
+        $tool = $this->createTool('calculate_square_root', 'Calculates the square root of a positive number');
+        $searchTool = new ToolSearchTool([$tool]);
+
+        $searchTool->__invoke('square root calculator math');
+        $discovered = $searchTool->discoveredTools();
+
+        $this->assertCount(1, $discovered);
+        $this->assertSame('calculate_square_root', $discovered[0]->getName());
+    }
+
+    public function test_search_ranks_by_relevance(): void
+    {
+        $squareRoot = $this->createTool('calculate_square_root', 'Calculates the square root of a positive number');
+        $sum = $this->createTool('calculate_sum', 'Calculates the sum of two numbers');
+        $nthRoot = $this->createTool('calculate_nth_root', 'Calculates the nth root');
+
+        $searchTool = new ToolSearchTool([$sum, $squareRoot, $nthRoot]);
+
+        $searchTool->__invoke('square root');
+        $discovered = $searchTool->discoveredTools();
+
+        $this->assertCount(2, $discovered);
+        $this->assertSame('calculate_square_root', $discovered[0]->getName());
+        $this->assertSame('calculate_nth_root', $discovered[1]->getName());
+    }
+
+    public function test_search_typo_tolerance(): void
+    {
+        $tool = $this->createTool('calculate_square_root', 'Calculates the square root of a positive number');
+        $searchTool = new ToolSearchTool([$tool]);
+
+        // Levenshtein distance 1: "sqare" -> "square"
+        $searchTool->__invoke('sqare root');
+        $this->assertCount(1, $searchTool->discoveredTools());
+
+        // Levenshtein distance 2: "sqar" -> "square"
+        $searchTool->__invoke('sqar root');
+        $this->assertCount(1, $searchTool->discoveredTools());
+
+        // Levenshtein distance 3: "sqr" -> "square" (should not match, keyword too short for typo tolerance)
+        $searchTool->__invoke('sqr');
+        $this->assertCount(0, $searchTool->discoveredTools());
+    }
+
+    public function test_search_caps_results_to_10(): void
+    {
+        $tools = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $tools[] = $this->createTool("tool_{$i}", "This is tool number {$i}");
+        }
+
+        $searchTool = new ToolSearchTool($tools);
+        $searchTool->__invoke('tool');
+
+        $this->assertCount(10, $searchTool->discoveredTools());
+    }
 }
