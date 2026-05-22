@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
-use TypeError;
 use function array_merge;
 use function escapeshellarg;
 use function fclose;
@@ -55,10 +54,6 @@ class StdioTransport implements McpTransportInterface
      */
     public function connect(): void
     {
-        register_shutdown_function(function (): void {
-            $this->disconnect();
-        });
-
         $descriptorSpec = [
             0 => ["pipe", "r"],  // stdin
             1 => ["pipe", "w"],  // stdout
@@ -184,6 +179,11 @@ class StdioTransport implements McpTransportInterface
      */
     public function disconnect(): void
     {
+        // Automatically uses the destructor to disconnect, no need to call anything here
+    }
+
+    public function __destruct()
+    {
         if (is_resource($this->process)) {
             // Close all pipe handles
             foreach ($this->pipes as $pipe) {
@@ -191,22 +191,19 @@ class StdioTransport implements McpTransportInterface
                     fclose($pipe);
                 }
             }
-            try {
-                // Try graceful termination first
-                $status = proc_get_status($this->process);
-                // On Unix systems, try sending SIGTERM
-                if ($status['running'] && function_exists('proc_terminate')) {
-                    proc_terminate($this->process);
-                    // Give the process a moment to shut down gracefully
-                    usleep(500000);
-                    // 500ms
-                }
 
-                // Close the process handle
-                proc_close($this->process);
-            } catch (TypeError) {
-                // Nothing to clean up.
+            // Try graceful termination first
+            $status = proc_get_status($this->process);
+            // On Unix systems, try sending SIGTERM
+            if ($status['running'] && function_exists('proc_terminate')) {
+                proc_terminate($this->process);
+                // Give the process a moment to shut down gracefully
+                usleep(500000);
+                // 500ms
             }
+
+            // Close the process handle
+            proc_close($this->process);
             $this->process = null;
             $this->pipes = null;
         }
