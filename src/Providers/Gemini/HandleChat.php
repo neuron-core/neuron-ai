@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Tools\ToolInterface;
 
 use function array_filter;
 use function array_key_exists;
@@ -42,6 +43,21 @@ trait HandleChat
 
         if (!empty($this->tools)) {
             $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            /*
+             * When Gemini thinking models (e.g. 2.5 Pro) are given function tools, they can spontaneously invoke built-in provider-side tools
+             * like run (code execution). Since these are never registered in NeuronAI's tool list, findTool() throws a ProviderException
+             */
+            foreach ($this->tools as $tool) {
+                if ($tool instanceof ToolInterface) {
+                    $body['toolConfig'] = [
+                        'functionCallingConfig' => [
+                            'mode' => 'AUTO',
+                        ],
+                    ];
+                    break;
+                }
+            }
         }
 
         $response = $this->httpClient->request(
