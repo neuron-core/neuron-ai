@@ -23,6 +23,7 @@ use function array_map;
 use function json_decode;
 use function implode;
 use function is_array;
+use function array_values;
 
 class OpenAI implements AIProviderInterface
 {
@@ -112,7 +113,7 @@ class OpenAI implements AIProviderInterface
             $toolCalls
         );
 
-        $result = new ToolCallMessage($blocks, $tools);
+        $result = new ToolCallMessage($blocks, array_values($tools));
         $result->addMetadata('tool_calls', $toolCalls);
 
         return $result;

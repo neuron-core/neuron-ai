@@ -22,6 +22,7 @@ use function array_map;
 use function uniqid;
 use function implode;
 use function is_array;
+use function array_values;
 
 class Gemini implements AIProviderInterface
 {
@@ -99,7 +100,7 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']); // Gemini uses the tool's name as a unique identifier.
         }, $toolCalls);
 
-        $message = new ToolCallMessage($blocks, $tools);
+        $message = new ToolCallMessage($blocks, array_values($tools));
 
         if (isset($toolCalls[0]['thoughtSignature'])) {
             $message->addMetadata('thought_signature', $toolCalls[0]['thoughtSignature']);
