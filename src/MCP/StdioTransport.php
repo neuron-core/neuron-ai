@@ -49,15 +49,16 @@ class StdioTransport implements McpTransportInterface
     {
     }
 
+    public function __destruct()
+    {
+        $this->disconnect();
+    }
+
     /**
      * Connect to the MCP server by spawning the process
      */
     public function connect(): void
     {
-        register_shutdown_function(function (): void {
-            $this->disconnect();
-        });
-
         $descriptorSpec = [
             0 => ["pipe", "r"],  // stdin
             1 => ["pipe", "w"],  // stdout
