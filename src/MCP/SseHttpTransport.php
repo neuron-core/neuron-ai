@@ -320,7 +320,7 @@ class SseHttpTransport implements McpTransportInterface
                     // Only process 'message' events for JSON-RPC responses
                     if ($parsed['event'] === 'message' && $parsed['data'] !== '') {
                         try {
-                            $message = json_decode($parsed['data'], true, 512, JSON_THROW_ON_ERROR);
+                            $message = json_decode($parsed['data'], true, 32, JSON_THROW_ON_ERROR);
 
                             // Check if it's a valid JSON-RPC message with an ID (response)
                             if (isset($message['jsonrpc']) && $message['jsonrpc'] === '2.0') {
@@ -398,7 +398,7 @@ class SseHttpTransport implements McpTransportInterface
     {
         $headerLines = [];
         foreach ($headers as $key => $value) {
-            $headerLines[] = "$key: $value";
+            $headerLines[] = str_replace(["\r", "\n"], '', $key) . ': ' . str_replace(["\r", "\n"], '', $value);
         }
         return implode("\r\n", $headerLines) . "\r\n";
     }
@@ -408,8 +408,13 @@ class SseHttpTransport implements McpTransportInterface
      */
     protected function resolveEndpointUrl(string $base, string $relative): string
     {
-        // If relative is absolute URL, return it
+        // If relative is absolute URL, validate it stays on the same host to prevent SSRF
         if (str_contains($relative, '://') || str_starts_with($relative, '//')) {
+            $baseParts = parse_url($base);
+            $relativeParts = parse_url($relative);
+            if ($baseParts === false || $relativeParts === false || ($relativeParts['host'] ?? '') !== ($baseParts['host'] ?? '')) {
+                throw new McpException('Endpoint URL host mismatch: cross-origin redirect rejected');
+            }
             return $relative;
         }
 

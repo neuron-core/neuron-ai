@@ -24,7 +24,7 @@ use function stream_set_blocking;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
 use function mb_strlen;
-use function time;
+use function microtime;
 use function usleep;
 
 class StdioTransport implements McpTransportInterface
@@ -143,11 +143,10 @@ class StdioTransport implements McpTransportInterface
         stream_set_blocking($this->pipes[1], false);
 
         $response = "";
-        $startTime = time();
-        $timeout = 30; // 30-second timeout
+        $deadline = microtime(true) + ($this->config['timeout'] ?? 30);
 
         // Keep reading until we get a complete JSON response or timeout
-        while (time() - $startTime < $timeout) {
+        while (microtime(true) < $deadline) {
             $status = proc_get_status($this->process);
 
             if (!$status['running']) {

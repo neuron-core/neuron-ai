@@ -136,7 +136,7 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
             try {
-                return json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+                return json_decode($response, true, 32, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
                 // If the response from the server is not a valid JSON
                 // try to parse the SSE format to extract JSON data
