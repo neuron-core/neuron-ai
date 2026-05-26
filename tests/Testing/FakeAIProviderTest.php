@@ -11,8 +11,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Testing\FakeMessageMapper;
-use NeuronAI\Testing\FakeToolMapper;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolDefinition;
@@ -159,18 +157,6 @@ class FakeAIProviderTest extends TestCase
         $this->assertSame('structured', $record->method);
         $this->assertSame('App\\User', $record->structuredClass);
         $this->assertSame($schema, $record->structuredSchema);
-    }
-
-    public function test_message_mapper_returns_fake(): void
-    {
-        $provider = new FakeAIProvider();
-        $this->assertInstanceOf(FakeMessageMapper::class, $provider->messageMapper());
-    }
-
-    public function test_tool_payload_mapper_returns_fake(): void
-    {
-        $provider = new FakeAIProvider();
-        $this->assertInstanceOf(FakeToolMapper::class, $provider->toolPayloadMapper());
     }
 
     public function test_get_call_count(): void

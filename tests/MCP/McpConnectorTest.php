@@ -106,6 +106,8 @@ class McpConnectorTest extends TestCase
         $reflection = new ReflectionClass($connector);
         $clientProperty = $reflection->getProperty('client');
 
+        $fakeTransport = new FakeMcpTransport(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]);
+
         $clientMock = $this->createMock(McpClient::class);
         $clientMock->expects($this->once())
             ->method('callTool')
@@ -115,6 +117,9 @@ class McpConnectorTest extends TestCase
                     'content' => ['result' => 'success'],
                 ],
             ]);
+
+        $transportProperty = (new ReflectionClass(McpClient::class))->getProperty('transport');
+        $transportProperty->setValue($clientMock, $fakeTransport);
 
         $clientProperty->setValue($connector, $clientMock);
 
@@ -168,10 +173,15 @@ class McpConnectorTest extends TestCase
         $reflection = new ReflectionClass($connector);
         $clientProperty = $reflection->getProperty('client');
 
+        $fakeTransport = new FakeMcpTransport(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]);
+
         $clientMock = $this->createMock(McpClient::class);
         $clientMock->expects($this->once())
             ->method('callTool')
             ->willReturn(['result' => []]);
+
+        $transportProperty = (new ReflectionClass(McpClient::class))->getProperty('transport');
+        $transportProperty->setValue($clientMock, $fakeTransport);
 
         $clientProperty->setValue($connector, $clientMock);
 
