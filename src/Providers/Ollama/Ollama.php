@@ -49,6 +49,11 @@ class Ollama implements AIProviderInterface
             ->withBaseUri($this->url);
     }
 
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
     public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
         if (is_array($prompt)) {

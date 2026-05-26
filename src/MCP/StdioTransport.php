@@ -19,7 +19,6 @@ use function proc_close;
 use function proc_get_status;
 use function proc_open;
 use function proc_terminate;
-use function register_shutdown_function;
 use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_read_buffer;

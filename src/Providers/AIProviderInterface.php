@@ -15,6 +15,8 @@ use NeuronAI\Tools\ToolInterface;
 
 interface AIProviderInterface
 {
+    public function getModel(): string;
+
     /**
      * Send predefined instruction to the LLM.
      *
@@ -28,16 +30,6 @@ interface AIProviderInterface
      * @param ToolInterface[] $tools
      */
     public function setTools(array $tools): AIProviderInterface;
-
-    /**
-     * The component responsible for mapping the NeuronAI Message to the AI provider format.
-     */
-    public function messageMapper(): MessageMapperInterface;
-
-    /**
-     * The component responsible for mapping the NeuronAI Tools to the AI provider format.
-     */
-    public function toolPayloadMapper(): ToolMapperInterface;
 
     /**
      * Send a prompt to the AI agent.

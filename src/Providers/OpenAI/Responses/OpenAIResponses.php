@@ -71,6 +71,11 @@ class OpenAIResponses implements AIProviderInterface
             ]);
     }
 
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
     public function systemPrompt(string|array|null $prompt): AIProviderInterface
     {
         if (is_array($prompt)) {

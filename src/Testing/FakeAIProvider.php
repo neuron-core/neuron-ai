@@ -11,9 +11,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
-use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ProviderResponse;
-use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -142,16 +140,6 @@ class FakeAIProvider implements AIProviderInterface
         );
 
         return new ProviderResponse(message: $response);
-    }
-
-    public function messageMapper(): MessageMapperInterface
-    {
-        return new FakeMessageMapper();
-    }
-
-    public function toolPayloadMapper(): ToolMapperInterface
-    {
-        return new FakeToolMapper();
     }
 
     public function setHttpClient(HttpClientInterface $client): AIProviderInterface
