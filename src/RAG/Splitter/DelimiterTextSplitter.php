@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Splitter;
 
+use InvalidArgumentException;
 use NeuronAI\RAG\Document;
 
 use function array_map;
@@ -18,8 +19,15 @@ use function trim;
 
 class DelimiterTextSplitter extends AbstractSplitter
 {
-    public function __construct(private readonly int $maxLength = 1000, private readonly string $separator = ' ', private readonly int $wordOverlap = 0)
-    {
+    public function __construct(
+        private readonly int $maxLength = 1000,
+        private readonly string $separator = ' ',
+        private readonly int $wordOverlap = 0,
+        private readonly int $minLength = 0,
+    ) {
+        if ($minLength > 0 && $minLength >= $maxLength) {
+            throw new InvalidArgumentException('minLength must be less than maxLength');
+        }
     }
 
     /**
@@ -40,6 +48,7 @@ class DelimiterTextSplitter extends AbstractSplitter
         $parts = explode($this->separator, $text);
 
         $chunks = $this->createChunksWithOverlap($parts);
+        $chunks = $this->enforceMinLength($chunks);
 
         $split = [];
         foreach ($chunks as $chunk) {
@@ -89,6 +98,32 @@ class DelimiterTextSplitter extends AbstractSplitter
         }
 
         return $chunks;
+    }
+
+    /**
+     * Merges chunks that fall below minLength into the previous chunk.
+     *
+     * @param  array<string>  $chunks
+     * @return array<string>
+     */
+    private function enforceMinLength(array $chunks): array
+    {
+        if ($this->minLength <= 0 || count($chunks) <= 1) {
+            return $chunks;
+        }
+
+        $result = [$chunks[0]];
+
+        for ($i = 1, $count = count($chunks); $i < $count; $i++) {
+            if (mb_strlen($chunks[$i]) < $this->minLength) {
+                $lastIndex = count($result) - 1;
+                $result[$lastIndex] = implode($this->separator, [$result[$lastIndex], $chunks[$i]]);
+            } else {
+                $result[] = $chunks[$i];
+            }
+        }
+
+        return $result;
     }
 
     /**

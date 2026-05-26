@@ -24,19 +24,26 @@ class SentenceTextSplitter extends AbstractSplitter
 {
     private readonly int $maxWords;
     private readonly int $overlapWords;
+    private readonly int $minWords;
 
     /**
      * @param int $maxWords    Maximum number of words per chunk
      * @param int $overlapWords Number of overlapping words between chunks
+     * @param int $minWords    Minimum number of words per chunk (small chunks are merged into the previous one)
      */
-    public function __construct(int $maxWords = 200, int $overlapWords = 0)
+    public function __construct(int $maxWords = 200, int $overlapWords = 0, int $minWords = 0)
     {
         if ($overlapWords >= $maxWords) {
             throw new InvalidArgumentException('Overlap must be less than maxWords');
         }
 
+        if ($minWords > 0 && $minWords >= $maxWords) {
+            throw new InvalidArgumentException('minWords must be less than maxWords');
+        }
+
         $this->maxWords = $maxWords;
         $this->overlapWords = $overlapWords;
+        $this->minWords = $minWords;
     }
 
     /**
@@ -89,6 +96,8 @@ class SentenceTextSplitter extends AbstractSplitter
             $chunks = $this->applyOverlap($chunks);
         }
 
+        $chunks = $this->enforceMinWords($chunks);
+
         $split = [];
         foreach ($chunks as $chunk) {
             $newDocument = new Document($chunk);
@@ -118,6 +127,34 @@ class SentenceTextSplitter extends AbstractSplitter
     private function tokenizeWords(string $text): array
     {
         return preg_split('/\s+/u', trim($text));
+    }
+
+    /**
+     * Merges chunks that fall below minWords into the previous chunk.
+     *
+     * @param string[] $chunks
+     * @return string[]
+     */
+    private function enforceMinWords(array $chunks): array
+    {
+        if ($this->minWords <= 0 || count($chunks) <= 1) {
+            return $chunks;
+        }
+
+        $result = [$chunks[0]];
+
+        for ($i = 1, $count = count($chunks); $i < $count; $i++) {
+            $words = $this->tokenizeWords($chunks[$i]);
+
+            if (count($words) < $this->minWords) {
+                $lastIndex = count($result) - 1;
+                $result[$lastIndex] = implode(' ', [$result[$lastIndex], $chunks[$i]]);
+            } else {
+                $result[] = $chunks[$i];
+            }
+        }
+
+        return $result;
     }
 
     /**

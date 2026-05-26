@@ -238,4 +238,75 @@ class SentenceTextSplitterTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals('Only one sentence.', trim($result[0]->getContent()));
     }
+
+    public function test_min_words_merges_small_tail_chunk(): void
+    {
+        // maxWords=5 splits this into chunks. The tail chunk "End." (1 word) is below minWords=3
+        $splitter = new SentenceTextSplitter(maxWords: 5, minWords: 3);
+
+        $text = "One two three four five. Six seven eight. End.";
+        $document = new Document($text);
+
+        $result = $splitter->splitDocument($document);
+
+        // The "End." tail chunk should be merged into the previous chunk
+        $allContent = implode(' ', array_map(fn (Document $c): string => $c->getContent(), $result));
+        $this->assertStringContainsString('End.', $allContent);
+        $this->assertGreaterThan(1, count($result));
+
+        // No chunk except possibly the first should be below minWords
+        for ($i = 1; $i < count($result); $i++) {
+            $words = preg_split('/\s+/u', trim($result[$i]->getContent()));
+            $this->assertGreaterThanOrEqual(3, count($words), "Chunk $i is below minWords");
+        }
+    }
+
+    public function test_min_words_zero_does_not_merge(): void
+    {
+        // Default minWords=0 means no merging
+        $splitter = new SentenceTextSplitter(maxWords: 5, minWords: 0);
+
+        $text = "One two three four five. Six seven eight. End.";
+        $document = new Document($text);
+
+        $result = $splitter->splitDocument($document);
+
+        $this->assertGreaterThan(1, count($result));
+    }
+
+    public function test_min_words_invalid_when_ge_max(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 10, minWords: 10);
+    }
+
+    public function test_min_words_keeps_first_chunk_even_if_small(): void
+    {
+        // Single short document — kept as-is even below minWords
+        $splitter = new SentenceTextSplitter(maxWords: 200, minWords: 50);
+
+        $text = "Only one sentence.";
+        $document = new Document($text);
+
+        $result = $splitter->splitDocument($document);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Only one sentence.', trim($result[0]->getContent()));
+    }
+
+    public function test_min_words_with_overlap(): void
+    {
+        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 2, minWords: 3);
+
+        $text = "One two three four five six seven eight nine ten. Eleven twelve thirteen fourteen fifteen.";
+        $document = new Document($text);
+
+        $result = $splitter->splitDocument($document);
+
+        // No chunk except possibly the first should be below minWords
+        for ($i = 1; $i < count($result); $i++) {
+            $words = preg_split('/\s+/u', trim($result[$i]->getContent()));
+            $this->assertGreaterThanOrEqual(3, count($words), "Chunk $i is below minWords");
+        }
+    }
 }
