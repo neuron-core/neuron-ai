@@ -26,7 +26,7 @@ class Deepseek extends OpenAI
 {
     protected string $baseUri = "https://api.deepseek.com/v1";
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }

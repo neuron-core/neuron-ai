@@ -71,6 +71,7 @@ class OpenAIImageTest extends TestCase
 
         $generator = $provider->stream(new UserMessage('A cat'));
 
+        /** @var ImageChunk[] $chunks */
         $chunks = [];
         foreach ($generator as $chunk) {
             $chunks[] = $chunk;
@@ -95,6 +96,8 @@ class OpenAIImageTest extends TestCase
         $this->assertStringStartsWith('msg_', $chunks[0]->messageId);
 
         // Chunk contents come directly from the API payload.
+        $this->assertInstanceOf(ImageChunk::class, $chunks[0]);
+        $this->assertInstanceOf(ImageChunk::class, $chunks[1]);
         $this->assertSame('PARTIAL_ONE', $chunks[0]->content);
         $this->assertSame('PARTIAL_TWO', $chunks[1]->content);
 

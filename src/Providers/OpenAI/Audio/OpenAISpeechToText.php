@@ -163,12 +163,12 @@ class OpenAISpeechToText implements AIProviderInterface
         throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
     }
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         throw new ProviderException('Messages are not supported by OpenAI Text to Speech.');
     }
 
-    public function toolPayloadMapper(): ToolMapperInterface
+    protected function toolPayloadMapper(): ToolMapperInterface
     {
         throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
     }

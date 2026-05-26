@@ -38,7 +38,7 @@ class Cohere extends OpenAI
         parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
     }
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         return $this->messageMapper ??= new MessageMapper();
     }

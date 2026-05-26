@@ -120,12 +120,12 @@ class ZAIImage implements AIProviderInterface
         throw new ProviderException('Structured output not supported for image generation. Use chat() instead.');
     }
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         throw new ProviderException('Messages are not supported for image generation.');
     }
 
-    public function toolPayloadMapper(): ToolMapperInterface
+    protected function toolPayloadMapper(): ToolMapperInterface
     {
         throw new ProviderException('Tools are not supported for image generation.');
     }
