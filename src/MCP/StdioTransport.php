@@ -54,10 +54,6 @@ class StdioTransport implements McpTransportInterface
      */
     public function connect(): void
     {
-        register_shutdown_function(function (): void {
-            $this->disconnect();
-        });
-
         $descriptorSpec = [
             0 => ["pipe", "r"],  // stdin
             1 => ["pipe", "w"],  // stdout
@@ -204,6 +200,12 @@ class StdioTransport implements McpTransportInterface
             // Close the process handle
             proc_close($this->process);
             $this->process = null;
+            $this->pipes = null;
         }
+    }
+
+    public function __destruct()
+    {
+        $this->disconnect();
     }
 }
