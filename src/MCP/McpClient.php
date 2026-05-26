@@ -45,9 +45,7 @@ class McpClient
 
     public function __destruct()
     {
-        if (isset($this->transport)) {
-            $this->transport->disconnect();
-        }
+        $this->transport->disconnect();
     }
 
     /**

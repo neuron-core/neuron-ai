@@ -6,6 +6,9 @@ on:
             - '*.x'
     pull_request:
 
+permissions:
+    contents: read
+
 jobs:
     ci:
         runs-on: ${{ matrix.os }}

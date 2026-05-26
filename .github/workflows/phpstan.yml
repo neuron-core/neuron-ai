@@ -9,6 +9,9 @@ on:
       - 'phpstan.neon'
   pull_request:
 
+permissions:
+    contents: read
+
 jobs:
   phpstan:
     name: phpstan
