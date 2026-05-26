@@ -13,7 +13,8 @@ use function count;
 use function explode;
 use function implode;
 use function mb_strlen;
-use function trim;
+use function array_sum;
+use function min;
 
 class DelimiterTextSplitter extends AbstractSplitter
 {
@@ -154,7 +155,7 @@ class DelimiterTextSplitter extends AbstractSplitter
             return 0;
         }
 
-        return (int) array_sum(array_map(mb_strlen(...), $chunk))
+        return array_sum(array_map(mb_strlen(...), $chunk))
             + (count($chunk) - 1) * $this->separatorLength;
     }
 }

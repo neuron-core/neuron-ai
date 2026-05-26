@@ -506,6 +506,8 @@ class OpenAITest extends TestCase
             $chunks[] = $chunk;
         }
 
+        /** @var TextChunk[] $chunks */
+
         // Get the final message from generator return value
         $message = $generator->getReturn();
 

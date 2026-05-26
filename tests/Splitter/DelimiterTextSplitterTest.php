@@ -10,6 +10,7 @@ use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 use PHPUnit\Framework\TestCase;
 
 use function file_get_contents;
+use function mb_strlen;
 
 class DelimiterTextSplitterTest extends TestCase
 {
@@ -118,7 +119,7 @@ class DelimiterTextSplitterTest extends TestCase
         $result = $splitter->splitDocument($doc);
 
         foreach ($result as $chunk) {
-            $this->assertLessThanOrEqual(20, \mb_strlen($chunk->getContent()));
+            $this->assertLessThanOrEqual(20, mb_strlen($chunk->getContent()));
         }
     }
 }
