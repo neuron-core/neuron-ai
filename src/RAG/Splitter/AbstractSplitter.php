@@ -6,8 +6,6 @@ namespace NeuronAI\RAG\Splitter;
 
 use NeuronAI\RAG\Document;
 
-use function array_merge;
-
 abstract class AbstractSplitter implements SplitterInterface
 {
     /**
@@ -19,7 +17,7 @@ abstract class AbstractSplitter implements SplitterInterface
         $split = [];
 
         foreach ($documents as $document) {
-            $split = array_merge($split, $this->splitDocument($document));
+            $split = [...$split, ...$this->splitDocument($document)];
         }
 
         return $split;

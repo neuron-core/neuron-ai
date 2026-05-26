@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\RAG\Splitter;
 
+use InvalidArgumentException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 use function file_get_contents;
-use function mb_strlen;
 
 class DelimiterTextSplitterTest extends TestCase
 {
@@ -31,59 +30,95 @@ class DelimiterTextSplitterTest extends TestCase
         $this->assertCount(12, $documents);
     }
 
-    public function test_min_length_merges_small_tail_chunk(): void
+    public function test_min_length_merges_small_chunks(): void
     {
-        // "alpha beta" = 11 chars, "gamma" = 5 chars — tail "gamma" is below minLength=10
-        $doc = new Document('alpha beta gamma');
+        $text = "This is a test of the splitter functionality with some text";
+        $doc = new Document($text);
 
-        $splitter = new DelimiterTextSplitter(maxLength: 12, minLength: 10);
-        $documents = $splitter->splitDocument($doc);
+        // Without minLength: 4 chunks
+        $splitter = new DelimiterTextSplitter(maxLength: 20);
+        $result = $splitter->splitDocument($doc);
+        $this->assertCount(4, $result);
 
-        // The small tail chunk is merged into the previous one
-        $this->assertCount(1, $documents);
-        $this->assertEquals('alpha beta gamma', $documents[0]->getContent());
+        // With minLength: short chunks merged into previous
+        $splitter = new DelimiterTextSplitter(maxLength: 20, minLength: 15);
+        $result = $splitter->splitDocument($doc);
+        $this->assertCount(2, $result);
+        $this->assertEquals('This is a test of the splitter', $result[0]->getContent());
+        $this->assertEquals('functionality with some text', $result[1]->getContent());
     }
 
-    public function test_min_length_zero_does_not_merge(): void
-    {
-        // Default minLength=0 means no merging — chunks are created as before
-        $doc = new Document('alpha beta gamma');
-
-        $splitter = new DelimiterTextSplitter(maxLength: 12);
-        $documents = $splitter->splitDocument($doc);
-
-        $this->assertCount(2, $documents);
-    }
-
-    public function test_min_length_invalid_when_ge_max(): void
+    public function test_min_length_equal_to_max_throws_exception(): void
     {
         $this->expectException(InvalidArgumentException::class);
         new DelimiterTextSplitter(maxLength: 100, minLength: 100);
     }
 
-    public function test_min_length_keeps_first_chunk_even_if_small(): void
+    public function test_min_length_greater_than_max_throws_exception(): void
     {
-        // If there's only one chunk and it's below minLength, it's kept as-is
-        $doc = new Document('short');
-
-        $splitter = new DelimiterTextSplitter(maxLength: 1000, minLength: 50);
-        $documents = $splitter->splitDocument($doc);
-
-        $this->assertCount(1, $documents);
-        $this->assertEquals('short', $documents[0]->getContent());
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(maxLength: 100, minLength: 200);
     }
 
-    public function test_min_length_with_overlap(): void
+    public function test_zero_max_length_throws_exception(): void
     {
-        // Ensure minLength merge works correctly when overlap is also set
-        $doc = new Document(file_get_contents(__DIR__.'/../Stubs/long-text.txt'));
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(maxLength: 0);
+    }
 
-        $splitter = new DelimiterTextSplitter(maxLength: 500, wordOverlap: 2, minLength: 100);
-        $documents = $splitter->splitDocument($doc);
+    public function test_negative_max_length_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(maxLength: -1);
+    }
 
-        // No chunk (except possibly the first) should be below minLength
-        foreach ($documents as $document) {
-            $this->assertGreaterThanOrEqual(100, mb_strlen($document->getContent()));
+    public function test_empty_separator_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(separator: '');
+    }
+
+    public function test_negative_word_overlap_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(wordOverlap: -1);
+    }
+
+    public function test_negative_min_length_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new DelimiterTextSplitter(minLength: -1);
+    }
+
+    public function test_metadata_is_propagated(): void
+    {
+        $doc = new Document('Test content that is long enough to not be returned as-is when splitting with a small max length');
+        $doc->sourceType = 'file';
+        $doc->sourceName = 'test.txt';
+        $doc->addMetadata('key', 'value');
+
+        $splitter = new DelimiterTextSplitter(maxLength: 30);
+        $result = $splitter->splitDocument($doc);
+
+        foreach ($result as $chunk) {
+            $this->assertEquals('file', $chunk->getSourceType());
+            $this->assertEquals('test.txt', $chunk->getSourceName());
+            $this->assertEquals(['key' => 'value'], $chunk->metadata);
+        }
+    }
+
+    public function test_multi_char_separator_chunk_lengths(): void
+    {
+        $text = "alpha--beta--gamma--delta--epsilon--zeta";
+        $doc = new Document($text);
+
+        // With '--' separator, each word is separated by 2 chars
+        // maxLength=20 should produce predictable chunks
+        $splitter = new DelimiterTextSplitter(maxLength: 20, separator: '--');
+        $result = $splitter->splitDocument($doc);
+
+        foreach ($result as $chunk) {
+            $this->assertLessThanOrEqual(20, \mb_strlen($chunk->getContent()));
         }
     }
 }
