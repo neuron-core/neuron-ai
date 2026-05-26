@@ -43,6 +43,11 @@ class McpClient
         $this->initialize();
     }
 
+    public function __destruct()
+    {
+        $this->transport->disconnect();
+    }
+
     /**
      * @throws McpException
      */
