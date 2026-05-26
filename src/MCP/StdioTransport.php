@@ -179,11 +179,6 @@ class StdioTransport implements McpTransportInterface
      */
     public function disconnect(): void
     {
-        // Automatically uses the destructor to disconnect, no need to call anything here
-    }
-
-    public function __destruct()
-    {
         if (is_resource($this->process)) {
             // Close all pipe handles
             foreach ($this->pipes as $pipe) {
@@ -207,5 +202,10 @@ class StdioTransport implements McpTransportInterface
             $this->process = null;
             $this->pipes = null;
         }
+    }
+
+    public function __destruct()
+    {
+        $this->disconnect();
     }
 }
