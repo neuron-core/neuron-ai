@@ -115,6 +115,10 @@ class McpConnectorTest extends TestCase
                 ],
             ]);
 
+        // Initialize transport so __destruct doesn't fail
+        $transportProperty = (new ReflectionClass(McpClient::class))->getProperty('transport');
+        $transportProperty->setValue($clientMock, new FakeMcpTransport());
+
         $clientProperty->setValue($connector, $clientMock);
 
         $result = $connector->invokeTool(
@@ -171,6 +175,10 @@ class McpConnectorTest extends TestCase
         $clientMock->expects($this->once())
             ->method('callTool')
             ->willReturn(['result' => []]);
+
+        // Initialize transport so __destruct doesn't fail
+        $transportProperty = (new ReflectionClass(McpClient::class))->getProperty('transport');
+        $transportProperty->setValue($clientMock, new FakeMcpTransport());
 
         $clientProperty->setValue($connector, $clientMock);
 
