@@ -238,4 +238,76 @@ class SentenceTextSplitterTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals('Only one sentence.', trim($result[0]->getContent()));
     }
+
+    public function test_min_words_merges_small_chunks(): void
+    {
+        $text = "One two three four five six. Seven eight. Nine ten eleven twelve thirteen.";
+        $doc = new Document($text);
+
+        // Without minWords: 3 chunks
+        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 0);
+        $result = $splitter->splitDocument($doc);
+        $this->assertCount(3, $result);
+
+        // With minWords: "Seven eight." (2 words) merged into first chunk
+        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 0, minWords: 3);
+        $result = $splitter->splitDocument($doc);
+        $this->assertCount(2, $result);
+        $this->assertEquals('One two three four five six. Seven eight.', $result[0]->getContent());
+        $this->assertEquals('Nine ten eleven twelve thirteen.', $result[1]->getContent());
+    }
+
+    public function test_min_words_equal_to_max_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 10, minWords: 10);
+    }
+
+    public function test_min_words_greater_than_max_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 10, minWords: 20);
+    }
+
+    public function test_zero_max_words_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 0);
+    }
+
+    public function test_negative_max_words_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: -1);
+    }
+
+    public function test_negative_overlap_words_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 10, overlapWords: -1);
+    }
+
+    public function test_negative_min_words_throws_exception(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new SentenceTextSplitter(maxWords: 10, minWords: -1);
+    }
+
+    public function test_metadata_is_propagated(): void
+    {
+        $text = "First sentence here. Second sentence here. Third sentence here.";
+        $doc = new Document($text);
+        $doc->sourceType = 'file';
+        $doc->sourceName = 'test.txt';
+        $doc->addMetadata('key', 'value');
+
+        $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 0);
+        $result = $splitter->splitDocument($doc);
+
+        foreach ($result as $chunk) {
+            $this->assertEquals('file', $chunk->getSourceType());
+            $this->assertEquals('test.txt', $chunk->getSourceName());
+            $this->assertEquals(['key' => 'value'], $chunk->metadata);
+        }
+    }
 }

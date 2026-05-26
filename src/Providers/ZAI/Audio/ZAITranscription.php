@@ -174,12 +174,12 @@ class ZAITranscription implements AIProviderInterface
         throw new ProviderException('Structured output is not supported for transcription.');
     }
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         throw new ProviderException('Messages are not supported for transcription.');
     }
 
-    public function toolPayloadMapper(): ToolMapperInterface
+    protected function toolPayloadMapper(): ToolMapperInterface
     {
         throw new ProviderException('Tools are not supported for transcription.');
     }

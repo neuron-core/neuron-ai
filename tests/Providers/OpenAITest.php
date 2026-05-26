@@ -501,6 +501,7 @@ class OpenAITest extends TestCase
 
         $generator = $provider->stream(new UserMessage('Hi'));
 
+        /** @var TextChunk[] $chunks */
         $chunks = [];
         foreach ($generator as $chunk) {
             $chunks[] = $chunk;
@@ -516,6 +517,10 @@ class OpenAITest extends TestCase
         }
 
         // Verify chunk contents
+        $this->assertInstanceOf(TextChunk::class, $chunks[0]);
+        $this->assertInstanceOf(TextChunk::class, $chunks[1]);
+        $this->assertInstanceOf(TextChunk::class, $chunks[2]);
+        $this->assertInstanceOf(TextChunk::class, $chunks[3]);
         $this->assertSame('', $chunks[0]->content);
         $this->assertSame('Hello', $chunks[1]->content);
         $this->assertSame(' there', $chunks[2]->content);

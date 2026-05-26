@@ -94,12 +94,12 @@ class Anthropic implements AIProviderInterface
         return $this;
     }
 
-    public function messageMapper(): MessageMapperInterface
+    protected function messageMapper(): MessageMapperInterface
     {
         return $this->messageMapper ?? $this->messageMapper = new MessageMapper();
     }
 
-    public function toolPayloadMapper(): ToolMapperInterface
+    protected function toolPayloadMapper(): ToolMapperInterface
     {
         return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
     }
@@ -108,7 +108,7 @@ class Anthropic implements AIProviderInterface
      * @param string|ContentBlockInterface[]|null $content
      * @throws ProviderException
      */
-    public function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
+    protected function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
         $tools = array_map(fn (array $tool): ToolInterface => $this->findTool($tool['name'])
             ->setInputs($tool['input'])
