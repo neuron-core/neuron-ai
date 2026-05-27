@@ -42,28 +42,23 @@ class GuzzleStream implements StreamInterface
 
     public function readLine(): string
     {
+        $line = '';
+
         while (true) {
-            $pos = strpos($this->buffer, "\n");
+            $chunk = $this->read(512);
+
+            if ($chunk === '') {
+                return $line;
+            }
+
+            $line .= $chunk;
+
+            $pos = strpos($line, "\n");
 
             if ($pos !== false) {
-                $line = substr($this->buffer, 0, $pos + 1);
-                $this->buffer = substr($this->buffer, $pos + 1);
-                return $line;
+                $this->buffer = substr($line, $pos + 1) . $this->buffer;
+                return substr($line, 0, $pos + 1);
             }
-
-            if ($this->stream->eof()) {
-                $line = $this->buffer;
-                $this->buffer = '';
-                return $line;
-            }
-
-            $chunk = $this->stream->read(10);
-            if ($chunk === '') {
-                $line = $this->buffer;
-                $this->buffer = '';
-                return $line;
-            }
-            $this->buffer .= $chunk;
         }
     }
 
