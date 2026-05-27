@@ -142,7 +142,12 @@ class McpClient
         ];
 
         $this->transport->send($request);
+        $response = $this->transport->receive();
 
-        return $this->transport->receive();
+        if ($response['id'] !== $this->requestId) {
+            throw new McpException('Invalid response ID');
+        }
+
+        return $response;
     }
 }
