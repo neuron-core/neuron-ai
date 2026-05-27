@@ -57,7 +57,7 @@ class GuzzleStream implements StreamInterface
                 return $line;
             }
 
-            $chunk = $this->stream->read(10);
+            $chunk = $this->stream->read(512);
             if ($chunk === '') {
                 $line = $this->buffer;
                 $this->buffer = '';
