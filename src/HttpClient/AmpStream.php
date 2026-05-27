@@ -66,34 +66,39 @@ class AmpStream implements StreamInterface
 
     public function readLine(): string
     {
-        $line = '';
+        while (true) {
+            $pos = strpos($this->buffer, "\n");
 
-        while (!$this->eof()) {
-            // Try to find newline in existing buffer first
-            if ($this->buffer !== '') {
-                $pos = strpos($this->buffer, "\n");
-
-                if ($pos !== false) {
-                    $line .= substr($this->buffer, 0, $pos + 1);
-                    $this->buffer = substr($this->buffer, $pos + 1);
-                    return $line;
-                }
-
-                $line .= $this->buffer;
-                $this->buffer = '';
+            if ($pos !== false) {
+                $line = substr($this->buffer, 0, $pos + 1);
+                $this->buffer = substr($this->buffer, $pos + 1);
+                return $line;
             }
 
-            $chunk = $this->stream->read();
+            if ($this->eof) {
+                $line = $this->buffer;
+                $this->buffer = '';
+                return $line;
+            }
+
+            try {
+                $chunk = $this->stream->read();
+            } catch (StreamException) {
+                $this->eof = true;
+                $line = $this->buffer;
+                $this->buffer = '';
+                return $line;
+            }
 
             if ($chunk === null) {
                 $this->eof = true;
-                break;
+                $line = $this->buffer;
+                $this->buffer = '';
+                return $line;
             }
 
-            $this->buffer = $chunk;
+            $this->buffer .= $chunk;
         }
-
-        return $line;
     }
 
     public function close(): void
