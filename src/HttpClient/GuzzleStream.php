@@ -6,14 +6,15 @@ namespace NeuronAI\HttpClient;
 
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
 
-/**
- * Adapter for Guzzle's PSR-7 StreamInterface.
- *
- * Wraps Guzzle's stream to provide a framework-agnostic interface
- * for reading streaming HTTP responses.
- */
+use function max;
+use function strlen;
+use function strpos;
+use function substr;
+
 class GuzzleStream implements StreamInterface
 {
+    private string $buffer = '';
+
     public function __construct(
         private readonly PsrStreamInterface $stream
     ) {
@@ -21,33 +22,61 @@ class GuzzleStream implements StreamInterface
 
     public function eof(): bool
     {
-        return $this->stream->eof();
+        return $this->stream->eof() && $this->buffer === '';
     }
 
     public function read(int $length): string
     {
-        return $this->stream->read($length);
+        if ($this->buffer !== '') {
+            $result = substr($this->buffer, 0, $length);
+            $this->buffer = substr($this->buffer, $length);
+            return $result;
+        }
+
+        if ($this->stream->eof()) {
+            return '';
+        }
+
+        $chunk = $this->stream->read(max($length, 8192));
+
+        if (strlen($chunk) <= $length) {
+            return $chunk;
+        }
+
+        $result = substr($chunk, 0, $length);
+        $this->buffer = substr($chunk, $length);
+
+        return $result;
     }
 
     public function readLine(): string
     {
-        $buffer = '';
+        $line = '';
 
-        while (!$this->stream->eof()) {
-            if ('' === ($byte = $this->stream->read(1))) {
-                return $buffer;
-            }
-            $buffer .= $byte;
-            if ($byte === "\n") {
+        while (!$this->eof()) {
+            $chunk = $this->read(8192);
+
+            if ($chunk === '') {
                 break;
             }
+
+            $pos = strpos($chunk, "\n");
+
+            if ($pos !== false) {
+                $line .= substr($chunk, 0, $pos + 1);
+                $this->buffer = substr($chunk, $pos + 1) . $this->buffer;
+                break;
+            }
+
+            $line .= $chunk;
         }
 
-        return $buffer;
+        return $line;
     }
 
     public function close(): void
     {
         $this->stream->close();
+        $this->buffer = '';
     }
 }

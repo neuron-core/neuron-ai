@@ -34,6 +34,8 @@ use function strrpos;
 use function substr;
 use function trim;
 use function usleep;
+use function strlen;
+use function strpbrk;
 
 use const FILTER_VALIDATE_URL;
 use const JSON_THROW_ON_ERROR;
@@ -46,6 +48,8 @@ use const JSON_THROW_ON_ERROR;
  */
 class SseHttpTransport implements McpTransportInterface
 {
+    protected const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+
     protected readonly Client $httpClient;
     protected ?string $sessionId = null;
     protected ?string $postEndpointUrl = null;
@@ -172,6 +176,10 @@ class SseHttpTransport implements McpTransportInterface
 
             if ($data !== false && $data !== '') {
                 $this->sseBuffer .= $data;
+
+                if (strlen($this->sseBuffer) > self::MAX_BUFFER_SIZE) {
+                    throw new McpException('SSE buffer exceeded maximum size');
+                }
 
                 // Process complete SSE events (delimited by \n\n)
                 while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
@@ -310,6 +318,10 @@ class SseHttpTransport implements McpTransportInterface
             } elseif ($data !== '') {
                 $this->sseBuffer .= $data;
 
+                if (strlen($this->sseBuffer) > self::MAX_BUFFER_SIZE) {
+                    throw new McpException('SSE buffer exceeded maximum size');
+                }
+
                 // Process complete SSE events
                 while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
                     $eventBlock = substr($this->sseBuffer, 0, $pos);
@@ -398,6 +410,9 @@ class SseHttpTransport implements McpTransportInterface
     {
         $headerLines = [];
         foreach ($headers as $key => $value) {
+            if (strpbrk((string) $key, "\r\n") !== false || strpbrk((string) $value, "\r\n") !== false) {
+                throw new McpException('Header values must not contain line breaks');
+            }
             $headerLines[] = "$key: $value";
         }
         return implode("\r\n", $headerLines) . "\r\n";
@@ -408,8 +423,23 @@ class SseHttpTransport implements McpTransportInterface
      */
     protected function resolveEndpointUrl(string $base, string $relative): string
     {
-        // If relative is absolute URL, return it
+        // If relative is absolute URL, validate it points to the same host
         if (str_contains($relative, '://') || str_starts_with($relative, '//')) {
+            $normalized = str_starts_with($relative, '//') ? 'https:' . $relative : $relative;
+            $relativeParts = parse_url($normalized);
+            $baseParts = parse_url($base);
+
+            if ($relativeParts === false || $baseParts === false) {
+                throw new McpException('Invalid endpoint URL');
+            }
+
+            if (($relativeParts['scheme'] ?? 'https') !== ($baseParts['scheme'] ?? 'https')
+                || ($relativeParts['host'] ?? '') !== ($baseParts['host'] ?? '')
+                || ($relativeParts['port'] ?? null) !== ($baseParts['port'] ?? null)
+            ) {
+                throw new McpException('Endpoint URL must point to the same host as the MCP server');
+            }
+
             return $relative;
         }
 

@@ -9,6 +9,7 @@ use Amp\ByteStream\StreamException;
 
 use function strlen;
 use function substr;
+use function strpos;
 
 /**
  * Adapter for Amp's ReadableStream.
@@ -67,22 +68,29 @@ class AmpStream implements StreamInterface
     {
         $line = '';
 
-        try {
-            while (!$this->eof()) {
-                $byte = $this->read(1);
+        while (!$this->eof()) {
+            // Try to find newline in existing buffer first
+            if ($this->buffer !== '') {
+                $pos = strpos($this->buffer, "\n");
 
-                if ($byte === '') {
+                if ($pos !== false) {
+                    $line .= substr($this->buffer, 0, $pos + 1);
+                    $this->buffer = substr($this->buffer, $pos + 1);
                     return $line;
                 }
 
-                $line .= $byte;
-
-                if ($byte === "\n") {
-                    break;
-                }
+                $line .= $this->buffer;
+                $this->buffer = '';
             }
-        } catch (StreamException) {
-            $this->eof = true;
+
+            $chunk = $this->stream->read();
+
+            if ($chunk === null) {
+                $this->eof = true;
+                break;
+            }
+
+            $this->buffer = $chunk;
         }
 
         return $line;
