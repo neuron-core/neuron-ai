@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\HttpClient;
 
+use InvalidArgumentException;
+
+use function strpbrk;
+
 class HttpRequest
 {
     /**
@@ -16,6 +20,9 @@ class HttpRequest
         public array $headers = [],
         public array|string|null $body = null,
     ) {
+        if (strpbrk($this->uri, "\r\n") !== false) {
+            throw new InvalidArgumentException('URI must not contain line breaks');
+        }
     }
 
     /**
