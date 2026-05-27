@@ -107,7 +107,9 @@ class GuzzleHttpClient implements HttpClientInterface
             $config['handler'] = $this->handler;
         }
 
-        return new Client($config);
+        $this->client = new Client($config);
+
+        return $this->client;
     }
 
     /**
