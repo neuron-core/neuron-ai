@@ -6,11 +6,15 @@ namespace NeuronAI\HttpClient;
 
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
 
-use function max;
-use function strlen;
 use function strpos;
 use function substr;
 
+/**
+ * Adapter for Guzzle's PSR-7 StreamInterface.
+ *
+ * Wraps Guzzle's stream to provide a framework-agnostic interface
+ * for reading streaming HTTP responses.
+ */
 class GuzzleStream implements StreamInterface
 {
     private string $buffer = '';
@@ -22,7 +26,7 @@ class GuzzleStream implements StreamInterface
 
     public function eof(): bool
     {
-        return $this->stream->eof() && $this->buffer === '';
+        return $this->buffer === '' && $this->stream->eof();
     }
 
     public function read(int $length): string
@@ -33,50 +37,39 @@ class GuzzleStream implements StreamInterface
             return $result;
         }
 
-        if ($this->stream->eof()) {
-            return '';
-        }
-
-        $chunk = $this->stream->read(max($length, 8192));
-
-        if (strlen($chunk) <= $length) {
-            return $chunk;
-        }
-
-        $result = substr($chunk, 0, $length);
-        $this->buffer = substr($chunk, $length);
-
-        return $result;
+        return $this->stream->read($length);
     }
 
     public function readLine(): string
     {
-        $line = '';
-
-        while (!$this->eof()) {
-            $chunk = $this->read(8192);
-
-            if ($chunk === '') {
-                break;
-            }
-
-            $pos = strpos($chunk, "\n");
+        while (true) {
+            $pos = strpos($this->buffer, "\n");
 
             if ($pos !== false) {
-                $line .= substr($chunk, 0, $pos + 1);
-                $this->buffer = substr($chunk, $pos + 1) . $this->buffer;
-                break;
+                $line = substr($this->buffer, 0, $pos + 1);
+                $this->buffer = substr($this->buffer, $pos + 1);
+                return $line;
             }
 
-            $line .= $chunk;
-        }
+            if ($this->stream->eof()) {
+                $line = $this->buffer;
+                $this->buffer = '';
+                return $line;
+            }
 
-        return $line;
+            $chunk = $this->stream->read(512);
+            if ($chunk === '') {
+                $line = $this->buffer;
+                $this->buffer = '';
+                return $line;
+            }
+            $this->buffer .= $chunk;
+        }
     }
 
     public function close(): void
     {
-        $this->stream->close();
         $this->buffer = '';
+        $this->stream->close();
     }
 }
