@@ -48,7 +48,7 @@ use const JSON_THROW_ON_ERROR;
  */
 class SseHttpTransport implements McpTransportInterface
 {
-    protected const int MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+    protected const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
 
     protected readonly Client $httpClient;
     protected ?string $sessionId = null;
