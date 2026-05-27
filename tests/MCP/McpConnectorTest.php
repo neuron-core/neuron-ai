@@ -263,7 +263,7 @@ class McpConnectorTest extends TestCase
             extraResponses: [
                 [
                 'jsonrpc' => '2.0',
-                'id' => 3,
+                'id' => 2,
                 'result' => [
                     'content' => [
                         ['type' => 'text', 'text' => 'The result is 42'],

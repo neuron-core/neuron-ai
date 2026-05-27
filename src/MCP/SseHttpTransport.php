@@ -332,7 +332,7 @@ class SseHttpTransport implements McpTransportInterface
                     // Only process 'message' events for JSON-RPC responses
                     if ($parsed['event'] === 'message' && $parsed['data'] !== '') {
                         try {
-                            $message = json_decode($parsed['data'], true, 512, JSON_THROW_ON_ERROR);
+                            $message = json_decode($parsed['data'], true, 64, JSON_THROW_ON_ERROR);
 
                             // Check if it's a valid JSON-RPC message with an ID (response)
                             if (isset($message['jsonrpc']) && $message['jsonrpc'] === '2.0') {
