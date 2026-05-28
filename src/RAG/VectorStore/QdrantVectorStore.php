@@ -95,7 +95,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
-                HttpRequest::put(uri: 'points', body: ['points' => $chunk])
+                HttpRequest::put(uri: 'points?wait=true', body: ['points' => $chunk])
             );
         }
 
@@ -132,9 +132,8 @@ class QdrantVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'points/delete',
+                uri: 'points/delete?wait=true',
                 body: [
-                    'wait' => true,
                     'filter' => ['must' => $must],
                 ]
             )
