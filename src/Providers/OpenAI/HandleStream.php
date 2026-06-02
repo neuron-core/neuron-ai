@@ -142,7 +142,7 @@ trait HandleStream
      */
     protected function processToolCallDelta(array $choice): Generator
     {
-        yield;
+        yield from [];
     }
 
     /**

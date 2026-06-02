@@ -31,7 +31,7 @@ class HttpException extends Exception
     {
         $message = $previous->getMessage();
 
-        if ($previous instanceof RequestException) {
+        if ($previous instanceof RequestException && $previous->getResponse() instanceof \Psr\Http\Message\ResponseInterface) {
             $message = (string) $previous->getResponse()->getBody();
         }
 

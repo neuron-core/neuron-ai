@@ -12,6 +12,8 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
+use function str_contains;
+
 class TodoPlanning implements WorkflowMiddleware
 {
     protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
@@ -50,8 +52,10 @@ class TodoPlanning implements WorkflowMiddleware
             return;
         }
 
-        // Inject to-do planning instructions
-        $event->instructions .= "\n\n" . $this->systemPrompt;
+        // Inject to-do planning instructions (only on first turn)
+        if (!str_contains($event->instructions, 'write_todos')) {
+            $event->instructions .= "\n\n" . $this->systemPrompt;
+        }
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
         if (!$this->hasWriteTodosTool($event->tools)) {

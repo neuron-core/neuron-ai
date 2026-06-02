@@ -54,7 +54,7 @@ class AmpHttpClient implements HttpClientInterface
      */
     protected function executeMultipart(HttpRequest $request): Response
     {
-        $client = $this->client ?? HttpClientBuilder::buildDefault();
+        $client = $this->getClient();
 
         $uri = $this->baseUri !== '' && $this->baseUri !== '0'
             ? trim($this->baseUri, '/') . '/' . trim($request->uri, '/')
@@ -96,6 +96,9 @@ class AmpHttpClient implements HttpClientInterface
 
         $ampRequest->setBody($form);
 
+        $ampRequest->setTransferTimeout($this->timeout);
+        $ampRequest->setInactivityTimeout($this->timeout);
+
         return $client->request($ampRequest);
     }
 
@@ -128,6 +131,11 @@ class AmpHttpClient implements HttpClientInterface
         return $this;
     }
 
+    protected function getClient(): HttpClient
+    {
+        return $this->client ??= HttpClientBuilder::buildDefault();
+    }
+
     /**
      * @throws \Amp\Http\Client\HttpException
      */
@@ -138,7 +146,7 @@ class AmpHttpClient implements HttpClientInterface
             return $this->executeMultipart($request);
         }
 
-        $client = $this->client ?? HttpClientBuilder::buildDefault();
+        $client = $this->getClient();
 
         $uri = $this->baseUri !== ''
             ? trim($this->baseUri, '/') . ($request->uri !== '' ? '/'.trim($request->uri, '/') : '')

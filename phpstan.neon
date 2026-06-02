@@ -21,9 +21,6 @@ parameters:
 
     treatPhpDocTypesAsCertain: false
 
-    ignoreErrors:
-        - identifier: generator.valueType
-
     excludePaths:
 
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'

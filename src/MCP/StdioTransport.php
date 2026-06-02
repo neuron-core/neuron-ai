@@ -19,14 +19,15 @@ use function proc_close;
 use function proc_get_status;
 use function proc_open;
 use function proc_terminate;
-use function register_shutdown_function;
 use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
 use function mb_strlen;
-use function time;
+use function microtime;
 use function usleep;
+
+use const JSON_THROW_ON_ERROR;
 
 class StdioTransport implements McpTransportInterface
 {
@@ -54,10 +55,6 @@ class StdioTransport implements McpTransportInterface
      */
     public function connect(): void
     {
-        register_shutdown_function(function (): void {
-            $this->disconnect();
-        });
-
         $descriptorSpec = [
             0 => ["pipe", "r"],  // stdin
             1 => ["pipe", "w"],  // stdout
@@ -148,11 +145,11 @@ class StdioTransport implements McpTransportInterface
         stream_set_blocking($this->pipes[1], false);
 
         $response = "";
-        $startTime = time();
-        $timeout = 30; // 30-second timeout
+        $startTime = microtime(true);
+        $timeout = 30.0; // 30-second timeout
 
         // Keep reading until we get a complete JSON response or timeout
-        while (time() - $startTime < $timeout) {
+        while (microtime(true) - $startTime < $timeout) {
             $status = proc_get_status($this->process);
 
             if (!$status['running']) {
@@ -164,7 +161,7 @@ class StdioTransport implements McpTransportInterface
                 $response .= $chunk;
 
                 // Try to parse what we have so far
-                $decoded = json_decode($response, true);
+                $decoded = json_decode($response, true, 64, JSON_THROW_ON_ERROR);
                 if ($decoded !== null) {
                     // We've got a valid JSON response
                     return $decoded;
@@ -204,6 +201,12 @@ class StdioTransport implements McpTransportInterface
             // Close the process handle
             proc_close($this->process);
             $this->process = null;
+            $this->pipes = null;
         }
+    }
+
+    public function __destruct()
+    {
+        $this->disconnect();
     }
 }

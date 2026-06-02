@@ -18,12 +18,16 @@ use function in_array;
 trait HandleStructured
 {
     /**
-     * Structured output with tools is available only for the Gemini 3 series models.
-     * https://ai.google.dev/gemini-api/docs/structured-output?example=recipe#structured_outputs_with_tools
+     * Models that do not support structured output in combination with tools.
      */
-    protected array $supportedModels = [
-        'gemini-3-pro-preview',
-        'gemini-3-flash-preview',
+    protected array $unsupportedModels = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite-preview',
+        'gemini-2.0-pro-preview',
+        'gemini-2.0-flash-thinking-preview',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-1.0-pro',
     ];
 
     /**
@@ -45,7 +49,7 @@ trait HandleStructured
 
         // Gemini does not support structured output in combination with tools.
         // So we try to work with a JSON mode in case the agent has some tools defined.
-        if (!empty($this->tools) && !in_array($this->model, $this->supportedModels)) {
+        if (!empty($this->tools) && in_array($this->model, $this->unsupportedModels)) {
             $last_message = end($messages);
             if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
                 $last_message->setContents(
