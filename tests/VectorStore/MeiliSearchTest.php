@@ -29,8 +29,23 @@ class MeiliSearchTest extends TestCase
         }
 
         // Clean up stale data from previous runs
+        // MeiliSearch delete is async — we must wait for the task to complete
+        // before proceeding, otherwise the index may be auto-recreated without
+        // embedder settings when documents are added.
         $client = new Client();
-        $client->delete('http://localhost:7700/indexes/neuron');
+        $response = $client->delete('http://localhost:7700/indexes/neuron');
+        $task = json_decode($response->getBody()->getContents(), true);
+
+        if (isset($task['taskUid'])) {
+            for ($i = 0; $i < 10; $i++) {
+                sleep(1);
+                $taskResponse = $client->get('http://localhost:7700/tasks/' . $task['taskUid']);
+                $taskStatus = json_decode($taskResponse->getBody()->getContents(), true);
+                if (in_array($taskStatus['status'] ?? '', ['succeeded', 'failed'], true)) {
+                    break;
+                }
+            }
+        }
 
         // embedding "Hello World!"
         $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
