@@ -17,7 +17,7 @@ use function in_array;
 use function is_null;
 use function min;
 use function range;
-use function sleep;
+use function usleep;
 use function uniqid;
 use function array_chunk;
 
@@ -172,21 +172,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
             )
         )->json();
 
-        foreach (range(1, 10) as $i) {
-            try {
-                $task = $this->httpClient->request(
-                    HttpRequest::get('tasks/'.$response['taskUid'])
-                )->json();
-                if ($task['status'] === 'succeeded') {
-                    break;
-                }
-                sleep(1);
-            } catch (Exception) {
-                sleep(1);
-            }
-        }
+        $this->waitForTask($response['taskUid']);
 
-        $this->httpClient->request(
+        $response = $this->httpClient->request(
             HttpRequest::patch(
                 uri: "indexes/{$this->indexUid}/settings/embedders",
                 body: [
@@ -197,7 +185,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
                     ],
                 ]
             )
-        );
+        )->json();
+
+        $this->waitForTask($response['taskUid']);
 
         $this->httpClient->request(
             HttpRequest::put(
@@ -205,5 +195,22 @@ class MeilisearchVectorStore implements VectorStoreInterface
                 body: ['sourceType', 'sourceName']
             )
         );
+    }
+
+    protected function waitForTask(int $taskUid): void
+    {
+        foreach (range(1, 10) as $i) {
+            try {
+                $task = $this->httpClient->request(
+                    HttpRequest::get('tasks/' . $taskUid)
+                )->json();
+                if ($task['status'] === 'succeeded') {
+                    return;
+                }
+                usleep(500*1000);
+            } catch (Exception) {
+                usleep(500*1000);
+            }
+        }
     }
 }
