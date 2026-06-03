@@ -452,4 +452,25 @@ All security vulnerabilities will be promptly addressed.
 
 **[Go to the official documentation](https://neuron.inspector.dev/)**
 
+## Development
 
+To run the full test suite locally, use Docker Compose to spin up all the services required by the CI environment:
+
+```bash
+# Start all services
+docker compose up -d
+```
+
+Run the test suite:
+
+```bash
+# Install dependencies and run tests
+docker compose run --rm php composer update --prefer-stable
+docker compose run --rm php vendor/bin/phpunit
+```
+
+To stop all services:
+
+```bash
+docker compose down
+```

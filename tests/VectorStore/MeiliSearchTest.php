@@ -10,6 +10,8 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use GuzzleHttp\Client;
+
 use function file_get_contents;
 use function json_decode;
 use function sleep;
@@ -25,6 +27,10 @@ class MeiliSearchTest extends TestCase
         if (!$this->isPortOpen('127.0.0.1', 7700)) {
             $this->markTestSkipped('Port 7700 is not open. Skipping test.');
         }
+
+        // Clean up stale data from previous runs
+        $client = new Client();
+        $client->delete('http://localhost:7700/indexes/neuron');
 
         // embedding "Hello World!"
         $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
@@ -59,6 +65,14 @@ class MeiliSearchTest extends TestCase
     public function test_meilisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
+
+        $document = new Document('Hello World!');
+        $document->embedding = $this->embedding;
+        $store->addDocument($document);
+
+        // Wait for Meilisearch to index the document
+        sleep(5);
+
         $store->deleteBySource('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
