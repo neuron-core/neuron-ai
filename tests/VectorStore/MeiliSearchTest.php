@@ -10,6 +10,8 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use GuzzleHttp\Client;
+
 use function file_get_contents;
 use function json_decode;
 use function sleep;
@@ -24,6 +26,25 @@ class MeiliSearchTest extends TestCase
     {
         if (!$this->isPortOpen('127.0.0.1', 7700)) {
             $this->markTestSkipped('Port 7700 is not open. Skipping test.');
+        }
+
+        // Clean up stale data from previous runs
+        // MeiliSearch delete is async — we must wait for the task to complete
+        // before proceeding, otherwise the index may be auto-recreated without
+        // embedder settings when documents are added.
+        $client = new Client();
+        $response = $client->delete('http://localhost:7700/indexes/neuron');
+        $task = json_decode($response->getBody()->getContents(), true);
+
+        if (isset($task['taskUid'])) {
+            for ($i = 0; $i < 10; $i++) {
+                sleep(1);
+                $taskResponse = $client->get('http://localhost:7700/tasks/' . $task['taskUid']);
+                $taskStatus = json_decode($taskResponse->getBody()->getContents(), true);
+                if (in_array($taskStatus['status'] ?? '', ['succeeded', 'failed'], true)) {
+                    break;
+                }
+            }
         }
 
         // embedding "Hello World!"
@@ -59,7 +80,15 @@ class MeiliSearchTest extends TestCase
     public function test_meilisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
-        $store->deleteBy('manual', 'manual');
+
+        $document = new Document('Hello World!');
+        $document->embedding = $this->embedding;
+        $store->addDocument($document);
+
+        // Wait for Meilisearch to index the document
+        sleep(5);
+
+        $store->deleteBySource('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
         sleep(5);

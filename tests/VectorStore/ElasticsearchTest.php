@@ -31,6 +31,9 @@ class ElasticsearchTest extends TestCase
 
         $this->client = ClientBuilder::create()->build();
 
+        // Clean up stale data from previous runs
+        $this->client->indices()->delete(['index' => 'test', 'ignore_unavailable' => true]);
+
         // embedding "Hello World!"
         $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stubs/hello-world.embeddings'), true);
     }
@@ -60,7 +63,12 @@ class ElasticsearchTest extends TestCase
     public function test_elasticsearch_delete_documents(): void
     {
         $store = new ElasticsearchVectorStore($this->client, 'test');
-        $store->deleteBy('manual', 'manual');
+
+        $document = new Document('Hello World!');
+        $document->embedding = $this->embedding;
+        $store->addDocument($document);
+
+        $store->deleteBySource('manual', 'manual');
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);

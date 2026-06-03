@@ -75,100 +75,228 @@ class LogObserver implements ObserverInterface
             return ['data' => $data];
         }
 
+        return $this->serializeObject($data);
+    }
+
+    /**
+     * Override this method in child classes to add or change serialization behaviour.
+     */
+    protected function serializeObject(object $data): array
+    {
         return match ($data::class) {
-            AgentError::class => [
-                'error' => $data->exception->getMessage(),
-            ],
+            AgentError::class             => $this->serializeAgentError($data),
             Deserializing::class,
-            Deserialized::class => [
-                'class' => $data->class,
-            ],
-            Extracted::class => [
-                'message' => $data->message->jsonSerialize(),
-                'schema' => $data->schema,
-                'json' => $data->json,
-            ],
+            Deserialized::class           => $this->serializeDeserializing($data),
+            Extracted::class              => $this->serializeExtracted($data),
             Extracting::class,
             InferenceStart::class,
             MessageSaving::class,
-            MessageSaved::class => [
-                'message' => $data->message->jsonSerialize(),
-            ],
-            InferenceStop::class => [
-                'message' => $data->message->jsonSerialize(),
-            ],
-            InstructionsChanging::class => [
-                'instructions' => $data->instructions,
-            ],
-            InstructionsChanged::class => [
-                'previous' => $data->previous,
-                'current' => $data->current,
-            ],
+            MessageSaved::class           => $this->serializeWithMessage($data),
+            InferenceStop::class          => $this->serializeInferenceStop($data),
+            InstructionsChanging::class   => $this->serializeInstructionsChanging($data),
+            InstructionsChanged::class    => $this->serializeInstructionsChanged($data),
             ToolCalling::class,
-            ToolCalled::class => [
-                'tool' => $data->tool->jsonSerialize(),
-            ],
-            Validating::class => [
-                'class' => $data->class,
-                'json' => $data->class,
-            ],
-            Events\Validated::class => [
-                'class' => $data->class,
-                'json' => $data->class,
-                'violations' => $data->violations,
-            ],
-            SchemaGeneration::class => [
-                'class' => $data->class,
-            ],
-            SchemaGenerated::class => [
-                'class' => $data->class,
-                'schema' => $data->schema,
-            ],
-            PreProcessing::class => [
-                'processor' => $data->processor,
-                'original' => $data->original->jsonSerialize(),
-            ],
-            PreProcessed::class => [
-                'processor' => $data->processor,
-                'processed' => $data->processed->jsonSerialize(),
-            ],
-            PostProcessing::class => [
-                'processor' => $data->processor,
-                'question' => $data->question->jsonSerialize(),
-                'documents' => $data->documents,
-            ],
-            PostProcessed::class => [
-                'processor' => $data->processor,
-                'question' => $data->question->jsonSerialize(),
-                'documents' => $data->documents,
-            ],
-            Retrieving::class => [
-                'question' => $data->question->jsonSerialize(),
-            ],
-            Retrieved::class => [
-                'question' => $data->question->jsonSerialize(),
-                'documents' => $data->documents,
-            ],
-            WorkflowNodeStart::class => [
-                'node' => $data->node,
-            ],
-            WorkflowNodeEnd::class => [
-                'node' => $data->node,
-            ],
-            MiddlewareStart::class => [
-                'class' => $data->middleware::class,
-                'node-event' => $data->event::class,
-            ],
-            MiddlewareEnd::class => [
-                'class' => $data->middleware::class,
-            ],
-            WorkflowStart::class => array_map(fn (string $eventClass, NodeInterface $node): array => [
-                $eventClass => $node::class,
-            ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)),
-            WorkflowEnd::class => [
-                'state' => $data->state->all(),
-            ],
-            default => [],
+            ToolCalled::class             => $this->serializeWithTool($data),
+            Validating::class             => $this->serializeValidating($data),
+            Events\Validated::class       => $this->serializeValidated($data),
+            SchemaGeneration::class       => $this->serializeSchemaGeneration($data),
+            SchemaGenerated::class        => $this->serializeSchemaGenerated($data),
+            PreProcessing::class          => $this->serializePreProcessing($data),
+            PreProcessed::class           => $this->serializePreProcessed($data),
+            PostProcessing::class         => $this->serializePostProcessing($data),
+            PostProcessed::class          => $this->serializePostProcessed($data),
+            Retrieving::class             => $this->serializeRetrieving($data),
+            Retrieved::class              => $this->serializeRetrieved($data),
+            WorkflowNodeStart::class,
+            WorkflowNodeEnd::class        => $this->serializeWorkflowNode($data),
+            MiddlewareStart::class        => $this->serializeMiddlewareStart($data),
+            MiddlewareEnd::class          => $this->serializeMiddlewareEnd($data),
+            WorkflowStart::class          => $this->serializeWorkflowStart($data),
+            WorkflowEnd::class            => $this->serializeWorkflowEnd($data),
+            default                       => [],
         };
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeAgentError(AgentError $data): array
+    {
+        return ['error' => $data->exception->getMessage()];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeDeserializing(Deserializing|Deserialized $data): array
+    {
+        return ['class' => $data->class];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeExtracted(Extracted $data): array
+    {
+        return [
+            'message' => $data->message->jsonSerialize(),
+            'schema'  => $data->schema,
+            'json'    => $data->json,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeWithMessage(
+        Extracting|InferenceStart|MessageSaving|MessageSaved $data
+    ): array {
+        return ['message' => $data->message->jsonSerialize()];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeInferenceStop(InferenceStop $data): array
+    {
+        return [
+            'message'  => $data->message->jsonSerialize(),
+            'response' => $data->response->jsonSerialize(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeInstructionsChanging(InstructionsChanging $data): array
+    {
+        return ['instructions' => $data->instructions];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeInstructionsChanged(InstructionsChanged $data): array
+    {
+        return [
+            'previous' => $data->previous,
+            'current'  => $data->current,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeWithTool(ToolCalling|ToolCalled $data): array
+    {
+        return ['tool' => $data->tool->jsonSerialize()];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeValidating(Validating $data): array
+    {
+        return [
+            'class' => $data->class,
+            'json'  => $data->json,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeValidated(Events\Validated $data): array
+    {
+        return [
+            'class'      => $data->class,
+            'json'       => $data->json,
+            'violations' => $data->violations,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeSchemaGeneration(SchemaGeneration $data): array
+    {
+        return ['class' => $data->class];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeSchemaGenerated(SchemaGenerated $data): array
+    {
+        return [
+            'class'  => $data->class,
+            'schema' => $data->schema,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializePreProcessing(PreProcessing $data): array
+    {
+        return [
+            'processor' => $data->processor,
+            'original'  => $data->original->jsonSerialize(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializePreProcessed(PreProcessed $data): array
+    {
+        return [
+            'processor' => $data->processor,
+            'processed' => $data->processed->jsonSerialize(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializePostProcessing(PostProcessing $data): array
+    {
+        return [
+            'processor' => $data->processor,
+            'question'  => $data->question->jsonSerialize(),
+            'documents' => $data->documents,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializePostProcessed(PostProcessed $data): array
+    {
+        return [
+            'processor' => $data->processor,
+            'question'  => $data->question->jsonSerialize(),
+            'documents' => $data->documents,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeRetrieving(Retrieving $data): array
+    {
+        return ['question' => $data->question->jsonSerialize()];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeRetrieved(Retrieved $data): array
+    {
+        return [
+            'question'  => $data->question->jsonSerialize(),
+            'documents' => $data->documents,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeWorkflowNode(WorkflowNodeStart|WorkflowNodeEnd $data): array
+    {
+        return ['node' => $data->node];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeMiddlewareStart(MiddlewareStart $data): array
+    {
+        return [
+            'class'      => $data->middleware::class,
+            'node-event' => $data->event::class,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeMiddlewareEnd(MiddlewareEnd $data): array
+    {
+        return ['class' => $data->middleware::class];
+    }
+
+    /** @return list<array<string, class-string<\NeuronAI\Workflow\NodeInterface>>> */
+    protected function serializeWorkflowStart(WorkflowStart $data): array
+    {
+        return array_map(
+            fn (string $eventClass, NodeInterface $node): array => [$eventClass => $node::class],
+            array_keys($data->eventNodeMap),
+            array_values($data->eventNodeMap),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeWorkflowEnd(WorkflowEnd $data): array
+    {
+        return ['state' => $data->state->all()];
     }
 }
