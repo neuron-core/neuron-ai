@@ -53,6 +53,10 @@ class WriteFileToolTest extends TestCase
 
     public function testReturnsErrorForNonWritableLocation(): void
     {
+        if (function_exists('posix_getuid') && posix_getuid() === 0) {
+            $this->markTestSkipped('Cannot test non-writable locations when running as root.');
+        }
+
         $tool = new WriteFileTool();
         $result = ($tool)('/root/cannot_write_here.txt', 'content');
 

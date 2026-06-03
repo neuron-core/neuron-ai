@@ -167,5 +167,3 @@ jobs:
 
             - name: Unit Tests
               run: vendor/bin/phpunit --colors=always
-              env:
-                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
