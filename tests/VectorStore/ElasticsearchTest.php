@@ -68,7 +68,7 @@ class ElasticsearchTest extends TestCase
         $document->embedding = $this->embedding;
         $store->addDocument($document);
 
-        $store->deleteBySource('manual', 'manual');
+        $store->deleteBy('manual', 'manual');
 
         $results = $store->similaritySearch($this->embedding);
         $this->assertCount(0, $results);

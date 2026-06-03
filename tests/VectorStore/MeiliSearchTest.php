@@ -9,12 +9,12 @@ use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
-
 use GuzzleHttp\Client;
 
 use function file_get_contents;
 use function json_decode;
 use function sleep;
+use function in_array;
 
 class MeiliSearchTest extends TestCase
 {

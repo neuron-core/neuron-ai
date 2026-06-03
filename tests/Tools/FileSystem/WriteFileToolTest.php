@@ -13,6 +13,8 @@ use function file_put_contents;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function function_exists;
+use function posix_getuid;
 
 class WriteFileToolTest extends TestCase
 {

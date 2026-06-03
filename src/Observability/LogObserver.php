@@ -151,7 +151,7 @@ class LogObserver implements ObserverInterface
     {
         return [
             'message'  => $data->message->jsonSerialize(),
-            'response' => $data->response->jsonSerialize(),
+            'response' => $data->response->message()->jsonSerialize(),
         ];
     }
 
