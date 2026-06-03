@@ -207,9 +207,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
                 if ($task['status'] === 'succeeded') {
                     return;
                 }
-                usleep(500*1000);
+                usleep(500 * 1000);
             } catch (Exception) {
-                usleep(500*1000);
+                usleep(500 * 1000);
             }
         }
     }
