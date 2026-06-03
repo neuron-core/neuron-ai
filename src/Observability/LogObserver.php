@@ -80,8 +80,6 @@ class LogObserver implements ObserverInterface
 
     /**
      * Override this method in child classes to add or change serialization behaviour.
-     *
-     * @return array<string, mixed>
      */
     protected function serializeObject(object $data): array
     {
