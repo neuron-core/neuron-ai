@@ -17,3 +17,6 @@ tests export-ignore
 tests/** export-ignore
 **/AGENTS.md export-ignore
 CLAUDE.md export-ignore
+docker-compose.yml export-ignore
+Dockerfile export-ignore
+.env.example export-ignore
