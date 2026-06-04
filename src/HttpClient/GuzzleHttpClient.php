@@ -6,6 +6,7 @@ namespace NeuronAI\HttpClient;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
@@ -53,7 +54,7 @@ class GuzzleHttpClient implements HttpClientInterface
                 headers: $response->getHeaders(),
             );
         } catch (GuzzleException $e) {
-            throw HttpException::networkError($request, $e);
+            $this->handleException($request, $e);
         }
     }
 
@@ -73,7 +74,7 @@ class GuzzleHttpClient implements HttpClientInterface
 
             return new GuzzleStream($response->getBody());
         } catch (GuzzleException $e) {
-            throw HttpException::networkError($request, $e);
+            $this->handleException($request, $e);
         }
     }
 
@@ -196,5 +197,23 @@ class GuzzleHttpClient implements HttpClientInterface
             : $request->uri;
 
         return $client->request($request->method->value, $uri, $options);
+    }
+
+    /**
+     * @throws HttpException
+     */
+    protected function handleException(HttpRequest $request, GuzzleException $e): never
+    {
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            $response = new HttpResponse(
+                statusCode: $e->getResponse()->getStatusCode(),
+                body: (string) $e->getResponse()->getBody(),
+                headers: $e->getResponse()->getHeaders(),
+            );
+
+            throw HttpException::httpError($request, $response);
+        }
+
+        throw HttpException::networkError($request, $e);
     }
 }
