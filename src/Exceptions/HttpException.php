@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Exceptions;
 
-use Exception;
 use GuzzleHttp\Exception\RequestException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
@@ -13,7 +12,7 @@ use Throwable;
 /**
  * Exception thrown when HTTP request fails.
  */
-class HttpException extends Exception
+class HttpException extends NeuronException
 {
     public function __construct(
         string $message,
