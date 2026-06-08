@@ -294,4 +294,69 @@ class DeserializerTest extends TestCase
 
         Deserializer::make()->fromJson($json, $class::class);
     }
+
+    public function test_deserialize_with_union_types_returns_default(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Current value", required: true)]
+            public int|float|null $currentValue = null;
+        };
+
+        $json = '{}';
+
+        $obj = Deserializer::make()->fromJson($json, $class::class);
+
+        $this->assertEquals(null, $obj->currentValue);
+    }
+
+    public function test_deserialize_with_union_types_returns_type_1(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Current value", required: true)]
+            public int|float|null $currentValue = null;
+        };
+
+        $json = '{"currentValue": 42}';
+
+        $obj = Deserializer::make()->fromJson($json, $class::class);
+
+        $this->assertEquals(42, $obj->currentValue);
+        $this->assertIsInt($obj->currentValue);
+    }
+
+    public function test_deserialize_with_union_types_returns_type_2(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Current value", required: true)]
+            public int|float|null $currentValue = null;
+        };
+
+        $json = '{"currentValue": 42.69}';
+
+        $obj = Deserializer::make()->fromJson($json, $class::class);
+
+        $this->assertEquals(42.69, $obj->currentValue);
+        $this->assertIsFloat($obj->currentValue);
+    }
+
+    public function test_deserialize_with_union_types_returns_type_1_with_incorrect_data(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(description: "Current value", required: true)]
+            public int|float|null $currentValue = null;
+        };
+
+        $json = '{"currentValue": "1"}';
+
+        $obj = Deserializer::make()->fromJson($json, $class::class);
+
+        $this->assertEquals(1, $obj->currentValue);
+        $this->assertIsInt($obj->currentValue);
+
+        $json = '{"currentValue": "wow"}';
+
+        $obj = Deserializer::make()->fromJson($json, $class::class);
+
+        $this->assertIsInt($obj->currentValue);
+    }
 }
