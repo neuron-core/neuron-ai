@@ -22,7 +22,7 @@ jobs:
                 image: chromadb/chroma:latest
                 ports:
                     - 8000:8000
-            mailisearch:
+            meilisearch:
                 image: getmeili/meilisearch:latest
                 ports:
                     - 7700:7700
@@ -167,5 +167,3 @@ jobs:
 
             - name: Unit Tests
               run: vendor/bin/phpunit --colors=always
-              env:
-                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
