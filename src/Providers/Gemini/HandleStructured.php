@@ -80,15 +80,24 @@ trait HandleStructured
             unset($schema['additionalProperties']);
         }
 
-        foreach ($schema as $key => $value) {
-            if (is_array($value)) {
-                $schema[$key] = $this->adaptSchema($value);
+        // properties: name → schema map — recurse per-property, then cast
+        if (isset($schema['properties']) && is_array($schema['properties'])) {
+            foreach ($schema['properties'] as $name => $propertySchema) {
+                $schema['properties'][$name] = $this->adaptSchema($propertySchema);
             }
+            $schema['properties'] = (object) $schema['properties'];
         }
 
-        // Always an object also if it's empty
-        if (array_key_exists('properties', $schema) && is_array($schema['properties'])) {
-            $schema['properties'] = (object) $schema['properties'];
+        // items: single sub-schema (array elements)
+        if (isset($schema['items']) && is_array($schema['items'])) {
+            $schema['items'] = $this->adaptSchema($schema['items']);
+        }
+
+        // anyOf: list of sub-schemas (discriminated unions)
+        if (isset($schema['anyOf']) && is_array($schema['anyOf'])) {
+            foreach ($schema['anyOf'] as $i => $subSchema) {
+                $schema['anyOf'][$i] = $this->adaptSchema($subSchema);
+            }
         }
 
         // Reduce the array type to a single not-nullable type
