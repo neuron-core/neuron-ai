@@ -93,10 +93,19 @@ trait HandleStructured
             $schema['properties'] = (object) $schema['properties'];
         }
 
-        // Recurse into other array values, skipping properties (handled above).
-        foreach ($schema as $key => $value) {
-            if ($key !== 'properties' && is_array($value)) {
-                $schema[$key] = $this->adaptSchema($value);
+        // Recurse into known schema-containing keys only.
+        // type/required/enum hold scalar arrays — not schemas — so they're skipped.
+        if (isset($schema['items']) && is_array($schema['items'])) {
+            $schema['items'] = $this->adaptSchema($schema['items']);
+        }
+
+        foreach (['anyOf', 'oneOf', 'allOf'] as $key) {
+            if (isset($schema[$key]) && is_array($schema[$key])) {
+                foreach ($schema[$key] as $i => $subSchema) {
+                    if (is_array($subSchema)) {
+                        $schema[$key][$i] = $this->adaptSchema($subSchema);
+                    }
+                }
             }
         }
 

@@ -7,6 +7,7 @@ namespace NeuronAI\Exceptions;
 use GuzzleHttp\Exception\RequestException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use Psr\Http\Message\ResponseInterface;
 use Throwable;
 
 /**
@@ -30,7 +31,7 @@ class HttpException extends NeuronException
     {
         $message = $previous->getMessage();
 
-        if ($previous instanceof RequestException && $previous->getResponse() instanceof \Psr\Http\Message\ResponseInterface) {
+        if ($previous instanceof RequestException && $previous->getResponse() instanceof ResponseInterface) {
             $message = (string) $previous->getResponse()->getBody();
         }
 
