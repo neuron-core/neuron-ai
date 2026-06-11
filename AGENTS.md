@@ -26,7 +26,7 @@ Chat ◄────────────────────────
 | Module | Purpose                                                       | Dependencies |
 |--------|---------------------------------------------------------------|--------------|
 | `src/Workflow/` | Event-driven orchestration, nodes, interruptions, persistence | None |
-| `src/Agent/` | AI agent with chat/stream/structured modes                    | Workflow, Chat, Providers, Tools |
+| `src/Agent/` | AI agent with chat/stream/structured modes, skills            | Workflow, Chat, Providers, Tools |
 | `src/Chat/` | Messages, stream content blocks, chat history                 | None |
 | `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.)            | Chat, HttpClient |
 | `src/Tools/` | Tool system and built-in toolkits                             | None |
@@ -44,7 +44,7 @@ Chat ◄────────────────────────
 Read module-specific `AGENTS.md` files when working on that area:
 
 - Working with workflows/interruptions? → `src/Workflow/AGENTS.md`
-- Working with agents/chat/stream? → `src/Agent/AGENTS.md`
+- Working with agents/chat/stream/skills? → `src/Agent/AGENTS.md`
 - Working with messages/history? → `src/Chat/AGENTS.md`
 - Adding/modifying AI providers? → `src/Providers/AGENTS.md`
 - Creating tools/toolkits? → `src/Tools/AGENTS.md`
@@ -84,6 +84,13 @@ Before implementing:
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
 ## Surgical Changes
+
+- `StaticConstructor` trait → `::make()` factory method
+- `HasHttpClient` trait → HTTP client injection
+- Provider injection via `ResolveProvider` trait
+- Node signature: `__invoke(SpecificEvent $event, WorkflowState $state): NextEvent`
+- Content blocks: `TextContent`, `ImageContent`, `FileContent`, etc.
+- Skills: self-contained bundles of instructions + tools, loaded from PHP classes or `SKILL.md` directories (agentskills.io spec). LLM-initiated activation via `[ACTIVATE_SKILL: name]` — no state machine, no forced execution phases.
 
 **Touch only what you must. Clean up only your own mess.**
 

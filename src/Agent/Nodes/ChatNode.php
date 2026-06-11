@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Inspector\Exceptions\InspectorException;
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -24,23 +25,25 @@ use NeuronAI\Workflow\Node;
 class ChatNode extends Node
 {
     use ChatHistoryHelper;
+    use HandleSkillActivation;
 
     public function __construct(
         protected AIProviderInterface $provider,
+        protected ?AgentInterface $agent = null,
     ) {
     }
 
     /**
      * @throws InspectorException
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent|AIInferenceEvent
     {
         $this->addToChatHistory($state, $event->getMessages());
 
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit('inference-start', new InferenceStart($lastMessage));
+        $this->emit('inference-start', new InferenceStart($lastMessage, $event->instructions, $event->tools, $chatHistory->getMessages()));
         $response = $this->inference($event, $chatHistory->getMessages());
         $this->emit('inference-stop', new InferenceStop($lastMessage, $response));
 
@@ -48,6 +51,11 @@ class ChatNode extends Node
         // It will be responsible to add the tool call message to the chat history.
         if ($response instanceof ToolCallMessage) {
             return new ToolCallEvent($response, $event);
+        }
+
+        $content = $response->getContent();
+        if (is_string($content) && $this->handleSkillActivation($content, $event)) {
+            return $event;
         }
 
         // Add the final response to chat history (after tool loop)
