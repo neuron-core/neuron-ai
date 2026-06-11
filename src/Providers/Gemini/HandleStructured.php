@@ -61,7 +61,13 @@ trait HandleStructured
             $this->parameters['generationConfig']['responseMimeType'] = 'application/json';
         }
 
-        return $this->chat(...$messages);
+        $response = $this->chat(...$messages);
+
+        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
+        unset($this->parameters['generationConfig']['responseSchema']);
+        unset($this->parameters['generationConfig']['responseMimeType']);
+
+        return $response;
     }
 
     /**

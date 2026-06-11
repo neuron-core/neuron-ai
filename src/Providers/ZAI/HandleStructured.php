@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\ZAI;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HandleContent;
 
 use function array_replace_recursive;
 use function is_array;
@@ -16,6 +17,8 @@ use const JSON_PRETTY_PRINT;
 
 trait HandleStructured
 {
+    use HandleContent;
+
     /**
      * @throws ProviderException
      * @throws HttpException
@@ -29,8 +32,14 @@ trait HandleStructured
             'response_format' => ['type' => 'json_object'],
         ]);
 
-        $this->system .= "\n\n---\n\nGenerate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT);
+        $this->system .= "\n\n<outout-constraints>Generate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT)."</outout-constraints>";
 
-        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
+
+        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
+        $this->system = $this->removeDelimitedContent($this->system, '<outout-constraints>', '</outout-constraints>');
+        unset($this->parameters['response_format']);
+
+        return $response;
     }
 }
