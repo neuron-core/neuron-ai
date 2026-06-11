@@ -11,6 +11,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
 
+use Psr\Http\Message\ResponseInterface;
 use function is_array;
 use function is_resource;
 use function trim;
