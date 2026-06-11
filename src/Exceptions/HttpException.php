@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Exceptions;
 
-use GuzzleHttp\Exception\RequestException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use Throwable;
@@ -21,36 +20,5 @@ class HttpException extends NeuronException
         ?Throwable $previous = null
     ) {
         parent::__construct($message, 0, $previous);
-    }
-
-    /**
-     * Create an exception for network error.
-     */
-    public static function networkError(HttpRequest $request, Throwable $previous): self
-    {
-        $message = $previous->getMessage();
-
-        if ($previous instanceof RequestException && $previous->getResponse() instanceof \Psr\Http\Message\ResponseInterface) {
-            $message = (string) $previous->getResponse()->getBody();
-        }
-
-        return new self(
-            "Network error during {$request->method->value} {$request->uri}: {$message}",
-            $request,
-            null,
-            $previous
-        );
-    }
-
-    /**
-     * Create an exception for HTTP error response.
-     */
-    public static function httpError(HttpRequest $request, HttpResponse $response): self
-    {
-        return new self(
-            "HTTP {$response->statusCode} error during {$request->method->value} {$request->uri}",
-            $request,
-            $response
-        );
     }
 }
