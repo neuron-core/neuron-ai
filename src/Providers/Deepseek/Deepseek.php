@@ -42,18 +42,26 @@ class Deepseek extends OpenAI
         array $response_format,
         bool $strict = false,
     ): ProviderResponse {
-        $this->parameters = array_merge($this->parameters, [
-            'response_format' => [
-                'type' => 'json_object',
-            ],
-        ]);
+        $originalParameters = $this->parameters;
+        $originalSystem = $this->system;
 
-        $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL
-            .'Generate a json respecting this schema: '.json_encode($response_format);
+        try {
+            $this->parameters = array_merge($this->parameters, [
+                'response_format' => [
+                    'type' => 'json_object',
+                ],
+            ]);
 
-        $messages = is_array($messages) ? $messages : [$messages];
+            $this->system .= PHP_EOL."# OUTPUT FORMAT CONSTRAINTS".PHP_EOL
+                .'Generate a json respecting this schema: '.json_encode($response_format);
 
-        return $this->chat(...$messages);
+            $messages = is_array($messages) ? $messages : [$messages];
+
+            return $this->chat(...$messages);
+        } finally {
+            $this->parameters = $originalParameters;
+            $this->system = $originalSystem;
+        }
     }
 
     /**

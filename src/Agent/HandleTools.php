@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\ContentHelper;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -152,7 +153,7 @@ trait HandleTools
         if (is_array($resolved)) {
             /** @var SystemContent $block */
             foreach ($resolved as $block) {
-                $block->content = $this->removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
+                $block->content = ContentHelper::removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
             }
 
             if ($guidelines !== []) {
@@ -163,7 +164,7 @@ trait HandleTools
 
             $this->setInstructions($resolved);
         } else {
-            $instructions = $this->removeDelimitedContent($resolved, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
+            $instructions = ContentHelper::removeDelimitedContent($resolved, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
             if ($guidelines !== []) {
                 $this->setInstructions(
                     $instructions.PHP_EOL.'<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'

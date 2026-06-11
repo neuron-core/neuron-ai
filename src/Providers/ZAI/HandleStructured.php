@@ -26,12 +26,20 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): ProviderResponse {
-        $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => ['type' => 'json_object'],
-        ]);
+        $originalParameters = $this->parameters;
+        $originalSystem = $this->system;
 
-        $this->system .= "\n\n---\n\nGenerate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT);
+        try {
+            $this->parameters = array_replace_recursive($this->parameters, [
+                'response_format' => ['type' => 'json_object'],
+            ]);
 
-        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+            $this->system .= "\n\n---\n\nGenerate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT);
+
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->parameters = $originalParameters;
+            $this->system = $originalSystem;
+        }
     }
 }
