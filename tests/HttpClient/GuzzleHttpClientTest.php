@@ -6,7 +6,9 @@ namespace NeuronAI\Tests\HttpClient;
 
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Request as PsrRequest;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
@@ -158,5 +160,87 @@ class GuzzleHttpClientTest extends TestCase
         $result = $client->withTimeout(60.0);
 
         $this->assertSame($client, $result);
+    }
+
+    public function test_http_error_includes_response_body(): void
+    {
+        $errorBody = json_encode(['error' => ['message' => 'Invalid API key']]);
+
+        $mock = new MockHandler([
+            new Response(401, ['Content-Type' => 'application/json'], $errorBody),
+        ]);
+
+        $handler = HandlerStack::create($mock);
+        $client = new GuzzleHttpClient(handler: $handler);
+
+        $request = HttpRequest::get('https://example.com/api/test');
+
+        $exception = null;
+        try {
+            $client->request($request);
+        } catch (HttpException $e) {
+            $exception = $e;
+        }
+
+        $this->assertInstanceOf(HttpException::class, $exception);
+        $this->assertStringContainsString('401', $exception->getMessage());
+        $this->assertStringContainsString('Invalid API key', $exception->getMessage());
+        $this->assertNotNull($exception->response);
+        $this->assertEquals(401, $exception->response->statusCode);
+        $this->assertEquals($errorBody, $exception->response->body);
+    }
+
+    public function test_network_error(): void
+    {
+        $mock = new MockHandler([
+            new \GuzzleHttp\Exception\ConnectException(
+                'Connection refused',
+                new PsrRequest('GET', 'https://example.com/api/test')
+            ),
+        ]);
+
+        $handler = HandlerStack::create($mock);
+        $client = new GuzzleHttpClient(handler: $handler);
+
+        $request = HttpRequest::get('https://example.com/api/test');
+
+        $exception = null;
+        try {
+            $client->request($request);
+        } catch (HttpException $e) {
+            $exception = $e;
+        }
+
+        $this->assertInstanceOf(HttpException::class, $exception);
+        $this->assertStringContainsString('Network error', $exception->getMessage());
+        $this->assertStringContainsString('GET', $exception->getMessage());
+        $this->assertNull($exception->response);
+    }
+
+    public function test_request_exception_without_response(): void
+    {
+        $mock = new MockHandler([
+            new \GuzzleHttp\Exception\RequestException(
+                'Request timed out',
+                new PsrRequest('GET', 'https://example.com/api/test')
+            ),
+        ]);
+
+        $handler = HandlerStack::create($mock);
+        $client = new GuzzleHttpClient(handler: $handler);
+
+        $request = HttpRequest::get('https://example.com/api/test');
+
+        $exception = null;
+        try {
+            $client->request($request);
+        } catch (HttpException $e) {
+            $exception = $e;
+        }
+
+        $this->assertInstanceOf(HttpException::class, $exception);
+        $this->assertStringContainsString('Network error', $exception->getMessage());
+        $this->assertStringContainsString('Request timed out', $exception->getMessage());
+        $this->assertNull($exception->response);
     }
 }
