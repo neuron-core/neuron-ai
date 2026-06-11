@@ -205,15 +205,26 @@ class GuzzleHttpClient implements HttpClientInterface
     protected function handleException(HttpRequest $request, GuzzleException $e): never
     {
         if ($e instanceof RequestException && $e->hasResponse()) {
+            $psrResponse = $e->getResponse();
             $response = new HttpResponse(
-                statusCode: $e->getResponse()->getStatusCode(),
-                body: (string) $e->getResponse()->getBody(),
-                headers: $e->getResponse()->getHeaders(),
+                statusCode: $psrResponse->getStatusCode(),
+                body: (string) $psrResponse->getBody(),
+                headers: $psrResponse->getHeaders(),
             );
 
-            throw HttpException::httpError($request, $response);
+            throw new HttpException(
+                "HTTP {$response->statusCode} error during {$request->method->value} {$request->uri}: {$response->body}",
+                $request,
+                $response,
+                $e
+            );
         }
 
-        throw HttpException::networkError($request, $e);
+        throw new HttpException(
+            "Network error during {$request->method->value} {$request->uri}: {$e->getMessage()}",
+            $request,
+            null,
+            $e
+        );
     }
 }
