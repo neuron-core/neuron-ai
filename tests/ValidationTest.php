@@ -554,7 +554,23 @@ class ValidationTest extends TestCase
         // $obj->intEnum = 3; -> TypeError anyway...
     }
 
-    public function test_enum_validation_exception_both_option_provided(): void
+    public function test_enum_validation_nullable_allows_null(): void
+    {
+        $class = new class () {
+            #[Enum(values: ['one', 'two', 'three'])]
+            public ?string $number = null;
+
+            #[Enum(class: StringEnum::class)]
+            public ?string $enumNumber = null;
+        };
+
+        $obj = new $class();
+
+        $violations = Validator::validate($obj);
+        $this->assertCount(0, $violations);
+    }
+
+public function test_enum_validation_exception_both_option_provided(): void
     {
         $class = new class () {
             #[Enum(values: ['one', 'two', 'three'], class: StringEnum::class)]

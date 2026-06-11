@@ -6,6 +6,7 @@ namespace NeuronAI\StructuredOutput\Validation;
 
 use ReflectionClass;
 use ReflectionException;
+use ReflectionNamedType;
 use ReflectionProperty;
 
 class Validator
@@ -32,6 +33,11 @@ class Validator
             // Get the value of the property
             $name = $property->getName();
             $value = $property->isInitialized($obj) ? $property->getValue($obj) : null;
+
+            $type = $property->getType();
+            if ($value === null && $type instanceof ReflectionNamedType && $type->allowsNull()) {
+                continue;
+            }
 
             // Apply all the validation rules to the value
             foreach ($attributes as $attribute) {
