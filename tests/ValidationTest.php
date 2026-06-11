@@ -570,7 +570,7 @@ class ValidationTest extends TestCase
         $this->assertCount(0, $violations);
     }
 
-public function test_enum_validation_exception_both_option_provided(): void
+    public function test_enum_validation_exception_both_option_provided(): void
     {
         $class = new class () {
             #[Enum(values: ['one', 'two', 'three'], class: StringEnum::class)]
