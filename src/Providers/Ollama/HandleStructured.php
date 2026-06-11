@@ -26,6 +26,11 @@ trait HandleStructured
             'format' => $response_format,
         ]);
 
-        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
+
+        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
+        unset($this->parameters['format']);
+
+        return $response;
     }
 }
