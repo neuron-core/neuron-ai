@@ -55,17 +55,23 @@ class Cohere extends OpenAI
 
     public function structured(Message|array $messages, string $class, array $response_format): ProviderResponse
     {
-        $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => [
-                'type' => 'json_object',
-                'json_schema' => $response_format,
-            ],
-        ]);
+        $originalParameters = $this->parameters;
 
-        $messages = is_array($messages) ? $messages : [$messages];
-        $message = end($messages);
-        $message->addContent(new TextContent('Generate a JSON'));
+        try {
+            $this->parameters = array_replace_recursive($this->parameters, [
+                'response_format' => [
+                    'type' => 'json_object',
+                    'json_schema' => $response_format,
+                ],
+            ]);
 
-        return $this->chat(...$messages);
+            $messages = is_array($messages) ? $messages : [$messages];
+            $message = end($messages);
+            $message->addContent(new TextContent('Generate a JSON'));
+
+            return $this->chat(...$messages);
+        } finally {
+            $this->parameters = $originalParameters;
+        }
     }
 }

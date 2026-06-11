@@ -12,12 +12,12 @@ use function is_null;
 use function is_string;
 use function str_contains;
 
-trait HandleContent
+class ContentHelper
 {
     /**
      * Remove content between delimiters.
      */
-    protected function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
+    public static function removeDelimitedContent(string $text, string $openTag, string $closeTag): string
     {
         $escapedOpenTag = preg_quote($openTag, '/');
         $escapedCloseTag = preg_quote($closeTag, '/');
@@ -29,7 +29,7 @@ trait HandleContent
     /**
      * @param string|SystemContent[]|null $instructions
      */
-    protected function instructionsContainPrompt(string|array|null $instructions, string $prompt): bool
+    public static function instructionsContainPrompt(string|array|null $instructions, string $prompt): bool
     {
         if (is_null($instructions)) {
             return false;

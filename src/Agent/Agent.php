@@ -14,7 +14,6 @@ use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\HandleContent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -32,7 +31,6 @@ class Agent extends Workflow implements AgentInterface
     use HandleAgentState;
     use ResolveProvider;
     use HandleTools;
-    use HandleContent;
     use HandleInstructions;
 
     protected bool $parallelToolCalls = false;

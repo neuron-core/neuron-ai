@@ -7,7 +7,7 @@ namespace NeuronAI\Agent\Middleware;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\HandleContent;
+use NeuronAI\ContentHelper;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
@@ -19,8 +19,6 @@ use function is_array;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
-    use HandleContent;
-
     protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
         ---
 
@@ -56,7 +54,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
             return;
         }
 
-        if (!$this->instructionsContainPrompt($event->instructions, $this->systemPrompt)) {
+        if (!ContentHelper::instructionsContainPrompt($event->instructions, $this->systemPrompt)) {
             if (is_array($event->instructions)) {
                 $event->instructions[] = new SystemContent($this->systemPrompt);
             } else {

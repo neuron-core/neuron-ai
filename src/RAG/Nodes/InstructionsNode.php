@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
-use NeuronAI\HandleContent;
+use NeuronAI\ContentHelper;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
@@ -22,8 +22,6 @@ use function is_array;
  */
 class InstructionsNode extends Node
 {
-    use HandleContent;
-
     /**
      * @param string|ContentBlock[] $baseInstructions
      */
@@ -72,7 +70,7 @@ class InstructionsNode extends Node
     {
         $enriched = [];
         foreach ($this->baseInstructions as $block) {
-            $content = $this->removeDelimitedContent(
+            $content = ContentHelper::removeDelimitedContent(
                 $block->getContent(),
                 "\n\n<EXTRA-CONTEXT>",
                 "</EXTRA-CONTEXT>\n\n"
@@ -84,7 +82,7 @@ class InstructionsNode extends Node
 
     private function enrichStringInstructions(string $contextBlock): string
     {
-        $instructions = $this->removeDelimitedContent(
+        $instructions = ContentHelper::removeDelimitedContent(
             $this->baseInstructions,
             "\n\n<EXTRA-CONTEXT>",
             "</EXTRA-CONTEXT>\n\n"

@@ -27,21 +27,27 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): ProviderResponse {
-        $tk = explode('\\', $class);
-        $className = end($tk);
+        $originalParameters = $this->parameters;
 
-        $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'strict' => $this->strict_response,
-                    "name" => $this->sanitizeClassName($className),
-                    "schema" => $response_format,
+        try {
+            $tk = explode('\\', $class);
+            $className = end($tk);
+
+            $this->parameters = array_replace_recursive($this->parameters, [
+                'response_format' => [
+                    'type' => 'json_schema',
+                    'json_schema' => [
+                        'strict' => $this->strict_response,
+                        "name" => $this->sanitizeClassName($className),
+                        "schema" => $response_format,
+                    ],
                 ],
-            ],
-        ]);
+            ]);
 
-        return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->parameters = $originalParameters;
+        }
     }
 
     protected function sanitizeClassName(string $name): string
