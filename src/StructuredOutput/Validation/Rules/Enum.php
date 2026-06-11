@@ -17,24 +17,24 @@ use function is_subclass_of;
 #[Attribute(Attribute::TARGET_PROPERTY)]
 class Enum extends AbstractValidationRule
 {
-    protected string $message = '{name} must be one of the following allowed values: {choices}.';
+    protected string $message = '{name} must be one of the following allowed values: {values}.';
 
     /**
-     * @param array|null $values List of allowed values. Cannot be used with `enum`.
-     * @param string|null $class Enum class name to extract choices from. Cannot be used with `choices`.
+     * @param array|null $values List of allowed values. Cannot be used with `class`.
+     * @param string|null $class Enum class name to extract values from. Cannot be used with `values`.
      *
-     * @throws StructuredOutputException if both `choices` and `enum` are provided or if `enum` is not valid.
+     * @throws StructuredOutputException if both `values` and `class` are provided or if `class` is not valid.
      */
     public function __construct(
         protected ?array  $values = [],
         protected ?string $class = null,
     ) {
         if ($this->values !== null && $this->values !== [] && $this->class !== null) {
-            throw new StructuredOutputException('You cannot provide both "choices" and "enum" options simultaneously. Please use only one.');
+            throw new StructuredOutputException('You cannot provide both "values" and "class" options simultaneously. Please use only one.');
         }
 
         if (($this->values === null || $this->values === []) && $this->class === null) {
-            throw new StructuredOutputException('Either option "choices" or "enum" must be given for validation rule "Enum"');
+            throw new StructuredOutputException('Either option "values" or "class" must be given for validation rule "Enum"');
         }
 
         if ($this->values === null || $this->values === []) {
@@ -47,7 +47,7 @@ class Enum extends AbstractValidationRule
         $value = $value instanceof BackedEnum ? $value->value : $value;
 
         if (!in_array($value, $this->values, true)) {
-            $violations[] = $this->buildMessage($name, $this->message, ['choices' => implode(", ", $this->values)]);
+            $violations[] = $this->buildMessage($name, $this->message, ['values' => implode(", ", $this->values)]);
         }
     }
 
