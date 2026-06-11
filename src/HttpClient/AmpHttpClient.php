@@ -44,8 +44,15 @@ class AmpHttpClient implements HttpClientInterface
                 body: $response->getBody()->buffer(),
                 headers: $response->getHeaders(),
             );
+        } catch (HttpException $e) {
+            throw $e;
         } catch (Throwable $e) {
-            throw HttpException::networkError($request, $e);
+            throw new HttpException(
+                "Network error during {$request->method->value} {$request->uri}: {$e->getMessage()}",
+                $request,
+                null,
+                $e
+            );
         }
     }
 
@@ -108,8 +115,15 @@ class AmpHttpClient implements HttpClientInterface
             $response = $this->execute($request);
 
             return new AmpStream($response->getBody());
+        } catch (HttpException $e) {
+            throw $e;
         } catch (Throwable $e) {
-            throw HttpException::networkError($request, $e);
+            throw new HttpException(
+                "Network error during {$request->method->value} {$request->uri}: {$e->getMessage()}",
+                $request,
+                null,
+                $e
+            );
         }
     }
 

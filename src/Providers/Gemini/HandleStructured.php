@@ -8,8 +8,8 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Providers\ProviderResponse;
 
+use NeuronAI\Providers\ProviderResponse;
 use function array_key_exists;
 use function end;
 use function is_array;
@@ -44,13 +44,13 @@ trait HandleStructured
 
         $originalParameters = $this->parameters;
 
-        try {
-            if (!array_key_exists('generationConfig', $this->parameters)) {
-                $this->parameters['generationConfig'] = [
-                    'temperature' => 0,
-                ];
-            }
+        if (!array_key_exists('generationConfig', $this->parameters)) {
+            $this->parameters['generationConfig'] = [
+                'temperature' => 0,
+            ];
+        }
 
+        try {
             // Gemini does not support structured output in combination with tools.
             // So we try to work with a JSON mode in case the agent has some tools defined.
             if (!empty($this->tools) && in_array($this->model, $this->unsupportedModels)) {
@@ -80,27 +80,37 @@ trait HandleStructured
             unset($schema['additionalProperties']);
         }
 
-        // properties: name → schema map — recurse per-property, then cast
+        // Recurse into each property schema individually — the properties map
+        // is a name→schema dictionary, NOT a schema itself. Passing it through
+        // adaptSchema would corrupt any property whose name collides with a
+        // schema key (e.g. "type" or "properties").
         if (isset($schema['properties']) && is_array($schema['properties'])) {
             foreach ($schema['properties'] as $name => $propertySchema) {
-                $schema['properties'][$name] = $this->adaptSchema($propertySchema);
+                if (is_array($propertySchema)) {
+                    $schema['properties'][$name] = $this->adaptSchema($propertySchema);
+                }
             }
+            // Always an object (also if it's empty) — Gemini expects a JSON object here.
             $schema['properties'] = (object) $schema['properties'];
         }
 
-        // items: single sub-schema (array elements)
+        // Recurse into known schema-containing keys only.
+        // type/required/enum hold scalar arrays — not schemas — so they're skipped.
         if (isset($schema['items']) && is_array($schema['items'])) {
             $schema['items'] = $this->adaptSchema($schema['items']);
         }
 
-        // anyOf: list of sub-schemas (discriminated unions)
-        if (isset($schema['anyOf']) && is_array($schema['anyOf'])) {
-            foreach ($schema['anyOf'] as $i => $subSchema) {
-                $schema['anyOf'][$i] = $this->adaptSchema($subSchema);
+        foreach (['anyOf', 'oneOf', 'allOf'] as $key) {
+            if (isset($schema[$key]) && is_array($schema[$key])) {
+                foreach ($schema[$key] as $i => $subSchema) {
+                    if (is_array($subSchema)) {
+                        $schema[$key][$i] = $this->adaptSchema($subSchema);
+                    }
+                }
             }
         }
 
-        // Reduce the array type to a single not-nullable type
+        // Reduce nullable type unions like ["string","null"] to the non-null type.
         if (isset($schema['type']) && is_array($schema['type'])) {
             foreach ($schema['type'] as $type) {
                 if ($type !== 'null') {
