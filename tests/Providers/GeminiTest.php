@@ -363,6 +363,50 @@ class GeminiTest extends TestCase
         $this->assertSame('hi', $requestBody['contents'][0]['parts'][0]['text']);
     }
 
+    public function test_structured_schema_with_property_named_type(): void
+    {
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $this->body),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $provider = (new Gemini('', 'gemini-2.5-flash'))
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
+
+        // Schema with a property literally named "type" — this used to corrupt
+        // the properties map because adaptSchema treated it as a type union.
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'type' => [
+                    'description' => 'Call type identifier',
+                    'type' => 'string',
+                ],
+                'name' => [
+                    'type' => 'string',
+                ],
+            ],
+            'required' => ['type', 'name'],
+        ];
+
+        $provider->structured(new UserMessage('hi'), 'SomeClass', $schema);
+
+        $this->assertCount(1, $sentRequests);
+        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+
+        $responseSchema = $requestBody['generationConfig']['responseSchema'];
+
+        // The "type" property must remain a schema object, not be collapsed
+        // to the description string.
+        $this->assertIsArray($responseSchema['properties']['type']);
+        $this->assertSame('string', $responseSchema['properties']['type']['type']);
+        $this->assertSame('Call type identifier', $responseSchema['properties']['type']['description']);
+        $this->assertSame('string', $responseSchema['properties']['name']['type']);
+    }
+
     public function test_structured_with_unsupported_model(): void
     {
         $sentRequests = [];

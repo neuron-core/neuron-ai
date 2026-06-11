@@ -79,18 +79,28 @@ trait HandleStructured
             unset($schema['additionalProperties']);
         }
 
+        // Recurse into each property schema individually — the properties map
+        // is a name→schema dictionary, NOT a schema itself. Passing it through
+        // adaptSchema would corrupt any property whose name collides with a
+        // schema key (e.g. "type" or "properties").
+        if (isset($schema['properties']) && is_array($schema['properties'])) {
+            foreach ($schema['properties'] as $name => $propertySchema) {
+                if (is_array($propertySchema)) {
+                    $schema['properties'][$name] = $this->adaptSchema($propertySchema);
+                }
+            }
+            // Always an object (also if it's empty) — Gemini expects a JSON object here.
+            $schema['properties'] = (object) $schema['properties'];
+        }
+
+        // Recurse into other array values, skipping properties (handled above).
         foreach ($schema as $key => $value) {
-            if (is_array($value)) {
+            if ($key !== 'properties' && is_array($value)) {
                 $schema[$key] = $this->adaptSchema($value);
             }
         }
 
-        // Always an object also if it's empty
-        if (array_key_exists('properties', $schema) && is_array($schema['properties'])) {
-            $schema['properties'] = (object) $schema['properties'];
-        }
-
-        // Reduce the array type to a single not-nullable type
+        // Reduce nullable type unions like ["string","null"] to the non-null type.
         if (isset($schema['type']) && is_array($schema['type'])) {
             foreach ($schema['type'] as $type) {
                 if ($type !== 'null') {
