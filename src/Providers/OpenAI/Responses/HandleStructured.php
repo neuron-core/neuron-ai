@@ -26,26 +26,27 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): Message {
+        $originalParameters = $this->parameters;
+
         $tk = explode('\\', $class);
         $className = end($tk);
 
-        $this->parameters = array_replace_recursive($this->parameters, [
-            'text' => [
-                'format' => [
-                    'type' => 'json_schema',
-                    'strict' => $this->strict_response,
-                    "name" => $this->sanitizeClassName($className),
-                    "schema" => $response_format,
+        try {
+            $this->parameters = array_replace_recursive($this->parameters, [
+                'text' => [
+                    'format' => [
+                        'type' => 'json_schema',
+                        'strict' => $this->strict_response,
+                        "name" => $this->sanitizeClassName($className),
+                        "schema" => $response_format,
+                    ],
                 ],
-            ],
-        ]);
+            ]);
 
-        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
-
-        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
-        unset($this->parameters['text']['format']);
-
-        return $response;
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->parameters = $originalParameters;
+        }
     }
 
     protected function sanitizeClassName(string $name): string

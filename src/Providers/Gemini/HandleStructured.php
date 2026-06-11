@@ -41,33 +41,33 @@ trait HandleStructured
     ): Message {
         $messages = is_array($messages) ? $messages : [$messages];
 
+        $originalParameters = $this->parameters;
+
         if (!array_key_exists('generationConfig', $this->parameters)) {
             $this->parameters['generationConfig'] = [
                 'temperature' => 0,
             ];
         }
 
-        // Gemini does not support structured output in combination with tools.
-        // So we try to work with a JSON mode in case the agent has some tools defined.
-        if (!empty($this->tools) && in_array($this->model, $this->unsupportedModels)) {
-            $last_message = end($messages);
-            if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
-                $last_message->setContents(
-                    $last_message->getContent() . ' Respond using this JSON schema: ' . json_encode($response_format)
-                );
+        try {
+            // Gemini does not support structured output in combination with tools.
+            // So we try to work with a JSON mode in case the agent has some tools defined.
+            if (!empty($this->tools) && in_array($this->model, $this->unsupportedModels)) {
+                $last_message = end($messages);
+                if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
+                    $last_message->setContents(
+                        $last_message->getContent() . ' Respond using this JSON schema: ' . json_encode($response_format)
+                    );
+                }
+            } else {
+                $this->parameters['generationConfig']['responseSchema'] = $this->adaptSchema($response_format);
+                $this->parameters['generationConfig']['responseMimeType'] = 'application/json';
             }
-        } else {
-            $this->parameters['generationConfig']['responseSchema'] = $this->adaptSchema($response_format);
-            $this->parameters['generationConfig']['responseMimeType'] = 'application/json';
+
+            return $this->chat(...$messages);
+        } finally {
+            $this->parameters = $originalParameters;
         }
-
-        $response = $this->chat(...$messages);
-
-        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
-        unset($this->parameters['generationConfig']['responseSchema']);
-        unset($this->parameters['generationConfig']['responseMimeType']);
-
-        return $response;
     }
 
     /**

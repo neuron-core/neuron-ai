@@ -27,15 +27,16 @@ trait HandleStructured
         string $class,
         array $response_format
     ): Message {
-        $this->system .= PHP_EOL."<output-constraint>".PHP_EOL.
-            "Your response must be a JSON string following this schema: ".PHP_EOL.
-            json_encode($response_format) . PHP_EOL. "</output-constraint>";
+        $originalSystem = $this->system;
 
-        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        try {
+            $this->system .= PHP_EOL."<output-constraint>".PHP_EOL.
+                "Your response must be a JSON string following this schema: ".PHP_EOL.
+                json_encode($response_format) . PHP_EOL. "</output-constraint>";
 
-        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
-        $this->system = $this->removeDelimitedContent($this->system, '<output-constraint>', '</output-constraint>');
-
-        return $response;
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->system = $originalSystem;
+        }
     }
 }

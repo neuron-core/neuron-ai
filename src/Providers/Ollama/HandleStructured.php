@@ -22,15 +22,16 @@ trait HandleStructured
         string $class,
         array $response_format
     ): Message {
-        $this->parameters = array_merge($this->parameters, [
-            'format' => $response_format,
-        ]);
+        $originalParameters = $this->parameters;
 
-        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        try {
+            $this->parameters = array_merge($this->parameters, [
+                'format' => $response_format,
+            ]);
 
-        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
-        unset($this->parameters['format']);
-
-        return $response;
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->parameters = $originalParameters;
+        }
     }
 }

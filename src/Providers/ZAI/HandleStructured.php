@@ -28,18 +28,20 @@ trait HandleStructured
         string $class,
         array $response_format,
     ): Message {
-        $this->parameters = array_replace_recursive($this->parameters, [
-            'response_format' => ['type' => 'json_object'],
-        ]);
+        $originalParameters = $this->parameters;
+        $originalSystem = $this->system;
 
-        $this->system .= "\n\n<outout-constraints>Generate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT)."</outout-constraints>";
+        try {
+            $this->parameters = array_replace_recursive($this->parameters, [
+                'response_format' => ['type' => 'json_object'],
+            ]);
 
-        $response = $this->chat(...(is_array($messages) ? $messages : [$messages]));
+            $this->system .= "\n\n<outout-constraints>Generate a JSON with the following schema: \n\n".json_encode($response_format, JSON_PRETTY_PRINT)."</outout-constraints>";
 
-        // Remove the structured output parameters to not affect subsequent requests with different methods, like chat or stream.
-        $this->system = $this->removeDelimitedContent($this->system, '<outout-constraints>', '</outout-constraints>');
-        unset($this->parameters['response_format']);
-
-        return $response;
+            return $this->chat(...(is_array($messages) ? $messages : [$messages]));
+        } finally {
+            $this->parameters = $originalParameters;
+            $this->system = $originalSystem;
+        }
     }
 }
