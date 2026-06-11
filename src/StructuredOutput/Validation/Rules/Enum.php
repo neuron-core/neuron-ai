@@ -44,6 +44,10 @@ class Enum extends AbstractValidationRule
 
     public function validate(string $name, mixed $value, array &$violations): void
     {
+        if ($value === null) {
+            return;
+        }
+
         $value = $value instanceof BackedEnum ? $value->value : $value;
 
         if (!in_array($value, $this->values, true)) {
