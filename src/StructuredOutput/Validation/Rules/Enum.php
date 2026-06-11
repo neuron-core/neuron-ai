@@ -22,12 +22,14 @@ class Enum extends AbstractValidationRule
     /**
      * @param array|null $values List of allowed values. Cannot be used with `enum`.
      * @param string|null $class Enum class name to extract choices from. Cannot be used with `choices`.
+     * @param bool $nullable Whether null is a valid value.
      *
      * @throws StructuredOutputException if both `choices` and `enum` are provided or if `enum` is not valid.
      */
     public function __construct(
         protected ?array  $values = [],
         protected ?string $class = null,
+        protected bool    $nullable = false,
     ) {
         if ($this->values !== null && $this->values !== [] && $this->class !== null) {
             throw new StructuredOutputException('You cannot provide both "choices" and "enum" options simultaneously. Please use only one.');
@@ -45,6 +47,9 @@ class Enum extends AbstractValidationRule
     public function validate(string $name, mixed $value, array &$violations): void
     {
         if ($value === null) {
+            if (!$this->nullable) {
+                $violations[] = $this->buildMessage($name, $this->message, ['choices' => implode(", ", $this->values)]);
+            }
             return;
         }
 
