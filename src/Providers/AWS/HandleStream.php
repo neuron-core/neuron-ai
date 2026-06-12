@@ -48,6 +48,9 @@ trait HandleStream
                 if (isset($event['metadata'])) {
                     $this->streamState->addInputTokens($event['metadata']['usage']['inputTokens'] ?? 0);
                     $this->streamState->addOutputTokens($event['metadata']['usage']['outputTokens'] ?? 0);
+                    $this->streamState->addCachedInputTokens(
+                        $event['metadata']['usage']['cacheReadInputTokens'] ?? 0
+                    );
                 }
 
                 if (isset($event['messageStop']['stopReason'])) {

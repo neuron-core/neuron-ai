@@ -155,7 +155,9 @@ trait HandleChat
             $message->setUsage(
                 new Usage(
                     $result['usageMetadata']['promptTokenCount'],
-                    $result['usageMetadata']['candidatesTokenCount'] ?? 0
+                    $result['usageMetadata']['candidatesTokenCount'] ?? 0,
+                    $result['usageMetadata']['cachedContentTokenCount'] ?? 0,
+                    $result['usageMetadata']['thoughtsTokenCount'] ?? 0,
                 )
             );
         }
