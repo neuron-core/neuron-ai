@@ -43,6 +43,18 @@ class BasicStreamState
         return $this;
     }
 
+    public function addCachedInputTokens(int $tokens): self
+    {
+        $this->usage->cachedInputTokens += $tokens;
+        return $this;
+    }
+
+    public function addReasoningTokens(int $tokens): self
+    {
+        $this->usage->reasoningTokens += $tokens;
+        return $this;
+    }
+
     public function getUsage(): Usage
     {
         return $this->usage;

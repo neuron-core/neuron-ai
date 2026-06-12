@@ -8,8 +8,8 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-
 use NeuronAI\Providers\ProviderResponse;
+
 use function array_key_exists;
 use function end;
 use function is_array;
