@@ -6,7 +6,6 @@ namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use NeuronAI\UniqueIdGenerator;
 
-use function date;
 use function json_encode;
 
 /**
@@ -42,16 +41,6 @@ abstract class SSEAdapter implements StreamAdapterInterface
         $id = UniqueIdGenerator::generateId();
 
         return $prefix !== '' ? $prefix . '_' . $id : $id;
-    }
-
-    /**
-     * Get the current timestamp in ISO 8601 format.
-     *
-     * @return string The current timestamp
-     */
-    protected function timestamp(): string
-    {
-        return date('c');
     }
 
     public function getHeaders(): array
