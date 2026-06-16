@@ -56,6 +56,11 @@ class Tool implements ToolInterface
     protected bool $visible = true;
 
     /**
+     * Arbitrary metadata for skill context binding and other annotations.
+     */
+    protected array $meta = [];
+
+    /**
      * Tool constructor.
      *
      * @param ToolPropertyInterface[] $properties
@@ -293,6 +298,22 @@ class Tool implements ToolInterface
         } else {
             throw new ToolCallableNotSet('No function defined for tool execution.');
         }
+    }
+
+    public function setMeta(string $key, mixed $value): self
+    {
+        $this->meta[$key] = $value;
+        return $this;
+    }
+
+    public function getMeta(string $key, mixed $default = null): mixed
+    {
+        return $this->meta[$key] ?? $default;
+    }
+
+    public function getMetaAll(): array
+    {
+        return $this->meta;
     }
 
     public function jsonSerialize(): array

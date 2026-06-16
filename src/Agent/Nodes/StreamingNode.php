@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
@@ -22,23 +22,25 @@ use Throwable;
 class StreamingNode extends Node
 {
     use ChatHistoryHelper;
+    use HandleSkillActivation;
 
     public function __construct(
         protected AIProviderInterface $provider,
+        protected ?AgentInterface $agent = null,
     ) {
     }
 
     /**
      * @throws Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent|AIInferenceEvent
     {
         $this->addToChatHistory($state, $event->getMessages());
 
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit('inference-start', new InferenceStart($lastMessage));
+        $this->emit('inference-start', new InferenceStart($lastMessage, $event->instructions, $event->tools, $chatHistory->getMessages()));
 
         try {
             $stream = $this->provider
@@ -59,6 +61,11 @@ class StreamingNode extends Node
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
                 return new ToolCallEvent($message, $event);
+            }
+
+            $content = $message->getContent();
+            if (is_string($content) && $this->handleSkillActivation($content, $event)) {
+                return $event;
             }
 
             // Add the final message to the chat history (after tool loop)

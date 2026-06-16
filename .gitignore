@@ -6,8 +6,10 @@ composer.lock
 .php-cs-fixer.cache
 /tests/VectorStore/*.store
 .claude
+.agents
 .artiforge
 .junie
 .env
 scripts
 phpunit.xml.local
+/skills-lock.json

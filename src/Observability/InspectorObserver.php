@@ -13,6 +13,7 @@ use Inspector\Scope;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Agent\Skills\SkillInterface;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -34,6 +35,7 @@ use function substr;
 class InspectorObserver implements ObserverInterface
 {
     use HandleToolEvents;
+    use HandleSkillEvents;
     use HandleRagEvents;
     use HandleInferenceEvents;
     use HandleStructuredEvents;
@@ -76,6 +78,9 @@ class InspectorObserver implements ObserverInterface
         'message-saved' => 'messageSaved',
         'tools-bootstrapping' => 'toolsBootstrapping',
         'tools-bootstrapped' => 'toolsBootstrapped',
+        'skills-bootstrapping' => 'skillsBootstrapping',
+        'skills-bootstrapped' => 'skillsBootstrapped',
+        'skill-activated' => 'skillActivated',
         'inference-start' => 'inferenceStart',
         'inference-stop' => 'inferenceStop',
         'tool-calling' => 'toolCalling',
@@ -213,6 +218,10 @@ class InspectorObserver implements ObserverInterface
                 'provider' => $agent->resolveProvider()::class,
                 'instructions' => $agent->resolveInstructions(),
             ],
+            'Skills' => array_map(fn (SkillInterface $skill): array => [
+                'name' => $skill->name(),
+                'tools' => count($skill->tools()),
+            ], $agent->getSkills()),
             'Tools' => array_map(fn (ToolInterface|ToolkitInterface|ProviderToolInterface $tool) => match (true) {
                 $tool instanceof ToolInterface => $mapTool($tool),
                 $tool instanceof ToolkitInterface => [$tool::class => array_map($mapTool, $tool->tools())],
