@@ -14,7 +14,6 @@ use Reloop\Event;
 use Reloop\Http\Request;
 use Reloop\Step;
 use Reloop\StepPendingException;
-use Reloop\Task;
 
 use function base64_encode;
 use function json_encode;
@@ -62,7 +61,7 @@ trait ReplaysReloopSteps
                 foreach ($step->getOps() as $op) {
                     if (isset($op['data'])) {
                         $memoized[$op['id']] = ['data' => $op['data']];
-                    } elseif (($op['op'] ?? '') === 'WaitForEvent' && $resumeRequest !== null) {
+                    } elseif (($op['op'] ?? '') === 'WaitForEvent' && $resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
                         $memoized[$op['id']] = [
                             'data' => ['resume' => base64_encode(serialize($resumeRequest))],
                         ];
@@ -119,7 +118,7 @@ trait ReplaysReloopSteps
                         $steps[$op['id']] = ['data' => $op['data']];
                     } elseif (isset($op['error'])) {
                         $steps[$op['id']] = ['error' => $op['error']];
-                    } elseif (($op['op'] ?? '') === 'WaitForEvent' && $resumeRequest !== null) {
+                    } elseif (($op['op'] ?? '') === 'WaitForEvent' && $resumeRequest instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
                         $steps[$op['id']] = [
                             'data' => ['resume' => base64_encode(serialize($resumeRequest))],
                         ];

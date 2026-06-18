@@ -13,6 +13,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
 use Reloop\Client;
 use Reloop\Testing\FakeTransport;
+
 use function base64_decode;
 use function unserialize;
 

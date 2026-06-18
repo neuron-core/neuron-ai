@@ -20,6 +20,7 @@ use function is_int;
 use function is_object;
 use function is_string;
 use function json_encode;
+use function error_log;
 
 use const JSON_THROW_ON_ERROR;
 

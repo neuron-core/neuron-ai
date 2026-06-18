@@ -13,6 +13,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowInterface;
 use Throwable;
+
 use function Amp\async;
 
 /**

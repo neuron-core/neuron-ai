@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+
 use function Amp\async;
 use function microtime;
 
