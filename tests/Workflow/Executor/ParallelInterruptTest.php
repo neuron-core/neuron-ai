@@ -19,7 +19,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchProcessing;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
