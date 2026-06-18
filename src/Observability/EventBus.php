@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use Inspector\Exceptions\InspectorException;
+use Inspector\Inspector;
+
+use function class_exists;
 
 class EventBus
 {
@@ -29,8 +32,6 @@ class EventBus
      */
     private static array $initialized = [];
 
-    private static ?InspectorObserver $defaultObserver = null;
-
     /**
      * Register an observer, optionally scoped to a workflow.
      *
@@ -48,11 +49,6 @@ class EventBus
         }
     }
 
-    public static function setDefaultObserver(?InspectorObserver $observer): void
-    {
-        self::$defaultObserver = $observer;
-    }
-
     /**
      * Emit an event to observers.
      *
@@ -68,8 +64,8 @@ class EventBus
         $scope = $workflowId ?? '__global__';
         $branchId ??= '__main__';
 
-        if (!isset(self::$initialized[$scope]) || !self::$initialized[$scope]) {
-            self::observe(self::$defaultObserver ?? InspectorObserver::instance(), $workflowId);
+        if ((!isset(self::$initialized[$scope]) || !self::$initialized[$scope]) && class_exists(Inspector::class)) {
+            self::observe(InspectorObserver::instance(), $workflowId);
         }
 
         if ($workflowId !== null) {

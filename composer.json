@@ -12,7 +12,6 @@
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.0",
-        "inspector-apm/inspector-php": "^3.16.12",
         "psr/http-message": "^1.0|^2.0"
     },
     "require-dev": {
@@ -25,6 +24,7 @@
         "google/auth": "^1.49",
         "html2text/html2text": "^4.3",
         "illuminate/database": "^10.0|^11.0|^12.0",
+        "inspector-apm/inspector-php": "^3.16.12",
         "laudis/neo4j-php-client": "^3.4",
         "mongodb/mongodb": "^2.3",
         "opensearch-project/opensearch-php": "^2.5",
