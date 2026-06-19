@@ -105,8 +105,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
     public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
         $filter = $sourceName !== null
-            ? "sourceType = {$sourceType} AND sourceName = '{$sourceName}'"
-            : "sourceType = {$sourceType}";
+            ? "sourceType = '{$sourceType}' AND sourceName = '{$sourceName}'"
+            : "sourceType = '{$sourceType}'";
 
         $this->httpClient->request(
             HttpRequest::post(
