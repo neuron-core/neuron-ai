@@ -7,8 +7,6 @@ namespace NeuronAI\Observability;
 use Inspector\Exceptions\InspectorException;
 use Inspector\Inspector;
 
-use function class_exists;
-
 class EventBus
 {
     /**
@@ -55,18 +53,11 @@ class EventBus
      * When workflowId is provided, emits only to observers registered for that workflow.
      * When workflowId is null, emits to global observers (backward compatibility).
      * When branchId is provided, it is forwarded to the observer so branch-scoped events
-     * can be routed to the correct Inspector Scope.
-     *
-     * @throws InspectorException
+     * can be routed to the correct Scope.
      */
     public static function emit(string $event, object $source, mixed $data = null, ?string $workflowId = null, ?string $branchId = null): void
     {
-        $scope = $workflowId ?? '__global__';
         $branchId ??= '__main__';
-
-        if ((!isset(self::$initialized[$scope]) || !self::$initialized[$scope]) && class_exists(Inspector::class)) {
-            self::observe(InspectorObserver::instance(), $workflowId);
-        }
 
         if ($workflowId !== null) {
             // Emit to scoped observers only
