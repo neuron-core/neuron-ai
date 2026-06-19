@@ -26,11 +26,6 @@ use function strrchr;
 use function substr;
 
 /**
- * Trace your AI agent execution flow to detect errors and performance bottlenecks in real-time.
- *
- * Getting started with monitoring:
- * https://docs.neuron-ai.dev/the-basics/observability
- *
  * @deprecated Use the new observer from the Inspector PHP package - Inspector/Neuron/InspectorObserver
  */
 class InspectorObserver implements ObserverInterface
