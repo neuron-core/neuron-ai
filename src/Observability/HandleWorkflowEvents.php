@@ -35,15 +35,19 @@ trait HandleWorkflowEvents
             return;
         }
 
+        $mapping = array_map(fn (string $eventClass, NodeInterface $node): array => [
+            $eventClass => $node::class,
+        ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap));
+
         if ($this->inspector->needTransaction()) {
             $this->inspector->startTransaction($workflow::class)
                 ->setResult('success') // success by default, it can be changed during execution
-                ->addContext('Mapping', array_map(fn (string $eventClass, NodeInterface $node): array => [
-                    $eventClass => $node::class,
-                ], array_keys($data->eventNodeMap), array_values($data->eventNodeMap)));
+                ->addContext('Mapping', $mapping);
         } elseif ($this->inspector->canAddSegments()) {
-            $this->segments[$workflow::class] = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($workflow::class))
+            $segment = $this->inspector->startSegment(self::SEGMENT_TYPE.'.workflow', $this->getBaseClassName($workflow::class))
                 ->setColor(self::STANDARD_COLOR);
+            $segment->addContext('Mapping', $mapping);
+            $this->segments[$workflow::class] = $segment;
         }
 
         $this->inspector->transaction()->setType('agent');
@@ -58,6 +62,12 @@ trait HandleWorkflowEvents
             $this->segments[$workflow::class]
                 ->end()
                 ->addContext('State', $data->state->all());
+
+            if ($workflow instanceof Agent) {
+                foreach ($this->getAgentContext($workflow) as $key => $value) {
+                    $this->segments[$workflow::class]->addContext($key, $value);
+                }
+            }
         } elseif ($this->inspector->canAddSegments()) {
             $transaction = $this->inspector->transaction();
             $transaction->addContext('State', $data->state->all());
