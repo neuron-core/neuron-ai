@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
-use Inspector\Exceptions\InspectorException;
-use Inspector\Inspector;
-
 class EventBus
 {
     /**
