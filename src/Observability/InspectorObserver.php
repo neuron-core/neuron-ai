@@ -30,6 +30,8 @@ use function substr;
  *
  * Getting started with monitoring:
  * https://docs.neuron-ai.dev/the-basics/observability
+ *
+ * @deprecated Use the new observer from the Inspector PHP package - Inspector/Neuron/InspectorObserver
  */
 class InspectorObserver implements ObserverInterface
 {
