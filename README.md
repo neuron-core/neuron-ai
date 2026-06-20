@@ -196,6 +196,7 @@ Supported providers:
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
 - [ZAI](https://docs.neuron-ai.dev/providers/ai-provider#zai)
 - [Alibaba DashScope](https://docs.neuron-ai.dev/providers/ai-provider#alibaba-dashscope)
+- [Neuron Router](https://github.com/neuron-core/router)
 
 <a name="tools">
 
