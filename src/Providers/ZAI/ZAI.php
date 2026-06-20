@@ -19,8 +19,6 @@ class ZAI extends OpenAI
     use HandleWithTools;
     use HandleStructured;
 
-    protected string $baseUri = 'https://api.z.ai/api/paas/v4';
-
     /**
      * @param array<string, mixed> $parameters
      */
@@ -30,12 +28,8 @@ class ZAI extends OpenAI
         protected array $parameters = [],
         protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
-        ?string $baseUri = null,
+        protected string $baseUri = 'https://api.z.ai/api/paas/v4',
     ) {
-        if ($baseUri !== null) {
-            $this->baseUri = $baseUri;
-        }
-
         parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
     }
 
