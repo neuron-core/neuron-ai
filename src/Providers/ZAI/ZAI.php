@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\ZAI;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
@@ -18,7 +19,19 @@ class ZAI extends OpenAI
     use HandleWithTools;
     use HandleStructured;
 
-    protected string $baseUri = 'https://api.z.ai/api/paas/v4';
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    public function __construct(
+        protected string $key,
+        protected string $model,
+        protected array $parameters = [],
+        protected bool $strict_response = false,
+        ?HttpClientInterface $httpClient = null,
+        protected string $baseUri = 'https://api.z.ai/api/paas/v4',
+    ) {
+        parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
+    }
 
     protected function messageMapper(): MessageMapperInterface
     {

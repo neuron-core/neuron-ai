@@ -16,9 +16,25 @@ PHP applications with a powerful and flexible architecture. We provide tools for
 from LLM interfaces, data loading, multi-agent orchestration, to monitoring and debugging.
 In addition, we provide tutorials and other educational content to help you get started using AI Agents in your projects.
 
-[**Video Tutorial**](https://www.youtube.com/watch?v=oSA1bP_j41w)
+[**Video Tutorial**](https://docs.neuron-ai.dev/overview/fast-learning-by-video)
 
-[![Neuron & Inspector](./docs/images/youtube.png)](https://www.youtube.com/watch?v=oSA1bP_j41w)
+[![Neuron & Inspector](./docs/images/youtube.png)](https://docs.neuron-ai.dev/overview/fast-learning-by-video)
+
+## Why Neuron Is Unique
+Most agentic frameworks ask you to pick a side. Some are simple enough to learn in an afternoon,
+and you hit a wall the first time your use case grows beyond a demo. Others are powerful enough for your use case,
+and you spend weeks fighting their abstractions before you ship anything real, or they require you to learn another programming language.
+
+Neuron is built on a Workflow architecture that removes those compromises.
+The first spark came from the Workflow concept on LLmaindex in the Python world.
+Shaped around the patterns of modern PHP, the Neuron Workflow is a PHP native solution that now follows a path of its own,
+one we continue to draw as the agentic ecosystem in PHP takes shape around it.
+
+**The result is one foundation that a newcomer can pick up on the first day, and that already carries everything a serious agent needs underneath:**
+unified messaging layer, tools & toolkits, MCP, human-in-the-loop, agentic UI protocols, multi-agent interactions, asynchronous execution, and more. You never switch frameworks when your project gets ambitious. The architecture you learned at the start of this journey is the same one running your most complex system in production in the future.
+
+## A Vertical Ecosystem
+Neuron is also the only vertical ecosystem for agentic development in PHP, and that word, ecosystem, is doing real work. Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications, and a growing number of companies building on the same architecture instead of assembling their own from scattered parts. For a software house, this is a place to be recognized as a specialist rather than one more team claiming AI experience. For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose whole direction is this space, not a general-purpose library where agents are a side feature.
 
 ## Requirements
 
@@ -27,26 +43,6 @@ In addition, we provide tutorials and other educational content to help you get 
 ## Official documentation
 
 **[Go to the official documentation](https://docs.neuron-ai.dev/)**
-
-## Guides & Tutorials
-
-Check out the technical guides and tutorials archive to learn how to start creating your AI Agents with Neuron
-https://docs.neuron-ai.dev/overview/fast-learning-by-video.
-
-Neuron is the perfect AI architecture for your project.
-
-## Laravel Demo
-Neuron offers a well-defined encapsulation pattern, allowing you to work on your agentic system in dedicated namespaces.
-You can enjoy the exact same experience of the other ecosystem packages you already love, like Filament, or Nova.
-
-[Example project (GitHub)](https://github.com/neuron-core/laravel-travel-agent)
-
-## Symfony Demo
-
-All Neuron components belong to its own interface, so you can define dependencies and automate objects creation
-using the Symfony service container. Watch how it works in a real project.
-
-[Symfony & Neuron (YouTube)](https://www.youtube.com/watch?v=JWRlcaGnsXw)
 
 ## How To
 
@@ -201,6 +197,7 @@ Supported providers:
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
 - [ZAI](https://docs.neuron-ai.dev/providers/ai-provider#zai)
 - [Alibaba DashScope](https://docs.neuron-ai.dev/providers/ai-provider#alibaba-dashscope)
+- [Neuron Router](https://github.com/neuron-core/router)
 
 <a name="tools">
 
