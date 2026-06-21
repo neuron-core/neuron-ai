@@ -29,7 +29,8 @@ Neuron is built on a Workflow architecture that removes those compromises. The f
 **The result is one foundation that a newcomer can pick up on the first day, and that already carries everything a serious agent needs underneath**: unified messaging layer, tools & toolkits, MCP, human-in-the-loop, agentic UI protocols, multi-agent interactions, asynchronous execution, and more. You never switch frameworks when your project gets ambitious. The architecture you learned at the start of this journey is the same one running your most complex system in production in the future.
 
 ## A Vertical Ecosystem
-Neuron is also the only vertical ecosystem for agentic development in PHP, and that word, ecosystem, is doing real work. Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications, and a growing number of companies building on the same architecture instead of assembling their own from scattered parts.
+
+Neuron is also the only vertical ecosystem for agentic development in PHP, and that word, ecosystem, is a real thing. Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications, and a growing number of companies building on the same architecture instead of assembling their own from scattered parts.
 
 For a software house, this is a place to be recognized as a specialist rather than one more team claiming AI experience. For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose whole direction is this space, not a general-purpose library where agents are a side feature.
 
