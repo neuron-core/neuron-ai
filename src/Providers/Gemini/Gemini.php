@@ -30,11 +30,6 @@ class Gemini implements AIProviderInterface
     use HandleStructured;
 
     /**
-     * The main URL of the provider API.
-     */
-    protected string $baseUri = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-    /**
      * System instructions.
      */
     protected ?string $system = null;
@@ -50,6 +45,7 @@ class Gemini implements AIProviderInterface
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
+        protected string $baseUri = 'https://generativelanguage.googleapis.com/v1beta/models'
     ) {
         // Use provided client or create default Guzzle client
         // Provider always configures authentication headers
