@@ -131,6 +131,6 @@ class ParallelToolNode extends ToolNode
         }
 
         // Return a new ToolCallResultMessage with the executed tools
-        return new ToolResultMessage($executedTools);
+        return new ToolResultMessage(array_values($executedTools));
     }
 }
