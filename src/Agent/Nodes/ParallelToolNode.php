@@ -108,12 +108,14 @@ class ParallelToolNode extends ToolNode
                 $exceptionClass = $data['exception_class'];
                 $exception = null;
 
-                // Recreate the exception
-                if (class_exists($exceptionClass) && is_subclass_of($exceptionClass, Throwable::class)) {
-                    $exception = new $exceptionClass($data['exception_message'], (int) $data['exception_code']);
-                } else {
-                    $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
-                }
+                // Recreate the exception safely — we can't assume all exceptions
+                // use a standard (string $message, int $code) constructor (e.g. HttpException
+                // takes HttpRequest/HttpResponse as later constructor args). Always wrap in
+                // ToolException to avoid constructor signature mismatches.
+                $exception = new ToolException(
+                  "[{$exceptionClass}] {$data['exception_message']}",
+                  (int) $data['exception_code']
+                );
 
                 // Get the original tool to handle the error
                 $originalTool = $tools[$index];
