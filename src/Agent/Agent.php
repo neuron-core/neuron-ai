@@ -17,12 +17,13 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function is_array;
 
 /**
- * @method static static make(?string $resumeToken = null)
+ * @method static static make(?string $resumeToken = null, ?WorkflowState $state = null)
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
  */
