@@ -17,8 +17,10 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\HandleContent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowHandlerInterface;
+use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function is_array;
@@ -27,6 +29,7 @@ use function is_array;
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
  * @method AgentState run()
+ * @method static static make(?PersistenceInterface $persistence = null, ?string $resumeToken = null, ?WorkflowState $state = null)
  */
 class Agent extends Workflow implements AgentInterface
 {
