@@ -12,12 +12,12 @@ use NeuronAI\Workflow\WorkflowState;
 
 class CheckpointableTextProcessNode extends Node
 {
-    public bool $closureReExecuted = false;
+    public int $closureExecutions = 0;
 
     public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
     {
         $result = $this->checkpoint('expensive_computation', function (): string {
-            $this->closureReExecuted = true;
+            $this->closureExecutions++;
             return 'computed_value';
         });
 

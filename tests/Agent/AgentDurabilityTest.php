@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -16,6 +18,7 @@ use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
@@ -37,8 +40,8 @@ class AgentDurabilityTest extends TestCase
     public function testCrashRecoveryDuringToolExecution(): void
     {
         $workflowId = 'agent_recovery_test';
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
-        $executor = new WorkflowExecutor($stepEngine);
+        $persistence = new InMemoryPersistence();
+        $executor = new WorkflowExecutor($persistence);
 
         $searchTool = new CrashSearchTool();
 
@@ -78,11 +81,53 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $searchTool->getCallCount());
     }
 
+    public function testChatNodeInferenceMemoizedAcrossCrashRecovery(): void
+    {
+        // Crash window under test: ChatNode's inference succeeds and is memoized
+        // mid-node, then the node crashes BEFORE its step completes. On recovery with
+        // a fresh step engine + same persistence, the node re-executes but the inference
+        // must NOT be billed again.
+        $workflowId = 'agent_chatnode_memo_test';
+        $persistence = new InMemoryPersistence();
+        $stepId = ChatNode::class . '-0';
+
+        $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
+
+        $event = new AIInferenceEvent('Be helpful', []);
+        $event->setMessages(new UserMessage('Hi'));
+
+        // Run 1: invoke the node directly with a durable memoizer bound to the step.
+        // The inference memo is persisted at generation 1. (We never record the node
+        // step itself as completed — simulating a crash right after memoize().)
+        $engine1 = new LocalStepEngine($persistence);
+        $engine1->prepareExecution($workflowId);
+
+        $state1 = new AgentState();
+        $state1->set('__workflowId', $workflowId);
+        $node1 = new ChatNode($provider);
+        $node1->setWorkflowContext($state1, $event, null, new StepMemoizer($engine1, $stepId));
+        $node1($event, $state1);
+
+        $this->assertSame(1, $provider->getCallCount());
+
+        // Recovery: brand-new engine, same persistence (simulates a process restart).
+        $engine2 = new LocalStepEngine($persistence);
+        $engine2->prepareExecution($workflowId);
+
+        $state2 = new AgentState();
+        $state2->set('__workflowId', $workflowId);
+        $node2 = new ChatNode($provider);
+        $node2->setWorkflowContext($state2, $event, null, new StepMemoizer($engine2, $stepId));
+        $node2($event, $state2);
+
+        $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
+    }
+
     public function testInterruptResumeWithToolApproval(): void
     {
         $workflowId = 'agent_approval_test';
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
-        $executor = new WorkflowExecutor($stepEngine);
+        $persistence = new InMemoryPersistence();
+        $executor = new WorkflowExecutor($persistence);
 
         $searchTool = new SearchTool();
 
@@ -127,8 +172,8 @@ class AgentDurabilityTest extends TestCase
     public function testChatNoToolsStepCleanupAfterCompletion(): void
     {
         $workflowId = 'agent_cleanup_test';
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
-        $executor = new WorkflowExecutor($stepEngine);
+        $persistence = new InMemoryPersistence();
+        $executor = new WorkflowExecutor($persistence);
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
@@ -144,14 +189,14 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($stepEngine->getStep(\NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
+        $this->assertNull($persistence->load($workflowId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
     }
 
     public function testToolApprovalRejectsTool(): void
     {
         $workflowId = 'agent_rejection_test';
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
-        $executor = new WorkflowExecutor($stepEngine);
+        $persistence = new InMemoryPersistence();
+        $executor = new WorkflowExecutor($persistence);
 
         $searchTool = new SearchTool();
 
@@ -195,8 +240,8 @@ class AgentDurabilityTest extends TestCase
     public function testSuccessfulToolCallWithStepEngine(): void
     {
         $workflowId = 'agent_tool_success_test';
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
-        $executor = new WorkflowExecutor($stepEngine);
+        $persistence = new InMemoryPersistence();
+        $executor = new WorkflowExecutor($persistence);
 
         $searchTool = new SearchTool();
 
@@ -218,7 +263,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($stepEngine->getStep(ChatNode::class . '-0'));
+        $this->assertNull($persistence->load($workflowId, ChatNode::class . '-0'));
     }
 
     public function testInterruptResumeWithFilePersistence(): void
@@ -231,8 +276,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         $persistence = new FilePersistence($dir);
-        $stepEngine = new LocalStepEngine(persistence: $persistence);
-        $executor = new WorkflowExecutor($stepEngine);
+        $executor = new WorkflowExecutor($persistence);
 
         $agent = Agent::make(resumeToken: $workflowId);
         $agent->setAiProvider($provider);

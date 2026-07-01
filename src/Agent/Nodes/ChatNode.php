@@ -42,7 +42,10 @@ class ChatNode extends Node
         $lastMessage = $chatHistory->getLastMessage();
 
         $this->emit('inference-start', new InferenceStart($lastMessage));
-        $providerResponse = $this->inference($event, $chatHistory->getMessages());
+        $providerResponse = $this->memoize(
+            'inference',
+            fn (): ProviderResponse => $this->inference($event, $chatHistory->getMessages()),
+        );
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
         $this->emit('inference-stop', new InferenceStop($lastMessage, $providerResponse));

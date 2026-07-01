@@ -116,9 +116,7 @@ class Workflow implements WorkflowInterface
      */
     protected function resolveExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= new WorkflowExecutor(
-            new Executor\LocalStepEngine(persistence: $this->persistence())
-        );
+        return $this->executor ??= new WorkflowExecutor($this->persistence());
     }
 
     /**
