@@ -27,6 +27,7 @@ use function is_array;
 use function is_subclass_of;
 use function serialize;
 use function unserialize;
+use function array_values;
 
 class ParallelToolNode extends ToolNode
 {
