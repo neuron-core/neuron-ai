@@ -10,7 +10,11 @@ use NeuronAI\Observability\EventBus;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
 use NeuronAI\Observability\Events\BranchStart;
+use NeuronAI\Observability\Events\MiddlewareEnd;
+use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
+use NeuronAI\Observability\Events\WorkflowNodeEnd;
+use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\ParallelEvent;
@@ -18,7 +22,10 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\BranchInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
@@ -26,17 +33,20 @@ use Throwable;
 /**
  * Durable workflow executor with replay-based traversal.
  *
- * Every node executes as a memoized step via a StepEngine.
- * Completed steps skip on replay. Interrupted steps resume
- * from the stored InterruptRequest. Crash recovery and
- * interrupt resume share the same replay path.
+ * Every node executes as a memoized step via an internal LocalStepEngine.
+ * Completed steps skip on replay. Interrupted steps resume from the stored
+ * InterruptRequest. Crash recovery and interrupt resume share the same replay path.
+ *
+ * This is the in-process execution model. Alternative execution models (e.g. a
+ * cloud-driven executor) implement WorkflowExecutorInterface directly.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
-    public function __construct(
-        protected StepEngine $stepEngine,
-        protected NodeRunner $nodeRunner = new DefaultNodeRunner(),
-    ) {
+    protected LocalStepEngine $stepEngine;
+
+    public function __construct(?PersistenceInterface $persistence = null)
+    {
+        $this->stepEngine = new LocalStepEngine($persistence ?? new InMemoryPersistence());
     }
 
     /**
@@ -67,6 +77,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         } catch (WorkflowInterrupt $interrupt) {
             EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
             throw $interrupt;
+        } catch (Throwable $e) {
+            EventBus::emit('error', $workflow, new AgentError($e, false), $workflowId);
+            throw $e;
         } finally {
             $this->workflowEnd($workflow);
         }
@@ -87,11 +100,74 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
+     * Run a single node through its full lifecycle.
+     *
+     * Yields streamed events from the node in real time; returns the final Event.
+     * Subclasses (e.g. AsyncExecutor) inherit this unchanged.
+     *
+     * @param WorkflowMiddleware[] $middleware
+     * @return Generator<int, Event, mixed, Event>
+     */
+    protected function runNode(
+        NodeInterface $node,
+        Event $event,
+        WorkflowState $state,
+        array $middleware = [],
+        ?string $branchId = null,
+        ?InterruptRequest $resumeRequest = null,
+        ?StepMemoizer $memoizer = null,
+    ): Generator {
+        $node->setWorkflowContext($state, $event, $resumeRequest, $memoizer);
+
+        $workflowId = $state->get('__workflowId');
+
+        EventBus::emit(
+            'workflow-node-start',
+            $node,
+            new WorkflowNodeStart($node::class, $state),
+            $workflowId,
+            $branchId,
+        );
+
+        foreach ($middleware as $m) {
+            EventBus::emit('middleware-before-start', $node, new MiddlewareStart($m, $event), $workflowId, $branchId);
+            $m->before($node, $event, $state);
+            EventBus::emit('middleware-before-end', $node, new MiddlewareEnd($m), $workflowId, $branchId);
+        }
+
+        $result = $node->run($event, $state);
+
+        if ($result instanceof Generator) {
+            foreach ($result as $streamedEvent) {
+                yield $streamedEvent;
+            }
+            $result = $result->getReturn();
+        }
+
+        foreach ($middleware as $m) {
+            EventBus::emit('middleware-after-start', $node, new MiddlewareStart($m, $result), $workflowId, $branchId);
+            $m->after($node, $result, $state);
+            EventBus::emit('middleware-after-end', $node, new MiddlewareEnd($m), $workflowId, $branchId);
+        }
+
+        EventBus::emit(
+            'workflow-node-end',
+            $node,
+            new WorkflowNodeEnd($node::class, $state),
+            $workflowId,
+            $branchId,
+        );
+
+        return $result;
+    }
+
+    /**
      * Traverse nodes sequentially from the given starting point.
      *
      * @return Generator<int, Event, mixed, void>
-     * @throws WorkflowInterrupt
      * @throws InspectorException
+     * @throws Throwable
+     * @throws WorkflowInterrupt
      */
     protected function traverse(
         WorkflowInterface $workflow,
@@ -108,11 +184,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $node,
                 $event,
                 $workflow,
+                $stepId,
                 &$streamedEvents,
             ): StepResult {
                 $state = $workflow->resolveState();
                 $middleware = $workflow->getMiddlewareForNode($node);
-                $nodeGen = $this->nodeRunner->run($node, $event, $state, $middleware, null, $resumeRequest);
+                $nodeGen = $this->runNode(
+                    $node,
+                    $event,
+                    $state,
+                    $middleware,
+                    null,
+                    $resumeRequest,
+                    new StepMemoizer($this->stepEngine, $stepId),
+                );
                 foreach ($nodeGen as $streamedEvent) {
                     $streamedEvents[] = $streamedEvent;
                 }
@@ -233,10 +318,19 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     $branchState,
                     $workflow,
                     $branchId,
+                    $stepId,
                     &$streamedEvents,
                 ): StepResult {
                     $middleware = $workflow->getMiddlewareForNode($node);
-                    $nodeGen = $this->nodeRunner->run($node, $event, $branchState, $middleware, $branchId, $stepResume);
+                    $nodeGen = $this->runNode(
+                        $node,
+                        $event,
+                        $branchState,
+                        $middleware,
+                        $branchId,
+                        $stepResume,
+                        new StepMemoizer($this->stepEngine, $stepId),
+                    );
                     foreach ($nodeGen as $streamedEvent) {
                         $streamedEvents[] = $streamedEvent;
                     }

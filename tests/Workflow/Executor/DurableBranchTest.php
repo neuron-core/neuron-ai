@@ -8,9 +8,9 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -18,16 +18,16 @@ class DurableBranchTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    protected function createDurableExecutor(?LocalStepEngine $stepEngine = null): WorkflowExecutor
+    protected function createDurableExecutor(?PersistenceInterface $persistence = null): WorkflowExecutor
     {
         return new WorkflowExecutor(
-            $stepEngine ?? new LocalStepEngine(new InMemoryPersistence()),
+            $persistence ?? new InMemoryPersistence(),
         );
     }
 
     public function testParallelBranchWithStepEngineCompletesAllBranches(): void
     {
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
+        $persistence = new InMemoryPersistence();
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -37,7 +37,7 @@ class DurableBranchTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow, $this->createDurableExecutor($stepEngine));
+        $result = $this->execute($workflow, $this->createDurableExecutor($persistence));
 
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);
@@ -46,7 +46,7 @@ class DurableBranchTest extends TestCase
 
     public function testMainFlowWithStepEngine(): void
     {
-        $stepEngine = new LocalStepEngine(new InMemoryPersistence());
+        $persistence = new InMemoryPersistence();
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -56,7 +56,7 @@ class DurableBranchTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow, $this->createDurableExecutor($stepEngine));
+        $result = $this->execute($workflow, $this->createDurableExecutor($persistence));
 
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);

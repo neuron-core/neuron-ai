@@ -10,11 +10,10 @@ use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 
-use function array_key_exists;
-use function call_user_func;
 use function is_callable;
 
 abstract class Node implements NodeInterface
@@ -23,10 +22,7 @@ abstract class Node implements NodeInterface
     protected Event $event;
     protected ?InterruptRequest $resumeRequest = null;
 
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $checkpoints = [];
+    protected ?StepMemoizer $memoizer = null;
 
     public function run(Event $event, WorkflowState $state): Generator|Event
     {
@@ -37,11 +33,13 @@ abstract class Node implements NodeInterface
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        ?InterruptRequest $resumeRequest = null
+        ?InterruptRequest $resumeRequest = null,
+        ?StepMemoizer $memoizer = null,
     ): void {
         $this->state = $currentState;
         $this->event = $currentEvent;
         $this->resumeRequest = $resumeRequest;
+        $this->memoizer = $memoizer;
     }
 
     /**
@@ -60,17 +58,45 @@ abstract class Node implements NodeInterface
         return null;
     }
 
-    protected function checkpoint(string $name, Closure $closure): mixed
+    /**
+     * Execute a closure as a durable, memoized sub-operation.
+     *
+     * On first execution the closure runs and its return value is persisted
+     * (mid-node, before the node returns). On replay — when the node re-executes
+     * because its step crashed before completing — the recorded value is returned
+     * WITHOUT running the closure again.
+     *
+     * Wrap expensive or non-deterministic work (LLM calls, HTTP, tool execution)
+     * in memoize() so it runs at most once even if the node crashes after it
+     * succeeds. The closure MUST be a pure function of the node's event and
+     * state for the given name.
+     *
+     * The executor wires a StepMemoizer bound to the current step, which is the
+     * default memoization strategy. When a node runs without an executor (e.g. in
+     * isolation), the operation simply runs inline with no caching.
+     *
+     * @template T
+     * @param Closure(): T $operation
+     * @return T
+     */
+    protected function memoize(string $name, Closure $operation): mixed
     {
-        if (array_key_exists($name, $this->checkpoints)) {
-            $result = $this->checkpoints[$name];
-            unset($this->checkpoints[$name]);
-            return $result;
+        if ($this->memoizer instanceof StepMemoizer) {
+            return $this->memoizer->memo($name, $operation);
         }
 
-        $result = call_user_func($closure);
-        $this->checkpoints[$name] = $result;
-        return $result;
+        return $operation();
+    }
+
+    /**
+     * @deprecated Use memoize() instead. checkpoint() now delegates to memoize(),
+     *             persisting the value durably across crashes. The previous
+     *             in-memory, one-shot behaviour is removed. Will be removed in
+     *             the next major version.
+     */
+    protected function checkpoint(string $name, Closure $closure): mixed
+    {
+        return $this->memoize($name, $closure);
     }
 
     /**

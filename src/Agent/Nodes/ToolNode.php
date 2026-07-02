@@ -66,9 +66,9 @@ class ToolNode extends Node
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
     {
-        foreach ($toolCallMessage->getTools() as $tool) {
+        foreach ($toolCallMessage->getTools() as $index => $tool) {
             yield new ToolCallChunk($tool);
-            $this->executeSingleTool($tool, $state);
+            $this->executeSingleTool($tool, $state, $index);
             yield new ToolResultChunk($tool);
         }
 
@@ -78,25 +78,40 @@ class ToolNode extends Node
     /**
      * Execute a single tool with proper error handling and retry logic.
      *
+     * The tool execution is wrapped in a durable memo keyed by the tool call id
+     * (or name + position when the provider supplies no call id). On replay — when
+     * the node re-executes because its step crashed before completing — the recorded
+     * result is restored onto the tool WITHOUT re-running it, so side-effecting tools
+     * (emails, payments, ...) execute at most once.
+     *
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
      */
-    protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
+    protected function executeSingleTool(ToolInterface $tool, AgentState $state, int $index): void
     {
         $this->emit('tool-calling', new ToolCalling($tool));
 
+        $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName() . '.' . $index);
+
         try {
-            $key = $tool->getRunKey();
+            $result = $this->memoize($memoKey, function () use ($tool, $state): string {
+                $key = $tool->getRunKey();
 
-            $state->incrementToolRun($key);
+                $state->incrementToolRun($key);
 
-            // Single tool max tries have the highest priority over the global max tries
-            $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($key) > $runs) {
-                throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
-            }
+                // Single tool max tries have the highest priority over the global max tries
+                $runs = $tool->getMaxRuns() ?? $this->maxRuns;
+                if ($state->getToolRuns($key) > $runs) {
+                    throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
+                }
 
-            $tool->execute();
+                $tool->execute();
+                return $tool->getResult();
+            });
+
+            // Restore the result onto the tool. On first execution this is a no-op-ish
+            // re-set; on replay it is what makes execute() skippable.
+            $tool->setResult($result);
         } catch (Throwable $e) {
             $this->handleError($e, $tool);
         } finally {

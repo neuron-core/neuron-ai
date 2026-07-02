@@ -9,7 +9,6 @@ use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -49,7 +48,7 @@ class NodeTest extends TestCase
 
     public function testNodeCheckpoint(): void
     {
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        $executor = new WorkflowExecutor(new InMemoryPersistence());
 
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());
 

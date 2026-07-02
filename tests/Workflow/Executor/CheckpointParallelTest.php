@@ -13,7 +13,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\MultiCheckpointTextProcessNode;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-use ReflectionProperty;
 
 class CheckpointParallelTest extends TestCase
 {
@@ -44,10 +43,9 @@ class CheckpointParallelTest extends TestCase
         $node = $interrupt->getNode();
         $this->assertInstanceOf(CheckpointableTextProcessNode::class, $node);
 
-        $reflection = new ReflectionProperty($node, 'checkpoints');
-        $checkpoints = $reflection->getValue($node);
-        $this->assertArrayHasKey('expensive_computation', $checkpoints);
-        $this->assertSame('computed_value', $checkpoints['expensive_computation']);
+        // The checkpointed (now durable-memoized) operation executed exactly once
+        // before the branch interrupted — its value is retained for resume.
+        $this->assertSame(1, $node->closureExecutions);
     }
 
     public function testCheckpointNotReExecutedOnParallelResume(): void

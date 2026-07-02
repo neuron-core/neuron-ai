@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Generator;
 
@@ -15,7 +16,8 @@ interface NodeInterface
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        ?Interrupt\InterruptRequest $resumeRequest = null
+        ?Interrupt\InterruptRequest $resumeRequest = null,
+        ?StepMemoizer $memoizer = null,
     ): void;
 
     /**

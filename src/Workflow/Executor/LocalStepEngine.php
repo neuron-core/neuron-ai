@@ -7,10 +7,19 @@ namespace NeuronAI\Workflow\Executor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use Throwable;
 
 use function max;
 
-class LocalStepEngine implements StepEngine
+/**
+ * In-process replay engine used internally by the local WorkflowExecutor.
+ *
+ * Persists every executed node as a StepResult. On re-run, completed steps from
+ * an older generation are returned from cache without re-executing the node;
+ * interrupted steps resume from the stored InterruptRequest; failed steps
+ * (marked after an unhandled throwable) retry.
+ */
+class LocalStepEngine
 {
     protected string $workflowId;
 
@@ -37,9 +46,11 @@ class LocalStepEngine implements StepEngine
     {
         $cached = $this->getStepResult($stepId);
 
-        // Memoized: return cached result from a previous generation
+        // Memoized: return cached result from a previous generation.
+        // Failed steps are never replayed from cache — they must retry.
         if ($cached instanceof StepResult
             && !$cached->isInterrupted()
+            && !$cached->isFailed()
             && $cached->getGeneration() < $this->generation
         ) {
             return $cached;
@@ -57,6 +68,7 @@ class LocalStepEngine implements StepEngine
                 event: $result->getEvent(),
                 state: $result->getState(),
                 generation: $this->generation,
+                output: $result->getOutput(),
             );
             $this->setStepResult($stepId, $stamped);
 
@@ -74,6 +86,16 @@ class LocalStepEngine implements StepEngine
             );
             $this->setStepResult($stepId, $stamped);
             throw $interrupt;
+        } catch (Throwable $e) {
+            // Record a failed-step marker for crash observability, then rethrow.
+            // On recovery the marker makes this step retry (it is never replayed from cache).
+            $stamped = new StepResult(
+                stepId: $stepId,
+                generation: $this->generation,
+                error: ['message' => $e->getMessage(), 'class' => $e::class],
+            );
+            $this->setStepResult($stepId, $stamped);
+            throw $e;
         }
 
         // Save internally with current generation
@@ -82,6 +104,7 @@ class LocalStepEngine implements StepEngine
             event: $result->getEvent(),
             state: $result->getState(),
             generation: $this->generation,
+            output: $result->getOutput(),
         );
         $this->setStepResult($stepId, $stamped);
 
