@@ -88,7 +88,10 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => 'image_url',
             'image_url' => [
-                'url' => $block->content,
+                'url' => match ($block->sourceType) {
+                    SourceType::URL, SourceType::ID => $block->content,
+                    SourceType::BASE64 => 'data:'.$block->mediaType.';base64,'.$block->content,
+                },
             ],
         ];
     }
