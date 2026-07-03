@@ -131,6 +131,10 @@ trait HandleStream
                 )->setUsage($this->streamState->getUsage());
             }
 
+            if (array_key_exists('groundingMetadata', $line['candidates'][0])) {
+                $citations = $this->extractCitations($line['candidates'][0]['groundingMetadata']);
+            }
+
             // Process content
             if (! ($part = $line['candidates'][0]['content']['parts'][0] ?? null)) {
                 continue;
@@ -156,11 +160,6 @@ trait HandleStream
                     SourceType::URL,
                     $part['fileData']['mimeType']
                 ));
-            }
-
-            if (array_key_exists('groundingMetadata', $line['candidates'][0])) {
-                // Extract citations from groundingMetadata
-                $citations = $this->extractCitations($line['candidates'][0]['groundingMetadata']);
             }
         }
 
