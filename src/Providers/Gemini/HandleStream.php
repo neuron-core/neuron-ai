@@ -133,6 +133,10 @@ trait HandleStream
                 return new ProviderResponse(message: $message);
             }
 
+            if (array_key_exists('groundingMetadata', $line['candidates'][0])) {
+                $citations = $this->extractCitations($line['candidates'][0]['groundingMetadata']);
+            }
+
             // Process content
             if (! ($part = $line['candidates'][0]['content']['parts'][0] ?? null)) {
                 continue;
@@ -166,6 +170,10 @@ trait HandleStream
 
         if ($lastFinishReason !== null) {
             $message->setStopReason($lastFinishReason);
+        }
+
+        if (isset($citations)) {
+            $message->addMetadata('citations', $citations);
         }
 
         return new ProviderResponse(message: $message);
