@@ -157,6 +157,11 @@ trait HandleStream
                     $part['fileData']['mimeType']
                 ));
             }
+
+            if (array_key_exists('groundingMetadata', $line['candidates'][0])) {
+                // Extract citations from groundingMetadata
+                $citations = $this->extractCitations($line['candidates'][0]['groundingMetadata']);
+            }
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
@@ -164,6 +169,10 @@ trait HandleStream
 
         if ($lastFinishReason !== null) {
             $message->setStopReason($lastFinishReason);
+        }
+
+        if (isset($citations)) {
+            $message->addMetadata('citations', $citations);
         }
 
         return $message;
