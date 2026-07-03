@@ -75,7 +75,7 @@ class ToolMapper implements ToolMapperInterface
         ];
 
         if ($tool->getOptions() !== []) {
-            $payload[$tool->getType()] = $tool->getOptions();
+            $payload[$tool->getType()] = empty($tool->getOptions()) ? new stdClass() : $tool->getOptions();
         }
 
         return $payload;
