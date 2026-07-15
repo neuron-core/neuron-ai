@@ -126,4 +126,30 @@ class MeiliSearchTest extends TestCase
         $this->assertEquals('file', $results[0]->getSourceType());
         $this->assertEquals('Hello type B!', $results[0]->getContent());
     }
+
+    public function test_similarity_search_with_filters(): void
+    {
+        $store = new MeilisearchVectorStore('neuron');
+
+        $document1 = new Document('Hello type A!');
+        $document1->embedding = $this->embedding;
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello type B!');
+        $document2->embedding = $this->embedding;
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+
+        $store->addDocuments([$document1, $document2]);
+
+        // Wait for Meilisearch to index the documents
+        sleep(5);
+
+        $store->withFilters(["sourceType = 'file'"]);
+        $results = $store->similaritySearch($this->embedding);
+
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+    }
 }

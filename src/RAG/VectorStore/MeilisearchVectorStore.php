@@ -26,6 +26,15 @@ class MeilisearchVectorStore implements VectorStoreInterface
     use HasHttpClient;
 
     /**
+     * Native Meilisearch filter expressions applied to similaritySearch().
+     *
+     * https://www.meilisearch.com/docs/reference/api/search#filter
+     *
+     * @var array<int, mixed>
+     */
+    protected array $filters = [];
+
+    /**
      * @throws HttpException
      */
     public function __construct(
@@ -119,23 +128,38 @@ class MeilisearchVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @param  array<int, mixed>  $filters  Native Meilisearch filter expressions.
+     */
+    public function withFilters(array $filters): self
+    {
+        $this->filters = $filters;
+        return $this;
+    }
+
+    /**
      * @throws HttpException
      */
     public function similaritySearch(array $embedding): iterable
     {
+        $body = [
+            'vector' => $embedding,
+            'limit' => min($this->topK, 20),
+            'retrieveVectors' => true,
+            'showRankingScore' => true,
+            'hybrid' => [
+                'semanticRatio' => 1.0,
+                'embedder' => $this->embedder,
+            ],
+        ];
+
+        if ($this->filters !== []) {
+            $body['filter'] = $this->filters;
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: "/indexes/{$this->indexUid}/search",
-                body: [
-                    'vector' => $embedding,
-                    'limit' => min($this->topK, 20),
-                    'retrieveVectors' => true,
-                    'showRankingScore' => true,
-                    'hybrid' => [
-                        'semanticRatio' => 1.0,
-                        'embedder' => $this->embedder,
-                    ],
-                ]
+                body: $body
             )
         )->json();
 
