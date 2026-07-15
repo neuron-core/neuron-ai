@@ -70,8 +70,8 @@ trait HandleChat
         if (isset($result['usage'])) {
             $response->setUsage(
                 new Usage(
-                    $result['usage']['prompt_tokens'],
-                    $result['usage']['completion_tokens'],
+                    $result['usage']['prompt_tokens'] ?? 0,
+                    $result['usage']['completion_tokens'] ?? 0,
                     $result['usage']['prompt_tokens_details']['cached_tokens'] ?? 0,
                     $result['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0,
                 )
