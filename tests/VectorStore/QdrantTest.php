@@ -130,4 +130,30 @@ class QdrantTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }
+
+    /**
+     * @throws GuzzleException
+     */
+    public function test_similarity_search_with_filters(): void
+    {
+        $document1 = new Document('Hello type A!');
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+        $document1->embedding = [1, 2, 3];
+
+        $document2 = new Document('Hello type B!');
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+        $document2->embedding = [1, 2, 3];
+
+        $this->store->addDocuments([$document1, $document2]);
+        $this->store->withFilters([
+            ['key' => 'sourceType', 'match' => ['value' => 'file']],
+        ]);
+
+        $results = $this->store->similaritySearch([1, 2, 3]);
+
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
+    }
 }
