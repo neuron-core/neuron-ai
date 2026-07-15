@@ -36,7 +36,7 @@ trait HandleStream
             'stream' => true,
             'model' => $this->model,
             'max_tokens' => $this->max_tokens,
-            'system' => $this->system ?? null,
+            ...($this->system !== null ? ['system' => $this->system] : []),
             'messages' => $this->messageMapper()->map($messages),
             ...$this->parameters,
         ];
