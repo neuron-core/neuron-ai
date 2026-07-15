@@ -12,6 +12,22 @@ use PHPUnit\Framework\TestCase;
 
 class OpenAIResponsesToolMapperTest extends TestCase
 {
+    private function createTool(string $name, string $description): Tool
+    {
+        return new class ($name, $description) extends Tool {
+            public function __construct(string $name, string $description)
+            {
+                $this->name = $name;
+                $this->description = $description;
+            }
+
+            public function __invoke(): string
+            {
+                return '';
+            }
+        };
+    }
+
     public function test_tool_with_raw_parameters(): void
     {
         $schema = [
@@ -22,7 +38,7 @@ class OpenAIResponsesToolMapperTest extends TestCase
             'required' => ['sku'],
         ];
 
-        $tool = Tool::make('get_stock', 'Get the current stock level for a SKU.')
+        $tool = $this->createTool('get_stock', 'Get the current stock level for a SKU.')
             ->setParameters(['parameters' => $schema]);
 
         $mapping = (new ToolMapper())->map([$tool]);
@@ -39,7 +55,7 @@ class OpenAIResponsesToolMapperTest extends TestCase
 
     public function test_tool_with_properties(): void
     {
-        $tool = Tool::make('get_stock', 'Get the current stock level for a SKU.')
+        $tool = $this->createTool('get_stock', 'Get the current stock level for a SKU.')
             ->addProperty(new ToolProperty('sku', PropertyType::STRING, 'The product SKU', true));
 
         $mapping = (new ToolMapper())->map([$tool]);
