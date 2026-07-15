@@ -60,6 +60,10 @@ class ToolMapper implements ToolMapperInterface
             ];
         }
 
+        if ($tool->getParameters() !== []) {
+            $payload = array_merge($payload, $tool->getParameters());
+        }
+
         return $payload;
     }
 
