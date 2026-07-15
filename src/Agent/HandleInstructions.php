@@ -13,9 +13,9 @@ trait HandleInstructions
     protected function instructions(): string|array
     {
         return [
-            new SystemContent(
+            (new SystemContent(
                 'Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.'
-            ),
+            ))->cache(),
         ];
     }
 
