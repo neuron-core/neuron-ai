@@ -64,7 +64,10 @@ trait HandleStream
 
                 if (isset($event['contentBlockDelta']['delta']['text'])) {
                     $textChunk = $event['contentBlockDelta']['delta']['text'];
-                    $this->streamState->updateContentBlock($event['contentBlockDelta']['contentBlockIndex'], $textChunk);
+                    $this->streamState->updateContentBlock(
+                        $event['contentBlockDelta']['contentBlockIndex'],
+                        new \NeuronAI\Chat\Messages\ContentBlocks\TextContent($textChunk)
+                    );
                     yield new TextChunk($this->streamState->messageId(), $textChunk);
                 }
 
