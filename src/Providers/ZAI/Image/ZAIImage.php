@@ -86,7 +86,7 @@ class ZAIImage implements AIProviderInterface
             new ImageContent($response['data'][0]['url'], SourceType::URL)
         );
 
-        if (isset($response['usage']) && $response['usage']) {
+        if (isset($response['usage'])) {
             $result->setUsage(
                 new Usage(
                     $response['usage']['prompt_tokens'] ?? 0,
