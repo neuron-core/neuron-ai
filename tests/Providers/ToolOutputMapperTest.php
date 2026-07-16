@@ -12,6 +12,7 @@ use NeuronAI\Providers\Anthropic\MessageMapper as AnthropicMessageMapper;
 use NeuronAI\Providers\AWS\MessageMapper as AWSMessageMapper;
 use NeuronAI\Providers\Gemini\MessageMapper as GeminiMessageMapper;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
+use NeuronAI\Providers\OpenAI\Responses\MessageMapper as OpenAIResponsesMessageMapper;
 use NeuronAI\Tools\HasOutput;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
@@ -121,6 +122,31 @@ class ToolOutputMapperTest extends TestCase
         $decoded = $this->decode($payload);
 
         $this->assertSame('plain-result', $decoded[0]['content']);
+    }
+
+    public function test_openai_responses_emits_native_blocks_when_output_has_blocks(): void
+    {
+        $tool = $this->buildBlockTool();
+
+        $payload = (new OpenAIResponsesMessageMapper())->map([new ToolResultMessage([$tool])]);
+        $decoded = $this->decode($payload);
+
+        // First (and only) entry is the function_call_output item
+        $this->assertSame('function_call_output', $decoded[0]['type']);
+        $this->assertIsArray($decoded[0]['output']);
+        $this->assertSame('input_text', $decoded[0]['output'][0]['type']);
+        $this->assertSame('caption', $decoded[0]['output'][0]['text']);
+        $this->assertSame('input_image', $decoded[0]['output'][1]['type']);
+    }
+
+    public function test_openai_responses_falls_back_to_string_when_no_blocks(): void
+    {
+        $tool = $this->buildTextTool();
+
+        $payload = (new OpenAIResponsesMessageMapper())->map([new ToolResultMessage([$tool])]);
+        $decoded = $this->decode($payload);
+
+        $this->assertSame('plain-result', $decoded[0]['output']);
     }
 
     public function test_mapper_honors_custom_tool_implementing_has_output(): void

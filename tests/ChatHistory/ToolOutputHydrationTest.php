@@ -19,6 +19,8 @@ use function unlink;
 use function file_exists;
 use function file_put_contents;
 use function json_encode;
+use function file_get_contents;
+use function json_decode;
 
 use const DIRECTORY_SEPARATOR;
 
