@@ -14,7 +14,6 @@ use function array_values;
 use function count;
 use function implode;
 use function in_array;
-use function is_callable;
 use function levenshtein;
 use function preg_replace;
 use function preg_split;
@@ -26,16 +25,12 @@ use function trim;
 use function usort;
 use function array_column;
 use function array_slice;
+use function max;
 
 class ToolSearchTool extends Tool
 {
     /** @var ToolInterface[] */
     protected array $discovered = [];
-
-    /**
-     * @var callable(string, ToolInterface): bool|null
-     */
-    protected $searchCallback;
 
     /**
      * @var array<int, array{tool: ToolInterface, nameLower: string, descLower: string, nameWords: string[], descWords: string[]}>|null
@@ -44,18 +39,17 @@ class ToolSearchTool extends Tool
 
     /**
      * @param ToolInterface[] $toolPool
-     * @param callable(string, ToolInterface): bool|null $searchCallback
      */
     public function __construct(
         protected array $toolPool,
-        ?callable $searchCallback = null,
+        protected int $topN = 10,
     ) {
         parent::__construct(
             name: 'tool_search',
             description: 'Search for available tools by name or description. Returns matching tools that will become available for you to use.',
         );
 
-        $this->searchCallback = $searchCallback;
+        $this->topN = max(1, $this->topN);
     }
 
     protected function properties(): array
@@ -72,9 +66,7 @@ class ToolSearchTool extends Tool
 
     public function __invoke(string $query): string
     {
-        $matches = is_callable($this->searchCallback)
-            ? array_values(array_filter($this->toolPool, fn (ToolInterface $tool): bool => ($this->searchCallback)($query, $tool)))
-            : $this->defaultSearch($query);
+        $matches = $this->defaultSearch($query);
 
         $this->discovered = $matches;
 
@@ -188,7 +180,7 @@ class ToolSearchTool extends Tool
         // Sort by score descending
         usort($scoredTools, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
 
-        return array_column(array_slice($scoredTools, 0, 10), 'tool');
+        return array_column(array_slice($scoredTools, 0, $this->topN), 'tool');
     }
 
     /**

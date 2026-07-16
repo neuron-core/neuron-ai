@@ -14,6 +14,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 use function in_array;
 use function str_contains;
+use function max;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
@@ -30,22 +31,14 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         PROMPT;
 
     /**
-     * Custom search function.
-     *
-     * @var callable(string, ToolInterface): bool|null
-     */
-    protected $searchCallback;
-
-    /**
      * @param ToolInterface[] $toolPool
-     * @param callable(string, ToolInterface): bool|null $searchCallback
      */
     public function __construct(
         protected array $toolPool,
-        ?callable $searchCallback = null,
+        protected int $topN = 10,
         protected string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
     ) {
-        $this->searchCallback = $searchCallback;
+        $this->topN = max(1, $this->topN);
     }
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
@@ -59,7 +52,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         }
 
         if (!$this->hasToolSearchTool($event->tools)) {
-            $event->tools[] = new ToolSearchTool($this->toolPool, $this->searchCallback);
+            $event->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
         }
     }
 

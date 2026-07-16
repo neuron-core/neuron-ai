@@ -29,9 +29,9 @@ class ToolSearchMiddlewareTest extends TestCase
         return Tool::make($name, $description);
     }
 
-    private function createMiddleware(array $toolPool, ?callable $searchCallback = null): ToolSearchMiddleware
+    private function createMiddleware(array $toolPool): ToolSearchMiddleware
     {
-        return new ToolSearchMiddleware($toolPool, $searchCallback);
+        return new ToolSearchMiddleware($toolPool);
     }
 
     // --- before() tests ---
@@ -57,19 +57,6 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware->before($node, $event, new AgentState());
 
         $this->assertNotSame('original instructions', $event->instructions);
-    }
-
-    public function test_before_passes_custom_search_callback_to_tool(): void
-    {
-        $callback = fn (string $query, ToolInterface $tool): bool => true;
-        $middleware = $this->createMiddleware([], $callback);
-        $event = new AIInferenceEvent('instructions', []);
-        $node = new ToolNode();
-
-        $middleware->before($node, $event, new AgentState());
-
-        $this->assertCount(1, $event->tools);
-        $this->assertInstanceOf(ToolSearchTool::class, $event->tools[0]);
     }
 
     public function test_before_skips_non_inference_event(): void
@@ -282,23 +269,6 @@ class ToolSearchMiddlewareTest extends TestCase
         $this->assertCount(0, $searchTool->discoveredTools());
     }
 
-    public function test_search_uses_custom_callback(): void
-    {
-        $tool1 = $this->createTool('read_file', 'Read file');
-        $tool2 = $this->createTool('write_file', 'Write file');
-
-        $searchTool = new ToolSearchTool(
-            [$tool1, $tool2],
-            fn (string $query, ToolInterface $tool): bool => $tool->getName() === $query
-        );
-
-        $searchTool->__invoke('write_file');
-
-        $discovered = $searchTool->discoveredTools();
-        $this->assertCount(1, $discovered);
-        $this->assertSame('write_file', $discovered[0]->getName());
-    }
-
     // --- MCP tools integration ---
 
     public function test_middleware_works_with_mcp_generated_tools(): void
@@ -416,7 +386,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $this->assertCount(0, $searchTool->discoveredTools());
     }
 
-    public function test_search_caps_results_to_10(): void
+    public function test_search_caps_results_to_default_top_n(): void
     {
         $tools = [];
         for ($i = 1; $i <= 12; $i++) {
@@ -427,5 +397,50 @@ class ToolSearchMiddlewareTest extends TestCase
         $searchTool->__invoke('tool');
 
         $this->assertCount(10, $searchTool->discoveredTools());
+    }
+
+    public function test_search_respects_custom_top_n(): void
+    {
+        $tools = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $tools[] = $this->createTool("tool_{$i}", "This is tool number {$i}");
+        }
+
+        $searchTool = new ToolSearchTool($tools, 5);
+        $searchTool->__invoke('tool');
+
+        $this->assertCount(5, $searchTool->discoveredTools());
+    }
+
+    public function test_top_n_is_clamped_to_minimum_one(): void
+    {
+        $tools = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $tools[] = $this->createTool("tool_{$i}", "This is tool number {$i}");
+        }
+
+        $searchTool = new ToolSearchTool($tools, 0);
+        $searchTool->__invoke('tool');
+
+        $this->assertLessThanOrEqual(1, count($searchTool->discoveredTools()));
+    }
+
+    public function test_middleware_passes_top_n_to_tool(): void
+    {
+        $tools = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $tools[] = $this->createTool("tool_{$i}", "This is tool number {$i}");
+        }
+
+        $middleware = new ToolSearchMiddleware($tools, 5);
+        $event = new AIInferenceEvent('instructions', []);
+        $middleware->before(new ToolNode(), $event, new AgentState());
+
+        $searchTool = $event->tools[0];
+        $this->assertInstanceOf(ToolSearchTool::class, $searchTool);
+        $searchTool->setInputs(['query' => 'tool']);
+        $searchTool->execute();
+
+        $this->assertCount(5, $searchTool->discoveredTools());
     }
 }
