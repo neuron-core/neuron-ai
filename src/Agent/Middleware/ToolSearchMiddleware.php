@@ -32,20 +32,14 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         PROMPT;
 
     /**
-     * @var callable(string, ToolInterface): bool|null
-     */
-    protected $searchCallback;
-
-    /**
      * @param ToolInterface[] $toolPool
-     * @param callable(string, ToolInterface): bool|null $searchCallback
+     * @param int<1,max> $topN Maximum number of matching tools the search returns
      */
     public function __construct(
         protected array $toolPool,
-        ?callable $searchCallback = null,
+        protected int $topN = 5,
         protected string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
     ) {
-        $this->searchCallback = $searchCallback;
     }
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
@@ -63,7 +57,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         }
 
         if (!$this->hasToolSearchTool($event->tools)) {
-            $event->tools[] = new ToolSearchTool($this->toolPool, $this->searchCallback);
+            $event->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
         }
     }
 

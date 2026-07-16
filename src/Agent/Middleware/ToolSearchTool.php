@@ -15,7 +15,6 @@ use function array_slice;
 use function array_values;
 use function count;
 use function implode;
-use function is_callable;
 use function sprintf;
 use function in_array;
 use function levenshtein;
@@ -39,24 +38,18 @@ class ToolSearchTool extends Tool
     protected array $discovered = [];
 
     /**
-     * @var callable(string, ToolInterface): bool|null
-     */
-    protected $searchCallback;
-
-    /**
      * @var array<int, array{tool: ToolInterface, nameLower: string, descLower: string, nameWords: string[], descWords: string[]}>|null
      */
     protected ?array $toolIndex = null;
 
     /**
      * @param ToolInterface[] $toolPool
-     * @param callable(string, ToolInterface): bool|null $searchCallback
+     * @param int<1,max> $topN Maximum number of matching tools to return
      */
     public function __construct(
         protected array $toolPool,
-        ?callable $searchCallback = null,
+        protected int $topN = 5,
     ) {
-        $this->searchCallback = $searchCallback;
     }
 
     protected function properties(): array
@@ -73,9 +66,7 @@ class ToolSearchTool extends Tool
 
     public function __invoke(string $query): string
     {
-        $matches = is_callable($this->searchCallback)
-            ? array_values(array_filter($this->toolPool, fn (ToolInterface $tool): bool => ($this->searchCallback)($query, $tool)))
-            : $this->defaultSearch($query);
+        $matches = $this->defaultSearch($query);
 
         $this->discovered = $matches;
 
@@ -189,7 +180,7 @@ class ToolSearchTool extends Tool
         // Sort by score descending
         usort($scoredTools, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
 
-        return array_column(array_slice($scoredTools, 0, 10), 'tool');
+        return array_column(array_slice($scoredTools, 0, $this->topN), 'tool');
     }
 
     /**

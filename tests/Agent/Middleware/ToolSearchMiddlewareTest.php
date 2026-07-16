@@ -40,9 +40,9 @@ class ToolSearchMiddlewareTest extends TestCase
         };
     }
 
-    private function createMiddleware(array $toolPool, ?string $prompt = null): ToolSearchMiddleware
+    private function createMiddleware(array $toolPool): ToolSearchMiddleware
     {
-        return new ToolSearchMiddleware($toolPool, $prompt);
+        return new ToolSearchMiddleware($toolPool);
     }
 
     // --- before() tests ---
@@ -277,23 +277,6 @@ class ToolSearchMiddlewareTest extends TestCase
 
         $this->assertStringContainsString('No tools found', $result);
         $this->assertCount(0, $searchTool->discoveredTools());
-    }
-
-    public function test_search_uses_custom_callback(): void
-    {
-        $tool1 = $this->createTool('read_file', 'Read file');
-        $tool2 = $this->createTool('write_file', 'Write file');
-
-        $searchTool = new ToolSearchTool(
-            [$tool1, $tool2],
-            fn (string $query, ToolInterface $tool): bool => $tool->getName() === $query
-        );
-
-        $searchTool->__invoke('write_file');
-
-        $discovered = $searchTool->discoveredTools();
-        $this->assertCount(1, $discovered);
-        $this->assertSame('write_file', $discovered[0]->getName());
     }
 
     // --- MCP tools integration ---
