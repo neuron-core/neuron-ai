@@ -74,6 +74,12 @@ trait HandleStream
             if (!empty($line['usage'])) {
                 $this->streamState->addInputTokens($line['usage']['prompt_tokens'] ?? 0);
                 $this->streamState->addOutputTokens($line['usage']['completion_tokens'] ?? 0);
+                $this->streamState->addCachedInputTokens(
+                    $line['usage']['prompt_tokens_details']['cached_tokens'] ?? 0
+                );
+                $this->streamState->addReasoningTokens(
+                    $line['usage']['completion_tokens_details']['reasoning_tokens'] ?? 0
+                );
             }
 
             if (empty($line['choices'])) {
@@ -136,7 +142,7 @@ trait HandleStream
      */
     protected function processToolCallDelta(array $choice): Generator
     {
-        yield;
+        yield from [];
     }
 
     /**

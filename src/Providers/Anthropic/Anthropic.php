@@ -21,6 +21,7 @@ use function array_map;
 use function is_array;
 use function mb_strlen;
 use function uniqid;
+use function array_values;
 
 class Anthropic implements AIProviderInterface
 {
@@ -129,7 +130,7 @@ class Anthropic implements AIProviderInterface
             ->setInputs($tool['input'])
             ->setCallId($tool['id']), $toolCalls);
 
-        return new ToolCallMessage($content, $tools);
+        return new ToolCallMessage($content, array_values($tools));
     }
 
     /**

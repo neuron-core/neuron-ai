@@ -17,13 +17,22 @@ use function in_array;
 use function is_null;
 use function min;
 use function range;
-use function sleep;
+use function usleep;
 use function uniqid;
 use function array_chunk;
 
 class MeilisearchVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
+
+    /**
+     * Native Meilisearch filter expressions applied to similaritySearch().
+     *
+     * https://www.meilisearch.com/docs/reference/api/search#filter
+     *
+     * @var array<int, mixed>
+     */
+    protected array $filters = [];
 
     /**
      * @throws HttpException
@@ -105,8 +114,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
     public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
     {
         $filter = $sourceName !== null
-            ? "sourceType = {$sourceType} AND sourceName = '{$sourceName}'"
-            : "sourceType = {$sourceType}";
+            ? "sourceType = '{$sourceType}' AND sourceName = '{$sourceName}'"
+            : "sourceType = '{$sourceType}'";
 
         $this->httpClient->request(
             HttpRequest::post(
@@ -119,23 +128,38 @@ class MeilisearchVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @param  array<int, mixed>  $filters  Native Meilisearch filter expressions.
+     */
+    public function withFilters(array $filters): self
+    {
+        $this->filters = $filters;
+        return $this;
+    }
+
+    /**
      * @throws HttpException
      */
     public function similaritySearch(array $embedding): iterable
     {
+        $body = [
+            'vector' => $embedding,
+            'limit' => min($this->topK, 20),
+            'retrieveVectors' => true,
+            'showRankingScore' => true,
+            'hybrid' => [
+                'semanticRatio' => 1.0,
+                'embedder' => $this->embedder,
+            ],
+        ];
+
+        if ($this->filters !== []) {
+            $body['filter'] = $this->filters;
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: "/indexes/{$this->indexUid}/search",
-                body: [
-                    'vector' => $embedding,
-                    'limit' => min($this->topK, 20),
-                    'retrieveVectors' => true,
-                    'showRankingScore' => true,
-                    'hybrid' => [
-                        'semanticRatio' => 1.0,
-                        'embedder' => $this->embedder,
-                    ],
-                ]
+                body: $body
             )
         )->json();
 
@@ -172,21 +196,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
             )
         )->json();
 
-        foreach (range(1, 10) as $i) {
-            try {
-                $task = $this->httpClient->request(
-                    HttpRequest::get('tasks/'.$response['taskUid'])
-                )->json();
-                if ($task['status'] === 'succeeded') {
-                    break;
-                }
-                sleep(1);
-            } catch (Exception) {
-                sleep(1);
-            }
-        }
+        $this->waitForTask($response['taskUid']);
 
-        $this->httpClient->request(
+        $response = $this->httpClient->request(
             HttpRequest::patch(
                 uri: "indexes/{$this->indexUid}/settings/embedders",
                 body: [
@@ -197,7 +209,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
                     ],
                 ]
             )
-        );
+        )->json();
+
+        $this->waitForTask($response['taskUid']);
 
         $this->httpClient->request(
             HttpRequest::put(
@@ -205,5 +219,22 @@ class MeilisearchVectorStore implements VectorStoreInterface
                 body: ['sourceType', 'sourceName']
             )
         );
+    }
+
+    protected function waitForTask(int $taskUid): void
+    {
+        foreach (range(1, 10) as $i) {
+            try {
+                $task = $this->httpClient->request(
+                    HttpRequest::get('tasks/' . $taskUid)
+                )->json();
+                if ($task['status'] === 'succeeded') {
+                    return;
+                }
+                usleep(500 * 1000);
+            } catch (Exception) {
+                usleep(500 * 1000);
+            }
+        }
     }
 }

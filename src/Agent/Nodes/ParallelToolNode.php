@@ -31,6 +31,7 @@ use function is_array;
 use function is_subclass_of;
 use function serialize;
 use function unserialize;
+use function array_values;
 
 class ParallelToolNode extends ToolNode
 {
@@ -149,6 +150,6 @@ class ParallelToolNode extends ToolNode
         }
 
         // Return a new ToolResultMessage with the executed tools
-        return new ToolResultMessage($executedTools);
+        return new ToolResultMessage(array_values($executedTools));
     }
 }

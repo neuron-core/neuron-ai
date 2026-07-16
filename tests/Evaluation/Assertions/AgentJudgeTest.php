@@ -181,7 +181,6 @@ class AgentJudgeTest extends TestCase
             judge: $agent,
             criteria: 'Evaluate tone',
             threshold: 0.6,
-            reference: null,
             examples: [
                 [
                     'input' => 'What is PHP?',

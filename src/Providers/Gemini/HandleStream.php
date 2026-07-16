@@ -16,6 +16,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Tools\ToolInterface;
 
 use function array_key_exists;
 use function json_decode;
@@ -52,6 +53,21 @@ trait HandleStream
 
         if (!empty($this->tools)) {
             $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+
+            /*
+             * When Gemini thinking models (e.g. 2.5 Pro) are given function tools, they can spontaneously invoke built-in provider-side tools
+             * like run (code execution). Since these are never registered in NeuronAI's tool list, findTool() throws a ProviderException
+             */
+            foreach ($this->tools as $tool) {
+                if ($tool instanceof ToolInterface) {
+                    $body['toolConfig'] = [
+                        'functionCallingConfig' => [
+                            'mode' => 'AUTO',
+                        ],
+                    ];
+                    break;
+                }
+            }
         }
 
         $stream = $this->httpClient->stream(
@@ -82,6 +98,8 @@ trait HandleStream
             ) {
                 $this->streamState->getUsage()->inputTokens = $line['usageMetadata']['promptTokenCount'] ?? 0;
                 $this->streamState->getUsage()->outputTokens = $line['usageMetadata']['candidatesTokenCount'] ?? 0;
+                $this->streamState->getUsage()->cachedInputTokens = $line['usageMetadata']['cachedContentTokenCount'] ?? 0;
+                $this->streamState->getUsage()->reasoningTokens = $line['usageMetadata']['thoughtsTokenCount'] ?? 0;
             }
 
             // Track finishReason — the last value seen is authoritative
@@ -111,6 +129,10 @@ trait HandleStream
                     $this->streamState->getContentBlocks(),
                     $this->streamState->getToolCalls()
                 )->setUsage($this->streamState->getUsage());
+            }
+
+            if (array_key_exists('groundingMetadata', $line['candidates'][0])) {
+                $citations = $this->extractCitations($line['candidates'][0]['groundingMetadata']);
             }
 
             // Process content
@@ -146,6 +168,10 @@ trait HandleStream
 
         if ($lastFinishReason !== null) {
             $message->setStopReason($lastFinishReason);
+        }
+
+        if (isset($citations)) {
+            $message->addMetadata('citations', $citations);
         }
 
         return $message;

@@ -24,6 +24,7 @@ use function array_map;
 use function array_merge;
 use function json_decode;
 use function uniqid;
+use function array_values;
 
 class OpenAIResponses implements AIProviderInterface
 {
@@ -128,7 +129,7 @@ class OpenAIResponses implements AIProviderInterface
             $toolCalls
         );
 
-        return new ToolCallMessage($content, $tools);
+        return new ToolCallMessage($content, array_values($tools));
     }
 
     /**

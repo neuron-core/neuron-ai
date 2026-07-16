@@ -21,6 +21,15 @@ class QdrantVectorStore implements VectorStoreInterface
     use HasHttpClient;
 
     /**
+     * Qdrant "must" filter conditions applied to similaritySearch().
+     *
+     * https://qdrant.tech/documentation/concepts/filtering/
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    protected array $filters = [];
+
+    /**
      * @throws HttpException
      */
     public function __construct(
@@ -95,7 +104,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
-                HttpRequest::put(uri: 'points', body: ['points' => $chunk])
+                HttpRequest::put(uri: 'points?wait=true', body: ['points' => $chunk])
             );
         }
 
@@ -132,9 +141,8 @@ class QdrantVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'points/delete',
+                uri: 'points/delete?wait=true',
                 body: [
-                    'wait' => true,
                     'filter' => ['must' => $must],
                 ]
             )
@@ -144,21 +152,36 @@ class QdrantVectorStore implements VectorStoreInterface
     }
 
     /**
+     * @param  array<int, array<string, mixed>>  $filters  Qdrant "must" filter conditions.
+     */
+    public function withFilters(array $filters): self
+    {
+        $this->filters = $filters;
+        return $this;
+    }
+
+    /**
      * @throws HttpException
      */
     public function similaritySearch(array $embedding): iterable
     {
+        $body = [
+            'query' => [
+                'recommend' => ['positive' => [$embedding]],
+            ],
+            'limit' => $this->topK,
+            'with_payload' => true,
+            'with_vector' => true,
+        ];
+
+        if ($this->filters !== []) {
+            $body['filter'] = ['must' => $this->filters];
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: 'points/query',
-                body: [
-                    'query' => [
-                        'recommend' => ['positive' => [$embedding]],
-                    ],
-                    'limit' => $this->topK,
-                    'with_payload' => true,
-                    'with_vector' => true,
-                ]
+                body: $body
             )
         )->json();
 

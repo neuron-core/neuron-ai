@@ -1,0 +1,154 @@
+# ⚠️ Local development/testing only — do NOT use in production
+
+name: neuron-ai-tests
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+    volumes:
+      - .:/app
+      - composer-cache:/tmp/composer-cache
+    working_dir: /app
+    network_mode: host
+    depends_on:
+      qdrant:
+        condition: service_started
+      chroma:
+        condition: service_started
+      meilisearch:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+      neo4j:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_VERSION:-v1.14.1}
+    ports:
+      - 6333:6333
+      - 6334:6334
+
+  chroma:
+    image: chromadb/chroma:${CHROMA_VERSION:-1.0.2}
+    ports:
+      - 8000:8000
+
+  meilisearch:
+    image: getmeili/meilisearch:${MEILISEARCH_VERSION:-v1.13.0}
+    ports:
+      - 7700:7700
+
+  mysql:
+    image: mysql:${MYSQL_VERSION:-8.0}
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: neuron-ai
+    ports:
+      - 3306:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mariadb:
+    image: mariadb:${MARIADB_VERSION:-11.7}
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: neuron-ai
+    ports:
+      - 3307:3306
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  opensearch:
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION:-2.19.1}
+    ports:
+      - 9201:9200
+      - 9600:9600
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:${WEAVIATE_VERSION:-1.28.1}
+    ports:
+      - 8080:8080
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      ENABLE_MODULES: ""
+      CLUSTER_HOSTNAME: "node1"
+
+  neo4j:
+    image: neo4j:${NEO4J_VERSION:-5.26.19-ubi9}
+    ports:
+      - 7687:7687
+      - 7474:7474
+    environment:
+      NEO4J_AUTH: none
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION:-8.17.0}
+    ports:
+      - 9200:9200
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  typesense:
+    image: typesense/typesense:${TYPESENSE_VERSION:-28.0}
+    command: >
+      --api-key=xyz
+      --data-dir=/data
+      --enable-search-analytics=true
+      --analytics-dir=/analytics-data
+      --analytics-flush-interval=60
+      --analytics-minute-rate-limit=100
+      --enable-cors
+    volumes:
+      - typesense-data:/data
+      - typesense-analytics-data:/analytics-data
+    ports:
+      - 8108:8108
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8108"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  composer-cache:
+  typesense-data:
+  typesense-analytics-data:

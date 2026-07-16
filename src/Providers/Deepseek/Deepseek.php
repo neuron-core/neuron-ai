@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Deepseek;
 
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
@@ -69,6 +70,7 @@ class Deepseek extends OpenAI
             if ($message->getMetadata('reasoning_content') === null) {
                 $message->addMetadata('reasoning_content', $reasoningContent);
             }
+            $message->addContent(new ReasoningContent($reasoningContent));
         }
 
         return $message;
@@ -108,7 +110,10 @@ class Deepseek extends OpenAI
 
             // Accumulate in metadata for the final message
             $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
-
+            $this->streamState->updateContentBlock(
+                -1,
+                new ReasoningContent($reasoningContent)
+            );
             // Yield chunk for real-time streaming
             yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
         }

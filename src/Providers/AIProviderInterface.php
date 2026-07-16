@@ -6,9 +6,7 @@ namespace NeuronAI\Providers;
 
 use Generator;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\ToolInterface;
 
@@ -48,7 +46,7 @@ interface AIProviderInterface
      * for real-time delivery to the user. The generator MUST return a complete
      * Message object (AssistantMessage or ToolCallMessage) as its final value.
      *
-     * @return Generator<int, TextChunk|ReasoningChunk|ToolCallChunk|array, mixed, Message>
+     * @return Generator<int, StreamChunk, mixed, Message>
      */
     public function stream(Message ...$messages): Generator;
 

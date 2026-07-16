@@ -36,10 +36,15 @@ trait HandleStream
             'stream' => true,
             'model' => $this->model,
             'max_tokens' => $this->max_tokens,
-            'system' => $this->system ?? null,
             'messages' => $this->messageMapper()->map($messages),
             ...$this->parameters,
         ];
+
+        if (isset($this->system)) {
+            $json['system'] = $this->system;
+        } elseif (isset($this->systemBlocks)) {
+            $json['system'] = $this->systemBlocks;
+        }
 
         if (!empty($this->tools)) {
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
@@ -117,9 +122,11 @@ trait HandleStream
             + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
             + ($message['usage']['cache_creation_input_tokens'] ?? 0)
         );
-        $this->streamState->addCacheReadTokens(
-            $message['usage']['cache_read_input_tokens'] ?? 0
-        );
+        $cacheRead = $message['usage']['cache_read_input_tokens'] ?? 0;
+        $this->streamState->addCacheReadTokens($cacheRead);
+        // Anthropic reports cache reads separately from `input_tokens`;
+        // surface the cache-read count as the standard cached metric too.
+        $this->streamState->addCachedInputTokens($cacheRead);
     }
 
     protected function handleMessageDelta(array $event): void

@@ -22,7 +22,6 @@ class HelpfulnessJudge extends AgentJudge
             judge: $judge,
             criteria: 'Evaluate how helpful and actionable the response is for the user. A helpful response should: (1) be clear and easy to understand, (2) provide complete information that addresses the user\'s needs, (3) offer practical, actionable guidance when appropriate, (4) be concise without being terse. Consider both the quality and usefulness of the information provided.',
             threshold: $threshold,
-            reference: null,
             examples: $examples
         );
     }

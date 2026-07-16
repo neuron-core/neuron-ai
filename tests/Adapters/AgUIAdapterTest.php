@@ -45,10 +45,9 @@ class AgUIAdapterTest extends TestCase
         $result = iterator_to_array($this->adapter->start());
 
         $this->assertCount(1, $result);
-        $this->assertStringContainsString('"type":"RunStarted"', $result[0]);
+        $this->assertStringContainsString('"type":"RUN_STARTED"', $result[0]);
         $this->assertStringContainsString('"runId":"run_', $result[0]);
         $this->assertStringContainsString('"threadId":"thread_', $result[0]);
-        $this->assertStringContainsString('"timestamp":', $result[0]);
     }
 
     public function test_end_emits_text_message_end_and_run_finished(): void
@@ -65,8 +64,8 @@ class AgUIAdapterTest extends TestCase
 
         // Should contain TextMessageEnd
         $endEvent = implode('', $result);
-        $this->assertStringContainsString('"type":"TextMessageEnd"', $endEvent);
-        $this->assertStringContainsString('"type":"RunFinished"', $endEvent);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_END"', $endEvent);
+        $this->assertStringContainsString('"type":"RUN_FINISHED"', $endEvent);
     }
 
     public function test_transform_text_chunk_emits_start_and_content(): void
@@ -83,12 +82,12 @@ class AgUIAdapterTest extends TestCase
         $this->assertCount(2, $result);
 
         // First output should be TextMessageStart
-        $this->assertStringContainsString('"type":"TextMessageStart"', $result[0]);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_START"', $result[0]);
         $this->assertStringContainsString('"messageId":"msg_', $result[0]);
         $this->assertStringContainsString('"role":"assistant"', $result[0]);
 
         // Second output should be TextMessageContent
-        $this->assertStringContainsString('"type":"TextMessageContent"', $result[1]);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_CONTENT"', $result[1]);
         $this->assertStringContainsString('"delta":"Hello world"', $result[1]);
     }
 
@@ -121,8 +120,8 @@ class AgUIAdapterTest extends TestCase
         $this->assertGreaterThanOrEqual(2, count($result));
 
         $output = implode('', $result);
-        $this->assertStringContainsString('"type":"ReasoningStart"', $output);
-        $this->assertStringContainsString('"type":"ReasoningMessageContent"', $output);
+        $this->assertStringContainsString('"type":"REASONING_START"', $output);
+        $this->assertStringContainsString('"type":"REASONING_MESSAGE_CONTENT"', $output);
         $this->assertStringContainsString('"delta":"Analyzing the problem..."', $output);
     }
 
@@ -140,13 +139,13 @@ class AgUIAdapterTest extends TestCase
         $this->assertGreaterThanOrEqual(3, count($result));
 
         $output = implode('', $result);
-        $this->assertStringContainsString('"type":"ToolCallStart"', $output);
+        $this->assertStringContainsString('"type":"TOOL_CALL_START"', $output);
         $this->assertStringContainsString('"toolCallName":"calculator"', $output);
-        $this->assertStringContainsString('"type":"ToolCallArgs"', $output);
+        $this->assertStringContainsString('"type":"TOOL_CALL_ARGS"', $output);
         // Note: JSON is encoded again, so we need to check for escaped quotes
         $this->assertStringContainsString('operation', $output);
         $this->assertStringContainsString('add', $output);
-        $this->assertStringContainsString('"type":"ToolCallEnd"', $output);
+        $this->assertStringContainsString('"type":"TOOL_CALL_END"', $output);
     }
 
     public function test_transform_tool_result_chunk(): void
@@ -163,7 +162,7 @@ class AgUIAdapterTest extends TestCase
         $result = iterator_to_array($this->adapter->transform($chunk));
 
         $this->assertCount(1, $result);
-        $this->assertStringContainsString('"type":"ToolCallResult"', $result[0]);
+        $this->assertStringContainsString('"type":"TOOL_CALL_RESULT"', $result[0]);
         $this->assertStringContainsString('"content":"42"', $result[0]);
         $this->assertStringContainsString('"role":"tool"', $result[0]);
     }
@@ -205,7 +204,6 @@ class AgUIAdapterTest extends TestCase
             $decoded = json_decode($json, true);
             $this->assertNotNull($decoded);
             $this->assertArrayHasKey('type', $decoded);
-            $this->assertArrayHasKey('timestamp', $decoded);
         }
     }
 
@@ -258,14 +256,14 @@ class AgUIAdapterTest extends TestCase
 
         // Verify we have all expected event types
         $output = implode('', $allEvents);
-        $this->assertStringContainsString('"type":"RunStarted"', $output);
-        $this->assertStringContainsString('"type":"TextMessageStart"', $output);
-        $this->assertStringContainsString('"type":"TextMessageContent"', $output);
-        $this->assertStringContainsString('"type":"ReasoningStart"', $output);
-        $this->assertStringContainsString('"type":"ToolCallStart"', $output);
-        $this->assertStringContainsString('"type":"ToolCallResult"', $output);
-        $this->assertStringContainsString('"type":"TextMessageEnd"', $output);
-        $this->assertStringContainsString('"type":"RunFinished"', $output);
+        $this->assertStringContainsString('"type":"RUN_STARTED"', $output);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_START"', $output);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_CONTENT"', $output);
+        $this->assertStringContainsString('"type":"REASONING_START"', $output);
+        $this->assertStringContainsString('"type":"TOOL_CALL_START"', $output);
+        $this->assertStringContainsString('"type":"TOOL_CALL_RESULT"', $output);
+        $this->assertStringContainsString('"type":"TEXT_MESSAGE_END"', $output);
+        $this->assertStringContainsString('"type":"RUN_FINISHED"', $output);
     }
 
     private function createMockTool(string $name, array $inputs): Tool

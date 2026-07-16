@@ -86,12 +86,16 @@ class ZAITranscription implements AIProviderInterface
         )->json();
 
         $message = new AssistantMessage($response['text']);
-        $message->setUsage(
-            new Usage(
-                $response['usage']['prompt_tokens'] ?? 0,
-                $response['usage']['completion_tokens'] ?? 0
-            )
-        );
+
+        if (isset($response['usage'])) {
+            $message->setUsage(
+                new Usage(
+                    $response['usage']['prompt_tokens'] ?? 0,
+                    $response['usage']['completion_tokens'] ?? 0
+                )
+            );
+        }
+
         return $message;
     }
 

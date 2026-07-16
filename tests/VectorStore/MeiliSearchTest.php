@@ -9,10 +9,12 @@ use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+use GuzzleHttp\Client;
 
 use function file_get_contents;
 use function json_decode;
 use function sleep;
+use function in_array;
 
 class MeiliSearchTest extends TestCase
 {
@@ -24,6 +26,25 @@ class MeiliSearchTest extends TestCase
     {
         if (!$this->isPortOpen('127.0.0.1', 7700)) {
             $this->markTestSkipped('Port 7700 is not open. Skipping test.');
+        }
+
+        // Clean up stale data from previous runs
+        // MeiliSearch delete is async — we must wait for the task to complete
+        // before proceeding, otherwise the index may be auto-recreated without
+        // embedder settings when documents are added.
+        $client = new Client();
+        $response = $client->delete('http://localhost:7700/indexes/neuron');
+        $task = json_decode($response->getBody()->getContents(), true);
+
+        if (isset($task['taskUid'])) {
+            for ($i = 0; $i < 10; $i++) {
+                sleep(1);
+                $taskResponse = $client->get('http://localhost:7700/tasks/' . $task['taskUid']);
+                $taskStatus = json_decode($taskResponse->getBody()->getContents(), true);
+                if (in_array($taskStatus['status'] ?? '', ['succeeded', 'failed'], true)) {
+                    break;
+                }
+            }
         }
 
         // embedding "Hello World!"
@@ -59,6 +80,14 @@ class MeiliSearchTest extends TestCase
     public function test_meilisearch_delete_documents(): void
     {
         $store = new MeilisearchVectorStore('neuron');
+
+        $document = new Document('Hello World!');
+        $document->embedding = $this->embedding;
+        $store->addDocument($document);
+
+        // Wait for Meilisearch to index the document
+        sleep(5);
+
         $store->deleteBySource('manual', 'manual');
 
         // Wait for Meilisearch to delete documents
@@ -96,5 +125,31 @@ class MeiliSearchTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
         $this->assertEquals('Hello type B!', $results[0]->getContent());
+    }
+
+    public function test_similarity_search_with_filters(): void
+    {
+        $store = new MeilisearchVectorStore('neuron');
+
+        $document1 = new Document('Hello type A!');
+        $document1->embedding = $this->embedding;
+        $document1->sourceType = 'web';
+        $document1->sourceName = 'page-a';
+
+        $document2 = new Document('Hello type B!');
+        $document2->embedding = $this->embedding;
+        $document2->sourceType = 'file';
+        $document2->sourceName = 'doc.txt';
+
+        $store->addDocuments([$document1, $document2]);
+
+        // Wait for Meilisearch to index the documents
+        sleep(5);
+
+        $store->withFilters(["sourceType = 'file'"]);
+        $results = $store->similaritySearch($this->embedding);
+
+        $this->assertCount(1, $results);
+        $this->assertEquals('file', $results[0]->getSourceType());
     }
 }

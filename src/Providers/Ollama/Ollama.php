@@ -16,6 +16,7 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
+use function array_values;
 
 class Ollama implements AIProviderInterface
 {
@@ -71,6 +72,6 @@ class Ollama implements AIProviderInterface
         $tools = array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
             ->setInputs($item['function']['arguments']), $toolCalls);
 
-        return new ToolCallMessage($content, $tools);
+        return new ToolCallMessage($content, array_values($tools));
     }
 }

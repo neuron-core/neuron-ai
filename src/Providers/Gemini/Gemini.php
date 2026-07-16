@@ -19,6 +19,7 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function uniqid;
+use function array_values;
 
 class Gemini implements AIProviderInterface
 {
@@ -27,11 +28,6 @@ class Gemini implements AIProviderInterface
     use HandleChat;
     use HandleStream;
     use HandleStructured;
-
-    /**
-     * The main URL of the provider API.
-     */
-    protected string $baseUri = 'https://generativelanguage.googleapis.com/v1beta/models';
 
     /**
      * System instructions.
@@ -49,6 +45,7 @@ class Gemini implements AIProviderInterface
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
+        protected string $baseUri = 'https://generativelanguage.googleapis.com/v1beta/models'
     ) {
         // Use provided client or create default Guzzle client
         // Provider always configures authentication headers
@@ -91,7 +88,7 @@ class Gemini implements AIProviderInterface
                 ->setCallId($item['functionCall']['name']); // Gemini uses the tool's name as a unique identifier.
         }, $toolCalls);
 
-        $message = new ToolCallMessage($blocks, $tools);
+        $message = new ToolCallMessage($blocks, array_values($tools));
 
         if (isset($toolCalls[0]['thoughtSignature'])) {
             $message->addMetadata('thought_signature', $toolCalls[0]['thoughtSignature']);

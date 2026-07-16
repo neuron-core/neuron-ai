@@ -1,6 +1,7 @@
 # Observability Module
 
-EventBus architecture for monitoring. All components emit events.
+EventBus <-> Observers architecture for monitoring. This module allows you to gather information from the system.
+If your intent is to proactively change the Agent or Workflow behaviour use the Workflow Middleware instead.
 
 ## Core
 

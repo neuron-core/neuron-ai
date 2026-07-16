@@ -4,22 +4,49 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Splitter;
 
+use InvalidArgumentException;
 use NeuronAI\RAG\Document;
 
 use function array_map;
 use function array_slice;
-use function array_sum;
 use function count;
 use function explode;
 use function implode;
-use function min;
 use function mb_strlen;
-use function trim;
+use function array_sum;
+use function min;
 
 class DelimiterTextSplitter extends AbstractSplitter
 {
-    public function __construct(private readonly int $maxLength = 1000, private readonly string $separator = ' ', private readonly int $wordOverlap = 0)
-    {
+    private readonly int $separatorLength;
+
+    public function __construct(
+        private readonly int $maxLength = 1000,
+        private readonly string $separator = ' ',
+        private readonly int $wordOverlap = 0,
+        private readonly int $minLength = 0,
+    ) {
+        if ($maxLength <= 0) {
+            throw new InvalidArgumentException('maxLength must be greater than 0');
+        }
+
+        if ($separator === '') {
+            throw new InvalidArgumentException('separator must not be empty');
+        }
+
+        if ($wordOverlap < 0) {
+            throw new InvalidArgumentException('wordOverlap must be greater than or equal to 0');
+        }
+
+        if ($minLength < 0) {
+            throw new InvalidArgumentException('minLength must be greater than or equal to 0');
+        }
+
+        if ($minLength > 0 && $minLength >= $maxLength) {
+            throw new InvalidArgumentException('minLength must be less than maxLength');
+        }
+
+        $this->separatorLength = mb_strlen($separator);
     }
 
     /**
@@ -40,12 +67,14 @@ class DelimiterTextSplitter extends AbstractSplitter
         $parts = explode($this->separator, $text);
 
         $chunks = $this->createChunksWithOverlap($parts);
+        $chunks = $this->enforceMinLength($chunks);
 
         $split = [];
         foreach ($chunks as $chunk) {
             $newDocument = new Document($chunk);
             $newDocument->sourceType = $document->getSourceType();
             $newDocument->sourceName = $document->getSourceName();
+            $newDocument->metadata = $document->metadata;
             $split[] = $newDocument;
         }
 
@@ -61,25 +90,25 @@ class DelimiterTextSplitter extends AbstractSplitter
         $chunks = [];
         $currentChunk = [];
         $currentChunkLength = 0;
+
         foreach ($words as $word) {
             if ($word === '') {
                 continue;
             }
 
-            if ($currentChunkLength + mb_strlen($this->separator.$word) <= $this->maxLength || $currentChunk === []) {
+            $wordLength = mb_strlen($word);
+            $addedLength = ($currentChunk === [] ? 0 : $this->separatorLength) + $wordLength;
+
+            if ($currentChunkLength + $addedLength <= $this->maxLength || $currentChunk === []) {
                 $currentChunk[] = $word;
-                $currentChunkLength = $this->calculateChunkLength($currentChunk);
+                $currentChunkLength += $addedLength;
             } else {
-                // Add the chunk with overlap
                 $chunks[] = implode($this->separator, $currentChunk);
 
-                // Calculate overlap words
                 $calculatedOverlap = min($this->wordOverlap, count($currentChunk) - 1);
                 $overlapWords = $calculatedOverlap > 0 ? array_slice($currentChunk, -$calculatedOverlap) : [];
 
-                // Start a new chunk with overlap words
                 $currentChunk = [...$overlapWords, $word];
-                $currentChunk[0] = trim($currentChunk[0]);
                 $currentChunkLength = $this->calculateChunkLength($currentChunk);
             }
         }
@@ -92,10 +121,41 @@ class DelimiterTextSplitter extends AbstractSplitter
     }
 
     /**
+     * Merges chunks that fall below minLength into the previous chunk.
+     *
+     * @param  array<string>  $chunks
+     * @return array<string>
+     */
+    private function enforceMinLength(array $chunks): array
+    {
+        if ($this->minLength <= 0 || count($chunks) <= 1) {
+            return $chunks;
+        }
+
+        $result = [$chunks[0]];
+
+        for ($i = 1, $count = count($chunks); $i < $count; $i++) {
+            if (mb_strlen($chunks[$i]) < $this->minLength) {
+                $lastIndex = count($result) - 1;
+                $result[$lastIndex] = implode($this->separator, [$result[$lastIndex], $chunks[$i]]);
+            } else {
+                $result[] = $chunks[$i];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  array<string>  $chunk
      */
     private function calculateChunkLength(array $chunk): int
     {
-        return array_sum(array_map(mb_strlen(...), $chunk)) + count($chunk) * mb_strlen($this->separator) - 1;
+        if ($chunk === []) {
+            return 0;
+        }
+
+        return array_sum(array_map(mb_strlen(...), $chunk))
+            + (count($chunk) - 1) * $this->separatorLength;
     }
 }

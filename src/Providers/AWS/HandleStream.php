@@ -8,6 +8,7 @@ use Aws\Api\Parser\EventParsingIterator;
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
@@ -47,6 +48,9 @@ trait HandleStream
                 if (isset($event['metadata'])) {
                     $this->streamState->addInputTokens($event['metadata']['usage']['inputTokens'] ?? 0);
                     $this->streamState->addOutputTokens($event['metadata']['usage']['outputTokens'] ?? 0);
+                    $this->streamState->addCachedInputTokens(
+                        $event['metadata']['usage']['cacheReadInputTokens'] ?? 0
+                    );
                 }
 
                 if (isset($event['messageStop']['stopReason'])) {
@@ -61,7 +65,10 @@ trait HandleStream
 
                 if (isset($event['contentBlockDelta']['delta']['text'])) {
                     $textChunk = $event['contentBlockDelta']['delta']['text'];
-                    $this->streamState->updateContentBlock($event['contentBlockDelta']['contentBlockIndex'], $textChunk);
+                    $this->streamState->updateContentBlock(
+                        $event['contentBlockDelta']['contentBlockIndex'],
+                        new TextContent($textChunk)
+                    );
                     yield new TextChunk($this->streamState->messageId(), $textChunk);
                 }
 

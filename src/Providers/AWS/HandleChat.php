@@ -28,6 +28,7 @@ trait HandleChat
                 $usage = new Usage(
                     $result['usage']['inputTokens'] ?? 0,
                     $result['usage']['outputTokens'] ?? 0,
+                    $result['usage']['cacheReadInputTokens'] ?? 0,
                 );
 
                 $stopReason = $result['stopReason'] ?? '';

@@ -76,6 +76,8 @@ class OpenAIImageTest extends TestCase
             $chunks[] = $chunk;
         }
 
+        /** @var ImageChunk[] $chunks */
+
         $message = $generator->getReturn();
 
         // Only partial events yield chunks; the completed event does not.
