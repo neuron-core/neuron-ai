@@ -8,8 +8,64 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 |------|---------|
 | `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `invoke()` |
 | `Tool.php` | Base class with property definitions |
+| `ToolOutput.php` | DTO carrying a tool's result (text and/or `ContentBlockInterface[]`) |
+| `HasOutput.php` | Opt-in interface for tools that expose `getOutput(): ToolOutput` |
 | `ProviderTool.php` | Wrapper for MCP server tools |
 | `ProviderToolInterface.php` | Contract for provider-exposed tools |
+
+## Returning rich content (ToolOutput)
+
+By default a tool's `__invoke` returns a string (or an array, which is JSON-encoded for backwards compatibility). The provider mappers feed that string into the tool-result field of the underlying API.
+
+To return rich content — text alongside images, documents, etc. — return a `NeuronAI\Tools\ToolOutput` from `__invoke`. The DTO is the **only** signal that the result carries content blocks; arrays are always JSON-encoded and never inspected for `ContentBlockInterface` instances.
+
+```php
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
+
+class CaptureTool extends Tool
+{
+    public function __invoke(string $target): ToolOutput
+    {
+        return ToolOutput::blocks([
+            new TextContent('Snapshot of ' . $target),
+            new ImageContent($this->snapshot($target), SourceType::BASE64, 'image/png'),
+        ]);
+    }
+}
+```
+
+### `ToolOutput` API
+
+| Method | Returns |
+|--------|---------|
+| `ToolOutput::text(string $text)` | Static factory, text-only result |
+| `ToolOutput::blocks(ContentBlockInterface[] $blocks)` | Static factory, blocks-only result |
+| `new ToolOutput(?string $text = null, array $blocks = [])` | Mixed (text + blocks) |
+| `hasBlocks()` | `true` when blocks were provided |
+| `getBlocks()` | `ContentBlockInterface[]` |
+| `getText()` | Explicit text, or concatenation of `TextContent` blocks, or `null` |
+
+### Provider support
+
+Provider mappers honour blocks where the underlying API natively accepts them, and fall back to the text path otherwise.
+
+| Provider | Behaviour with blocks |
+|----------|-----------------------|
+| Anthropic | Emits `tool_result.content` as native block array (`text`, `image`, `document`) |
+| AWS Bedrock | Emits `toolResult.content` as native block array (`text`, `image`, `document`, `video`, `audio`) |
+| Gemini | Emits `functionResponse.response.content.parts` (`text`, `inline_data`, `file_data`) |
+| OpenAI Chat Completions | Emits `content` as native block array (`text`, `image_url`); inherited by Cohere, Deepseek, ZAI |
+| Ollama, Mistral, OpenAI Responses | Text-only — falls back to `ToolOutput::getText()` |
+
+### Tool accessors
+
+- `Tool::getResult(): string` — backwards-compatible string (explicit text or concatenated text blocks). Still declared on `ToolInterface`.
+- `Tool::getOutput(): ToolOutput` — structured payload. Declared on the `HasOutput` interface (which `Tool` implements); any `ToolInterface` implementation can opt in by implementing `HasOutput`. Provider mappers detect rich output via `instanceof HasOutput`, not by coupling to the concrete `Tool` class.
+- `Tool::jsonSerialize()` — emits both keys: `result` (string, BC) and `resultOutput` (the `ToolOutput` payload).
 
 ## Creating Custom Tools
 

@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\HasOutput;
 use stdClass;
 
 use function array_map;
@@ -57,15 +58,13 @@ class MessageMapper implements MessageMapperInterface
     {
         $toolContents = [];
         foreach ($message->getTools() as $tool) {
+            $content = ($tool instanceof HasOutput && $tool->getOutput()->hasBlocks())
+                ? $this->mapBlocks($tool->getOutput()->getBlocks())
+                : [['json' => ['result' => $tool->getResult()]]];
+
             $toolContents[] = [
                 'toolResult' => [
-                    'content' => [
-                        [
-                            'json' => [
-                                'result' => $tool->getResult(),
-                            ],
-                        ],
-                    ],
+                    'content' => $content,
                     'toolUseId' => $tool->getCallId(),
                 ],
             ];

@@ -24,7 +24,7 @@ use function method_exists;
 /**
  * @method static static make(?string $name = null, ?string $description = null, array $properties = [], array $parameters = [], array $annotations = [])
  */
-class Tool implements ToolInterface
+class Tool implements ToolInterface, HasOutput
 {
     use StaticConstructor;
 
@@ -46,7 +46,7 @@ class Tool implements ToolInterface
     /**
      * The result of the execution.
      */
-    protected string|null $result = null;
+    protected ?ToolOutput $result = null;
 
     /**
      * Define the maximum number of calls for the tool in a single agent session.
@@ -177,7 +177,17 @@ class Tool implements ToolInterface
 
     public function getResult(): string
     {
-        return $this->result;
+        return $this->result?->getText() ?? '';
+    }
+
+    /**
+     * Returns the structured result payload. Tools that returned a plain
+     * string or array expose it as text; tools that returned a ToolOutput
+     * expose both text and any content blocks.
+     */
+    public function getOutput(): ToolOutput
+    {
+        return $this->result ?? ToolOutput::text('');
     }
 
     /**
@@ -185,7 +195,11 @@ class Tool implements ToolInterface
      */
     public function setResult(mixed $result): self
     {
-        $this->result = is_array($result) ? json_encode($result) : (string) $result;
+        $this->result = match (true) {
+            $result instanceof ToolOutput => $result,
+            is_array($result) => ToolOutput::text((string) json_encode($result)),
+            default => ToolOutput::text((string) $result),
+        };
 
         return $this;
     }
@@ -303,7 +317,8 @@ class Tool implements ToolInterface
             'description' => $this->description,
             'parameters' => $this->parameters,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
-            'result' => $this->result,
+            'result' => $this->getResult(),
+            'resultOutput' => $this->result,
         ];
     }
 }

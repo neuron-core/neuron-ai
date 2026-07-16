@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\HasOutput;
 use NeuronAI\Tools\ToolInterface;
 use stdClass;
 
@@ -138,10 +139,16 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): array
     {
-        return array_map(fn (ToolInterface $tool): array => [
-            'role' => MessageRole::TOOL,
-            'tool_call_id' => $tool->getCallId(),
-            'content' => $tool->getResult(),
-        ], $message->getTools());
+        return array_map(function (ToolInterface $tool): array {
+            $content = ($tool instanceof HasOutput && $tool->getOutput()->hasBlocks())
+                ? $this->mapBlocks($tool->getOutput()->getBlocks())
+                : $tool->getResult();
+
+            return [
+                'role' => MessageRole::TOOL,
+                'tool_call_id' => $tool->getCallId(),
+                'content' => $content,
+            ];
+        }, $message->getTools());
     }
 }
