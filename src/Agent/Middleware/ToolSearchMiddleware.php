@@ -16,6 +16,7 @@ use NeuronAI\Workflow\WorkflowState;
 
 use function in_array;
 use function is_array;
+use function max;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
 {
@@ -40,6 +41,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         protected int $topN = 5,
         protected string $systemPrompt = self::DEFAULT_SYSTEM_PROMPT,
     ) {
+        $this->topN = max(1, $this->topN);
     }
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void

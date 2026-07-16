@@ -13,6 +13,7 @@ use stdClass;
 
 use function array_reduce;
 use function is_string;
+use function array_merge;
 
 class ToolMapper implements ToolMapperInterface
 {
@@ -61,7 +62,7 @@ class ToolMapper implements ToolMapperInterface
         }
 
         if ($tool->getParameters() !== []) {
-            $payload = array_merge($payload, $tool->getParameters());
+            return array_merge($payload, $tool->getParameters());
         }
 
         return $payload;
