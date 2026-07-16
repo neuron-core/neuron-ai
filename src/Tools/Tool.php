@@ -180,11 +180,6 @@ class Tool implements ToolInterface, HasOutput
         return $this->result?->getText() ?? '';
     }
 
-    /**
-     * Returns the structured result payload. Tools that returned a plain
-     * string or array expose it as text; tools that returned a ToolOutput
-     * expose both text and any content blocks.
-     */
     public function getOutput(): ToolOutput
     {
         return $this->result ?? ToolOutput::text('');

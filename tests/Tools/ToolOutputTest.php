@@ -126,8 +126,6 @@ class ToolOutputTest extends TestCase
 
     public function test_set_result_array_of_content_blocks_is_json_encoded_not_treated_as_blocks(): void
     {
-        // Per design: arrays are ALWAYS JSON-encoded. To return blocks, the tool
-        // must explicitly return a ToolOutput. This removes any ambiguity.
         $tool = Tool::make('t', 'd');
         $block = new TextContent('block-in-array');
         $tool->setResult([$block]);
@@ -184,9 +182,7 @@ class ToolOutputTest extends TestCase
         // Round-trip through JSON so JsonSerializable inner objects get encoded
         $serialized = json_decode(json_encode($tool->jsonSerialize()), true);
 
-        // 'result' is the BC string path
         $this->assertSame('block-text', $serialized['result']);
-        // 'resultOutput' is the structured payload
         $this->assertArrayHasKey('resultOutput', $serialized);
         $this->assertIsArray($serialized['resultOutput']);
         $this->assertCount(1, $serialized['resultOutput']['blocks']);

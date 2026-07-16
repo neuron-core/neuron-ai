@@ -23,6 +23,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 
 use function array_map;
 use function count;
@@ -195,10 +196,26 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = array_map(fn (array $tool) => Tool::make($tool['name'], $tool['description'])
-            ->setInputs($tool['inputs'])
-            ->setCallId($tool['callId'])
-            ->setResult($tool['result']), $message['tools']);
+        $tools = array_map(function (array $tool): Tool {
+            $toolInstance = Tool::make($tool['name'], $tool['description'])
+                ->setInputs($tool['inputs'])
+                ->setCallId($tool['callId']);
+
+            if (isset($tool['resultOutput']) && is_array($tool['resultOutput']) && isset($tool['resultOutput']['blocks']) && $tool['resultOutput']['blocks'] !== []) {
+                $blocks = array_map(
+                    $this->deserializeContentBlock(...),
+                    $tool['resultOutput']['blocks']
+                );
+                $toolInstance->setResult(new ToolOutput(
+                    text: $tool['resultOutput']['text'] ?? null,
+                    blocks: $blocks,
+                ));
+            } else {
+                $toolInstance->setResult($tool['result']);
+            }
+
+            return $toolInstance;
+        }, $message['tools']);
 
         return new ToolResultMessage($tools);
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
+use NeuronAI\Tools\HasOutput;
 use NeuronAI\Tools\ToolInterface;
 use Stringable;
 
@@ -38,7 +39,13 @@ class ToolResultMessage extends UserMessage implements Stringable
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call_result',
-                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools),
+                'tools' => array_map(function (ToolInterface $tool): array {
+                    $data = $tool->jsonSerialize();
+                    if ($tool instanceof HasOutput && $tool->getOutput()->hasBlocks()) {
+                        unset($data['result']);
+                    }
+                    return $data;
+                }, $this->tools),
             ]
         );
     }

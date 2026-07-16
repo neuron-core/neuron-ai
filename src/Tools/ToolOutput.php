@@ -12,9 +12,8 @@ use function array_map;
 use function implode;
 
 /**
- * Carrier for a tool's execution result. Tools that only return text can keep
- * returning strings; tools that need to emit rich content (text + images,
- * documents, etc.) return a ToolOutput built via ToolOutput::blocks().
+ * Carrier for a tool's execution result. Return via ToolOutput::blocks() to
+ * emit rich content (images, documents, etc.) alongside text.
  */
 final class ToolOutput implements JsonSerializable
 {

@@ -226,8 +226,6 @@ class ToolOutputMapperTest extends TestCase
             $payload = $mapper->map([new ToolResultMessage([$tool])]);
             $decoded = $this->decode($payload);
 
-            // Each provider emits the block somewhere in its shape; the test
-            // just asserts that the custom-tool block content appears in JSON.
             $json = (string) json_encode($decoded);
             $this->assertStringContainsString('from-custom', $json, $mapper::class . ' did not honor HasOutput');
         }
