@@ -10,7 +10,6 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 | `Tool.php` | Base class with property definitions |
 | `HasInterrupt.php` | Interface for tools that can signal workflow interrupts |
 | `InterruptHandler.php` | Trait providing interrupt/resume storage for `HasInterrupt` tools |
-| `FrontendTool.php` | Concrete tool that delegates execution to a frontend handler |
 | `ProviderTool.php` | Wrapper for MCP server tools |
 | `ProviderToolInterface.php` | Contract for provider-exposed tools |
 
@@ -135,29 +134,15 @@ On each resume, the tool's properties (like `$step`) are restored from serializa
 
 **Important:** Tools must use a **named class** (not anonymous) since anonymous classes cannot be serialized in PHP. Tools are serialized as part of the `WorkflowInterrupt` when persisted.
 
-## FrontendTool
+## Building Headless / Frontend-Delegating Tools
 
-`FrontendTool` is a ready-made tool that delegates execution to a frontend handler. On first call, it signals an interrupt with a `FrontendRequest` containing the handler identifier and input parameters. On resume, it returns the frontend's response.
+The library intentionally ships no built-in "headless tool". Use `HasInterrupt`
++ `InterruptHandler` to build one in your app: signal an `InterruptRequest`
+carrying a handler identifier and payload on first call, then return the
+frontend's response on resume (check `getResumeRequest()` in `__invoke`).
 
-```php
-use NeuronAI\Tools\FrontendTool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\PropertyType;
-
-$agent->addTool(new FrontendTool(
-    'pick_user',
-    'user-picker', // frontend handler ID
-    'Open a modal to select a user',
-    [ToolProperty::make('role', PropertyType::STRING, 'Filter by role', true)]
-));
-```
-
-**Frontend receives:**
-```json
-{ "handler": "user-picker", "payload": { "role": "admin" }, "message": "Frontend tool: pick_user" }
-```
-
-**On resume**, the frontend sends back a `FrontendRequest` with the result in its payload. The tool returns the payload as JSON.
+For frontend protocols (e.g. streaming adapters), integrate at the
+transport layer of your application, not in the tool itself.
 
 ## Custom Run Key Tracking
 
