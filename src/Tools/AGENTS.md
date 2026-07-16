@@ -60,7 +60,8 @@ Provider mappers honour blocks where the underlying API natively accepts them, a
 | Gemini | Emits `functionResponse.response.content.parts` (`text`, `inline_data`, `file_data`) |
 | OpenAI Chat Completions | Emits `content` as native block array (`text`, `image_url`); inherited by Cohere, Deepseek, ZAI |
 | OpenAI Responses | Emits `function_call_output.output` as native block array (`input_text`, `input_image`, `input_file`) |
-| Ollama, Mistral | Text-only — falls back to `ToolOutput::getText()` |
+| Mistral | Emits `content` as native block array (`text`, `image_url`, `document_url`, `input_audio`) |
+| Ollama | Text-only — falls back to `ToolOutput::getText()` |
 
 ### Tool accessors
 
