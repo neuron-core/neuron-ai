@@ -53,7 +53,7 @@ class ToolSearchTool extends Tool
      * @param callable(string, ToolInterface): bool|null $searchCallback
      */
     public function __construct(
-        protected array     $toolPool,
+        protected array $toolPool,
         ?callable $searchCallback = null,
     ) {
         $this->searchCallback = $searchCallback;

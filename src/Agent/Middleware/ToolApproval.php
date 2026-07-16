@@ -173,7 +173,7 @@ class ToolApproval implements WorkflowMiddleware
      * Process human decisions and modify tools accordingly.
      *
      * This method modifies the tools in-place based on human decisions:
-     *  - Rejected: Tool result is set to a rejection message
+     *  - Rejected: The tool result is set to a rejection message
      *  - Edited: Tool inputs are modified
      *  - Approved: No changes, tool executes normally
      */
@@ -214,7 +214,7 @@ class ToolApproval implements WorkflowMiddleware
     {
         $feedback = $action->feedback ?? 'No specific instruction provided.';
         $rejectionMessage = sprintf(
-            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction.",
+            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
             $feedback
         );
 
