@@ -1,3 +1,7 @@
+# Project Overview
+
+Neuron is a PHP Agentic framework for building AI agents with chat, tools, RAG, structured output, and workflow orchestration.
+
 ## Development Commands
 
 ```bash
