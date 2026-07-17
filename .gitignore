@@ -11,6 +11,6 @@ composer.lock
 scripts
 phpunit.xml.local
 
-
+# Temporary
 abs*
 COMP*
