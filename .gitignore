@@ -10,4 +10,7 @@ composer.lock
 .env
 scripts
 phpunit.xml.local
+
+
 abs*
+COMP*
