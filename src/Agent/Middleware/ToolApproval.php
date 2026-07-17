@@ -95,7 +95,7 @@ class ToolApproval implements WorkflowMiddleware
             actions: $actions
         );
 
-        throw new WorkflowInterrupt($interruptRequest, $node, $state, $event);
+        throw new WorkflowInterrupt($interruptRequest);
     }
 
     /**

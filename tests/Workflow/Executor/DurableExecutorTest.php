@@ -17,7 +17,6 @@ use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -90,18 +89,18 @@ class DurableExecutorTest extends TestCase
                 new DurableNodeC(),
             ]);
 
-        // First run — interrupts at node B
-        try {
-            $this->execute(
-                $workflow,
-                $this->createDurableExecutor($persistence),
-            );
-            $this->fail('Expected WorkflowInterrupt was not thrown');
-        } catch (WorkflowInterrupt) {
-            $this->assertSame(2, CountableNode::getExecutionCount());
-            $this->assertTrue($workflow->resolveState()->get('step_a_executed'));
-            $this->assertTrue($workflow->resolveState()->get('step_b_executed'));
-        }
+        // First run — pauses at node B
+        $state = $this->execute(
+            $workflow,
+            $this->createDurableExecutor($persistence),
+        );
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame(2, CountableNode::getExecutionCount());
+        $this->assertTrue($state->get('step_a_executed'));
+        $this->assertTrue($state->get('step_b_executed'));
+        // Paused steps are retained for resume (cleanup only runs on completion)
+        $this->assertNotNull($persistence->load($workflowId, DurableNodeA::class . '-0'));
 
         // Resume — approve the action
         $request = new ApprovalRequest('resume');

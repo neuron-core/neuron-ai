@@ -15,7 +15,7 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -34,12 +34,29 @@ class WorkflowTest extends TestCase
             ]);
 
         $finalState = $this->execute($workflow);
-
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('node_two_executed'));
         $this->assertTrue($finalState->get('node_three_executed'));
         $this->assertEquals('First complete', $finalState->get('first_message'));
         $this->assertEquals('Second complete', $finalState->get('second_message'));
+    }
+
+    public function testRunExecutesTheWorkflowSynchronously(): void
+    {
+        // Drive through the public run() entry point (not the executor helper) to
+        // ensure the lazy generator is actually consumed and the state returned.
+        $workflow = Workflow::make()
+            ->addNodes([
+                new NodeOne(),
+                new NodeTwo(),
+                new NodeThree(),
+            ]);
+
+        $finalState = $workflow->run();
+
+        $this->assertTrue($finalState->get('node_one_executed'));
+        $this->assertTrue($finalState->get('node_three_executed'));
+        $this->assertFalse($finalState->isInterrupted());
     }
 
     public function testWorkflowWithInitialState(): void
@@ -150,8 +167,6 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowInterrupt(): void
     {
-        $this->expectException(WorkflowInterrupt::class);
-
         $executor = $this->createExecutor();
         $workflowId = 'test-workflow';
 
@@ -162,7 +177,13 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $this->execute($workflow, $executor);
+        $state = $this->execute($workflow, $executor);
+
+        // Paused: the interrupt request is surfaced on the state, and nodes after
+        // the pausing one did not execute.
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame('human input needed', $state->getInterrupt()->getMessage());
+        $this->assertFalse($state->has('node_three_executed'));
     }
 
     public function testWorkflowResume(): void
@@ -177,19 +198,21 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        try {
-            $this->execute($workflow, $executor);
-            $this->fail('Expected WorkflowInterrupt exception');
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals('human input needed', $interrupt->getRequest()->getMessage());
-            $this->assertInstanceOf(InterruptableNode::class, $interrupt->getNode());
-        }
+        $state = $this->execute($workflow, $executor);
 
-        // Resume with human feedback
-        $finalState = $this->execute($workflow, $executor, $interrupt->getRequest());
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame('human input needed', $state->getInterrupt()->getMessage());
+        // NodeOne ran; InterruptableNode paused before completing its own work
+        $this->assertTrue($state->get('node_one_executed'));
+        $this->assertNull($state->get('received_feedback'));
 
-        $this->assertTrue($finalState->get('interruptable_node_executed'));
-        $this->assertEquals('completed', $finalState->get('received_feedback'));
+        // Resume feeds the request back through interrupt()
+        $state = $this->execute($workflow, $executor, $state->getInterrupt());
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertTrue($state->get('interruptable_node_executed'));
+        $this->assertSame('completed', $state->get('received_feedback'));
+        $this->assertTrue($state->get('node_three_executed'));
     }
 
     public function testWorkflowIdAutoGenerates(): void
@@ -205,9 +228,12 @@ class WorkflowTest extends TestCase
         $this->assertStringStartsWith('workflow_', $workflow->getWorkflowId());
     }
 
-    public function testInterruptExposesResumeToken(): void
+    public function testInterruptStateIsResumableFromToken(): void
     {
-        $executor = $this->createExecutor();
+        // Prove durability: resume on a fresh executor + fresh workflow instance,
+        // sharing only the persistence and the resume token.
+        $persistence = new InMemoryPersistence();
+        $executor = $this->createExecutor($persistence);
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -216,13 +242,22 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $expectedToken = $workflow->getWorkflowId();
+        $token = $workflow->getWorkflowId();
+        $request = $this->execute($workflow, $executor)->getInterrupt();
 
-        try {
-            $this->execute($workflow, $executor);
-            $this->fail('Expected WorkflowInterrupt exception');
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals($expectedToken, $interrupt->getWorkflowId());
-        }
+        $this->assertNotNull($request);
+
+        $resumed = Workflow::make(resumeToken: $token)
+            ->addNodes([
+                new NodeOne(),
+                new InterruptableNode(),
+                new NodeThree(),
+            ]);
+
+        $state = $this->execute($resumed, $this->createExecutor($persistence), $request);
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame('completed', $state->get('received_feedback'));
+        $this->assertTrue($state->get('node_three_executed'));
     }
 }

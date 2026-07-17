@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor\Amp;
 
 use Generator;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Executor\BranchResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Interrupt\BranchInterrupt;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\WorkflowInterface;
 use Throwable;
 
@@ -27,14 +26,12 @@ class AsyncExecutor extends WorkflowExecutor
     /**
      * Override to run branches as concurrent Amp futures.
      *
-     * @return Generator<int, ParallelEvent, mixed, ParallelEvent>
-     * @throws WorkflowInterrupt|Throwable
+     * @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent>
+     * @throws Throwable
      */
     protected function executeBranches(
         WorkflowInterface $workflow,
         ParallelEvent $parallelEvent,
-        ?WorkflowInterrupt $interrupt = null,
-        ?InterruptRequest $resumeRequest = null,
     ): Generator {
         $futures = [];
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
@@ -42,19 +39,12 @@ class AsyncExecutor extends WorkflowExecutor
                 continue;
             }
 
-            $isResuming = ($branchId === $interrupt?->getBranchId());
             $futures[$branchId] = async(
-                fn (): BranchResult => $this->executeBranch(
-                    $workflow,
-                    $branchId,
-                    $isResuming ? $interrupt->getEvent() : $branchEvent,
-                    $isResuming ? $resumeRequest : null,
-                    $isResuming ? $interrupt->getNode() : null,
-                )
+                fn (): BranchResult => $this->executeBranch($workflow, $branchId, $branchEvent)
             );
         }
 
-        $firstBranchInterrupt = null;
+        $firstInterrupt = null;
         $firstError = null;
 
         // Await ALL futures before propagating any exception,
@@ -62,14 +52,14 @@ class AsyncExecutor extends WorkflowExecutor
         foreach ($futures as $branchId => $future) {
             try {
                 $result = $future->await();
-                $parallelEvent->setResult($branchId, $result->result);
+                if ($result->interrupt instanceof InterruptEvent) {
+                    $firstInterrupt ??= $result->interrupt;
+                } else {
+                    $parallelEvent->setResult($branchId, $result->result);
 
-                foreach ($result->streamedEvents as $streamedEvent) {
-                    yield $streamedEvent;
-                }
-            } catch (BranchInterrupt $branchInterrupt) {
-                if (!$firstBranchInterrupt instanceof BranchInterrupt) {
-                    $firstBranchInterrupt = $branchInterrupt;
+                    foreach ($result->streamedEvents as $streamedEvent) {
+                        yield $streamedEvent;
+                    }
                 }
             } catch (Throwable $e) {
                 $firstError ??= $e;
@@ -80,16 +70,8 @@ class AsyncExecutor extends WorkflowExecutor
             throw $firstError;
         }
 
-        if ($firstBranchInterrupt instanceof BranchInterrupt) {
-            throw new WorkflowInterrupt(
-                request: $firstBranchInterrupt->original->getRequest(),
-                node: $firstBranchInterrupt->original->getNode(),
-                state: $workflow->resolveState(),
-                event: $firstBranchInterrupt->original->getEvent(),
-                branchId: $firstBranchInterrupt->branchId,
-                parallelEvent: $parallelEvent,
-                completedBranchResults: $parallelEvent->getAllResults(),
-            );
+        if ($firstInterrupt instanceof InterruptEvent) {
+            return $firstInterrupt;
         }
 
         return $parallelEvent;

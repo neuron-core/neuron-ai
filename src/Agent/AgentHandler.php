@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Providers\ProviderResponse;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;
 use RuntimeException;
 
@@ -109,5 +110,24 @@ class AgentHandler
     public function getState(): AgentState
     {
         return $this->run();
+    }
+
+    /**
+     * Whether the agent paused for external input.
+     *
+     * The handler must be consumed first (via run(), getMessage(), or by
+     * iterating events()) — until then there is no result to inspect.
+     */
+    public function interrupted(): bool
+    {
+        return $this->result?->isInterrupted() ?? false;
+    }
+
+    /**
+     * The interrupt request describing the pause, or null when not interrupted.
+     */
+    public function getInterrupt(): ?InterruptRequest
+    {
+        return $this->result?->getInterrupt();
     }
 }

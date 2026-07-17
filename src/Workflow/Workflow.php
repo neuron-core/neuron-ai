@@ -126,6 +126,11 @@ class Workflow implements WorkflowInterface
     {
         $generator = $this->events($interrupt);
 
+        // Drive the generator to completion — its body (traversal) is lazy and
+        // does not execute until iterated. The empty body is intentional.
+        foreach ($generator as $event) {
+        }
+
         return $generator->getReturn();
     }
 

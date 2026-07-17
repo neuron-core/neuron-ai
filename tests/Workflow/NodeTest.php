@@ -10,7 +10,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -52,14 +51,18 @@ class NodeTest extends TestCase
 
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());
 
-        try {
-            $this->execute($workflow, $executor);
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->assertEquals('test', $interrupt->getState()->get('checkpoint'));
-            $state = $this->execute($workflow, $executor, $interrupt->getRequest());
+        $state = $this->execute($workflow, $executor);
 
-            $this->assertEquals('test', $state->get('checkpoint'));
-            $this->assertEquals($interrupt->getRequest()->getMessage(), $state->get('feedback'));
-        }
+        // Paused: the checkpoint ran, the node blocked at interrupt() before writing feedback
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame('test', $state->get('checkpoint'));
+        $this->assertNull($state->get('feedback'));
+
+        // Resume feeds the request back to interrupt(), which returns it
+        $state = $this->execute($workflow, $executor, $state->getInterrupt());
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame('test', $state->get('checkpoint'));
+        $this->assertSame('what do you mean?', $state->get('feedback'));
     }
 }

@@ -27,10 +27,10 @@ Each node:
 Nodes extend the `Node` base class:
 
 ```php
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\Event;
-use NeuronAI\Workflow\StartEvent;
-use NeuronAI\Workflow\StopEvent;
 use NeuronAI\Workflow\WorkflowState;
 
 class ValidationNode extends Node
@@ -57,9 +57,9 @@ class ValidationNode extends Node
 ### Defining Custom Events
 
 ```php
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\Events\Event;
 
-class UserValidatedEvent implements Event
+class UserValidatedEvent extends Event
 {
     public function __construct(
         public readonly string $userId,
@@ -67,7 +67,7 @@ class UserValidatedEvent implements Event
     ) {}
 }
 
-class ProcessCompleteEvent implements Event
+class ProcessCompleteEvent extends Event
 {
     public function __construct(
         public readonly string $result
@@ -76,7 +76,7 @@ class ProcessCompleteEvent implements Event
 ```
 
 Events should:
-- Implement the `Event` interface
+- Extend the abstract `Event` base class
 - Use readonly properties for immutability
 - Contain all data needed by the handling node
 
@@ -87,14 +87,12 @@ Events should:
 ```php
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronAI\Workflow\StartEvent;
-use NeuronAI\Workflow\StopEvent;
 
 $state = new WorkflowState([
     'input' => $userData,
 ]);
 
-$workflow = Workflow::make($state)
+$workflow = Workflow::make(state: $state)
     ->addNodes([
         new ValidationNode(),
         new ProcessingNode(),
@@ -195,16 +193,14 @@ $workflow = Workflow::make()
 $finalState = $workflow->run();
 ```
 
-For full control, construct the executor manually:
+For full control, construct the executor manually (it takes the persistence
+backend directly — `LocalStepEngine` is an internal detail it wires itself):
 
 ```php
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 
 $workflow = Workflow::make()
-    ->setExecutor(
-        new WorkflowExecutor(new LocalStepEngine(new DatabasePersistence($pdo)))
-    )
+    ->setExecutor(new WorkflowExecutor(new DatabasePersistence($pdo)))
     ->addNodes([...]);
 ```
 
@@ -260,8 +256,8 @@ class DangerousOperationNode extends Node
             message: 'These operations require approval'
         ));
 
-        foreach ($resumeRequest->actions as $action) {
-            if ($action->decision === ActionDecision::Approved) {
+        foreach ($resumeRequest->getActions() as $action) {
+            if ($action->isApproved()) {
                 $this->executeAction($action->id);
             }
         }
@@ -293,6 +289,9 @@ public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
 
 ### Persistence for Interruptions
 
+Interruptions are surfaced **functionally** — `run()` returns normally and the
+state is marked interrupted (no exception is thrown to the caller):
+
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
@@ -302,38 +301,51 @@ $workflow = Workflow::make()
     ->setPersistence($persistence)
     ->addNodes([...]);
 
-try {
-    $result = $workflow->run();
-} catch (WorkflowInterrupt $interrupt) {
-    // Present to user
-    $request = $interrupt->getRequest();
-    $workflowId = $interrupt->getWorkflowId();
+$state = $workflow->run();
 
-    // After user makes decisions:
-    $resumeRequest = $this->getUserDecisions($request);
-    $result = $workflow->run($resumeRequest);
+if ($state->isInterrupted()) {
+    // Present the request to the user and collect a decision
+    $request = $state->getInterrupt();
+    $workflowId = $workflow->getWorkflowId();
+
+    // ... user approves/rejects, mutating $request ...
+
+    // Resume — same persistence + resume token. Completed nodes are skipped;
+    // only the interrupted node re-runs with $request.
+    $state = Workflow::make(resumeToken: $workflowId)
+        ->setPersistence($persistence)
+        ->addNodes([...])
+        ->run($request);
 }
+
+$result = $state->get('result');
 ```
 
-## Checkpoints
+## Durable Memoization (`memoize`)
 
-Nodes can use checkpoints to cache operations happening before the interruption point.
+Each node executes as a durable step, so completed nodes are skipped on replay.
+`memoize()` closes the remaining gap: expensive or side-effecting work **inside**
+a node is persisted mid-node and not re-run when the node re-executes after a
+crash or interruption.
 
 ```php
 class DataProcessingNode extends Node
 {
     public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     {
-        // When resumed,
-        // $data is retrieved from checkpoint
-        $data = $this->checkpoint('fetch_data', function() {
+        // Persisted before the node returns; on resume the closure is NOT re-run.
+        $data = $this->memoize('fetch_data', function () {
             return $this->fetchExpensiveData();
         });
 
-        // Might interrupt here
-        $resumeRequest = $this->interruptIf($needsApproval, new ApprovalRequest(...));
+        // Might interrupt here. On resume this node re-runs, but the memoized
+        // $data above is returned without re-calling fetchExpensiveData().
+        $resumeRequest = $this->interruptIf(
+            $needsApproval,
+            new ApprovalRequest('Approve data processing', [/* Action[] */])
+        );
 
-        if ($resumeRequest->getAction('check')->isApproved()) {
+        if ($resumeRequest->getAction('check')?->isApproved()) {
             return new ResultEvent($data);
         }
 
@@ -342,6 +354,11 @@ class DataProcessingNode extends Node
 }
 ```
 
+> The closure must be a pure function of the node's event and state for the given
+> name. Put all non-determinism (LLM, HTTP, DB writes, `time()`, randomness)
+> **inside** `memoize()`. The previous `checkpoint()` method is deprecated and
+> delegates to `memoize()`.
+
 ## Middleware System
 
 Middleware wraps node execution for cross-cutting concerns.
@@ -349,9 +366,10 @@ Middleware wraps node execution for cross-cutting concerns.
 ### Creating Custom Middleware
 
 ```php
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Event;
+use NeuronAI\Workflow\WorkflowState;
 
 class LoggingMiddleware implements WorkflowMiddleware
 {
@@ -362,7 +380,7 @@ class LoggingMiddleware implements WorkflowMiddleware
         $this->logger->info("Executing: " . $node::class);
     }
 
-    public function after(NodeInterface $node, Event $event, Event|Generator $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
         $this->logger->info("Completed: " . $node::class);
     }
@@ -373,16 +391,16 @@ class LoggingMiddleware implements WorkflowMiddleware
 
 ```php
 // Node-specific middleware
-$workflow->middleware(ProcessingNode::class, new LoggingMiddleware($logger));
+$workflow->addMiddleware(ProcessingNode::class, new LoggingMiddleware($logger));
 
 // Multiple middleware on one node
-$workflow->middleware(ProcessingNode::class, [
+$workflow->addMiddleware(ProcessingNode::class, [
     new ValidationMiddleware(),
     new LoggingMiddleware(),
 ]);
 
 // Global middleware (runs on all nodes)
-$workflow->globalMiddleware(new PerformanceMiddleware());
+$workflow->addGlobalMiddleware(new PerformanceMiddleware());
 ```
 
 ### Execution Order
@@ -427,35 +445,6 @@ foreach ($generator as $event) {
 $finalState = $generator->getReturn();
 ```
 
-## Checkpoint System
-
-Checkpoint cache operation results across interruptions:
-
-```php
-class DataProcessingNode extends Node
-{
-    public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
-    {
-        // When resumed, $data is retrieved from checkpoint
-        $data = $this->checkpoint('fetch_data', function() {
-            return $this->fetchExpensiveData();
-        });
-
-        // Might interrupt here
-        $resumeRequest = $this->interruptIf($needsApproval, new ApprovalRequest(...));
-
-        if (!$resumeRequest->isApproved()) {
-            // ...
-        }
-
-        // $data is retrieved from checkpoint
-        $result = $this->process($data);
-
-        return new ResultEvent($result);
-    }
-}
-```
-
 ## Workflow Export
 
 Export workflows to diagram formats for visualization.
@@ -481,7 +470,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Keep nodes focused and single-purpose
 - Use typed events for input/output
 - Make nodes testable in isolation
-- Use checkpoints for operations before interruption points
+- Use `memoize()` for expensive operations before interruption points
 
 ### State Management
 - Store shared data in WorkflowState, not node properties
@@ -496,7 +485,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 ### Interruptions
 - **ALWAYS configure persistence when using interruptions**
 - Provide clear, actionable descriptions in InterruptRequest
-- Use checkpoints to avoid re-running expensive operations
+- Use `memoize()` to avoid re-running expensive operations across an interruption
 
 ## Common Patterns
 
@@ -583,12 +572,12 @@ class ImageAnalysisParallelEvent extends ParallelEvent {}
 ```php
 use NeuronAI\Workflow\Events\Event;
 
-class ExtractStructuredDataEvent implements Event
+class ExtractStructuredDataEvent extends Event
 {
     public function __construct(public readonly string $imageUrl) {}
 }
 
-class GenerateDescriptionEvent implements Event
+class GenerateDescriptionEvent extends Event
 {
     public function __construct(public readonly string $imageUrl) {}
 }
@@ -636,8 +625,8 @@ class ExtractStructuredDataNode extends Node
                 (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
                     ->setHttpClient(new AmpHttpClient())
             )
-            ->setTools([/* ... */])
-            ->addSystemTip('Extract structured data from the image.');
+            ->addTool([/* ... */])
+            ->setInstructions('Extract structured data from the image.');
 
         $result = $agent->structured(/* your structured output class */);
 
@@ -654,7 +643,7 @@ class GenerateDescriptionNode extends Node
                 (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
                     ->setHttpClient(new AmpHttpClient())
             )
-            ->addSystemTip('Describe the image in detail.');
+            ->setInstructions('Describe the image in detail.');
 
         $description = $agent->chat($event->imageUrl);
 
@@ -737,38 +726,42 @@ $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
 
 ### Parallel Branches with Interruptions
 
-Parallel branches fully support human-in-the-loop. If any branch calls `$this->interrupt()`, the executor throws a `WorkflowInterrupt` with parallel context:
+Parallel branches fully support human-in-the-loop. If any branch calls
+`$this->interrupt()`, the workflow pauses exactly as in the linear case — the
+state is marked interrupted and the request is available via
+`$state->getInterrupt()`. Resume is driven by step replay, so already-completed
+branches are skipped and only the interrupted branch re-runs with the request.
+No parallel-specific metadata is exposed.
 
 ```php
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+$state = $workflow->run();
 
-try {
-    $result = $workflow->run();
-} catch (WorkflowInterrupt $interrupt) {
-    if ($interrupt->isParallelInterrupt()) {
-        // $interrupt->getBranchId() — which branch interrupted
-        // $interrupt->getCompletedBranchResults() — results from branches that finished
-        // Present interrupt to user...
-    }
+if ($state->isInterrupted()) {
+    $request = $state->getInterrupt();
+    $workflowId = $workflow->getWorkflowId();
+
+    // ... user responds, mutating $request ...
+
+    $state = Workflow::make(resumeToken: $workflowId)
+        ->setPersistence($persistence)
+        ->addNodes([...])
+        ->run($request);
 }
-
-// After user responds:
-$result = $workflow->run($interrupt->getRequest());
-// Resuming skips already-completed branches, only re-runs the interrupted one.
 ```
 
-Use `Checkpoint` inside branch nodes for expensive operations that should not re-run after resume:
+Use `memoize()` inside branch nodes for expensive operations that should not
+re-run after resume:
 
 ```php
 class ExtractStructuredDataNode extends Node
 {
     public function __invoke(ExtractStructuredDataEvent $event, WorkflowState $state): StopEvent
     {
-        $data = $this->checkpoint('fetch_image', fn() => $this->fetchExpensiveImageData());
+        $data = $this->memoize('fetch_image', fn() => $this->fetchExpensiveImageData());
 
         $resumeRequest = $this->interruptIf(
             $this->needsApproval($data),
-            new ApprovalRequest(actions: [...], message: 'Review extracted data')
+            new ApprovalRequest('Review extracted data', [/* Action[] */])
         );
 
         return new StopEvent(result: $data);

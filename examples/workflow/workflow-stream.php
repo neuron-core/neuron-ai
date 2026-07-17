@@ -18,18 +18,15 @@ $workflow->addNodes([
     new NodeForSecond(),
 ]);
 
-// Draw the workflow graph
-echo $workflow->export().\PHP_EOL.\PHP_EOL.\PHP_EOL;
+$generator = $workflow->events();
 
-$handler = $workflow->init();
-
-foreach ($handler->events() as $event) {
+foreach ($generator as $event) {
     if ($event instanceof SecondEvent) {
         echo \PHP_EOL.'- ' . $event->message.\PHP_EOL;
     }
 }
 
-$finalState = $handler->run();
+$finalState = $generator->getReturn();
 
 // It should print "Second complete"
 echo $finalState->get('final_second_message').\PHP_EOL;

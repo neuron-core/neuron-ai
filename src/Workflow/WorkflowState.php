@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
+
 use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
@@ -15,8 +17,49 @@ use function unserialize;
 
 class WorkflowState
 {
+    protected ?InterruptRequest $interrupt = null;
+
     public function __construct(protected array $data = [])
     {
+    }
+
+    /**
+     * Mark this state as paused for external input.
+     *
+     * Set by the executor when traversal terminates on an InterruptEvent, so
+     * that callers of run()/events() can detect the pause without catching an
+     * exception.
+     */
+    public function markInterrupted(InterruptRequest $request): void
+    {
+        $this->interrupt = $request;
+    }
+
+    /**
+     * Clear any paused-for-input marker.
+     *
+     * The interrupt status describes the outcome of a single run, so the
+     * executor resets it at the start of each run.
+     */
+    public function clearInterrupted(): void
+    {
+        $this->interrupt = null;
+    }
+
+    /**
+     * Whether the workflow is paused waiting for external input.
+     */
+    public function isInterrupted(): bool
+    {
+        return $this->interrupt instanceof InterruptRequest;
+    }
+
+    /**
+     * The interrupt request describing the pause, or null when not interrupted.
+     */
+    public function getInterrupt(): ?InterruptRequest
+    {
+        return $this->interrupt;
     }
 
     public function set(string $key, mixed $value): void

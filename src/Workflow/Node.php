@@ -127,12 +127,7 @@ abstract class Node implements NodeInterface
         $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
 
         if ($shouldInterrupt) {
-            throw new WorkflowInterrupt(
-                $request,
-                $this,
-                $this->state,
-                $this->event
-            );
+            throw new WorkflowInterrupt($request);
         }
 
         // Condition didn't meet, continue execution

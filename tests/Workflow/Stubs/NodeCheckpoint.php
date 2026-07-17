@@ -8,7 +8,6 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -16,7 +15,6 @@ class NodeCheckpoint extends Node
 {
     /**
      * @throws WorkflowException
-     * @throws WorkflowInterrupt
      */
     public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
     {

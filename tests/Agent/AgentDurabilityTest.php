@@ -21,7 +21,6 @@ use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -138,25 +137,25 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Here are the search results...'),
         );
 
-        // Run 1: ChatNode completes, ToolApproval interrupts before tool execution
+        // Run 1: ChatNode completes, ToolApproval pauses BEFORE the tool executes.
         $agent1 = Agent::make(resumeToken: $workflowId);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->addMiddleware(ToolNode::class, new ToolApproval());
         $agent1->setExecutor($executor);
 
-        try {
-            $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
-            $this->fail('Expected WorkflowInterrupt was not thrown');
-        } catch (WorkflowInterrupt $interrupt) {
-            $this->assertInstanceOf(ApprovalRequest::class, $interrupt->getRequest());
-            $request = $interrupt->getRequest();
-            $request->getAction('call_1')?->approve();
-        }
+        $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
+        $handler1->run();
 
+        $this->assertTrue($handler1->interrupted());
+        $this->assertInstanceOf(ApprovalRequest::class, $handler1->getInterrupt());
+        // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
-        // Resume: same workflowId → ChatNode:0 memoized, ToolNode:1 resumes
+        $request = $handler1->getInterrupt();
+        $request->getAction('call_1')?->approve();
+
+        // Resume: same workflowId → ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -213,16 +212,16 @@ class AgentDurabilityTest extends TestCase
         $agent1->addMiddleware(ToolNode::class, new ToolApproval());
         $agent1->setExecutor($executor);
 
-        try {
-            $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
-            $this->fail('Expected WorkflowInterrupt');
-        } catch (WorkflowInterrupt $interrupt) {
-            $request = $interrupt->getRequest();
-            $this->assertInstanceOf(ApprovalRequest::class, $request);
-            $request->getAction('call_1')?->reject('Do not search the web.');
-        }
+        $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
+        $handler1->run();
 
-        // Resume with rejection
+        $this->assertTrue($handler1->interrupted());
+        $request = $handler1->getInterrupt();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
+        $request->getAction('call_1')?->reject('Do not search the web.');
+
+        // Resume with rejection: the tool is NOT executed; its rejection message
+        // is fed back as the tool result and reaches the next inference.
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);

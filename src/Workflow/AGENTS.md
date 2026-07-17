@@ -18,8 +18,8 @@ public function __invoke(SpecificEvent $event, WorkflowState $state): NextEvent
 ## Usage
 
 ```php
-$workflow = Workflow::make($state)
-    ->addNodes([new NodeA(), new NodeB()])();
+$workflow = Workflow::make(state: $state)
+    ->addNodes([new NodeA(), new NodeB()]);
 
 // Stream events
 foreach ($workflow->events() as $event) { ... }
@@ -30,26 +30,35 @@ $finalState = $workflow->run();
 
 ## Interruption (Human-in-the-Loop)
 
-Nodes can pause execution for external input:
+Nodes can pause execution for external input. The pause is surfaced **functionally**
+— `run()`/`events()` return normally; no exception is thrown to the caller.
 
 ```php
 // Inside a node
 $this->interrupt(new ApprovalRequest(actions: [...]));
 ```
 
-Workflow throws `WorkflowInterrupt`. Resume later:
+`interrupt()` throws an internal signal that the executor catches at the step
+boundary and converts into an `InterruptEvent`, which terminates traversal like
+`StopEvent`. The returned state is marked interrupted:
+
 ```php
-try {
-    $handler = MyWorkflow::make()->run();
-} catch (WorkflowInterrupt $interrupt) {
-    $request = $interrupt->getRequest();
-    $token = $interrupt->getWorkflowId();
+$state = MyWorkflow::make()->run();
+
+if ($state->isInterrupted()) {
+    $request = $state->getInterrupt();   // show to the user, collect a decision
 
     // ... user approves/rejects ...
 
-    $handler = MyWorkflow::make(resumeToken: $token)->run($resumeRequest);
+    $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())->run($request);
 }
 ```
+
+For streaming, the `InterruptEvent` is yielded into the event stream as the
+terminal event. Resume is driven by step replay: the interrupted step is
+persisted and re-run with the user's request, so no branch/node metadata is
+carried on the interrupt — completed branches and nodes are simply skipped on
+resume.
 
 **Requires persistence**: `FilePersistence`, `InMemoryPersistence`, `DatabasePersistence`
 
@@ -102,8 +111,8 @@ which is correct as long as they are idempotent given the replayed inputs.
 Wrap node execution with cross-cutting concerns:
 
 ```php
-$workflow->middleware(NodeClass::class, new LoggingMiddleware());
-$workflow->globalMiddleware(new PerformanceMiddleware());
+$workflow->addMiddleware(NodeClass::class, new LoggingMiddleware());
+$workflow->addGlobalMiddleware(new PerformanceMiddleware());
 ```
 
 Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterface, Event, result, WorkflowState)`

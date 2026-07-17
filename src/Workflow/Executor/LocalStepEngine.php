@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use Throwable;
 
@@ -78,14 +78,6 @@ class LocalStepEngine
         // Execute the callable
         try {
             $result = $fn(null);
-        } catch (WorkflowInterrupt $interrupt) {
-            $stamped = new StepResult(
-                stepId: $stepId,
-                interrupt: $interrupt->getRequest(),
-                generation: $this->generation,
-            );
-            $this->setStepResult($stepId, $stamped);
-            throw $interrupt;
         } catch (Throwable $e) {
             // Record a failed-step marker for crash observability, then rethrow.
             // On recovery the marker makes this step retry (it is never replayed from cache).
@@ -96,6 +88,20 @@ class LocalStepEngine
             );
             $this->setStepResult($stepId, $stamped);
             throw $e;
+        }
+
+        // Interrupted: the step's terminal event is an InterruptEvent. Persist an
+        // interrupted marker (no throw) so the step resumes on the next run.
+        if ($result->getEvent() instanceof InterruptEvent) {
+            $stamped = new StepResult(
+                stepId: $stepId,
+                event: $result->getEvent(),
+                state: $result->getState(),
+                interrupt: $result->getEvent()->request,
+                generation: $this->generation,
+            );
+            $this->setStepResult($stepId, $stamped);
+            return $stamped;
         }
 
         // Save internally with current generation

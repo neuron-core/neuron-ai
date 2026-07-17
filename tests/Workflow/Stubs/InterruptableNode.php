@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -15,7 +14,6 @@ class InterruptableNode extends Node
 {
     /**
      * @throws WorkflowException
-     * @throws WorkflowInterrupt
      */
     public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent
     {
