@@ -6,8 +6,8 @@ composer.lock
 .php-cs-fixer.cache
 /tests/VectorStore/*.store
 .claude
-.artiforge
 .junie
 .env
 scripts
 phpunit.xml.local
+abs*
