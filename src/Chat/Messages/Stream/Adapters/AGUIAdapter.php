@@ -22,8 +22,6 @@ use function json_encode;
  */
 class AGUIAdapter extends SSEAdapter
 {
-    protected ?string $runId = null;
-
     protected ?string $threadId = null;
 
     protected ?string $currentMessageId = null;
@@ -42,8 +40,9 @@ class AGUIAdapter extends SSEAdapter
 
     /**
      * @param string|null $threadId Optional thread ID for conversation context
+     * @param string|null $runId Optional run ID, echoed back to the client as required by the protocol
      */
-    public function __construct(?string $threadId = null)
+    public function __construct(?string $threadId = null, protected ?string $runId = null)
     {
         $this->threadId = $threadId ?? $this->generateId('thread');
     }
@@ -61,6 +60,11 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
+        // Skip empty deltas, they carry no content
+        if ($chunk->content === '') {
+            return;
+        }
+
         // Close reasoning if it was started (transition from reasoning to text)
         foreach ($this->endReasoning() as $event) {
             yield $event;
@@ -88,6 +92,11 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleReasoning(ReasoningChunk $chunk): iterable
     {
+        // Skip empty deltas, they carry no content
+        if ($chunk->content === '') {
+            return;
+        }
+
         // Close text message if it was started (transition from text to reasoning)
         foreach ($this->endText() as $event) {
             yield $event;
@@ -105,7 +114,7 @@ class AGUIAdapter extends SSEAdapter
             yield $this->sse([
                 'type' => 'REASONING_MESSAGE_START',
                 'messageId' => $chunk->messageId,
-                'role' => 'assistant',
+                'role' => 'reasoning',
             ]);
         }
 
@@ -118,6 +127,9 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
+        // Capture the parent message id before closing the text stream resets it
+        $parentMessageId = $this->currentMessageId;
+
         // Close any open streams before starting tool calls
         foreach ($this->endReasoning() as $event) {
             yield $event;
@@ -127,19 +139,23 @@ class AGUIAdapter extends SSEAdapter
         }
 
         $toolName = $chunk->tool->getName();
-        $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
-        $this->toolCallIds[$toolName] = $toolCallId;
+        $toolCallId = $this->resolveToolCallId($chunk);
 
-        // Emit ToolCallStart only once per tool
+        // Emit ToolCallStart only once per tool call
         if (! isset($this->toolCallStarted[$toolCallId])) {
             $this->toolCallStarted[$toolCallId] = true;
 
-            yield $this->sse([
+            $event = [
                 'type' => 'TOOL_CALL_START',
                 'toolCallId' => $toolCallId,
                 'toolCallName' => $toolName,
-                'parentMessageId' => $this->currentMessageId,
-            ]);
+            ];
+
+            if ($parentMessageId !== null) {
+                $event['parentMessageId'] = $parentMessageId;
+            }
+
+            yield $this->sse($event);
         }
 
         // Stream tool arguments as JSON
@@ -161,8 +177,7 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
-        $toolName = $chunk->tool->getName();
-        $toolCallId = $this->toolCallIds[$toolName] ?? $this->generateId('call');
+        $toolCallId = $this->resolveToolCallId($chunk);
 
         // Emit tool result
         yield $this->sse([
@@ -170,12 +185,24 @@ class AGUIAdapter extends SSEAdapter
             'toolCallId' => $toolCallId,
             'content' => $chunk->tool->getResult(),
             'role' => 'tool',
+            'messageId' => $this->generateId('msg'),
         ]);
+    }
+
+    protected function resolveToolCallId(ToolCallChunk|ToolResultChunk $chunk): string
+    {
+        $toolName = $chunk->tool->getName();
+        $toolCallId = $chunk->tool->getCallId()
+            ?? $this->toolCallIds[$toolName]
+            ?? $this->generateId('call');
+        $this->toolCallIds[$toolName] = $toolCallId;
+
+        return $toolCallId;
     }
 
     public function start(): iterable
     {
-        $this->runId = $this->generateId('run');
+        $this->runId ??= $this->generateId('run');
 
         yield $this->sse([
             'type' => 'RUN_STARTED',
@@ -242,6 +269,7 @@ class AGUIAdapter extends SSEAdapter
         if ($this->runId !== null) {
             yield $this->sse([
                 'type' => 'RUN_FINISHED',
+                'threadId' => $this->threadId,
                 'runId' => $this->runId,
             ]);
         }
