@@ -22,8 +22,6 @@ use function json_encode;
  */
 class AGUIAdapter extends SSEAdapter
 {
-    protected ?string $runId = null;
-
     protected ?string $threadId = null;
 
     protected ?string $currentMessageId = null;
@@ -44,10 +42,9 @@ class AGUIAdapter extends SSEAdapter
      * @param string|null $threadId Optional thread ID for conversation context
      * @param string|null $runId Optional run ID, echoed back to the client as required by the protocol
      */
-    public function __construct(?string $threadId = null, ?string $runId = null)
+    public function __construct(?string $threadId = null, protected ?string $runId = null)
     {
         $this->threadId = $threadId ?? $this->generateId('thread');
-        $this->runId = $runId;
     }
 
     public function transform(object $chunk): iterable
