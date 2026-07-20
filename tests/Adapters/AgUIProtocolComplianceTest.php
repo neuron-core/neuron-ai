@@ -56,6 +56,15 @@ class AgUIProtocolComplianceTest extends TestCase
         'TOOL_CALL_RESULT' => ['toolCallId', 'messageId', 'content'],
     ];
 
+    public function test_get_headers_returns_correct_headers(): void
+    {
+        $headers = (new AGUIAdapter())->getHeaders();
+
+        $this->assertSame('text/event-stream', $headers['Content-Type'] ?? null);
+        $this->assertSame('no-cache', $headers['Cache-Control'] ?? null);
+        $this->assertSame('keep-alive', $headers['Connection'] ?? null);
+    }
+
     public function test_text_only_flow_is_compliant(): void
     {
         $adapter = new AGUIAdapter();
