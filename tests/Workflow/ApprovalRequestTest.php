@@ -328,4 +328,13 @@ class ApprovalRequestTest extends TestCase
         $this->assertEquals(ActionDecision::Edit, $restoredActions[1]->decision);
         $this->assertEquals('Please modify', $restoredActions[1]->feedback);
     }
+
+    public function testApprovalIsAWaitForEvent(): void
+    {
+        // A human decision is an external event whose payload is Action[].
+        $request = new ApprovalRequest('msg', [new Action('a1', 'Act', 'desc')]);
+
+        $this->assertInstanceOf(\NeuronAI\Workflow\Interrupt\WaitForEventRequest::class, $request);
+        $this->assertSame(\NeuronAI\Workflow\Interrupt\InterruptType::WaitForEvent, $request->type());
+    }
 }

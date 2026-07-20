@@ -737,7 +737,7 @@ No parallel-specific metadata is exposed.
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    $request = $state->getInterrupt();
+    $request = $state->getInterruptRequest();
     $workflowId = $workflow->getWorkflowId();
 
     // ... user responds, mutating $request ...

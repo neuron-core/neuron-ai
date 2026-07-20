@@ -30,7 +30,7 @@ class WorkflowState
      * that callers of run()/events() can detect the pause without catching an
      * exception.
      */
-    public function markInterrupted(InterruptRequest $request): void
+    public function markAsInterrupted(InterruptRequest $request): void
     {
         $this->interrupt = $request;
     }
@@ -41,7 +41,7 @@ class WorkflowState
      * The interrupt status describes the outcome of a single run, so the
      * executor resets it at the start of each run.
      */
-    public function clearInterrupted(): void
+    public function clearInterrupt(): void
     {
         $this->interrupt = null;
     }
@@ -57,7 +57,7 @@ class WorkflowState
     /**
      * The interrupt request describing the pause, or null when not interrupted.
      */
-    public function getInterrupt(): ?InterruptRequest
+    public function getInterruptRequest(): ?InterruptRequest
     {
         return $this->interrupt;
     }

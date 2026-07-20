@@ -29,7 +29,7 @@ $workflowId = $workflow->getWorkflowId();
 $approvalRequest = null;
 
 if ($state->isInterrupted()) {
-    $approvalRequest = $state->getInterrupt();
+    $approvalRequest = $state->getInterruptRequest();
     echo "Paused: {$approvalRequest->getMessage()}\n";
     echo "Resume token: {$workflowId}\n";
 }

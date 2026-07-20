@@ -43,7 +43,7 @@ class ParallelInterruptTest extends TestCase
         // The branch's pause surfaces on the workflow state, and the join node
         // (which runs only after all branches complete) did not execute.
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('text branch needs approval', $state->getInterrupt()->getMessage());
+        $this->assertSame('text branch needs approval', $state->getInterruptRequest()->getMessage());
         $this->assertFalse($state->has('merge_node_executed'));
     }
 
@@ -60,7 +60,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterrupt();
+        $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterruptRequest();
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(resumeToken: 'test-resume-token')
@@ -95,7 +95,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterrupt();
+        $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
         $result = $this->execute($workflow, $executor, $request);
@@ -119,7 +119,7 @@ class ParallelInterruptTest extends TestCase
                 new ContinuationNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterrupt();
+        $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
         $result = $this->execute($workflow, $executor, $request);
@@ -141,7 +141,7 @@ class ParallelInterruptTest extends TestCase
                 new ThreeBranchMergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterrupt();
+        $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
         $result = $this->execute($workflow, $executor, $request);
@@ -167,12 +167,12 @@ class ParallelInterruptTest extends TestCase
             ]);
 
         // First pause: step1 approval
-        $request1 = $this->execute($workflow, $executor)->getInterrupt();
+        $request1 = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request1);
         $this->assertSame('step1 approval', $request1->getMessage());
 
         // Resuming re-enters the branch and pauses again at step2
-        $request2 = $this->execute($workflow, $executor, $request1)->getInterrupt();
+        $request2 = $this->execute($workflow, $executor, $request1)->getInterruptRequest();
         $this->assertNotNull($request2);
         $this->assertSame('step2 approval', $request2->getMessage());
 
@@ -191,7 +191,7 @@ class ParallelInterruptTest extends TestCase
         $workflow = Workflow::make(resumeToken: 'test-linear-token')
             ->addNodes([new LinearInterruptNode()]);
 
-        $request = $this->execute($workflow, $executor)->getInterrupt();
+        $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
         $this->assertSame('linear interrupt', $request->getMessage());
 
@@ -214,7 +214,7 @@ class ParallelInterruptTest extends TestCase
         $state = $this->execute($workflow, $executor);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('text branch needs approval', $state->getInterrupt()->getMessage());
+        $this->assertSame('text branch needs approval', $state->getInterruptRequest()->getMessage());
     }
 
     public function testAsyncParallelResumeCompletesAllBranches(): void
@@ -229,7 +229,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, new AsyncExecutor($persistence))->getInterrupt();
+        $request = $this->execute($workflow, new AsyncExecutor($persistence))->getInterruptRequest();
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(resumeToken: 'test-async-token')

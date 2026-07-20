@@ -182,7 +182,7 @@ class WorkflowTest extends TestCase
         // Paused: the interrupt request is surfaced on the state, and nodes after
         // the pausing one did not execute.
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('human input needed', $state->getInterrupt()->getMessage());
+        $this->assertSame('human input needed', $state->getInterruptRequest()->getMessage());
         $this->assertFalse($state->has('node_three_executed'));
     }
 
@@ -201,13 +201,13 @@ class WorkflowTest extends TestCase
         $state = $this->execute($workflow, $executor);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('human input needed', $state->getInterrupt()->getMessage());
+        $this->assertSame('human input needed', $state->getInterruptRequest()->getMessage());
         // NodeOne ran; InterruptableNode paused before completing its own work
         $this->assertTrue($state->get('node_one_executed'));
         $this->assertNull($state->get('received_feedback'));
 
         // Resume feeds the request back through interrupt()
-        $state = $this->execute($workflow, $executor, $state->getInterrupt());
+        $state = $this->execute($workflow, $executor, $state->getInterruptRequest());
 
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('interruptable_node_executed'));
@@ -243,7 +243,7 @@ class WorkflowTest extends TestCase
             ]);
 
         $token = $workflow->getWorkflowId();
-        $request = $this->execute($workflow, $executor)->getInterrupt();
+        $request = $this->execute($workflow, $executor)->getInterruptRequest();
 
         $this->assertNotNull($request);
 

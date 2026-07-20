@@ -26,6 +26,8 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Scheduler\NullScheduler;
+use NeuronAI\Workflow\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
@@ -44,8 +46,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 {
     protected LocalStepEngine $stepEngine;
 
-    public function __construct(?PersistenceInterface $persistence = null)
-    {
+    public function __construct(
+        ?PersistenceInterface $persistence = null,
+        protected SchedulerInterface $scheduler = new NullScheduler(),
+    ) {
         $this->stepEngine = new LocalStepEngine($persistence ?? new InMemoryPersistence());
     }
 
@@ -76,13 +80,15 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             if ($terminal instanceof InterruptEvent) {
                 // Paused: mark the state so callers of run()/events() can detect
                 // the pause functionally. Steps are kept for resume.
-                $workflow->resolveState()->markInterrupted($terminal->request);
+                $workflow->resolveState()->markAsInterrupted($terminal->request);
+                // Let the scheduler register a wakeup for this suspend (inert by default).
+                $this->scheduler->onSuspend($workflowId, $terminal->request);
                 yield $terminal;
             } else {
                 // Completed: clean up persisted steps and clear any stale interrupt
                 // marker (the status describes the outcome of this run only).
                 $this->stepEngine->deleteSteps();
-                $workflow->resolveState()->clearInterrupted();
+                $workflow->resolveState()->clearInterrupt();
             }
 
             return $workflow->resolveState();

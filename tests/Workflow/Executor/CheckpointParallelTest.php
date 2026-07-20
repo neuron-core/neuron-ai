@@ -54,7 +54,7 @@ class CheckpointParallelTest extends TestCase
         $this->assertTrue($state->isInterrupted());
         $this->assertSame(1, $checkpointNode->closureExecutions);
 
-        $result = $this->execute($workflow, $executor, $state->getInterrupt());
+        $result = $this->execute($workflow, $executor, $state->getInterruptRequest());
 
         $this->assertFalse($result->isInterrupted());
         // Memo hit on resume: the node re-executes but the memoized closure does NOT.
@@ -83,7 +83,7 @@ class CheckpointParallelTest extends TestCase
 
         // The already-completed image branch is retained across the pause and
         // contributes its result on resume.
-        $result = $this->execute($workflow, $executor, $state->getInterrupt());
+        $result = $this->execute($workflow, $executor, $state->getInterruptRequest());
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');
@@ -106,7 +106,7 @@ class CheckpointParallelTest extends TestCase
         $state = $this->execute($workflow, $executor);
         $this->assertTrue($state->isInterrupted());
 
-        $result = $this->execute($workflow, $executor, $state->getInterrupt());
+        $result = $this->execute($workflow, $executor, $state->getInterruptRequest());
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');

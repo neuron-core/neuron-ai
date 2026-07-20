@@ -12,7 +12,11 @@ use NeuronAI\Observability\EventBus;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use DateTimeImmutable;
+use DateTimeInterface;
 
 use function is_callable;
 
@@ -132,6 +136,37 @@ abstract class Node implements NodeInterface
 
         // Condition didn't meet, continue execution
         return null;
+    }
+
+    /**
+     * Suspend the workflow until an external event named $eventName is delivered.
+     *
+     * Thin sugar over {@see interrupt()} with a WaitForEventRequest. On first pass
+     * the workflow pauses; on resume the scheduler/caller hydrates the request
+     * with the matched event payload, and this method returns it so the node can
+     * read getPayload(). Finer correlation (e.g. a specific entity id) is done in
+     * the node after resume.
+     */
+    protected function awaitEvent(string $eventName): ?WaitForEventRequest
+    {
+        /** @var WaitForEventRequest|null $request */
+        $request = $this->interrupt(new WaitForEventRequest($eventName));
+        return $request;
+    }
+
+    /**
+     * Suspend the workflow until a clock time. Thin sugar over {@see interrupt()}
+     * with a SleepUntilRequest. Whether and when to fire is the scheduler's job.
+     */
+    protected function sleepUntil(DateTimeInterface $wakeAt): ?SleepUntilRequest
+    {
+        $immutable = $wakeAt instanceof DateTimeImmutable
+            ? $wakeAt
+            : DateTimeImmutable::createFromMutable($wakeAt);
+
+        /** @var SleepUntilRequest|null $request */
+        $request = $this->interrupt(new SleepUntilRequest($immutable));
+        return $request;
     }
 
     /**

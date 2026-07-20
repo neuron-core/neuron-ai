@@ -18,6 +18,8 @@ use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Scheduler\NullScheduler;
+use NeuronAI\Workflow\Scheduler\SchedulerInterface;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionIntersectionType;
@@ -61,6 +63,8 @@ class Workflow implements WorkflowInterface
     protected ?WorkflowExecutorInterface $executor = null;
 
     protected ?PersistenceInterface $persistence = null;
+
+    protected ?SchedulerInterface $scheduler = null;
 
     /**
      * @throws WorkflowException
@@ -112,11 +116,28 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Provide a scheduler to coordinate wakeups for suspended workflows.
+     *
+     * Defaults to an inert NullScheduler (caller-driven resume), matching the
+     * out-of-the-box behavior.
+     */
+    public function setScheduler(SchedulerInterface $scheduler): static
+    {
+        $this->scheduler = $scheduler;
+        return $this;
+    }
+
+    protected function scheduler(): SchedulerInterface
+    {
+        return $this->scheduler ??= new NullScheduler();
+    }
+
+    /**
      * Resolve the executor, creating a default if none was configured.
      */
     protected function resolveExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= new WorkflowExecutor($this->persistence());
+        return $this->executor ??= new WorkflowExecutor($this->persistence(), $this->scheduler());
     }
 
     /**

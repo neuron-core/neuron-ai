@@ -126,8 +126,8 @@ class AgentHandler
     /**
      * The interrupt request describing the pause, or null when not interrupted.
      */
-    public function getInterrupt(): ?InterruptRequest
+    public function getInterruptRequest(): ?InterruptRequest
     {
-        return $this->result?->getInterrupt();
+        return $this->result?->getInterruptRequest();
     }
 }

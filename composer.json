@@ -1,6 +1,6 @@
 {
     "name": "neuron-core/neuron-ai",
-    "description": "The First Agentic Framework Of The PHP Ecosystem.",
+    "description": "A unified PHP layer for building AI apps with modern streaming, multi-modality support, and durable workflow.",
     "minimum-stability": "stable",
     "authors": [
         {

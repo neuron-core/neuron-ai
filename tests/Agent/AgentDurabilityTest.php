@@ -148,11 +148,11 @@ class AgentDurabilityTest extends TestCase
         $handler1->run();
 
         $this->assertTrue($handler1->interrupted());
-        $this->assertInstanceOf(ApprovalRequest::class, $handler1->getInterrupt());
+        $this->assertInstanceOf(ApprovalRequest::class, $handler1->getInterruptRequest());
         // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
-        $request = $handler1->getInterrupt();
+        $request = $handler1->getInterruptRequest();
         $request->getAction('call_1')?->approve();
 
         // Resume: same workflowId → ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
@@ -216,7 +216,7 @@ class AgentDurabilityTest extends TestCase
         $handler1->run();
 
         $this->assertTrue($handler1->interrupted());
-        $request = $handler1->getInterrupt();
+        $request = $handler1->getInterruptRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
         $request->getAction('call_1')?->reject('Do not search the web.');
 

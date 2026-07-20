@@ -10,7 +10,7 @@ use function is_array;
 use function json_decode;
 use function json_encode;
 
-class ApprovalRequest extends InterruptRequest
+class ApprovalRequest extends WaitForEventRequest
 {
     /**
      * @var array<string, Action> $actions
@@ -21,13 +21,21 @@ class ApprovalRequest extends InterruptRequest
      * @param string $message Human-readable reason for the interruption
      * @param Action[] $actions Actions requiring approval
      */
-    public function __construct(string $message, array $actions = [])
+    public function __construct(protected string $message, array $actions = [])
     {
-        parent::__construct($message);
+        // A human decision is an external event delivered on the "approval"
+        // channel; type() is inherited as WaitForEvent. Action[] lives in this
+        // subclass as the specialized payload.
+        parent::__construct('approval');
 
         foreach ($actions as $action) {
             $this->addAction($action);
         }
+    }
+
+    public function getMessage(): string
+    {
+        return $this->message;
     }
 
     public function addAction(Action $action): self
