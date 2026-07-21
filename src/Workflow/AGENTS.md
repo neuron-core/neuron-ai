@@ -28,39 +28,85 @@ foreach ($workflow->events() as $event) { ... }
 $finalState = $workflow->run();
 ```
 
-## Interruption (Human-in-the-Loop)
+## Suspend & resume
 
-Nodes can pause execution for external input. The pause is surfaced **functionally**
-— `run()`/`events()` return normally; no exception is thrown to the caller.
+Nodes can pause execution for external input (a human decision, an external
+event, a timer). The pause is surfaced **functionally** — `run()`/`events()`
+return normally; no exception reaches the caller.
+
+### The suspend vocabulary
+
+Two axes of extensibility, deliberately separated:
+
+- **`InterruptType` enum (CLOSED)** — `WaitForEvent`, `SleepUntil`. Each case maps
+  1:1 to a distinct **scheduler capability** (event-router / timer wheel). Adding a
+  type is a framework concern because it requires new scheduler logic — it is NOT
+  something app code does.
+- **`InterruptRequest` class hierarchy (OPEN)** — `InterruptRequest` is abstract;
+  `type()` reports one of the closed enum values. App code subclasses an *existing*
+  type to carry a richer payload, but `type()` stays inherited. Approval is one
+  payload of `WaitForEvent`, not the center.
+
+Three verbs, all on `Node`, all returning the same request subclass back (or null):
 
 ```php
-// Inside a node
-$this->interrupt(new ApprovalRequest(actions: [...]));
+// Generic — carry any InterruptRequest subclass
+$req = $this->interrupt(new MyApprovalRequest(...));
+
+// Sugar over interrupt() with a WaitForEventRequest. Returns null on timeout.
+$event = $this->awaitEvent('order.created', expiresAt: $deadline);
+if ($event === null) { /* timed out — no event arrived */ }
+$payload = $event->getPayload();
+
+// Sugar over interrupt() with a SleepUntilRequest. Whether/when it fires is the
+// scheduler's job (NullScheduler never fires it — it waits for a caller to resume).
+$this->sleepUntil($wakeAt);
 ```
 
-`interrupt()` throws an internal signal that the executor catches at the step
-boundary and converts into an `InterruptEvent`, which terminates traversal like
-`StopEvent`. The returned state is marked interrupted:
+`interrupt()` throws an internal signal the executor catches at the step boundary
+and converts into an `InterruptEvent`, which terminates traversal like `StopEvent`.
+The returned state is marked interrupted. Resume re-runs only the interrupted step
+with the request; completed branches/nodes are skipped via step replay — no
+parallel metadata is carried.
 
 ```php
 $state = MyWorkflow::make()->run();
 
 if ($state->isInterrupted()) {
-    $request = $state->getInterrupt();   // show to the user, collect a decision
+    $request = $state->getInterruptRequest();   // show to the user / hydrate with an event
 
-    // ... user approves/rejects ...
+    // ... collect decision or deliver event payload into $request ...
 
     $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())->run($request);
 }
 ```
 
-For streaming, the `InterruptEvent` is yielded into the event stream as the
-terminal event. Resume is driven by step replay: the interrupted step is
-persisted and re-run with the user's request, so no branch/node metadata is
-carried on the interrupt — completed branches and nodes are simply skipped on
-resume.
+**Timeouts are scheduler-driven, never clock comparisons in the node.** When an
+`awaitEvent()` deadline elapses, the scheduler resumes the workflow with the wait
+marked expired internally; the verb surfaces that as `null`. Node code branches on
+`if ($result === null)` — it must not read the clock itself (clock-skew-fragile).
 
-**Requires persistence**: `FilePersistence`, `InMemoryPersistence`, `DatabasePersistence`
+**Requires persistence**: `FilePersistence`, `InMemoryPersistence`, `DatabasePersistence`.
+
+### Coordination vs state — the scheduler seam
+
+`PersistenceInterface` owns **state** (the KV store of steps). `SchedulerInterface`
+owns **coordination** — deciding *when* a suspended workflow runs again. They are
+independent seams routed to different owners:
+
+```php
+$workflow = Workflow::make()
+    ->setPersistence(new DatabasePersistence($pdo))   // state — your DB
+    ->setScheduler(new MyQueueScheduler());            // coordination — a worker/cloud
+```
+
+The default `NullScheduler` is inert: it never wakes anything, preserving the
+caller-driven model where a caller re-invokes `run()` to resume. The executor fires
+`onSuspend()` after a suspend is persisted, `onResume()` on a deliberate resume
+(cancels the satisfied wakeup — keeps inline resume consistent), and `onComplete()`
+on a clean terminal `StopEvent`. Expiration lives in the persisted request terms
+**and** the scheduler's timer wheel — persistence stays a pure KV store (no scan,
+no `findExpired()`).
 
 ## Durable memoization (`memoize`)
 
@@ -84,10 +130,8 @@ $data = $this->memoize('fetch', fn () => $this->api->fetch($event->query));
 
 Wrap any non-deterministic or expensive work (LLM calls, HTTP, tool execution) in
 `memoize()` so it runs at most once even if the node crashes after it succeeds. The
-built-in `ChatNode` (inference) and `ToolNode` (per-call tool execution) already use it.
-
-> `checkpoint()` is deprecated and now delegates to `memoize()`. The previous in-memory,
-> one-shot behaviour is removed — prefer `memoize()`.
+built-in `ChatNode` (inference), `ToolNode` (per-call tool execution), and
+`StreamingNode` (terminal response) already use it.
 
 ### The determinism contract
 
@@ -106,6 +150,49 @@ Mid-node state mutations (e.g. `addToChatHistory`, `$state->set(...)`) are not d
 only step boundaries are. They are discarded if the node crashes and re-applied on replay,
 which is correct as long as they are idempotent given the replayed inputs.
 
+### `recallMemo()` — the read-only counterpart
+
+`memoize(name, fn)` fuses compute-or-recall: it always supplies a closure to run on a
+miss. That can't express "yield live, then persist," because a closure can't yield into
+the node's own generator. `recallMemo(name)` is the read-only half — it returns a
+prior-generation cached value without running anything, or `null`:
+
+```php
+$response = $this->recallMemo('inference');
+if (!$response instanceof ProviderResponse) {
+    foreach ($this->provider->stream(...) as $chunk) { yield $chunk; }   // live consumer
+    $response = $stream->getReturn();
+    $this->memoize('inference', fn () => $response);                     // record (the write half)
+}
+```
+
+There is no separate `recordMemo()`: `memoize(fn () => $value)` already persists the
+value. `recallMemo` is the only genuinely new capability (the read).
+
+### You cannot memoize a generator
+
+A provider stream is a live, non-resumable cursor — it can't be replayed, and there is
+no consumer across a crash to receive chunks. So only the terminal value is durable;
+chunks are evanescent. This is why `StreamingNode` recalls the `ProviderResponse` and
+skips the stream on recovery (pattern above), matching how Temporal/Inngest treat
+streams. A crash **mid-stream** re-infers — that is the irreducible cost of a
+non-resumable resource. `memoize()` protects the window that matters: the call completed,
+so it is never billed twice.
+
+### The two re-run triggers (which helper do I use?)
+
+A node re-runs for one of two reasons, and they are distinguishable:
+
+| Trigger | Signal | Use |
+|---|---|---|
+| **Interrupt-resume** — this node suspended and is woken with a decision/event | `consumeResumeRequest()` / `isResuming()` (an `InterruptRequest` is injected) | `consumeResumeRequest()` — carries *external input* that didn't exist before |
+| **Crash-replay** — the node crashed mid-step and is re-run from a prior generation | no `InterruptRequest` (memo recall only) | `recallMemo()` / `memoize()` — carries *internal results* already computed |
+
+These are orthogonal by necessity: a resume delivers new information from outside; a
+replay recovers old results from inside. One channel cannot represent both. A node may
+use both (memoize expensive work, then suspend for approval — on resume the memo is
+recalled and the request consumed).
+
 ## Middleware
 
 Wrap node execution with cross-cutting concerns:
@@ -121,9 +208,10 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `resolveExecutor()`.
 
-There are two genuine extension points:
+There are three genuine extension points:
 
-- **`PersistenceInterface`** — where steps are stored (InMemory, File, Database, Eloquent).
+- **`PersistenceInterface`** — where steps are stored (InMemory, File, Database, Eloquent). Owns **state**.
+- **`SchedulerInterface`** — what wakes a suspended workflow (NullScheduler, a queue/cron worker, a cloud platform). Owns **coordination**. See *Suspend & resume* above.
 - **`WorkflowExecutorInterface`** — the execution model: in-process (`WorkflowExecutor`), async branches (`AsyncExecutor`), or an external platform (a future cloud executor).
 
 ```
@@ -132,8 +220,10 @@ Workflow
        ├─ WorkflowExecutor   (in-process; owns traversal + replay + a LocalStepEngine)
        │    └─ AsyncExecutor  (concurrent branches via Amp fibers)
        └─ <CloudExecutor>     (future: platform-driven durability)
-  └─ PersistenceInterface (storage, used by the local executor)
+  └─ PersistenceInterface (state — storage, used by the local executor)
        ├─ InMemoryPersistence / FilePersistence / DatabasePersistence / EloquentPersistence
+  └─ SchedulerInterface (coordination — wakeups for suspended workflows)
+       └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
 ```
 
 `LocalStepEngine` (the replay logic — persist each step, skip completed steps on replay, resume interrupted steps) is an **internal** detail of `WorkflowExecutor`, not something developers construct. The executor builds it from the persistence you give it.

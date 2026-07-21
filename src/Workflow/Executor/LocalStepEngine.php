@@ -133,6 +133,30 @@ class LocalStepEngine
         return $this->getStepResult($stepId);
     }
 
+    /**
+     * Return a prior-generation, successfully-completed step result, or null.
+     *
+     * Same cache-hit guard as runStep() — interrupted or failed steps are never
+     * replayed from cache, and a result is only a "hit" when it belongs to a
+     * strictly older generation (a real prior run, never our own write this run).
+     * Used by the memoizer to recall a durable value WITHOUT running anything,
+     * which is what lets a node skip non-replayable work like a provider stream.
+     */
+    public function getCachedStep(string $stepId): ?StepResult
+    {
+        $cached = $this->getStepResult($stepId);
+
+        if ($cached instanceof StepResult
+            && !$cached->isInterrupted()
+            && !$cached->isFailed()
+            && $cached->getGeneration() < $this->generation
+        ) {
+            return $cached;
+        }
+
+        return null;
+    }
+
     protected function getStepResult(string $stepId): ?StepResult
     {
         return $this->persistence->load($this->workflowId, $stepId);

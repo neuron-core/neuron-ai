@@ -239,9 +239,10 @@ class DangerousOperationNode extends Node
 {
     public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     {
-        // Interrupt for approval
+        // Interrupt for approval. Signature: (string $message, array $actions = [], ?DateTimeImmutable $expiresAt = null)
         $resumeRequest = $this->interrupt(new ApprovalRequest(
-            actions: [
+            'These operations require approval',
+            [
                 new Action(
                     id: 'delete_files',
                     name: 'Delete Files',
@@ -253,7 +254,6 @@ class DangerousOperationNode extends Node
                     description: 'Send email to user@example.com'
                 ),
             ],
-            message: 'These operations require approval'
         ));
 
         foreach ($resumeRequest->getActions() as $action) {
@@ -305,7 +305,7 @@ $state = $workflow->run();
 
 if ($state->isInterrupted()) {
     // Present the request to the user and collect a decision
-    $request = $state->getInterrupt();
+    $request = $state->getInterruptRequest();
     $workflowId = $workflow->getWorkflowId();
 
     // ... user approves/rejects, mutating $request ...
@@ -319,6 +319,97 @@ if ($state->isInterrupted()) {
 }
 
 $result = $state->get('result');
+```
+
+## The Suspend Vocabulary (beyond approval)
+
+Approval is the most common reason to suspend, but it is just one payload. The
+suspend model has two deliberately separated axes:
+
+- **`InterruptType` enum (closed)** — `WaitForEvent`, `SleepUntil`. Each maps to a
+  scheduler capability (an event router, a timer wheel). Adding a type is a framework
+  concern. You don't invent new types in app code.
+- **`InterruptRequest` class hierarchy (open)** — `InterruptRequest` is abstract.
+  Subclass an *existing* type to carry a richer payload; `type()` stays inherited.
+
+Three verbs on `Node`, each returning the same request subclass back (or `null`):
+
+### Wait for an external event — `awaitEvent()`
+
+```php
+class OrderNode extends Node
+{
+    public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
+    {
+        // Suspend until an event named 'payment.received' is delivered.
+        // $deadline bounds the wait; if it elapses with no event, returns null.
+        $wait = $this->awaitEvent('payment.received', expiresAt: $state->get('deadline'));
+
+        if ($wait === null) {
+            return new OrderExpiredEvent();           // timed out — no event arrived
+        }
+
+        $payment = $wait->getPayload();               // the delivered event payload
+        return new ResultEvent($payment);
+    }
+}
+```
+
+Resume delivers the event by passing a hydrated request to `run()`:
+
+```php
+// The caller (a webhook controller, a queue worker, a scheduler) hydrates the
+// matched event into the request and resumes:
+$request = new \NeuronAI\Workflow\Interrupt\WaitForEventRequest('payment.received', $paymentPayload);
+
+$state = Workflow::make(resumeToken: $workflowId)
+    ->setPersistence($persistence)
+    ->addNodes([...])
+    ->run($request);
+```
+
+**Timeouts are scheduler-driven.** When the deadline elapses the scheduler resumes
+the workflow with the wait marked expired internally; `awaitEvent()` surfaces that as
+`null`. Branch on `if ($wait === null)` — never compare the clock in the node.
+
+### Sleep until a clock time — `sleepUntil()`
+
+```php
+// Suspend until $wakeAt. Whether and when it fires is the scheduler's job.
+$this->sleepUntil($wakeAt);
+```
+
+With the default `NullScheduler` nothing fires on its own — a caller must resume. A
+real scheduler (a cron/queue worker, or a cloud platform) drives the wakeup.
+
+### Carrying a custom payload
+
+Subclass an existing type to add typed fields. `type()` is inherited, so the
+scheduler still routes it correctly:
+
+```php
+class QuotaRefreshRequest extends WaitForEventRequest
+{
+    public function __construct(public readonly string $customerId)
+    {
+        parent::__construct('quota.refreshed.' . $customerId);
+    }
+}
+
+// In a node:
+$req = $this->interrupt(new QuotaRefreshRequest($customerId));
+// ...on resume, $req is the same QuotaRefreshRequest with getPayload() populated.
+```
+
+### The scheduler — coordination, not state
+
+`PersistenceInterface` stores **state** (your DB); `SchedulerInterface` owns
+**coordination** — when a suspended workflow wakes. Wire one optionally:
+
+```php
+$workflow = Workflow::make()
+    ->setPersistence(new DatabasePersistence($pdo))   // state
+    ->setScheduler(new MyQueueScheduler());            // coordination (defaults to inert NullScheduler)
 ```
 
 ## Durable Memoization (`memoize`)
@@ -356,8 +447,44 @@ class DataProcessingNode extends Node
 
 > The closure must be a pure function of the node's event and state for the given
 > name. Put all non-determinism (LLM, HTTP, DB writes, `time()`, randomness)
-> **inside** `memoize()`. The previous `checkpoint()` method is deprecated and
-> delegates to `memoize()`.
+> **inside** `memoize()`.
+
+### `recallMemo()` — read a memoized value without running anything
+
+`memoize(name, fn)` always supplies a closure to run on a miss, so it can't express
+"yield chunks live, then persist the final value" — a closure can't `yield` into the
+node's own generator. `recallMemo(name)` is the read-only counterpart: it returns a
+prior-run cached value or `null`. There is no separate `recordMemo()`; `memoize(fn () => $v)`
+already persists.
+
+### You can't memoize a generator (streaming)
+
+A provider stream is a live, non-resumable cursor — it can't be replayed, and there is
+no consumer across a crash to receive chunks. So only the **terminal** value is durable;
+chunks are evanescent. The built-in `StreamingNode` uses exactly this pattern: recall the
+`ProviderResponse` and skip the stream on recovery, recording the response once it
+completes.
+
+```php
+public function __invoke(ProcessEvent $event, WorkflowState $state): \Generator
+{
+    $response = $this->recallMemo('inference');
+    if (!$response instanceof ProviderResponse) {
+        foreach ($this->provider->stream(...) as $chunk) {
+            yield $chunk;                              // live consumer gets real streaming
+        }
+        $response = $stream->getReturn();
+        $this->memoize('inference', fn () => $response); // record once, at-most-once
+    }
+
+    // ...use $response...
+    return new ResultEvent($response);
+}
+```
+
+A crash **mid-stream** re-infers — that is the irreducible cost of a non-resumable
+resource. `memoize()` protects the window that matters: once the call completed, it is
+never billed twice. This matches how Temporal and Inngest treat streams.
 
 ## Middleware System
 
@@ -729,7 +856,7 @@ $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
 Parallel branches fully support human-in-the-loop. If any branch calls
 `$this->interrupt()`, the workflow pauses exactly as in the linear case — the
 state is marked interrupted and the request is available via
-`$state->getInterrupt()`. Resume is driven by step replay, so already-completed
+`$state->getInterruptRequest()`. Resume is driven by step replay, so already-completed
 branches are skipped and only the interrupted branch re-runs with the request.
 No parallel-specific metadata is exposed.
 

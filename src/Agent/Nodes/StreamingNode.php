@@ -14,6 +14,7 @@ use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use Generator;
@@ -41,18 +42,31 @@ class StreamingNode extends Node
         $this->emit('inference-start', new InferenceStart($lastMessage));
 
         try {
-            $stream = $this->provider
-                ->systemPrompt($event->instructions)
-                ->setTools($event->tools)
-                ->stream(...$chatHistory->getMessages());
+            // A provider stream is a live, non-resumable cursor: it cannot be
+            // replayed, and there is no consumer across a crash to receive chunks
+            // anyway. So only the terminal response is durable. On recovery we
+            // recall it and skip the stream entirely (no re-inference); on the
+            // live path we stream chunks to the consumer, then record the response
+            // so a crash before the node step commits won't re-bill the provider.
+            $providerResponse = $this->recallMemo('inference');
 
-            // Yield all chunks as-is (TextChunk, ReasoningChunk, etc.)
-            foreach ($stream as $chunk) {
-                yield $chunk;
+            if (!$providerResponse instanceof ProviderResponse) {
+                $stream = $this->provider
+                    ->systemPrompt($event->instructions)
+                    ->setTools($event->tools)
+                    ->stream(...$chatHistory->getMessages());
+
+                // Yield all chunks as-is (TextChunk, ReasoningChunk, etc.)
+                foreach ($stream as $chunk) {
+                    yield $chunk;
+                }
+
+                // Get the final message from the generator return value
+                $providerResponse = $stream->getReturn();
+
+                $this->memoize('inference', fn () => $providerResponse);
             }
 
-            // Get the final message from the generator return value
-            $providerResponse = $stream->getReturn();
             $state->setResponse($providerResponse);
             $message = $providerResponse->message();
 

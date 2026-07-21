@@ -5,9 +5,9 @@ Neuron is a PHP Agentic framework for building AI agents with chat, tools, RAG, 
 ## Development Commands
 
 ```bash
-composer test          # Run tests (PHPUnit)
 composer format        # Fix code style (PHP CS Fixer)
 composer analyse       # Static analysis (PHPStan level 5)
+composer test          # Run tests (PHPUnit)
 ```
 
 Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`

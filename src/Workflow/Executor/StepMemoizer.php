@@ -40,4 +40,23 @@ final class StepMemoizer
 
         return $result->getOutput();
     }
+
+    /**
+     * Recall a previously memoized value WITHOUT running anything.
+     *
+     * Returns the recorded output when a prior-generation result exists for the
+     * memo step (a real recovery), or null otherwise — including within the same
+     * run that will later record it (the guard rejects our own generation).
+     *
+     * This is the read-only counterpart to memo(): it lets a node skip
+     * non-replayable work whose terminal value was already persisted — e.g. a
+     * StreamingNode recalling a completed provider response instead of re-opening
+     * a non-resumable stream. memo() handles the write side.
+     */
+    public function get(string $name): mixed
+    {
+        $cached = $this->engine->getCachedStep($this->stepId . '::' . $name);
+
+        return $cached?->getOutput();
+    }
 }
