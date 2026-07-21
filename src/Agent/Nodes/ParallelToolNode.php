@@ -55,47 +55,58 @@ class ParallelToolNode extends ToolNode
             return yield from parent::executeTools($toolCallMessage, $state);
         }
 
-        // Check max tries and notify before execution
+        // Notify and stream tool-call signals up-front. These are pure stream
+        // artifacts and safe to re-emit when the node replays.
         foreach ($tools as $tool) {
-            $key = $tool->getRunKey();
-
-            $state->incrementToolRun($key);
-
-            // Single tool max tries have the highest priority over the global max tries
-            $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
-            if ($state->getToolRuns($key) > $maxTries) {
-                throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
-            }
-
             $this->emit('tool-calling', new ToolCalling($tool, true));
 
             yield new ToolCallChunk($tool);
         }
 
-        // Execute tools concurrently and collect serialized tool states
-        $serializedTools = Fork::new()->run(
-            ...array_map(
-                fn (ToolInterface $tool): Closure => function () use ($tool): string {
-                    try {
-                        // Execute the tool - this mutates the tool's internal state
-                        $tool->execute();
+        // Execute the batch durably. Run-count accounting, the max-runs guard,
+        // and the concurrent execution all live inside the memo so they happen
+        // at most once: on replay the cached serialized tool states are returned
+        // and the tools are NOT re-invoked — side-effecting tools (emails,
+        // payments, ...) stay at-most-once across crash recovery.
+        $serializedTools = $this->memoize('parallel.tools', function () use ($tools, $state): array {
+            // Check max tries before execution
+            foreach ($tools as $tool) {
+                $key = $tool->getRunKey();
 
-                        // Serialize the entire tool object with its new state
-                        return serialize($tool);
-                    } catch (Throwable $exception) {
-                        // Wrap the exception info with the tool for proper error handling
-                        return serialize([
-                            'error' => true,
-                            'exception_class' => $exception::class,
-                            'exception_message' => $exception->getMessage(),
-                            'exception_code' => $exception->getCode(),
-                            'tool_name' => $tool->getName(),
-                        ]);
-                    }
-                },
-                $tools
-            )
-        );
+                $state->incrementToolRun($key);
+
+                // Single tool max tries have the highest priority over the global max tries
+                $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
+                if ($state->getToolRuns($key) > $maxTries) {
+                    throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
+                }
+            }
+
+            // Execute tools concurrently and collect serialized tool states
+            return Fork::new()->run(
+                ...array_map(
+                    fn (ToolInterface $tool): Closure => function () use ($tool): string {
+                        try {
+                            // Execute the tool - this mutates the tool's internal state
+                            $tool->execute();
+
+                            // Serialize the entire tool object with its new state
+                            return serialize($tool);
+                        } catch (Throwable $exception) {
+                            // Wrap the exception info with the tool for proper error handling
+                            return serialize([
+                                'error' => true,
+                                'exception_class' => $exception::class,
+                                'exception_message' => $exception->getMessage(),
+                                'exception_code' => $exception->getCode(),
+                                'tool_name' => $tool->getName(),
+                            ]);
+                        }
+                    },
+                    $tools
+                )
+            );
+        });
 
         // Unserialize and replace tools with their executed state
         $executedTools = [];

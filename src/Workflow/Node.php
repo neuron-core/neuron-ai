@@ -16,7 +16,6 @@ use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use DateTimeImmutable;
-use DateTimeInterface;
 
 use function is_callable;
 
@@ -146,11 +145,26 @@ abstract class Node implements NodeInterface
      * with the matched event payload, and this method returns it so the node can
      * read getPayload(). Finer correlation (e.g. a specific entity id) is done in
      * the node after resume.
+     *
+     * Returns null when the wait timed out: an optional $expiresAt bounds the
+     * wait, and when it elapses the scheduler resumes the workflow with the wait
+     * marked expired internally — this method surfaces that as null so the node
+     * branches on `if ($result === null)` (the wait produced no event). Node code
+     * must NOT compare the clock itself; the null return is the timeout signal.
      */
-    protected function awaitEvent(string $eventName): ?WaitForEventRequest
+    protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?WaitForEventRequest
     {
         /** @var WaitForEventRequest|null $request */
-        $request = $this->interrupt(new WaitForEventRequest($eventName));
+        $request = $this->interrupt(new WaitForEventRequest($eventName, null, $expiresAt));
+
+        // A timeout resume (deadline elapsed, no event) is surfaced to the node as
+        // null. Guard on instanceof so a cross-TYPE resume (e.g. a SleepUntilRequest
+        // fed to a wait-for-event) still reaches the declared return type and is
+        // rejected with a TypeError at the verb boundary, as before.
+        if ($request instanceof WaitForEventRequest && $request->isExpired()) {
+            return null;
+        }
+
         return $request;
     }
 
@@ -158,14 +172,10 @@ abstract class Node implements NodeInterface
      * Suspend the workflow until a clock time. Thin sugar over {@see interrupt()}
      * with a SleepUntilRequest. Whether and when to fire is the scheduler's job.
      */
-    protected function sleepUntil(DateTimeInterface $wakeAt): ?SleepUntilRequest
+    protected function sleepUntil(DateTimeImmutable $wakeAt): ?SleepUntilRequest
     {
-        $immutable = $wakeAt instanceof DateTimeImmutable
-            ? $wakeAt
-            : DateTimeImmutable::createFromMutable($wakeAt);
-
         /** @var SleepUntilRequest|null $request */
-        $request = $this->interrupt(new SleepUntilRequest($immutable));
+        $request = $this->interrupt(new SleepUntilRequest($wakeAt));
         return $request;
     }
 

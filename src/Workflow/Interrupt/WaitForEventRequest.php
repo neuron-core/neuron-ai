@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
+use DateTimeImmutable;
+use DateTimeInterface;
+
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
  *
@@ -17,16 +20,34 @@ namespace NeuronAI\Workflow\Interrupt;
  * populated by the caller/scheduler on resume. Subclasses specialize the payload
  * — ApprovalRequest is the shipped example, carrying Action[] decisions instead of
  * a generic event body.
+ *
+ * An optional $expiresAt turns the wait into a bounded one: if no event satisfies
+ * it by the deadline, the scheduler's timer wheel resumes the workflow with the
+ * request marked expired (see markExpired()). Expiration is coordination state —
+ * the scheduler owns the deadline timer; persistence merely stores this request.
  */
 class WaitForEventRequest extends InterruptRequest
 {
     /**
-     * @param string $eventName The external occurrence to wait for.
-     * @param mixed  $payload   The matched event data; null on first pass, populated on resume.
+     * Internal timeout flag, set by the scheduler when the wait is satisfied by its
+     * deadline elapsing rather than by a delivered event. This is plumbing: the
+     * framework's awaitEvent() reads it and surfaces a timeout to the node as a
+     * null return, so node code branches on null and never calls isExpired()
+     * directly. It is NOT derived from a clock comparison (that would be fragile to
+     * skew between the scheduler firing and the node checking).
+     */
+    protected bool $expired = false;
+
+    /**
+     * @param string                 $eventName  The external occurrence to wait for.
+     * @param mixed                  $payload    The matched event data; null on first pass, populated on resume.
+     * @param DateTimeImmutable|null $expiresAt  Optional deadline; if set, the scheduler resumes the
+     *                                           workflow with markExpired() when it elapses.
      */
     public function __construct(
         protected string $eventName,
         protected mixed $payload = null,
+        protected ?DateTimeImmutable $expiresAt = null,
     ) {
     }
 
@@ -37,7 +58,11 @@ class WaitForEventRequest extends InterruptRequest
 
     public function getMessage(): string
     {
-        return "Waiting for event '{$this->eventName}'";
+        $message = "Waiting for event '{$this->eventName}'";
+        if ($this->expiresAt instanceof DateTimeImmutable) {
+            $message .= " (expires at {$this->expiresAt->format(DateTimeInterface::ATOM)})";
+        }
+        return $message;
     }
 
     public function getEventName(): string
@@ -50,6 +75,31 @@ class WaitForEventRequest extends InterruptRequest
         return $this->payload;
     }
 
+    public function getExpiresAt(): ?DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    /**
+     * Mark this wait as satisfied by its deadline elapsing. Internal: called by the
+     * scheduler / step endpoint on a timeout resume, not by node code. The node
+     * sees the timeout as a null return from awaitEvent().
+     */
+    public function markExpired(): void
+    {
+        $this->expired = true;
+    }
+
+    /**
+     * Whether the resume was produced by the deadline elapsing rather than by a
+     * delivered event. Internal: read by the framework's awaitEvent() to decide the
+     * null return; node code branches on null instead of calling this.
+     */
+    public function isExpired(): bool
+    {
+        return $this->expired;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -59,6 +109,8 @@ class WaitForEventRequest extends InterruptRequest
             'type' => $this->type()->value,
             'event' => $this->eventName,
             'payload' => $this->payload,
+            'expires_at' => $this->expiresAt?->format(DateTimeInterface::ATOM),
+            'expired' => $this->expired,
         ];
     }
 
@@ -67,9 +119,20 @@ class WaitForEventRequest extends InterruptRequest
      */
     public static function fromArray(array $data): self
     {
-        return new self(
+        $expiresAt = isset($data['expires_at'])
+            ? new DateTimeImmutable((string) $data['expires_at'])
+            : null;
+
+        $request = new self(
             (string) ($data['event'] ?? ''),
             $data['payload'] ?? null,
+            $expiresAt,
         );
+
+        if (!empty($data['expired'])) {
+            $request->markExpired();
+        }
+
+        return $request;
     }
 }

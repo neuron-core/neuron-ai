@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
+use DateTimeImmutable;
+
 use function array_filter;
 use function array_values;
 use function is_array;
@@ -18,15 +20,19 @@ class ApprovalRequest extends WaitForEventRequest
     protected array $actions = [];
 
     /**
-     * @param string $message Human-readable reason for the interruption
-     * @param Action[] $actions Actions requiring approval
+     * @param string                 $message   Human-readable reason for the interruption
+     * @param Action[]               $actions   Actions requiring approval
+     * @param DateTimeImmutable|null $expiresAt Optional auto-resolve deadline (e.g. auto-reject)
      */
-    public function __construct(protected string $message, array $actions = [])
-    {
+    public function __construct(
+        protected string $message,
+        array $actions = [],
+        ?DateTimeImmutable $expiresAt = null,
+    ) {
         // A human decision is an external event delivered on the "approval"
         // channel; type() is inherited as WaitForEvent. Action[] lives in this
         // subclass as the specialized payload.
-        parent::__construct('approval');
+        parent::__construct('approval', null, $expiresAt);
 
         foreach ($actions as $action) {
             $this->addAction($action);

@@ -7,11 +7,10 @@ namespace NeuronAI\Tests\Workflow\Stubs;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 use DateTimeImmutable;
-use DateTimeInterface;
 
 class SleepUntilNode extends Node
 {
-    public function __construct(private readonly ?DateTimeInterface $wakeAt = null)
+    public function __construct(private readonly ?DateTimeImmutable $wakeAt = null)
     {
     }
 

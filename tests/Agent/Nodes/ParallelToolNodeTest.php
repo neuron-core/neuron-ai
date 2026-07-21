@@ -12,6 +12,9 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Executor\StepMemoizer;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
 class ParallelRegularTool extends Tool
@@ -118,5 +121,56 @@ class ParallelToolNodeTest extends TestCase
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
+    }
+
+    public function test_parallel_batch_not_re_executed_on_recovery(): void
+    {
+        // The concurrent execution path (the Spatie fork fan-out) is wrapped in a
+        // durable memo. On crash recovery — a fresh step engine sharing the same
+        // persistence — the node re-executes but the memoized batch must NOT
+        // re-run: side-effecting tools stay at-most-once, and the run counters
+        // (incremented inside the memo) must not advance a second time.
+        $workflowId = 'parallel_recovery_test';
+        $persistence = new InMemoryPersistence();
+        $stepId = ParallelToolNode::class . '-0';
+
+        $tool1 = new ParallelRegularTool();
+        $tool1->setCallId('call_1');
+        $tool1->setInputs([]);
+
+        $tool2 = new ParallelAnotherTool();
+        $tool2->setCallId('call_2');
+        $tool2->setInputs([]);
+
+        $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1, $tool2]);
+        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+
+        $state = new AgentState();
+        $state->set('__workflowId', $workflowId);
+
+        // Run 1: the batch executes and its result is memoized mid-node.
+        $engine1 = new LocalStepEngine($persistence);
+        $engine1->prepareExecution($workflowId);
+        $node1 = new ParallelToolNode();
+        $node1->setWorkflowContext($state, $event, null, new StepMemoizer($engine1, $stepId));
+        foreach ($node1($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        $this->assertSame(1, $state->getToolRuns('regular_tool'));
+        $this->assertSame(1, $state->getToolRuns('another_tool'));
+
+        // Recovery: brand-new engine, same persistence (simulates a process restart).
+        $engine2 = new LocalStepEngine($persistence);
+        $engine2->prepareExecution($workflowId);
+        $node2 = new ParallelToolNode();
+        $node2->setWorkflowContext($state, $event, null, new StepMemoizer($engine2, $stepId));
+        foreach ($node2($event, $state) as $_) {
+            $_ = null; // This is to prevent rector from removing it.
+        }
+
+        $this->assertSame(1, $state->getToolRuns('regular_tool'), 'Parallel tools must not re-execute on recovery');
+        $this->assertSame(1, $state->getToolRuns('another_tool'), 'Parallel tools must not re-execute on recovery');
     }
 }

@@ -70,6 +70,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         try {
             $this->stepEngine->prepareExecution($workflowId, $interrupt);
 
+            // A non-null interrupt means this run is a deliberate resume (inline or
+            // scheduler push) — not a crash-recovery re-run (which replays cached
+            // steps and passes no interrupt). Let the scheduler cancel the wakeup
+            // this resume satisfies, so inline resume leaves no stale registration.
+            if ($interrupt instanceof InterruptRequest) {
+                $this->scheduler->onResume($workflowId, $interrupt);
+            }
+
             /** @var Event $terminal */
             $terminal = yield from $this->traverse(
                 $workflow,
@@ -89,6 +97,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // marker (the status describes the outcome of this run only).
                 $this->stepEngine->deleteSteps();
                 $workflow->resolveState()->clearInterrupt();
+                // Drop all scheduler coordination state for this workflow.
+                $this->scheduler->onComplete($workflowId);
             }
 
             return $workflow->resolveState();
@@ -105,11 +115,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function buildStepId(NodeInterface $node, ?string $branchId, int $index): string
     {
-        $base = $branchId !== null
-            ? $branchId . '.' . $node::class
-            : $node::class;
-
-        return $base . '-' . $index;
+        return ($branchId !== null ? $branchId . '.' : '') . $node::class . '-' . $index;
     }
 
     /**
@@ -237,9 +243,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             $event = $result->getEvent();
-            if ($result->getState() instanceof WorkflowState) {
-                $workflow->setState($result->getState());
-            }
+            $workflow->setState($result->getState());
 
             if ($event instanceof ParallelEvent) {
                 $branchGen = $this->executeBranches($workflow, $event);
@@ -247,11 +251,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $event = $branchGen->getReturn();
             }
 
-            if ($event instanceof StopEvent) {
-                break;
-            }
-
-            if ($event instanceof InterruptEvent) {
+            if ($event instanceof StopEvent || $event instanceof InterruptEvent) {
                 break;
             }
 
@@ -356,9 +356,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 });
 
                 $event = $result->getEvent();
-                if ($result->getState() instanceof WorkflowState) {
-                    $branchState = $result->getState();
-                }
 
                 if ($event instanceof ParallelEvent) {
                     $branchGen = $this->executeBranches($workflow, $event);
@@ -368,11 +365,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     $event = $branchGen->getReturn();
                 }
 
-                if ($event instanceof StopEvent) {
-                    break;
-                }
-
-                if ($event instanceof InterruptEvent) {
+                if ($event instanceof StopEvent || $event instanceof InterruptEvent) {
                     break;
                 }
 

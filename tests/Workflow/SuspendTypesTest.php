@@ -9,7 +9,9 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\SleepUntilNode;
 use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
+use NeuronAI\Tests\Workflow\Stubs\WaitForEventWithTimeoutNode;
 use NeuronAI\Workflow\Interrupt\InterruptType;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -195,6 +197,86 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->isInterrupted());
         $this->assertInstanceOf(SleepUntilRequest::class, $state->getInterruptRequest());
         $this->assertFalse($state->has('node_three_executed'));
+    }
+
+    public function testWaitForEventRequestCarriesExpiration(): void
+    {
+        // Expiration is a scheduler-driven feature: the deadline lives on the
+        // request (persisted) while the scheduler owns the timer. The node branches
+        // on the explicit isExpired() flag — never a clock comparison.
+        $expiresAt = new DateTimeImmutable('2026-12-31T23:59:59+00:00');
+
+        $request = new WaitForEventRequest('user.signup', null, $expiresAt);
+
+        $this->assertSame($expiresAt, $request->getExpiresAt());
+        $this->assertFalse($request->isExpired());
+
+        $request->markExpired();
+        $this->assertTrue($request->isExpired());
+
+        // The deadline and flag survive PHP serialize (what FilePersistence uses).
+        $restored = unserialize(serialize($request));
+        $this->assertSame($expiresAt->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
+        $this->assertTrue($restored->isExpired());
+
+        // And the jsonSerialize/fromArray round-trip (JSON-based transport).
+        $fromArray = WaitForEventRequest::fromArray($request->jsonSerialize());
+        $this->assertSame($expiresAt->getTimestamp(), $fromArray->getExpiresAt()->getTimestamp());
+        $this->assertTrue($fromArray->isExpired());
+    }
+
+    public function testApprovalRequestInheritsExpiration(): void
+    {
+        // ApprovalRequest is a WaitForEventRequest specialization, so the deadline
+        // capability is inherited — no special-casing needed for "auto-reject after T".
+        $expiresAt = new DateTimeImmutable('+1 day');
+
+        $request = new ApprovalRequest('Approve payment?', [], $expiresAt);
+
+        $this->assertSame($expiresAt, $request->getExpiresAt());
+        $this->assertFalse($request->isExpired());
+
+        $request->markExpired();
+        $this->assertTrue($request->isExpired());
+        $this->assertSame(InterruptType::WaitForEvent, $request->type());
+    }
+
+    public function testAwaitEventReturnsNullOnTimeout(): void
+    {
+        // The developer-facing timeout contract: when the deadline elapses the
+        // scheduler resumes the wait with it marked expired, and awaitEvent()
+        // surfaces that to the node as null. The node branches on null (Inngest
+        // style) — it never inspects isExpired(), which stays internal plumbing.
+        $persistence = new InMemoryPersistence();
+        $executor = $this->createExecutor($persistence);
+        $token = 'wfe-timeout';
+
+        // Run 1: suspends on a bounded wait. The expressed deadline is carried on
+        // the interrupted request.
+        $workflow = Workflow::make(resumeToken: $token)
+            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
+        $state = $this->execute($workflow, $executor);
+
+        $this->assertTrue($state->isInterrupted());
+        $interrupt = $state->getInterruptRequest();
+        $this->assertInstanceOf(WaitForEventRequest::class, $interrupt);
+        $this->assertNotNull($interrupt->getExpiresAt());
+
+        // Resume with the wait marked expired — exactly what the scheduler does
+        // when the deadline fires.
+        $expired = new WaitForEventRequest('user.signup');
+        $expired->markExpired();
+
+        $resumed = Workflow::make(resumeToken: $token)
+            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
+        $state = $this->execute($resumed, $executor, $expired);
+
+        // The node's null branch ran: it saw no event, took the timeout path, and
+        // the workflow continued to completion.
+        $this->assertFalse($state->isInterrupted());
+        $this->assertTrue($state->get('timed_out'));
+        $this->assertFalse($state->has('received_payload'));
+        $this->assertTrue($state->get('node_three_executed'));
     }
 
     private function removeDirectory(string $dir): void
