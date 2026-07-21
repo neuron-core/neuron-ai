@@ -43,19 +43,6 @@ Chat ◄────────────────────────
 | `src/Evaluation/` | AI evaluation framework                                       | None |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
 
-## Context Discovery
-
-Read module-specific `AGENTS.md` files when working on that area:
-
-- Working with workflows/interruptions? → `src/Workflow/AGENTS.md`
-- Working with agents/chat/stream? → `src/Agent/AGENTS.md`
-- Working with messages/history? → `src/Chat/AGENTS.md`
-- Adding/modifying AI providers? → `src/Providers/AGENTS.md`
-- Creating tools/toolkits? → `src/Tools/AGENTS.md`
-- Working with RAG/vectors? → `src/RAG/AGENTS.md`
-- CLI commands/code generation? → `src/Console/AGENTS.md`
-- AI evaluation/testing? → `src/Evaluation/AGENTS.md`
-
 ## Code Standards
 
 - Strict types: `declare(strict_types=1)`

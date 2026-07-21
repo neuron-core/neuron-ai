@@ -205,9 +205,17 @@ use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 class MyToolkit extends AbstractToolkit
 {
-    public function tools(): array
+    public function guidelines(): ?string
     {
-        return [new ToolA(), new ToolB()];
+        return "Guidelines go into the system prompt of the agent to help the model use the tools provided below.";
+    }
+
+    public function provide(): array
+    {
+        return [
+            new ToolA(),
+            new ToolB()
+        ];
     }
 }
 

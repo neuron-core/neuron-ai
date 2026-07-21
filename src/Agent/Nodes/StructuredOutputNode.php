@@ -24,6 +24,7 @@ use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonExtractor;
@@ -51,6 +52,8 @@ class StructuredOutputNode extends Node
         protected readonly string $outputClass,
         protected int $maxTries = 1,
     ) {
+        // Fewer than 1 retry has no meaning for a retry loop — normalize it.
+        $this->maxTries = max(1, $this->maxTries);
     }
 
     /**
@@ -73,6 +76,7 @@ class StructuredOutputNode extends Node
 
         $schema = $state->get('structured_schema');
         $error = '';
+        $attempt = 0;
 
         do {
             try {
@@ -92,10 +96,18 @@ class StructuredOutputNode extends Node
 
                 $this->emit('inference-start', new InferenceStart($last));
 
-                $providerResponse = $this->provider
-                    ->systemPrompt($event->instructions)
-                    ->setTools($event->tools)
-                    ->structured($messages, $this->outputClass, $schema);
+                // Each retry attempt is a distinct non-deterministic inference call,
+                // so the memo key is attempt-indexed. On replay (the node step crashed
+                // before committing) a previously-succeeded attempt is recalled without
+                // re-calling the provider; the deterministic retry inputs (prior
+                // response + correction text) are reconstructed from recalled memos.
+                $providerResponse = $this->memoize(
+                    "inference.{$attempt}",
+                    fn (): ProviderResponse => $this->provider
+                        ->systemPrompt($event->instructions)
+                        ->setTools($event->tools)
+                        ->structured($messages, $this->outputClass, $schema),
+                );
 
                 $message = $providerResponse->message();
 
@@ -123,8 +135,8 @@ class StructuredOutputNode extends Node
                 $error = $ex->getMessage();
             }
 
-            $this->maxTries--;
-        } while ($this->maxTries >= 0);
+            $attempt++;
+        } while ($attempt <= $this->maxTries);
 
         throw $lastException;
     }
