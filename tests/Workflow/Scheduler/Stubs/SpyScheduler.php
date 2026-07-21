@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Scheduler\Stubs;
 
+use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Scheduler\SchedulerInterface;
 
 /**
  * Test double that records every scheduler lifecycle call so tests can assert what

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Scheduler;
+namespace NeuronAI\Workflow\Executor\Scheduler;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 

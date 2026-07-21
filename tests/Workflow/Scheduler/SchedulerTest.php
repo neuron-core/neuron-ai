@@ -8,11 +8,11 @@ use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Scheduler\Stubs\SpyScheduler;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
+use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
-use NeuronAI\Workflow\Scheduler\NullScheduler;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 

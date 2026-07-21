@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
+use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Scheduler\NullScheduler;
-use NeuronAI\Workflow\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
-
 use function iterator_to_array;
 
 trait ExecutorTestHelpers
