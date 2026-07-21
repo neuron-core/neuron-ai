@@ -64,7 +64,7 @@ class StreamingNode extends Node
                 // Get the final message from the generator return value
                 $providerResponse = $stream->getReturn();
 
-                $this->memoize('inference', fn () => $providerResponse);
+                $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
             }
 
             $state->setResponse($providerResponse);

@@ -26,6 +26,8 @@ use function is_dir;
 use function rmdir;
 use function sys_get_temp_dir;
 use function unlink;
+use function serialize;
+use function unserialize;
 
 use const DIRECTORY_SEPARATOR;
 

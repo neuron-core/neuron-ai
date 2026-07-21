@@ -27,6 +27,7 @@ use ReflectionIntersectionType;
 use ReflectionNamedType;
 use ReflectionType;
 use ReflectionUnionType;
+
 use function array_filter;
 use function array_merge;
 use function count;

@@ -19,7 +19,7 @@ class WaitForEventWithTimeoutNode extends Node
     {
         $request = $this->awaitEvent('user.signup', expiresAt: new DateTimeImmutable('+1 hour'));
 
-        if ($request === null) {
+        if (!$request instanceof \NeuronAI\Workflow\Interrupt\WaitForEventRequest) {
             // Timeout branch: the deadline elapsed with no event delivered.
             $state->set('timed_out', true);
             return new SecondEvent('timed out');

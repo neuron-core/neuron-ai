@@ -37,6 +37,7 @@ use ReflectionException;
 use function count;
 use function implode;
 use function trim;
+use function max;
 
 use const PHP_EOL;
 
