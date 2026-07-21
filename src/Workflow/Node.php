@@ -95,8 +95,9 @@ abstract class Node implements NodeInterface
      * Recall a previously memoized value without running anything, or null.
      *
      * Read-only counterpart to memo(): returns the recorded value when a
-     * prior-generation memo exists (a real recovery), null otherwise — including
-     * when no executor is wired (a node running in isolation has cached nothing).
+     * completed memo exists (typically a prior run's recovery), null otherwise —
+     * including when no executor is wired (a node running in isolation has
+     * cached nothing).
      *
      * Use this to skip non-replayable work whose terminal value was already
      * persisted, e.g. a StreamingNode that recalled a completed provider response

@@ -155,7 +155,7 @@ which is correct as long as they are idempotent given the replayed inputs.
 `memoize(name, fn)` fuses compute-or-recall: it always supplies a closure to run on a
 miss. That can't express "yield live, then persist," because a closure can't yield into
 the node's own generator. `recallMemo(name)` is the read-only half — it returns a
-prior-generation cached value without running anything, or `null`:
+previously recorded value without running anything, or `null`:
 
 ```php
 $response = $this->recallMemo('inference');
@@ -186,7 +186,7 @@ A node re-runs for one of two reasons, and they are distinguishable:
 | Trigger | Signal | Use |
 |---|---|---|
 | **Interrupt-resume** — this node suspended and is woken with a decision/event | `consumeResumeRequest()` / `isResuming()` (an `InterruptRequest` is injected) | `consumeResumeRequest()` — carries *external input* that didn't exist before |
-| **Crash-replay** — the node crashed mid-step and is re-run from a prior generation | no `InterruptRequest` (memo recall only) | `recallMemo()` / `memoize()` — carries *internal results* already computed |
+| **Crash-replay** — the node crashed mid-step and is re-run on recovery | no `InterruptRequest` (memo recall only) | `recallMemo()` / `memoize()` — carries *internal results* already computed |
 
 These are orthogonal by necessity: a resume delivers new information from outside; a
 replay recovers old results from inside. One channel cannot represent both. A node may
@@ -217,16 +217,16 @@ There are three genuine extension points:
 ```
 Workflow
   └─ WorkflowExecutorInterface (execution model)
-       ├─ WorkflowExecutor   (in-process; owns traversal + replay + a LocalStepEngine)
+       ├─ WorkflowExecutor   (in-process; traversal + a StepEngineInterface collaborator)
        │    └─ AsyncExecutor  (concurrent branches via Amp fibers)
        └─ <CloudExecutor>     (future: platform-driven durability)
-  └─ PersistenceInterface (state — storage, used by the local executor)
+  └─ PersistenceInterface (state — storage, owned by the step engine)
        ├─ InMemoryPersistence / FilePersistence / DatabasePersistence / EloquentPersistence
   └─ SchedulerInterface (coordination — wakeups for suspended workflows)
        └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
 ```
 
-`LocalStepEngine` (the replay logic — persist each step, skip completed steps on replay, resume interrupted steps) is an **internal** detail of `WorkflowExecutor`, not something developers construct. The executor builds it from the persistence you give it.
+`StepEngineInterface` is the replay/memoization contract: persist each step, skip completed steps on replay, resume interrupted steps. `LocalStepEngine` is the in-process implementation; it owns persistence and the memoization machinery. `Workflow` constructs it from the persistence you configure and injects it into the executor, so the executor depends on the `StepEngineInterface` abstraction, never on a persistence backend or a concrete engine directly.
 
 ### Choosing an executor
 
@@ -245,10 +245,11 @@ $workflow = Workflow::make()
     ->setPersistence(new DatabasePersistence($pdo));
 $workflow->run();
 
-// Async parallel branches (requires ext-amp)
+// Async parallel branches (requires ext-amp). A custom executor owns its own
+// persistence (via its LocalStepEngine), so pass it directly — setPersistence()
+// is only used when the default executor is built for you.
 $workflow = Workflow::make()
-    ->setPersistence(new FilePersistence($dir))
-    ->setExecutor(new AsyncExecutor());
+    ->setExecutor(new AsyncExecutor(new LocalStepEngine(new FilePersistence($dir))));
 $workflow->run();
 ```
 

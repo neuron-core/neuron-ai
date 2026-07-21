@@ -6,8 +6,6 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Workflow\Executor\StepResult;
 
-use function max;
-
 class InMemoryPersistence implements PersistenceInterface
 {
     /** @var array<string, array<string, StepResult>> keyed by workflowId then stepId */
@@ -26,18 +24,5 @@ class InMemoryPersistence implements PersistenceInterface
     public function delete(string $workflowId): void
     {
         unset($this->storage[$workflowId]);
-    }
-
-    public function getMaxGeneration(string $workflowId): int
-    {
-        if (!isset($this->storage[$workflowId])) {
-            return 0;
-        }
-
-        $max = 0;
-        foreach ($this->storage[$workflowId] as $result) {
-            $max = max($max, $result->getGeneration());
-        }
-        return $max;
     }
 }

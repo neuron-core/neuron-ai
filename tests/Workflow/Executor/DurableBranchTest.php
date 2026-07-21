@@ -9,6 +9,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
@@ -21,7 +22,7 @@ class DurableBranchTest extends TestCase
     protected function createDurableExecutor(?PersistenceInterface $persistence = null): WorkflowExecutor
     {
         return new WorkflowExecutor(
-            $persistence ?? new InMemoryPersistence(),
+            new LocalStepEngine($persistence ?? new InMemoryPersistence()),
         );
     }
 

@@ -15,7 +15,6 @@ class StepResult
         protected ?Event $event = null,
         protected ?WorkflowState $state = null,
         protected ?InterruptRequest $interrupt = null,
-        protected int $generation = 0,
         /**
          * Memoized value carried by a durable memo step (see Node::memoize() / StepMemoizer).
          * Null for regular node-execution steps.
@@ -54,11 +53,6 @@ class StepResult
         return $this->interrupt instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest;
     }
 
-    public function getGeneration(): int
-    {
-        return $this->generation;
-    }
-
     /**
      * The memoized value carried by a durable memo step.
      */
@@ -90,7 +84,6 @@ class StepResult
             'event' => $this->event?->toSnapshot(),
             'state' => $this->state,
             'interrupt' => $this->interrupt,
-            'generation' => $this->generation,
             'output' => $this->output,
             'error' => $this->error,
         ];
@@ -102,7 +95,6 @@ class StepResult
         $this->event = isset($data['event']) ? Event::fromSnapshot($data['event']) : null;
         $this->state = $data['state'] ?? null;
         $this->interrupt = $data['interrupt'] ?? null;
-        $this->generation = $data['generation'] ?? 0;
         $this->output = $data['output'] ?? null;
         $this->error = $data['error'] ?? null;
     }

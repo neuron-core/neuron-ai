@@ -40,7 +40,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $searchTool = new CrashSearchTool();
 
@@ -96,7 +96,7 @@ class AgentDurabilityTest extends TestCase
         $event->setMessages(new UserMessage('Hi'));
 
         // Run 1: invoke the node directly with a durable memoizer bound to the step.
-        // The inference memo is persisted at generation 1. (We never record the node
+        // The inference memo is persisted on the first run. (We never record the node
         // step itself as completed — simulating a crash right after memoize().)
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
@@ -126,7 +126,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $searchTool = new SearchTool();
 
@@ -172,7 +172,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_cleanup_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
@@ -195,7 +195,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $searchTool = new SearchTool();
 
@@ -240,7 +240,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_tool_success_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $searchTool = new SearchTool();
 
@@ -275,7 +275,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         $persistence = new FilePersistence($dir);
-        $executor = new WorkflowExecutor($persistence);
+        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $agent = Agent::make(resumeToken: $workflowId);
         $agent->setAiProvider($provider);

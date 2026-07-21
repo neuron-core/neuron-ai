@@ -18,7 +18,6 @@ use function json_encode;
 use function serialize;
 use function unlink;
 use function unserialize;
-use function max;
 use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
@@ -66,22 +65,6 @@ class FilePersistence implements PersistenceInterface
         if (is_file($path)) {
             unlink($path);
         }
-    }
-
-    public function getMaxGeneration(string $workflowId): int
-    {
-        $data = $this->getData($workflowId);
-
-        if ($data === []) {
-            return 0;
-        }
-
-        $max = 0;
-        foreach ($data as $serialized) {
-            $result = unserialize(base64_decode($serialized));
-            $max = max($max, $result->getGeneration());
-        }
-        return $max;
     }
 
     /** @return array<string, string> */

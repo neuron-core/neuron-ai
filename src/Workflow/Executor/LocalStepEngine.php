@@ -9,21 +9,22 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use Throwable;
 
-use function max;
-
 /**
- * In-process replay engine used internally by the local WorkflowExecutor.
+ * In-process replay engine, the local StepEngineInterface implementation.
  *
- * Persists every executed node as a StepResult. On re-run, completed steps from
- * an older generation are returned from cache without re-executing the node;
- * interrupted steps resume from the stored InterruptRequest; failed steps
- * (marked after an unhandled throwable) retry.
+ * Persists every executed node as a StepResult. On re-run, previously completed
+ * steps are returned from cache without re-executing the node; interrupted steps
+ * resume from the stored InterruptRequest; failed steps (marked after an
+ * unhandled throwable) retry.
+ *
+ * Replay is keyed by step id alone: step ids are unique within a run (monotonic
+ * traversal index, a branch prefix, a per-name memo suffix), so a completed,
+ * non-interrupted, non-failed cached result is always a prior run's work and is
+ * safe to skip. There is no generation counter and no scan of stored steps.
  */
-class LocalStepEngine
+class LocalStepEngine implements StepEngineInterface
 {
     protected string $workflowId;
-
-    protected int $generation = 0;
 
     protected ?InterruptRequest $pendingResume = null;
 
@@ -35,8 +36,7 @@ class LocalStepEngine
     public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
     {
         $this->workflowId = $workflowId;
-        $storedMax = $this->persistence->getMaxGeneration($workflowId);
-        $this->generation = max($this->generation + 1, $storedMax + 1);
+
         if ($resume instanceof InterruptRequest) {
             $this->pendingResume = $resume;
         }
@@ -46,17 +46,16 @@ class LocalStepEngine
     {
         $cached = $this->getStepResult($stepId);
 
-        // Memoized: return cached result from a previous generation.
+        // Memoized: return a previously completed result without re-executing.
         // Failed steps are never replayed from cache — they must retry.
         if ($cached instanceof StepResult
             && !$cached->isInterrupted()
             && !$cached->isFailed()
-            && $cached->getGeneration() < $this->generation
         ) {
             return $cached;
         }
 
-        // Resuming an interrupted step — pass the stored resume request
+        // Resuming an interrupted step — pass the staged resume request.
         if ($cached instanceof StepResult
             && $cached->isInterrupted()
             && $this->pendingResume instanceof InterruptRequest
@@ -67,7 +66,6 @@ class LocalStepEngine
                 stepId: $result->getStepId(),
                 event: $result->getEvent(),
                 state: $result->getState(),
-                generation: $this->generation,
                 output: $result->getOutput(),
             );
             $this->setStepResult($stepId, $stamped);
@@ -75,7 +73,7 @@ class LocalStepEngine
             return $stamped;
         }
 
-        // Execute the callable
+        // Execute the callable.
         try {
             $result = $fn(null);
         } catch (Throwable $e) {
@@ -83,7 +81,6 @@ class LocalStepEngine
             // On recovery the marker makes this step retry (it is never replayed from cache).
             $stamped = new StepResult(
                 stepId: $stepId,
-                generation: $this->generation,
                 error: ['message' => $e->getMessage(), 'class' => $e::class],
             );
             $this->setStepResult($stepId, $stamped);
@@ -98,18 +95,16 @@ class LocalStepEngine
                 event: $result->getEvent(),
                 state: $result->getState(),
                 interrupt: $result->getEvent()->request,
-                generation: $this->generation,
             );
             $this->setStepResult($stepId, $stamped);
             return $stamped;
         }
 
-        // Save internally with current generation
+        // Persist the completed result.
         $stamped = new StepResult(
             stepId: $result->getStepId(),
             event: $result->getEvent(),
             state: $result->getState(),
-            generation: $this->generation,
             output: $result->getOutput(),
         );
         $this->setStepResult($stepId, $stamped);
@@ -119,37 +114,26 @@ class LocalStepEngine
 
     public function deleteSteps(): void
     {
-        $this->generation = 0;
         $this->pendingResume = null;
 
         $this->persistence->delete($this->workflowId);
     }
 
     /**
-     * Get a stored step result by step ID.
-     */
-    public function getStep(string $stepId): ?StepResult
-    {
-        return $this->getStepResult($stepId);
-    }
-
-    /**
-     * Return a prior-generation, successfully-completed step result, or null.
+     * Return a successfully-completed step result, or null.
      *
      * Same cache-hit guard as runStep() — interrupted or failed steps are never
-     * replayed from cache, and a result is only a "hit" when it belongs to a
-     * strictly older generation (a real prior run, never our own write this run).
-     * Used by the memoizer to recall a durable value WITHOUT running anything,
-     * which is what lets a node skip non-replayable work like a provider stream.
+     * returned, only completed results from a prior run. Used by the memoizer to
+     * recall a durable value WITHOUT running anything, which is what lets a node
+     * skip non-replayable work like a provider stream.
      */
-    public function getCachedStep(string $stepId): ?StepResult
+    public function getStep(string $stepId): ?StepResult
     {
         $cached = $this->getStepResult($stepId);
 
         if ($cached instanceof StepResult
             && !$cached->isInterrupted()
             && !$cached->isFailed()
-            && $cached->getGeneration() < $this->generation
         ) {
             return $cached;
         }

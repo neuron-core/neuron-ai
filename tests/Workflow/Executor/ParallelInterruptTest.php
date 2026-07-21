@@ -18,6 +18,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -201,7 +202,7 @@ class ParallelInterruptTest extends TestCase
 
     public function testAsyncParallelInterruptSurfacesRequest(): void
     {
-        $executor = new AsyncExecutor(new InMemoryPersistence());
+        $executor = new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow = Workflow::make(resumeToken: 'test-async-token')
             ->addNodes([
@@ -229,7 +230,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, new AsyncExecutor($persistence))->getInterruptRequest();
+        $request = $this->execute($workflow, new AsyncExecutor(new LocalStepEngine($persistence)))->getInterruptRequest();
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(resumeToken: 'test-async-token')
@@ -240,7 +241,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($resumed, new AsyncExecutor($persistence), $request);
+        $result = $this->execute($resumed, new AsyncExecutor(new LocalStepEngine($persistence)), $request);
 
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));

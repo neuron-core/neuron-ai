@@ -11,6 +11,7 @@ use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
 use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -133,10 +134,17 @@ class Workflow implements WorkflowInterface
 
     /**
      * Resolve the executor, creating a default if none was configured.
+     *
+     * The local executor depends on a LocalStepEngine (which owns persistence),
+     * not on persistence directly — so the engine is constructed here from the
+     * configured persistence and injected.
      */
     protected function resolveExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= new WorkflowExecutor($this->persistence(), $this->scheduler());
+        return $this->executor ??= new WorkflowExecutor(
+            new LocalStepEngine($this->persistence()),
+            $this->scheduler(),
+        );
     }
 
     /**

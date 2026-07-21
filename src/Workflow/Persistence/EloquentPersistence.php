@@ -11,7 +11,6 @@ use function base64_decode;
 use function base64_encode;
 use function serialize;
 use function unserialize;
-use function max;
 
 class EloquentPersistence implements PersistenceInterface
 {
@@ -63,26 +62,5 @@ class EloquentPersistence implements PersistenceInterface
         $model->newQuery()
             ->where('workflow_id', $workflowId)
             ->delete();
-    }
-
-    public function getMaxGeneration(string $workflowId): int
-    {
-        /** @var Model $model */
-        $model = new $this->modelClass();
-        /** @var \Illuminate\Database\Eloquent\Collection<int, Model&object{result: string}> $records */
-        $records = $model->newQuery()
-            ->where('workflow_id', $workflowId)
-            ->get();
-
-        $max = 0;
-        foreach ($records as $record) {
-            $data = base64_decode((string) $record->result, true);
-            if ($data === false) {
-                $data = $record->result;
-            }
-            $result = unserialize($data);
-            $max = max($max, $result->getGeneration());
-        }
-        return $max;
     }
 }

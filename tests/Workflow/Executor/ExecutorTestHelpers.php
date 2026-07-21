@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
 use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -22,7 +23,7 @@ trait ExecutorTestHelpers
         ?SchedulerInterface $scheduler = null,
     ): WorkflowExecutorInterface {
         return new WorkflowExecutor(
-            $persistence ?? new InMemoryPersistence(),
+            new LocalStepEngine($persistence ?? new InMemoryPersistence()),
             $scheduler ?? new NullScheduler(),
         );
     }

@@ -14,6 +14,7 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -33,7 +34,7 @@ class DurableExecutorTest extends TestCase
     protected function createDurableExecutor(?PersistenceInterface $persistence = null): WorkflowExecutor
     {
         return new WorkflowExecutor(
-            $persistence ?? new InMemoryPersistence(),
+            new LocalStepEngine($persistence ?? new InMemoryPersistence()),
         );
     }
 
@@ -170,7 +171,7 @@ class DurableExecutorTest extends TestCase
 
     public function testDefaultInMemoryPersistence(): void
     {
-        $executor = new WorkflowExecutor();
+        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
         $workflow = Workflow::make()
             ->addNodes([
                 new NodeOne(),
