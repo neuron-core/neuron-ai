@@ -16,12 +16,13 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  *
  * Resume is driven by step replay: the interrupted step is persisted as an
  * interrupted StepResult and re-run with the user's resume request, so this
- * event carries only the request — no node/state/branch context.
+ * event carries the request and the interrupted step's id — no node/state/branch context.
  */
 class InterruptEvent extends Event
 {
     public function __construct(
         public readonly InterruptRequest $request,
+        public readonly string $stepId,
     ) {
     }
 }

@@ -31,6 +31,7 @@ class SchedulerTest extends TestCase
         $this->assertCount(1, $spy->onSuspendCalls);
         $call = $spy->onSuspendCalls[0];
         $this->assertSame('sched-pause', $call['workflowId']);
+        $this->assertStringContainsString('WaitForEventNode', $call['stepId']);
         $this->assertSame(InterruptType::WaitForEvent, $call['request']->type());
     }
 
@@ -58,7 +59,7 @@ class SchedulerTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
 
-        $nullScheduler->onSuspend('sched-null', $state->getInterruptRequest());
+        $nullScheduler->onSuspend('sched-null', 'test-step', $state->getInterruptRequest());
         $nullScheduler->onResume('sched-null', $state->getInterruptRequest());
         $nullScheduler->onComplete('sched-null');
         $this->addToAssertionCount(3); // all three hooks accept their input without error

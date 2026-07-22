@@ -86,7 +86,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // the pause functionally. Steps are kept for resume.
                 $workflow->resolveState()->markAsInterrupted($terminal->request);
                 // Let the scheduler register a wakeup for this suspend (inert by default).
-                $this->scheduler->onSuspend($workflowId, $terminal->request);
+                $this->scheduler->onSuspend($workflowId, $terminal->stepId, $terminal->request);
                 yield $terminal;
             } else {
                 // Completed: clean up persisted steps and clear any stale interrupt
@@ -129,6 +129,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         NodeInterface $node,
         Event $event,
         WorkflowState $state,
+        string $stepId,
         array $middleware = [],
         ?string $branchId = null,
         ?InterruptRequest $resumeRequest = null,
@@ -181,7 +182,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             // A pause request surfaced as a thrown signal from the node or a
             // middleware. Convert it to an InterruptEvent terminal. Events
             // already yielded before the throw are preserved.
-            return new InterruptEvent($interrupt->getRequest());
+            return new InterruptEvent($interrupt->getRequest(), $stepId);
         }
     }
 
@@ -217,6 +218,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $node,
                 $event,
                 $state,
+                $stepId,
                 $middleware,
                 $branchId,
                 $resumeRequest,

@@ -27,9 +27,13 @@ interface SchedulerInterface
      * Called by the executor immediately after a suspend has been persisted.
      *
      * @param string           $workflowId The suspended workflow (also its resume token).
+     * @param string           $stepId     The id of the interrupted step, under which the resume
+     *                                     request is persisted — lets a scheduler/endpoint locate the
+     *                                     suspended request in persistence by (workflowId, stepId)
+     *                                     without scanning the pure-KV store.
      * @param InterruptRequest $request    The suspend request; its type() selects the wakeup strategy.
      */
-    public function onSuspend(string $workflowId, InterruptRequest $request): void;
+    public function onSuspend(string $workflowId, string $stepId, InterruptRequest $request): void;
 
     /**
      * Called by the executor when a suspended workflow is resumed — whether inline
