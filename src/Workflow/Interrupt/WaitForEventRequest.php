@@ -39,14 +39,15 @@ class WaitForEventRequest extends InterruptRequest
     protected bool $expired = false;
 
     /**
-     * @param string                 $eventName  The external occurrence to wait for.
-     * @param mixed                  $payload    The matched event data; null on first pass, populated on resume.
-     * @param DateTimeImmutable|null $expiresAt  Optional deadline; if set, the scheduler resumes the
-     *                                           workflow with markExpired() when it elapses.
+     * @param string                     $eventName The external occurrence to wait for.
+     * @param array<string, mixed>|null  $payload   The matched event data; null on first pass, populated
+     *                                              on resume by the orchestration via setPayload().
+     * @param DateTimeImmutable|null     $expiresAt Optional deadline; if set, the scheduler resumes the
+     *                                              workflow with markExpired() when it elapses.
      */
     public function __construct(
         protected string $eventName,
-        protected mixed $payload = null,
+        protected ?array $payload = null,
         protected ?DateTimeImmutable $expiresAt = null,
     ) {
     }
@@ -70,9 +71,30 @@ class WaitForEventRequest extends InterruptRequest
         return $this->eventName;
     }
 
-    public function getPayload(): mixed
+    /**
+     * The matched event data delivered on resume (a plain, serialization-safe
+     * array), or null before the wait is satisfied. Populated on wake by the
+     * durable orchestration via setPayload() — not by node code.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getPayload(): ?array
     {
         return $this->payload;
+    }
+
+    /**
+     * Inject the matched event data delivered on wake. Called by the durable
+     * orchestration (the scheduler / step endpoint) when resuming, mirroring
+     * ApprovalRequest::setActions(): the developer's subclass carries the wait
+     * terms; the orchestration delivers the data. The payload is a plain array
+     * because it transits the platform on the cloud resume path.
+     *
+     * @param array<string, mixed>|null $payload
+     */
+    public function setPayload(?array $payload): void
+    {
+        $this->payload = $payload;
     }
 
     public function getExpiresAt(): ?DateTimeImmutable
@@ -123,9 +145,11 @@ class WaitForEventRequest extends InterruptRequest
             ? new DateTimeImmutable((string) $data['expires_at'])
             : null;
 
+        $payload = isset($data['payload']) && is_array($data['payload']) ? $data['payload'] : null;
+
         $request = new self(
             (string) ($data['event'] ?? ''),
-            $data['payload'] ?? null,
+            $payload,
             $expiresAt,
         );
 
