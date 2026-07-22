@@ -7,6 +7,8 @@ namespace NeuronAI\Workflow\Interrupt;
 use DateTimeImmutable;
 use DateTimeInterface;
 
+use function is_array;
+
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
  *

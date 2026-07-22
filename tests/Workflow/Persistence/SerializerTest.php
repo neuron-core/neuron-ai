@@ -10,6 +10,9 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
 
+use function function_exists;
+use function strlen;
+
 final class SerializerTest extends TestCase
 {
     private function sampleResult(): StepResult
@@ -39,7 +42,7 @@ final class SerializerTest extends TestCase
 
     public function test_igbinary_serializer_round_trip(): void
     {
-        if (!\function_exists('igbinary_serialize')) {
+        if (!function_exists('igbinary_serialize')) {
             self::markTestSkipped('ext-igbinary not available');
         }
 
@@ -56,13 +59,13 @@ final class SerializerTest extends TestCase
 
     public function test_igbinary_blob_is_smaller_than_php_blob(): void
     {
-        if (!\function_exists('igbinary_serialize')) {
+        if (!function_exists('igbinary_serialize')) {
             self::markTestSkipped('ext-igbinary not available');
         }
 
         $result = $this->sampleResult();
-        $phpSize = \strlen((new PhpSerializer())->serialize($result));
-        $igbinarySize = \strlen((new IgbinarySerializer())->serialize($result));
+        $phpSize = strlen((new PhpSerializer())->serialize($result));
+        $igbinarySize = strlen((new IgbinarySerializer())->serialize($result));
 
         Assert::assertLessThan(
             $phpSize,

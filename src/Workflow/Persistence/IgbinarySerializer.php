@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Workflow\Executor\StepResult;
+use LogicException;
 
 use function base64_decode;
 use function base64_encode;
@@ -27,7 +28,7 @@ class IgbinarySerializer implements Serializer
     public function __construct()
     {
         if (!function_exists('igbinary_serialize')) {
-            throw new \LogicException(
+            throw new LogicException(
                 'IgbinarySerializer requires the igbinary PHP extension.',
             );
         }
@@ -35,7 +36,7 @@ class IgbinarySerializer implements Serializer
 
     public function serialize(StepResult $result): string
     {
-        return base64_encode(igbinary_serialize($result));
+        return base64_encode((string) igbinary_serialize($result));
     }
 
     public function unserialize(string $data): StepResult
