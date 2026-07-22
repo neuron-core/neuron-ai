@@ -7,16 +7,12 @@ namespace NeuronAI\Workflow\Persistence;
 use NeuronAI\Workflow\Executor\StepResult;
 use PDO;
 
-use function base64_decode;
-use function base64_encode;
-use function serialize;
-use function unserialize;
-
 class DatabasePersistence implements PersistenceInterface
 {
     public function __construct(
         protected PDO $pdo,
         protected string $table = 'workflow_steps',
+        protected Serializer $serializer = new PhpSerializer(),
     ) {
     }
 
@@ -31,7 +27,7 @@ class DatabasePersistence implements PersistenceInterface
         $stmt->execute([
             'workflow_id' => $workflowId,
             'step_id' => $stepId,
-            'result' => base64_encode(serialize($result)),
+            'result' => $this->serializer->serialize($result),
         ]);
     }
 
@@ -47,13 +43,7 @@ class DatabasePersistence implements PersistenceInterface
             return null;
         }
 
-        $data = base64_decode((string) $record['result'], true);
-
-        if ($data === false) {
-            $data = $record['result'];
-        }
-
-        return unserialize($data);
+        return $this->serializer->unserialize((string) $record['result']);
     }
 
     public function delete(string $workflowId): void

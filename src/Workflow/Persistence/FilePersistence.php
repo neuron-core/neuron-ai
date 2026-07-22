@@ -7,17 +7,13 @@ namespace NeuronAI\Workflow\Persistence;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Executor\StepResult;
 
-use function base64_decode;
-use function base64_encode;
 use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
 use function json_decode;
 use function json_encode;
-use function serialize;
 use function unlink;
-use function unserialize;
 use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
@@ -30,6 +26,7 @@ class FilePersistence implements PersistenceInterface
 
     public function __construct(
         protected string $directory,
+        protected Serializer $serializer = new PhpSerializer(),
     ) {
         if (!is_dir($this->directory) && !mkdir($this->directory, 0o755, true)) {
             throw new WorkflowException("Unable to create directory '{$this->directory}'");
@@ -39,7 +36,7 @@ class FilePersistence implements PersistenceInterface
     public function save(string $workflowId, string $stepId, StepResult $result): void
     {
         $data = $this->getData($workflowId);
-        $data[$stepId] = base64_encode(serialize($result));
+        $data[$stepId] = $this->serializer->serialize($result);
         $this->cache[$workflowId] = $data;
 
         file_put_contents($this->filePath($workflowId), json_encode($data, JSON_PRETTY_PRINT));
@@ -53,7 +50,7 @@ class FilePersistence implements PersistenceInterface
             return null;
         }
 
-        return unserialize(base64_decode($data[$stepId]));
+        return $this->serializer->unserialize($data[$stepId]);
     }
 
     public function delete(string $workflowId): void

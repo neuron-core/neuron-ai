@@ -7,15 +7,12 @@ namespace NeuronAI\Workflow\Persistence;
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Workflow\Executor\StepResult;
 
-use function base64_decode;
-use function base64_encode;
-use function serialize;
-use function unserialize;
-
 class EloquentPersistence implements PersistenceInterface
 {
-    public function __construct(protected string $modelClass)
-    {
+    public function __construct(
+        protected string $modelClass,
+        protected Serializer $serializer = new PhpSerializer(),
+    ) {
     }
 
     public function save(string $workflowId, string $stepId, StepResult $result): void
@@ -27,7 +24,7 @@ class EloquentPersistence implements PersistenceInterface
             'workflow_id' => $workflowId,
             'step_id' => $stepId,
         ], [
-            'result' => base64_encode(serialize($result)),
+            'result' => $this->serializer->serialize($result),
         ]);
     }
 
@@ -45,13 +42,7 @@ class EloquentPersistence implements PersistenceInterface
             return null;
         }
 
-        $data = base64_decode($record->result, true);
-
-        if ($data === false) {
-            $data = $record->result;
-        }
-
-        return unserialize($data);
+        return $this->serializer->unserialize($record->result);
     }
 
     public function delete(string $workflowId): void

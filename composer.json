@@ -74,6 +74,9 @@
             "NeuronAI\\Tests\\": "tests/"
         }
     },
+    "suggest": {
+        "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer."
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
