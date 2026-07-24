@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Events\InterruptEvent;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use Throwable;
 
@@ -26,20 +25,25 @@ class LocalStepEngine implements StepEngineInterface
 {
     protected string $workflowId;
 
-    protected ?InterruptRequest $pendingResume = null;
+    /**
+     * The inbound resume wake staged by prepareExecution(). Null means this run
+     * is a fresh start or a crash-recovery replay (no resume); a non-null array
+     * (even empty) means a deliberate resume — the interrupted step consumes it.
+     */
+    protected ?array $pendingWake = null;
+
+    protected bool $pendingTimedOut = false;
 
     public function __construct(
         protected PersistenceInterface $persistence,
     ) {
     }
 
-    public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void
+    public function prepareExecution(string $workflowId, ?array $wake = null, bool $timedOut = false): void
     {
         $this->workflowId = $workflowId;
-
-        if ($resume instanceof InterruptRequest) {
-            $this->pendingResume = $resume;
-        }
+        $this->pendingWake = $wake;
+        $this->pendingTimedOut = $timedOut;
     }
 
     public function runStep(string $stepId, callable $fn): StepResult
@@ -55,12 +59,12 @@ class LocalStepEngine implements StepEngineInterface
             return $cached;
         }
 
-        // Resuming an interrupted step — pass the staged resume request.
+        // Resuming an interrupted step — inject the staged inbound wake.
         if ($cached instanceof StepResult
             && $cached->isInterrupted()
-            && $this->pendingResume instanceof InterruptRequest
+            && $this->pendingWake !== null
         ) {
-            $result = $fn($this->pendingResume);
+            $result = $fn($this->pendingWake, $this->pendingTimedOut);
 
             $stamped = new StepResult(
                 stepId: $result->getStepId(),
@@ -75,7 +79,7 @@ class LocalStepEngine implements StepEngineInterface
 
         // Execute the callable.
         try {
-            $result = $fn(null);
+            $result = $fn(null, false);
         } catch (Throwable $e) {
             // Record a failed-step marker for crash observability, then rethrow.
             // On recovery the marker makes this step retry (it is never replayed from cache).
@@ -87,17 +91,14 @@ class LocalStepEngine implements StepEngineInterface
             throw $e;
         }
 
-        // Interrupted: the step's terminal event is an InterruptEvent. Persist an
-        // interrupted marker (no throw) so the step resumes on the next run.
+        // Interrupted: the step's terminal event is an InterruptEvent. Persist only an
+        // interrupted marker (no throw) so the step resumes on the next run. The
+        // InterruptRequest rides the event outbound (→ onSuspend / returned state) but
+        // is NOT persisted — it is rebuilt by re-running the node on resume, which keeps
+        // developer objects stuffed into a request out of the serializer.
         if ($result->getEvent() instanceof InterruptEvent) {
-            $stamped = new StepResult(
-                stepId: $stepId,
-                event: $result->getEvent(),
-                state: $result->getState(),
-                interrupt: $result->getEvent()->request,
-            );
-            $this->setStepResult($stepId, $stamped);
-            return $stamped;
+            $this->setStepResult($stepId, new StepResult(stepId: $stepId, interrupted: true));
+            return $result;
         }
 
         // Persist the completed result.
@@ -114,7 +115,8 @@ class LocalStepEngine implements StepEngineInterface
 
     public function deleteSteps(): void
     {
-        $this->pendingResume = null;
+        $this->pendingWake = null;
+        $this->pendingTimedOut = false;
 
         $this->persistence->delete($this->workflowId);
     }

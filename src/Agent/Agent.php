@@ -14,7 +14,6 @@ use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -81,10 +80,12 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
      */
     public function chat(
         Message|array $messages = [],
-        ?InterruptRequest $interrupt = null
+        ?array $wake = null,
+        bool $timedOut = false
     ): AgentHandler {
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -95,16 +96,18 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($interrupt)
+            $this->events($wake, $timedOut)
         );
     }
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
      */
     public function stream(
         Message|array $messages = [],
-        ?InterruptRequest $interrupt = null
+        ?array $wake = null,
+        bool $timedOut = false
     ): AgentHandler {
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -115,12 +118,13 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($interrupt)
+            $this->events($wake, $timedOut)
         );
     }
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
      * @throws AgentException
      * @throws Throwable
      */
@@ -128,7 +132,8 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?string $class = null,
         int $maxRetries = 1,
-        ?InterruptRequest $interrupt = null
+        ?array $wake = null,
+        bool $timedOut = false
     ): mixed {
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -141,7 +146,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         /** @var AgentState $finalState */
-        $finalState = $this->run($interrupt);
+        $finalState = $wake === null ? $this->run() : $this->resume($wake, $timedOut);
 
         return $finalState->get('structured_output');
     }

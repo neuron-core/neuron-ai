@@ -10,9 +10,8 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
-use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
+use NeuronAI\Workflow\Executor\NullScheduler;
 use NeuronAI\Workflow\Interrupt\InterruptType;
-use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -31,7 +30,6 @@ class SchedulerTest extends TestCase
         $this->assertCount(1, $spy->onSuspendCalls);
         $call = $spy->onSuspendCalls[0];
         $this->assertSame('sched-pause', $call['workflowId']);
-        $this->assertStringContainsString('WaitForEventNode', $call['stepId']);
         $this->assertSame(InterruptType::WaitForEvent, $call['request']->type());
     }
 
@@ -59,8 +57,8 @@ class SchedulerTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
 
-        $nullScheduler->onSuspend('sched-null', 'test-step', $state->getInterruptRequest());
-        $nullScheduler->onResume('sched-null', $state->getInterruptRequest());
+        $nullScheduler->onSuspend('sched-null', $state->getInterruptRequest());
+        $nullScheduler->onResume('sched-null');
         $nullScheduler->onComplete('sched-null');
         $this->addToAssertionCount(3); // all three hooks accept their input without error
     }
@@ -81,10 +79,9 @@ class SchedulerTest extends TestCase
 
     public function testOnResumeFiresOnInlineResume(): void
     {
-        // The core contract: an inline resume (the idiomatic approval UX —
-        // Workflow::make(resumeToken:)->run($req)) must notify the scheduler so it
-        // can cancel the wakeup. Without this, attaching a scheduler would leak
-        // registrations on every inline resume.
+        // The core contract: an inline resume (Workflow::make(resumeToken:)->resume($wake))
+        // must notify the scheduler so it can cancel the wakeup. Without this, attaching
+        // a scheduler would leak registrations on every inline resume.
         $spy = new SpyScheduler();
         $executor = $this->createExecutor(null, $spy);
         $token = 'sched-resume';
@@ -99,22 +96,16 @@ class SchedulerTest extends TestCase
         $this->assertSame([], $spy->onResumeCalls);
         $this->assertSame([], $spy->onCompleteCalls);
 
-        // Resume inline: same token + persistence, request passed to run(). The
-        // executor hands the exact request object to onResume, so we compare the
-        // whole recorded list by structure + identity (and avoid any offset access
-        // on the recorded arrays).
+        // Resume inline: same token + persistence, delivering the wake. The executor
+        // fires onResume with the workflow id (it cancels by id, not by request).
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
-        $resumeRequest = new WaitForEventRequest('user.signup', payload: ['id' => 7]);
-        $state = $this->execute($resumed, $executor, $resumeRequest);
+        $state = $this->resume($resumed, $executor, ['id' => 7]);
 
         // onResume fired (inline resume satisfied the wait), then onComplete fired
         // because the workflow ran to terminal.
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame(
-            [['workflowId' => $token, 'request' => $resumeRequest]],
-            $spy->onResumeCalls,
-        );
+        $this->assertSame([$token], $spy->onResumeCalls);
         $this->assertSame([$token], $spy->onCompleteCalls);
     }
 
@@ -135,9 +126,9 @@ class SchedulerTest extends TestCase
 
     public function testOnResumeNotFiredWithoutInterrupt(): void
     {
-        // onResume must fire ONLY on a deliberate resume (a non-null interrupt),
-        // not on a re-run that replays cached steps — e.g. a crash-recovery retry
-        // where the caller passes no resume payload.
+        // onResume must fire ONLY on a deliberate resume (resume()), not on a run()
+        // that replays cached steps — e.g. a crash-recovery retry where the caller
+        // passes no wake.
         $spy = new SpyScheduler();
         $executor = $this->createExecutor(null, $spy);
         $token = 'sched-no-resume';

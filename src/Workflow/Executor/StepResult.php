@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\WorkflowState;
 
 class StepResult
@@ -14,7 +13,13 @@ class StepResult
         protected string $stepId,
         protected ?Event $event = null,
         protected ?WorkflowState $state = null,
-        protected ?InterruptRequest $interrupt = null,
+        /**
+         * Marker that this step is suspended waiting for a resume wake. Only the flag
+         * is persisted — the InterruptRequest itself is NOT stored (it is outbound-only
+         * and rebuilt by re-running the node on resume), so developer objects stuffed
+         * into a request are never serialized.
+         */
+        protected bool $interrupted = false,
         /**
          * Memoized value carried by a durable memo step (see Node::memoize() / StepMemoizer).
          * Null for regular node-execution steps.
@@ -43,14 +48,9 @@ class StepResult
         return $this->state;
     }
 
-    public function getInterrupt(): ?InterruptRequest
-    {
-        return $this->interrupt;
-    }
-
     public function isInterrupted(): bool
     {
-        return $this->interrupt instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest;
+        return $this->interrupted;
     }
 
     /**
@@ -79,11 +79,11 @@ class StepResult
     public function __serialize(): array
     {
         return [
-            'version' => 1,
+            'version' => 2,
             'stepId' => $this->stepId,
             'event' => $this->event?->toSnapshot(),
             'state' => $this->state,
-            'interrupt' => $this->interrupt,
+            'interrupted' => $this->interrupted,
             'output' => $this->output,
             'error' => $this->error,
         ];
@@ -94,7 +94,7 @@ class StepResult
         $this->stepId = $data['stepId'];
         $this->event = isset($data['event']) ? Event::fromSnapshot($data['event']) : null;
         $this->state = $data['state'] ?? null;
-        $this->interrupt = $data['interrupt'] ?? null;
+        $this->interrupted = $data['interrupted'] ?? false;
         $this->output = $data['output'] ?? null;
         $this->error = $data['error'] ?? null;
     }

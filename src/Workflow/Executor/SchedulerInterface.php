@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor\Scheduler;
+namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
@@ -27,32 +27,30 @@ interface SchedulerInterface
      * Called by the executor immediately after a suspend has been persisted.
      *
      * @param string           $workflowId The suspended workflow (also its resume token).
-     * @param string           $stepId     The id of the interrupted step, under which the resume
-     *                                     request is persisted — lets a scheduler/endpoint locate the
-     *                                     suspended request in persistence by (workflowId, stepId)
-     *                                     without scanning the pure-KV store.
      * @param InterruptRequest $request    The suspend request; its type() selects the wakeup strategy.
      */
-    public function onSuspend(string $workflowId, string $stepId, InterruptRequest $request): void;
+    public function onSuspend(string $workflowId, InterruptRequest $request): void;
 
     /**
      * Called by the executor when a suspended workflow is resumed — whether inline
-     * (a caller re-invokes run() with the request, e.g. a human approval from a
-     * UI controller) or via a scheduler push wakeup. The scheduler should cancel
-     * the wakeup this resume satisfies, so an inline resume does not leave a stale
+     * (a caller re-invokes resume() with a wake, e.g. a human approval from a UI
+     * controller) or via a scheduler push wakeup. The scheduler should cancel the
+     * wakeup this resume satisfies, so an inline resume does not leave a stale
      * timer/event subscription behind.
      *
-     * This fires only on a deliberate resume (a non-null interrupt passed to run()),
-     * not on crash-recovery re-runs (which replay cached steps and pass no
-     * interrupt). Cancellation is contingent on the resume committing: a real
-     * scheduler treats it transactionally and must not hard-drop a wakeup if the
-     * step ultimately fails — the executor re-notifies via onSuspend() if the
-     * workflow suspends again. The default {@see NullScheduler} is inert regardless.
+     * This fires only on a deliberate resume (resume()), not on crash-recovery
+     * re-runs (which replay cached steps via run()). Cancellation is contingent on
+     * the resume committing: a real scheduler treats it transactionally and must
+     * not hard-drop a wakeup if the step ultimately fails — the executor
+     * re-notifies via onSuspend() if the workflow suspends again. The default
+     * {@see NullScheduler} is inert regardless.
      *
-     * @param string           $workflowId The resumed workflow.
-     * @param InterruptRequest $request    The request that satisfied the suspend (carries isExpired() etc.).
+     * The resume wake is not passed: the scheduler cancels by workflow id, and a
+     * scheduler that fired a timeout already knows it did.
+     *
+     * @param string $workflowId The resumed workflow.
      */
-    public function onResume(string $workflowId, InterruptRequest $request): void;
+    public function onResume(string $workflowId): void;
 
     /**
      * Called by the executor when a workflow reaches a clean terminal (StopEvent).

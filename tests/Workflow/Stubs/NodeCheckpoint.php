@@ -21,8 +21,9 @@ class NodeCheckpoint extends Node
         $checkpoint = $this->checkpoint('test', fn (): string => 'test');
         $state->set('checkpoint', $checkpoint);
 
-        $feedback = $this->interrupt(new ApprovalRequest('what do you mean?'));
-        $state->set('feedback', $feedback->getMessage());
+        // interrupt() returns the inbound wake (plain array) on resume.
+        $wake = $this->interrupt(new ApprovalRequest('what do you mean?'));
+        $state->set('feedback', is_array($wake) ? (string) ($wake['message'] ?? '') : null);
 
         return new StopEvent();
     }

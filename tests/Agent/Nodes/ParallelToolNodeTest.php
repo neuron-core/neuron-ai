@@ -153,7 +153,7 @@ class ParallelToolNodeTest extends TestCase
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
         $node1 = new ParallelToolNode();
-        $node1->setWorkflowContext($state, $event, null, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
         foreach ($node1($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -165,7 +165,7 @@ class ParallelToolNodeTest extends TestCase
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
         $node2 = new ParallelToolNode();
-        $node2->setWorkflowContext($state, $event, null, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine2, $stepId));
         foreach ($node2($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }

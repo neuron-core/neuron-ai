@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use DateTimeImmutable;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
@@ -15,36 +16,37 @@ class WaitForEventRequestTest extends TestCase
         $this->assertSame(InterruptType::WaitForEvent, (new WaitForEventRequest('user.signup'))->type());
     }
 
-    public function testGettersWithoutPayload(): void
+    public function testGettersWithoutDeadline(): void
     {
         $request = new WaitForEventRequest('user.signup');
         $this->assertSame('user.signup', $request->getEventName());
-        $this->assertNull($request->getPayload());
+        $this->assertNull($request->getExpiresAt());
     }
 
-    public function testGettersWithPayload(): void
+    public function testGettersWithDeadline(): void
     {
-        $request = new WaitForEventRequest('user.signup', ['id' => 7]);
+        $expiresAt = new DateTimeImmutable('2026-12-31T23:59:59+00:00');
+        $request = new WaitForEventRequest('user.signup', $expiresAt);
         $this->assertSame('user.signup', $request->getEventName());
-        $this->assertSame(['id' => 7], $request->getPayload());
+        $this->assertSame($expiresAt, $request->getExpiresAt());
     }
 
-    public function testJsonRoundTripWithoutPayload(): void
+    public function testJsonRoundTripWithoutDeadline(): void
     {
         $original = new WaitForEventRequest('user.signup');
         $restored = WaitForEventRequest::fromArray($original->jsonSerialize());
 
         $this->assertSame($original->getEventName(), $restored->getEventName());
-        $this->assertNull($restored->getPayload());
+        $this->assertNull($restored->getExpiresAt());
         $this->assertSame($original->type(), $restored->type());
     }
 
-    public function testJsonRoundTripWithPayload(): void
+    public function testJsonRoundTripWithDeadline(): void
     {
-        $original = new WaitForEventRequest('order.paid', ['orderId' => 42, 'amount' => 99.5]);
+        $original = new WaitForEventRequest('order.paid', new DateTimeImmutable('2026-12-31T23:59:59+00:00'));
         $restored = WaitForEventRequest::fromArray($original->jsonSerialize());
 
         $this->assertSame($original->getEventName(), $restored->getEventName());
-        $this->assertSame($original->getPayload(), $restored->getPayload());
+        $this->assertSame($original->getExpiresAt()->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
     }
 }

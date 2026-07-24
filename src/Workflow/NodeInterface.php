@@ -6,17 +6,20 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\StepMemoizer;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Generator;
 
 interface NodeInterface
 {
     public function run(Event $event, WorkflowState $state): Generator|Event;
 
+    /**
+     * @param array<string, mixed>|null $wake The inbound resume wake, or null when not resuming.
+     */
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        ?Interrupt\InterruptRequest $resumeRequest = null,
+        ?array $wake = null,
+        bool $timedOut = false,
         ?StepMemoizer $memoizer = null,
     ): void;
 
@@ -29,12 +32,10 @@ interface NodeInterface
     public function isResuming(): bool;
 
     /**
-     * Get the resume request if the node is resuming.
+     * The inbound resume wake, or null when not resuming. Read by middleware
+     * (e.g. ToolApproval) to access the delivered answer.
      *
-     * This allows middleware to access user decisions when resuming from
-     * an interruption.
-     *
-     * @return InterruptRequest|null The resume request or null if not resuming
+     * @return array<string, mixed>|null
      */
-    public function getResumeRequest(): ?InterruptRequest;
+    public function getWake(): ?array;
 }

@@ -12,13 +12,12 @@ use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
-use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
-use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
+use NeuronAI\Workflow\Executor\NullScheduler;
+use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use ReflectionClass;
@@ -27,7 +26,6 @@ use ReflectionIntersectionType;
 use ReflectionNamedType;
 use ReflectionType;
 use ReflectionUnionType;
-
 use function array_filter;
 use function array_merge;
 use function count;
@@ -149,30 +147,51 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Run the workflow to completion, consuming the generator internally.
+     * Start the workflow to completion, consuming the generator internally.
+     * Never resumes — use {@see resume()} to deliver a payload to a suspended step.
      */
-    public function run(?InterruptRequest $interrupt = null): WorkflowState
+    public function run(): WorkflowState
     {
-        $generator = $this->events($interrupt);
+        return $this->consume($this->events());
+    }
 
-        // Drive the generator to completion — its body (traversal) is lazy and
-        // does not execute until iterated. The empty body is intentional.
+    /**
+     * Resume a suspended workflow by delivering the inbound payload to the
+     * interrupted step. Consumes the generator internally.
+     *
+     * @param array<string, mixed> $payload The delivered event payload (the answer).
+     * @param bool                 $timedOut True when the resume was a deadline elapsing.
+     */
+    public function resume(array $payload = [], bool $timedOut = false): WorkflowState
+    {
+        return $this->consume($this->events($payload, $timedOut));
+    }
+
+    /**
+     * The single streaming entry point. With no payload it starts/replays; with a
+     * payload it resumes the interrupted step. {@see run()} and {@see resume()} are
+     * thin wrappers that drive this generator to completion and return the state.
+     *
+     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
+     * @return Generator<int, Event, mixed, WorkflowState>
+     */
+    public function events(?array $payload = null, bool $timedOut = false): Generator
+    {
+        yield from $this->resolveExecutor()->execute($this, $payload, $timedOut);
+
+        return $this->resolveState();
+    }
+
+    /**
+     * Drive a generator to completion and return its state. The traversal body is
+     * lazy — it does not execute until iterated.
+     */
+    protected function consume(Generator $generator): WorkflowState
+    {
         foreach ($generator as $event) {
         }
 
         return $generator->getReturn();
-    }
-
-    /**
-     * Execute the workflow, yielding events in real time.
-     *
-     * @return Generator<int, Event, mixed, WorkflowState>
-     */
-    public function events(?InterruptRequest $interrupt = null): Generator
-    {
-        yield from $this->resolveExecutor()->execute($this, $interrupt);
-
-        return $this->resolveState();
     }
 
     /**

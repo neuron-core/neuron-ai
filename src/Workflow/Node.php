@@ -23,7 +23,19 @@ abstract class Node implements NodeInterface
 {
     protected WorkflowState $state;
     protected Event $event;
-    protected ?InterruptRequest $resumeRequest = null;
+
+    /**
+     * The inbound resume wake. Null when not resuming (fresh run or crash-replay);
+     * a non-null array (even empty) means this node is resuming and holds the
+     * delivered answer. Set by the executor via setWorkflowContext().
+     */
+    protected ?array $wake = null;
+
+    /**
+     * True when this resume was produced by a wait's deadline elapsing rather than
+     * by a delivered event. awaitEvent() surfaces it as a null return.
+     */
+    protected bool $timedOut = false;
 
     protected ?StepMemoizer $memoizer = null;
 
@@ -36,26 +48,29 @@ abstract class Node implements NodeInterface
     public function setWorkflowContext(
         WorkflowState $currentState,
         Event $currentEvent,
-        ?InterruptRequest $resumeRequest = null,
+        ?array $wake = null,
+        bool $timedOut = false,
         ?StepMemoizer $memoizer = null,
     ): void {
         $this->state = $currentState;
         $this->event = $currentEvent;
-        $this->resumeRequest = $resumeRequest;
+        $this->wake = $wake;
+        $this->timedOut = $timedOut;
         $this->memoizer = $memoizer;
     }
 
     /**
-     * Consume the interrupt request (used internally by nodes).
-     * Returns null if not resuming or no request provided.
+     * Consume the inbound resume wake (used internally by nodes).
+     * Returns null if not resuming or no wake staged.
      */
-    protected function consumeResumeRequest(): ?InterruptRequest
+    protected function consumeWake(): ?array
     {
-        if ($this->resumeRequest instanceof InterruptRequest) {
-            $request = $this->resumeRequest;
-            // Clear the request after use to allow subsequent interrupts
-            $this->resumeRequest = null;
-            return $request;
+        if ($this->wake !== null) {
+            $wake = $this->wake;
+            // Clear after use so a subsequent interrupt() in the same node re-suspends
+            // instead of looping on the same resume.
+            $this->wake = null;
+            return $wake;
         }
 
         return null;
@@ -124,28 +139,32 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * @template T of InterruptRequest
-     * @param T $request
-     * @return T|null
+     * Suspend the workflow, carrying $request OUTBOUND to the caller/scheduler.
+     *
+     * On first pass this throws the internal suspend signal (caught at the step
+     * boundary). On resume it returns the inbound wake (the raw delivered answer,
+     * which a custom caller interprets) — never throwing, so node code after the
+     * call runs only on resume.
+     *
+     * @return array<string, mixed>|null The wake on resume; null only if a condition short-circuited.
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interrupt(InterruptRequest $request): ?InterruptRequest
+    protected function interrupt(InterruptRequest $request): ?array
     {
         return $this->interruptIf(true, $request);
     }
 
     /**
-     * @template T of InterruptRequest
-     * @param T $request
-     * @return T|null
+     * @param callable|bool $condition
+     * @return array<string, mixed>|null
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function interruptIf(callable|bool $condition, InterruptRequest $request): ?InterruptRequest
+    protected function interruptIf(callable|bool $condition, InterruptRequest $request): ?array
     {
-        if (($feedback = $this->consumeResumeRequest()) instanceof InterruptRequest) {
-            return $feedback;
+        if ($this->isResuming()) {
+            return $this->consumeWake();
         }
 
         $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
@@ -162,42 +181,42 @@ abstract class Node implements NodeInterface
      * Suspend the workflow until an external event named $eventName is delivered.
      *
      * Thin sugar over {@see interrupt()} with a WaitForEventRequest. On first pass
-     * the workflow pauses; on resume the scheduler/caller hydrates the request
-     * with the matched event payload, and this method returns it so the node can
-     * read getPayload(). Finer correlation (e.g. a specific entity id) is done in
-     * the node after resume.
+     * the workflow pauses; on resume this returns the matched event payload (the
+     * inbound wake). Finer correlation (e.g. a specific entity id) is done in the
+     * node after resume.
      *
      * Returns null when the wait timed out: an optional $expiresAt bounds the
-     * wait, and when it elapses the scheduler resumes the workflow with the wait
-     * marked expired internally — this method surfaces that as null so the node
-     * branches on `if ($result === null)` (the wait produced no event). Node code
-     * must NOT compare the clock itself; the null return is the timeout signal.
+     * wait, and when it elapses the scheduler resumes with $timedOut — this method
+     * surfaces that as null so the node branches on `if ($payload === null)`
+     * (the wait produced no event). Node code must NOT compare the clock itself;
+     * the null return is the timeout signal.
+     *
+     * @return array<string, mixed>|null The event payload, or null on timeout.
      */
-    protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?WaitForEventRequest
+    protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?array
     {
-        /** @var WaitForEventRequest|null $request */
-        $request = $this->interrupt(new WaitForEventRequest($eventName, null, $expiresAt));
+        $wake = $this->interrupt(new WaitForEventRequest($eventName, $expiresAt));
 
-        // A timeout resume (deadline elapsed, no event) is surfaced to the node as
-        // null. Guard on instanceof so a cross-TYPE resume (e.g. a SleepUntilRequest
-        // fed to a wait-for-event) still reaches the declared return type and is
-        // rejected with a TypeError at the verb boundary, as before.
-        if ($request instanceof WaitForEventRequest && $request->isExpired()) {
+        // Reached only on resume. A timeout (deadline elapsed, no event) is surfaced
+        // to the node as null.
+        if ($this->timedOut) {
             return null;
         }
 
-        return $request;
+        return $wake ?? [];
     }
 
     /**
      * Suspend the workflow until a clock time. Thin sugar over {@see interrupt()}
      * with a SleepUntilRequest. Whether and when to fire is the scheduler's job.
+     * A timer wake carries no value, so this returns null on resume.
      */
-    protected function sleepUntil(DateTimeImmutable $wakeAt): ?SleepUntilRequest
+    protected function sleepUntil(DateTimeImmutable $wakeAt): ?array
     {
-        /** @var SleepUntilRequest|null $request */
-        $request = $this->interrupt(new SleepUntilRequest($wakeAt));
-        return $request;
+        $this->interrupt(new SleepUntilRequest($wakeAt));
+
+        // Reached only on resume — a timer wake delivers no payload.
+        return null;
     }
 
     /**
@@ -208,20 +227,18 @@ abstract class Node implements NodeInterface
      */
     public function isResuming(): bool
     {
-        return $this->resumeRequest instanceof InterruptRequest;
+        return $this->wake !== null;
     }
 
     /**
-     * Get the resume request if the node is resuming.
+     * The inbound resume wake, or null when not resuming. Read by middleware
+     * (e.g. ToolApproval) to access the delivered answer.
      *
-     * This allows middleware to access user decisions when resuming from
-     * an interruption.
-     *
-     * @return InterruptRequest|null The resume request or null if not resuming
+     * @return array<string, mixed>|null
      */
-    public function getResumeRequest(): ?InterruptRequest
+    public function getWake(): ?array
     {
-        return $this->resumeRequest;
+        return $this->wake;
     }
 
     /**

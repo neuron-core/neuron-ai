@@ -16,8 +16,7 @@ class DurableInterruptNodeB extends CountableNode
         $this->recordExecution();
         $state->set('step_b_executed', true);
 
-        $resumeRequest = $this->consumeResumeRequest();
-        if ($resumeRequest instanceof ApprovalRequest) {
+        if ($this->isResuming()) {
             $state->set('step_b_resumed', true);
             return new DurableEventB();
         }

@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\Workflow\Stubs;
+
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+
+/**
+ * A custom WaitForEventRequest specialization that carries a non-serializable
+ * object (a closure). Under fire-and-forget the request is never persisted, so
+ * this must survive a FilePersistence serialize round-trip across a suspend.
+ */
+class ObjectCarryingRequest extends WaitForEventRequest
+{
+    public function __construct(string $eventName, public readonly \Closure $callback)
+    {
+        parent::__construct($eventName);
+    }
+}

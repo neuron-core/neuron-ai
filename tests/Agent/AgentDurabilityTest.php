@@ -104,7 +104,7 @@ class AgentDurabilityTest extends TestCase
         $state1 = new AgentState();
         $state1->set('__workflowId', $workflowId);
         $node1 = new ChatNode($provider);
-        $node1->setWorkflowContext($state1, $event, null, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId));
         $node1($event, $state1);
 
         $this->assertSame(1, $provider->getCallCount());
@@ -116,7 +116,7 @@ class AgentDurabilityTest extends TestCase
         $state2 = new AgentState();
         $state2->set('__workflowId', $workflowId);
         $node2 = new ChatNode($provider);
-        $node2->setWorkflowContext($state2, $event, null, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
         $node2($event, $state2);
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
@@ -152,17 +152,15 @@ class AgentDurabilityTest extends TestCase
         // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
-        $request = $handler1->getInterruptRequest();
-        $request->getAction('call_1')?->approve();
-
-        // Resume: same workflowId → ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
+        // Resume: deliver the approval wake (call_1 approved). Same workflowId →
+        // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->addMiddleware(ToolNode::class, new ToolApproval());
         $agent2->setExecutor($executor);
 
-        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), $request)->getMessage();
+        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), ['call_1' => 'approve'])->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -218,7 +216,6 @@ class AgentDurabilityTest extends TestCase
         $this->assertTrue($handler1->interrupted());
         $request = $handler1->getInterruptRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
-        $request->getAction('call_1')?->reject('Do not search the web.');
 
         // Resume with rejection: the tool is NOT executed; its rejection message
         // is fed back as the tool result and reaches the next inference.
@@ -228,7 +225,10 @@ class AgentDurabilityTest extends TestCase
         $agent2->addMiddleware(ToolNode::class, new ToolApproval());
         $agent2->setExecutor($executor);
 
-        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), $request)->getMessage();
+        $message = $agent2->chat(
+            new UserMessage('Search for PHP frameworks'),
+            ['call_1' => ['reject', 'Do not search the web.']]
+        )->getMessage();
 
         $this->assertSame(
             'I see the search was rejected. Is there anything else I can help with?',

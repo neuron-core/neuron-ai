@@ -77,7 +77,7 @@ class StreamingNodeTest extends TestCase
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
         $node1 = new StreamingNode($provider);
-        $node1->setWorkflowContext($state, $event, null, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
         $generator1 = $node1($event, $state);
         foreach ($generator1 as $_) {
@@ -99,7 +99,7 @@ class StreamingNodeTest extends TestCase
         $node2 = new StreamingNode($provider);
         $state2 = new AgentState();
         $state2->set('__workflowId', $workflowId);
-        $node2->setWorkflowContext($state2, $event, null, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
 
         $generator2 = $node2($event, $state2);
 

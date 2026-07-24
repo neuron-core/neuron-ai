@@ -20,9 +20,6 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\Scheduler\NullScheduler;
-use NeuronAI\Workflow\Executor\Scheduler\SchedulerInterface;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
@@ -53,9 +50,22 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
-    public function execute(
+    public function execute(WorkflowInterface $workflow, ?array $payload = null, bool $timedOut = false): Generator
+    {
+        return yield from $this->doRun($workflow, $payload, $timedOut);
+    }
+
+    /**
+     * Shared body for start/replay (no payload) and resume (a delivered payload).
+     *
+     * @param array<string, mixed>|null $payload Null for start/replay; the delivered event payload on resume.
+     * @return Generator<int, Event, mixed, WorkflowState>
+     * @throws Throwable
+     */
+    private function doRun(
         WorkflowInterface $workflow,
-        ?InterruptRequest $interrupt = null,
+        ?array $payload,
+        bool $timedOut,
     ): Generator {
         $workflow->bootstrap();
 
@@ -63,15 +73,16 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         EventBus::emit('workflow-start', $workflow, new WorkflowStart($workflow->getEventNodeMap()), $workflowId);
         $workflow->resolveState()->set('__workflowId', $workflowId);
 
-        try {
-            $this->stepEngine->prepareExecution($workflowId, $interrupt);
+        $isResume = $payload !== null;
 
-            // A non-null interrupt means this run is a deliberate resume (inline or
-            // scheduler push) — not a crash-recovery re-run (which replays cached
-            // steps and passes no interrupt). Let the scheduler cancel the wakeup
-            // this resume satisfies, so inline resume leaves no stale registration.
-            if ($interrupt instanceof InterruptRequest) {
-                $this->scheduler->onResume($workflowId, $interrupt);
+        try {
+            $this->stepEngine->prepareExecution($workflowId, $payload, $timedOut);
+
+            // A resume lets the scheduler cancel the wakeup it satisfies (inline or
+            // scheduler push), so a deliberate resume leaves no stale registration.
+            // A start/replay passes no payload and fires no onResume.
+            if ($isResume) {
+                $this->scheduler->onResume($workflowId);
             }
 
             /** @var Event $terminal */
@@ -86,7 +97,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // the pause functionally. Steps are kept for resume.
                 $workflow->resolveState()->markAsInterrupted($terminal->request);
                 // Let the scheduler register a wakeup for this suspend (inert by default).
-                $this->scheduler->onSuspend($workflowId, $terminal->stepId, $terminal->request);
+                $this->scheduler->onSuspend($workflowId, $terminal->request);
                 yield $terminal;
             } else {
                 // Completed: clean up persisted steps and clear any stale interrupt
@@ -129,13 +140,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         NodeInterface $node,
         Event $event,
         WorkflowState $state,
-        string $stepId,
         array $middleware = [],
         ?string $branchId = null,
-        ?InterruptRequest $resumeRequest = null,
+        ?array $wake = null,
+        bool $timedOut = false,
         ?StepMemoizer $memoizer = null,
     ): Generator {
-        $node->setWorkflowContext($state, $event, $resumeRequest, $memoizer);
+        $node->setWorkflowContext($state, $event, $wake, $timedOut, $memoizer);
 
         $workflowId = $state->get('__workflowId');
 
@@ -182,7 +193,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             // A pause request surfaced as a thrown signal from the node or a
             // middleware. Convert it to an InterruptEvent terminal. Events
             // already yielded before the throw are preserved.
-            return new InterruptEvent($interrupt->getRequest(), $stepId);
+            return new InterruptEvent($interrupt->getRequest());
         }
     }
 
@@ -204,7 +215,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $stepId,
         array &$streamedEvents,
     ): StepResult {
-        return $this->stepEngine->runStep($stepId, function (?InterruptRequest $resumeRequest) use (
+        return $this->stepEngine->runStep($stepId, function (?array $wake, bool $timedOut) use (
             $node,
             $event,
             $state,
@@ -218,10 +229,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $node,
                 $event,
                 $state,
-                $stepId,
                 $middleware,
                 $branchId,
-                $resumeRequest,
+                $wake,
+                $timedOut,
                 new StepMemoizer($this->stepEngine, $stepId),
             );
             foreach ($nodeGen as $streamedEvent) {

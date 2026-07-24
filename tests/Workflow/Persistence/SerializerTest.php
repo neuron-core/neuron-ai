@@ -21,7 +21,7 @@ final class SerializerTest extends TestCase
             'step-1',
             null,
             null,
-            null,
+            false,
             ['summary' => 'memoized LLM output'],
             ['message' => 'boom', 'class' => 'RuntimeException'],
         );

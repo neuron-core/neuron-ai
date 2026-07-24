@@ -7,21 +7,36 @@ namespace NeuronAI\Workflow;
 use Generator;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
 interface WorkflowInterface
 {
     public function bootstrap(): static;
 
-    public function run(?InterruptRequest $interrupt = null): WorkflowState;
+    /**
+     * Start the workflow to completion (or replay cached steps after a crash).
+     * Delivers no resume wake — use {@see resume()} for that.
+     */
+    public function run(): WorkflowState;
 
     /**
-     * Execute the workflow, yielding events in real time.
+     * Resume a suspended workflow by delivering the inbound payload to the
+     * interrupted step.
      *
+     * @param array<string, mixed> $payload The delivered event payload (the answer).
+     * @param bool                 $timedOut True when the resume was a deadline elapsing.
+     */
+    public function resume(array $payload = [], bool $timedOut = false): WorkflowState;
+
+    /**
+     * The single streaming entry point. Yields events in real time and returns
+     * the final state. With no payload it starts/replays; with a payload it resumes
+     * the interrupted step (the streaming counterpart of {@see run()} / {@see resume()}).
+     *
+     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
-    public function events(?InterruptRequest $interrupt = null): Generator;
+    public function events(?array $payload = null, bool $timedOut = false): Generator;
 
     public function getStartEvent(): Event;
 

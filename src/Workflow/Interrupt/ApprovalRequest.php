@@ -31,8 +31,9 @@ class ApprovalRequest extends WaitForEventRequest
     ) {
         // A human decision is an external event delivered on the "approval"
         // channel; type() is inherited as WaitForEvent. Action[] lives in this
-        // subclass as the specialized payload.
-        parent::__construct('approval', null, $expiresAt);
+        // subclass as the specialized OUTBOUND payload (the decisions come back
+        // inbound via the wake, decoded by ToolApproval).
+        parent::__construct('approval', $expiresAt);
 
         foreach ($actions as $action) {
             $this->addAction($action);

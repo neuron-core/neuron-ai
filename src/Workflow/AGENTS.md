@@ -47,16 +47,18 @@ Two axes of extensibility, deliberately separated:
   type to carry a richer payload, but `type()` stays inherited. Approval is one
   payload of `WaitForEvent`, not the center.
 
-Three verbs, all on `Node`, all returning the same request subclass back (or null):
+Three verbs, all on `Node`. On first pass they throw the internal suspend signal; on
+resume they return the inbound **answer** (never the request object back):
 
 ```php
-// Generic — carry any InterruptRequest subclass
-$req = $this->interrupt(new MyApprovalRequest(...));
+// Generic — carry any InterruptRequest subclass OUTBOUND; on resume returns the
+// raw wake array (the delivered answer), which a custom caller interprets.
+$wake = $this->interrupt(new MyApprovalRequest(...));
 
-// Sugar over interrupt() with a WaitForEventRequest. Returns null on timeout.
-$event = $this->awaitEvent('order.created', expiresAt: $deadline);
-if ($event === null) { /* timed out — no event arrived */ }
-$payload = $event->getPayload();
+// Sugar over interrupt() with a WaitForEventRequest. Returns the event payload
+// (the wake array) on resume, or null on timeout.
+$payload = $this->awaitEvent('order.created', expiresAt: $deadline);
+if ($payload === null) { /* timed out — no event arrived */ }
 
 // Sugar over interrupt() with a SleepUntilRequest. Whether/when it fires is the
 // scheduler's job (NullScheduler never fires it — it waits for a caller to resume).
@@ -65,26 +67,38 @@ $this->sleepUntil($wakeAt);
 
 `interrupt()` throws an internal signal the executor catches at the step boundary
 and converts into an `InterruptEvent`, which terminates traversal like `StopEvent`.
-The returned state is marked interrupted. Resume re-runs only the interrupted step
-with the request; completed branches/nodes are skipped via step replay — no
-parallel metadata is carried.
+The returned state is marked interrupted and carries the request **outbound** (for
+the caller to render). Resume re-runs only the interrupted step, injecting the
+inbound wake; completed branches/nodes are skipped via step replay — no parallel
+metadata is carried.
+
+**Outbound vs inbound.** The request is a pure, immutable *outbound* value — the
+pause description plus whatever custom context the node wants surfaced (actions,
+object instances). The resume **answer** is a separate *inbound* **wake** (a plain
+serialization-safe array) plus a `bool $timedOut` flag. They never share an object.
+
+**The request is fire-and-forget — it is not persisted.** Only an `interrupted`
+boolean is stored per step; the request itself is rebuilt by re-running the node on
+resume (replay-by-rerun). So you can stuff real object instances into a custom
+request without them ever being serialized.
 
 ```php
 $state = MyWorkflow::make()->run();
 
 if ($state->isInterrupted()) {
-    $request = $state->getInterruptRequest();   // show to the user / hydrate with an event
+    $request = $state->getInterruptRequest();   // render to the user (outbound)
 
-    // ... collect decision or deliver event payload into $request ...
+    // ... collect the decision / event data ...
 
-    $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())->run($request);
+    $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())
+        ->resume(['id' => 42]);                 // deliver the inbound wake (no stepId)
 }
 ```
 
 **Timeouts are scheduler-driven, never clock comparisons in the node.** When an
-`awaitEvent()` deadline elapses, the scheduler resumes the workflow with the wait
-marked expired internally; the verb surfaces that as `null`. Node code branches on
-`if ($result === null)` — it must not read the clock itself (clock-skew-fragile).
+`awaitEvent()` deadline elapses, the scheduler resumes the workflow with
+`$timedOut = true`; the verb surfaces that as `null`. Node code branches on
+`if ($payload === null)` — it must not read the clock itself (clock-skew-fragile).
 
 **Requires persistence**: `FilePersistence`, `InMemoryPersistence`, `DatabasePersistence`.
 
@@ -101,12 +115,13 @@ $workflow = Workflow::make()
 ```
 
 The default `NullScheduler` is inert: it never wakes anything, preserving the
-caller-driven model where a caller re-invokes `run()` to resume. The executor fires
-`onSuspend()` after a suspend is persisted, `onResume()` on a deliberate resume
-(cancels the satisfied wakeup — keeps inline resume consistent), and `onComplete()`
-on a clean terminal `StopEvent`. Expiration lives in the persisted request terms
-**and** the scheduler's timer wheel — persistence stays a pure KV store (no scan,
-no `findExpired()`).
+caller-driven model where a caller re-invokes `resume()` to resume. The executor fires
+`onSuspend()` after a suspend (carrying the outbound request),
+`onResume($workflowId)` on a deliberate resume (cancels the satisfied wakeup — keeps
+inline resume consistent), and `onComplete()` on a clean terminal `StopEvent`. The
+deadline (`expiresAt`) lives on the outbound request and the scheduler's timer wheel;
+the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure KV store
+(no scan, no `findExpired()`) and stores no request — only the `interrupted` flag.
 
 ## Durable memoization (`memoize`)
 
@@ -185,7 +200,7 @@ A node re-runs for one of two reasons, and they are distinguishable:
 
 | Trigger | Signal | Use |
 |---|---|---|
-| **Interrupt-resume** — this node suspended and is woken with a decision/event | `consumeResumeRequest()` / `isResuming()` (an `InterruptRequest` is injected) | `consumeResumeRequest()` — carries *external input* that didn't exist before |
+| **Interrupt-resume** — this node suspended and is woken with a wake | `isResuming()` / `getWake()` (the inbound wake array is injected) | `consumeWake()` — carries *external input* that didn't exist before |
 | **Crash-replay** — the node crashed mid-step and is re-run on recovery | no `InterruptRequest` (memo recall only) | `recallMemo()` / `memoize()` — carries *internal results* already computed |
 
 These are orthogonal by necessity: a resume delivers new information from outside; a

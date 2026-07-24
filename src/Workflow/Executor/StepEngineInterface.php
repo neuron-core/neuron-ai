@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
-
 /**
  * Replay and memoization engine for a durable workflow run.
  *
  * Owns persistence and the per-step replay logic: every executed node is
  * persisted as a StepResult, completed steps are skipped on replay, interrupted
- * steps resume from a stored InterruptRequest, and failed steps retry.
+ * steps resume from a staged inbound wake, and failed steps retry.
  *
  * The local {@see LocalStepEngine} is the in-process implementation. The
  * executor depends on this interface — never on a persistence backend or a
@@ -24,19 +22,24 @@ interface StepEngineInterface
     /**
      * Prepare the engine for a new execution of the given workflow.
      *
-     * Advances the generation counter past any persisted steps so prior-run
-     * results are treated as cache hits, and stages a resume request when this
-     * run is a deliberate resume of a suspended step.
+     * Stages the inbound resume wake when this run is a deliberate resume of a
+     * suspended step. A null $wake means this is a fresh start or a crash-recovery
+     * replay (no resume); a non-null $wake (even empty) means resume.
+     *
+     * @param array<string, mixed>|null $wake The delivered event payload, or null when not resuming.
      */
-    public function prepareExecution(string $workflowId, ?InterruptRequest $resume = null): void;
+    public function prepareExecution(string $workflowId, ?array $wake = null, bool $timedOut = false): void;
 
     /**
      * Run a single step, memoized by step id.
      *
      * Returns the cached StepResult when a prior generation completed this step;
-     * resumes an interrupted step with the staged resume request; otherwise
-     * executes $fn (which runs the node) and persists the outcome. The callable
-     * receives the resume InterruptRequest or null, and returns the live result.
+     * resumes an interrupted step with the staged wake; otherwise executes $fn
+     * (which runs the node) and persists the outcome. The callable receives the
+     * resume wake + timedOut flag (wake is null when not resuming), and returns
+     * the live result.
+     *
+     * @param callable(array<string,mixed>|null $wake, bool $timedOut): StepResult $fn
      */
     public function runStep(string $stepId, callable $fn): StepResult;
 

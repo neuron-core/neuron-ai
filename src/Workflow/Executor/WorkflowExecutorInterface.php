@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Executor;
 
 use Generator;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -19,16 +18,17 @@ use NeuronAI\Workflow\WorkflowState;
 interface WorkflowExecutorInterface
 {
     /**
-     * Execute the workflow from start to finish.
+     * Execute the workflow, yielding every event in real time and returning the
+     * final state. The single entry: with no payload it starts/replays; with a
+     * payload it resumes the interrupted step (firing the scheduler's onResume so
+     * it can cancel the satisfied wakeup).
      *
-     * Yields every event from every node in real time.
-     * Returns the final WorkflowState.
-     *
-     * @param InterruptRequest|null $interrupt User decision when resuming from an interrupt
+     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function execute(
         WorkflowInterface $workflow,
-        ?InterruptRequest $interrupt = null,
+        ?array $payload = null,
+        bool $timedOut = false,
     ): Generator;
 }

@@ -101,7 +101,7 @@ class StructuredOutputNodeTest extends TestCase
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
         $node1 = new StructuredOutputNode($provider, User::class, 1);
-        $node1->setWorkflowContext($state, $event, null, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
         $firstReturn = $node1($event, $state);
 
@@ -118,7 +118,7 @@ class StructuredOutputNodeTest extends TestCase
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
         $node2 = new StructuredOutputNode($provider, User::class, 1);
-        $node2->setWorkflowContext($state2, $event, null, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
 
         $secondReturn = $node2($event, $state2);
 

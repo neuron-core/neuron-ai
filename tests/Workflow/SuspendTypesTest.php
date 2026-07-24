@@ -7,6 +7,8 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use NeuronAI\Tests\Workflow\Stubs\ObjectCarryingInterruptNode;
+use NeuronAI\Tests\Workflow\Stubs\ObjectCarryingRequest;
 use NeuronAI\Tests\Workflow\Stubs\SleepUntilNode;
 use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
 use NeuronAI\Tests\Workflow\Stubs\WaitForEventWithTimeoutNode;
@@ -19,7 +21,6 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use DateTimeImmutable;
-use TypeError;
 
 use function glob;
 use function is_dir;
@@ -54,14 +55,14 @@ class SuspendTypesTest extends TestCase
         $this->assertSame('user.signup', $interrupt->getEventName());
         $this->assertFalse($state->has('node_three_executed'));
 
-        // Resume on a fresh executor sharing the persistence, hydrating the payload.
+        // Resume on a fresh executor sharing the persistence, delivering the wake.
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-        $state = $this->execute(
+        $state = $this->resume(
             $resumed,
             $this->createExecutor($persistence),
-            new WaitForEventRequest('user.signup', payload: ['id' => 7]),
+            ['id' => 7],
         );
 
         $this->assertFalse($state->isInterrupted());
@@ -86,14 +87,14 @@ class SuspendTypesTest extends TestCase
         $this->assertSame(InterruptType::SleepUntil, $interrupt->type());
         $this->assertFalse($state->has('node_three_executed'));
 
-        // Resume carries no payload — the wakeup itself is the signal.
+        // Resume carries no payload — the wakeup itself is the signal (empty wake).
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
 
-        $state = $this->execute(
+        $state = $this->resume(
             $resumed,
             $this->createExecutor($persistence),
-            new SleepUntilRequest(new DateTimeImmutable('+1 hour')),
+            [],
         );
 
         $this->assertFalse($state->isInterrupted());
@@ -104,7 +105,9 @@ class SuspendTypesTest extends TestCase
     public function testWaitForEventSurvivesFilePersistenceSerialization(): void
     {
         // FilePersistence forces real PHP serialize/unserialize of the interrupted
-        // StepResult (including the InterruptRequest) across the pause/resume.
+        // StepResult across the pause/resume. Under fire-and-forget only the
+        // interrupted flag is persisted (the request is rebuilt by re-running the
+        // node), so serialization is trivially safe.
         $dir = sys_get_temp_dir() . '/neuron_test_wfe_serial';
         $persistence = new FilePersistence($dir);
         $token = 'wfe-serial';
@@ -119,10 +122,10 @@ class SuspendTypesTest extends TestCase
             $resumed = Workflow::make(resumeToken: $token)
                 ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-            $state = $this->execute(
+            $state = $this->resume(
                 $resumed,
                 $this->createExecutor($persistence),
-                new WaitForEventRequest('user.signup', payload: ['id' => 7]),
+                ['id' => 7],
             );
 
             $this->assertFalse($state->isInterrupted());
@@ -133,39 +136,11 @@ class SuspendTypesTest extends TestCase
         }
     }
 
-    public function testResumeWithWrongRequestTypeIsRejectedAtVerbBoundary(): void
-    {
-        // The engine is opaque to resume type — it does NOT reject a mismatched
-        // resume. The verb layer does: awaitEvent()'s declared return type is
-        // ?WaitForEventRequest, so a cross-TYPE resume (a SleepUntilRequest) is
-        // rejected with a TypeError at the verb boundary. (Cross-class same-type
-        // — e.g. an ApprovalRequest, which IS-A WaitForEventRequest — is not
-        // caught here; verifying the concrete payload is the node's job.)
-        $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
-        $token = 'wfe-wrong-type';
-
-        $workflow = Workflow::make(resumeToken: $token)
-            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
-
-        $this->execute($workflow, $executor);
-
-        $resumed = Workflow::make(resumeToken: $token)
-            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
-
-        $this->expectException(TypeError::class);
-        $this->execute(
-            $resumed,
-            $this->createExecutor($persistence),
-            new SleepUntilRequest(new DateTimeImmutable('+1 hour')),
-        );
-    }
-
     public function testWaitForEventResumeWithoutPayload(): void
     {
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
-        $token = 'wfe-null-payload';
+        $token = 'wfe-empty-payload';
 
         $workflow = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
@@ -175,15 +150,15 @@ class SuspendTypesTest extends TestCase
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-        // Resume without a payload — the node tolerates null and continues.
-        $state = $this->execute(
+        // Resume with an empty wake — the node receives an empty event body.
+        $state = $this->resume(
             $resumed,
             $this->createExecutor($persistence),
-            new WaitForEventRequest('user.signup'),
+            [],
         );
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertNull($state->get('received_payload'));
+        $this->assertSame([], $state->get('received_payload'));
         $this->assertTrue($state->get('node_three_executed'));
     }
 
@@ -201,33 +176,28 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
     }
 
-    public function testWaitForEventRequestCarriesExpiration(): void
+    public function testWaitForEventRequestCarriesDeadline(): void
     {
-        // Expiration is a scheduler-driven feature: the deadline lives on the
-        // request (persisted) while the scheduler owns the timer. The node branches
-        // on the explicit isExpired() flag — never a clock comparison.
+        // The deadline is an OUTBOUND term on the request (the node declares it;
+        // the scheduler arms a timer from it). The timeout FACT is inbound
+        // ($timedOut on resume), never stored on the request.
         $expiresAt = new DateTimeImmutable('2026-12-31T23:59:59+00:00');
 
-        $request = new WaitForEventRequest('user.signup', null, $expiresAt);
+        $request = new WaitForEventRequest('user.signup', $expiresAt);
 
         $this->assertSame($expiresAt, $request->getExpiresAt());
-        $this->assertFalse($request->isExpired());
 
-        $request->markExpired();
-        $this->assertTrue($request->isExpired());
-
-        // The deadline and flag survive PHP serialize (what FilePersistence uses).
+        // The deadline survives PHP serialize (FilePersistence) — but only as an
+        // outbound term; the request itself is not persisted across a suspend.
         $restored = unserialize(serialize($request));
         $this->assertSame($expiresAt->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
-        $this->assertTrue($restored->isExpired());
 
         // And the jsonSerialize/fromArray round-trip (JSON-based transport).
         $fromArray = WaitForEventRequest::fromArray($request->jsonSerialize());
         $this->assertSame($expiresAt->getTimestamp(), $fromArray->getExpiresAt()->getTimestamp());
-        $this->assertTrue($fromArray->isExpired());
     }
 
-    public function testApprovalRequestInheritsExpiration(): void
+    public function testApprovalRequestInheritsDeadline(): void
     {
         // ApprovalRequest is a WaitForEventRequest specialization, so the deadline
         // capability is inherited — no special-casing needed for "auto-reject after T".
@@ -236,25 +206,20 @@ class SuspendTypesTest extends TestCase
         $request = new ApprovalRequest('Approve payment?', [], $expiresAt);
 
         $this->assertSame($expiresAt, $request->getExpiresAt());
-        $this->assertFalse($request->isExpired());
-
-        $request->markExpired();
-        $this->assertTrue($request->isExpired());
         $this->assertSame(InterruptType::WaitForEvent, $request->type());
     }
 
     public function testAwaitEventReturnsNullOnTimeout(): void
     {
         // The developer-facing timeout contract: when the deadline elapses the
-        // scheduler resumes the wait with it marked expired, and awaitEvent()
-        // surfaces that to the node as null. The node branches on null (Inngest
-        // style) — it never inspects isExpired(), which stays internal plumbing.
+        // scheduler resumes the wait with $timedOut, and awaitEvent() surfaces that
+        // to the node as null. The node branches on null — it never inspects a flag.
         $persistence = new InMemoryPersistence();
         $executor = $this->createExecutor($persistence);
         $token = 'wfe-timeout';
 
         // Run 1: suspends on a bounded wait. The expressed deadline is carried on
-        // the interrupted request.
+        // the interrupted request (outbound).
         $workflow = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
         $state = $this->execute($workflow, $executor);
@@ -264,14 +229,11 @@ class SuspendTypesTest extends TestCase
         $this->assertInstanceOf(WaitForEventRequest::class, $interrupt);
         $this->assertNotNull($interrupt->getExpiresAt());
 
-        // Resume with the wait marked expired — exactly what the scheduler does
-        // when the deadline fires.
-        $expired = new WaitForEventRequest('user.signup');
-        $expired->markExpired();
-
+        // Resume with $timedOut — exactly what the scheduler does when the
+        // deadline fires.
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
-        $state = $this->execute($resumed, $executor, $expired);
+        $state = $this->resume($resumed, $executor, [], true);
 
         // The node's null branch ran: it saw no event, took the timeout path, and
         // the workflow continued to completion.
@@ -279,6 +241,36 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('timed_out'));
         $this->assertFalse($state->has('received_payload'));
         $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function testRequestCarryingNonSerializableObjectIsNotSerialized(): void
+    {
+        // Fire-and-forget: the InterruptRequest is never persisted, so a developer can
+        // stuff a non-serializable object (here a closure) into a custom request without
+        // breaking FilePersistence's serialize across the pause. Under the old design —
+        // which persisted the request into the StepResult — this would have thrown.
+        $dir = sys_get_temp_dir() . '/neuron_test_object_carrying';
+        $persistence = new FilePersistence($dir);
+        $token = 'object-carrying';
+
+        try {
+            $workflow = Workflow::make(resumeToken: $token)
+                ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
+            $state = $this->execute($workflow, $this->createExecutor($persistence));
+
+            $this->assertTrue($state->isInterrupted());
+            $this->assertInstanceOf(ObjectCarryingRequest::class, $state->getInterruptRequest());
+
+            $resumed = Workflow::make(resumeToken: $token)
+                ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
+            $state = $this->resume($resumed, $this->createExecutor($persistence), []);
+
+            $this->assertFalse($state->isInterrupted());
+            $this->assertTrue($state->get('resumed_with_object'));
+            $this->assertTrue($state->get('node_three_executed'));
+        } finally {
+            $this->removeDirectory($dir);
+        }
     }
 
     private function removeDirectory(string $dir): void

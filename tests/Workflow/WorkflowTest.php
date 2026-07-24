@@ -206,8 +206,8 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_one_executed'));
         $this->assertNull($state->get('received_feedback'));
 
-        // Resume feeds the request back through interrupt()
-        $state = $this->execute($workflow, $executor, $state->getInterruptRequest());
+        // Resume delivers the wake through interrupt()
+        $state = $this->resume($workflow, $executor, []);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('interruptable_node_executed'));
@@ -254,7 +254,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $state = $this->execute($resumed, $this->createExecutor($persistence), $request);
+        $state = $this->resume($resumed, $this->createExecutor($persistence), []);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('completed', $state->get('received_feedback'));

@@ -51,8 +51,16 @@ class ToolApproval implements WorkflowMiddleware
     /**
      * Execute before the node runs.
      *
-     * On initial run: Inspects tools and creates interrupt request for approval.
-     * On resume: Processes human decisions and modifies tools accordingly.
+     * On initial run: inspects tools and creates an ApprovalRequest interrupt for
+     * any that require approval.
+     * On resume: processes the human decisions carried in the inbound wake and
+     * modifies tools accordingly.
+     *
+     * The wake for an approval resume is keyed by tool callId:
+     *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason] | ['edit', $args]]
+     * A resume for a different reason (e.g. an interrupting tool) carries no such
+     * keys, so we discriminate by re-deriving the approval-requiring tools
+     * (deterministic) and checking their callIds appear in the wake.
      *
      * @param ToolNode $node
      * @param ToolCallEvent $event
@@ -64,17 +72,22 @@ class ToolApproval implements WorkflowMiddleware
             return;
         }
 
-        // Check if we're resuming
-        if ($node->isResuming() && $node->getResumeRequest() instanceof ApprovalRequest) {
-            $this->processDecisions($node->getResumeRequest(), $event);
-            return;
-        }
-
-        // Initial run: Check if any tools require approval
         $toolsToApprove = $this->filterToolsRequiringApproval($event->toolCallMessage->getTools());
 
+        // Resume: if the wake carries decisions for the approval-requiring tools,
+        // apply them. Otherwise this resume is for a different reason — fall through
+        // to the initial-run logic (which will re-suspend if approval is still owed).
+        if ($node->isResuming() && $toolsToApprove !== []) {
+            $wake = $node->getWake() ?? [];
+            if ($this->isApprovalResume($wake, $toolsToApprove)) {
+                $this->processDecisions($wake, $event);
+                return;
+            }
+        }
+
+        // Initial run (or resume that didn't deliver approval decisions): nothing
+        // requires approval, continue execution.
         if ($toolsToApprove === []) {
-            // No tools require approval, continue execution
             return;
         }
 
@@ -96,6 +109,24 @@ class ToolApproval implements WorkflowMiddleware
         );
 
         throw new WorkflowInterrupt($interruptRequest);
+    }
+
+    /**
+     * Is this wake an approval resume? True when it carries a decision for at
+     * least one tool that requires approval (re-derived deterministically).
+     *
+     * @param ToolInterface[] $toolsToApprove
+     */
+    protected function isApprovalResume(array $wake, array $toolsToApprove): bool
+    {
+        foreach ($toolsToApprove as $tool) {
+            $callId = $tool->getCallId();
+            if ($callId !== null && array_key_exists($callId, $wake)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -170,38 +201,54 @@ class ToolApproval implements WorkflowMiddleware
     }
 
     /**
-     * Process human decisions and modify tools accordingly.
+     * Process human decisions from the wake and modify tools accordingly.
      *
-     * This method modifies the tools in-place based on human decisions:
-     *  - Rejected: The tool result is set to a rejection message
-     *  - Edited: Tool inputs are modified
-     *  - Approved: No changes, tool executes normally
+     * Iterates the tools, looks up each tool's decision in the wake (keyed by
+     * callId), and:
+     *  - Rejected: the tool result is set to a rejection message (so it won't run).
+     *  - Approved / edited / absent: no change — the tool executes normally.
+     *
+     * @param array<string, mixed> $wake Decisions keyed by tool callId.
      */
-    protected function processDecisions(
-        ApprovalRequest $request,
-        ToolCallEvent   $event,
-    ): void {
+    protected function processDecisions(array $wake, ToolCallEvent $event): void
+    {
         foreach ($event->toolCallMessage->getTools() as $tool) {
-            $toolCallId = $tool->getCallId();
-            if ($toolCallId === null) {
-                // Tool doesn't require approval, skip
+            $callId = $tool->getCallId();
+            if ($callId === null) {
                 continue;
             }
 
-            $action = $request->getAction($toolCallId);
-
-            if (!$action instanceof Action) {
-                // Tool doesn't require approval, skip
+            if (!array_key_exists($callId, $wake)) {
+                // No decision delivered for this tool — treat as approved.
                 continue;
             }
 
-            // Process based on decision
-            if ($action->isRejected()) {
-                $this->handleRejectedTool($tool, $action);
+            $reason = $this->extractRejectionReason($wake[$callId]);
+            if ($reason !== null) {
+                $this->handleRejectedTool($tool, $reason);
             }
-
-            // If approved, do nothing - the tool will be executed normally
         }
+    }
+
+    /**
+     * Decode a wake decision into a rejection reason, or null when the decision
+     * is not a rejection.
+     *
+     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason] | ['edit', $args]
+     */
+    protected function extractRejectionReason(mixed $decision): ?string
+    {
+        if ($decision === 'reject') {
+            return 'No specific instruction provided.';
+        }
+
+        if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
+            return isset($decision[1]) && is_string($decision[1])
+                ? $decision[1]
+                : 'No specific instruction provided.';
+        }
+
+        return null;
     }
 
     /**
@@ -210,9 +257,8 @@ class ToolApproval implements WorkflowMiddleware
      * This prevents the tool from executing its actual logic and instead
      * returns a human-readable rejection message that the AI can process.
      */
-    protected function handleRejectedTool(ToolInterface $tool, Action $action): void
+    protected function handleRejectedTool(ToolInterface $tool, string $feedback): void
     {
-        $feedback = $action->feedback ?? 'No specific instruction provided.';
         $rejectionMessage = sprintf(
             "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
             $feedback

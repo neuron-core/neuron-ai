@@ -72,7 +72,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($resumed, $this->createExecutor($persistence), $request);
+        $result = $this->resume($resumed, $this->createExecutor($persistence), []);
 
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));
@@ -99,7 +99,7 @@ class ParallelInterruptTest extends TestCase
         $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->execute($workflow, $executor, $request);
+        $result = $this->resume($workflow, $executor, []);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');
@@ -123,7 +123,7 @@ class ParallelInterruptTest extends TestCase
         $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->execute($workflow, $executor, $request);
+        $result = $this->resume($workflow, $executor, []);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $this->assertTrue($result->get('continuation_node_executed'));
@@ -145,7 +145,7 @@ class ParallelInterruptTest extends TestCase
         $request = $this->execute($workflow, $executor)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->execute($workflow, $executor, $request);
+        $result = $this->resume($workflow, $executor, []);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $mergeResults = $result->get('merge_results');
@@ -173,11 +173,11 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('step1 approval', $request1->getMessage());
 
         // Resuming re-enters the branch and pauses again at step2
-        $request2 = $this->execute($workflow, $executor, $request1)->getInterruptRequest();
+        $request2 = $this->resume($workflow, $executor, [])->getInterruptRequest();
         $this->assertNotNull($request2);
         $this->assertSame('step2 approval', $request2->getMessage());
 
-        $result = $this->execute($workflow, $executor, $request2);
+        $result = $this->resume($workflow, $executor, []);
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));
         $this->assertSame('TWO_STEP_APPROVED', $result->get('analysis')['text']);
@@ -196,7 +196,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertNotNull($request);
         $this->assertSame('linear interrupt', $request->getMessage());
 
-        $result = $this->execute($workflow, $executor, $request);
+        $result = $this->resume($workflow, $executor, []);
         $this->assertFalse($result->isInterrupted());
     }
 
@@ -241,7 +241,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($resumed, new AsyncExecutor(new LocalStepEngine($persistence)), $request);
+        $result = $this->resume($resumed, new AsyncExecutor(new LocalStepEngine($persistence)), []);
 
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));

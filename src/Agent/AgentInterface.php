@@ -9,7 +9,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 interface AgentInterface
 {
@@ -35,16 +34,19 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start; a wake array to resume.
      */
-    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler;
+    public function chat(Message|array $messages = [], ?array $wake = null, bool $timedOut = false): AgentHandler;
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start; a wake array to resume.
      */
-    public function stream(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler;
+    public function stream(Message|array $messages = [], ?array $wake = null, bool $timedOut = false): AgentHandler;
 
     /**
      * @param Message|Message[] $messages
+     * @param array<string, mixed>|null $wake Null to start; a wake array to resume.
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?InterruptRequest $interrupt = null): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?array $wake = null, bool $timedOut = false): mixed;
 }
