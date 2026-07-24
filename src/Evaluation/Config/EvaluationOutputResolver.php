@@ -5,45 +5,58 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Config;
 
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
-use ReflectionException;
 use RuntimeException;
 
-use function is_array;
-use function is_int;
+use function class_exists;
+use function is_subclass_of;
 use function is_string;
 
+/**
+ * Resolves the `output` config entries into driver instances.
+ *
+ * Each entry is either:
+ *  - a class string of a zero-argument {@see EvaluationOutputInterface}, or
+ *  - an already-constructed {@see EvaluationOutputInterface} instance.
+ *
+ * Drivers that need constructor arguments (dependencies, options) must be
+ * supplied as concrete instances - the framework's DI container can build
+ * them. There is no reflection-based option mapping or callable factory.
+ */
 class EvaluationOutputResolver
 {
     /**
-     * @var EvaluationOutputInterface[]
+     * @param array<int, string|EvaluationOutputInterface> $drivers
+     * @return EvaluationOutputInterface[]
      */
-    protected array $resolvedDrivers = [];
+    public function resolve(array $drivers): array
+    {
+        $resolved = [];
 
-    public function __construct(
-        protected readonly EvaluationOutputFactory $factory = new EvaluationOutputFactory()
-    ) {
+        foreach ($drivers as $driver) {
+            $resolved[] = $this->resolveOne($driver);
+        }
+
+        return $resolved;
     }
 
     /**
-     * @param array<string|int, mixed> $driverConfigs
-     * @return EvaluationOutputInterface[]
-     * @throws ReflectionException
+     * @param string|EvaluationOutputInterface $driver
      */
-    public function resolve(array $driverConfigs): array
+    protected function resolveOne(string|EvaluationOutputInterface $driver): EvaluationOutputInterface
     {
-        foreach ($driverConfigs as $key => $value) {
-            // Case 1: Integer key, value is class string (no options)
-            if (is_int($key) && is_string($value)) {
-                $this->resolvedDrivers[] = $this->factory->create($value, []);
-            }
-            // Case 2: String key (class name), value is options array
-            elseif (is_string($key) && is_array($value)) {
-                $this->resolvedDrivers[] = $this->factory->create($key, $value);
-            } else {
-                throw new RuntimeException('Invalid driver config structure');
-            }
+        if ($driver instanceof EvaluationOutputInterface) {
+            return $driver;
         }
 
-        return $this->resolvedDrivers;
+        if (!class_exists($driver)) {
+            throw new RuntimeException("Driver class '{$driver}' not found");
+        }
+
+        if (!is_subclass_of($driver, EvaluationOutputInterface::class)) {
+            throw new RuntimeException("Driver '{$driver}' must implement EvaluationOutputInterface");
+        }
+
+        /** @var class-string<EvaluationOutputInterface> $driver */
+        return new $driver();
     }
 }

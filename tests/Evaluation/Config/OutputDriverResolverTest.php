@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Config;
 
-use NeuronAI\Evaluation\Config\EvaluationOutputFactory;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
-use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronAI\Evaluation\Output\JsonOutput;
 use PHPUnit\Framework\TestCase;
@@ -14,10 +12,9 @@ use RuntimeException;
 
 class OutputDriverResolverTest extends TestCase
 {
-    public function testResolvesSimpleDriverWithoutOptions(): void
+    public function testResolvesZeroArgClassString(): void
     {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
+        $resolver = new EvaluationOutputResolver();
 
         $drivers = $resolver->resolve([ConsoleOutput::class]);
 
@@ -25,10 +22,9 @@ class OutputDriverResolverTest extends TestCase
         $this->assertInstanceOf(ConsoleOutput::class, $drivers[0]);
     }
 
-    public function testResolvesMultipleSimpleDrivers(): void
+    public function testResolvesMultipleClassStrings(): void
     {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
+        $resolver = new EvaluationOutputResolver();
 
         $drivers = $resolver->resolve([
             ConsoleOutput::class,
@@ -40,91 +36,57 @@ class OutputDriverResolverTest extends TestCase
         $this->assertInstanceOf(JsonOutput::class, $drivers[1]);
     }
 
-    public function testResolvesDriverWithOptionsUsingClassKey(): void
+    public function testPassesThroughAlreadyConstructedInstance(): void
     {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
+        $resolver = new EvaluationOutputResolver();
+        $instance = new JsonOutput('/tmp/test.json');
 
-        $drivers = $resolver->resolve([
-            JsonOutput::class => ['path' => '/tmp/test.json'],
-        ]);
+        $drivers = $resolver->resolve([$instance]);
 
         $this->assertCount(1, $drivers);
-        $this->assertInstanceOf(JsonOutput::class, $drivers[0]);
+        $this->assertSame($instance, $drivers[0]);
     }
 
-    public function testResolvesMixedConfigFormat(): void
+    public function testResolvesMixedClassStringsAndInstances(): void
     {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
+        $resolver = new EvaluationOutputResolver();
 
         $drivers = $resolver->resolve([
             ConsoleOutput::class,
-            JsonOutput::class => ['path' => '/tmp/test.json'],
+            new JsonOutput('/tmp/test.json'),
         ]);
 
         $this->assertCount(2, $drivers);
         $this->assertInstanceOf(ConsoleOutput::class, $drivers[0]);
         $this->assertInstanceOf(JsonOutput::class, $drivers[1]);
-    }
-
-    public function testResolvesMultipleDriversWithOptions(): void
-    {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
-
-        $drivers = $resolver->resolve([
-            ConsoleOutput::class => ['verbose' => true],
-            JsonOutput::class => ['path' => '/tmp/test.json'],
-        ]);
-
-        $this->assertCount(2, $drivers);
-        $this->assertInstanceOf(ConsoleOutput::class, $drivers[0]);
-        $this->assertInstanceOf(JsonOutput::class, $drivers[1]);
-    }
-
-    public function testThrowsExceptionForInvalidConfigStructure(): void
-    {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid driver config structure');
-
-        $resolver->resolve([123 => 456]);
-    }
-
-    public function testPassesOptionsToFactory(): void
-    {
-        $factory = $this->createMockFactory();
-        $resolver = new EvaluationOutputResolver($factory);
-
-        $factory->expects($this->once())
-            ->method('create')
-            ->with(ConsoleOutput::class, ['verbose' => true]);
-
-        $resolver->resolve([ConsoleOutput::class => ['verbose' => true]]);
     }
 
     public function testResolvesEmptyArray(): void
     {
-        $factory = new EvaluationOutputFactory();
-        $resolver = new EvaluationOutputResolver($factory);
+        $resolver = new EvaluationOutputResolver();
 
         $drivers = $resolver->resolve([]);
 
         $this->assertCount(0, $drivers);
     }
 
-    /**
-     * @return EvaluationOutputFactory&\PHPUnit\Framework\MockObject\MockObject
-     */
-    private function createMockFactory(): EvaluationOutputFactory
+    public function testThrowsExceptionWhenClassNotFound(): void
     {
-        $mock = $this->createMock(EvaluationOutputFactory::class);
-        $mock->method('create')
-            ->willReturn($this->createMock(EvaluationOutputInterface::class));
+        $resolver = new EvaluationOutputResolver();
 
-        return $mock;
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Driver class 'NonExistentDriver' not found");
+
+        $resolver->resolve(['NonExistentDriver']);
+    }
+
+    public function testThrowsExceptionWhenClassDoesNotImplementInterface(): void
+    {
+        $resolver = new EvaluationOutputResolver();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("must implement EvaluationOutputInterface");
+
+        $resolver->resolve(['stdClass']);
     }
 }

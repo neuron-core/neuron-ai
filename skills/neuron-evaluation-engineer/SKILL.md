@@ -341,7 +341,15 @@ echo "Success Rate: {$summary->getSuccessRate() * 100}%\n";
 
 ### Config File
 
-Create `evaluation.php` in project root:
+Create `evaluation.php` in project root. Each `output` entry is either:
+
+- a **class string** of a zero-argument driver (resolved as `new $class()`), or
+- a **fully-constructed driver instance** (required for any driver that needs constructor arguments).
+
+Drivers that need dependencies (a DB connection, an HTTP client, options like a
+file path) **must** be supplied as concrete instances. This is what lets a host
+framework (Laravel, Symfony) build them through its DI container — pass the
+resolved instance into the config.
 
 ```php
 <?php
@@ -351,13 +359,11 @@ use NeuronAI\Evaluation\Output\JsonOutput;
 
 return [
     'output' => [
-        // Simple driver (no options)
+        // Zero-argument driver
         ConsoleOutput::class,
 
-        // Driver with options (class as key)
-        JsonOutput::class => [
-            'path' => 'evaluation-results.json',
-        ],
+        // Constructed instance (e.g. to set the output path)
+        new JsonOutput('evaluation-results.json'),
     ],
 ];
 ```
@@ -369,18 +375,22 @@ return [
 #### ConsoleOutput
 
 ```php
-ConsoleOutput::class => ['verbose' => true]
+// Zero-argument (no verbose detail)
+ConsoleOutput::class
+
+// With verbose mode — pass an instance
+new ConsoleOutput(true)
 ```
 
-- `verbose` - Show detailed input/output for failures
+- `verbose` (bool, default `false`) - Show detailed input/output for failures
 
 #### JsonOutput
 
 ```php
-// Write to file
-JsonOutput::class => ['path' => 'results.json']
+// Write to file — pass an instance with the path
+new JsonOutput('results.json')
 
-// Write to stdout
+// Write to stdout (no path)
 JsonOutput::class
 ```
 
@@ -414,12 +424,13 @@ class DatabaseOutput implements EvaluationOutputInterface
 }
 ```
 
-Register in config:
+Register the constructed instance (resolve dependencies from your DI container):
 ```php
-DatabaseOutput::class => [
-    'pdo' => new \PDO('mysql:host=localhost;dbname=evaluations', 'user', 'pass'),
-    'table' => 'evaluations',
-]
+return [
+    'output' => [
+        new DatabaseOutput($container->get(\PDO::class), 'evaluations'),
+    ],
+];
 ```
 
 ## Project Setup
