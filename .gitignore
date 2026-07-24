@@ -10,7 +10,4 @@ composer.lock
 .env
 scripts
 phpunit.xml.local
-
-# Temporary
-abs*
-COMP*
+CONTEXT.md
