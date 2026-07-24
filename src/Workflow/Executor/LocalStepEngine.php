@@ -26,11 +26,11 @@ class LocalStepEngine implements StepEngineInterface
     protected string $workflowId;
 
     /**
-     * The inbound resume wake staged by prepareExecution(). Null means this run
+     * The inbound resume payload staged by prepareExecution(). Null means this run
      * is a fresh start or a crash-recovery replay (no resume); a non-null array
      * (even empty) means a deliberate resume — the interrupted step consumes it.
      */
-    protected ?array $pendingWake = null;
+    protected ?array $pendingPayload = null;
 
     protected bool $pendingTimedOut = false;
 
@@ -39,10 +39,10 @@ class LocalStepEngine implements StepEngineInterface
     ) {
     }
 
-    public function prepareExecution(string $workflowId, ?array $wake = null, bool $timedOut = false): void
+    public function prepareExecution(string $workflowId, ?array $payload = null, bool $timedOut = false): void
     {
         $this->workflowId = $workflowId;
-        $this->pendingWake = $wake;
+        $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
     }
 
@@ -59,12 +59,12 @@ class LocalStepEngine implements StepEngineInterface
             return $cached;
         }
 
-        // Resuming an interrupted step — inject the staged inbound wake.
+        // Resuming an interrupted step — inject the staged inbound payload.
         if ($cached instanceof StepResult
             && $cached->isInterrupted()
-            && $this->pendingWake !== null
+            && $this->pendingPayload !== null
         ) {
-            $result = $fn($this->pendingWake, $this->pendingTimedOut);
+            $result = $fn($this->pendingPayload, $this->pendingTimedOut);
 
             $stamped = new StepResult(
                 stepId: $result->getStepId(),
@@ -115,7 +115,7 @@ class LocalStepEngine implements StepEngineInterface
 
     public function deleteSteps(): void
     {
-        $this->pendingWake = null;
+        $this->pendingPayload = null;
         $this->pendingTimedOut = false;
 
         $this->persistence->delete($this->workflowId);

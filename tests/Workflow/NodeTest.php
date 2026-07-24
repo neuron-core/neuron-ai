@@ -59,7 +59,7 @@ class NodeTest extends TestCase
         $this->assertSame('test', $state->get('checkpoint'));
         $this->assertNull($state->get('feedback'));
 
-        // Resume delivers the wake; interrupt() returns it on resume.
+        // Resume delivers the payload; interrupt() returns it on resume.
         $state = $this->resume($workflow, $executor, ['message' => 'what do you mean?']);
 
         $this->assertFalse($state->isInterrupted());

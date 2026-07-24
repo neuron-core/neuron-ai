@@ -55,7 +55,7 @@ class SuspendTypesTest extends TestCase
         $this->assertSame('user.signup', $interrupt->getEventName());
         $this->assertFalse($state->has('node_three_executed'));
 
-        // Resume on a fresh executor sharing the persistence, delivering the wake.
+        // Resume on a fresh executor sharing the persistence, delivering the payload.
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
@@ -87,7 +87,7 @@ class SuspendTypesTest extends TestCase
         $this->assertSame(InterruptType::SleepUntil, $interrupt->type());
         $this->assertFalse($state->has('node_three_executed'));
 
-        // Resume carries no payload — the wakeup itself is the signal (empty wake).
+        // Resume carries no payload — the wakeup itself is the signal (empty payload).
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
 
@@ -150,7 +150,7 @@ class SuspendTypesTest extends TestCase
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-        // Resume with an empty wake — the node receives an empty event body.
+        // Resume with an empty payload — the node receives an empty event body.
         $state = $this->resume(
             $resumed,
             $this->createExecutor($persistence),

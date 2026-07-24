@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * Inert scheduler: never registers or fires any wakeup.
  *
  * This is the default. It preserves the caller-driven model — a suspended
- * workflow stays suspended until a caller re-invokes resume() with a wake.
+ * workflow stays suspended until a caller re-invokes resume() with a payload.
  * It is also the scheduler used in tests and by the OSS distribution; real
  * coordination (timers/events/cloud) is provided by alternative implementations.
  */

@@ -52,11 +52,11 @@ resume they return the inbound **answer** (never the request object back):
 
 ```php
 // Generic — carry any InterruptRequest subclass OUTBOUND; on resume returns the
-// raw wake array (the delivered answer), which a custom caller interprets.
-$wake = $this->interrupt(new MyApprovalRequest(...));
+// raw payload (the delivered answer), which a custom caller interprets.
+$payload = $this->interrupt(new MyApprovalRequest(...));
 
 // Sugar over interrupt() with a WaitForEventRequest. Returns the event payload
-// (the wake array) on resume, or null on timeout.
+// on resume, or null on timeout.
 $payload = $this->awaitEvent('order.created', expiresAt: $deadline);
 if ($payload === null) { /* timed out — no event arrived */ }
 
@@ -69,12 +69,12 @@ $this->sleepUntil($wakeAt);
 and converts into an `InterruptEvent`, which terminates traversal like `StopEvent`.
 The returned state is marked interrupted and carries the request **outbound** (for
 the caller to render). Resume re-runs only the interrupted step, injecting the
-inbound wake; completed branches/nodes are skipped via step replay — no parallel
+inbound payload; completed branches/nodes are skipped via step replay — no parallel
 metadata is carried.
 
 **Outbound vs inbound.** The request is a pure, immutable *outbound* value — the
 pause description plus whatever custom context the node wants surfaced (actions,
-object instances). The resume **answer** is a separate *inbound* **wake** (a plain
+object instances). The resume **answer** is a separate *inbound* **payload** (a plain
 serialization-safe array) plus a `bool $timedOut` flag. They never share an object.
 
 **The request is fire-and-forget — it is not persisted.** Only an `interrupted`
@@ -91,7 +91,7 @@ if ($state->isInterrupted()) {
     // ... collect the decision / event data ...
 
     $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())
-        ->resume(['id' => 42]);                 // deliver the inbound wake (no stepId)
+        ->resume(['id' => 42]);                 // deliver the inbound payload (no stepId)
 }
 ```
 
@@ -200,7 +200,7 @@ A node re-runs for one of two reasons, and they are distinguishable:
 
 | Trigger | Signal | Use |
 |---|---|---|
-| **Interrupt-resume** — this node suspended and is woken with a wake | `isResuming()` / `getWake()` (the inbound wake array is injected) | `consumeWake()` — carries *external input* that didn't exist before |
+| **Interrupt-resume** — this node suspended and is resumed with a payload | `isResuming()` / `getResumePayload()` (the inbound payload is injected) | `consumePayload()` — carries *external input* that didn't exist before |
 | **Crash-replay** — the node crashed mid-step and is re-run on recovery | no `InterruptRequest` (memo recall only) | `recallMemo()` / `memoize()` — carries *internal results* already computed |
 
 These are orthogonal by necessity: a resume delivers new information from outside; a

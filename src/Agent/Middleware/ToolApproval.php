@@ -17,7 +17,9 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_filter;
+use function array_key_exists;
 use function count;
+use function is_array;
 use function is_callable;
 use function is_int;
 use function is_string;
@@ -39,7 +41,7 @@ class ToolApproval implements WorkflowMiddleware
      *
      * Example:
      *   new ToolApproval([
-     *       'delete_file',
+     *       DeleteFile::class,
      *       'transfer_money' => fn(ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100,
      *   ])
      */
@@ -51,16 +53,18 @@ class ToolApproval implements WorkflowMiddleware
     /**
      * Execute before the node runs.
      *
-     * On initial run: inspects tools and creates an ApprovalRequest interrupt for
-     * any that require approval.
-     * On resume: processes the human decisions carried in the inbound wake and
-     * modifies tools accordingly.
+     * A tool runs only if it is explicitly approved (ADR 0002). This gate is stateless: on every
+     * resume it re-derives the approval-requiring tools (deterministic, via replay) and demands a
+     * COMPLETE decision set in the inbound payload:
      *
-     * The wake for an approval resume is keyed by tool callId:
-     *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason] | ['edit', $args]]
-     * A resume for a different reason (e.g. an interrupting tool) carries no such
-     * keys, so we discriminate by re-deriving the approval-requiring tools
-     * (deterministic) and checking their callIds appear in the wake.
+     *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
+     *
+     * - Initial run: suspend with an ApprovalRequest for every approval-requiring tool.
+     * - Resume, all decided: apply the decisions and let the node proceed.
+     * - Resume, some undecided: re-suspend. The new request reflects the decisions already
+     *   delivered (decided actions carry their decision), so the human sees progress rather than a
+     *   blank slate. Because the gate is stateless, the payload must be cumulative — it re-states
+     *   every prior decision; ApprovalRequest::generatePayload() produces exactly that.
      *
      * @param ToolNode $node
      * @param ToolCallEvent $event
@@ -74,31 +78,59 @@ class ToolApproval implements WorkflowMiddleware
 
         $toolsToApprove = $this->filterToolsRequiringApproval($event->toolCallMessage->getTools());
 
-        // Resume: if the wake carries decisions for the approval-requiring tools,
-        // apply them. Otherwise this resume is for a different reason — fall through
-        // to the initial-run logic (which will re-suspend if approval is still owed).
-        if ($node->isResuming() && $toolsToApprove !== []) {
-            $wake = $node->getWake() ?? [];
-            if ($this->isApprovalResume($wake, $toolsToApprove)) {
-                $this->processDecisions($wake, $event);
-                return;
-            }
-        }
-
-        // Initial run (or resume that didn't deliver approval decisions): nothing
-        // requires approval, continue execution.
+        // Nothing requires approval — let the node run.
         if ($toolsToApprove === []) {
             return;
         }
 
-        // Create the interrupt request with actions for each tool
+        if ($node->isResuming()) {
+            $payload = $node->getResumePayload() ?? [];
+
+            if ($this->undecidedTools($payload, $toolsToApprove) === []) {
+                // Complete decision set — apply it and proceed.
+                $this->processDecisions($payload, $event);
+                return;
+            }
+
+            // Incomplete — re-suspend, reflecting the decisions already delivered.
+            throw new WorkflowInterrupt($this->buildRequest($payload, $toolsToApprove));
+        }
+
+        // Initial run — suspend for all approval-requiring tools.
+        throw new WorkflowInterrupt($this->buildRequest([], $toolsToApprove));
+    }
+
+    /**
+     * The approval-requiring tools that lack a decision in the payload. An empty result means the
+     * decision set is complete.
+     *
+     * @param ToolInterface[] $toolsToApprove
+     * @return ToolInterface[]
+     */
+    protected function undecidedTools(array $payload, array $toolsToApprove): array
+    {
+        return array_filter(
+            $toolsToApprove,
+            fn (ToolInterface $tool): bool => !array_key_exists($tool->getCallId() ?? '', $payload)
+        );
+    }
+
+    /**
+     * Build the outbound ApprovalRequest for the given tools, marking each action with the decision
+     * already carried in the payload (so a re-suspend shows progress).
+     *
+     * @param ToolInterface[] $tools
+     */
+    protected function buildRequest(array $payload, array $tools): ApprovalRequest
+    {
         $actions = [];
-        foreach ($toolsToApprove as $tool) {
-            $actions[] = $this->createAction($tool);
+        foreach ($tools as $tool) {
+            $actions[] = $this->createAction($tool, $payload);
         }
 
         $count = count($actions);
-        $interruptRequest = new ApprovalRequest(
+
+        return new ApprovalRequest(
             message: sprintf(
                 '%d tool call%s require%s approval before execution',
                 $count,
@@ -107,26 +139,6 @@ class ToolApproval implements WorkflowMiddleware
             ),
             actions: $actions
         );
-
-        throw new WorkflowInterrupt($interruptRequest);
-    }
-
-    /**
-     * Is this wake an approval resume? True when it carries a decision for at
-     * least one tool that requires approval (re-derived deterministically).
-     *
-     * @param ToolInterface[] $toolsToApprove
-     */
-    protected function isApprovalResume(array $wake, array $toolsToApprove): bool
-    {
-        foreach ($toolsToApprove as $tool) {
-            $callId = $tool->getCallId();
-            if ($callId !== null && array_key_exists($callId, $wake)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -183,34 +195,75 @@ class ToolApproval implements WorkflowMiddleware
     }
 
     /**
-     * Create an Action for a tool that requires approval.
+     * Create an Action for a tool that requires approval. When a payload is provided (a re-suspend),
+     * the action carries the decision already delivered for this tool so the request reflects
+     * progress.
+     *
+     * @param array<string, mixed> $payload
      */
-    protected function createAction(ToolInterface $tool): Action
+    protected function createAction(ToolInterface $tool, array $payload = []): Action
     {
+        $id = $tool->getCallId() ?? uniqid('tool_');
+
         $inputs = $tool->getInputs();
         $inputsDescription = $inputs === []
             ? '(no arguments)'
             : json_encode($inputs, JSON_PRETTY_PRINT);
 
+        $decision = ActionDecision::Pending;
+        $feedback = null;
+        if (array_key_exists($id, $payload)) {
+            [$decision, $feedback] = $this->decodeDecision($payload[$id]);
+        }
+
         return new Action(
-            id: $tool->getCallId() ?? uniqid('tool_'),
+            id: $id,
             name: $tool->getName(),
             description: $inputsDescription,
-            decision: ActionDecision::Pending
+            decision: $decision,
+            feedback: $feedback
         );
     }
 
     /**
-     * Process human decisions from the wake and modify tools accordingly.
+     * Map a payload decision back onto an ActionDecision, for re-suspend progress marking.
      *
-     * Iterates the tools, looks up each tool's decision in the wake (keyed by
-     * callId), and:
-     *  - Rejected: the tool result is set to a rejection message (so it won't run).
-     *  - Approved / edited / absent: no change — the tool executes normally.
-     *
-     * @param array<string, mixed> $wake Decisions keyed by tool callId.
+     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason]
+     * @return array{0: ActionDecision, 1: string|null}
      */
-    protected function processDecisions(array $wake, ToolCallEvent $event): void
+    protected function decodeDecision(mixed $decision): array
+    {
+        if ($decision === 'approve') {
+            return [ActionDecision::Approved, null];
+        }
+
+        if ($decision === 'reject') {
+            return [ActionDecision::Rejected, null];
+        }
+
+        if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
+            return [
+                ActionDecision::Rejected,
+                isset($decision[1]) && is_string($decision[1]) ? $decision[1] : null,
+            ];
+        }
+
+        return [ActionDecision::Pending, null];
+    }
+
+    /**
+     * Process human decisions from the payload and modify tools accordingly.
+     *
+     * Iterates the tools, looks up each tool's decision in the payload (keyed by callId), and:
+     *  - Rejected: the tool result is set to a rejection message (so it won't run).
+     *  - Approved / absent: no change — the tool executes normally.
+     *
+     * Only reached once the decision set is complete (see before()), so an absent entry here is a
+     * tool that does not require approval — running it is correct.
+     *
+     * @param array<string, mixed> $payload Decisions keyed by tool callId.
+     */
+    protected function processDecisions(array $payload, ToolCallEvent $event): void
     {
         foreach ($event->toolCallMessage->getTools() as $tool) {
             $callId = $tool->getCallId();
@@ -218,12 +271,12 @@ class ToolApproval implements WorkflowMiddleware
                 continue;
             }
 
-            if (!array_key_exists($callId, $wake)) {
-                // No decision delivered for this tool — treat as approved.
+            if (!array_key_exists($callId, $payload)) {
+                // Not an approval-requiring tool — run normally.
                 continue;
             }
 
-            $reason = $this->extractRejectionReason($wake[$callId]);
+            $reason = $this->extractRejectionReason($payload[$callId]);
             if ($reason !== null) {
                 $this->handleRejectedTool($tool, $reason);
             }
@@ -231,10 +284,10 @@ class ToolApproval implements WorkflowMiddleware
     }
 
     /**
-     * Decode a wake decision into a rejection reason, or null when the decision
-     * is not a rejection.
+     * Decode a payload decision into a rejection reason, or null when the decision is not a
+     * rejection.
      *
-     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason] | ['edit', $args]
+     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason]
      */
     protected function extractRejectionReason(mixed $decision): ?string
     {

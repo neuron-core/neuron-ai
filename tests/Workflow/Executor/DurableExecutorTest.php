@@ -103,7 +103,7 @@ class DurableExecutorTest extends TestCase
         // Paused steps are retained for resume (cleanup only runs on completion)
         $this->assertNotNull($persistence->load($workflowId, DurableNodeA::class . '-0'));
 
-        // Resume — deliver the wake (node B just checks isResuming()).
+        // Resume — deliver the payload (node B just checks isResuming()).
         CountableNode::resetExecutionCount();
         $workflow2 = Workflow::make(resumeToken: $workflowId)
             ->addNodes([

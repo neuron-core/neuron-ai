@@ -12,7 +12,7 @@ use DateTimeInterface;
  *
  * This is the OUTBOUND pause description only — the event name to wait for and an
  * optional deadline. The matched event data (the answer) is NOT carried here; it
- * arrives as the inbound wake on resume (see Workflow::resume()). Subclasses
+ * arrives as the inbound payload on resume (see Workflow::resume()). Subclasses
  * specialize the outbound context — ApprovalRequest is the shipped example,
  * carrying Action[] the caller must render to a human.
  *

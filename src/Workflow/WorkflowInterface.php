@@ -15,7 +15,7 @@ interface WorkflowInterface
 
     /**
      * Start the workflow to completion (or replay cached steps after a crash).
-     * Delivers no resume wake — use {@see resume()} for that.
+     * Delivers no resume payload — use {@see resume()} for that.
      */
     public function run(): WorkflowState;
 

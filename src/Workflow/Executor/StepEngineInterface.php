@@ -9,7 +9,7 @@ namespace NeuronAI\Workflow\Executor;
  *
  * Owns persistence and the per-step replay logic: every executed node is
  * persisted as a StepResult, completed steps are skipped on replay, interrupted
- * steps resume from a staged inbound wake, and failed steps retry.
+ * steps resume from a staged inbound payload, and failed steps retry.
  *
  * The local {@see LocalStepEngine} is the in-process implementation. The
  * executor depends on this interface — never on a persistence backend or a
@@ -22,24 +22,24 @@ interface StepEngineInterface
     /**
      * Prepare the engine for a new execution of the given workflow.
      *
-     * Stages the inbound resume wake when this run is a deliberate resume of a
-     * suspended step. A null $wake means this is a fresh start or a crash-recovery
-     * replay (no resume); a non-null $wake (even empty) means resume.
+     * Stages the inbound resume payload when this run is a deliberate resume of a
+     * suspended step. A null $payload means this is a fresh start or a crash-recovery
+     * replay (no resume); a non-null $payload (even empty) means resume.
      *
-     * @param array<string, mixed>|null $wake The delivered event payload, or null when not resuming.
+     * @param array<string, mixed>|null $payload The delivered event body, or null when not resuming.
      */
-    public function prepareExecution(string $workflowId, ?array $wake = null, bool $timedOut = false): void;
+    public function prepareExecution(string $workflowId, ?array $payload = null, bool $timedOut = false): void;
 
     /**
      * Run a single step, memoized by step id.
      *
      * Returns the cached StepResult when a prior generation completed this step;
-     * resumes an interrupted step with the staged wake; otherwise executes $fn
+     * resumes an interrupted step with the staged payload; otherwise executes $fn
      * (which runs the node) and persists the outcome. The callable receives the
-     * resume wake + timedOut flag (wake is null when not resuming), and returns
+     * resume payload + timedOut flag (payload is null when not resuming), and returns
      * the live result.
      *
-     * @param callable(array<string,mixed>|null $wake, bool $timedOut): StepResult $fn
+     * @param callable(array<string,mixed>|null $payload, bool $timedOut): StepResult $fn
      */
     public function runStep(string $stepId, callable $fn): StepResult;
 

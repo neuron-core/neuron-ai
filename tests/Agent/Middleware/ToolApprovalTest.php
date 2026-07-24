@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use PHPUnit\Framework\TestCase;
@@ -211,5 +212,78 @@ class ToolApprovalTest extends TestCase
         $actions = $request->getActions();
         $this->assertCount(1, $actions);
         $this->assertSame('dangerous_tool', $actions[0]->name);
+    }
+
+    public function testResumeWithCompleteApprovalsProceeds(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool = $this->createToolWithInputs('delete_file', ['path' => '/tmp/x']);
+        $event = $this->createToolCallEvent([$tool]);
+        $node->setWorkflowContext($state, $event, ['call_delete_file' => 'approve']);
+
+        $this->assertDoesNotInterrupt($middleware, $node, $event, $state, 'A complete approval set should proceed');
+    }
+
+    public function testResumeWithCompleteRejectionBlocksTool(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool = $this->createToolWithInputs('delete_file', ['path' => '/tmp/x']);
+        $event = $this->createToolCallEvent([$tool]);
+        $node->setWorkflowContext($state, $event, ['call_delete_file' => ['reject', 'nope']]);
+
+        $this->assertDoesNotInterrupt($middleware, $node, $event, $state);
+
+        // The rejected tool carries a rejection result so it will not execute.
+        $this->assertStringContainsString('rejected', $tool->getResult());
+    }
+
+    public function testResumeWithIncompleteDecisionsReSuspends(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool1 = $this->createToolWithInputs('delete_file', ['path' => '/tmp/x']);
+        $tool2 = $this->createToolWithInputs('send_email', ['to' => 'a@b.c']);
+        $event = $this->createToolCallEvent([$tool1, $tool2]);
+        // Only one of two approval-requiring tools is decided → incomplete.
+        $node->setWorkflowContext($state, $event, ['call_delete_file' => 'approve']);
+
+        $interrupt = $this->assertInterrupts($middleware, $node, $event, $state, 'An incomplete decision set must re-suspend');
+
+        $request = $interrupt->getRequest();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
+        // The re-suspend still covers both tools.
+        $this->assertCount(2, $request->getActions());
+    }
+
+    public function testResumeReSuspendMarksAlreadyDecidedActions(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool1 = $this->createToolWithInputs('delete_file', ['path' => '/tmp/x']);
+        $tool2 = $this->createToolWithInputs('send_email', ['to' => 'a@b.c']);
+        $event = $this->createToolCallEvent([$tool1, $tool2]);
+        $node->setWorkflowContext($state, $event, ['call_delete_file' => 'approve']);
+
+        $request = $this->assertInterrupts($middleware, $node, $event, $state)->getRequest();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
+
+        $byId = [];
+        foreach ($request->getActions() as $action) {
+            $byId[$action->id] = $action;
+        }
+        // delete_file was approved in the payload → its action carries the decision (progress).
+        $this->assertEquals(ActionDecision::Approved, $byId['call_delete_file']->decision);
+        // send_email is still pending.
+        $this->assertEquals(ActionDecision::Pending, $byId['call_send_email']->decision);
     }
 }

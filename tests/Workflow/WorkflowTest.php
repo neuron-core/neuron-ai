@@ -206,7 +206,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_one_executed'));
         $this->assertNull($state->get('received_feedback'));
 
-        // Resume delivers the wake through interrupt()
+        // Resume delivers the payload through interrupt()
         $state = $this->resume($workflow, $executor, []);
 
         $this->assertFalse($state->isInterrupted());

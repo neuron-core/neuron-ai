@@ -1,4 +1,4 @@
-# InterruptRequest is outbound-only; the resume answer is a separate inbound wake
+# InterruptRequest is outbound-only; the resume answer is a separate inbound payload
 
 **Status:** accepted
 
@@ -19,11 +19,11 @@ We decide:
   pause terms (`eventName`, `expiresAt`) and any custom context the developer wants surfaced. The
   node receives the **answer** directly on resume, never the request object back. `InterruptRequest`
   gains no inbound methods.
-- **The resume answer is a separate inbound value.** `resume(array $wake = [], bool $timedOut = false)`
-  is the sole resume path. `$wake` is the delivered event payload (a plain, serialization-safe
+- **The resume answer is a separate inbound value.** `resume(array $payload = [], bool $timedOut = false)`
+  is the sole resume path. `$payload` is the delivered event body (a plain, serialization-safe
   array); `$timedOut` is a dedicated boolean signalling the resume was a deadline elapsing. The
-  framework shapes the wake into the answer for built-in verbs only (`awaitEvent` → `?array`,
-  `null` on `$timedOut`); `interrupt()` on a custom request returns the raw wake array and the node
+  framework shapes the payload into the answer for built-in verbs only (`awaitEvent` → `?array`,
+  `null` on `$timedOut`); `interrupt()` on a custom request returns the raw payload and the node
   interprets it.
 - **The request is fire-and-forget — it is not persisted.** Only an `interrupted` boolean flag is
   stored per step. The node reconstructs the request by re-executing (replay-by-rerun guarantees
@@ -47,7 +47,7 @@ We decide:
   rerun reconstructs the request, and the app/scheduler already hold it at suspend time. Persisting
   it buys only zero-run inspection of pause terms — a convenience we instead assign to whoever wants
   it (they received the request at suspend through two channels).
-- **`expired` flag baked into the `$wake` array (rejected).** `$timedOut` is not event data — it is
+- **`expired` flag baked into the `$payload` array (rejected).** `$timedOut` is not event data — it is
   the *nature* of the resume. Mixing it into the payload array conflates responsibilities; it gets
   its own argument.
 
@@ -56,7 +56,7 @@ We decide:
 - **Carrying object instances in a custom `InterruptRequest` is now safe** — the request is never
   serialized. This was previously a latent failure mode.
 - **The Cloud SDK stops depending on framework internals.** Its resume handler collapses to
-  `$workflow->resume($wake, $timedOut)` — one method — instead of `PersistenceInterface` +
+  `$workflow->resume($payload, $timedOut)` — one method — instead of `PersistenceInterface` +
   `StepResult::getInterrupt()` + `InterruptRequest` mutators.
 - **No zero-run inspection of pause terms from persistence.** A process that wants to know "what is
   workflow X waiting for?" without resuming must either `run()` it (replay re-suspends and returns
@@ -64,14 +64,14 @@ We decide:
   shift: the framework owns execution position; durable visibility into pause terms is the caller's
   or scheduler's job.
 - **`WaitForEventRequest` loses `setPayload`/`markExpired`/`isExpired`/`getPayload`.** Payload and
-  timeout become inbound (`$wake` / `$timedOut`). `expiresAt` (the deadline) stays, as an outbound
+  timeout become inbound (`$payload` / `$timedOut`). `expiresAt` (the deadline) stays, as an outbound
   term.
 - **Both control topologies — caller-driven (user-facing agents) and scheduler-driven (background) —
   share one resume mechanism.** The framework does not know or care who triggered a given resume.
 
 ## Why this is irreversible / surprising
 
-The request-not-persisted choice and the `resume(wake, timedOut)` signature are public API and a
+The request-not-persisted choice and the `resume(payload, timedOut)` signature are public API and a
 persistence-contract change. A future reader seeing an `interrupted` boolean where they'd expect a
 stored request, or a `resume()` that takes no `stepId`, will reasonably ask why — this ADR is the
 answer.

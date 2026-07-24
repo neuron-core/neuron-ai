@@ -33,7 +33,7 @@ interface SchedulerInterface
 
     /**
      * Called by the executor when a suspended workflow is resumed — whether inline
-     * (a caller re-invokes resume() with a wake, e.g. a human approval from a UI
+     * (a caller re-invokes resume() with a payload, e.g. a human approval from a UI
      * controller) or via a scheduler push wakeup. The scheduler should cancel the
      * wakeup this resume satisfies, so an inline resume does not leave a stale
      * timer/event subscription behind.
@@ -45,7 +45,7 @@ interface SchedulerInterface
      * re-notifies via onSuspend() if the workflow suspends again. The default
      * {@see NullScheduler} is inert regardless.
      *
-     * The resume wake is not passed: the scheduler cancels by workflow id, and a
+     * The resume payload is not passed: the scheduler cancels by workflow id, and a
      * scheduler that fired a timeout already knows it did.
      *
      * @param string $workflowId The resumed workflow.

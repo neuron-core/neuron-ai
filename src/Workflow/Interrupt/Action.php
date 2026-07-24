@@ -61,17 +61,6 @@ class Action implements JsonSerializable
     }
 
     /**
-     * Mark this action as edited.
-     *
-     * @param string|null $feedback Optional explanation of the edit
-     */
-    public function edit(?string $feedback = null): void
-    {
-        $this->decision = ActionDecision::Edit;
-        $this->feedback = $feedback;
-    }
-
-    /**
      * Check if this action is pending.
      */
     public function isPending(): bool
@@ -93,14 +82,6 @@ class Action implements JsonSerializable
     public function isRejected(): bool
     {
         return $this->decision->isRejected();
-    }
-
-    /**
-     * Check if this action is edited.
-     */
-    public function isEdited(): bool
-    {
-        return $this->decision === ActionDecision::Edit;
     }
 
     /**

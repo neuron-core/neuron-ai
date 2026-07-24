@@ -152,7 +152,7 @@ class AgentDurabilityTest extends TestCase
         // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
-        // Resume: deliver the approval wake (call_1 approved). Same workflowId →
+        // Resume: deliver the approval payload (call_1 approved). Same workflowId →
         // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);

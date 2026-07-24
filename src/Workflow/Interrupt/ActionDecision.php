@@ -11,14 +11,12 @@ namespace NeuronAI\Workflow\Interrupt;
  * - Pending: Awaiting user decision
  * - Approved: User approved the action
  * - Rejected: User rejected the action
- * - Edit: User wants to modify the action (future use)
  */
 enum ActionDecision: string
 {
     case Pending = 'pending';
     case Approved = 'approved';
     case Rejected = 'rejected';
-    case Edit = 'edit';
 
     public function isPending(): bool
     {

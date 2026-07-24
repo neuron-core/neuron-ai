@@ -25,11 +25,11 @@ abstract class Node implements NodeInterface
     protected Event $event;
 
     /**
-     * The inbound resume wake. Null when not resuming (fresh run or crash-replay);
+     * The inbound resume payload. Null when not resuming (fresh run or crash-replay);
      * a non-null array (even empty) means this node is resuming and holds the
      * delivered answer. Set by the executor via setWorkflowContext().
      */
-    protected ?array $wake = null;
+    protected ?array $payload = null;
 
     /**
      * True when this resume was produced by a wait's deadline elapsing rather than
@@ -47,30 +47,30 @@ abstract class Node implements NodeInterface
 
     public function setWorkflowContext(
         WorkflowState $currentState,
-        Event $currentEvent,
-        ?array $wake = null,
-        bool $timedOut = false,
+        Event         $currentEvent,
+        ?array        $payload = null,
+        bool          $timedOut = false,
         ?StepMemoizer $memoizer = null,
     ): void {
         $this->state = $currentState;
         $this->event = $currentEvent;
-        $this->wake = $wake;
+        $this->payload = $payload;
         $this->timedOut = $timedOut;
         $this->memoizer = $memoizer;
     }
 
     /**
-     * Consume the inbound resume wake (used internally by nodes).
-     * Returns null if not resuming or no wake staged.
+     * Consume the inbound resume payload (used internally by nodes).
+     * Returns null if not resuming or no payload staged.
      */
-    protected function consumeWake(): ?array
+    protected function consumePayload(): ?array
     {
-        if ($this->wake !== null) {
-            $wake = $this->wake;
+        if ($this->payload !== null) {
+            $payload = $this->payload;
             // Clear after use so a subsequent interrupt() in the same node re-suspends
             // instead of looping on the same resume.
-            $this->wake = null;
-            return $wake;
+            $this->payload = null;
+            return $payload;
         }
 
         return null;
@@ -142,11 +142,11 @@ abstract class Node implements NodeInterface
      * Suspend the workflow, carrying $request OUTBOUND to the caller/scheduler.
      *
      * On first pass this throws the internal suspend signal (caught at the step
-     * boundary). On resume it returns the inbound wake (the raw delivered answer,
+     * boundary). On resume it returns the inbound payload (the raw delivered answer,
      * which a custom caller interprets) — never throwing, so node code after the
      * call runs only on resume.
      *
-     * @return array<string, mixed>|null The wake on resume; null only if a condition short-circuited.
+     * @return array<string, mixed>|null The payload on resume; null only if a condition short-circuited.
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
@@ -164,7 +164,7 @@ abstract class Node implements NodeInterface
     protected function interruptIf(callable|bool $condition, InterruptRequest $request): ?array
     {
         if ($this->isResuming()) {
-            return $this->consumeWake();
+            return $this->consumePayload();
         }
 
         $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
@@ -182,7 +182,7 @@ abstract class Node implements NodeInterface
      *
      * Thin sugar over {@see interrupt()} with a WaitForEventRequest. On first pass
      * the workflow pauses; on resume this returns the matched event payload (the
-     * inbound wake). Finer correlation (e.g. a specific entity id) is done in the
+     * inbound payload). Finer correlation (e.g. a specific entity id) is done in the
      * node after resume.
      *
      * Returns null when the wait timed out: an optional $expiresAt bounds the
@@ -195,7 +195,7 @@ abstract class Node implements NodeInterface
      */
     protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?array
     {
-        $wake = $this->interrupt(new WaitForEventRequest($eventName, $expiresAt));
+        $payload = $this->interrupt(new WaitForEventRequest($eventName, $expiresAt));
 
         // Reached only on resume. A timeout (deadline elapsed, no event) is surfaced
         // to the node as null.
@@ -203,19 +203,19 @@ abstract class Node implements NodeInterface
             return null;
         }
 
-        return $wake ?? [];
+        return $payload ?? [];
     }
 
     /**
      * Suspend the workflow until a clock time. Thin sugar over {@see interrupt()}
      * with a SleepUntilRequest. Whether and when to fire is the scheduler's job.
-     * A timer wake carries no value, so this returns null on resume.
+     * A timer resume carries no value, so this returns null on resume.
      */
     protected function sleepUntil(DateTimeImmutable $wakeAt): ?array
     {
         $this->interrupt(new SleepUntilRequest($wakeAt));
 
-        // Reached only on resume — a timer wake delivers no payload.
+        // Reached only on resume — a timer resume delivers no payload.
         return null;
     }
 
@@ -227,18 +227,18 @@ abstract class Node implements NodeInterface
      */
     public function isResuming(): bool
     {
-        return $this->wake !== null;
+        return $this->payload !== null;
     }
 
     /**
-     * The inbound resume wake, or null when not resuming. Read by middleware
+     * The inbound resume payload, or null when not resuming. Read by middleware
      * (e.g. ToolApproval) to access the delivered answer.
      *
      * @return array<string, mixed>|null
      */
-    public function getWake(): ?array
+    public function getResumePayload(): ?array
     {
-        return $this->wake;
+        return $this->payload;
     }
 
     /**

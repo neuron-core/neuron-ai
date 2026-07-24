@@ -39,8 +39,14 @@ if ($state->isInterrupted()) {
  * Imagine a new execution cycle starts here
  * ---------------------------------------
  *
- * Rebuild the workflow instance with the resume token and the same persistence
- * component, then pass back the (possibly mutated) interrupt request to resume.
+ * Rebuild the workflow with the resume token and the same persistence, then
+ * resume by delivering an inbound PAYLOAD — a plain array carrying the answer
+ * to the pause (a human decision, an event body, etc.). The outbound
+ * InterruptRequest is never passed back in: it described the pause, the payload
+ * satisfies it.
+ *
+ * For an ApprovalRequest, generatePayload() turns the human's decisions into
+ * that array — e.g. ['action_id' => 'approve'].
  */
 $workflow = Workflow::make(resumeToken: $workflowId)
     ->setPersistence($persistence)
@@ -50,7 +56,10 @@ $workflow = Workflow::make(resumeToken: $workflowId)
         new NodeForSecond(),
     ]);
 
-$finalState = $workflow->run($approvalRequest);
+// The inbound payload — the answer to the pause.
+$payload = ['action_id' => 'approve'];
+
+$finalState = $workflow->resume($payload);
 
 // It should print "completed"
 echo $finalState->get('received_feedback') . \PHP_EOL;

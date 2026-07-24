@@ -142,11 +142,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowState $state,
         array $middleware = [],
         ?string $branchId = null,
-        ?array $wake = null,
+        ?array $payload = null,
         bool $timedOut = false,
         ?StepMemoizer $memoizer = null,
     ): Generator {
-        $node->setWorkflowContext($state, $event, $wake, $timedOut, $memoizer);
+        $node->setWorkflowContext($state, $event, $payload, $timedOut, $memoizer);
 
         $workflowId = $state->get('__workflowId');
 
@@ -215,7 +215,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $stepId,
         array &$streamedEvents,
     ): StepResult {
-        return $this->stepEngine->runStep($stepId, function (?array $wake, bool $timedOut) use (
+        return $this->stepEngine->runStep($stepId, function (?array $payload, bool $timedOut) use (
             $node,
             $event,
             $state,
@@ -231,7 +231,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $state,
                 $middleware,
                 $branchId,
-                $wake,
+                $payload,
                 $timedOut,
                 new StepMemoizer($this->stepEngine, $stepId),
             );

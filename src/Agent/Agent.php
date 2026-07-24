@@ -80,11 +80,11 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
+     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      */
     public function chat(
         Message|array $messages = [],
-        ?array $wake = null,
+        ?array $payload = null,
         bool $timedOut = false
     ): AgentHandler {
         $this->resolveStartEvent()->setMessages(
@@ -96,17 +96,17 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($wake, $timedOut)
+            $this->events($payload, $timedOut)
         );
     }
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
+     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      */
     public function stream(
         Message|array $messages = [],
-        ?array $wake = null,
+        ?array $payload = null,
         bool $timedOut = false
     ): AgentHandler {
         $this->resolveStartEvent()->setMessages(
@@ -118,13 +118,13 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($wake, $timedOut)
+            $this->events($payload, $timedOut)
         );
     }
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $wake Null to start the run; a wake array to resume a suspended agent.
+     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      * @throws AgentException
      * @throws Throwable
      */
@@ -132,7 +132,7 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?string $class = null,
         int $maxRetries = 1,
-        ?array $wake = null,
+        ?array $payload = null,
         bool $timedOut = false
     ): mixed {
         $this->resolveStartEvent()->setMessages(
@@ -146,7 +146,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         /** @var AgentState $finalState */
-        $finalState = $wake === null ? $this->run() : $this->resume($wake, $timedOut);
+        $finalState = $payload === null ? $this->run() : $this->resume($payload, $timedOut);
 
         return $finalState->get('structured_output');
     }

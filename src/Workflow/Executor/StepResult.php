@@ -14,7 +14,7 @@ class StepResult
         protected ?Event $event = null,
         protected ?WorkflowState $state = null,
         /**
-         * Marker that this step is suspended waiting for a resume wake. Only the flag
+         * Marker that this step is suspended waiting for a resume payload. Only the flag
          * is persisted — the InterruptRequest itself is NOT stored (it is outbound-only
          * and rebuilt by re-running the node on resume), so developer objects stuffed
          * into a request are never serialized.

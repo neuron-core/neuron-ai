@@ -79,7 +79,7 @@ class SchedulerTest extends TestCase
 
     public function testOnResumeFiresOnInlineResume(): void
     {
-        // The core contract: an inline resume (Workflow::make(resumeToken:)->resume($wake))
+        // The core contract: an inline resume (Workflow::make(resumeToken:)->resume($payload))
         // must notify the scheduler so it can cancel the wakeup. Without this, attaching
         // a scheduler would leak registrations on every inline resume.
         $spy = new SpyScheduler();
@@ -96,7 +96,7 @@ class SchedulerTest extends TestCase
         $this->assertSame([], $spy->onResumeCalls);
         $this->assertSame([], $spy->onCompleteCalls);
 
-        // Resume inline: same token + persistence, delivering the wake. The executor
+        // Resume inline: same token + persistence, delivering the payload. The executor
         // fires onResume with the workflow id (it cancels by id, not by request).
         $resumed = Workflow::make(resumeToken: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
@@ -128,7 +128,7 @@ class SchedulerTest extends TestCase
     {
         // onResume must fire ONLY on a deliberate resume (resume()), not on a run()
         // that replays cached steps — e.g. a crash-recovery retry where the caller
-        // passes no wake.
+        // passes no payload.
         $spy = new SpyScheduler();
         $executor = $this->createExecutor(null, $spy);
         $token = 'sched-no-resume';
