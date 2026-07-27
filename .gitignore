@@ -11,5 +11,4 @@ composer.lock
 .env
 scripts
 phpunit.xml.local
-
-CONT*
+CONTEXT.md
