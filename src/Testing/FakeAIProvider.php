@@ -36,7 +36,7 @@ class FakeAIProvider implements AIProviderInterface
     protected ?string $systemPrompt = null;
 
     /** @var Message[] */
-    protected array $responseQueue = [];
+    protected array $responseQueue;
 
     /** @var RequestRecord[] */
     protected array $recorded = [];

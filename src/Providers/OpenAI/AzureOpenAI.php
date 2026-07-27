@@ -13,7 +13,7 @@ use function trim;
 
 class AzureOpenAI extends OpenAI
 {
-    protected string $baseUri = "https://%s/openai/deployments/%s";
+    protected string $baseUri;
 
     public function __construct(
         protected string $key,

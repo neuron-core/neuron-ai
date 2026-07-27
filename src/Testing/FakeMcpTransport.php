@@ -13,7 +13,7 @@ use function count;
 class FakeMcpTransport implements McpTransportInterface
 {
     /** @var array<string, mixed>[] */
-    protected array $responseQueue = [];
+    protected array $responseQueue;
 
     /** @var array<string, mixed>[] */
     protected array $sent = [];

@@ -14,7 +14,7 @@ use const DIRECTORY_SEPARATOR;
 
 class HuggingFace extends OpenAI
 {
-    protected string $baseUri = 'https://router.huggingface.co/%s/v1';
+    protected string $baseUri;
 
     /**
      * @param array<string, mixed> $parameters

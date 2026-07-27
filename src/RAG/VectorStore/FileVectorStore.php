@@ -88,7 +88,7 @@ class FileVectorStore implements VectorStoreInterface
                 $matchesType = $document['sourceType'] === $sourceType;
                 $matchesName = $sourceName === null || $document['sourceName'] === $sourceName;
 
-                if (!($matchesType && $matchesName)) {
+                if (!$matchesType || !$matchesName) {
                     fwrite($tempHandle, (string) $line);
                 }
             }

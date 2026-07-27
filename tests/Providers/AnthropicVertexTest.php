@@ -14,6 +14,7 @@ use NeuronAI\Providers\Anthropic\AnthropicVertex;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
+use function iterator_to_array;
 
 class AnthropicVertexTest extends TestCase
 {
@@ -24,8 +25,8 @@ class AnthropicVertexTest extends TestCase
      */
     private function provider(string $model, string $location, ?HandlerStack $stack = null): AnthropicVertex
     {
-        return new class($model, $location, $stack) extends AnthropicVertex {
-            public function __construct(string $model, string $location, private ?HandlerStack $stack = null)
+        return new class ($model, $location, $stack) extends AnthropicVertex {
+            public function __construct(string $model, string $location, private readonly ?HandlerStack $stack = null)
             {
                 $this->model = $model;
                 $this->version = 'vertex-2023-10-16';
@@ -93,11 +94,8 @@ class AnthropicVertexTest extends TestCase
         $stack->push($history);
 
         $provider = $this->provider('claude-opus-5', 'us-central1', $stack);
-
-        $generator = $provider->stream(new UserMessage('Hi'));
-        // Consume the generator so the request is actually sent.
-        foreach ($generator as $_) {
-        }
+        // stream() returns a Generator that only executes when iterated.
+        iterator_to_array($provider->stream(new UserMessage('Hi')));
 
         $this->assertCount(1, $sentRequests);
         $request = $sentRequests[0]['request'];
