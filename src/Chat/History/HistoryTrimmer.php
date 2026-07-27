@@ -35,8 +35,16 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     protected ?int $cachedCount = null;
     protected ?string $cachedLastHash = null;
 
+    /**
+     * @param bool $strictAlternation Throw when the history does not strictly alternate
+     * user/assistant. Providers such as Anthropic accept consecutive same-role messages
+     * and merge them into one turn, and a turn that dies mid-stream (crash, closed tab)
+     * persists exactly that shape - a strict validator then rejects the session on every
+     * later message with no way to recover. Pass false to let the provider decide.
+     */
     public function __construct(
-        protected TokenCounter $tokenCounter = new TokenCounter()
+        protected TokenCounter $tokenCounter = new TokenCounter(),
+        protected bool $strictAlternation = true
     ) {
     }
 
@@ -65,7 +73,9 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $this->totalTokens = $this->calculateTotal($messages, $checkpoints, $count);
 
         if ($this->totalTokens <= $contextWindow) {
-            $this->validateAlternation($messages);
+            if ($this->strictAlternation) {
+                $this->validateAlternation($messages);
+            }
             return $messages;
         }
 
@@ -81,7 +91,9 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         }
 
         // Validate alternation after trimming
-        $this->validateAlternation($messages);
+        if ($this->strictAlternation) {
+            $this->validateAlternation($messages);
+        }
 
         return $messages;
     }

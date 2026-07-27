@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\ChatHistory;
 
+use NeuronAI\Chat\History\HistoryTrimmer;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -260,5 +262,27 @@ class ChatHistoryTrimmerTest extends TestCase
 
             $expectingUser = !$expectingUser;
         }
+    }
+
+    public function test_strict_alternation_throws_on_consecutive_same_role_messages(): void
+    {
+        $trimmer = new HistoryTrimmer();
+
+        $this->expectException(ChatHistoryException::class);
+
+        // The persisted shape of a turn that died mid-stream: the user message was saved,
+        // the assistant reply never landed, and the user sent another message.
+        $trimmer->trim([new UserMessage('first'), new UserMessage('second')], 1000000);
+    }
+
+    public function test_lenient_alternation_passes_consecutive_same_role_messages_through(): void
+    {
+        $trimmer = new HistoryTrimmer(strictAlternation: false);
+
+        $messages = [new UserMessage('first'), new UserMessage('second')];
+
+        // Providers such as Anthropic accept and merge consecutive same-role messages;
+        // with strict validation off the trimmer defers to the provider.
+        $this->assertSame($messages, $trimmer->trim($messages, 1000000));
     }
 }
