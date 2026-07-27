@@ -12,5 +12,4 @@ composer.lock
 scripts
 phpunit.xml.local
 
-ABS*
-COMP*
+CONT*

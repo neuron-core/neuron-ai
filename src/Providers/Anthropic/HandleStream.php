@@ -32,28 +32,10 @@ trait HandleStream
      */
     public function stream(Message ...$messages): Generator
     {
-        $json = [
-            'stream' => true,
-            'model' => $this->model,
-            'max_tokens' => $this->max_tokens,
-            'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
-        ];
-
-        if (isset($this->system)) {
-            $json['system'] = $this->system;
-        } elseif (isset($this->systemBlocks)) {
-            $json['system'] = $this->systemBlocks;
-        }
-
-        if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
-        }
-
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'messages',
-                body: $json
+                uri: $this->requestUri(true),
+                body: $this->requestBody($messages, true)
             )
         );
 

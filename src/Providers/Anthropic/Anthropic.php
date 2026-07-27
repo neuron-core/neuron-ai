@@ -6,6 +6,7 @@ namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -118,6 +119,51 @@ class Anthropic implements AIProviderInterface
     public function toolPayloadMapper(): ToolMapperInterface
     {
         return $this->toolPayloadMapper ?? $this->toolPayloadMapper = new ToolMapper();
+    }
+
+    /**
+     * Build the request body for a chat ($stream = false) or streaming ($stream = true) request.
+     *
+     * Override to transform the body (e.g. Anthropic on Vertex moves the
+     * model into the URL and the API version into the body).
+     *
+     * @param Message[] $messages
+     * @return array<string, mixed>
+     */
+    protected function requestBody(array $messages, bool $stream = false): array
+    {
+        $json = [
+            'model' => $this->model,
+            'max_tokens' => $this->max_tokens,
+            'messages' => $this->messageMapper()->map($messages),
+            ...$this->parameters,
+        ];
+
+        if ($stream) {
+            $json['stream'] = true;
+        }
+
+        if (isset($this->system)) {
+            $json['system'] = $this->system;
+        } elseif (isset($this->systemBlocks)) {
+            $json['system'] = $this->systemBlocks;
+        }
+
+        if (!empty($this->tools)) {
+            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+        }
+
+        return $json;
+    }
+
+    /**
+     * Return the request URI for a chat ($stream = false) or streaming ($stream = true) request.
+     *
+     * Override to point at a different endpoint (e.g. Anthropic on Vertex).
+     */
+    protected function requestUri(bool $stream): string
+    {
+        return 'messages';
     }
 
     /**
