@@ -22,26 +22,17 @@ trait HandleChat
      */
     public function chat(Message ...$messages): ProviderResponse
     {
-        $json = [
-            'model' => $this->model,
-            'max_tokens' => $this->max_tokens,
-            'messages' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
-        ];
+        $json = $this->requestBody($messages);
 
-        if (isset($this->system)) {
-            $json['system'] = $this->system;
-        } elseif (isset($this->systemBlocks)) {
-            $json['system'] = $this->systemBlocks;
-        }
-
-        if (!empty($this->tools)) {
-            $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
+        // Add cache_control to last tool if caching is enabled
+        if (!empty($this->tools) && $this->promptCachingEnabled) {
+            $last = count($json['tools']) - 1;
+            $json['tools'][$last]['cache_control'] = ['type' => 'ephemeral'];
         }
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'messages',
+                uri: $this->requestUri(false),
                 body: $json
             )
         );
