@@ -19,6 +19,8 @@ class VercelAIAdapter extends SSEAdapter
 {
     protected bool $started = false;
 
+    protected ?string $currentTextId = null;
+
     /** @var array<string, string> */
     protected array $toolCallIds = [];
 
@@ -28,6 +30,12 @@ class VercelAIAdapter extends SSEAdapter
         if (!$this->started) {
             $this->started = true;
             yield $this->sse(['type' => 'start', 'messageId' => $chunk->messageId]);
+        }
+
+        // A text part must be closed before any non-text part begins.
+        if (!$chunk instanceof TextChunk && $this->currentTextId !== null) {
+            yield $this->sse(['type' => 'text-end', 'id' => $this->currentTextId]);
+            $this->currentTextId = null;
         }
 
         yield from match (true) {
@@ -41,9 +49,18 @@ class VercelAIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
+        // Every delta of one text part must share ONE id, and the part must be framed by
+        // text-start ... text-end — otherwise the UI message stream client (AI SDK v5+)
+        // cannot assemble the deltas into a message part.
+        // https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol#text-parts
+        if ($this->currentTextId === null) {
+            $this->currentTextId = UniqueIdGenerator::generateId();
+            yield $this->sse(['type' => 'text-start', 'id' => $this->currentTextId]);
+        }
+
         yield $this->sse([
             'type' => 'text-delta',
-            'id' => UniqueIdGenerator::generateId(),
+            'id' => $this->currentTextId,
             'messageId' => $chunk->messageId,
             'delta' => $chunk->content,
         ]);
@@ -100,6 +117,11 @@ class VercelAIAdapter extends SSEAdapter
 
     public function end(): iterable
     {
+        if ($this->currentTextId !== null) {
+            yield $this->sse(['type' => 'text-end', 'id' => $this->currentTextId]);
+            $this->currentTextId = null;
+        }
+
         yield $this->sse(['type' => 'finish']);
         yield "data: [DONE]\n\n";
     }

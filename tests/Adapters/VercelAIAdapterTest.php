@@ -62,16 +62,63 @@ class VercelAIAdapterTest extends TestCase
             $result[] = $item;
         }
 
-        // Should have 2 messages: start + text-delta
-        $this->assertCount(2, $result);
+        // Should have 3 messages: start + text-start + text-delta
+        $this->assertCount(3, $result);
 
         // First output should be message start
         $this->assertStringContainsString('"type":"start"', $result[0]);
         $this->assertStringContainsString('"messageId":"msg_', $result[0]);
 
-        // Second output should be text delta
-        $this->assertStringContainsString('"type":"text-delta"', $result[1]);
-        $this->assertStringContainsString('"delta":"Hello world"', $result[1]);
+        // Second output opens the text part
+        $this->assertStringContainsString('"type":"text-start"', $result[1]);
+
+        // Third output should be text delta, sharing the text part's id
+        $this->assertStringContainsString('"type":"text-delta"', $result[2]);
+        $this->assertStringContainsString('"delta":"Hello world"', $result[2]);
+
+        preg_match('/"id":"([^"]+)"/', $result[1], $startId);
+        preg_match('/"id":"([^"]+)"/', $result[2], $deltaId);
+        $this->assertEquals($startId[1], $deltaId[1]);
+    }
+
+    public function test_text_parts_are_framed_and_share_one_id(): void
+    {
+        $adapter = new VercelAIAdapter();
+
+        $frames = [];
+        foreach ($adapter->transform(new TextChunk('msg_123', 'Hello')) as $item) {
+            $frames[] = $item;
+        }
+        foreach ($adapter->transform(new TextChunk('msg_123', ' world')) as $item) {
+            $frames[] = $item;
+        }
+
+        // start, text-start, text-delta, text-delta - both deltas share the part id.
+        $this->assertCount(4, $frames);
+        preg_match('/"id":"([^"]+)"/', $frames[1], $partId);
+        preg_match('/"id":"([^"]+)"/', $frames[2], $firstDelta);
+        preg_match('/"id":"([^"]+)"/', $frames[3], $secondDelta);
+        $this->assertEquals($partId[1], $firstDelta[1]);
+        $this->assertEquals($partId[1], $secondDelta[1]);
+
+        // A tool call closes the open text part before its own frame.
+        $tool = $this->createMockTool('calculator', ['operation' => 'add']);
+        $toolFrames = iterator_to_array($adapter->transform(new ToolCallChunk($tool)), false);
+        $this->assertStringContainsString('"type":"text-end"', $toolFrames[0]);
+        $this->assertStringContainsString('"id":"' . $partId[1] . '"', $toolFrames[0]);
+        $this->assertStringContainsString('"type":"tool-input-available"', $toolFrames[1]);
+
+        // A new text part after the tool call gets a NEW id.
+        $reopened = iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Done.')), false);
+        $this->assertStringContainsString('"type":"text-start"', $reopened[0]);
+        preg_match('/"id":"([^"]+)"/', $reopened[0], $newPartId);
+        $this->assertNotEquals($partId[1], $newPartId[1]);
+
+        // end() closes a still-open text part before finish.
+        $endFrames = iterator_to_array($adapter->end(), false);
+        $this->assertStringContainsString('"type":"text-end"', $endFrames[0]);
+        $this->assertStringContainsString('"type":"finish"', $endFrames[1]);
+        $this->assertStringContainsString('[DONE]', $endFrames[2]);
     }
 
     public function test_transform_reasoning_chunk(): void
