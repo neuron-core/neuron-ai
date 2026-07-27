@@ -25,6 +25,8 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\Tool;
 
 use function array_map;
+use function array_pop;
+use function array_values;
 use function count;
 use function end;
 use function is_array;
@@ -143,11 +145,36 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMessages(array $messages): array
     {
-        return array_map(fn (array $message): Message => match ($message['type'] ?? null) {
-            'tool_call' => $this->deserializeToolCall($message),
-            'tool_call_result' => $this->deserializeToolCallResult($message),
-            default => $this->deserializeMessage($message),
-        }, $messages);
+        return $this->dropDanglingToolCall(
+            array_map(fn (array $message): Message => match ($message['type'] ?? null) {
+                'tool_call' => $this->deserializeToolCall($message),
+                'tool_call_result' => $this->deserializeToolCallResult($message),
+                default => $this->deserializeMessage($message),
+            }, $messages)
+        );
+    }
+
+    /**
+     * Drop a trailing tool call that never received its result.
+     *
+     * A streamed turn that dies between the tool call and the tool result (provider
+     * error, process restart) persists exactly that shape, and providers reject a
+     * tool call with no matching result on every subsequent request - the loaded
+     * session can never continue. The unanswered round is unwound on load so the
+     * conversation resumes from the last complete turn.
+     *
+     * @param Message[] $messages
+     * @return Message[]
+     */
+    protected function dropDanglingToolCall(array $messages): array
+    {
+        $last = end($messages);
+
+        if ($last instanceof ToolCallMessage) {
+            array_pop($messages);
+        }
+
+        return array_values($messages);
     }
 
     /**
