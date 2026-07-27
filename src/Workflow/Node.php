@@ -156,7 +156,6 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * @param callable|bool $condition
      * @return array<string, mixed>|null
      * @throws WorkflowException
      * @throws WorkflowInterrupt

@@ -127,13 +127,13 @@ class Anthropic implements AIProviderInterface
             $json['stream'] = true;
         }
 
-        if (isset($this->system)) {
+        if ($this->system !== null) {
             $json['system'] = $this->system;
-        } elseif (isset($this->systemBlocks)) {
+        } elseif ($this->systemBlocks !== null) {
             $json['system'] = $this->systemBlocks;
         }
 
-        if (!empty($this->tools)) {
+        if ($this->tools !== []) {
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 

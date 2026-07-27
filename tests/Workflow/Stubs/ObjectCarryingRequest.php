@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Stubs;
 
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use Closure;
 
 /**
  * A custom WaitForEventRequest specialization that carries a non-serializable
@@ -13,7 +14,7 @@ use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
  */
 class ObjectCarryingRequest extends WaitForEventRequest
 {
-    public function __construct(string $eventName, public readonly \Closure $callback)
+    public function __construct(string $eventName, public readonly Closure $callback)
     {
         parent::__construct($eventName);
     }

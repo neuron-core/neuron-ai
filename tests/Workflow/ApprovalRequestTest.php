@@ -10,6 +10,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
+use function json_decode;
 
 class ApprovalRequestTest extends TestCase
 {

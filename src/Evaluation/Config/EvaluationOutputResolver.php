@@ -9,7 +9,6 @@ use RuntimeException;
 
 use function class_exists;
 use function is_subclass_of;
-use function is_string;
 
 /**
  * Resolves the `output` config entries into driver instances.
@@ -39,9 +38,6 @@ class EvaluationOutputResolver
         return $resolved;
     }
 
-    /**
-     * @param string|EvaluationOutputInterface $driver
-     */
     protected function resolveOne(string|EvaluationOutputInterface $driver): EvaluationOutputInterface
     {
         if ($driver instanceof EvaluationOutputInterface) {

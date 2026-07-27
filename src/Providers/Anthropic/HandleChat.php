@@ -14,6 +14,8 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\ProviderResponse;
 
+use function count;
+
 trait HandleChat
 {
     /**
@@ -24,11 +26,11 @@ trait HandleChat
     {
         $json = $this->requestBody($messages);
 
-        // Add cache_control to last tool if caching is enabled
-        if (!empty($this->tools) && $this->promptCachingEnabled) {
+        // Add cache_control to last tool
+        /*if (!empty($this->tools)) {
             $last = count($json['tools']) - 1;
             $json['tools'][$last]['cache_control'] = ['type' => 'ephemeral'];
-        }
+        }*/
 
         $response = $this->httpClient->request(
             HttpRequest::post(

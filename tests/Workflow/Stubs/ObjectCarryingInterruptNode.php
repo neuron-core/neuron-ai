@@ -21,7 +21,7 @@ class ObjectCarryingInterruptNode extends Node
             return new SecondEvent('resumed');
         }
 
-        $this->interrupt(new ObjectCarryingRequest('custom.event', fn () => 'never serialized'));
+        $this->interrupt(new ObjectCarryingRequest('custom.event', fn (): string => 'never serialized'));
 
         $state->set('post_interrupt', true);
         return new SecondEvent('done');

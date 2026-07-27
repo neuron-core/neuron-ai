@@ -11,6 +11,8 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 
+use function is_array;
+
 class NodeCheckpoint extends Node
 {
     /**

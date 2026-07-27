@@ -22,7 +22,7 @@ use function json_encode;
  */
 class AGUIAdapter extends SSEAdapter
 {
-    protected ?string $threadId = null;
+    protected ?string $threadId;
 
     protected ?string $currentMessageId = null;
 

@@ -26,7 +26,7 @@ class FileDataLoader extends AbstractDataLoader
     /**
      * @var array<string, ReaderInterface>
      */
-    protected array $readers = [];
+    protected array $readers;
 
     /**
      * @throws DataReaderException

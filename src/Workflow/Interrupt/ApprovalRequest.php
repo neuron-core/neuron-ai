@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow\Interrupt;
 use DateTimeImmutable;
 
 use function array_values;
+use function array_map;
 
 /**
  * Outbound request carrying the tool calls (or other actions) that require a human decision before

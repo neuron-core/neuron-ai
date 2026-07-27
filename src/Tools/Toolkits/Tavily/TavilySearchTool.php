@@ -27,7 +27,7 @@ class TavilySearchTool extends Tool
 
     protected string $name = 'web_search';
 
-    protected ?string $description = null;
+    protected ?string $description;
 
     protected array $options = [
         'search_depth' => 'basic',
