@@ -10,6 +10,7 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\ToolSearchMiddleware;
 use NeuronAI\Agent\Middleware\ToolSearchTool;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\MCP\McpConnector;
@@ -50,7 +51,7 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_before_injects_tool_search_into_inference_event(): void
     {
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $node = new ToolNode();
 
         $middleware->before($node, $event, new AgentState());
@@ -62,12 +63,12 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_before_does_modify_instructions(): void
     {
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent('original instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('original instructions'), []);
         $node = new ToolNode();
 
         $middleware->before($node, $event, new AgentState());
 
-        $this->assertNotSame('original instructions', $event->instructions);
+        $this->assertStringContainsString('tool_search', $event->instructions->getContent());
     }
 
     public function test_before_skips_non_inference_event(): void
@@ -75,22 +76,22 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([]);
         $tool = $this->createTool('test', 'test');
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
-        $inferenceEvent = new AIInferenceEvent('instructions', []);
+        $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $node = new ToolNode();
 
-        $originalInstructions = $inferenceEvent->instructions;
+        $originalInstructions = $inferenceEvent->instructions->getContent();
         $middleware->before($node, $toolCallEvent, new AgentState());
 
         // Instructions should not have been modified
-        $this->assertSame($originalInstructions, $inferenceEvent->instructions);
+        $this->assertSame($originalInstructions, $inferenceEvent->instructions->getContent());
     }
 
     public function test_before_does_not_duplicate_tool_search(): void
     {
         $middleware = $this->createMiddleware([]);
         $existing = new ToolSearchTool([]);
-        $event = new AIInferenceEvent('instructions', [$existing]);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existing]);
         $node = new ToolNode();
 
         $middleware->before($node, $event, new AgentState());
@@ -108,7 +109,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $existingTool = $this->createTool('existing', 'An existing tool');
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent('instructions', [$existingTool]);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingTool]);
         $node = new ToolNode();
 
         $middleware->before($node, $event, new AgentState());
@@ -131,7 +132,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $searchTool->execute();
 
         $toolResultMessage = new ToolResultMessage([$searchTool]);
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
         $middleware->after($node, $event, new AgentState());
@@ -147,7 +148,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $node = new ToolNode();
 
         $existingDbTool = $this->createTool('query_database', 'Execute SQL queries');
-        $event = new AIInferenceEvent('instructions', [$existingDbTool]);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingDbTool]);
 
         $searchTool = new ToolSearchTool([$dbTool]);
         $searchTool->setInputs(['query' => 'database']);
@@ -168,7 +169,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([]);
         $tool = $this->createTool('test', 'test');
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
-        $inferenceEvent = new AIInferenceEvent('instructions', []);
+        $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $node = new ToolNode();
 
@@ -184,7 +185,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $regularTool->setInputs([]);
         $regularTool->execute();
 
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolResultMessage = new ToolResultMessage([$regularTool]);
         $event->setMessages($toolResultMessage);
 
@@ -204,7 +205,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $searchTool->execute();
 
         $toolResultMessage = new ToolResultMessage([$searchTool]);
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
         $middleware->after($node, $event, new AgentState());
@@ -224,7 +225,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $searchTool->execute();
 
         $toolResultMessage = new ToolResultMessage([$searchTool]);
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
         $middleware->after($node, $event, new AgentState());
@@ -339,7 +340,7 @@ class ToolSearchMiddlewareTest extends TestCase
 
         // Middleware injects the MCP tool into the event
         $toolResultMessage = new ToolResultMessage([$searchTool]);
-        $event = new AIInferenceEvent('instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
         $middleware->after($node, $event, new AgentState());

@@ -16,6 +16,7 @@ $message = new UserMessage([
 | Class | Role |
 |-------|------|
 | `Message.php` | Base, manages `ContentBlock[]` |
+| `SystemMessage` | System instructions, carries `SystemContent` blocks (cacheable via `->cache()`) |
 | `UserMessage` | User input |
 | `AssistantMessage` | AI response |
 | `ToolCallMessage` | Tool invocation request |

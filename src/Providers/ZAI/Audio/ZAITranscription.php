@@ -8,7 +8,7 @@ use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;
@@ -64,11 +64,9 @@ class ZAITranscription implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(string|array|null $prompt): AIProviderInterface
+    public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
-        $this->system = is_array($prompt)
-            ? implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt))
-            : $prompt;
+        $this->system = $prompt instanceof SystemMessage ? $prompt->getContent() : $prompt;
         return $this;
     }
 

@@ -6,6 +6,8 @@ namespace NeuronAI\Agent;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\ContentHelper;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -147,30 +149,25 @@ trait HandleTools
             }
         }
 
-        $resolved = $this->resolveInstructions();
-
-        // Remove existing guidelines from SystemContent blocks
-        if (is_array($resolved)) {
-            /** @var SystemContent $block */
-            foreach ($resolved as $block) {
+        // Remove guidelines injected by a previous bootstrap, dropping blocks left empty.
+        $blocks = [];
+        foreach ($this->resolveInstructions()->getContentBlocks() as $block) {
+            if ($block instanceof TextContent) {
                 $block->content = ContentHelper::removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
+                if ($block->content === '') {
+                    continue;
+                }
             }
-
-            if ($guidelines !== []) {
-                $resolved[] = new SystemContent(
-                    '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
-                );
-            }
-
-            $this->setInstructions($resolved);
-        } else {
-            $instructions = ContentHelper::removeDelimitedContent($resolved, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
-            if ($guidelines !== []) {
-                $this->setInstructions(
-                    $instructions.PHP_EOL.'<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
-                );
-            }
+            $blocks[] = $block;
         }
+
+        if ($guidelines !== []) {
+            $blocks[] = new SystemContent(
+                '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
+            );
+        }
+
+        $this->setInstructions(new SystemMessage($blocks));
 
         /*EventBus::emit(
             'tools-bootstrapped',

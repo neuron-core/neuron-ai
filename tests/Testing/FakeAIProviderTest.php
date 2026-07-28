@@ -71,7 +71,7 @@ class FakeAIProviderTest extends TestCase
 
         $provider->chat(new UserMessage('Hi'));
 
-        $this->assertSame('You are helpful.', $provider->getRecorded()[0]->systemPrompt);
+        $this->assertSame('You are helpful.', $provider->getRecorded()[0]->systemPrompt->getContent());
     }
 
     public function test_tools_are_stored(): void
@@ -96,7 +96,7 @@ class FakeAIProviderTest extends TestCase
         $records = $provider->getRecorded();
         $this->assertCount(1, $records);
         $this->assertSame('chat', $records[0]->method);
-        $this->assertSame('Be helpful', $records[0]->systemPrompt);
+        $this->assertSame('Be helpful', $records[0]->systemPrompt->getContent());
         $this->assertCount(1, $records[0]->messages);
         $this->assertNull($records[0]->structuredClass);
     }
@@ -204,7 +204,7 @@ class FakeAIProviderTest extends TestCase
         $provider->chat(new UserMessage('Hello world'));
 
         $provider->assertSent(fn (RequestRecord $record): bool => $record->method === 'chat'
-            && $record->systemPrompt === 'Be helpful');
+            && $record->systemPrompt?->getContent() === 'Be helpful');
     }
 
     public function test_assert_sent_fails(): void

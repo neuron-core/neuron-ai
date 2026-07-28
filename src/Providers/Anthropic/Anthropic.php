@@ -8,6 +8,8 @@ use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -21,6 +23,7 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function is_array;
+use function is_string;
 use function mb_strlen;
 use function uniqid;
 use function array_values;
@@ -41,12 +44,7 @@ class Anthropic implements AIProviderInterface
     /**
      * System instructions.
      */
-    protected ?string $system = null;
-
-    /**
-     * System prompt blocks for prompt caching.
-     */
-    protected ?array $systemBlocks = null;
+    protected ?SystemMessage $system = null;
 
     protected MessageMapperInterface $messageMapper;
     protected ToolMapperInterface $toolPayloadMapper;
@@ -76,22 +74,9 @@ class Anthropic implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(string|array|null $prompt): AIProviderInterface
+    public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
-        if (is_array($prompt)) {
-            $this->systemBlocks = array_map(function (SystemContent $block): array {
-                $blockArray = ['text' => $block->content];
-                if ($block->isCached()) {
-                    $blockArray['cache_control'] = ['type' => 'ephemeral'];
-                }
-                return $blockArray;
-            }, $prompt);
-            $this->system = null;
-            return $this;
-        }
-
-        $this->system = $prompt;
-        $this->systemBlocks = null;
+        $this->system = is_string($prompt) ? new SystemMessage($prompt) : $prompt;
         return $this;
     }
 
@@ -127,10 +112,15 @@ class Anthropic implements AIProviderInterface
             $json['stream'] = true;
         }
 
-        if ($this->system !== null) {
-            $json['system'] = $this->system;
-        } elseif ($this->systemBlocks !== null) {
-            $json['system'] = $this->systemBlocks;
+        if ($this->system instanceof SystemMessage) {
+            // Each block marked as cached becomes a prompt caching breakpoint.
+            $json['system'] = array_map(function (TextContent $block): array {
+                $mapped = ['type' => 'text', 'text' => $block->content];
+                if ($block instanceof SystemContent && $block->isCached()) {
+                    $mapped['cache_control'] = ['type' => 'ephemeral'];
+                }
+                return $mapped;
+            }, array_values($this->system->getTextBlocks()));
         }
 
         if ($this->tools !== []) {

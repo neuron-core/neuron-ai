@@ -7,7 +7,7 @@ namespace NeuronAI\Chat\Messages\ContentBlocks;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use Stringable;
 
-class SystemContent extends ContentBlock implements Stringable
+class SystemContent extends TextContent implements Stringable
 {
     protected bool $cached = false;
 
@@ -30,22 +30,5 @@ class SystemContent extends ContentBlock implements Stringable
     public function __toString(): string
     {
         return $this->content;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function toArray(): array
-    {
-        return [
-            'type' => $this->getType(),
-            'content' => $this->content,
-            'meta' => $this->meta,
-        ];
-    }
-
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers;
 
 use Generator;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -17,10 +17,8 @@ interface AIProviderInterface
 
     /**
      * Send predefined instruction to the LLM.
-     *
-     * @param string|SystemContent[]|null $prompt
      */
-    public function systemPrompt(string|array|null $prompt): AIProviderInterface;
+    public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface;
 
     /**
      * Set the tools to be exposed to the LLM.

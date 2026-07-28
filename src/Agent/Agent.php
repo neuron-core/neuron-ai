@@ -73,9 +73,10 @@ class Agent extends Workflow implements AgentInterface
     protected function startEvent(): AgentStartEvent
     {
         $tools = $this->bootstrapTools();
-        $instructions = $this->resolveInstructions();
 
-        return new AIInferenceEvent($instructions, $tools);
+        // Clone so middleware can modify the event instructions
+        // without leaking changes into the agent configuration.
+        return new AIInferenceEvent(clone $this->resolveInstructions(), $tools);
     }
 
     /**

@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
@@ -56,11 +56,9 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(string|array|null $prompt): AIProviderInterface
+    public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
-        $this->system = is_array($prompt)
-            ? implode("\n\n", array_map(fn (SystemContent $block): string => $block->content, $prompt))
-            : $prompt;
+        $this->system = $prompt instanceof SystemMessage ? $prompt->getContent() : $prompt;
         return $this;
     }
 

@@ -10,6 +10,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -38,10 +39,10 @@ class AnthropicPromptCachingTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setHttpClient(new GuzzleHttpClient(handler: $stack))
-            ->systemPrompt([
+            ->systemPrompt(new SystemMessage([
                 (new SystemContent('Static instructions'))->cache(),
                 new SystemContent('Dynamic context'),
-            ]);
+            ]));
 
         $response = $provider->chat(new UserMessage('Test'));
 
@@ -51,12 +52,14 @@ class AnthropicPromptCachingTest extends TestCase
         $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
         $this->assertIsArray($requestBody['system']);
         $this->assertCount(2, $requestBody['system']);
+        $this->assertSame('text', $requestBody['system'][0]['type']);
         $this->assertSame('Static instructions', $requestBody['system'][0]['text']);
         $this->assertArrayHasKey('cache_control', $requestBody['system'][0]);
         $this->assertSame('ephemeral', $requestBody['system'][0]['cache_control']['type']);
+        $this->assertArrayNotHasKey('cache_control', $requestBody['system'][1]);
     }
 
-    public function test_system_prompt_string_still_works(): void
+    public function test_system_prompt_string_maps_to_single_block(): void
     {
         $sentRequests = [];
         $history = Middleware::history($sentRequests);
@@ -79,8 +82,11 @@ class AnthropicPromptCachingTest extends TestCase
         $this->assertCount(1, $sentRequests);
 
         $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
-        $this->assertIsString($requestBody['system']);
-        $this->assertSame('Simple string instructions', $requestBody['system']);
+        $this->assertIsArray($requestBody['system']);
+        $this->assertCount(1, $requestBody['system']);
+        $this->assertSame('text', $requestBody['system'][0]['type']);
+        $this->assertSame('Simple string instructions', $requestBody['system'][0]['text']);
+        $this->assertArrayNotHasKey('cache_control', $requestBody['system'][0]);
     }
 
     public function test_usage_tracks_cache_tokens(): void
