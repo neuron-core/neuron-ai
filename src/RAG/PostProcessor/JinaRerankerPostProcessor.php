@@ -45,7 +45,7 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
                 uri: 'rerank',
                 body: [
                     'model' => $this->model,
-                    'query' => $question->getContentBlocks(),
+                    'query' => $question->getContent(),
                     'top_n' => $this->topN,
                     'documents' => array_map(fn (Document $document): array => ['text' => $document->getContent()], $documents),
                     'return_documents' => false,
