@@ -1,13 +1,29 @@
-# Project Overview
+# Neuron AI - Project Overview
 
-Neuron is a PHP Agentic framework for building AI agents with chat, tools, RAG, structured output, and workflow orchestration.
+This repository contains Neuron AI, a PHP framework for building agentic applications.
+
+## The Mental Model: Neuron Is a Composable Workflow
+
+Before writing any Neuron code, internalize this — it shapes every correct decision:
+
+1. **Workflow is the foundation.** Everything else is built on it. A Workflow is an event-driven graph of nodes that you can compose freely to create any agentic behaviour.
+
+2. **A catalog of components, wired by interfaces.** Neuron ships a large collection of standalone, interchangeable building blocks — AI providers, the messaging layer, chat history, tools & toolkits, structured output, RAG, vector stores, data loaders, MCP, observability. They are connected by small, focused interfaces, so each can be used on its own or swapped for your own implementation.
+
+3. **`Agent` is an inspiration, not a cage.** The `Agent` class is itself a Workflow: it composes the components above (chat/stream/structured nodes, tools, history, middleware) into a ready-to-use agentic entity. Study it to see how a Workflow is assembled. Then choose your path:
+
+   - **Extend `Agent`** when its defaults fit your use case (most common starting point).
+   - **Customize `Agent`** by swapping nodes or adding middleware when you need targeted changes without rebuilding from scratch.
+   - **Compose your own Workflow** from the component catalog when you need bespoke control flow — `Agent` and `RAG` can even be used as nodes inside it.
+
+You never fight the framework: the architecture you use on day one is the same one running your most complex system later.
 
 ## Development Commands
 
 ```bash
+composer test          # Run tests (PHPUnit)
 composer format        # Fix code style (PHP CS Fixer)
 composer analyse       # Static analysis (PHPStan level 5)
-composer test          # Run tests (PHPUnit)
 ```
 
 Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`
@@ -42,6 +58,19 @@ Chat ◄────────────────────────
 | `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
 | `src/Evaluation/` | AI evaluation framework                                       | None |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
+
+## Context Discovery
+
+Read module-specific `AGENTS.md` files when working on that area:
+
+- Working with workflows/interruptions? → `src/Workflow/AGENTS.md`
+- Working with agents/chat/stream? → `src/Agent/AGENTS.md`
+- Working with messages/history? → `src/Chat/AGENTS.md`
+- Adding/modifying AI providers? → `src/Providers/AGENTS.md`
+- Creating tools/toolkits? → `src/Tools/AGENTS.md`
+- Working with RAG/vectors? → `src/RAG/AGENTS.md`
+- CLI commands/code generation? → `src/Console/AGENTS.md`
+- AI evaluation/testing? → `src/Evaluation/AGENTS.md`
 
 ## Code Standards
 
@@ -83,7 +112,6 @@ When editing existing code:
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it - don't delete it.
-- Unit tests must be designed to enforce real functional behaviors. Don't manipulate tests to make them pass. If the implementation is broken, ask.
 
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
