@@ -11,3 +11,4 @@ composer.lock
 scripts
 phpunit.xml.local
 CONTEXT.md
+docs/adr
