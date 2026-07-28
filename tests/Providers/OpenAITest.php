@@ -15,7 +15,9 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\Tests\Stubs\StructuredOutput\Color;
+use NeuronAI\Tests\Stubs\StructuredOutput\Person;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
@@ -24,6 +26,7 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
 use function count;
+use function is_array;
 use function json_decode;
 
 class OpenAITest extends TestCase
@@ -528,5 +531,48 @@ class OpenAITest extends TestCase
         $this->assertSame('Hello there!', $message->getContent());
         $this->assertSame(8, $message->getUsage()->inputTokens);
         $this->assertSame(3, $message->getUsage()->outputTokens);
+    }
+
+    public function test_structured_strict_mode_injects_additional_properties_recursively(): void
+    {
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $this->body),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $provider = (new OpenAI('', 'gpt-4o', [], true))
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
+
+        $schema = JsonSchema::make()->generate(Person::class);
+
+        $provider->structured([new UserMessage('Hi')], Person::class, $schema);
+
+        $this->assertCount(1, $sentRequests);
+        $payload = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+        $schema = $payload['response_format']['json_schema']['schema'];
+
+        // strict mode is active in the request
+        $this->assertTrue($payload['response_format']['json_schema']['strict']);
+
+        // Every object in the schema (top-level, nested Address, and Tag array items)
+        // must declare additionalProperties = false as required by OpenAI strict mode.
+        $this->assertEveryObjectHasAdditionalPropertiesFalse($schema);
+    }
+
+    private function assertEveryObjectHasAdditionalPropertiesFalse(array $schema): void
+    {
+        if (($schema['type'] ?? null) === 'object') {
+            $this->assertArrayHasKey('additionalProperties', $schema);
+            $this->assertFalse($schema['additionalProperties']);
+        }
+
+        foreach ($schema as $value) {
+            if (is_array($value)) {
+                $this->assertEveryObjectHasAdditionalPropertiesFalse($value);
+            }
+        }
     }
 }

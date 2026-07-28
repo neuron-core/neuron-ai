@@ -1,3 +1,23 @@
+# Neuron AI - Project Overview
+
+This repository contains Neuron AI, a PHP framework for building agentic applications.
+
+## The Mental Model: Neuron Is a Composable Workflow
+
+Before writing any Neuron code, internalize this — it shapes every correct decision:
+
+1. **Workflow is the foundation.** Everything else is built on it. A Workflow is an event-driven graph of nodes that you can compose freely to create any agentic behaviour.
+
+2. **A catalog of components, wired by interfaces.** Neuron ships a large collection of standalone, interchangeable building blocks — AI providers, the messaging layer, chat history, tools & toolkits, structured output, RAG, vector stores, data loaders, MCP, observability. They are connected by small, focused interfaces, so each can be used on its own or swapped for your own implementation.
+
+3. **`Agent` is an inspiration, not a cage.** The `Agent` class is itself a Workflow: it composes the components above (chat/stream/structured nodes, tools, history, middleware) into a ready-to-use agentic entity. Study it to see how a Workflow is assembled. Then choose your path:
+
+   - **Extend `Agent`** when its defaults fit your use case (most common starting point).
+   - **Customize `Agent`** by swapping nodes or adding middleware when you need targeted changes without rebuilding from scratch.
+   - **Compose your own Workflow** from the component catalog when you need bespoke control flow — `Agent` and `RAG` can even be used as nodes inside it.
+
+You never fight the framework: the architecture you use on day one is the same one running your most complex system later.
+
 ## Development Commands
 
 ```bash
