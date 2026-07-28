@@ -17,9 +17,6 @@ use NeuronAI\Tools\ToolInterface;
 use function count;
 use function is_string;
 use function json_decode;
-use function array_map;
-use function implode;
-use function is_array;
 
 class BedrockRuntime implements AIProviderInterface
 {

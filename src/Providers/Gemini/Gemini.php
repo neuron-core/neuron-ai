@@ -20,8 +20,6 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function uniqid;
-use function implode;
-use function is_array;
 use function array_values;
 
 class Gemini implements AIProviderInterface

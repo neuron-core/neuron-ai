@@ -24,9 +24,6 @@ use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 
 use function end;
-use function array_map;
-use function implode;
-use function is_array;
 
 class ZAIImage implements AIProviderInterface
 {

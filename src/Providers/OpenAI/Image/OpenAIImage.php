@@ -28,9 +28,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function end;
 use function is_string;
-use function array_map;
-use function implode;
-use function is_array;
 
 class OpenAIImage implements AIProviderInterface
 {

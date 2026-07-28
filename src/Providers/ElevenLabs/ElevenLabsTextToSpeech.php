@@ -25,9 +25,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function base64_encode;
 use function end;
-use function array_map;
-use function implode;
-use function is_array;
 
 class ElevenLabsTextToSpeech implements AIProviderInterface
 {

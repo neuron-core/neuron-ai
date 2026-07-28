@@ -25,8 +25,6 @@ use function array_map;
 use function array_merge;
 use function json_decode;
 use function uniqid;
-use function implode;
-use function is_array;
 use function array_values;
 
 class OpenAIResponses implements AIProviderInterface

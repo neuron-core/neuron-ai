@@ -25,9 +25,6 @@ use NeuronAI\UniqueIdGenerator;
 
 use function end;
 use function fopen;
-use function array_map;
-use function implode;
-use function is_array;
 
 class OpenAISpeechToText implements AIProviderInterface
 {

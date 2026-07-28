@@ -78,7 +78,7 @@ class AgentInstructionsTest extends TestCase
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $blocks = $event->instructions->getContentBlocks();
+        $blocks = $event->instructions->getTextBlocks();
         $this->assertCount(3, $blocks);
         $this->assertSame('Block one', $blocks[0]->content);
         $this->assertSame('Block two', $blocks[1]->content);
@@ -92,7 +92,7 @@ class AgentInstructionsTest extends TestCase
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $blocks = $event->instructions->getContentBlocks();
+        $blocks = $event->instructions->getTextBlocks();
         $this->assertCount(2, $blocks);
         $this->assertSame('Original instructions', $blocks[0]->content);
         $this->assertStringContainsString('write_todos', $blocks[1]->content);
@@ -340,9 +340,10 @@ class AgentInstructionsTest extends TestCase
         // Every provider call should receive the original blocks untouched,
         // with the tool_search prompt injected exactly once.
         foreach ($records as $record) {
-            $blocks = $record->systemPrompt->getContentBlocks();
+            $blocks = $record->systemPrompt->getTextBlocks();
             $this->assertCount(3, $blocks);
             $this->assertSame('Base instructions', $blocks[0]->content);
+            $this->assertInstanceOf(SystemContent::class, $blocks[1]);
             $this->assertSame('Cached instructions', $blocks[1]->content);
             $this->assertTrue($blocks[1]->isCached());
         }

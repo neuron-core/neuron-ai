@@ -17,8 +17,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
-use function implode;
-use function is_array;
 use function array_values;
 
 class Ollama implements AIProviderInterface
