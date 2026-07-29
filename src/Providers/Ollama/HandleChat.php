@@ -65,7 +65,7 @@ trait HandleChat
             $message = new AssistantMessage($message['content']);
         }
 
-        if (isset($response['prompt_eval_count']) && isset($response['eval_count'])) {
+        if (isset($response['prompt_eval_count'], $response['eval_count'])) {
             $message->setUsage(
                 new Usage($response['prompt_eval_count'], $response['eval_count'])
             );
