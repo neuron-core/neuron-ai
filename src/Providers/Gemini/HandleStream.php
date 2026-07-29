@@ -220,9 +220,7 @@ trait HandleStream
 
             if (mb_strlen($buffer) === 1 && $buffer !== '{') {
                 $buffer = '';
-            }
-
-            if (json_decode($buffer) !== null) {
+            } elseif (json_decode($buffer) !== null) {
                 return $buffer;
             }
         }

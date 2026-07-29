@@ -119,7 +119,7 @@ Always use backticks around identifiers that are reserved keywords.';
 
         // Check for forbidden keywords that might be in subqueries
         foreach ($this->forbiddenStatements as $forbidden) {
-            if (self::containsKeyword($cleanQuery, $forbidden)) {
+            if ($this->containsKeyword($cleanQuery, $forbidden)) {
                 return false;
             }
         }

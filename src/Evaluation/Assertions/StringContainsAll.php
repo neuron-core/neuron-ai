@@ -44,7 +44,7 @@ class StringContainsAll extends AbstractAssertion
         }
 
         if ($missing === []) {
-            return AssertionResult::pass(1.0, );
+            return AssertionResult::pass(1.0);
         }
 
         return AssertionResult::fail(

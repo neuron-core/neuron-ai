@@ -47,7 +47,7 @@ class FactorialTool extends Tool
 
         // For larger numbers, use BCMath to handle arbitrary precision
         if ($number > 20) {
-            return self::calculateWithBCMath($number);
+            return $this->calculateWithBCMath($number);
         }
 
         // For smaller numbers, use regular integer calculation
