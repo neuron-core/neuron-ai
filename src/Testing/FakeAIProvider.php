@@ -7,6 +7,7 @@ namespace NeuronAI\Testing;
 use Generator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
@@ -23,6 +24,7 @@ use function array_values;
 use function count;
 use function implode;
 use function is_array;
+use function is_string;
 use function mb_strlen;
 use function mb_substr;
 use function uniqid;
@@ -34,7 +36,7 @@ class FakeAIProvider implements AIProviderInterface
 
     protected string $model = 'fake';
 
-    protected string|array|null $systemPrompt = null;
+    protected ?SystemMessage $systemPrompt = null;
 
     /** @var Message[] */
     protected array $responseQueue;
@@ -57,9 +59,9 @@ class FakeAIProvider implements AIProviderInterface
         return $this->model;
     }
 
-    public function systemPrompt(string|array|null $prompt): AIProviderInterface
+    public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
-        $this->systemPrompt = $prompt;
+        $this->systemPrompt = is_string($prompt) ? new SystemMessage($prompt) : $prompt;
         return $this;
     }
 
@@ -247,7 +249,7 @@ class FakeAIProvider implements AIProviderInterface
         $matched = false;
 
         foreach ($this->recorded as $record) {
-            if ($record->systemPrompt === $expected) {
+            if ($record->systemPrompt?->getContent() === $expected) {
                 $matched = true;
                 break;
             }

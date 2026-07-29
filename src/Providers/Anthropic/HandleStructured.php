@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
@@ -26,26 +28,19 @@ trait HandleStructured
         array $response_format
     ): ProviderResponse {
         $originalSystem = $this->system;
-        $originalSystemBlocks = $this->systemBlocks;
 
         try {
             $schemaText = "# OUTPUT CONSTRAINTS".PHP_EOL.
                 "Your response must be a JSON string following this schema: ".PHP_EOL.
                 json_encode($response_format);
 
-            if (isset($this->systemBlocks)) {
-                $this->systemBlocks[] = [
-                    'type' => 'text',
-                    'text' => $schemaText,
-                ];
-            } else {
-                $this->system .= PHP_EOL.$schemaText;
-            }
+            // Append the schema as a trailing block to keep cached blocks untouched.
+            $blocks = $this->system instanceof SystemMessage ? $this->system->getContentBlocks() : [];
+            $this->system = new SystemMessage([...$blocks, new SystemContent($schemaText)]);
 
             return $this->chat(...(is_array($messages) ? $messages : [$messages]));
         } finally {
             $this->system = $originalSystem;
-            $this->systemBlocks = $originalSystemBlocks;
         }
     }
 }

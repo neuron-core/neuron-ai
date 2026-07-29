@@ -6,6 +6,7 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
@@ -16,9 +17,9 @@ interface AgentInterface
 
     public function resolveProvider(): AIProviderInterface;
 
-    public function setInstructions(string|array $instructions): AgentInterface;
+    public function setInstructions(SystemMessage|string $instructions): AgentInterface;
 
-    public function resolveInstructions(): string|array;
+    public function resolveInstructions(): SystemMessage;
 
     /**
      * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools

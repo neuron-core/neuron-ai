@@ -43,9 +43,9 @@ class NeuronAITest extends TestCase
                 return 'Hello';
             }
         };
-        $this->assertEquals('Hello', $agent->resolveInstructions());
+        $this->assertEquals('Hello', $agent->resolveInstructions()->getContent());
         $agent->setInstructions('Hello2');
-        $this->assertEquals('Hello2', $agent->resolveInstructions());
+        $this->assertEquals('Hello2', $agent->resolveInstructions()->getContent());
     }
 
     public function test_message_instance(): void

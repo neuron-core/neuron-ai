@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Events;
 
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Tools\ToolInterface;
+
+use function is_string;
 
 /**
  * Event carrying configuration for AI inference.
@@ -15,15 +17,18 @@ use NeuronAI\Tools\ToolInterface;
  */
 class AIInferenceEvent extends AgentStartEvent
 {
+    public SystemMessage $instructions;
+
     /**
-     * @param string|SystemContent[] $instructions System instructions for the agent
+     * @param SystemMessage|string $instructions System instructions for the agent
      * @param ToolInterface[] $tools Available tools for the agent
      * @param int|null $maxRetries Maximum retry attempts for structured output (StructuredOutputNode only)
      */
     public function __construct(
-        public string|array $instructions,
+        SystemMessage|string $instructions,
         public array $tools,
         public ?int $maxRetries = null,
     ) {
+        $this->instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
     }
 }

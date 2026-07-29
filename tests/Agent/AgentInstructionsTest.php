@@ -13,6 +13,7 @@ use NeuronAI\Agent\Middleware\TodoPlanning;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -64,92 +65,51 @@ class GetWeatherTool extends Tool
 class AgentInstructionsTest extends TestCase
 {
     // ---------------------------------------------------------------
-    // Unit: middleware does NOT touch instructions
+    // Unit: middleware appends its prompt as a new content block
     // ---------------------------------------------------------------
 
-    public function test_tool_search_middleware_changes_string_instructions(): void
-    {
-        $middleware = new ToolSearchMiddleware([]);
-        $event = new AIInferenceEvent('Original instructions', []);
-
-        $middleware->before(new ToolNode(), $event, new AgentState());
-
-        $this->assertNotSame('Original instructions', $event->instructions);
-    }
-
-    public function test_tool_search_middleware_add_array_instructions(): void
+    public function test_tool_search_middleware_appends_instructions_block(): void
     {
         $middleware = new ToolSearchMiddleware([]);
         $event = new AIInferenceEvent(
-            [new SystemContent('Block one'), new SystemContent('Block two')],
+            new SystemMessage([new SystemContent('Block one'), new SystemContent('Block two')]),
             []
         );
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $this->assertIsArray($event->instructions);
-        $this->assertCount(3, $event->instructions);
-        $this->assertSame('Block one', $event->instructions[0]->content);
-        $this->assertSame('Block two', $event->instructions[1]->content);
+        $blocks = $event->instructions->getTextBlocks();
+        $this->assertCount(3, $blocks);
+        $this->assertSame('Block one', $blocks[0]->content);
+        $this->assertSame('Block two', $blocks[1]->content);
+        $this->assertStringContainsString('tool_search', $blocks[2]->content);
     }
 
-    public function test_todo_planning_middleware_injects_into_string_instructions(): void
+    public function test_todo_planning_middleware_appends_instructions_block(): void
     {
         $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent('Original instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $this->assertIsString($event->instructions);
-        $this->assertStringContainsString('Original instructions', $event->instructions);
-        $this->assertStringContainsString('write_todos', $event->instructions);
+        $blocks = $event->instructions->getTextBlocks();
+        $this->assertCount(2, $blocks);
+        $this->assertSame('Original instructions', $blocks[0]->content);
+        $this->assertStringContainsString('write_todos', $blocks[1]->content);
     }
 
-    public function test_todo_planning_middleware_injects_into_array_instructions(): void
+    public function test_todo_planning_does_not_duplicate_instructions_on_multiple_passes(): void
     {
         $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent(
-            [new SystemContent('Block one')],
-            []
-        );
-
-        $middleware->before(new ToolNode(), $event, new AgentState());
-
-        $this->assertIsArray($event->instructions);
-        $this->assertCount(2, $event->instructions);
-        $this->assertSame('Block one', $event->instructions[0]->content);
-        $this->assertStringContainsString('write_todos', $event->instructions[1]->content);
-    }
-
-    public function test_todo_planning_does_not_duplicate_string_instructions_on_multiple_passes(): void
-    {
-        $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent('Original instructions', []);
+        $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
 
         // Simulate multiple ChatNode passes (tool loop)
         $middleware->before(new ToolNode(), $event, new AgentState());
-        $firstInstructions = $event->instructions;
+        $this->assertCount(2, $event->instructions->getContentBlocks());
 
         $middleware->before(new ToolNode(), $event, new AgentState());
 
-        $this->assertSame($firstInstructions, $event->instructions, 'Instructions should not grow on second pass.');
-    }
-
-    public function test_todo_planning_does_not_duplicate_array_instructions_on_multiple_passes(): void
-    {
-        $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent(
-            [new SystemContent('Block one')],
-            []
-        );
-
-        // Simulate multiple ChatNode passes (tool loop)
-        $middleware->before(new ToolNode(), $event, new AgentState());
-        $this->assertCount(2, $event->instructions);
-
-        $middleware->before(new ToolNode(), $event, new AgentState());
-
-        $this->assertCount(2, $event->instructions, 'Instructions should not grow on second pass.');
+        $this->assertCount(2, $event->instructions->getContentBlocks(), 'Instructions should not grow on second pass.');
     }
 
     // ---------------------------------------------------------------
@@ -183,13 +143,13 @@ class AgentInstructionsTest extends TestCase
         $this->assertSame('Done.', $message->getContent());
         $provider->assertCallCount(3);
 
-        // String instructions passed to provider untouched
+        // String instructions reach the provider as a SystemMessage
         $records = $provider->getRecorded();
-        $this->assertIsString($records[0]->systemPrompt);
-        $this->assertStringContainsString('You are a helpful assistant.', $records[0]->systemPrompt);
+        $this->assertInstanceOf(SystemMessage::class, $records[0]->systemPrompt);
+        $this->assertStringContainsString('You are a helpful assistant.', $records[0]->systemPrompt->getContent());
     }
 
-    public function test_agent_tool_search_with_array_instructions(): void
+    public function test_agent_tool_search_with_block_instructions(): void
     {
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
@@ -208,9 +168,9 @@ class AgentInstructionsTest extends TestCase
 
         $agent = Agent::make();
         $agent->setAiProvider($provider);
-        $agent->setInstructions([
+        $agent->setInstructions(new SystemMessage(
             new SystemContent('You are a helpful assistant.'),
-        ]);
+        ));
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
 
         $message = $agent->chat(new UserMessage('Query the database'))->getMessage();
@@ -218,10 +178,9 @@ class AgentInstructionsTest extends TestCase
         $this->assertSame('Done.', $message->getContent());
         $provider->assertCallCount(3);
 
-        // Array instructions passed to provider untouched
+        // The original block reaches the provider untouched
         $records = $provider->getRecorded();
-        $this->assertIsArray($records[0]->systemPrompt);
-        $firstBlock = $records[0]->systemPrompt[0] ?? null;
+        $firstBlock = $records[0]->systemPrompt->getContentBlocks()[0] ?? null;
         $this->assertInstanceOf(SystemContent::class, $firstBlock);
         $this->assertSame('You are a helpful assistant.', $firstBlock->content);
     }
@@ -346,10 +305,10 @@ class AgentInstructionsTest extends TestCase
     }
 
     // ---------------------------------------------------------------
-    // Integration: array instructions preserved through tool loop
+    // Integration: instruction blocks preserved through tool loop
     // ---------------------------------------------------------------
 
-    public function test_array_instructions_change_one_time_through_tool_loop(): void
+    public function test_instructions_change_one_time_through_tool_loop(): void
     {
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
@@ -368,23 +327,25 @@ class AgentInstructionsTest extends TestCase
 
         $agent = Agent::make();
         $agent->setAiProvider($provider);
-        $agent->setInstructions([
+        $agent->setInstructions(new SystemMessage([
             new SystemContent('Base instructions'),
             (new SystemContent('Cached instructions'))->cache(),
-        ]);
+        ]));
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
 
         $agent->chat(new UserMessage('Query the database'))->getMessage();
 
         $records = $provider->getRecorded();
 
-        // Every provider call should receive the original array instructions untouched
+        // Every provider call should receive the original blocks untouched,
+        // with the tool_search prompt injected exactly once.
         foreach ($records as $record) {
-            $this->assertIsArray($record->systemPrompt, 'Instructions should remain array throughout the tool loop.');
-            $this->assertCount(3, $record->systemPrompt);
-            $this->assertSame('Base instructions', $record->systemPrompt[0]->content);
-            $this->assertSame('Cached instructions', $record->systemPrompt[1]->content);
-            $this->assertTrue($record->systemPrompt[1]->isCached());
+            $blocks = $record->systemPrompt->getTextBlocks();
+            $this->assertCount(3, $blocks);
+            $this->assertSame('Base instructions', $blocks[0]->content);
+            $this->assertInstanceOf(SystemContent::class, $blocks[1]);
+            $this->assertSame('Cached instructions', $blocks[1]->content);
+            $this->assertTrue($blocks[1]->isCached());
         }
     }
 }

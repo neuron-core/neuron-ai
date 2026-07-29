@@ -7,7 +7,6 @@ namespace NeuronAI\Agent\Middleware;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\ContentHelper;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
@@ -15,7 +14,6 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function in_array;
-use function is_array;
 use function max;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
@@ -50,12 +48,8 @@ class ToolSearchMiddleware implements WorkflowMiddleware
             return;
         }
 
-        if (!ContentHelper::instructionsContainPrompt($event->instructions, $this->systemPrompt)) {
-            if (is_array($event->instructions)) {
-                $event->instructions[] = new SystemContent($this->systemPrompt);
-            } else {
-                $event->instructions .= "\n\n" . $this->systemPrompt;
-            }
+        if (!$event->instructions->contains($this->systemPrompt)) {
+            $event->instructions->addContent(new SystemContent($this->systemPrompt));
         }
 
         if (!$this->hasToolSearchTool($event->tools)) {
