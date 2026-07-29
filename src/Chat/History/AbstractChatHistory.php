@@ -23,7 +23,9 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolInterface;
 
 use function array_map;
 use function count;
@@ -58,6 +60,15 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         // Handle single message addition.
     }
 
+    /**
+     * Handle replacement of the last message (an approval-state update, or a node
+     * re-adding the message on replay). Backends that persist via setMessages() need
+     * nothing here — the whole history is rewritten anyway. See ADR 0003.
+     */
+    protected function onMessageReplaced(Message $message): void
+    {
+    }
+
     protected function onTrimHistory(int $index): void
     {
         // When the trim is triggered, the messages in the position from zero to $index must be removed.
@@ -73,6 +84,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function addMessage(Message $message): ChatHistoryInterface
     {
+        if ($this->replacesLastMessage($message)) {
+            $this->history[count($this->history) - 1] = $message;
+            $this->onMessageReplaced($message);
+            $this->setMessages($this->history);
+            return $this;
+        }
+
         $this->history[] = $message;
 
         $this->trimHistory();
@@ -82,6 +100,31 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $this->setMessages($this->history);
 
         return $this;
+    }
+
+    /**
+     * Whether $message is a ToolCallMessage carrying the same tool callIds as the
+     * current last message — i.e. a re-write of the message that is already at the
+     * tail (an approval-state update, or a node re-adding it on replay). See ADR 0003.
+     */
+    protected function replacesLastMessage(Message $message): bool
+    {
+        if (!$message instanceof ToolCallMessage || $this->history === []) {
+            return false;
+        }
+
+        $last = end($this->history);
+
+        if (!$last instanceof ToolCallMessage) {
+            return false;
+        }
+
+        $ids = static fn (ToolCallMessage $m): array => array_map(
+            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
+            $m->getTools()
+        );
+
+        return $ids($message) === $ids($last);
     }
 
     /**
@@ -175,10 +218,21 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = array_map(fn (array $tool) => ToolDefinition::make($tool['name'], $tool['description'])
-            ->setParameters($tool['parameters'] ?? [])
-            ->setInputs($tool['inputs'])
-            ->setCallId($tool['callId'] ?? null), $message['tools']);
+        $tools = array_map(function (array $tool) {
+            $definition = ToolDefinition::make($tool['name'], $tool['description'])
+                ->setParameters($tool['parameters'] ?? [])
+                ->setInputs($tool['inputs'])
+                ->setCallId($tool['callId'] ?? null);
+
+            if (isset($tool['approval'])) {
+                $definition->setApprovalState(
+                    ApprovalState::from($tool['approval']),
+                    $tool['approvalReason'] ?? null
+                );
+            }
+
+            return $definition;
+        }, $message['tools']);
 
         $item = new ToolCallMessage(tools: $tools);
 
@@ -196,10 +250,21 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = array_map(fn (array $tool) => ToolDefinition::make($tool['name'], $tool['description'])
-            ->setInputs($tool['inputs'])
-            ->setCallId($tool['callId'])
-            ->setResult($tool['result']), $message['tools']);
+        $tools = array_map(function (array $tool) {
+            $definition = ToolDefinition::make($tool['name'], $tool['description'])
+                ->setInputs($tool['inputs'])
+                ->setCallId($tool['callId'])
+                ->setResult($tool['result']);
+
+            if (isset($tool['approval'])) {
+                $definition->setApprovalState(
+                    ApprovalState::from($tool['approval']),
+                    $tool['approvalReason'] ?? null
+                );
+            }
+
+            return $definition;
+        }, $message['tools']);
 
         return new ToolResultMessage($tools);
     }

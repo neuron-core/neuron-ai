@@ -56,6 +56,16 @@ abstract class Tool implements ToolInterface
     protected string|null $result = null;
 
     /**
+     * Approval state of this specific call (ADR 0003). Null = not approval-gated.
+     */
+    protected ?ApprovalState $approvalState = null;
+
+    /**
+     * Rejection reason. Only ever non-null when $approvalState is Rejected.
+     */
+    protected ?string $approvalReason = null;
+
+    /**
      * Define the maximum number of calls for the tool in a single agent session.
      */
     protected ?int $maxRuns = null;
@@ -205,6 +215,28 @@ abstract class Tool implements ToolInterface
         return $this->getName();
     }
 
+    public function requiresApproval(array $inputs): bool
+    {
+        return false;
+    }
+
+    public function getApprovalState(): ?ApprovalState
+    {
+        return $this->approvalState;
+    }
+
+    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface
+    {
+        $this->approvalState = $state;
+        $this->approvalReason = $state === ApprovalState::Rejected ? $reason : null;
+        return $this;
+    }
+
+    public function getApprovalReason(): ?string
+    {
+        return $this->approvalReason;
+    }
+
     /**
      * Execute the client side function.
      *
@@ -279,6 +311,8 @@ abstract class Tool implements ToolInterface
             'parameters' => $this->parameters,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
             'result' => $this->result,
+            'approval' => $this->approvalState?->value,
+            'approvalReason' => $this->approvalReason,
         ];
     }
 }

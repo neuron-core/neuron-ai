@@ -118,16 +118,43 @@ mode (`chat()` / `stream()` / `structured()`). They all share the
 `InferenceNode::class` to have it fire in **all three** modes rather than only
 the one whose node class you named.
 
-## Persistence
+## Persistence & Tool Approval
 
-ToolApproval middleware will fire the interruption in case of tools that need human approval.
-To use this feature, you must attach the persistence layer to the agent workflow:
+`ToolApproval` gates tool execution behind human approval. Attach it to `ToolNode::class`
+(subclass-aware matching covers `ParallelToolNode` too):
+
+```php
+use NeuronAI\Agent\Middleware\ToolApproval;
+use NeuronAI\Agent\Nodes\ToolNode;
+
+$agent->addMiddleware(ToolNode::class, new ToolApproval());
+```
+
+With no constructor config, **each tool decides** via its own `requiresApproval()`
+declaration (ADR 0004); middleware config overrides that in both directions. When a gated
+tool is requested, `chat()` returns suspended instead of completed — this requires **workflow
+persistence AND a durable chat history** (chat history is the system of record for approval
+state — ADR 0003). `InMemoryChatHistory` keeps the safety property but loses progress across
+processes.
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
-$response = YouTubeAgent::make()
+$agent = YouTubeAgent::make()
     ->setPersistence(new FilePersistence($directory))
-    ->chat(new UserMessage('Hello'))
-    ->getMessage();
+    // + a durable ChatHistory
+    ->addMiddleware(ToolNode::class, new ToolApproval());
 ```
+
+Resume delivers decisions as an **incremental** payload keyed by tool callId — only NEW
+decisions, never a restatement:
+
+```php
+$agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
+```
+
+A tool runs iff explicitly approved; silence is never consent. Decisions are revisable
+(last-write-wins) until the full set completes. The UI re-renders pending approvals by
+reading chat history (last message, tools with `getApprovalState()`) — no workflow boot.
+The thread must stay **locked** until every decision is delivered: starting a new turn on a
+thread with pending approvals throws `AgentException`.

@@ -89,4 +89,30 @@ interface ToolInterface extends JsonSerializable
      * Execute the tool's logic with input parameters.
      */
     public function execute(): void;
+
+    /**
+     * Whether this tool call requires human approval before execution (ADR 0004).
+     * Consulted only when the ToolApproval middleware is attached to the agent;
+     * middleware configuration overrides this declaration in both directions.
+     *
+     * @param array<string, mixed> $inputs The arguments the model is calling the tool with.
+     */
+    public function requiresApproval(array $inputs): bool;
+
+    /**
+     * The recorded approval state of this tool call, or null when the call is
+     * not approval-gated (ADR 0003).
+     */
+    public function getApprovalState(): ?ApprovalState;
+
+    /**
+     * Record the approval state. $reason is meaningful only for rejections
+     * (reasons are a rejection-only concept — see CONTEXT.md); pass null otherwise.
+     */
+    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface;
+
+    /**
+     * The rejection reason recorded with a Rejected state, null otherwise.
+     */
+    public function getApprovalReason(): ?string;
 }

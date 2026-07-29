@@ -77,109 +77,18 @@ class ApprovalRequestTest extends TestCase
         $this->assertSame('action1', $decoded['actions'][0]['id']);
     }
 
-    public function testFromArrayWithActions(): void
+    public function testActionsAreReadOnlyValueObjects(): void
     {
-        $data = [
-            'message' => 'Test message',
-            'actions' => [
-                [
-                    'id' => 'action1',
-                    'name' => 'First Action',
-                    'description' => 'Description 1',
-                    'decision' => 'pending',
-                    'feedback' => null,
-                ],
-                [
-                    'id' => 'action2',
-                    'name' => 'Second Action',
-                    'description' => 'Description 2',
-                    'decision' => 'approved',
-                    'feedback' => 'Looks good',
-                ],
-            ],
-        ];
+        // Action is a pure outbound value object: its decision/feedback are set at
+        // construction and not mutated afterwards (ADR 0001).
+        $approved = new Action('a', 'A', null, ActionDecision::Approved, 'Great!');
+        $rejected = new Action('r', 'R', null, ActionDecision::Rejected, 'Nope');
 
-        $request = ApprovalRequest::fromArray($data);
+        $this->assertTrue($approved->isApproved());
+        $this->assertSame('Great!', $approved->feedback);
 
-        $this->assertSame('Test message', $request->getMessage());
-        $this->assertCount(2, $request->getActions());
-
-        $actions = $request->getActions();
-        $this->assertSame('action1', $actions[0]->id);
-        $this->assertEquals(ActionDecision::Pending, $actions[0]->decision);
-
-        $this->assertSame('action2', $actions[1]->id);
-        $this->assertEquals(ActionDecision::Approved, $actions[1]->decision);
-        $this->assertSame('Looks good', $actions[1]->feedback);
-    }
-
-    public function testFromArrayWithoutActions(): void
-    {
-        $request = ApprovalRequest::fromArray(['message' => 'Test message']);
-
-        $this->assertSame('Test message', $request->getMessage());
-        $this->assertEmpty($request->getActions());
-    }
-
-    public function testJsonSerializeAndFromArrayAreSymmetric(): void
-    {
-        $original = new ApprovalRequest('Original message', [
-            new Action('action1', 'First Action', 'Description 1', ActionDecision::Pending),
-            new Action('action2', 'Second Action', 'Description 2', ActionDecision::Approved, 'Great!'),
-            new Action('action3', 'Third Action', null, ActionDecision::Rejected, 'Not good'),
-        ]);
-
-        $restored = ApprovalRequest::fromArray($original->jsonSerialize());
-
-        $this->assertSame($original->getMessage(), $restored->getMessage());
-        $this->assertCount(3, $restored->getActions());
-
-        $restoredActions = $restored->getActions();
-        $this->assertEquals(ActionDecision::Pending, $restoredActions[0]->decision);
-        $this->assertNull($restoredActions[0]->feedback);
-
-        $this->assertEquals(ActionDecision::Approved, $restoredActions[1]->decision);
-        $this->assertSame('Great!', $restoredActions[1]->feedback);
-
-        $this->assertEquals(ActionDecision::Rejected, $restoredActions[2]->decision);
-        $this->assertSame('Not good', $restoredActions[2]->feedback);
-    }
-
-    public function testGeneratePayloadOmitsPendingActions(): void
-    {
-        $request = new ApprovalRequest('msg', [
-            new Action('pending', 'Pending', null, ActionDecision::Pending),
-            new Action('approved', 'Approved', null, ActionDecision::Approved),
-        ]);
-
-        $payload = $request->generatePayload();
-
-        $this->assertArrayNotHasKey('pending', $payload);
-        $this->assertArrayHasKey('approved', $payload);
-    }
-
-    public function testGeneratePayloadMapsApprovedAndBareReject(): void
-    {
-        $request = new ApprovalRequest('msg', [
-            new Action('a', 'A', null, ActionDecision::Approved),
-            new Action('r', 'R', null, ActionDecision::Rejected),
-        ]);
-
-        $payload = $request->generatePayload();
-
-        $this->assertSame('approve', $payload['a']);
-        $this->assertSame('reject', $payload['r']);
-    }
-
-    public function testGeneratePayloadMapsRejectWithReason(): void
-    {
-        $request = new ApprovalRequest('msg', [
-            new Action('r', 'R', null, ActionDecision::Rejected, 'Too dangerous'),
-        ]);
-
-        $payload = $request->generatePayload();
-
-        $this->assertSame(['reject', 'Too dangerous'], $payload['r']);
+        $this->assertTrue($rejected->isRejected());
+        $this->assertSame('Nope', $rejected->feedback);
     }
 
     public function testApprovalIsAWaitForEvent(): void

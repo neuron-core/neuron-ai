@@ -52,6 +52,21 @@ Implementations of `ChatHistoryInterface`:
 
 **Base**: `AbstractChatHistory` provides common logic.
 
+### Replace-last rule (ADR 0003)
+
+`addMessage()` recognizes an incoming `ToolCallMessage` whose tool callIds match the
+current last message and **replaces** it instead of appending. This makes the
+suspend-time write, each partial-resume update, and `ToolNode`'s replay re-add all converge
+to a single message reflecting the latest approval state.
+
+Backends that persist via `setMessages()` (File, SQL, InMemory) get this for free — the
+whole history is rewritten on every add. `EloquentChatHistory` (row-per-message) overrides
+`onMessageReplaced()` to update the last row.
+
+Serialized tool entries carry two approval fields: `approval` (`pending`|`approved`|
+`rejected`, or absent for a non-gated tool) and `approvalReason` (rejection-only). Old
+stored histories without these keys deserialize as `null` (not gated).
+
 ### History Trimming
 
 `HistoryTrimmer` reduces token count when history exceeds limits:

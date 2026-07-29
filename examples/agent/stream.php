@@ -37,15 +37,16 @@ function process_response($response): void
 }
 
 $interruptRequest = null;
+$payload = null;
 
 try {
     stream:
-    if ($interruptRequest == null) {
+    if ($payload === null) {
         $result = $agent->stream(
             new UserMessage('Hi, using the tools you have, try to calculate the square root of 16!')
         );
     } else {
-        $result = $agent->stream(interrupt: $interruptRequest);
+        $result = $agent->stream(payload: $payload);
     }
 
     /** @var \NeuronAI\Chat\Messages\Stream\Chunks\TextChunk $response */
@@ -58,9 +59,11 @@ try {
     echo "\nAgent interruption\n";
     echo $interruptRequest->getMessage()."\n\n";
 
-    foreach ($interruptRequest->getPendingActions() as $action) {
+    // Build an incremental payload keyed by the action id (the tool callId).
+    $payload = [];
+    foreach ($interruptRequest->getActions() as $action) {
         echo "- {$action->name}: {$action->description}\n";
-        $action->reject('The user denied operation');
+        $payload[$action->id] = ['reject', 'The user denied operation'];
     }
     goto stream;
 }

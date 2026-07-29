@@ -141,7 +141,7 @@ class AgentDurabilityTest extends TestCase
         $agent1 = Agent::make(resumeToken: $workflowId);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent1->setExecutor($executor);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -157,7 +157,7 @@ class AgentDurabilityTest extends TestCase
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), ['call_1' => 'approve'])->getMessage();
@@ -207,7 +207,7 @@ class AgentDurabilityTest extends TestCase
         $agent1 = Agent::make(resumeToken: $workflowId);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent1->setExecutor($executor);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -222,7 +222,7 @@ class AgentDurabilityTest extends TestCase
         $agent2 = Agent::make(resumeToken: $workflowId);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval());
+        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(

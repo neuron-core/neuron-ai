@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\Action;
@@ -19,6 +21,7 @@ use NeuronAI\Workflow\WorkflowState;
 use function array_filter;
 use function array_key_exists;
 use function count;
+use function end;
 use function is_array;
 use function is_callable;
 use function is_int;
@@ -26,18 +29,33 @@ use function is_string;
 use function json_encode;
 use function sprintf;
 use function uniqid;
+use function array_map;
 
 use const JSON_PRETTY_PRINT;
 
+/**
+ * Human-in-the-loop approval gate for tool execution (ADR 0003 / ADR 0004).
+ *
+ * Approval state lives on the tool entries of the ToolCallMessage persisted in CHAT
+ * HISTORY — that is the system of record, not the middleware or the resume payload.
+ * The middleware's job on every pass is: decide which tools are gated, restore any
+ * previously recorded decisions from history, merge the inbound payload on top, write
+ * the annotated message back to history, and proceed only when every gated tool is
+ * decided. Decisions are revisable (last-write-wins) until the set completes;
+ * completeness is the point of no return.
+ */
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param array<int|string, string|callable(ToolInterface): bool> $tools Tools that require approval.
-     *   - Empty array: all tools require approval (default)
-     *   - Numeric key + string value: tool name or class-string always requires approval
-     *   - String key + callable value: tool name or class-string with conditional callback.
-     *     The callback receives the tool instance and returns bool
-     *     (true = requires approval, false = skip).
+     * @param array<int|string, string|callable(ToolInterface): bool> $tools Tool approval configuration.
+     *   - Empty array (default): each tool decides for itself via requiresApproval().
+     *     (BREAKING: this previously meant "all tools require approval".)
+     *   - Numeric key + string value (tool name or class-string): that tool ALWAYS
+     *     requires approval — overrides the tool's own declaration.
+     *   - String key (tool name or class-string) + callable value
+     *     fn(ToolInterface $tool): bool: the callback decides — overrides the tool's
+     *     own declaration in BOTH directions (may waive a tool that declares true).
+     *   - A tool matching no config entry falls back to its own requiresApproval().
      *
      * Example:
      *   new ToolApproval([
@@ -53,21 +71,6 @@ class ToolApproval implements WorkflowMiddleware
     /**
      * Execute before the node runs.
      *
-     * A tool runs only if it is explicitly approved (ADR 0002). This gate is stateless: on every
-     * resume it re-derives the approval-requiring tools (deterministic, via replay) and demands a
-     * COMPLETE decision set in the inbound payload:
-     *
-     *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
-     *
-     * - Initial run: suspend with an ApprovalRequest for every approval-requiring tool.
-     * - Resume, all decided: apply the decisions and let the node proceed.
-     * - Resume, some undecided: re-suspend. The new request reflects the decisions already
-     *   delivered (decided actions carry their decision), so the human sees progress rather than a
-     *   blank slate. Because the gate is stateless, the payload must be cumulative — it re-states
-     *   every prior decision; ApprovalRequest::generatePayload() produces exactly that.
-     *
-     * @param ToolNode $node
-     * @param ToolCallEvent $event
      * @throws WorkflowInterrupt
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
@@ -83,49 +86,176 @@ class ToolApproval implements WorkflowMiddleware
             return;
         }
 
-        if ($node->isResuming()) {
-            $payload = $node->getResumePayload() ?? [];
-
-            if ($this->undecidedTools($payload, $toolsToApprove) === []) {
-                // Complete decision set — apply it and proceed.
-                $this->processDecisions($payload, $event);
-                return;
-            }
-
-            // Incomplete — re-suspend, reflecting the decisions already delivered.
-            throw new WorkflowInterrupt($this->buildRequest($payload, $toolsToApprove));
+        // The event tools are fresh replayed instances; history is the memory (ADR 0003).
+        if ($state instanceof AgentState) {
+            $this->restoreRecordedState($state, $event);
         }
 
-        // Initial run — suspend for all approval-requiring tools.
-        throw new WorkflowInterrupt($this->buildRequest([], $toolsToApprove));
-    }
+        // Every gated tool that still has no recorded state starts out pending.
+        $this->initializePending($toolsToApprove);
 
-    /**
-     * The approval-requiring tools that lack a decision in the payload. An empty result means the
-     * decision set is complete.
-     *
-     * @param ToolInterface[] $toolsToApprove
-     * @return ToolInterface[]
-     */
-    protected function undecidedTools(array $payload, array $toolsToApprove): array
-    {
-        return array_filter(
+        // An inbound resume payload carries incremental NEW decisions only.
+        if ($node->isResuming()) {
+            $this->mergePayload($node->getResumePayload() ?? [], $toolsToApprove);
+        }
+
+        // Persist the annotated message. Idempotent by the replace-last rule: the first
+        // run appends; every later run (resume) replaces the tail. The history write MUST
+        // happen before any suspend so the pending state is durable.
+        if ($state instanceof AgentState) {
+            $state->getChatHistory()->addMessage($event->toolCallMessage);
+        }
+
+        // A tool runs iff explicitly approved; silence is never consent.
+        $pending = array_filter(
             $toolsToApprove,
-            fn (ToolInterface $tool): bool => !array_key_exists($tool->getCallId() ?? '', $payload)
+            fn (ToolInterface $tool): bool => $tool->getApprovalState() === ApprovalState::Pending
         );
+
+        if ($pending !== []) {
+            throw new WorkflowInterrupt($this->buildRequest($toolsToApprove));
+        }
+
+        // Complete decision set: stamp rejection results (rejected tools are skipped by
+        // the node), then let it execute — approved and non-gated tools run.
+        foreach ($toolsToApprove as $tool) {
+            if ($tool->getApprovalState() === ApprovalState::Rejected) {
+                $this->handleRejectedTool($tool);
+            }
+        }
     }
 
     /**
-     * Build the outbound ApprovalRequest for the given tools, marking each action with the decision
-     * already carried in the payload (so a re-suspend shows progress).
+     * Execute after the node runs.
+     */
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    {
+        //
+    }
+
+    /**
+     * Restore the previously recorded approval state from chat history onto the fresh
+     * event tools. Only runs when the tail message is a ToolCallMessage carrying the
+     * same ordered callIds as the event (i.e. a resume of the suspended approval step).
+     */
+    protected function restoreRecordedState(AgentState $state, ToolCallEvent $event): void
+    {
+        $history = $state->getChatHistory()->getMessages();
+
+        if ($history === []) {
+            return;
+        }
+
+        $last = end($history);
+
+        if (!$last instanceof ToolCallMessage || !$this->sameCallIds($last, $event->toolCallMessage)) {
+            return;
+        }
+
+        $recorded = [];
+        foreach ($last->getTools() as $recordedTool) {
+            $id = $recordedTool->getCallId();
+            if ($id !== null) {
+                $recorded[$id] = $recordedTool;
+            }
+        }
+
+        foreach ($event->toolCallMessage->getTools() as $tool) {
+            $id = $tool->getCallId();
+            if ($id === null) {
+                continue;
+            }
+            if (!array_key_exists($id, $recorded)) {
+                continue;
+            }
+
+            $recordedState = $recorded[$id]->getApprovalState();
+            if ($recordedState instanceof \NeuronAI\Tools\ApprovalState) {
+                $tool->setApprovalState($recordedState, $recorded[$id]->getApprovalReason());
+            }
+        }
+    }
+
+    /**
+     * Stamp every gated tool that still has null state as Pending.
      *
      * @param ToolInterface[] $tools
      */
-    protected function buildRequest(array $payload, array $tools): ApprovalRequest
+    protected function initializePending(array $tools): void
+    {
+        foreach ($tools as $tool) {
+            if ($tool->getApprovalState() === null) {
+                $tool->setApprovalState(ApprovalState::Pending);
+            }
+        }
+    }
+
+    /**
+     * Merge the incremental inbound payload onto the gated tools. Last-write-wins: a
+     * payload entry overwrites any previously recorded decision for an undecided-set
+     * suspension. Entries for unknown callIds (or malformed decisions) are ignored.
+     *
+     * @param array<string, mixed> $payload  Decisions keyed by callId.
+     * @param ToolInterface[]      $toolsToApprove
+     */
+    protected function mergePayload(array $payload, array $toolsToApprove): void
+    {
+        $byCallId = [];
+        foreach ($toolsToApprove as $tool) {
+            $id = $tool->getCallId();
+            if ($id !== null) {
+                $byCallId[$id] = $tool;
+            }
+        }
+
+        foreach ($payload as $callId => $decision) {
+            if (!is_string($callId)) {
+                continue;
+            }
+            if (!array_key_exists($callId, $byCallId)) {
+                continue;
+            }
+            $tool = $byCallId[$callId];
+
+            if ($decision === 'approve') {
+                $tool->setApprovalState(ApprovalState::Approved);
+                continue;
+            }
+
+            if ($decision === 'reject') {
+                $tool->setApprovalState(ApprovalState::Rejected);
+                continue;
+            }
+
+            if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
+                $reason = isset($decision[1]) && is_string($decision[1]) ? $decision[1] : null;
+                $tool->setApprovalState(ApprovalState::Rejected, $reason);
+            }
+            // Anything else: ignore the entry, leave the current state.
+        }
+    }
+
+    /**
+     * Build the outbound ApprovalRequest snapshot from the current tool states. The
+     * request is outbound-only (ADR 0001); the inbound decisions travel as a payload.
+     *
+     * @param ToolInterface[] $tools
+     */
+    protected function buildRequest(array $tools): ApprovalRequest
     {
         $actions = [];
         foreach ($tools as $tool) {
-            $actions[] = $this->createAction($tool, $payload);
+            $inputs = $tool->getInputs();
+
+            $actions[] = new Action(
+                id: $tool->getCallId() ?? uniqid('tool_'),
+                name: $tool->getName(),
+                description: $inputs === []
+                    ? '(no arguments)'
+                    : json_encode($inputs, JSON_PRETTY_PRINT),
+                decision: $this->mapDecision($tool->getApprovalState()),
+                feedback: $tool->getApprovalReason(),
+            );
         }
 
         $count = count($actions);
@@ -141,27 +271,40 @@ class ToolApproval implements WorkflowMiddleware
         );
     }
 
-    /**
-     * Execute after the node runs.
-     */
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    protected function mapDecision(?ApprovalState $state): ActionDecision
     {
-        //
+        return match ($state) {
+            ApprovalState::Approved => ActionDecision::Approved,
+            ApprovalState::Rejected => ActionDecision::Rejected,
+            default => ActionDecision::Pending,
+        };
     }
 
     /**
-     * Filter tools that require approval based on configuration.
+     * Handle a rejected tool by setting a rejection message as its result.
+     *
+     * The node skips execution for rejected tools (Phase 4); this result is what flows
+     * back to the model in place of the tool's real output.
+     */
+    protected function handleRejectedTool(ToolInterface $tool): void
+    {
+        $feedback = $tool->getApprovalReason() ?? 'No specific instruction provided.';
+
+        $tool->setResult(sprintf(
+            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
+            $feedback
+        ));
+    }
+
+    /**
+     * Filter tools that require approval based on configuration, falling back to each
+     * tool's own self-declaration.
      *
      * @param ToolInterface[] $tools
      * @return ToolInterface[]
      */
     protected function filterToolsRequiringApproval(array $tools): array
     {
-        if ($this->tools === []) {
-            // Empty array means all tools require approval
-            return $tools;
-        }
-
         return array_filter(
             $tools,
             $this->toolRequiresApproval(...)
@@ -171,8 +314,8 @@ class ToolApproval implements WorkflowMiddleware
     /**
      * Determine if a specific tool requires approval.
      *
-     * Checks the tool against the configured tools list, handling both
-     * unconditional (string) and conditional (callable) entries.
+     * Middleware configuration overrides the tool's self-declaration in both directions;
+     * a tool matching no config entry falls back to its own requiresApproval().
      */
     protected function toolRequiresApproval(ToolInterface $tool): bool
     {
@@ -180,143 +323,31 @@ class ToolApproval implements WorkflowMiddleware
         $toolClass = $tool::class;
 
         foreach ($this->tools as $key => $value) {
-            // Numeric key + string value: unconditional approval
+            // Numeric key + string value: unconditional approval override.
             if (is_int($key) && is_string($value) && ($value === $toolName || $value === $toolClass)) {
                 return true;
             }
 
-            // String key + callable value: conditional approval
+            // String key + callable value: conditional override.
             if (is_string($key) && is_callable($value) && ($key === $toolName || $key === $toolClass)) {
                 return $value($tool);
             }
         }
 
-        return false;
+        // No config match — let the tool decide for itself (ADR 0004).
+        return $tool->requiresApproval($tool->getInputs());
     }
 
     /**
-     * Create an Action for a tool that requires approval. When a payload is provided (a re-suspend),
-     * the action carries the decision already delivered for this tool so the request reflects
-     * progress.
-     *
-     * @param array<string, mixed> $payload
+     * Whether two ToolCallMessages carry the same ordered list of callIds.
      */
-    protected function createAction(ToolInterface $tool, array $payload = []): Action
+    protected function sameCallIds(ToolCallMessage $a, ToolCallMessage $b): bool
     {
-        $id = $tool->getCallId() ?? uniqid('tool_');
-
-        $inputs = $tool->getInputs();
-        $inputsDescription = $inputs === []
-            ? '(no arguments)'
-            : json_encode($inputs, JSON_PRETTY_PRINT);
-
-        $decision = ActionDecision::Pending;
-        $feedback = null;
-        if (array_key_exists($id, $payload)) {
-            [$decision, $feedback] = $this->decodeDecision($payload[$id]);
-        }
-
-        return new Action(
-            id: $id,
-            name: $tool->getName(),
-            description: $inputsDescription,
-            decision: $decision,
-            feedback: $feedback
-        );
-    }
-
-    /**
-     * Map a payload decision back onto an ActionDecision, for re-suspend progress marking.
-     *
-     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason]
-     * @return array{0: ActionDecision, 1: string|null}
-     */
-    protected function decodeDecision(mixed $decision): array
-    {
-        if ($decision === 'approve') {
-            return [ActionDecision::Approved, null];
-        }
-
-        if ($decision === 'reject') {
-            return [ActionDecision::Rejected, null];
-        }
-
-        if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
-            return [
-                ActionDecision::Rejected,
-                isset($decision[1]) && is_string($decision[1]) ? $decision[1] : null,
-            ];
-        }
-
-        return [ActionDecision::Pending, null];
-    }
-
-    /**
-     * Process human decisions from the payload and modify tools accordingly.
-     *
-     * Iterates the tools, looks up each tool's decision in the payload (keyed by callId), and:
-     *  - Rejected: the tool result is set to a rejection message (so it won't run).
-     *  - Approved / absent: no change — the tool executes normally.
-     *
-     * Only reached once the decision set is complete (see before()), so an absent entry here is a
-     * tool that does not require approval — running it is correct.
-     *
-     * @param array<string, mixed> $payload Decisions keyed by tool callId.
-     */
-    protected function processDecisions(array $payload, ToolCallEvent $event): void
-    {
-        foreach ($event->toolCallMessage->getTools() as $tool) {
-            $callId = $tool->getCallId();
-            if ($callId === null) {
-                continue;
-            }
-
-            if (!array_key_exists($callId, $payload)) {
-                // Not an approval-requiring tool — run normally.
-                continue;
-            }
-
-            $reason = $this->extractRejectionReason($payload[$callId]);
-            if ($reason !== null) {
-                $this->handleRejectedTool($tool, $reason);
-            }
-        }
-    }
-
-    /**
-     * Decode a payload decision into a rejection reason, or null when the decision is not a
-     * rejection.
-     *
-     * @param mixed $decision 'approve' | 'reject' | ['reject', $reason]
-     */
-    protected function extractRejectionReason(mixed $decision): ?string
-    {
-        if ($decision === 'reject') {
-            return 'No specific instruction provided.';
-        }
-
-        if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
-            return isset($decision[1]) && is_string($decision[1])
-                ? $decision[1]
-                : 'No specific instruction provided.';
-        }
-
-        return null;
-    }
-
-    /**
-     * Handle a rejected tool by setting a rejection message as its result.
-     *
-     * This prevents the tool from executing its actual logic and instead
-     * returns a human-readable rejection message that the AI can process.
-     */
-    protected function handleRejectedTool(ToolInterface $tool, string $feedback): void
-    {
-        $rejectionMessage = sprintf(
-            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
-            $feedback
+        $ids = static fn (ToolCallMessage $m): array => array_map(
+            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
+            $m->getTools()
         );
 
-        $tool->setResult($rejectionMessage);
+        return $ids($a) === $ids($b);
     }
 }

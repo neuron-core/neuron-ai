@@ -254,7 +254,7 @@ class WorkflowMiddlewareTest extends TestCase
             ->addMiddleware(NodeOne::class, $middleware);
 
         // A subclass of NodeOne inherits the middleware registered against its parent.
-        $child = new class extends NodeOne {
+        $child = new class () extends NodeOne {
         };
 
         $resolved = $workflow->getMiddlewareForNode($child);

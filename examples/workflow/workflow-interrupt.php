@@ -45,8 +45,10 @@ if ($state->isInterrupted()) {
  * InterruptRequest is never passed back in: it described the pause, the payload
  * satisfies it.
  *
- * For an ApprovalRequest, generatePayload() turns the human's decisions into
- * that array — e.g. ['action_id' => 'approve'].
+ * For tool approval, the payload is INCREMENTAL and keyed by the tool callId —
+ * e.g. ['call_123' => 'approve'] or ['call_456' => ['reject', 'too expensive']].
+ * It carries only NEW decisions; the cumulative state lives in chat history
+ * (ADR 0003), not in the payload.
  */
 $workflow = Workflow::make(resumeToken: $workflowId)
     ->setPersistence($persistence)

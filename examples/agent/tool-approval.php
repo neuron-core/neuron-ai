@@ -62,17 +62,18 @@ $agent = Agent::make(persistence: $persistence)
 
 $interruptRequest = null;
 $workflowId = null;
+$payload = null;
 
 try {
     chat:
     $message = new UserMessage('Delete the C:/old_logs.txt file');
     echo "User: {$message->getContent()}\n\n";
 
-    if ($interruptRequest == null) {
+    if ($payload === null) {
         $response = $agent->chat(messages: $message)->getMessage();
     } else {
         echo "Resuming workflow...\n\n";
-        $response = $agent->chat(interrupt: $interruptRequest)->getMessage();
+        $response = $agent->chat(messages: $message, payload: $payload)->getMessage();
     }
 
     echo "Agent: ".$response->getContent()."\n\n";
@@ -86,17 +87,16 @@ try {
     echo "Message: {$interruptRequest->getMessage()}\n\n";
     echo "Actions requiring approval:\n";
 
-    foreach ($interruptRequest->getPendingActions() as $action) {
-        echo "  - {$action->name}: {$action->description}}";
-    }
+    // Decisions are delivered INCREMENTALLY, keyed by the action id (the tool callId).
+    // The payload carries only NEW decisions — chat history is the system of record.
+    $payload = [];
+    foreach ($interruptRequest->getActions() as $action) {
+        echo "  - {$action->name}: {$action->description}\n";
 
-    echo "\n";
-
-    foreach ($interruptRequest->getPendingActions() as $action) {
         if (promptUserForApproval()) {
-            $action->approve();
+            $payload[$action->id] = 'approve';
         } else {
-            $action->reject('User denied operation');
+            $payload[$action->id] = ['reject', 'User denied operation'];
         }
     }
 

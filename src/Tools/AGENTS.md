@@ -247,6 +247,28 @@ protected function tools(): array
 
 `RetrievalTool.php` - Generic tool for RAG document retrieval.
 
+## Tool Approval
+
+A tool may declare its own intrinsic risk by overriding `requiresApproval(array $inputs): bool`
+(default `false`). This is the tool author's self-declaration — it does nothing until the
+`ToolApproval` middleware is attached to the agent (ADR 0004: tools declare, middleware
+activates). When the middleware IS attached, middleware config overrides the declaration in
+both directions.
+
+```php
+class TransferMoneyTool extends Tool
+{
+    public function requiresApproval(array $inputs): bool
+    {
+        return ($inputs['amount'] ?? 0) > 100;
+    }
+}
+```
+
+Per-call approval state (`pending` / `approved` / `rejected`, with a rejection-only reason)
+is stamped on the tool entries of the `ToolCallMessage` and persisted in **chat history** —
+that is the system of record (ADR 0003), not workflow state. See `ApprovalState`.
+
 ## Dependencies
 
 None. Tools module is self-contained.

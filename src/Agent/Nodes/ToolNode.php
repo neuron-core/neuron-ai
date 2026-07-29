@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
@@ -89,6 +90,14 @@ class ToolNode extends Node
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state, int $index): void
     {
+        if ($tool->getApprovalState() === ApprovalState::Rejected) {
+            // The rejection result was set by the ToolApproval middleware; the tool
+            // must not run (ADR 0002/0003: a tool runs iff explicitly approved).
+            $this->emit('tool-calling', new ToolCalling($tool));
+            $this->emit('tool-called', new ToolCalled($tool));
+            return;
+        }
+
         $this->emit('tool-calling', new ToolCalling($tool));
 
         $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName() . '.' . $index);

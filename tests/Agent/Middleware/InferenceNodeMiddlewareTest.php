@@ -24,14 +24,14 @@ class InferenceNodeMiddlewareTest extends TestCase
     public function test_inference_middleware_fires_in_chat_mode(): void
     {
         $this->assertInferenceMiddlewareFires(
-            fn (Agent $agent) => $agent->chat(new UserMessage('Hi'))->getMessage()
+            fn (Agent $agent): \NeuronAI\Chat\Messages\Message => $agent->chat(new UserMessage('Hi'))->getMessage()
         );
     }
 
     public function test_inference_middleware_fires_in_stream_mode(): void
     {
         $this->assertInferenceMiddlewareFires(
-            fn (Agent $agent) => $agent->stream(new UserMessage('Hi'))->run()
+            fn (Agent $agent): \NeuronAI\Agent\AgentState => $agent->stream(new UserMessage('Hi'))->run()
         );
     }
 

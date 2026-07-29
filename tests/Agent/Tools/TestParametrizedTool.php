@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Tools;
 
+use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\TrackByInputs;
 
@@ -139,6 +140,26 @@ class TestParametrizedTool implements ToolInterface
     public function getRunKey(): string
     {
         return $this->name . ':' . $this->runKey;
+    }
+
+    public function requiresApproval(array $inputs): bool
+    {
+        return false;
+    }
+
+    public function getApprovalState(): ?ApprovalState
+    {
+        return null;
+    }
+
+    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface
+    {
+        return $this;
+    }
+
+    public function getApprovalReason(): ?string
+    {
+        return null;
     }
 
     public function jsonSerialize(): mixed

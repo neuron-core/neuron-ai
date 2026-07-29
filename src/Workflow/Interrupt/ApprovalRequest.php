@@ -10,17 +10,21 @@ use function array_values;
 use function array_map;
 
 /**
- * Outbound request carrying the tool calls (or other actions) that require a human decision before
- * the workflow may proceed.
+ * Outbound request carrying the tool calls (or other actions) that require a human decision
+ * before the workflow may proceed.
  *
- * This is a pure OUTBOUND value (see ADR 0001): it describes what the caller must render to a human
- * and is never handed back into the workflow. The human's decisions travel inbound as a separate
- * resume payload, which {@see generatePayload()} produces from the decisions recorded on this
- * request's actions.
+ * This is a pure OUTBOUND value (ADR 0001): a convenience snapshot of what the caller must
+ * render to a human. It describes the actions and their current decision state — it is never
+ * handed back into the workflow and carries no round-trip machinery.
  *
- * The request is not mutated after construction — there are no per-action add/set helpers. A caller
- * that round-trips it through a UI reconstructs a fresh instance with {@see fromArray()} (carrying
- * the decisions) and turns that into the resume payload with {@see generatePayload()}.
+ * The human's decisions travel inbound as a separate, INCREMENTAL resume payload keyed by
+ * action id (the tool callId), not via this object:
+ *
+ *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
+ *
+ * Pending approval state itself is persisted in chat history (ADR 0003) — the system of
+ * record the UI already reads. This request is rebuilt fresh by the middleware on every
+ * pass (replay-by-rerun), so it is not persisted and may safely reference real objects.
  */
 class ApprovalRequest extends WaitForEventRequest
 {
@@ -73,59 +77,5 @@ class ApprovalRequest extends WaitForEventRequest
                 array_values($this->actions),
             ),
         ];
-    }
-
-    /**
-     * Reconstruct from a serialized shape (e.g. a UI submission). Symmetric with
-     * {@see jsonSerialize()}: `actions` is a nested array of action data.
-     *
-     * @param array<string, mixed> $data
-     */
-    public static function fromArray(array $data): self
-    {
-        $instance = new self($data['message']);
-
-        foreach ($data['actions'] ?? [] as $actionData) {
-            $action = $actionData instanceof Action ? $actionData : Action::fromArray($actionData);
-            $instance->actions[$action->id] = $action;
-        }
-
-        return $instance;
-    }
-
-    /**
-     * Build the inbound resume payload from the decisions recorded on this request's actions.
-     *
-     * Emits one entry per DECIDED action, keyed by action id; pending actions are omitted (a tool
-     * runs only on explicit approval — silence is never consent, see ADR 0002). The shape is the
-     * ToolApproval payload contract:
-     *
-     *   ['<id>' => 'approve' | 'reject' | ['reject', $reason]]
-     *
-     * Because pending actions are omitted, a request progressively filled with decisions yields a
-     * cumulative payload — which is what the stateless ToolApproval gate requires to recognize a
-     * resume as complete.
-     *
-     * @return array<string, mixed>
-     */
-    public function generatePayload(): array
-    {
-        $payload = [];
-
-        foreach ($this->actions as $action) {
-            if ($action->decision === ActionDecision::Pending) {
-                continue;
-            }
-
-            if ($action->decision === ActionDecision::Rejected) {
-                $payload[$action->id] = $action->feedback !== null
-                    ? ['reject', $action->feedback]
-                    : 'reject';
-            } else {
-                $payload[$action->id] = 'approve';
-            }
-        }
-
-        return $payload;
     }
 }

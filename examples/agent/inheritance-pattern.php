@@ -62,15 +62,16 @@ class DataAnalystAgent extends Agent
 $agent = DataAnalystAgent::make();
 
 $interruptRequest = null;
+$payload = null;
 
 try {
     chat:
-    if ($interruptRequest == null) {
+    if ($payload === null) {
         $response = $agent->chat(
             new UserMessage('Calculate the compound annual growth rate if initial value is 1000 and final value is 1500 over 3 years')
         );
     } else {
-        $response = $agent->chat(interrupt: $interruptRequest);
+        $response = $agent->chat(payload: $payload);
     }
 
     echo "Agent Response:\n";
@@ -79,12 +80,13 @@ try {
 } catch (WorkflowInterrupt $interrupt) {
     echo "Workflow interrupted for approval\n";
 
-    // Handle approval flow
+    // Build an incremental payload keyed by the action id (the tool callId).
+    $payload = [];
     $interruptRequest = $interrupt->getRequest();
     foreach ($interruptRequest->getActions() as $action) {
         echo "Action: {$action->name} - {$action->description}\n";
         // In a real app, prompt user for approval
-        $action->approve();
+        $payload[$action->id] = 'approve';
     }
 
     goto chat;
