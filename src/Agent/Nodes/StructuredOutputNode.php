@@ -6,7 +6,6 @@ namespace NeuronAI\Agent\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
@@ -30,7 +29,6 @@ use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 use ReflectionException;
 
 use function count;
@@ -42,15 +40,14 @@ use const PHP_EOL;
 /**
  * Node responsible for handling structured output requests with retry logic.
  */
-class StructuredOutputNode extends Node
+class StructuredOutputNode extends InferenceNode
 {
-    use ChatHistoryHelper;
-
     public function __construct(
-        protected AIProviderInterface $provider,
+        AIProviderInterface $provider,
         protected readonly string $outputClass,
         protected int $maxTries = 1,
     ) {
+        parent::__construct($provider);
     }
 
     /**

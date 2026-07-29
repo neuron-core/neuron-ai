@@ -314,16 +314,11 @@ For human oversight of tool execution:
 
 ```php
 use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\StreamNode;
-use NeuronAI\Agent\Nodes\StructuredOutputNode;
+use NeuronAI\Agent\Nodes\ToolNode;
 
-// In agent constructor
-$this->middleware([
-    ChatNode::class,
-    StreamNode::class,
-    StructuredOutputNode::class
-], new ToolApproval());
+// Middleware matching is instanceof-based, so this also covers ParallelToolNode.
+// Use InferenceNode::class to target the inference step in every execution mode.
+$agent->addMiddleware(ToolNode::class, new ToolApproval());
 ```
 
 ### Observability with Inspector

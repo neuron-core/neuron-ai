@@ -6,30 +6,20 @@ namespace NeuronAI\Agent\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
-use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 
 /**
  * Receives an AIInferenceEvent containing instructions and tools that middleware can
  * modify before the actual inference call is made.
  */
-class ChatNode extends Node
+class ChatNode extends InferenceNode
 {
-    use ChatHistoryHelper;
-
-    public function __construct(
-        protected AIProviderInterface $provider,
-    ) {
-    }
-
     /**
      * @throws InspectorException
      */

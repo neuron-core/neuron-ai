@@ -6,9 +6,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\Summarization;
-use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\StreamingNode;
-use NeuronAI\Agent\Nodes\StructuredOutputNode;
+use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
@@ -34,9 +32,9 @@ $summarizationProvider = new Anthropic(
 // Create the agent with summarization middleware
 $agent = Agent::make()
     ->setAiProvider($mainProvider)
-    // Apply summarization middleware to generative nodes
+    // Apply summarization middleware to the inference step in every execution mode
     ->addMiddleware(
-        [ChatNode::class, StreamingNode::class, StructuredOutputNode::class],
+        InferenceNode::class,
         new Summarization(
             provider: $summarizationProvider,
             maxTokens: 1000,

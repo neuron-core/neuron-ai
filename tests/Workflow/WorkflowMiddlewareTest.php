@@ -233,6 +233,36 @@ class WorkflowMiddlewareTest extends TestCase
         $middlewareForThree->assertBeforeCalledForNode(NodeThree::class);
     }
 
+    public function testMiddlewareRegisteredOnParentClassCoversSubclassNode(): void
+    {
+        $middleware = FakeMiddleware::make();
+
+        // NodeOneSubclass runs in place of NodeOne, but the registration
+        // on the parent class must still match (instanceof-based matching).
+        Workflow::make()
+            ->addMiddleware(NodeOne::class, $middleware)
+            ->addNodes([new Stubs\NodeOneSubclass(), new NodeTwo(), new NodeThree()])
+            ->init()
+            ->run();
+
+        $middleware->assertBeforeCalledTimes(1);
+        $middleware->assertAfterCalledTimes(1);
+        $middleware->assertBeforeCalledForNode(Stubs\NodeOneSubclass::class);
+    }
+
+    public function testMiddlewareRegisteredOnSubclassDoesNotCoverParentNode(): void
+    {
+        $middleware = FakeMiddleware::make();
+
+        Workflow::make()
+            ->addMiddleware(Stubs\NodeOneSubclass::class, $middleware)
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->init()
+            ->run();
+
+        $middleware->assertNotCalled();
+    }
+
     public function testAfterMiddlewareRunsEvenForStreamingNodes(): void
     {
         $middleware = FakeMiddleware::make();

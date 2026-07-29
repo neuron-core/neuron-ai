@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
@@ -13,21 +12,12 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
-use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 use Generator;
 use Throwable;
 
-class StreamingNode extends Node
+class StreamingNode extends InferenceNode
 {
-    use ChatHistoryHelper;
-
-    public function __construct(
-        protected AIProviderInterface $provider,
-    ) {
-    }
-
     /**
      * @throws Throwable
      */
