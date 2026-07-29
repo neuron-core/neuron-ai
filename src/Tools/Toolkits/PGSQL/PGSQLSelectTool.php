@@ -169,7 +169,7 @@ It looks like you are trying to run a write query using the read-only query tool
     protected function performAdditionalSecurityChecks(string $query): bool
     {
         // Check for semicolon followed by potential write operations
-        if (preg_match('/;\s*(?!$)/i', $query)) {
+        if (preg_match('/;\s*(?!$)/', $query)) {
             // Multiple statements detected - need to validate each one
             $statements = $this->splitStatements($query);
             foreach ($statements as $statement) {
