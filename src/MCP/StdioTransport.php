@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
+use JsonException;
+
 use function array_merge;
 use function escapeshellarg;
 use function fclose;
@@ -52,6 +54,7 @@ class StdioTransport implements McpTransportInterface
 
     /**
      * Connect to the MCP server by spawning the process
+     * @throws McpException
      */
     public function connect(): void
     {
@@ -133,7 +136,7 @@ class StdioTransport implements McpTransportInterface
      * Receive a response from the MCP server
      *
      * @return array<string, mixed>
-     * @throws McpException
+     * @throws McpException|JsonException
      */
     public function receive(): array
     {

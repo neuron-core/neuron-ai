@@ -96,7 +96,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * parallel interrupts.
      *
      * @return Generator<int, Event, mixed, void>
-     * @throws WorkflowException|InspectorException
+     * @throws WorkflowException|InspectorException|Throwable
      */
     public function resume(WorkflowInterface $workflow, InterruptRequest $request): Generator
     {
