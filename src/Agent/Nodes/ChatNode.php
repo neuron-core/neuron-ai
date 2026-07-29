@@ -15,13 +15,12 @@ use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 
 /**
  * Receives an AIInferenceEvent containing instructions and tools that middleware can
  * modify before the actual inference call is made.
  */
-class ChatNode extends Node
+class ChatNode extends InferenceNode
 {
     use ChatHistoryHelper;
 

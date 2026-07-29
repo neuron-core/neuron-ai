@@ -30,7 +30,6 @@ use NeuronAI\StructuredOutput\JsonExtractor;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 use ReflectionException;
 
 use function count;
@@ -42,7 +41,7 @@ use const PHP_EOL;
 /**
  * Node responsible for handling structured output requests with retry logic.
  */
-class StructuredOutputNode extends Node
+class StructuredOutputNode extends InferenceNode
 {
     use ChatHistoryHelper;
 

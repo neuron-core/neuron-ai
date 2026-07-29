@@ -105,6 +105,7 @@ $report = MyAgent::make()->structured($message, ReportSchema::class);
 
 | Node | Purpose |
 |------|---------|
+| `InferenceNode` | Abstract base for the inference nodes below; attach middleware here to target every mode |
 | `ChatNode` | Standard inference |
 | `StreamingNode` | Streaming inference |
 | `StructuredOutputNode` | JSON schema extraction |
@@ -113,7 +114,10 @@ $report = MyAgent::make()->structured($message, ReportSchema::class);
 
 ## Middleware (`Middleware/`)
 
-Register via `$workflow->middleware(NodeClass::class, $middleware)`:
+Register via `$workflow->middleware(NodeClass::class, $middleware)`. Matching is
+subclass-aware (instanceof), so attaching middleware to `InferenceNode::class`
+runs it in **every** mode — `chat()`, `stream()`, and `structured()` — without
+having to register against each concrete node:
 
 | Middleware | Purpose |
 |------------|---------|

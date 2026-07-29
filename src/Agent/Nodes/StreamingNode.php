@@ -15,11 +15,10 @@ use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 use Generator;
 use Throwable;
 
-class StreamingNode extends Node
+class StreamingNode extends InferenceNode
 {
     use ChatHistoryHelper;
 

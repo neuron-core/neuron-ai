@@ -10,6 +10,7 @@ use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -231,6 +232,23 @@ class WorkflowMiddlewareTest extends TestCase
 
         $middlewareForThree->assertBeforeCalledTimes(1);
         $middlewareForThree->assertBeforeCalledForNode(NodeThree::class);
+    }
+
+    public function testMiddlewareRegisteredAgainstBaseClassCoversSubclasses(): void
+    {
+        $middleware = FakeMiddleware::make();
+
+        // Registering against the abstract Node base must match every concrete
+        // subclass (matching is instanceof, not exact class).
+        Workflow::make()
+            ->addMiddleware(Node::class, $middleware)
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->init()
+            ->run();
+
+        // All three nodes extend Node, so the middleware fires for each.
+        $middleware->assertBeforeCalledTimes(3);
+        $middleware->assertAfterCalledTimes(3);
     }
 
     public function testAfterMiddlewareRunsEvenForStreamingNodes(): void
