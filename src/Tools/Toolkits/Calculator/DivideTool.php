@@ -8,8 +8,6 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
-use function floatval;
-
 class DivideTool extends Tool
 {
     protected string $name = 'divide';
