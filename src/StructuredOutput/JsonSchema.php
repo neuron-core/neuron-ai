@@ -230,7 +230,7 @@ class JsonSchema
         }
 
         // Handle nullable types - for basic types only
-        if ($type && $type->allowsNull() && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf'])) {
+        if ($type && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf']) && $type->allowsNull()) {
             if (is_array($schema['type'])) {
                 if (!in_array('null', $schema['type'])) {
                     $schema['type'][] = 'null';
