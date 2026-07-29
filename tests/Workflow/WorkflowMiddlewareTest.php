@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Agent\Nodes\ParallelToolNode;
+use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
@@ -242,5 +244,51 @@ class WorkflowMiddlewareTest extends TestCase
 
         $afterRecords = $middleware->getAfterRecords();
         $this->assertInstanceOf(SecondEvent::class, $afterRecords[0]->event);
+    }
+
+    public function testNodeMiddlewareMatchesSubclassesViaInstanceof(): void
+    {
+        $middleware = FakeMiddleware::make();
+
+        $workflow = Workflow::make()
+            ->addMiddleware(NodeOne::class, $middleware);
+
+        // A subclass of NodeOne inherits the middleware registered against its parent.
+        $child = new class extends NodeOne {
+        };
+
+        $resolved = $workflow->getMiddlewareForNode($child);
+
+        $this->assertCount(1, $resolved);
+        $this->assertSame($middleware, $resolved[0]);
+    }
+
+    public function testNodeMiddlewareDoesNotMatchUnrelatedSiblingClasses(): void
+    {
+        $middleware = FakeMiddleware::make();
+
+        $workflow = Workflow::make()
+            ->addMiddleware(NodeTwo::class, $middleware);
+
+        // NodeOne is a sibling of NodeTwo, not a subclass — no match.
+        $resolved = $workflow->getMiddlewareForNode(new NodeOne());
+
+        $this->assertSame([], $resolved);
+    }
+
+    public function testToolNodeMiddlewareCoversParallelToolNodeSubclass(): void
+    {
+        // A safety middleware attached to ToolNode must also cover its
+        // ParallelToolNode subclass — never silently dropped by an
+        // execution-mode switch (see CONTEXT.md).
+        $middleware = FakeMiddleware::make();
+
+        $workflow = Workflow::make()
+            ->addMiddleware(ToolNode::class, $middleware);
+
+        $resolved = $workflow->getMiddlewareForNode(new ParallelToolNode());
+
+        $this->assertCount(1, $resolved);
+        $this->assertSame($middleware, $resolved[0]);
     }
 }

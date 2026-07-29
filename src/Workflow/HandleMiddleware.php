@@ -99,14 +99,26 @@ trait HandleMiddleware
     /**
      * Get all registered middleware for the given node.
      *
+     * Matching is subclass-aware: middleware registered for a class also
+     * applies to any of its subclasses (via instanceof). This lets callers
+     * target a shared base class (e.g. an InferenceNode) so a middleware fires
+     * for every node type that extends it, rather than being silently dropped
+     * when a sibling class is instantiated.
+     *
      * @return WorkflowMiddleware[]
      */
     public function getMiddlewareForNode(NodeInterface $node): array
     {
-        $nodeClass = $node::class;
-        $middlewares = $this->nodeMiddleware[$nodeClass] ?? [];
+        // Global middleware runs first, then node-specific middleware in
+        // registration order, for every registered class the node matches.
+        $middlewares = $this->globalMiddleware;
 
-        // Combine global and node-specific middleware
-        return array_merge($this->globalMiddleware, $middlewares);
+        foreach ($this->nodeMiddleware as $class => $list) {
+            if ($node instanceof $class) {
+                $middlewares = array_merge($middlewares, $list);
+            }
+        }
+
+        return $middlewares;
     }
 }

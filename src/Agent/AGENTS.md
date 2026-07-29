@@ -109,6 +109,15 @@ Register via `$workflow->middleware(NodeClass::class, $middleware)`:
 | `TodoPlanning` | Injects todo planning capabilities |
 | `Summarization` | Adds conversation summarization |
 
+Node matching is subclass-aware (`instanceof`), so middleware registered for a
+class also applies to its subclasses. `ChatNode`, `StreamingNode`, and
+`StructuredOutputNode` are siblings — the Agent instantiates exactly one per
+mode (`chat()` / `stream()` / `structured()`). They all share the
+`InferenceNode` base class, so register mode-agnostic inference middleware
+(`Summarization`, `TodoPlanning`, `ToolSearchMiddleware`) against
+`InferenceNode::class` to have it fire in **all three** modes rather than only
+the one whose node class you named.
+
 ## Persistence
 
 ToolApproval middleware will fire the interruption in case of tools that need human approval.
