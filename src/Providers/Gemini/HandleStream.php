@@ -83,7 +83,7 @@ trait HandleStream
         while (! $stream->eof()) {
             $line = $this->readLine($stream);
 
-            if (($line = json_decode((string) $line, true)) === null) {
+            if (($line = json_decode($line, true)) === null) {
                 continue;
             }
 

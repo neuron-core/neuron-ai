@@ -410,7 +410,7 @@ class SseHttpTransport implements McpTransportInterface
     {
         $headerLines = [];
         foreach ($headers as $key => $value) {
-            if (strpbrk((string) $key, "\r\n") !== false || strpbrk((string) $value, "\r\n") !== false) {
+            if (strpbrk($key, "\r\n") !== false || strpbrk($value, "\r\n") !== false) {
                 throw new McpException('Header values must not contain line breaks');
             }
             $headerLines[] = "$key: $value";

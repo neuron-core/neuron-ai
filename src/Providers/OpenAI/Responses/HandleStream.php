@@ -163,11 +163,11 @@ trait HandleStream
     {
         $line = $this->readLine($stream);
 
-        if (! str_starts_with((string) $line, 'data:')) {
+        if (! str_starts_with($line, 'data:')) {
             return null;
         }
 
-        $line = trim(substr((string) $line, mb_strlen('data: ')));
+        $line = trim(substr($line, mb_strlen('data: ')));
 
         if (str_contains($line, 'DONE')) {
             return null;
