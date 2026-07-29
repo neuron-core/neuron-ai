@@ -82,7 +82,7 @@ abstract class MakeCommand
         foreach ($args as $arg) {
             if ($arg === '--help' || $arg === '-h') {
                 $options['help'] = true;
-            } elseif (!str_starts_with($arg, '-') && empty($options['name'])) {
+            } elseif (empty($options['name']) && !str_starts_with($arg, '-')) {
                 $options['name'] = $arg;
             }
         }

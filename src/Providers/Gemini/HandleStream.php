@@ -216,7 +216,7 @@ trait HandleStream
         while (! $stream->eof()) {
             $buffer .= $stream->read(1);
 
-            if (mb_strlen($buffer) === 1 && $buffer !== '{') {
+            if ($buffer !== '{' && mb_strlen($buffer) === 1) {
                 $buffer = '';
             } elseif (json_decode($buffer) !== null) {
                 return $buffer;

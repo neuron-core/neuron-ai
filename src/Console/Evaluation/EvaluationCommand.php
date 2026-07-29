@@ -85,7 +85,7 @@ class EvaluationCommand
                 $options['verbose'] = true;
             } elseif (str_starts_with($arg, '--path=')) {
                 $options['path'] = substr($arg, 7); // Remove '--path='
-            } elseif (!str_starts_with($arg, '-') && empty($options['path'])) {
+            } elseif (empty($options['path']) && !str_starts_with($arg, '-')) {
                 $options['path'] = $arg;
             }
         }
