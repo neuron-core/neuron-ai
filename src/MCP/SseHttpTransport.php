@@ -49,7 +49,6 @@ use const JSON_THROW_ON_ERROR;
 class SseHttpTransport implements McpTransportInterface
 {
     protected const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
-
     protected readonly Client $httpClient;
     protected ?string $sessionId = null;
     protected ?string $postEndpointUrl = null;
@@ -405,12 +404,13 @@ class SseHttpTransport implements McpTransportInterface
      * Build header string for stream context
      *
      * @param array<string, string> $headers
+     * @throws McpException
      */
     protected function buildHeaderString(array $headers): string
     {
         $headerLines = [];
         foreach ($headers as $key => $value) {
-            if (strpbrk((string) $key, "\r\n") !== false || strpbrk((string) $value, "\r\n") !== false) {
+            if (strpbrk($key, "\r\n") !== false || strpbrk($value, "\r\n") !== false) {
                 throw new McpException('Header values must not contain line breaks');
             }
             $headerLines[] = "$key: $value";

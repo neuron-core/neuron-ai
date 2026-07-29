@@ -138,14 +138,13 @@ class ConsoleExporter implements ExporterInterface
         // Handle produced events
         if (!empty($connection['produces'])) {
             foreach ($connection['produces'] as $producedEvent) {
+                $output .= $indent . "   ↓\n";
+
                 if ($producedEvent === 'StopEvent') {
-                    $output .= $indent . "   ↓\n";
                     $output .= $indent . "🏁 " . $producedEvent . "\n";
                 } elseif (isset($eventToConnection[$producedEvent])) {
-                    $output .= $indent . "   ↓\n";
                     $output .= $this->renderConnection($eventToConnection[$producedEvent], $eventToConnection, $visited, $depth + 1);
                 } else {
-                    $output .= $indent . "   ↓\n";
                     $output .= $indent . "❓ " . $producedEvent . " (no handler)\n";
                 }
             }

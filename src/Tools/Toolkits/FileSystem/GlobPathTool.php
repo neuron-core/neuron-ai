@@ -92,7 +92,7 @@ class GlobPathTool extends Tool
                 $path = $directory . $separator . $item;
 
                 if (is_dir($path)) {
-                    $files = [...$files, ...$this->globRecursive($path, $pattern, $recursive)];
+                    $files = [...$files, ...$this->globRecursive($path, $pattern, true)];
                 }
             }
         }
