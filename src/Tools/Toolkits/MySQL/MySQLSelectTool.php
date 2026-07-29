@@ -139,7 +139,7 @@ Always use backticks around identifiers that are reserved keywords.'
 
     protected function getFirstKeyword(string $query): string
     {
-        if (preg_match('/^\s*(\w+)/i', $query, $matches)) {
+        if (preg_match('/^\s*(\w+)/u', $query, $matches)) {
             return strtoupper($matches[1]);
         }
         return '';
