@@ -173,7 +173,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             'vector_query' => 'embedding:(' . json_encode($embedding) . ')',
             'exclude_fields' => 'embedding',
             'per_page' => $this->topK,
-            'num_candidates' => max(50, intval($this->topK) * 4),
+            'num_candidates' => max(50, (int)$this->topK * 4),
         ];
 
         $searchRequests = ['searches' => [$params]];
