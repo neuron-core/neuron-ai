@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\MCP;
 
 use Exception;
+use JsonException;
 use stdClass;
 
 use function array_filter;
@@ -49,7 +50,7 @@ class McpClient
     }
 
     /**
-     * @throws McpException
+     * @throws McpException|JsonException
      */
     protected function initialize(): void
     {

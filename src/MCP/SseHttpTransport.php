@@ -405,6 +405,7 @@ class SseHttpTransport implements McpTransportInterface
      * Build header string for stream context
      *
      * @param array<string, string> $headers
+     * @throws McpException
      */
     protected function buildHeaderString(array $headers): string
     {
