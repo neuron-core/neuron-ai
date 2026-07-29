@@ -68,7 +68,7 @@ abstract class Node implements NodeInterface
             return $result;
         }
 
-        $result = call_user_func($closure);
+        $result = $closure();
         $this->checkpoints[$name] = $result;
         return $result;
     }
