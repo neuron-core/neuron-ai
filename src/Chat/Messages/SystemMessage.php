@@ -57,6 +57,20 @@ class SystemMessage extends Message
     }
 
     /**
+     * Mark all system content blocks as cached.
+     */
+    public function cache(): static
+    {
+        foreach ($this->contents as $block) {
+            if ($block instanceof SystemContent) {
+                $block->cache();
+            }
+        }
+
+        return $this;
+    }
+
+    /**
      * Check if the given text appears in one of the content blocks.
      */
     public function contains(string $text): bool
