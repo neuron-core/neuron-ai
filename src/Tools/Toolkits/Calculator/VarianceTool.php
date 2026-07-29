@@ -63,7 +63,7 @@ class VarianceTool extends Tool
             return ['error' => 'Data array must contain at least one numeric value'];
         }
 
-        if (count($numericData) === 1 && $this->sample) {
+        if ($this->sample && count($numericData) === 1) {
             return ['error' => 'Cannot calculate sample variance with only one data point'];
         }
 
