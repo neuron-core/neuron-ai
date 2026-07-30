@@ -92,6 +92,7 @@ class Agent extends Workflow implements AgentInterface
         bool $timedOut = false
     ): AgentHandler {
         $this->guardPendingApprovals($payload);
+        $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -116,6 +117,7 @@ class Agent extends Workflow implements AgentInterface
         bool $timedOut = false
     ): AgentHandler {
         $this->guardPendingApprovals($payload);
+        $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -144,6 +146,7 @@ class Agent extends Workflow implements AgentInterface
         bool $timedOut = false
     ): mixed {
         $this->guardPendingApprovals($payload);
+        $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
@@ -169,6 +172,32 @@ class Agent extends Workflow implements AgentInterface
     protected function getOutputClass(): string
     {
         throw new AgentException('You need to set a structured output class.');
+    }
+
+    /**
+     * A resume payload targets the suspended run recorded on the thread: when the
+     * tail of chat history is a ToolCallMessage stamped with a resume token
+     * (ADR 0005), that token identifies the workflow to reattach to — chat history
+     * is the system of record, so nothing else needs to be stored or passed. With
+     * no stamp on the tail the agent keeps its current workflowId (e.g. a
+     * resumeToken passed to make() for a non-approval suspension).
+     *
+     * @param array<string, mixed>|null $payload Null starts a fresh turn; a non-null
+     *                                           payload resumes a suspended workflow.
+     */
+    protected function checkResumeToken(?array $payload): void
+    {
+        if ($payload === null) {
+            return;
+        }
+
+        $messages = $this->resolveState()->getChatHistory()->getMessages();
+        $last = end($messages);
+        $token = $last instanceof ToolCallMessage ? $last->getResumeToken() : null;
+
+        if ($token !== null) {
+            $this->workflowId = $token;
+        }
     }
 
     /**

@@ -67,6 +67,13 @@ Serialized tool entries carry two approval fields: `approval` (`pending`|`approv
 `rejected`, or absent for a non-gated tool) and `approvalReason` (rejection-only). Old
 stored histories without these keys deserialize as `null` (not gated).
 
+The suspended `ToolCallMessage` also carries a `resume_token` metadata entry (ADR 0005) —
+the handle to reattach to the suspended run, exposed via
+`ToolCallMessage::getResumeToken(): ?string`. It is an opaque string here: the Chat module
+knows nothing about workflows. Stamped by the `ToolApproval` middleware at suspend, it makes
+chat history sufficient to *resume* an approval flow, not just render it. Old histories
+deserialize it as `null`.
+
 ### History Trimming
 
 `HistoryTrimmer` reduces token count when history exceeds limits:

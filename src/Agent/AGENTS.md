@@ -158,3 +158,26 @@ A tool runs iff explicitly approved; silence is never consent. Decisions are rev
 reading chat history (last message, tools with `getApprovalState()`) — no workflow boot.
 The thread must stay **locked** until every decision is delivered: starting a new turn on a
 thread with pending approvals throws `AgentException`.
+
+### Resume token lives in chat history (ADR 0005)
+
+At suspend, `ToolApproval` stamps the workflowId onto the annotated `ToolCallMessage`
+(`ToolCallMessage::getResumeToken()`), so history alone is sufficient to **resume**, not just
+to render. A payload-carrying `chat()`/`stream()`/`structured()` call with no explicit
+resumeToken **adopts** the token from the history tail — the approve/deny endpoint needs only
+the thread id:
+
+```php
+// New execution cycle: no workflowId stored anywhere by the application.
+$agent = Agent::make()
+    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+    ->setPersistence($persistence)
+    ->addMiddleware(ToolNode::class, new ToolApproval());
+
+$agent->chat(payload: ['call_123' => 'approve']);
+```
+
+The stamp wins even over a `resumeToken` passed to `make()` — history is the system of
+record. With no stamp on the tail the agent keeps its current workflowId, so explicit-token
+resumes of non-approval suspensions work unchanged. The token is stamped on every middleware
+pass and never stripped: once the message is no longer the tail it is inert.

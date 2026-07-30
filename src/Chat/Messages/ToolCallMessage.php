@@ -10,6 +10,7 @@ use Stringable;
 
 use function array_map;
 use function array_merge;
+use function is_string;
 use function json_encode;
 
 /**
@@ -33,6 +34,25 @@ class ToolCallMessage extends AssistantMessage implements Stringable
     public function getTools(): array
     {
         return $this->tools;
+    }
+
+    /**
+     * The handle to reattach to the suspended run that produced this tool call
+     * (ADR 0005). Stamped by the ToolApproval middleware at suspend time; an
+     * opaque string here — the Chat module knows nothing about workflows.
+     */
+    public function setResumeToken(string $token): self
+    {
+        $this->addMetadata('resume_token', $token);
+
+        return $this;
+    }
+
+    public function getResumeToken(): ?string
+    {
+        $token = $this->getMetadata('resume_token');
+
+        return is_string($token) ? $token : null;
     }
 
     public function jsonSerialize(): array

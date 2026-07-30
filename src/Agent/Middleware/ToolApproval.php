@@ -101,8 +101,16 @@ class ToolApproval implements WorkflowMiddleware
 
         // Persist the annotated message. Idempotent by the replace-last rule: the first
         // run appends; every later run (resume) replaces the tail. The history write MUST
-        // happen before any suspend so the pending state is durable.
+        // happen before any suspend so the pending state is durable. The resume token is
+        // stamped alongside (ADR 0005) so history alone is sufficient to resume — and it
+        // is stamped on the completing pass too: stripping it would open a crash window
+        // between set-completion and run-end.
         if ($state instanceof AgentState) {
+            $workflowId = $state->get('__workflowId');
+            if (is_string($workflowId) && $workflowId !== '') {
+                $event->toolCallMessage->setResumeToken($workflowId);
+            }
+
             $state->getChatHistory()->addMessage($event->toolCallMessage);
         }
 

@@ -60,6 +60,34 @@ class ApprovalSerializationTest extends TestCase
         $this->assertSame('too risky', $tools[1]->getApprovalReason());
     }
 
+    public function test_round_trip_preserves_resume_token(): void
+    {
+        $tool = ToolDefinition::make('gated_tool', 'd')
+            ->setCallId('c1')
+            ->setInputs(['q' => 'x']);
+        $tool->setApprovalState(ApprovalState::Pending);
+
+        $message = new ToolCallMessage(tools: [$tool]);
+        $message->setResumeToken('workflow_abc123');
+
+        $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
+
+        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
+        $this->assertSame('workflow_abc123', $restored[0]->getResumeToken());
+    }
+
+    public function test_legacy_shape_without_resume_token_loads_as_null(): void
+    {
+        $message = new ToolCallMessage(tools: [
+            ToolDefinition::make('gated_tool', 'd')->setCallId('c1')->setInputs(['q' => 'x']),
+        ]);
+
+        $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
+
+        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
+        $this->assertNull($restored[0]->getResumeToken());
+    }
+
     public function test_legacy_shape_without_approval_key_loads_as_null(): void
     {
         $legacyMessage = [
