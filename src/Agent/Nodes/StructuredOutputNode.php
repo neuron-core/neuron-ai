@@ -67,9 +67,9 @@ class StructuredOutputNode extends InferenceNode
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
-            $this->emit('schema-generation', new SchemaGeneration($this->outputClass));
+            $this->emit(new SchemaGeneration($this->outputClass));
             $schema = JsonSchema::make()->generate($this->outputClass);
-            $this->emit('schema-generated', new SchemaGenerated($this->outputClass, $schema));
+            $this->emit(new SchemaGenerated($this->outputClass, $schema));
             $state->set('structured_schema', $schema);
         }
 
@@ -93,7 +93,7 @@ class StructuredOutputNode extends InferenceNode
 
                 $last = clone $chatHistory->getLastMessage();
 
-                $this->emit('inference-start', new InferenceStart($last));
+                $this->emit(new InferenceStart($last));
 
                 // Each retry attempt is a distinct non-deterministic inference call,
                 // so the memo key is attempt-indexed. On replay (the node step crashed
@@ -110,7 +110,7 @@ class StructuredOutputNode extends InferenceNode
 
                 $message = $providerResponse->message();
 
-                $this->emit('inference-stop', new InferenceStop($last, $providerResponse));
+                $this->emit(new InferenceStop($last, $providerResponse));
 
                 // If the response is a tool call, route to tool execution
                 if ($message instanceof ToolCallMessage) {
@@ -155,26 +155,26 @@ class StructuredOutputNode extends InferenceNode
         string $class,
     ): object {
         // Extract a valid JSON object from the LLM response
-        $this->emit('structured-extracting', new Extracting($response));
+        $this->emit(new Extracting($response));
         $json = (new JsonExtractor())->getJson($response->getContent());
-        $this->emit('structured-extracted', new Extracted($response, $schema, $json));
+        $this->emit(new Extracted($response, $schema, $json));
         if ($json === null || $json === '') {
             throw new AgentException("The response does not contains a valid JSON Object.");
         }
 
         // Deserialize the JSON response from the LLM into an instance of the response model
-        $this->emit('structured-deserializing', new Deserializing($class));
+        $this->emit(new Deserializing($class));
         $obj = Deserializer::make()->fromJson($json, $class);
-        $this->emit('structured-deserialized', new Deserialized($class));
+        $this->emit(new Deserialized($class));
 
         // Validate if the object fields respect the validation attributes
-        $this->emit('structured-validating', new Validating($class, $json));
+        $this->emit(new Validating($class, $json));
         $violations = Validator::validate($obj);
         if (count($violations) > 0) {
-            $this->emit('structured-validated', new Validated($class, $json, $violations));
+            $this->emit(new Validated($class, $json, $violations));
             throw new AgentException(PHP_EOL.'- '.implode(PHP_EOL.'- ', $violations));
         }
-        $this->emit('structured-validated', new Validated($class, $json));
+        $this->emit(new Validated($class, $json));
 
         return $obj;
     }

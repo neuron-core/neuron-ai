@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Observability\EventBus;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\FinalTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
@@ -31,11 +30,6 @@ class BranchEdgeCasesTest extends TestCase
     private function createAsyncExecutor(): AsyncExecutor
     {
         return new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
-    }
-
-    protected function tearDown(): void
-    {
-        EventBus::clear();
     }
 
     public function testMultiStepBranchExecutesAllNodes(): void
@@ -199,7 +193,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('image', reset($imageCalls)['branchId']);
     }
 
-    public function testAsyncEventBusReceivesAllEvents(): void
+    public function testAsyncObserverReceivesAllEvents(): void
     {
         $observer = new RecordingObserver();
 
@@ -220,5 +214,6 @@ class BranchEdgeCasesTest extends TestCase
         $analysis = $result->get('analysis');
         $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
+        $this->assertNotEmpty($observer->recorded);
     }
 }

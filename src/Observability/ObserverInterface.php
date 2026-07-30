@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+/**
+ * @deprecated Implement a PSR-14 listener and register it via
+ *             Workflow::subscribe() instead (subscribe to ObservabilityEvent::class
+ *             to receive every event). Will be removed in the next major version.
+ */
 interface ObserverInterface
 {
     /**

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
-class InstructionsChanged
+use NeuronAI\Observability\ObservabilityEvent;
+
+class InstructionsChanged extends ObservabilityEvent
 {
     public function __construct(
         public string $previous,

@@ -75,7 +75,7 @@ class ParallelToolNode extends ToolNode
         // Notify and stream tool-call signals up-front for ALL tools. These are pure
         // stream artifacts and safe to re-emit when the node replays.
         foreach ($tools as $tool) {
-            $this->emit('tool-calling', new ToolCalling($tool, true));
+            $this->emit(new ToolCalling($tool, true));
 
             yield new ToolCallChunk($tool);
         }
@@ -166,7 +166,7 @@ class ParallelToolNode extends ToolNode
         foreach ($executedTools as $tool) {
             yield new ToolResultChunk($tool);
 
-            $this->emit('tool-called', new ToolCalled($tool));
+            $this->emit(new ToolCalled($tool));
         }
 
         // Return a new ToolCallResultMessage with the executed tools in original order

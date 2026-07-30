@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
-class SchemaGenerated
+use NeuronAI\Observability\ObservabilityEvent;
+
+class SchemaGenerated extends ObservabilityEvent
 {
     /**
      * @param array<string, mixed> $schema

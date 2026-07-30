@@ -31,14 +31,14 @@ class ChatNode extends InferenceNode
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit('inference-start', new InferenceStart($lastMessage));
+        $this->emit(new InferenceStart($lastMessage));
         $providerResponse = $this->memoize(
             'inference',
             fn (): ProviderResponse => $this->inference($event, $chatHistory->getMessages()),
         );
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
-        $this->emit('inference-stop', new InferenceStop($lastMessage, $providerResponse));
+        $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
         // If the response is a tool call, route to the tool node.
         // It will be responsible to add the tool call message to the chat history.

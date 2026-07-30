@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
-class BranchStart
+use NeuronAI\Observability\ObservabilityEvent;
+
+class BranchStart extends ObservabilityEvent
 {
-    public function __construct(public readonly string $branchId)
+    public function __construct(string $branchId)
     {
+        $this->branchId = $branchId;
     }
 }

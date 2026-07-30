@@ -46,96 +46,90 @@ Each segment shows:
 
 ## Event System Observability
 
-Neuron uses a static EventBus for monitoring all framework events.
+Neuron uses a **PSR-14 event dispatcher owned by each Workflow/Agent instance**
+for monitoring all framework events. There is no global state: listeners are
+registered on the instance and observe every run of it.
 
 ### Event Emission
 
-All components emit events automatically:
+All components emit event objects automatically. Every event class lives in
+`NeuronAI\Observability\Events` and extends
+`NeuronAI\Observability\ObservabilityEvent`:
 
 ```php
-use NeuronAI\Observability\EventBus;
-
-// Workflows emit events like:
-// - 'workflow-start'
-// - 'workflow-resume'
-// - 'workflow-end'
-// - 'workflow-node-start'
-// - 'workflow-node-end'
-// - 'middleware-before-start'
-// - 'middleware-after-end'
-// - 'tool-calling'
-// - 'tool-called'
-// - 'rag-retrieving'
-// - 'rag-retrieved'
-// - 'inference-start'
-// - 'inference-end'
+// Lifecycle (emitted by the executor):
+// WorkflowStart, WorkflowEnd, WorkflowNodeStart, WorkflowNodeEnd,
+// MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd, AgentError
+//
+// Domain (emitted by nodes):
+// InferenceStart, InferenceStop, ToolCalling, ToolCalled,
+// MessageSaving, MessageSaved, Retrieving, Retrieved,
+// PreProcessing, PreProcessed, PostProcessing, PostProcessed,
+// SchemaGeneration, SchemaGenerated, Extracting, Extracted, ...
 ```
 
-### Custom Observers
+Each event carries its own data plus the emission context stamped by the
+framework: `->source` (the emitting component) and `->branchId` (the parallel
+branch, or null). `->name()` returns the string name ('inference-start').
+
+### Subscribing Listeners
+
+Listeners are class-keyed with instanceof matching — subscribe to a specific
+event class, or to `ObservabilityEvent::class` to receive everything:
 
 ```php
-use NeuronAI\Observability\ObserverInterface;
+use NeuronAI\Observability\Events\InferenceStop;
+use NeuronAI\Observability\ObservabilityEvent;
 
-class CustomObserver implements ObserverInterface
+// React to one event type
+$agent->subscribe(InferenceStop::class, function (InferenceStop $event): void {
+    echo "Inference finished\n";
+});
+
+// Catch-all firehose
+$agent->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event): void {
+    echo "Event: {$event->name()}\n";
+    echo "Source: " . ($event->source !== null ? $event->source::class : 'n/a') . "\n";
+});
+```
+
+### Custom Events
+
+Emit your own events from nodes with `Node::emit()` — the event object is the
+payload. Subclass `ObservabilityEvent` to get `source`/`branchId` stamped:
+
+```php
+use NeuronAI\Observability\ObservabilityEvent;
+
+class DocumentScored extends ObservabilityEvent
 {
-    public function handle(string $event, object $source, mixed $data): void
+    public function __construct(public string $documentId, public float $score)
     {
-        // Handle events
-        echo "Event: {$event}\n";
-        echo "Source: " . $source::class . "\n";
-        var_dump($data);
-    }
-}
-```
-
-### Registering Observers
-
-```php
-use NeuronAI\Observability\EventBus;
-
-// Register globally
-EventBus::observe(new CustomObserver());
-
-// Or register via workflow/agent
-$workflow->observe(new CustomObserver());
-```
-
-### Extending InspectorObserver
-
-Create custom observers that maintain all default tracking:
-
-```php
-use NeuronAI\Observability\InspectorObserver;
-
-class MyInspectorObserver extends InspectorObserver
-{
-    protected array $methodsMap = [
-        // Include parent mappings
-        ...parent::$methodsMap,
-
-        // Add custom event mappings
-        'my-custom-event' => 'handleCustomEvent',
-    ];
-
-    public function handleCustomEvent(object $source, string $event, mixed $data): void
-    {
-        $segment = $this->inspector->addSegment('custom', $event);
-
-        // Custom tracking logic
-        $this->trackCustomMetrics($data);
-
-        $segment->end();
-    }
-
-    private function trackCustomMetrics(mixed $data): void
-    {
-        // Your custom metrics
     }
 }
 
-// Register before any execution
-EventBus::setDefaultObserver(MyInspectorObserver::instance());
+// Inside a node
+$this->emit(new DocumentScored($doc->id, $score));
+
+// Anywhere
+$workflow->subscribe(DocumentScored::class, fn (DocumentScored $e) => $metrics->gauge('score', $e->score));
 ```
+
+### Integrating a Host Framework
+
+Forward every event to an application-wide PSR-14 dispatcher (Symfony,
+Laravel's PSR bridge, League\Event) — Neuron events become regular application
+events:
+
+```php
+$agent->setEventDispatcher($appEventDispatcher);
+```
+
+### Legacy Observers (deprecated)
+
+`ObserverInterface` and `$workflow->observe()` still work through an internal
+adapter but are deprecated and will be removed in the next major. Migrate
+observers to listeners registered via `subscribe()`.
 
 ## Common Debugging Scenarios
 
@@ -265,43 +259,37 @@ class MyTool extends Tool
 
 ### PSR-3 Logger Integration
 
+`LogListener` logs every event's name with per-event-class serialized context
+(override its protected `serialize*` methods to customize):
+
 ```php
-use NeuronAI\Observability\LogObserver;
+use NeuronAI\Observability\LogListener;
+use NeuronAI\Observability\ObservabilityEvent;
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
 
 $logger = new Logger('neuron');
 $logger->pushHandler(new StreamHandler('php://stdout'));
 
-$agent->observe(new LogObserver($logger));
+$agent->subscribe(ObservabilityEvent::class, new LogListener($logger));
 ```
+
+(`LogObserver` registered via `observe()` is the deprecated equivalent.)
 
 ### Custom Logger
 
+Any callable works as a listener:
+
 ```php
-use NeuronAI\Observability\ObserverInterface;
+use NeuronAI\Observability\ObservabilityEvent;
 
-class FileLogger implements ObserverInterface
-{
-    private $file;
+$file = fopen($filepath, 'a');
 
-    public function __construct(string $filepath)
-    {
-        $this->file = fopen($filepath, 'a');
-    }
-
-    public function handle(string $event, object $source, mixed $data): void
-    {
-        $timestamp = date('Y-m-d H:i:s');
-        $log = "[{$timestamp}] {$event} from {$source::class}\n";
-        fwrite($this->file, $log);
-    }
-
-    public function __destruct()
-    {
-        fclose($this->file);
-    }
-}
+$agent->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use ($file): void {
+    $timestamp = date('Y-m-d H:i:s');
+    $source = $event->source !== null ? $event->source::class : 'n/a';
+    fwrite($file, "[{$timestamp}] {$event->name()} from {$source}\n");
+});
 ```
 
 ## Testing Debugging Scenarios
@@ -354,20 +342,14 @@ Inspector provides detailed error analysis:
 ### Tracing Node Execution
 
 ```php
-use NeuronAI\Workflow\EventBus;
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\NodeInterface;
 
-class TracingObserver implements ObserverInterface
-{
-    public function handle(string $event, object $source, mixed $data): void
-    {
-        if ($source instanceof NodeInterface) {
-            echo "Node {$source::class}: {$event}\n";
-        }
+$workflow->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event): void {
+    if ($event->source instanceof NodeInterface) {
+        echo "Node " . $event->source::class . ": {$event->name()}\n";
     }
-}
-
-EventBus::observe(new TracingObserver());
+});
 ```
 
 ### Exporting Workflows for Visualization

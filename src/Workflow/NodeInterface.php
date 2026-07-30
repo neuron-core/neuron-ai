@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\StepMemoizer;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Generator;
 
 interface NodeInterface
@@ -21,6 +22,7 @@ interface NodeInterface
         ?array        $payload = null,
         bool          $timedOut = false,
         ?StepMemoizer $memoizer = null,
+        ?EventDispatcherInterface $dispatcher = null,
     ): void;
 
     /**

@@ -29,7 +29,7 @@ class StreamingNode extends InferenceNode
         $chatHistory = $state->getChatHistory();
         $lastMessage = $chatHistory->getLastMessage();
 
-        $this->emit('inference-start', new InferenceStart($lastMessage));
+        $this->emit(new InferenceStart($lastMessage));
 
         try {
             // A provider stream is a live, non-resumable cursor: it cannot be
@@ -60,7 +60,7 @@ class StreamingNode extends InferenceNode
             $state->setResponse($providerResponse);
             $message = $providerResponse->message();
 
-            $this->emit('inference-stop', new InferenceStop($lastMessage, $providerResponse));
+            $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
@@ -73,7 +73,7 @@ class StreamingNode extends InferenceNode
             return new StopEvent();
 
         } catch (Throwable $exception) {
-            $this->emit('error', new AgentError($exception));
+            $this->emit(new AgentError($exception));
             throw $exception;
         }
     }

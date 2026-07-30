@@ -93,12 +93,12 @@ class ToolNode extends Node
         if ($tool->getApprovalState() === ApprovalState::Rejected) {
             // The rejection result was set by the ToolApproval middleware; the tool
             // must not run (ADR 0002/0003: a tool runs iff explicitly approved).
-            $this->emit('tool-calling', new ToolCalling($tool));
-            $this->emit('tool-called', new ToolCalled($tool));
+            $this->emit(new ToolCalling($tool));
+            $this->emit(new ToolCalled($tool));
             return;
         }
 
-        $this->emit('tool-calling', new ToolCalling($tool));
+        $this->emit(new ToolCalling($tool));
 
         $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName() . '.' . $index);
 
@@ -124,7 +124,7 @@ class ToolNode extends Node
         } catch (Throwable $e) {
             $this->handleError($e, $tool);
         } finally {
-            $this->emit('tool-called', new ToolCalled($tool));
+            $this->emit(new ToolCalled($tool));
         }
     }
 

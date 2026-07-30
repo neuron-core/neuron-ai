@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Tools\ToolInterface;
 
-class ToolsBootstrapped
+class ToolsBootstrapped extends ObservabilityEvent
 {
     /**
      * @param ToolInterface[] $tools

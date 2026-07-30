@@ -6,15 +6,15 @@ namespace NeuronAI\Workflow;
 
 use Closure;
 use Generator;
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\EventBus;
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use DateTimeImmutable;
 
 use function is_callable;
@@ -39,6 +39,8 @@ abstract class Node implements NodeInterface
 
     protected ?StepMemoizer $memoizer = null;
 
+    protected ?EventDispatcherInterface $dispatcher = null;
+
     public function run(Event $event, WorkflowState $state): Generator|Event
     {
         /** @phpstan-ignore method.notFound */
@@ -51,12 +53,14 @@ abstract class Node implements NodeInterface
         ?array        $payload = null,
         bool          $timedOut = false,
         ?StepMemoizer $memoizer = null,
+        ?EventDispatcherInterface $dispatcher = null,
     ): void {
         $this->state = $currentState;
         $this->event = $currentEvent;
         $this->payload = $payload;
         $this->timedOut = $timedOut;
         $this->memoizer = $memoizer;
+        $this->dispatcher = $dispatcher;
     }
 
     /**
@@ -241,18 +245,22 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Emit an event to the workflow-scoped observers.
-     *
-     * @throws InspectorException
+     * Dispatch an event through the workflow's PSR-14 dispatcher. The event
+     * object is the payload; ObservabilityEvent instances are stamped with the
+     * emitting node and the current branch. A node running without an
+     * executor (e.g. in isolation) has no dispatcher and emits nothing.
      */
-    protected function emit(string $event, mixed $data = null): void
+    protected function emit(object $event): void
     {
-        EventBus::emit(
-            $event,
-            $this,
-            $data,
-            $this->state->get('__workflowId'),
-            $this->state->get('__branchId')
-        );
+        if (!$this->dispatcher instanceof EventDispatcherInterface) {
+            return;
+        }
+
+        if ($event instanceof ObservabilityEvent) {
+            $event->source = $this;
+            $event->branchId = $this->state->get('__branchId');
+        }
+
+        $this->dispatcher->dispatch($event);
     }
 }

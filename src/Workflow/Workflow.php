@@ -6,8 +6,12 @@ namespace NeuronAI\Workflow;
 
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\EventBus;
+use NeuronAI\Observability\ListenerRegistry;
+use NeuronAI\Observability\ObserverAdapter;
 use NeuronAI\Observability\ObserverInterface;
+use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Observability\WorkflowEventDispatcher;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -66,6 +70,12 @@ class Workflow implements WorkflowInterface
 
     protected ?SchedulerInterface $scheduler = null;
 
+    protected ?ListenerRegistry $listeners = null;
+
+    protected ?EventDispatcherInterface $dispatcher = null;
+
+    protected ?EventDispatcherInterface $externalDispatcher = null;
+
     /**
      * @throws WorkflowException
      */
@@ -84,12 +94,58 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Register an observer to receive scoped events for this workflow.
+     * Register an observer to receive every event of this workflow instance.
+     * Legacy entry point — the observer is adapted to a PSR-14 listener on
+     * the ObservabilityEvent base class.
+     *
+     * @deprecated Use subscribe() with a PSR-14 listener instead. Will be
+     *             removed in the next major version.
      */
     public function observe(ObserverInterface $observer): WorkflowInterface
     {
-        EventBus::observe($observer, $this->workflowId);
+        return $this->subscribe(ObservabilityEvent::class, new ObserverAdapter($observer));
+    }
+
+    /**
+     * Register a PSR-14 listener for a specific event class. Matching is
+     * instanceof-based, so subscribing to ObservabilityEvent receives every event.
+     *
+     * @param class-string $eventClass
+     */
+    public function subscribe(string $eventClass, callable $listener): WorkflowInterface
+    {
+        $this->listenerRegistry()->listen($eventClass, $listener);
         return $this;
+    }
+
+    /**
+     * Forward this workflow's events to an external PSR-14 dispatcher (e.g. a
+     * host framework's event dispatcher). Listeners registered via observe()
+     * and subscribe() keep working; the event is forwarded after them.
+     */
+    public function setEventDispatcher(EventDispatcherInterface $dispatcher): WorkflowInterface
+    {
+        $this->externalDispatcher = $dispatcher;
+        // Rebuild the resolved dispatcher with the new forward target.
+        $this->dispatcher = null;
+        return $this;
+    }
+
+    /**
+     * The PSR-14 dispatcher owned by this workflow instance. Internal
+     * components (executor, nodes) emit through it.
+     */
+    public function getEventDispatcher(): EventDispatcherInterface
+    {
+        return $this->dispatcher ??= new WorkflowEventDispatcher(
+            $this->listenerRegistry(),
+            $this->externalDispatcher,
+        );
+    }
+
+    protected function listenerRegistry(): ListenerRegistry
+    {
+        return $this->listeners ??= new ListenerRegistry();
     }
 
     /**

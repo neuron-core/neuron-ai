@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use Psr\EventDispatcher\EventDispatcherInterface;
 
 interface WorkflowInterface
 {
@@ -66,7 +67,28 @@ interface WorkflowInterface
 
     public function getWorkflowId(): string;
 
+    /**
+     * @deprecated Use subscribe() with a PSR-14 listener instead. Will be
+     *             removed in the next major version.
+     */
     public function observe(ObserverInterface $observer): WorkflowInterface;
+
+    /**
+     * Register a PSR-14 listener for a specific event class.
+     *
+     * @param class-string $eventClass
+     */
+    public function subscribe(string $eventClass, callable $listener): WorkflowInterface;
+
+    /**
+     * Forward this workflow's events to an external PSR-14 dispatcher.
+     */
+    public function setEventDispatcher(EventDispatcherInterface $dispatcher): WorkflowInterface;
+
+    /**
+     * The PSR-14 dispatcher owned by this workflow instance.
+     */
+    public function getEventDispatcher(): EventDispatcherInterface;
 
     public function export(): string;
 }

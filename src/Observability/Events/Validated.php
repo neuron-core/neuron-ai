@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
-class Validated
+use NeuronAI\Observability\ObservabilityEvent;
+
+class Validated extends ObservabilityEvent
 {
     /**
      * @param array<string> $violations
@@ -14,5 +16,10 @@ class Validated
         public string $json,
         public array $violations = []
     ) {
+    }
+
+    public function name(): string
+    {
+        return 'structured-validated';
     }
 }

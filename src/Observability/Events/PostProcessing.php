@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability\Events;
 
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Document;
 
-class PostProcessing
+class PostProcessing extends ObservabilityEvent
 {
     /**
      * @param Document[] $documents
@@ -17,5 +18,10 @@ class PostProcessing
         public Message $question,
         public array $documents
     ) {
+    }
+
+    public function name(): string
+    {
+        return 'rag-postprocessing';
     }
 }

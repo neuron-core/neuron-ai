@@ -41,9 +41,9 @@ class PreProcessNode extends Node
         $query = $state->getChatHistory()->getLastMessage();
 
         foreach ($this->preProcessors as $processor) {
-            $this->emit('rag-preprocessing', new PreProcessing($processor::class, $query));
+            $this->emit(new PreProcessing($processor::class, $query));
             $query = $processor->process($query);
-            $this->emit('rag-preprocessed', new PreProcessed($processor::class, $query));
+            $this->emit(new PreProcessed($processor::class, $query));
         }
 
         return new QueryPreProcessedEvent($query);

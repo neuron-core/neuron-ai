@@ -21,9 +21,9 @@ trait ChatHistoryHelper
         $messages = is_array($messages) ? $messages : [$messages];
 
         foreach ($messages as $message) {
-            $this->emit('message-saving', new MessageSaving($message));
+            $this->emit(new MessageSaving($message));
             $state->getChatHistory()->addMessage($message);
-            $this->emit('message-saved', new MessageSaved($message));
+            $this->emit(new MessageSaved($message));
 
             $state->addStep($message);
         }

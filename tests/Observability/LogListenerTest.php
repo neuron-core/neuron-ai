@@ -1,0 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\Observability;
+
+use NeuronAI\Observability\LogListener;
+use NeuronAI\Observability\LogObserver;
+use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Tests\Workflow\Stubs\NodeOne;
+use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Workflow\Workflow;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
+use Stringable;
+
+use function array_column;
+
+class LogListenerTest extends TestCase
+{
+    /**
+     * @return AbstractLogger&object{records: array<int, array{level: mixed, message: string, context: array<string, mixed>}>}
+     */
+    protected function recordingLogger(): AbstractLogger
+    {
+        return new class () extends AbstractLogger {
+            /** @var array<int, array{level: mixed, message: string, context: array<string, mixed>}> */
+            public array $records = [];
+
+            public function log($level, Stringable|string $message, array $context = []): void
+            {
+                $this->records[] = ['level' => $level, 'message' => (string) $message, 'context' => $context];
+            }
+        };
+    }
+
+    public function testLogListenerLogsEveryEventWithSerializedContext(): void
+    {
+        $logger = $this->recordingLogger();
+
+        Workflow::make()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->subscribe(ObservabilityEvent::class, new LogListener($logger))
+            ->run();
+
+        $messages = array_column($logger->records, 'message');
+        $this->assertContains('workflow-start', $messages);
+        $this->assertContains('workflow-node-start', $messages);
+        $this->assertContains('workflow-end', $messages);
+
+        foreach ($logger->records as $record) {
+            if ($record['message'] === 'workflow-node-start') {
+                $this->assertArrayHasKey('node', $record['context']);
+                return;
+            }
+        }
+
+        $this->fail('No workflow-node-start record found.');
+    }
+
+    public function testDeprecatedLogObserverStillLogsThroughObserve(): void
+    {
+        $logger = $this->recordingLogger();
+
+        Workflow::make()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->observe(new LogObserver($logger))
+            ->run();
+
+        $messages = array_column($logger->records, 'message');
+        $this->assertContains('workflow-start', $messages);
+        $this->assertContains('workflow-end', $messages);
+    }
+}

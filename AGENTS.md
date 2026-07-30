@@ -54,7 +54,7 @@ Chat ◄────────────────────────
 | `src/StructuredOutput/` | JSON schema extraction                                        | Chat |
 | `src/HttpClient/` | HTTP client abstraction                                       | None |
 | `src/MCP/` | Model Context Protocol connector                              | HttpClient |
-| `src/Observability/` | EventBus and observers                                        | None |
+| `src/Observability/` | PSR-14 event dispatching and observers                        | None |
 | `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
 | `src/Evaluation/` | AI evaluation framework                                       | None |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
