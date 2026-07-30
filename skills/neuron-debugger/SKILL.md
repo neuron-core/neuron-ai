@@ -148,11 +148,9 @@ observers to listeners registered via `subscribe()`.
 // Add explicit tool instruction
 protected function instructions(): string
 {
-    return (string) new SystemPrompt(
-        background: [
-            "You have access to database tools to query user data.",
-            "Use the search_user tool when asked about users.",
-        ]
+    return new SystemMessage(
+        "You have access to database tools to query user data. ".
+        "Use the search_user tool when asked about users."
     );
 }
 ```
@@ -207,16 +205,11 @@ $rag->addPostProcessor(new RerankProcessor(
 // Better system prompt
 protected function instructions(): string
 {
-    return (string) new SystemPrompt(
-        background: [
-            "You are a helpful assistant answering questions",
-            "about our product using only the provided context.",
-        ],
-        steps: [
-            "Never make up information.",
-            "If you don't know, say so clearly.",
-            "Cite sources when possible.",
-        ]
+    return new SystemMessage(
+        "You are a helpful assistant answering questions ".
+        "about our product using only the provided context. ".
+        "Never make up information. If you don't know, say so clearly. ".
+        "Cite sources when possible."
     );
 }
 ```
@@ -377,12 +370,3 @@ When troubleshooting:
 - [ ] Verify tool property types match what was sent
 - [ ] For RAG, check retrieved documents and scores
 - [ ] Consider adding a custom observer for specific events
-
-## Getting Help
-
-If issues persist:
-
-1. **Check Inspector** - timeline and errors
-2. **Review logs** - application and framework logs
-4. **Create minimal reproduction** - simplify the agent
-5. **Consult Neuron AI documentation** - https://docs.neuron-ai.dev/
