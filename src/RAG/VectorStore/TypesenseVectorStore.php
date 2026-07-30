@@ -18,7 +18,6 @@ use function count;
 use function gettype;
 use function implode;
 use function in_array;
-use function intval;
 use function json_encode;
 use function max;
 use function array_chunk;

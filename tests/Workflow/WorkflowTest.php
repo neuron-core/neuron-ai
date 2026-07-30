@@ -22,6 +22,9 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
+use function array_filter;
+use function reset;
+
 class WorkflowTest extends TestCase
 {
     public function testBasicLinearWorkflowExecution(): void
