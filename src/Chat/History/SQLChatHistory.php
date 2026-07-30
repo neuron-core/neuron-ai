@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
 use PDO;
 
+use function array_fill;
+use function array_map;
+use function array_merge;
+use function count;
+use function implode;
 use function in_array;
 use function json_decode;
 use function json_encode;
@@ -14,15 +20,17 @@ use function preg_match;
 use function trim;
 
 /**
+ * Stores one row per message, associated to a thread_id.
  *
- * CREATE TABLE chat_history (
+ * CREATE TABLE chat_messages (
  * id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  * thread_id VARCHAR(255) NOT NULL,
- * messages LONGTEXT NOT NULL,
+ * role VARCHAR(32) NOT NULL,
+ * content LONGTEXT NULL,
+ * meta LONGTEXT NULL,
  * created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
  * updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  *
- * UNIQUE KEY uk_thread_id (thread_id),
  * INDEX idx_thread_id (thread_id)
  * );
  *
@@ -34,7 +42,7 @@ class SQLChatHistory extends AbstractChatHistory
     public function __construct(
         protected string $thread_id,
         protected PDO $pdo,
-        string $table = 'chat_history',
+        string $table = 'chat_messages',
         int $contextWindow = 50000
     ) {
         parent::__construct($contextWindow);
@@ -44,28 +52,114 @@ class SQLChatHistory extends AbstractChatHistory
 
     protected function load(): void
     {
-        $stmt = $this->pdo->prepare("SELECT * FROM {$this->table} WHERE thread_id = :thread_id");
+        $stmt = $this->pdo->prepare("SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id");
         $stmt->execute(['thread_id' => $this->thread_id]);
-        $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if (empty($history)) {
-            $stmt = $this->pdo->prepare("INSERT INTO {$this->table} (thread_id, messages) VALUES (:thread_id, :messages)");
-            $stmt->execute(['thread_id' => $this->thread_id, 'messages' => '[]']);
-        } else {
-            $this->history = $this->deserializeMessages(json_decode((string) $history[0]['messages'], true));
+        if (!empty($records)) {
+            $this->history = $this->deserializeMessages(
+                array_map($this->recordToArray(...), $records)
+            );
         }
     }
 
-    protected function setMessages(array $messages): void
+    protected function onNewMessage(Message $message): void
     {
-        $stmt = $this->pdo->prepare("UPDATE {$this->table} SET messages = :messages WHERE thread_id = :thread_id");
-        $stmt->execute(['thread_id' => $this->thread_id, 'messages' => json_encode($this->jsonSerialize())]);
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO {$this->table} (thread_id, role, content, meta) VALUES (:thread_id, :role, :content, :meta)"
+        );
+        $stmt->execute(array_merge(
+            ['thread_id' => $this->thread_id],
+            $this->serializeMessage($message)
+        ));
+    }
+
+    protected function onMessageReplaced(Message $message): void
+    {
+        $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id DESC LIMIT 1");
+        $stmt->execute(['thread_id' => $this->thread_id]);
+        $lastId = $stmt->fetchColumn();
+
+        if ($lastId === false) {
+            $this->onNewMessage($message);
+            return;
+        }
+
+        $stmt = $this->pdo->prepare(
+            "UPDATE {$this->table} SET role = :role, content = :content, meta = :meta WHERE id = :id"
+        );
+        $stmt->execute(array_merge(
+            ['id' => $lastId],
+            $this->serializeMessage($message)
+        ));
+    }
+
+    protected function onTrimHistory(int $index): void
+    {
+        if ($index <= 0) {
+            return;
+        }
+
+        // Delete the first $index messages of the thread.
+        $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id LIMIT {$index}");
+        $stmt->execute(['thread_id' => $this->thread_id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($ids)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
     }
 
     protected function clear(): void
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->thread_id]);
+    }
+
+    /**
+     * Convert a database record to the array format expected by deserializeMessages.
+     *
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    protected function recordToArray(array $record): array
+    {
+        $data = [
+            'role' => $record['role'],
+            'content' => $record['content'] !== null ? json_decode((string) $record['content'], true) : null,
+        ];
+
+        // Merge the "meta" field if present
+        if ($record['meta'] !== null && ($meta = json_decode((string) $record['meta'], true))) {
+            return array_merge($data, (array) $meta);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Split a message into the role, content, and meta columns.
+     *
+     * @return array{role: string, content: string|null, meta: string|null}
+     */
+    protected function serializeMessage(Message $message): array
+    {
+        $data = $message->jsonSerialize();
+
+        $content = $data['content'] ?? null;
+
+        // Remove fields that are stored in separate columns
+        unset($data['role'], $data['content']);
+
+        return [
+            'role' => $message->getRole(),
+            'content' => $content !== null ? json_encode($content) : null,
+            'meta' => $data === [] ? null : json_encode($data),
+        ];
     }
 
     protected function sanitizeTableName(string $tableName): string

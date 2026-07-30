@@ -47,8 +47,8 @@ Implementations of `ChatHistoryInterface`:
 |-------|---------|
 | `InMemoryChatHistory` | Array (testing) |
 | `FileChatHistory` | JSON files |
-| `SQLChatHistory` | PDO database |
-| `EloquentChatHistory` | Laravel Eloquent |
+| `SQLChatHistory` | PDO database (one row per message, keyed by `thread_id`) |
+| `EloquentChatHistory` | Laravel Eloquent (one row per message, keyed by `thread_id`) |
 
 **Base**: `AbstractChatHistory` provides common logic.
 
@@ -59,9 +59,9 @@ current last message and **replaces** it instead of appending. This makes the
 suspend-time write, each partial-resume update, and `ToolNode`'s replay re-add all converge
 to a single message reflecting the latest approval state.
 
-Backends that persist via `setMessages()` (File, SQL, InMemory) get this for free — the
-whole history is rewritten on every add. `EloquentChatHistory` (row-per-message) overrides
-`onMessageReplaced()` to update the last row.
+Backends that persist via `setMessages()` (File, InMemory) get this for free — the
+whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,
+`EloquentChatHistory`) override `onMessageReplaced()` to update the last row.
 
 Serialized tool entries carry two approval fields: `approval` (`pending`|`approved`|
 `rejected`, or absent for a non-gated tool) and `approvalReason` (rejection-only). Old

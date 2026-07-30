@@ -55,10 +55,7 @@ $agent = Agent::make(persistence: $persistence)
         'You are a helpful assistant with access to file and command tools. Be concise.'
     )
     ->addTool(new FileDeleteTool())
-    ->addMiddleware(
-        ToolNode::class,
-        new ToolApproval()
-    );
+    ->addMiddleware(ToolNode::class, new ToolApproval());
 
 $interruptRequest = null;
 $workflowId = null;

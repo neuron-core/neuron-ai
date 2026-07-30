@@ -1,0 +1,145 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Chat\History;
+
+use NeuronAI\Exceptions\ChatHistoryException;
+use PDO;
+use Throwable;
+
+use function in_array;
+use function is_array;
+use function json_decode;
+use function json_encode;
+use function preg_match;
+use function trim;
+
+/**
+ * Migrates chat histories from the legacy SQLChatHistory structure
+ * (a single row per thread with all the messages serialized in one column)
+ * to the new structure with one row per message.
+ *
+ * The target table must already exist (see SQLChatHistory for the schema):
+ *
+ * $migration = new SQLChatHistoryMigration($pdo);
+ * $migrated = $migration->run();
+ *
+ * The migration is idempotent: threads that already have messages
+ * in the target table are skipped. The legacy table is left untouched,
+ * you can drop it once you verified the migration.
+ */
+class SQLChatHistoryMigration
+{
+    protected string $from;
+    protected string $to;
+
+    public function __construct(
+        protected PDO $pdo,
+        string $from = 'chat_history',
+        string $to = 'chat_messages'
+    ) {
+        $this->from = $this->sanitizeTableName($from);
+        $this->to = $this->sanitizeTableName($to);
+    }
+
+    /**
+     * @return int The number of migrated messages.
+     */
+    public function run(): int
+    {
+        $migrated = 0;
+
+        $this->pdo->beginTransaction();
+
+        try {
+            $threads = $this->pdo->query("SELECT thread_id, messages FROM {$this->from}");
+
+            while ($thread = $threads->fetch(PDO::FETCH_ASSOC)) {
+                if ($this->threadExists((string) $thread['thread_id'])) {
+                    continue;
+                }
+
+                $messages = json_decode((string) $thread['messages'], true);
+
+                if (!is_array($messages)) {
+                    continue;
+                }
+
+                foreach ($messages as $message) {
+                    $this->insertMessage((string) $thread['thread_id'], $message);
+                    $migrated++;
+                }
+            }
+
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            $this->pdo->rollBack();
+            throw $exception;
+        }
+
+        return $migrated;
+    }
+
+    protected function threadExists(string $threadId): bool
+    {
+        $stmt = $this->pdo->prepare("SELECT 1 FROM {$this->to} WHERE thread_id = :thread_id LIMIT 1");
+        $stmt->execute(['thread_id' => $threadId]);
+        return $stmt->fetch() !== false;
+    }
+
+    /**
+     * @param array<string, mixed> $message A message in the serialized format of the legacy "messages" column.
+     */
+    protected function insertMessage(string $threadId, array $message): void
+    {
+        $role = $message['role'] ?? null;
+        $content = $message['content'] ?? null;
+
+        // Remove fields that are stored in separate columns
+        unset($message['role'], $message['content']);
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO {$this->to} (thread_id, role, content, meta) VALUES (:thread_id, :role, :content, :meta)"
+        );
+        $stmt->execute([
+            'thread_id' => $threadId,
+            'role' => $role,
+            'content' => $content !== null ? json_encode($content) : null,
+            'meta' => $message === [] ? null : json_encode($message),
+        ]);
+    }
+
+    protected function sanitizeTableName(string $tableName): string
+    {
+        $tableName = trim($tableName);
+
+        // Whitelist validation
+        if (!$this->tableExists($tableName)) {
+            throw new ChatHistoryException('Table not allowed');
+        }
+
+        // Format validation as backup
+        if (in_array(preg_match('/^[a-zA-Z_]\w*$/', $tableName), [0, false], true)) {
+            throw new ChatHistoryException('Invalid table name format');
+        }
+
+        return $tableName;
+    }
+
+    protected function tableExists(string $tableName): bool
+    {
+        $driver = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        $query = match ($driver) {
+            'mysql' => "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name",
+            'pgsql' => "SELECT 1 FROM information_schema.tables WHERE table_catalog = current_database() AND table_name = :table_name",
+            'sqlite' => "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table_name",
+            default => throw new ChatHistoryException("Unsupported database driver: {$driver}"),
+        };
+
+        $stmt = $this->pdo->prepare($query);
+        $stmt->execute(['table_name' => $tableName]);
+        return $stmt->fetch() !== false;
+    }
+}
