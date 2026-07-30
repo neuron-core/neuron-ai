@@ -8,7 +8,7 @@ use NeuronAI\Observability\ObserverInterface;
 
 class RecordingObserver implements ObserverInterface
 {
-    /** @var array{event: string, branchId: string|null}[] */
+    /** @var array{event: string, branchId: string|null, data: mixed}[] */
     public array $recorded = [];
 
     public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
@@ -16,6 +16,7 @@ class RecordingObserver implements ObserverInterface
         $this->recorded[] = [
             'event' => $event,
             'branchId' => $branchId,
+            'data' => $data,
         ];
     }
 }

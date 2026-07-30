@@ -15,6 +15,7 @@ use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
+use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Workflow\Events\Event;
@@ -78,7 +79,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->persistence?->delete($workflowId);
         } catch (WorkflowInterrupt $interrupt) {
             $this->persistence?->save($workflowId, $interrupt);
-            EventBus::emit('error', $workflow, new AgentError($interrupt, false), $workflowId);
+            EventBus::emit('workflow-interrupt', $workflow, new WorkflowInterrupted($interrupt), $workflowId);
             throw $interrupt;
         } catch (Throwable $exception) {
             EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);
@@ -138,7 +139,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->persistence?->delete($workflowId);
         } catch (WorkflowInterrupt $newInterrupt) {
             $this->persistence?->save($workflowId, $newInterrupt);
-            EventBus::emit('error', $workflow, new AgentError($newInterrupt, false), $workflowId);
+            EventBus::emit('workflow-interrupt', $workflow, new WorkflowInterrupted($newInterrupt), $workflowId);
             throw $newInterrupt;
         } catch (Throwable $exception) {
             EventBus::emit('error', $workflow, new AgentError($exception), $workflowId);

@@ -29,6 +29,7 @@ use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Observability\Events\Validating;
 use NeuronAI\Observability\Events\WorkflowEnd;
+use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
@@ -113,6 +114,7 @@ class LogObserver implements ObserverInterface
             MiddlewareEnd::class          => $this->serializeMiddlewareEnd($data),
             WorkflowStart::class          => $this->serializeWorkflowStart($data),
             WorkflowEnd::class            => $this->serializeWorkflowEnd($data),
+            WorkflowInterrupted::class    => $this->serializeWorkflowInterrupted($data),
             default                       => [],
         };
     }
@@ -298,5 +300,19 @@ class LogObserver implements ObserverInterface
     protected function serializeWorkflowEnd(WorkflowEnd $data): array
     {
         return ['state' => $data->state->all()];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeWorkflowInterrupted(WorkflowInterrupted $data): array
+    {
+        $interrupt = $data->interrupt;
+
+        return [
+            'workflowId' => $interrupt->getWorkflowId(),
+            'request'    => $interrupt->getRequest()::class,
+            'message'    => $interrupt->getRequest()->getMessage(),
+            'node'       => $interrupt->getNode()::class,
+            'branchId'   => $interrupt->getBranchId(),
+        ];
     }
 }
