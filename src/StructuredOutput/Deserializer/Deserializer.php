@@ -230,12 +230,9 @@ class Deserializer
      */
     protected function handleArray(mixed $value, ReflectionProperty $property): mixed
     {
-        $attributes = $property->getAttributes(SchemaProperty::class);
+        $attribute = SchemaProperty::resolve($property);
 
-        if ($attributes !== []) {
-            /** @var SchemaProperty $attribute */
-            $attribute = $attributes[0]->newInstance();
-
+        if ($attribute instanceof SchemaProperty) {
             if ($attribute->anyOf !== null && $attribute->anyOf !== []) {
                 if (count($attribute->anyOf) === 1) {
                     $elementType = $attribute->anyOf[0];

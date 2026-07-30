@@ -10,6 +10,7 @@ use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\Stubs\DummyEnum;
 use NeuronAI\Tests\Stubs\IntEnum;
 use NeuronAI\Tests\Stubs\StructuredOutput\ColorWithDefaults;
+use NeuronAI\Tests\Stubs\StructuredOutput\DynamicPerson;
 use NeuronAI\Tests\Stubs\StructuredOutput\EmailMode;
 use NeuronAI\Tests\Stubs\StructuredOutput\FtpMode;
 use NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock;
@@ -68,6 +69,17 @@ class DeserializerTest extends TestCase
         $this->assertEquals(0, $obj->g);
         $this->assertEquals(0, $obj->b);
         $this->assertEquals(100, $obj->transparency);
+    }
+
+    public function test_deserialize_array_with_schema_properties_interface(): void
+    {
+        $json = '{"firstName": "John", "lastName": "Doe", "nickName": "JD", "tags": [{"name": "agent"}]}';
+
+        $obj = Deserializer::make()->fromJson($json, DynamicPerson::class);
+
+        $this->assertInstanceOf(DynamicPerson::class, $obj);
+        $this->assertInstanceOf(Tag::class, $obj->tags[0]);
+        $this->assertEquals('agent', $obj->tags[0]->name);
     }
 
     public function test_deserialize_array(): void

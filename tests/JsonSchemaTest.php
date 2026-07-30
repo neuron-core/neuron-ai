@@ -7,6 +7,7 @@ namespace NeuronAI\Tests;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
+use NeuronAI\Tests\Stubs\StructuredOutput\DynamicPerson;
 use NeuronAI\Tests\Stubs\StructuredOutput\EmailMode;
 use NeuronAI\Tests\Stubs\StructuredOutput\FtpMode;
 use NeuronAI\Tests\Stubs\StructuredOutput\ImageBlock;
@@ -133,6 +134,22 @@ class JsonSchemaTest extends TestCase
             ],
             'additionalProperties' => false,
         ], $schema);
+    }
+
+    public function test_schema_properties_interface(): void
+    {
+        $schema = (new JsonSchema())->generate(DynamicPerson::class);
+
+        // Runtime definition from schemaProperties()
+        $this->assertEquals('Runtime description', $schema['properties']['firstName']['description']);
+        // Fallback to the attribute when no runtime entry exists
+        $this->assertEquals('Attribute description', $schema['properties']['lastName']['description']);
+        // Runtime definition wins over the attribute
+        $this->assertEquals('Runtime wins', $schema['properties']['nickName']['description']);
+        // anyOf provided at runtime resolves the array items schema
+        $this->assertEquals('array', $schema['properties']['tags']['type']);
+        $this->assertEquals('object', $schema['properties']['tags']['items']['type']);
+        $this->assertArrayHasKey('name', $schema['properties']['tags']['items']['properties']);
     }
 
     public function test_nested_object(): void
