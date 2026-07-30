@@ -59,7 +59,8 @@ All components emit event objects automatically. Every event class lives in
 ```php
 // Lifecycle (emitted by the executor):
 // WorkflowStart, WorkflowEnd, WorkflowNodeStart, WorkflowNodeEnd,
-// MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd, AgentError
+// MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd,
+// WorkflowInterrupted (run paused for external input), AgentError (failure)
 //
 // Domain (emitted by nodes):
 // InferenceStart, InferenceStop, ToolCalling, ToolCalled,

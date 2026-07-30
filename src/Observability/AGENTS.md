@@ -40,8 +40,13 @@ same object).
 ## Emitting Events (internal)
 
 The executor dispatches lifecycle events (`WorkflowStart`, `WorkflowNodeStart`,
-`MiddlewareStart`, `BranchStart`, `AgentError`, ...). Nodes emit domain events
-through `Node::emit()`:
+`MiddlewareStart`, `BranchStart`, `AgentError`, ...). A run that suspends for
+external input dispatches `WorkflowInterrupted` (carrying the outbound
+`InterruptRequest`) — a scheduled pause, not a failure, so listeners can route
+it to something other than error alerting. The terminal vocabulary:
+`WorkflowEnd` alone = completed; `WorkflowInterrupted` + `WorkflowEnd` = paused;
+`AgentError` + `WorkflowEnd` = failed. Nodes emit domain events through
+`Node::emit()`:
 
 ```php
 // Inside a node — the event object IS the payload

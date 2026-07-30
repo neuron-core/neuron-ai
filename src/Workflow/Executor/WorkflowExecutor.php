@@ -11,6 +11,7 @@ use NeuronAI\Observability\Events\BranchStart;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\WorkflowEnd;
+use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
@@ -94,6 +95,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // Paused: mark the state so callers of run()/events() can detect
                 // the pause functionally. Steps are kept for resume.
                 $workflow->resolveState()->markAsInterrupted($terminal->request);
+                // Surface the pause to listeners — a scheduled wait, not a failure,
+                // so it is a dedicated event rather than an AgentError.
+                $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
                 // Let the scheduler register a wakeup for this suspend (inert by default).
                 $this->scheduler->onSuspend($workflowId, $terminal->request);
                 yield $terminal;

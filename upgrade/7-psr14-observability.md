@@ -133,3 +133,22 @@ public function setWorkflowContext(
 
 Custom `WorkflowExecutorInterface` implementations should pass
 `$workflow->getEventDispatcher()` through to the nodes they run.
+
+## New: `WorkflowInterrupted` event
+
+A run that suspends for external input (tool approval, `awaitEvent()`,
+`sleepUntil()`) now dispatches a dedicated `WorkflowInterrupted` event carrying
+the outbound `InterruptRequest`. Previously a suspension was invisible to
+observers — only `WorkflowEnd` fired. Interruption is a scheduled pause, not a
+failure, so it is deliberately **not** an `AgentError`:
+
+```php
+use NeuronAI\Observability\Events\WorkflowInterrupted;
+
+$agent->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event): void {
+    $alerts->notify("Waiting for input: {$event->request->getMessage()}");
+});
+```
+
+Terminal vocabulary per run: `WorkflowEnd` alone = completed;
+`WorkflowInterrupted` + `WorkflowEnd` = paused; `AgentError` + `WorkflowEnd` = failed.

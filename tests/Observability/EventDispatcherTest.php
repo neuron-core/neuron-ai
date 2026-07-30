@@ -7,15 +7,18 @@ namespace NeuronAI\Tests\Observability;
 use Exception;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\WorkflowEnd;
+use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Tests\Observability\Stubs\CustomTestEvent;
 use NeuronAI\Tests\Observability\Stubs\EmittingNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
+use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -177,6 +180,37 @@ class EventDispatcherTest extends TestCase
         $this->assertTrue(in_array(WorkflowStart::class, array_map(static fn (object $e): string => $e::class, $external->events), true));
         // Local subscribers keep working alongside the external dispatcher.
         $this->assertCount(count($external->events), $local);
+    }
+
+    public function testInterruptionDispatchesDedicatedEventNotAgentError(): void
+    {
+        $interrupted = [];
+        $errors = [];
+
+        $workflow = Workflow::make()
+            ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()])
+            ->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event) use (&$interrupted): void {
+                $interrupted[] = $event;
+            })
+            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+                $errors[] = $event;
+            });
+
+        $state = $workflow->run();
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertCount(1, $interrupted);
+        $this->assertInstanceOf(ApprovalRequest::class, $interrupted[0]->request);
+        $this->assertSame($workflow, $interrupted[0]->source);
+        $this->assertSame('workflow-interrupted', $interrupted[0]->name());
+        $this->assertSame([], $errors);
+
+        // Resuming to completion fires no further interruption event.
+        $state = $workflow->resume(['approved' => true]);
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertCount(1, $interrupted);
+        $this->assertSame([], $errors);
     }
 
     public function testEventNameDerivationAndOverrides(): void
