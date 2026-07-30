@@ -47,20 +47,24 @@ use const JSON_PRETTY_PRINT;
 class ToolApproval implements WorkflowMiddleware
 {
     /**
-     * @param array<int|string, string|callable(ToolInterface): bool> $tools Tool approval configuration.
+     * @param array<int|string, string|callable(ToolInterface): bool|string> $tools Tool approval configuration.
      *   - Empty array (default): each tool decides for itself via requiresApproval().
      *     (BREAKING: this previously meant "all tools require approval".)
      *   - Numeric key + string value (tool name or class-string): that tool ALWAYS
      *     requires approval — overrides the tool's own declaration.
      *   - String key (tool name or class-string) + callable value
-     *     fn(ToolInterface $tool): bool: the callback decides — overrides the tool's
-     *     own declaration in BOTH directions (may waive a tool that declares true).
+     *     fn(ToolInterface $tool): bool|string: the callback decides — overrides the
+     *     tool's own declaration in BOTH directions (may waive a tool that declares
+     *     true). Returning a string counts as true and doubles as the approval
+     *     reason shown to the approver.
      *   - A tool matching no config entry falls back to its own requiresApproval().
      *
      * Example:
      *   new ToolApproval([
      *       DeleteFile::class,
-     *       'transfer_money' => fn(ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100,
+     *       'transfer_money' => fn(ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100
+     *           ? 'Transfers above $100 require a human sign-off'
+     *           : false,
      *   ])
      */
     public function __construct(
@@ -179,7 +183,7 @@ class ToolApproval implements WorkflowMiddleware
 
             $recordedState = $recorded[$id]->getApprovalState();
             if ($recordedState instanceof \NeuronAI\Tools\ApprovalState) {
-                $tool->setApprovalState($recordedState, $recorded[$id]->getApprovalReason());
+                $tool->setApprovalState($recordedState, $recorded[$id]->getRejectReason());
             }
         }
     }
@@ -262,7 +266,8 @@ class ToolApproval implements WorkflowMiddleware
                     ? '(no arguments)'
                     : json_encode($inputs, JSON_PRETTY_PRINT),
                 decision: $this->mapDecision($tool->getApprovalState()),
-                feedback: $tool->getApprovalReason(),
+                feedback: $tool->getRejectReason(),
+                reason: $tool->getApprovalReason(),
             );
         }
 
@@ -296,7 +301,7 @@ class ToolApproval implements WorkflowMiddleware
      */
     protected function handleRejectedTool(ToolInterface $tool): void
     {
-        $feedback = $tool->getApprovalReason() ?? 'No specific instruction provided.';
+        $feedback = $tool->getRejectReason() ?? 'No specific instruction provided.';
 
         $tool->setResult(sprintf(
             "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
@@ -306,7 +311,9 @@ class ToolApproval implements WorkflowMiddleware
 
     /**
      * Filter tools that require approval based on configuration, falling back to each
-     * tool's own self-declaration.
+     * tool's own self-declaration. A string decision counts as true and is stamped on
+     * the tool as its approval reason — the outbound "why am I asking" surfaced to the
+     * approver via the ApprovalRequest actions and the tool entries in chat history.
      *
      * @param ToolInterface[] $tools
      * @return ToolInterface[]
@@ -315,17 +322,27 @@ class ToolApproval implements WorkflowMiddleware
     {
         return array_filter(
             $tools,
-            $this->toolRequiresApproval(...)
+            function (ToolInterface $tool): bool {
+                $decision = $this->toolRequiresApproval($tool);
+
+                if (is_string($decision)) {
+                    $tool->setApprovalReason($decision);
+                    return true;
+                }
+
+                return $decision;
+            }
         );
     }
 
     /**
-     * Determine if a specific tool requires approval.
+     * Determine if a specific tool requires approval. A string return means "yes,
+     * and this is the reason to show the approver".
      *
      * Middleware configuration overrides the tool's self-declaration in both directions;
      * a tool matching no config entry falls back to its own requiresApproval().
      */
-    protected function toolRequiresApproval(ToolInterface $tool): bool
+    protected function toolRequiresApproval(ToolInterface $tool): bool|string
     {
         $toolName = $tool->getName();
         $toolClass = $tool::class;

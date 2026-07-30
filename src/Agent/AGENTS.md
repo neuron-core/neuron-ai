@@ -131,7 +131,10 @@ $agent->addMiddleware(ToolNode::class, new ToolApproval());
 ```
 
 With no constructor config, **each tool decides** via its own `requiresApproval()`
-declaration (ADR 0004); middleware config overrides that in both directions. When a gated
+declaration (ADR 0004); middleware config overrides that in both directions. Both the
+declaration and a config callback return `bool|string` — a string counts as `true` and
+doubles as the approval reason shown to the approver (persisted as `approvalReason` on the
+tool entry in chat history, exposed on the `ApprovalRequest` actions as `reason`). When a gated
 tool is requested, `chat()` returns suspended instead of completed — this requires **workflow
 persistence AND a durable chat history** (chat history is the system of record for approval
 state — ADR 0003). `InMemoryChatHistory` keeps the safety property but loses progress across

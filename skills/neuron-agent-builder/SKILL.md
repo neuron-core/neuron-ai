@@ -310,21 +310,21 @@ vendor/bin/neuron make:agent MyCustomAgent
 ## Common Patterns
 
 ### Tool Approval Middleware
-For human oversight of tool execution:
+For human oversight of tool execution, attach `ToolApproval` to `ToolNode::class`
+(subclass-aware matching also covers `ParallelToolNode`):
 
 ```php
 use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\StreamNode;
-use NeuronAI\Agent\Nodes\StructuredOutputNode;
+use NeuronAI\Agent\Nodes\ToolNode;
 
-// In agent constructor
-$this->middleware([
-    ChatNode::class,
-    StreamNode::class,
-    StructuredOutputNode::class
-], new ToolApproval());
+$agent->addMiddleware(ToolNode::class, new ToolApproval());
 ```
+
+With no config, each tool decides for itself via `requiresApproval(array $inputs): bool|string`
+(a string counts as `true` and doubles as the approval reason shown to the approver).
+Use the **neuron-tool-approval** skill for the complete flow: rendering the approve/deny
+UI from chat history, submitting decisions, and building a single endpoint that handles
+both conversation turns and approval resumes.
 
 ### Observability with Inspector
 Monitor agent execution:
@@ -354,30 +354,36 @@ $response = MyAgent::make()
     ->getMessage();
 ```
 
-When the agent interrupts (e.g., waiting for tool approval), catch the `WorkflowInterrupt` and resume later using the same persistence backend and the `resumeToken`:
+When the agent suspends (e.g., waiting for tool approval), no exception is thrown — the
+handler is marked interrupted. Deliver the decisions later as a payload; with a durable
+chat history the resume token is adopted from the thread automatically:
 
 ```php
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+$agent = MyAgent::make()
+    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+    ->setPersistence(new FilePersistence('/path/to/storage'))
+    ->addMiddleware(ToolNode::class, new ToolApproval());
 
-try {
-    $response = MyAgent::make()
-        ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->chat(new UserMessage('Delete file /tmp/old.log'))
-        ->getMessage();
-} catch (WorkflowInterrupt $interrupt) {
-    $workflowId = $interrupt->getWorkflowId();
-    $request = $interrupt->getRequest();
+$handler = $agent->chat(new UserMessage('Delete file /tmp/old.log'));
+$handler->run();
 
+if ($handler->interrupted()) {
+    // getMessage() is the annotated ToolCallMessage — render approve/deny from it.
     // ... user approves/rejects ...
 
-    $response = MyAgent::make(resumeToken: $workflowId)
+    // A new execution cycle (e.g. the approve endpoint): rebuild from the thread
+    // alone and deliver the decisions keyed by tool callId.
+    $handler = MyAgent::make()
+        ->setChatHistory(new SQLChatHistory($threadId, $pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->chat($request)
-        ->getMessage();
+        ->addMiddleware(ToolNode::class, new ToolApproval())
+        ->chat(payload: ['call_123' => 'approve']);
 }
+
+$response = $handler->getMessage();
 ```
 
-Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements.
+Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements — and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
 
 ## Key Decisions
 

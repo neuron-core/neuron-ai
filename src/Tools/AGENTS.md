@@ -249,25 +249,35 @@ protected function tools(): array
 
 ## Tool Approval
 
-A tool may declare its own intrinsic risk by overriding `requiresApproval(array $inputs): bool`
-(default `false`). This is the tool author's self-declaration — it does nothing until the
-`ToolApproval` middleware is attached to the agent (ADR 0004: tools declare, middleware
-activates). When the middleware IS attached, middleware config overrides the declaration in
-both directions.
+A tool may declare its own intrinsic risk by overriding
+`requiresApproval(array $inputs): bool|string` (default `false`). This is the tool author's
+self-declaration — it does nothing until the `ToolApproval` middleware is attached to the
+agent (ADR 0004: tools declare, middleware activates). When the middleware IS attached,
+middleware config overrides the declaration in both directions.
+
+Returning a **string counts as `true`** and doubles as the approval reason — the outbound
+"why am I asking" shown to the approver, surfaced on the `ApprovalRequest` actions and
+persisted on the tool entry (`getApprovalReason()` / `approvalReason` in the serialized
+message):
 
 ```php
 class TransferMoneyTool extends Tool
 {
-    public function requiresApproval(array $inputs): bool
+    public function requiresApproval(array $inputs): bool|string
     {
-        return ($inputs['amount'] ?? 0) > 100;
+        return ($inputs['amount'] ?? 0) > 100
+            ? 'Transfers above $100 require a human sign-off'
+            : false;
     }
 }
 ```
 
-Per-call approval state (`pending` / `approved` / `rejected`, with a rejection-only reason)
-is stamped on the tool entries of the `ToolCallMessage` and persisted in **chat history** —
-that is the system of record (ADR 0003), not workflow state. See `ApprovalState`.
+Per-call approval state (`pending` / `approved` / `rejected`) is stamped on the tool entries
+of the `ToolCallMessage` and persisted in **chat history** — that is the system of record
+(ADR 0003), not workflow state. See `ApprovalState`. Two reasons may accompany it, with
+opposite directions: `approvalReason` (outbound, the requester's purpose) and `rejectReason`
+(inbound, the approver's feedback — rejection-only, recorded via
+`setApprovalState(ApprovalState::Rejected, $reason)` and read via `getRejectReason()`).
 
 ## Dependencies
 

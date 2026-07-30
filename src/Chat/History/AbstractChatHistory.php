@@ -222,12 +222,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             $definition = ToolDefinition::make($tool['name'], $tool['description'])
                 ->setParameters($tool['parameters'] ?? [])
                 ->setInputs($tool['inputs'])
-                ->setCallId($tool['callId'] ?? null);
+                ->setCallId($tool['callId'] ?? null)
+                ->setApprovalReason($tool['approvalReason'] ?? null);
 
             if (isset($tool['approval'])) {
                 $definition->setApprovalState(
                     ApprovalState::from($tool['approval']),
-                    $tool['approvalReason'] ?? null
+                    $tool['rejectReason'] ?? null
                 );
             }
 
@@ -254,12 +255,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             $definition = ToolDefinition::make($tool['name'], $tool['description'])
                 ->setInputs($tool['inputs'])
                 ->setCallId($tool['callId'])
-                ->setResult($tool['result']);
+                ->setResult($tool['result'])
+                ->setApprovalReason($tool['approvalReason'] ?? null);
 
             if (isset($tool['approval'])) {
                 $definition->setApprovalState(
                     ApprovalState::from($tool['approval']),
-                    $tool['approvalReason'] ?? null
+                    $tool['rejectReason'] ?? null
                 );
             }
 

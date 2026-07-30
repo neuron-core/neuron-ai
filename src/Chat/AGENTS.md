@@ -72,9 +72,11 @@ Backends that persist via `setMessages()` (File, InMemory) get this for free —
 whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,
 `EloquentChatHistory`) override `onLastMessageReplaced()` to update the last row.
 
-Serialized tool entries carry two approval fields: `approval` (`pending`|`approved`|
-`rejected`, or absent for a non-gated tool) and `approvalReason` (rejection-only). Old
-stored histories without these keys deserialize as `null` (not gated).
+Serialized tool entries carry three approval fields: `approval` (`pending`|`approved`|
+`rejected`, or absent for a non-gated tool), `approvalReason` (outbound — why the tool is
+asking for approval, declared by the tool or middleware config), and `rejectReason`
+(inbound — the approver's feedback, rejection-only). Old stored histories without these
+keys deserialize as `null` (not gated).
 
 The suspended `ToolCallMessage` also carries a `resume_token` metadata entry (ADR 0005) —
 the handle to reattach to the suspended run, exposed via

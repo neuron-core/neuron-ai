@@ -63,6 +63,13 @@ abstract class Tool implements ToolInterface
     /**
      * Rejection reason. Only ever non-null when $approvalState is Rejected.
      */
+    protected ?string $rejectReason = null;
+
+    /**
+     * Why this call is asking for approval — the tool author's (or middleware
+     * config's) outbound message to the approver. Stamped by ToolApproval when
+     * requiresApproval() or a config callback returns a string.
+     */
     protected ?string $approvalReason = null;
 
     /**
@@ -215,9 +222,20 @@ abstract class Tool implements ToolInterface
         return $this->getName();
     }
 
-    public function requiresApproval(array $inputs): bool
+    public function requiresApproval(array $inputs): bool|string
     {
         return false;
+    }
+
+    public function getApprovalReason(): ?string
+    {
+        return $this->approvalReason;
+    }
+
+    public function setApprovalReason(?string $reason): ToolInterface
+    {
+        $this->approvalReason = $reason;
+        return $this;
     }
 
     public function getApprovalState(): ?ApprovalState
@@ -228,13 +246,13 @@ abstract class Tool implements ToolInterface
     public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface
     {
         $this->approvalState = $state;
-        $this->approvalReason = $state === ApprovalState::Rejected ? $reason : null;
+        $this->rejectReason = $state === ApprovalState::Rejected ? $reason : null;
         return $this;
     }
 
-    public function getApprovalReason(): ?string
+    public function getRejectReason(): ?string
     {
-        return $this->approvalReason;
+        return $this->rejectReason;
     }
 
     /**
@@ -313,6 +331,7 @@ abstract class Tool implements ToolInterface
             'result' => $this->result,
             'approval' => $this->approvalState?->value,
             'approvalReason' => $this->approvalReason,
+            'rejectReason' => $this->rejectReason,
         ];
     }
 }

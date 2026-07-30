@@ -142,7 +142,7 @@ class TestParametrizedTool implements ToolInterface
         return $this->name . ':' . $this->runKey;
     }
 
-    public function requiresApproval(array $inputs): bool
+    public function requiresApproval(array $inputs): bool|string
     {
         return false;
     }
@@ -158,6 +158,16 @@ class TestParametrizedTool implements ToolInterface
     }
 
     public function getApprovalReason(): ?string
+    {
+        return null;
+    }
+
+    public function setApprovalReason(?string $reason): ToolInterface
+    {
+        return $this;
+    }
+
+    public function getRejectReason(): ?string
     {
         return null;
     }

@@ -19,7 +19,9 @@ class Action implements JsonSerializable
      * @param string             $name        Short human-readable name
      * @param string|null        $description Detailed description of what this action does
      * @param ActionDecision     $decision    Current decision state
-     * @param string|null        $feedback    Optional feedback from the approver (rejection reason)
+     * @param string|null        $feedback    Optional feedback from the approver (reject reason)
+     * @param string|null        $reason      Why approval is being requested (declared by the
+     *                                        tool or the middleware config — outbound)
      */
     public function __construct(
         public readonly string $id,
@@ -27,6 +29,7 @@ class Action implements JsonSerializable
         public readonly ?string $description = null,
         public readonly ActionDecision $decision = ActionDecision::Pending,
         public readonly ?string $feedback = null,
+        public readonly ?string $reason = null,
     ) {
     }
 
@@ -67,6 +70,7 @@ class Action implements JsonSerializable
             'description' => $this->description,
             'decision' => $this->decision->value,
             'feedback' => $this->feedback,
+            'reason' => $this->reason,
         ];
     }
 }

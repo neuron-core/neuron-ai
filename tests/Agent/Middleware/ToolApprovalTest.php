@@ -268,7 +268,7 @@ class ToolApprovalTest extends TestCase
             $byCall[$tool->getCallId()] = $tool;
         }
         $this->assertEquals(ApprovalState::Rejected, $byCall['call_a']->getApprovalState());
-        $this->assertEquals('changed my mind', $byCall['call_a']->getApprovalReason());
+        $this->assertEquals('changed my mind', $byCall['call_a']->getRejectReason());
     }
 
     public function test_unknown_call_id_in_payload_is_ignored(): void
@@ -313,6 +313,67 @@ class ToolApprovalTest extends TestCase
 
         $this->assertEquals(ApprovalState::Approved, $gated->getApprovalState());
         $this->assertNull($plain->getApprovalState(), 'A non-gated tool must keep null approval state');
+    }
+
+    public function test_tool_reason_string_gates_and_surfaces_the_reason(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool = new class () extends Tool {
+            public function requiresApproval(array $inputs): string
+            {
+                return 'Deleting files is irreversible';
+            }
+
+            public function __invoke(mixed ...$arguments): mixed
+            {
+                return null;
+            }
+        };
+        $tool->setName('delete_file')->setDescription('d')->setCallId('call_a')->setInputs([]);
+
+        $interrupt = $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$tool]), $state);
+
+        /** @var ApprovalRequest $request */
+        $request = $interrupt->getRequest();
+        $this->assertSame('Deleting files is irreversible', $this->actionsById($request)['call_a']->reason);
+
+        // The reason is recorded on the tool entry persisted in chat history.
+        $recorded = $this->lastToolCall($state)->getTools()[0];
+        $this->assertSame('Deleting files is irreversible', $recorded->getApprovalReason());
+        $this->assertSame('Deleting files is irreversible', $recorded->jsonSerialize()['approvalReason']);
+    }
+
+    public function test_callback_reason_string_gates_and_surfaces_the_reason(): void
+    {
+        $middleware = new ToolApproval([
+            'transfer_money' => fn (ToolInterface $tool): bool|string => ($tool->getInputs()['amount'] ?? 0) > 100
+                ? 'Transfers above $100 require a human sign-off'
+                : false,
+        ]);
+        $node = new ToolNode();
+        $state = new AgentState();
+
+        $tool = $this->plainTool('transfer_money', 'call_a', ['amount' => 500]);
+
+        $interrupt = $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$tool]), $state);
+
+        /** @var ApprovalRequest $request */
+        $request = $interrupt->getRequest();
+        $this->assertSame('Transfers above $100 require a human sign-off', $this->actionsById($request)['call_a']->reason);
+        $this->assertSame('Transfers above $100 require a human sign-off', $tool->getApprovalReason());
+
+        // Below the threshold the callback returns false — no gate, no reason.
+        $middleware2 = new ToolApproval([
+            'transfer_money' => fn (ToolInterface $t): bool|string => ($t->getInputs()['amount'] ?? 0) > 100
+                ? 'Transfers above $100 require a human sign-off'
+                : false,
+        ]);
+        $cheap = $this->plainTool('transfer_money', 'call_b', ['amount' => 50]);
+        $this->assertDoesNotInterrupt($middleware2, $node, $this->createToolCallEvent([$cheap]), new AgentState());
+        $this->assertNull($cheap->getApprovalReason());
     }
 
     public function test_history_write_is_idempotent_across_resumes(): void

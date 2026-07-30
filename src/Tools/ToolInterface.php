@@ -95,9 +95,22 @@ interface ToolInterface extends JsonSerializable
      * Consulted only when the ToolApproval middleware is attached to the agent;
      * middleware configuration overrides this declaration in both directions.
      *
+     * Returning a string counts as true AND carries the reason the approval is
+     * being requested — surfaced to the approver via the ApprovalRequest actions
+     * and the tool entries persisted in chat history.
+     *
      * @param array<string, mixed> $inputs The arguments the model is calling the tool with.
      */
-    public function requiresApproval(array $inputs): bool;
+    public function requiresApproval(array $inputs): bool|string;
+
+    /**
+     * The reason this call is asking for approval (the tool author's or middleware
+     * config's outbound message to the approver). Null when no reason was declared.
+     * Distinct from getRejectReason(), which is the approver's inbound feedback.
+     */
+    public function getApprovalReason(): ?string;
+
+    public function setApprovalReason(?string $reason): ToolInterface;
 
     /**
      * The recorded approval state of this tool call, or null when the call is
@@ -107,12 +120,12 @@ interface ToolInterface extends JsonSerializable
 
     /**
      * Record the approval state. $reason is meaningful only for rejections
-     * (reasons are a rejection-only concept — see CONTEXT.md); pass null otherwise.
+     * (reject reasons are a rejection-only concept — see CONTEXT.md); pass null otherwise.
      */
     public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface;
 
     /**
      * The rejection reason recorded with a Rejected state, null otherwise.
      */
-    public function getApprovalReason(): ?string;
+    public function getRejectReason(): ?string;
 }

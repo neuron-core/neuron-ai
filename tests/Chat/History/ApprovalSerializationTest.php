@@ -34,6 +34,7 @@ class ApprovalSerializationTest extends TestCase
             ->setCallId('c1')
             ->setInputs(['a' => 1]);
         $pending->setApprovalState(ApprovalState::Pending);
+        $pending->setApprovalReason('This action is irreversible');
 
         $rejected = ToolDefinition::make('rejected_tool', 'd')
             ->setCallId('c2')
@@ -54,10 +55,11 @@ class ApprovalSerializationTest extends TestCase
         $this->assertCount(2, $tools);
 
         $this->assertEquals(ApprovalState::Pending, $tools[0]->getApprovalState());
-        $this->assertNull($tools[0]->getApprovalReason());
+        $this->assertNull($tools[0]->getRejectReason());
+        $this->assertSame('This action is irreversible', $tools[0]->getApprovalReason());
 
         $this->assertEquals(ApprovalState::Rejected, $tools[1]->getApprovalState());
-        $this->assertSame('too risky', $tools[1]->getApprovalReason());
+        $this->assertSame('too risky', $tools[1]->getRejectReason());
     }
 
     public function test_round_trip_preserves_resume_token(): void

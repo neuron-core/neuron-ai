@@ -35,12 +35,13 @@ class FileDeleteTool extends Tool
     }
 
     // The tool declares its own risk (ADR 0004): with a bare ToolApproval()
-    // each tool decides for itself, so gated tools must return true here.
+    // each tool decides for itself. Returning a string counts as "true" and
+    // doubles as the approval reason shown to the approver.
     // Middleware config (e.g. new ToolApproval([FileDeleteTool::class]))
     // overrides this declaration in both directions.
-    public function requiresApproval(array $inputs): bool
+    public function requiresApproval(array $inputs): bool|string
     {
-        return true;
+        return 'Deleting a file is irreversible';
     }
 
     public function __invoke(string $path): string
@@ -110,6 +111,10 @@ while ($handler->interrupted()) {
     $payload = [];
     foreach ($approvalRequest->getActions() as $action) {
         echo "  - {$action->name}: {$action->description}\n";
+
+        if ($action->reason !== null) {
+            echo "    Why approval is needed: {$action->reason}\n";
+        }
 
         if (promptUserForApproval()) {
             $payload[$action->id] = 'approve';
