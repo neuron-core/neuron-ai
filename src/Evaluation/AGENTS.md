@@ -7,7 +7,15 @@ Dataset-driven AI evaluation with flexible assertions and output drivers.
 ```bash
 vendor/bin/neuron evaluation path/to/evaluators
 vendor/bin/neuron evaluation --verbose path/to/evaluators
+vendor/bin/neuron evaluation --concurrency=8 path/to/evaluators
 ```
+
+`--concurrency=N` runs dataset items in N parallel child processes (requires
+`ext-pcntl` and `spatie/fork`; falls back to sequential otherwise). Each forked
+item gets its own copy of the evaluator, so per-item side effects (shared
+counters, appending to files) won't be visible across items. Evaluator outputs
+must be serializable to cross the process boundary; non-serializable outputs
+are replaced with a placeholder string in the results.
 
 ## Architecture
 

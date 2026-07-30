@@ -55,8 +55,13 @@ class EvaluationCommand
             return 1;
         }
 
+        if ($options['concurrency'] < 1) {
+            $this->printError("Concurrency must be a positive integer");
+            return 1;
+        }
+
         try {
-            return $this->executeEvaluations($options['path'], $options['verbose']);
+            return $this->executeEvaluations($options['path'], $options['verbose'], $options['concurrency']);
         } catch (Throwable $e) {
             $this->printError($e->getMessage());
             return 1;
@@ -65,7 +70,7 @@ class EvaluationCommand
 
     /**
      * @param array<string> $args
-     * @return array{path: string, verbose: bool, help: bool}
+     * @return array{path: string, verbose: bool, help: bool, concurrency: int}
      */
     private function parseArguments(array $args): array
     {
@@ -73,6 +78,7 @@ class EvaluationCommand
             'path' => '',
             'verbose' => false,
             'help' => false,
+            'concurrency' => 1,
         ];
 
         // Skip script name
@@ -85,6 +91,8 @@ class EvaluationCommand
                 $options['verbose'] = true;
             } elseif (str_starts_with($arg, '--path=')) {
                 $options['path'] = substr($arg, 7); // Remove '--path='
+            } elseif (str_starts_with($arg, '--concurrency=')) {
+                $options['concurrency'] = (int) substr($arg, 14); // Remove '--concurrency='
             } elseif (empty($options['path']) && !str_starts_with($arg, '-')) {
                 $options['path'] = $arg;
             }
@@ -93,15 +101,15 @@ class EvaluationCommand
         return $options;
     }
 
-    private function executeEvaluations(string $path, bool $verbose): int
+    private function executeEvaluations(string $path, bool $verbose, int $concurrency): int
     {
-        // Load output drivers from config and create pipeline
-        $driverConfigs = $this->configLoader->getOutputDrivers();
-        $drivers = $this->driverResolver->resolve($driverConfigs);
-        $pipeline = new OutputPipeline($drivers);
-
         // Print header
         echo "Neuron AI Evaluation Runner\n\n";
+
+        if ($concurrency > 1 && !EvaluatorRunner::supportsConcurrency()) {
+            echo "Parallel execution requires the pcntl extension and spatie/fork. Running sequentially.\n\n";
+            $concurrency = 1;
+        }
 
         // Discover evaluators
         $evaluatorClasses = $this->discovery->discover($path);
@@ -114,6 +122,8 @@ class EvaluationCommand
         $totalFailures = 0;
         $evaluatorCount = 1;
         $totalEvaluators = count($evaluatorClasses);
+        $allResults = [];
+        $totalTime = 0.0;
 
         foreach ($evaluatorClasses as $evaluatorClass) {
             if ($verbose) {
@@ -123,7 +133,7 @@ class EvaluationCommand
             try {
                 $evaluator = $this->createEvaluator($evaluatorClass);
 
-                $summary = $this->runner->run($evaluator);
+                $summary = $this->runner->run($evaluator, $concurrency);
 
                 // Print progress symbols
                 if (!$verbose) {
@@ -136,6 +146,9 @@ class EvaluationCommand
                     $totalFailures += $summary->getFailedCount();
                 }
 
+                $allResults = array_merge($allResults, $summary->getResults());
+                $totalTime += $summary->getTotalExecutionTime();
+
             } catch (Throwable $e) {
                 $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
                 $totalFailures++;
@@ -144,8 +157,14 @@ class EvaluationCommand
             $evaluatorCount++;
         }
 
+        // Build the pipeline only after all runs complete: drivers may hold live
+        // resources (e.g. DB connections) that must not exist at fork time
+        $driverConfigs = $this->configLoader->getOutputDrivers();
+        $drivers = $this->driverResolver->resolve($driverConfigs);
+        $pipeline = new OutputPipeline($drivers);
+
         // Final output through the pipeline (includes all configured drivers)
-        $pipeline->output($this->createOverallSummary($evaluatorClasses));
+        $pipeline->output(new EvaluatorSummary($allResults, $totalTime));
 
         return $totalFailures > 0 ? 1 : 0;
     }
@@ -176,28 +195,6 @@ class EvaluationCommand
         return end($parts);
     }
 
-    private function createOverallSummary(array $evaluatorClasses): EvaluatorSummary
-    {
-        // This is a simplified overall summary - in a real implementation,
-        // you'd want to collect all individual results
-        $results = [];
-        $totalTime = 0.0;
-
-        foreach ($evaluatorClasses as $evaluatorClass) {
-            try {
-                $evaluator = $this->createEvaluator($evaluatorClass);
-                $summary = $this->runner->run($evaluator);
-
-                $results = array_merge($results, $summary->getResults());
-                $totalTime += $summary->getTotalExecutionTime();
-            } catch (Throwable) {
-                // Skip failed evaluators for overall summary
-            }
-        }
-
-        return new EvaluatorSummary($results, $totalTime);
-    }
-
     private function printError(string $message): void
     {
         echo "Error: {$message}\n";
@@ -210,6 +207,7 @@ class EvaluationCommand
         echo "Arguments:\n";
         echo "  path                   Path to directory containing evaluators\n\n";
         echo "Options:\n";
+        echo "  --concurrency=N        Run dataset items in N parallel processes (requires pcntl and spatie/fork)\n";
         echo "  --verbose, -v          Show verbose output\n";
         echo "  --help, -h             Show this help message\n";
     }

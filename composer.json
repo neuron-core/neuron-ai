@@ -76,7 +76,8 @@
         }
     },
     "suggest": {
-        "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer."
+        "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer.",
+        "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl)."
     },
     "config": {
         "sort-packages": true,

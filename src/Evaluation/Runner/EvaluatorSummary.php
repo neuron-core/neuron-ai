@@ -68,7 +68,11 @@ class EvaluatorSummary
             return 0.0;
         }
 
-        return $this->totalExecutionTime / $this->getTotalCount();
+        // Average of individual item timings: under parallel execution the
+        // wall-clock total no longer equals the sum of per-item times
+        $itemTimes = array_sum(array_map(fn (EvaluatorResult $result): float => $result->getExecutionTime(), $this->results));
+
+        return $itemTimes / $this->getTotalCount();
     }
 
     /**
