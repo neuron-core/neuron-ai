@@ -65,7 +65,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      * re-adding the message on replay). Backends that persist via setMessages() need
      * nothing here — the whole history is rewritten anyway. See ADR 0003.
      */
-    protected function onMessageReplaced(Message $message): void
+    protected function onLastMessageReplaced(Message $message): void
     {
     }
 
@@ -84,9 +84,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function addMessage(Message $message): ChatHistoryInterface
     {
-        if ($this->replacesLastMessage($message)) {
+        if ($this->shouldReplaceLastMessage($message)) {
             $this->history[count($this->history) - 1] = $message;
-            $this->onMessageReplaced($message);
+            $this->onLastMessageReplaced($message);
             $this->setMessages($this->history);
             return $this;
         }
@@ -107,7 +107,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      * current last message — i.e. a re-write of the message that is already at the
      * tail (an approval-state update, or a node re-adding it on replay). See ADR 0003.
      */
-    protected function replacesLastMessage(Message $message): bool
+    protected function shouldReplaceLastMessage(Message $message): bool
     {
         if (!$message instanceof ToolCallMessage || $this->history === []) {
             return false;

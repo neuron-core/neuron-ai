@@ -52,6 +52,15 @@ Implementations of `ChatHistoryInterface`:
 
 **Base**: `AbstractChatHistory` provides common logic.
 
+### Message alternation
+
+A pure `UserMessage` can never directly follow a `ToolCallMessage` — the tool calls must be
+answered by a `ToolResultMessage` first (which itself extends `UserMessage` and is the expected
+continuation). Enforced by `HistoryTrimmer::validateAlternation()` (`ChatHistoryException`),
+which runs on every `addMessage()` append and therefore also covers sequences loaded from
+storage. This is pure sequence validation, independent of tool approval; note that a custom
+`HistoryTrimmerInterface` implementation takes over this responsibility.
+
 ### Replace-last rule (ADR 0003)
 
 `addMessage()` recognizes an incoming `ToolCallMessage` whose tool callIds match the
@@ -61,7 +70,7 @@ to a single message reflecting the latest approval state.
 
 Backends that persist via `setMessages()` (File, InMemory) get this for free — the
 whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,
-`EloquentChatHistory`) override `onMessageReplaced()` to update the last row.
+`EloquentChatHistory`) override `onLastMessageReplaced()` to update the last row.
 
 Serialized tool entries carry two approval fields: `approval` (`pending`|`approved`|
 `rejected`, or absent for a non-gated tool) and `approvalReason` (rejection-only). Old

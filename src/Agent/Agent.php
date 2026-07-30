@@ -15,7 +15,6 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -91,7 +90,6 @@ class Agent extends Workflow implements AgentInterface
         ?array $payload = null,
         bool $timedOut = false
     ): AgentHandler {
-        $this->guardPendingApprovals($payload);
         $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
@@ -116,7 +114,6 @@ class Agent extends Workflow implements AgentInterface
         ?array $payload = null,
         bool $timedOut = false
     ): AgentHandler {
-        $this->guardPendingApprovals($payload);
         $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
@@ -145,7 +142,6 @@ class Agent extends Workflow implements AgentInterface
         ?array $payload = null,
         bool $timedOut = false
     ): mixed {
-        $this->guardPendingApprovals($payload);
         $this->checkResumeToken($payload);
 
         $this->resolveStartEvent()->setMessages(
@@ -200,36 +196,4 @@ class Agent extends Workflow implements AgentInterface
         }
     }
 
-    /**
-     * A new conversation turn must not start while the thread's last message still
-     * carries pending tool approvals (the application must resolve or expire them
-     * first — see CONTEXT.md "The application owns thread integrity").
-     *
-     * @param array<string, mixed>|null $payload Null starts a fresh turn; a non-null
-     *                                           payload resumes a suspended workflow.
-     * @throws AgentException
-     */
-    protected function guardPendingApprovals(?array $payload): void
-    {
-        if ($payload !== null) {
-            // Resuming — delivering decisions is exactly how pending approvals get resolved.
-            return;
-        }
-
-        $messages = $this->resolveState()->getChatHistory()->getMessages();
-        $last = end($messages);
-
-        if (!$last instanceof ToolCallMessage) {
-            return;
-        }
-
-        foreach ($last->getTools() as $tool) {
-            if ($tool->getApprovalState() === ApprovalState::Pending) {
-                throw new AgentException(
-                    'This conversation has tool calls awaiting approval. Resolve them by resuming '
-                    . 'with a decision payload before starting a new turn.'
-                );
-            }
-        }
-    }
 }

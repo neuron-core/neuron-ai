@@ -156,8 +156,10 @@ $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too ex
 A tool runs iff explicitly approved; silence is never consent. Decisions are revisable
 (last-write-wins) until the full set completes. The UI re-renders pending approvals by
 reading chat history (last message, tools with `getApprovalState()`) — no workflow boot.
-The thread must stay **locked** until every decision is delivered: starting a new turn on a
-thread with pending approvals throws `AgentException`.
+The thread must stay **locked** until every decision is delivered — thread integrity is the
+application's responsibility (ADR 0003). There is no agent-level guard: if a new turn slips
+through anyway, the chat history's message-alternation rule rejects the `UserMessage` appended
+after the pending `ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
 
 ### Resume token lives in chat history (ADR 0005)
 

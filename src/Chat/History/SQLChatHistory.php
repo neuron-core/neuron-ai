@@ -74,7 +74,7 @@ class SQLChatHistory extends AbstractChatHistory
         ));
     }
 
-    protected function onMessageReplaced(Message $message): void
+    protected function onLastMessageReplaced(Message $message): void
     {
         $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id DESC LIMIT 1");
         $stmt->execute(['thread_id' => $this->thread_id]);

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\ChatHistory;
 
+use NeuronAI\Chat\History\HistoryTrimmer;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
@@ -33,6 +35,39 @@ class ChatHistoryTrimmerTest extends TestCase
     protected function tearDown(): void
     {
         $this->chatHistory->flushAll();
+    }
+
+    public function test_validation_rejects_user_message_directly_after_tool_call(): void
+    {
+        // Sequences that bypass addMessage() (e.g. loaded from storage) are caught
+        // by the trimmer's whole-history validation with the same alternation rule.
+        $tool = ToolDefinition::make('search', 'd')->setCallId('c1')->setInputs(['q' => 'x']);
+
+        $messages = [
+            new UserMessage('Question'),
+            new ToolCallMessage(null, [$tool]),
+            new UserMessage('Another question'),
+        ];
+
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('a UserMessage cannot directly follow a ToolCallMessage');
+
+        (new HistoryTrimmer())->trim($messages, self::CONTEXT_WINDOW);
+    }
+
+    public function test_validation_accepts_tool_result_after_tool_call(): void
+    {
+        $tool = ToolDefinition::make('search', 'd')->setCallId('c1')->setInputs(['q' => 'x']);
+        $toolWithResult = (clone $tool)->setResult('Results');
+
+        $messages = [
+            new UserMessage('Question'),
+            new ToolCallMessage(null, [$tool]),
+            new ToolResultMessage([$toolWithResult]),
+            new AssistantMessage('Here is the answer'),
+        ];
+
+        $this->assertCount(4, (new HistoryTrimmer())->trim($messages, self::CONTEXT_WINDOW));
     }
 
     public function test_trimmer_with_high_number_of_messages(): void

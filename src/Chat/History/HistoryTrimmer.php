@@ -350,6 +350,18 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 continue;
             }
 
+            // A tool call must be answered before the conversation moves on: a pure
+            // UserMessage can never directly follow a ToolCallMessage (mirrors the
+            // addMessage() alternation rule; ToolResultMessage was handled above).
+            if ($previousMessage instanceof ToolCallMessage && $message instanceof UserMessage) {
+                throw new ChatHistoryException(
+                    sprintf(
+                        'Invalid message sequence at position %d: a UserMessage cannot directly follow a ToolCallMessage',
+                        $index
+                    )
+                );
+            }
+
             // Tool call messages must come from an assistant role
             if ($message instanceof ToolCallMessage) {
                 if ($role !== MessageRole::ASSISTANT->value) {
@@ -361,7 +373,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                         )
                     );
                 }
-                // After tool call, we expect tool result or user
+                // After a tool call we expect a tool result (a pure user message is
+                // blocked above).
                 $expectingUser = true;
                 $previousMessage = $message;
                 continue;

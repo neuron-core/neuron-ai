@@ -48,6 +48,33 @@ class InMemoryChatHistoryTest extends TestCase
         $this->assertCount(1, $history->getMessages());
     }
 
+    public function test_user_message_after_tool_call_is_rejected(): void
+    {
+        $history = new InMemoryChatHistory();
+        $history->addMessage(new UserMessage('Delete the file'));
+        $history->addMessage(new ToolCallMessage(null, [
+            ToolDefinition::make('delete_file', 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']),
+        ]));
+
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('cannot directly follow a ToolCallMessage');
+
+        $history->addMessage(new UserMessage('Another question'));
+    }
+
+    public function test_tool_result_after_tool_call_is_allowed(): void
+    {
+        $tool = ToolDefinition::make('delete_file', 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']);
+        $toolWithResult = (clone $tool)->setResult('File deleted');
+
+        $history = new InMemoryChatHistory();
+        $history->addMessage(new UserMessage('Delete the file'));
+        $history->addMessage(new ToolCallMessage(null, [$tool]));
+        $history->addMessage(new ToolResultMessage([$toolWithResult]));
+
+        $this->assertCount(3, $history->getMessages());
+    }
+
     public function test_chat_history_truncate_and_validate(): void
     {
         $history = new InMemoryChatHistory(13);

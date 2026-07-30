@@ -58,7 +58,7 @@ class EloquentChatHistory extends AbstractChatHistory
         ]);
     }
 
-    protected function onMessageReplaced(Message $message): void
+    protected function onLastMessageReplaced(Message $message): void
     {
         /** @var Model $model */
         $model = new $this->modelClass();
