@@ -4,55 +4,141 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Runner;
 
+use NeuronAI\Evaluation\AssertionOutcomes;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use Spatie\Fork\Fork;
 use Throwable;
 
+use function class_exists;
+use function count;
+use function function_exists;
+use function get_debug_type;
 use function microtime;
+use function serialize;
 
 class EvaluatorRunner
 {
     /**
      * Run the evaluator and return a summary of results
      */
-    public function run(EvaluatorInterface $evaluator): EvaluatorSummary
+    public function run(EvaluatorInterface $evaluator, int $concurrency = 1): EvaluatorSummary
     {
         $evaluator->setUp();
 
         $dataset = $evaluator->getDataset();
         $data = $dataset->load();
+
+        $startTime = microtime(true);
+
+        $results = $concurrency > 1 && count($data) > 1 && self::supportsConcurrency()
+            ? $this->runParallel($evaluator, $data, $concurrency)
+            : $this->runSequential($evaluator, $data);
+
+        return new EvaluatorSummary($results, microtime(true) - $startTime);
+    }
+
+    /**
+     * Whether parallel execution is available on this system.
+     * Requires the pcntl extension (not available on Windows) and spatie/fork.
+     */
+    public static function supportsConcurrency(): bool
+    {
+        return function_exists('pcntl_fork') && class_exists(Fork::class);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $data
+     * @return array<EvaluatorResult>
+     */
+    protected function runSequential(EvaluatorInterface $evaluator, array $data): array
+    {
         $results = [];
-        $totalTime = 0.0;
 
         foreach ($data as $index => $item) {
-            $startTime = microtime(true);
-            $error = null;
-            $output = null;
-            $outcomes = null;
+            $results[] = $this->runItem($evaluator, $index, $item);
+        }
 
-            try {
-                $output = $evaluator->run($item);
-                $outcomes = $evaluator->performEvaluation($output, $item);
-            } catch (Throwable $e) {
-                $error = $e->getMessage();
-            }
+        return $results;
+    }
 
-            $executionTime = microtime(true) - $startTime;
-            $totalTime += $executionTime;
+    /**
+     * Run dataset items in parallel across forked child processes.
+     * Fork returns outputs keyed by task order, so results stay in dataset order.
+     *
+     * @param array<int, array<string, mixed>> $data
+     * @return array<EvaluatorResult>
+     */
+    protected function runParallel(EvaluatorInterface $evaluator, array $data, int $concurrency): array
+    {
+        $tasks = [];
 
-            $results[] = new EvaluatorResult(
-                $index,
-                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes && $outcomes->isPassed(),
-                $item,
-                $output,
-                $executionTime,
-                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->passedCount : 0,
-                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->failedCount : 0,
-                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->failures : [],
-                $outcomes instanceof \NeuronAI\Evaluation\AssertionOutcomes ? $outcomes->scores : [],
-                $error
+        foreach ($data as $index => $item) {
+            $tasks[] = fn (): EvaluatorResult => $this->ensureSerializable(
+                $this->runItem($evaluator, $index, $item)
             );
         }
 
-        return new EvaluatorSummary($results, $totalTime);
+        return Fork::new()
+            ->concurrent($concurrency)
+            ->run(...$tasks);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    protected function runItem(EvaluatorInterface $evaluator, int $index, array $item): EvaluatorResult
+    {
+        $startTime = microtime(true);
+        $error = null;
+        $output = null;
+        $outcomes = null;
+
+        try {
+            $output = $evaluator->run($item);
+            $outcomes = $evaluator->performEvaluation($output, $item);
+        } catch (Throwable $e) {
+            $error = $e->getMessage();
+        }
+
+        $executionTime = microtime(true) - $startTime;
+
+        return new EvaluatorResult(
+            $index,
+            $outcomes instanceof AssertionOutcomes && $outcomes->isPassed(),
+            $item,
+            $output,
+            $executionTime,
+            $outcomes instanceof AssertionOutcomes ? $outcomes->passedCount : 0,
+            $outcomes instanceof AssertionOutcomes ? $outcomes->failedCount : 0,
+            $outcomes instanceof AssertionOutcomes ? $outcomes->failures : [],
+            $outcomes instanceof AssertionOutcomes ? $outcomes->scores : [],
+            $error
+        );
+    }
+
+    /**
+     * Results cross the fork boundary via serialize(). If the evaluator's output
+     * is not serializable (e.g. holds a closure or a connection), replace it with
+     * a placeholder instead of crashing the child process.
+     */
+    protected function ensureSerializable(EvaluatorResult $result): EvaluatorResult
+    {
+        try {
+            serialize($result);
+            return $result;
+        } catch (Throwable) {
+            return new EvaluatorResult(
+                $result->getIndex(),
+                $result->isPassed(),
+                $result->getInput(),
+                '[non-serializable output of type ' . get_debug_type($result->getOutput()) . ']',
+                $result->getExecutionTime(),
+                $result->getAssertionsPassed(),
+                $result->getAssertionsFailed(),
+                $result->getAssertionFailures(),
+                $result->getAssertionScores(),
+                $result->getError()
+            );
+        }
     }
 }

@@ -7,7 +7,15 @@ Dataset-driven AI evaluation with flexible assertions and output drivers.
 ```bash
 vendor/bin/neuron evaluation path/to/evaluators
 vendor/bin/neuron evaluation --verbose path/to/evaluators
+vendor/bin/neuron evaluation --concurrency=8 path/to/evaluators
 ```
+
+`--concurrency=N` runs dataset items in N parallel child processes (requires
+`ext-pcntl` and `spatie/fork`; falls back to sequential otherwise). Each forked
+item gets its own copy of the evaluator, so per-item side effects (shared
+counters, appending to files) won't be visible across items. Evaluator outputs
+must be serializable to cross the process boundary; non-serializable outputs
+are replaced with a placeholder string in the results.
 
 ## Architecture
 
@@ -21,14 +29,14 @@ vendor/bin/neuron evaluation --verbose path/to/evaluators
 
 | Directory | Purpose |
 |-----------|---------|
-| `Contracts/` | Interfaces: `EvaluatorInterface`, `DatasetInterface`, `AssertionInterface`, `OutputDriverInterface` |
+| `Contracts` | Interfaces: `EvaluatorInterface`, `DatasetInterface`, `AssertionInterface`, `EvaluationOutputInterface` |
 | `BaseEvaluator.php` | Abstract base with assertion management |
-| `Dataset/` | `ArrayDataset`, `JsonDataset` |
-| `Assertions/` | Built-in: string, JSON, similarity, distance |
-| `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary` |
-| `Output/` | `ConsoleOutput`, `JsonOutput`, `OutputPipeline` |
-| `Config/` | Config loading and driver resolution |
-| `Discovery/` | Auto-discover evaluator classes |
+| `Dataset` | `ArrayDataset`, `JsonDataset` |
+| `Assertions` | Built-in: string, JSON, similarity, distance |
+| `Runner` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary` |
+| `Output` | `ConsoleOutput`, `JsonOutput`, `OutputPipeline` |
+| `Config` | Config loading and driver resolution |
+| `Discovery` | Auto-discover evaluator classes |
 
 ## Creating Evaluators
 
@@ -52,29 +60,55 @@ class MyEvaluator extends BaseEvaluator
 
 ## Output Configuration
 
-Create `neuron-evaluation.php` in project root:
+Create `neuron-evaluation.php` in project root. Each `output` entry is either a
+class string of a zero-argument driver, or a fully-constructed driver instance.
+Drivers that need constructor arguments (dependencies, options) **must** be
+supplied as concrete instances - this lets the host framework resolve them
+through its DI container.
 
 ```php
+use NeuronAI\Evaluation\Output\ConsoleOutput;
+use NeuronAI\Evaluation\Output\JsonOutput;
+
 return [
     'output' => [
+        // Zero-argument driver, resolved as `new ConsoleOutput()`
         ConsoleOutput::class,
-        JsonOutput::class => ['path' => 'results.json'],
+
+        // Constructed instance (e.g. to pass a path)
+        new JsonOutput('results.json'),
     ],
 ];
 ```
 
 ## Custom Output Drivers
 
-Implement `OutputDriverInterface`:
+Implement `EvaluationOutputInterface`. Because drivers are registered as
+instances, dependencies can be injected through the constructor:
 
 ```php
-class DatabaseOutput implements OutputDriverInterface
+class DatabaseOutput implements EvaluationOutputInterface
 {
+    public function __construct(
+        private readonly \PDO $pdo
+    ) {
+    }
+
     public function output(EvaluatorSummary $summary): void
     {
         // Store in database
     }
 }
+```
+
+Register the constructed instance in config:
+
+```php
+return [
+    'output' => [
+        new DatabaseOutput($container->get(\PDO::class)),
+    ],
+];
 ```
 
 ## Directory Setup
