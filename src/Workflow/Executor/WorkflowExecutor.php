@@ -67,8 +67,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?array $payload,
         bool $timedOut,
     ): Generator {
-        $workflow->bootstrap();
-
         $workflowId = $workflow->getWorkflowId();
         EventBus::emit('workflow-start', $workflow, new WorkflowStart($workflow->getEventNodeMap()), $workflowId);
         $workflow->resolveState()->set('__workflowId', $workflowId);

@@ -11,8 +11,6 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
 interface WorkflowInterface
 {
-    public function bootstrap(): static;
-
     /**
      * Start the workflow to completion (or replay cached steps after a crash).
      * Delivers no resume payload — use {@see resume()} for that.

@@ -178,6 +178,8 @@ class Workflow implements WorkflowInterface
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator
     {
+        $this->bootstrap();
+
         yield from $this->resolveExecutor()->execute($this, $payload, $timedOut);
 
         return $this->resolveState();
@@ -200,7 +202,7 @@ class Workflow implements WorkflowInterface
      *
      * @throws WorkflowException
      */
-    public function bootstrap(): static
+    protected function bootstrap(): static
     {
         $this->loadEventNodeMap();
         $this->validate();

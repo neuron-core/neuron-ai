@@ -23,6 +23,10 @@ interface WorkflowExecutorInterface
      * payload it resumes the interrupted step (firing the scheduler's onResume so
      * it can cancel the satisfied wakeup).
      *
+     * The workflow arrives already bootstrapped (event-node map loaded and
+     * validated) — implementations can query getEventNodeMap()/getNodeForEvent()
+     * immediately.
+     *
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
