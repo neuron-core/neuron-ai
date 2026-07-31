@@ -31,18 +31,13 @@ use function unlink;
 use const DIRECTORY_SEPARATOR;
 
 /**
- * The chat history is a runtime service injected into agent nodes — it must
- * never travel through the durable workflow state (per-step snapshots stay
- * O(1), and storage-backed histories carrying non-serializable resources like
- * PDO must not break workflow persistence).
+ * The chat history never travels through the durable workflow state: snapshots
+ * stay O(1) and PDO-backed histories never meet the serializer.
  */
 class AgentDurableHistoryTest extends TestCase
 {
     public function test_sql_chat_history_works_with_durable_workflow_persistence(): void
     {
-        // Regression: the state snapshot used to serialize the chat history object
-        // itself, so any PDO-backed history crashed the first step save with
-        // "Serialization of 'PDO' is not allowed".
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,8 +70,6 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_step_snapshots_do_not_carry_the_conversation(): void
     {
-        // Persist every step through a recording proxy and assert the serialized
-        // node-step snapshots stay flat instead of growing with the conversation.
         $searchTool = new SearchTool();
 
         $rounds = 4;
@@ -123,9 +116,6 @@ class AgentDurableHistoryTest extends TestCase
         $first = $recorder->blobSizes[ChatNode::class . '-0'];
         $last = $recorder->blobSizes[ToolNode::class . '-' . (2 * $rounds - 1)];
 
-        // Snapshots used to embed the whole conversation (two copies), growing
-        // linearly per step. Now they carry only events + scalar state: the last
-        // step of the loop must stay in the same ballpark as the first.
         $this->assertLessThan(
             $first * 2,
             $last,
@@ -135,10 +125,6 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_final_state_carries_the_current_cycle_steps_across_interrupt(): void
     {
-        // The steps transcript is per-execution-cycle: the interrupted run's final
-        // state reports the messages produced before the pause, and the resumed
-        // run's final state reports only the messages produced since the resume —
-        // the transcript is transient and never restored from durable snapshots.
         $workflowId = 'steps_cycle_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
         $executor = new \NeuronAI\Workflow\Executor\WorkflowExecutor(new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence));
@@ -184,9 +170,6 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_crash_replay_does_not_duplicate_history_writes(): void
     {
-        // History writes are durable memos: when a node crashes after writing to
-        // the live history but before its step commits, the replay recalls the
-        // 'history.*' memos and skips the writes instead of re-adding them.
         $workflowId = 'history_memo_replay_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
         $stepId = ChatNode::class . '-0';
@@ -198,8 +181,7 @@ class AgentDurableHistoryTest extends TestCase
         $event = new \NeuronAI\Agent\Events\AIInferenceEvent('Be helpful', []);
         $event->setMessages(new UserMessage('Hi'));
 
-        // Run 1: the node executes fully (all memos committed) but its step is
-        // never recorded — simulating a crash right before the step boundary.
+        // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $engine1 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
         $state1 = new \NeuronAI\Agent\AgentState();
@@ -209,8 +191,6 @@ class AgentDurableHistoryTest extends TestCase
 
         $this->assertCount(2, $chatHistory->getMessages());
 
-        // Recovery: fresh engine, same persistence, same durable history. The
-        // node re-runs; the history writes and the inference are all recalled.
         $engine2 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
         $state2 = new \NeuronAI\Agent\AgentState();
@@ -227,9 +207,6 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_resume_with_sql_history_across_agent_instances(): void
     {
-        // Interrupt (tool approval) in one process, resume from another agent
-        // instance bound to the same durable thread: history + workflow
-        // persistence are together sufficient to resume.
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -260,13 +237,11 @@ class AgentDurableHistoryTest extends TestCase
 
         $this->assertTrue($handler1->interrupted());
 
-        // The suspended ToolCallMessage was stamped and persisted on the thread.
         $tail = $agent1->getChatHistory()->getLastMessage();
         $this->assertInstanceOf(ToolCallMessage::class, $tail);
         $this->assertSame($workflowId, $tail->getResumeToken());
 
-        // Fresh agent instance on the same thread: the resume token is adopted
-        // from the history tail (ADR 0005), no explicit token needed.
+        // Fresh agent on the same thread: the resume token is adopted from the history tail (ADR 0005).
         $agent2 = Agent::make();
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);

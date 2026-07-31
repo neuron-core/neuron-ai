@@ -15,11 +15,9 @@ use function is_array;
 /**
  * Holds the chat history reference for agent nodes and centralizes writes.
  *
- * The history is a live service bound to its own storage, so a write is a
- * side-effecting operation like tool execution or inference — it is wrapped in
- * a durable memo so it runs at most once across crash recovery: on replay the
- * recorded memo is recalled and the write is skipped instead of duplicating
- * the tail. Each call site passes a stable memo name for this reason.
+ * A history write is a side effect like tool execution, so it is wrapped in a
+ * durable memo: on crash-replay the write is skipped instead of duplicating
+ * the tail.
  */
 trait ChatHistoryHelper
 {
@@ -49,10 +47,8 @@ trait ChatHistoryHelper
             return true;
         });
 
-        // Record the messages on the current execution cycle's transcript —
-        // outside the memo, so a replayed (skipped) write still registers the
-        // message this cycle processed. The transcript is transient state
-        // (excluded from durable snapshots, see AgentState).
+        // Outside the memo: a replayed (skipped) write still registers the
+        // message on the current cycle's transcript.
         if (isset($this->state) && $this->state instanceof AgentState) {
             foreach ($messages as $message) {
                 $this->state->addStep($message);

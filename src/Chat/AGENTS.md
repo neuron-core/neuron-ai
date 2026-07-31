@@ -68,9 +68,8 @@ current last message and **replaces** it instead of appending. This makes the
 suspend-time write, each partial-resume update, and `ToolNode`'s replay re-add all converge
 to a single message reflecting the latest approval state.
 
-(Replay convergence for every other message type is NOT a chat-history concern: agent
-nodes wrap their history writes in a durable memo, so a crash-replay skips the write
-instead of re-adding — see `src/Agent/AGENTS.md`.)
+(Replay convergence for other message types is handled by the agent nodes' memoized
+history writes — see `src/Agent/AGENTS.md`.)
 
 Backends that persist via `setMessages()` (File, InMemory) get this for free — the
 whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,

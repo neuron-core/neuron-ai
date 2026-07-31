@@ -72,12 +72,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * A state restored from a persisted snapshot (replay of a completed step)
-     * starts this cycle's transcript fresh: steps are per-execution-cycle,
-     * never inherited from a previous run. Serializing backends already strip
-     * them (AgentState::__serialize); this covers InMemoryPersistence, which
-     * stores live object references. Clone before resetting so the shared
-     * object keeps the transcript it reported to its own cycle's caller.
+     * Steps are per-execution-cycle: a state restored from a replayed snapshot
+     * starts a fresh transcript. Serializing backends already strip it
+     * (AgentState::__serialize); this covers InMemoryPersistence, which stores
+     * live object references.
      */
     public function setState(WorkflowState $state): WorkflowInterface
     {

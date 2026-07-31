@@ -92,8 +92,6 @@ class ToolApproval extends AgentMiddleware
         }
 
         // The event tools are fresh replayed instances; history is the memory (ADR 0003).
-        // The history comes from the node the middleware wraps, so it is by construction
-        // the exact instance the node reads and writes.
         $chatHistory = $node->getChatHistory();
 
         $this->restoreRecordedState($chatHistory->getMessages(), $event);
@@ -139,8 +137,7 @@ class ToolApproval extends AgentMiddleware
     }
 
     /**
-     * An approval gate silently skipped is a safety hazard: the user believes
-     * tools are gated while nothing is. Fail loudly on misattachment.
+     * A silently skipped approval gate is a safety hazard — fail loudly.
      */
     protected function onAgentContextMismatch(NodeInterface $node, Event $event, WorkflowState $state): void
     {

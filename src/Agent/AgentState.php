@@ -18,21 +18,13 @@ use function get_object_vars;
 /**
  * Extends WorkflowState with agent-specific state management.
  *
- * The chat history is a runtime service injected into agent nodes (see
- * AgentNodeInterface), never carried through the durable state — each per-step
- * snapshot stays O(1) instead of embedding the whole conversation. The `__steps`
- * accumulator is transient for the same reason: it is excluded from
- * serialization, so the final state returned by a run (completed or
- * interrupted) carries the messages of THAT execution cycle only — a resumed
- * run starts its own accumulation.
+ * The chat history is a runtime service injected into agent nodes, never part
+ * of this state. The `__steps` accumulator is transient: excluded from durable
+ * snapshots, it reports the messages of the current execution cycle only.
  */
 class AgentState extends WorkflowState
 {
-    /**
-     * Exclude the transient `__steps` accumulator from durable snapshots: it
-     * duplicates messages already persisted in the chat history, and it would
-     * otherwise grow every snapshot with the conversation.
-     */
+    // Exclude the transient `__steps` accumulator from durable snapshots.
     public function __serialize(): array
     {
         $properties = get_object_vars($this);
@@ -107,9 +99,7 @@ class AgentState extends WorkflowState
     }
 
     /**
-     * The messages generated during the current execution cycle. Transient:
-     * not part of durable snapshots, so a resumed run reports only the
-     * messages produced since the resume.
+     * The messages generated during the current execution cycle.
      *
      * @return Message[]
      */

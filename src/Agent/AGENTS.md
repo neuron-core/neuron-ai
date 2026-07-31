@@ -120,46 +120,27 @@ the one whose node class you named.
 
 ### `AgentMiddleware` — typed hooks for the agent context
 
-The generic `WorkflowMiddleware` contract receives `NodeInterface`/`WorkflowState`
-(the Workflow layer cannot know agent types, and PHP parameter contravariance
-forbids narrowing in a subclass). `AgentMiddleware` centralizes the runtime
-narrowing once (template method): extend it and implement
-`beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state)` /
-`afterAgentNode(...)` with real types. When the middleware is attached outside
-the agent context, `onAgentContextMismatch($node, $event, $state)` fires instead —
-empty by default; middleware whose silent skip would be a safety hazard override
-it to throw (`ToolApproval` does).
-
-Agent middleware access the chat history through the node they wrap
-(`$node->getChatHistory()`), **never** through their own constructor — so they can
-only ever see the exact instance the node reads and writes.
+Extend `AgentMiddleware` and implement `beforeAgentNode(AgentNodeInterface $node,
+Event $event, AgentState $state)` / `afterAgentNode(...)`. On misattachment
+outside the agent context `onAgentContextMismatch()` fires instead — empty by
+default, `ToolApproval` overrides it to throw. Middleware read the chat history
+from the node they wrap (`$node->getChatHistory()`), never from their own
+constructor.
 
 ## Chat history is a service, not state
 
-The chat history is bound to its own storage (SQL, file, memory) and is injected
-into agent nodes as a **constructor dependency** (`AgentNodeInterface` exposes it).
-It never travels through the durable workflow state: `AgentState` is pure
-serializable data, so per-step snapshots stay O(1) instead of embedding the whole
-conversation on every step (and PDO-backed histories never meet the serializer).
-Consequences:
+The chat history is injected into agent nodes as a constructor dependency
+(`AgentNodeInterface`), never carried in `AgentState` — per-step snapshots stay
+O(1) instead of embedding the conversation. Consequences:
 
-- Nodes and middleware read/write the **live** history, so a history write is a
-  side effect like tool execution: `addToChatHistory()` wraps it in `memoize()`
-  with a stable per-site name (`history.inbound`, `history.response`, ...), so a
-  crash-replay recalls the memo and skips the write instead of duplicating the
-  tail. (`ToolApproval`'s suspend-time write stays unmemoized by design — its
-  per-pass re-writes converge via the ADR 0003 replace-last rule.)
-- Durable workflow persistence requires a comparably durable chat history — an
-  `InMemoryChatHistory` loses the thread across processes, so a cross-process
-  resume reconstructs an incomplete prompt (the documented ADR 0003 requirement,
-  now load-bearing).
-- The final message of a run is read from the history (`AgentHandler::getMessage()`),
-  not from state.
-- `AgentState::getSteps()` reports the messages generated during the **current
-  execution cycle** (available on the final state even when interrupted). The
-  accumulator is transient — excluded from durable snapshots and reset when a
-  replayed snapshot is restored — so a resumed run reports only the messages
-  produced since the resume; the full thread lives in the chat history.
+- History writes go through `addToChatHistory($messages, $memo)`, which wraps
+  the write in a durable memo so a crash-replay skips it instead of duplicating
+  the tail.
+- Durable workflow persistence requires a comparably durable chat history
+  (`InMemoryChatHistory` loses the thread across processes).
+- `AgentHandler::getMessage()` reads the final message from the history;
+  `AgentState::getSteps()` reports the current execution cycle's messages only
+  (transient, available even on an interrupted final state).
 
 ## Persistence & Tool Approval
 
