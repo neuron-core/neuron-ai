@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console\Make;
 
+use NeuronAI\Console\Command;
+use RuntimeException;
 use Throwable;
 
 use function array_key_first;
@@ -15,10 +17,8 @@ use function explode;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
-use function fwrite;
 use function getcwd;
 use function implode;
-use function in_array;
 use function is_array;
 use function is_dir;
 use function json_decode;
@@ -27,16 +27,18 @@ use function mkdir;
 use function rtrim;
 use function str_replace;
 use function str_starts_with;
-use function mb_strlen;
+use function strlen;
 use function substr;
 
 use const PHP_EOL;
-use const STDERR;
 
-abstract class MakeCommand
+class MakeCommand extends Command
 {
-    public function __construct(protected string $resourceType)
-    {
+    public function __construct(
+        protected string $commandName,
+        protected string $resourceType,
+        protected string $stubFile,
+    ) {
     }
 
     /**
@@ -69,7 +71,7 @@ abstract class MakeCommand
      * @param array<string> $args
      * @return array{name: string, help: bool}
      */
-    private function parseArguments(array $args): array
+    protected function parseArguments(array $args): array
     {
         $options = [
             'name' => '',
@@ -90,7 +92,7 @@ abstract class MakeCommand
         return $options;
     }
 
-    private function generateClass(string $name): int
+    protected function generateClass(string $name): int
     {
         [$namespace, $className] = $this->parseNamespaceAndClass($name);
 
@@ -113,9 +115,7 @@ abstract class MakeCommand
             return 1;
         }
 
-        $content = $this->getStubContent($namespace, $className);
-
-        if (in_array(file_put_contents($filePath, $content), [0, false], true)) {
+        if (file_put_contents($filePath, $this->getStubContent($namespace, $className)) === false) {
             $this->printError("Failed to create file: {$filePath}");
             return 1;
         }
@@ -124,10 +124,26 @@ abstract class MakeCommand
         return 0;
     }
 
+    protected function getStubContent(string $namespace, string $className): string
+    {
+        $stubPath = __DIR__ . '/Stubs/' . $this->stubFile;
+        $stub = file_get_contents($stubPath);
+
+        if ($stub === false) {
+            throw new RuntimeException("Failed to read stub file: {$stubPath}");
+        }
+
+        return str_replace(
+            ['[namespace]', '[classname]'],
+            [$namespace, $className],
+            $stub
+        );
+    }
+
     /**
      * @return array{0: string, 1: string}
      */
-    private function parseNamespaceAndClass(string $name): array
+    protected function parseNamespaceAndClass(string $name): array
     {
         $parts = explode('\\', $name);
         $className = array_pop($parts);
@@ -137,7 +153,7 @@ abstract class MakeCommand
         return [$namespace, $className];
     }
 
-    private function getDefaultNamespace(): string
+    protected function getDefaultNamespace(): string
     {
         $psr4Config = $this->loadPsr4Config();
 
@@ -150,19 +166,19 @@ abstract class MakeCommand
         return rtrim($firstNamespace, '\\');
     }
 
-    private function getFilePath(string $namespace, string $className): string
+    protected function getFilePath(string $namespace, string $className): string
     {
         $psr4Config = $this->loadPsr4Config();
 
         foreach ($psr4Config as $namespacePrefix => $directory) {
             if (str_starts_with($namespace . '\\', $namespacePrefix)) {
                 // Remove the namespace prefix and convert to file path
-                $relativePath = substr($namespace, mb_strlen(rtrim($namespacePrefix, '\\')));
+                $relativePath = substr($namespace, strlen(rtrim($namespacePrefix, '\\')));
                 $relativePath = str_replace('\\', '/', ltrim($relativePath, '\\'));
 
                 $basePath = getcwd() . '/' . rtrim($directory, '/');
 
-                return $basePath . ($relativePath !== '' && $relativePath !== '0' ? '/' . $relativePath : '') . '/' . $className . '.php';
+                return $basePath . ($relativePath !== '' ? '/' . $relativePath : '') . '/' . $className . '.php';
             }
         }
 
@@ -174,7 +190,7 @@ abstract class MakeCommand
     /**
      * @return array<string, string>
      */
-    private function loadPsr4Config(): array
+    protected function loadPsr4Config(): array
     {
         $composerPath = getcwd() . '/composer.json';
 
@@ -195,7 +211,7 @@ abstract class MakeCommand
         return $composerData['autoload']['psr-4'];
     }
 
-    private function namespaceBelongsToPsr4(string $namespace): bool
+    protected function namespaceBelongsToPsr4(string $namespace): bool
     {
         $psr4Config = $this->loadPsr4Config();
 
@@ -208,7 +224,7 @@ abstract class MakeCommand
         return false;
     }
 
-    private function printAvailableNamespaces(): void
+    protected function printAvailableNamespaces(): void
     {
         $psr4Config = $this->loadPsr4Config();
 
@@ -223,14 +239,12 @@ abstract class MakeCommand
         echo PHP_EOL;
     }
 
-    abstract protected function getStubContent(string $namespace, string $className): string;
-
     protected function printUsage(): void
     {
         $usage = <<<USAGE
             Create a new {$this->resourceType}
 
-            Usage: neuron make:{$this->resourceType} [namespace\\]ClassName
+            Usage: neuron {$this->commandName} [namespace\\]ClassName
 
             Arguments:
               name    The name of the {$this->resourceType} class (with optional namespace)
@@ -239,28 +253,13 @@ abstract class MakeCommand
               --help, -h   Show this help message
 
             Examples:
-              neuron make:{$this->resourceType} MyClass
-              neuron make:{$this->resourceType} MyApp\\Services\\MyClass
+              neuron {$this->commandName} MyClass
+              neuron {$this->commandName} MyApp\\Services\\MyClass
 
             If no namespace is provided, the default PSR-4 namespace from composer.json will be used.
 
             USAGE;
 
         echo $usage . PHP_EOL;
-    }
-
-    protected function printError(string $message): void
-    {
-        fwrite(STDERR, "Error: {$message}" . PHP_EOL);
-    }
-
-    protected function printWarning(string $message): void
-    {
-        echo "Warning: {$message}" . PHP_EOL;
-    }
-
-    protected function printSuccess(string $message): void
-    {
-        echo "Success: {$message}" . PHP_EOL;
     }
 }

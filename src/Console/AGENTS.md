@@ -2,9 +2,11 @@
 
 CLI commands for Neuron framework.
 
-## Main Command
+## Structure
 
-`NeuronCli.php` - Entry point, registers all commands.
+- `Command.php` - Abstract base: `run(array $args): int` plus print helpers (errors go to STDERR).
+- `NeuronCli.php` - Entry point. `commands()` is the single registry: command name => [description, factory closure]. The usage/help command list is generated from it.
+- `Make/MakeCommand.php` - One concrete class for all `make:*` commands, configured with (command name, resource type, stub file). To add a make command: add a stub in `Make/Stubs/` and a registry entry in `NeuronCli::commands()`.
 
 Run: `php vendor/bin/neuron <command>`
 
@@ -21,7 +23,7 @@ Code generation using stubs:
 | `make:workflow` | Workflow class |
 | `make:middleware` | Middleware class |
 | `make:event` | Event class |
-| `make:evaluators` | Evaluation directory |
+| `make:evaluators` | Evaluator class |
 
 ```bash
 php vendor/bin/neuron make:agent MyAgent

@@ -9,7 +9,6 @@ use NeuronAI\Tests\Evaluation\Console\Fixtures\RunCountingEvaluator;
 use PHPUnit\Framework\TestCase;
 
 use function ob_end_clean;
-use function ob_get_clean;
 use function ob_start;
 
 class EvaluationCommandTest extends TestCase
@@ -51,9 +50,9 @@ class EvaluationCommandTest extends TestCase
 
         ob_start();
         $exitCode = $command->run(['evaluation', __DIR__ . '/Fixtures', '--concurrency=0']);
-        $output = ob_get_clean();
+        ob_end_clean();
 
+        // The rejection message goes to STDERR; the exit code is the observable contract here
         $this->assertEquals(1, $exitCode);
-        $this->assertStringContainsString('Concurrency must be a positive integer', (string) $output);
     }
 }

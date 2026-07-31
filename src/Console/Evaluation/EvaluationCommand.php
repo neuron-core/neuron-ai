@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console\Evaluation;
 
+use NeuronAI\Console\Command;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
@@ -12,29 +13,26 @@ use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
-use ReflectionException;
 use Throwable;
 use RuntimeException;
 
 use function array_merge;
 use function array_shift;
+use function array_values;
 use function count;
 use function end;
 use function explode;
 use function str_starts_with;
 use function substr;
 
-class EvaluationCommand
+class EvaluationCommand extends Command
 {
-    private readonly EvaluatorDiscovery $discovery;
-    private readonly EvaluatorRunner $runner;
-
     public function __construct(
-        private readonly ?ConfigLoader $configLoader = new ConfigLoader(),
-        private readonly ?EvaluationOutputResolver $driverResolver = new EvaluationOutputResolver()
+        private readonly ConfigLoader $configLoader = new ConfigLoader(),
+        private readonly EvaluationOutputResolver $driverResolver = new EvaluationOutputResolver(),
+        private readonly EvaluatorDiscovery $discovery = new EvaluatorDiscovery(),
+        private readonly EvaluatorRunner $runner = new EvaluatorRunner(),
     ) {
-        $this->discovery = new EvaluatorDiscovery();
-        $this->runner = new EvaluatorRunner();
     }
 
     /**
@@ -72,7 +70,7 @@ class EvaluationCommand
      * @param array<string> $args
      * @return array{path: string, verbose: bool, help: bool, concurrency: int}
      */
-    private function parseArguments(array $args): array
+    protected function parseArguments(array $args): array
     {
         $options = [
             'path' => '',
@@ -101,9 +99,8 @@ class EvaluationCommand
         return $options;
     }
 
-    private function executeEvaluations(string $path, bool $verbose, int $concurrency): int
+    protected function executeEvaluations(string $path, bool $verbose, int $concurrency): int
     {
-        // Print header
         echo "Neuron AI Evaluation Runner\n\n";
 
         if ($concurrency > 1 && !EvaluatorRunner::supportsConcurrency()) {
@@ -111,7 +108,6 @@ class EvaluationCommand
             $concurrency = 1;
         }
 
-        // Discover evaluators
         $evaluatorClasses = $this->discovery->discover($path);
 
         if ($evaluatorClasses === []) {
@@ -120,90 +116,77 @@ class EvaluationCommand
         }
 
         $totalFailures = 0;
-        $evaluatorCount = 1;
-        $totalEvaluators = count($evaluatorClasses);
         $allResults = [];
         $totalTime = 0.0;
+        $total = count($evaluatorClasses);
 
-        foreach ($evaluatorClasses as $evaluatorClass) {
+        foreach (array_values($evaluatorClasses) as $index => $evaluatorClass) {
             if ($verbose) {
-                echo "Running {$this->getShortClassName($evaluatorClass)}... [{$evaluatorCount}/{$totalEvaluators}]\n";
+                echo "Running {$this->getShortClassName($evaluatorClass)}... [" . ($index + 1) . "/{$total}]\n";
             }
 
             try {
-                $evaluator = $this->createEvaluator($evaluatorClass);
-
-                $summary = $this->runner->run($evaluator, $concurrency);
-
-                // Print progress symbols
-                if (!$verbose) {
-                    foreach ($summary->getResults() as $result) {
-                        echo $result->isPassed() ? '.' : 'F';
-                    }
-                }
-
-                if ($summary->hasFailures()) {
-                    $totalFailures += $summary->getFailedCount();
-                }
-
-                $allResults = array_merge($allResults, $summary->getResults());
-                $totalTime += $summary->getTotalExecutionTime();
-
+                $summary = $this->runner->run($this->createEvaluator($evaluatorClass), $concurrency);
             } catch (Throwable $e) {
                 $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
                 $totalFailures++;
+                continue;
             }
 
-            $evaluatorCount++;
+            if (!$verbose) {
+                $this->printProgress($summary);
+            }
+
+            $totalFailures += $summary->getFailedCount();
+            $allResults[] = $summary->getResults();
+            $totalTime += $summary->getTotalExecutionTime();
         }
 
-        // Build the pipeline only after all runs complete: drivers may hold live
-        // resources (e.g. DB connections) that must not exist at fork time
-        $driverConfigs = $this->configLoader->getOutputDrivers();
-        $drivers = $this->driverResolver->resolve($driverConfigs);
-        $pipeline = new OutputPipeline($drivers);
-
-        // Final output through the pipeline (includes all configured drivers)
-        $pipeline->output(new EvaluatorSummary($allResults, $totalTime));
+        $this->outputSummary(new EvaluatorSummary(array_merge(...$allResults), $totalTime));
 
         return $totalFailures > 0 ? 1 : 0;
     }
 
-    private function createEvaluator(string $className): BaseEvaluator
+    protected function printProgress(EvaluatorSummary $summary): void
     {
-        try {
-            $reflection = new ReflectionClass($className);
-            $constructor = $reflection->getConstructor();
+        foreach ($summary->getResults() as $result) {
+            echo $result->isPassed() ? '.' : 'F';
+        }
+    }
 
-            if ($constructor === null || $constructor->getNumberOfRequiredParameters() === 0) {
-                return $reflection->newInstance();
-            }
+    protected function outputSummary(EvaluatorSummary $summary): void
+    {
+        // Build the pipeline only after all runs complete: drivers may hold live
+        // resources (e.g. DB connections) that must not exist at fork time
+        $drivers = $this->driverResolver->resolve($this->configLoader->getOutputDrivers());
 
+        (new OutputPipeline($drivers))->output($summary);
+    }
+
+    protected function createEvaluator(string $className): BaseEvaluator
+    {
+        $constructor = (new ReflectionClass($className))->getConstructor();
+
+        if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
             throw new RuntimeException(
                 "Evaluator {$className} requires constructor parameters. " .
                 "Please ensure evaluators can be instantiated without arguments."
             );
-
-        } catch (ReflectionException $e) {
-            throw new RuntimeException("Cannot instantiate evaluator {$className}: " . $e->getMessage(), $e->getCode(), $e);
         }
+
+        return new $className();
     }
 
-    private function getShortClassName(string $fullClassName): string
+    protected function getShortClassName(string $fullClassName): string
     {
         $parts = explode('\\', $fullClassName);
         return end($parts);
     }
 
-    private function printError(string $message): void
-    {
-        echo "Error: {$message}\n";
-    }
-
-    private function printUsage(): void
+    protected function printUsage(): void
     {
         echo "Usage:\n";
-        echo "  vendor/bin/evaluation <path> [options]\n\n";
+        echo "  vendor/bin/neuron evaluation <path> [options]\n\n";
         echo "Arguments:\n";
         echo "  path                   Path to directory containing evaluators\n\n";
         echo "Options:\n";
