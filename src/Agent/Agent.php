@@ -12,6 +12,8 @@ use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
@@ -30,10 +32,11 @@ use function is_array;
  */
 class Agent extends Workflow implements AgentInterface
 {
-    use HandleAgentState;
     use ResolveProvider;
     use HandleTools;
     use HandleInstructions;
+
+    protected ChatHistoryInterface $chatHistory;
 
     protected bool $parallelToolCalls = false;
 
@@ -44,6 +47,27 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->parallelToolCalls = $enabled;
         return $this;
+    }
+
+    protected function state(): AgentState
+    {
+        return new AgentState();
+    }
+
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new InMemoryChatHistory();
+    }
+
+    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    {
+        $this->chatHistory = $chatHistory;
+        return $this;
+    }
+
+    public function getChatHistory(): ChatHistoryInterface
+    {
+        return $this->chatHistory ??= $this->chatHistory();
     }
 
     /**
