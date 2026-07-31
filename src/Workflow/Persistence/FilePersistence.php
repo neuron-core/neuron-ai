@@ -33,18 +33,18 @@ class FilePersistence implements PersistenceInterface
         }
     }
 
-    public function save(string $workflowId, string $stepId, StepResult $result): void
+    public function save(string $runId, string $stepId, StepResult $result): void
     {
-        $data = $this->getData($workflowId);
+        $data = $this->getData($runId);
         $data[$stepId] = $this->serializer->serialize($result);
-        $this->cache[$workflowId] = $data;
+        $this->cache[$runId] = $data;
 
-        file_put_contents($this->filePath($workflowId), json_encode($data, JSON_PRETTY_PRINT));
+        file_put_contents($this->filePath($runId), json_encode($data, JSON_PRETTY_PRINT));
     }
 
-    public function load(string $workflowId, string $stepId): ?StepResult
+    public function load(string $runId, string $stepId): ?StepResult
     {
-        $data = $this->getData($workflowId);
+        $data = $this->getData($runId);
 
         if (!isset($data[$stepId])) {
             return null;
@@ -53,11 +53,11 @@ class FilePersistence implements PersistenceInterface
         return $this->serializer->unserialize($data[$stepId]);
     }
 
-    public function delete(string $workflowId): void
+    public function delete(string $runId): void
     {
-        unset($this->cache[$workflowId]);
+        unset($this->cache[$runId]);
 
-        $path = $this->filePath($workflowId);
+        $path = $this->filePath($runId);
 
         if (is_file($path)) {
             unlink($path);
@@ -65,9 +65,9 @@ class FilePersistence implements PersistenceInterface
     }
 
     /** @return array<string, string> */
-    protected function getData(string $workflowId): array
+    protected function getData(string $runId): array
     {
-        return $this->cache[$workflowId] ?? $this->cache[$workflowId] = $this->readFile($this->filePath($workflowId));
+        return $this->cache[$runId] ?? $this->cache[$runId] = $this->readFile($this->filePath($runId));
     }
 
     /** @return array<string, string> */
@@ -80,8 +80,8 @@ class FilePersistence implements PersistenceInterface
         return json_decode(file_get_contents($path), true) ?? [];
     }
 
-    protected function filePath(string $workflowId): string
+    protected function filePath(string $runId): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $workflowId . '.workflow';
+        return $this->directory . DIRECTORY_SEPARATOR . $runId . '.workflow';
     }
 }

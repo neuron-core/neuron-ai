@@ -68,20 +68,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?array $payload,
         bool $timedOut,
     ): Generator {
-        $workflowId = $workflow->getWorkflowId();
+        $runId = $workflow->getRunId();
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
-        $workflow->resolveState()->set('__workflowId', $workflowId);
+        $workflow->resolveState()->set('__runId', $runId);
 
         $isResume = $payload !== null;
 
         try {
-            $this->stepEngine->prepareExecution($workflowId, $payload, $timedOut);
+            $this->stepEngine->prepareExecution($runId, $payload, $timedOut);
 
             // A resume lets the scheduler cancel the wakeup it satisfies (inline or
             // scheduler push), so a deliberate resume leaves no stale registration.
             // A start/replay passes no payload and fires no onResume.
             if ($isResume) {
-                $this->scheduler->onResume($workflowId);
+                $this->scheduler->onResume($runId);
             }
 
             /** @var Event $terminal */
@@ -99,7 +99,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // so it is a dedicated event rather than an AgentError.
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
                 // Let the scheduler register a wakeup for this suspend (inert by default).
-                $this->scheduler->onSuspend($workflowId, $terminal->request);
+                $this->scheduler->onSuspend($runId, $terminal->request);
                 yield $terminal;
             } else {
                 // Completed: clean up persisted steps and clear any stale interrupt
@@ -107,7 +107,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $this->stepEngine->deleteSteps();
                 $workflow->resolveState()->clearInterrupt();
                 // Drop all scheduler coordination state for this workflow.
-                $this->scheduler->onComplete($workflowId);
+                $this->scheduler->onComplete($runId);
             }
 
             return $workflow->resolveState();

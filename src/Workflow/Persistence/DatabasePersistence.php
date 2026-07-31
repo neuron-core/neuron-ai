@@ -16,27 +16,27 @@ class DatabasePersistence implements PersistenceInterface
     ) {
     }
 
-    public function save(string $workflowId, string $stepId, StepResult $result): void
+    public function save(string $runId, string $stepId, StepResult $result): void
     {
         $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->table} (workflow_id, step_id, result, created_at, updated_at)
-            VALUES (:workflow_id, :step_id, :result, NOW(), NOW())
+            INSERT INTO {$this->table} (run_id, step_id, result, created_at, updated_at)
+            VALUES (:run_id, :step_id, :result, NOW(), NOW())
             ON DUPLICATE KEY UPDATE result = VALUES(result), updated_at = NOW()
         ");
 
         $stmt->execute([
-            'workflow_id' => $workflowId,
+            'run_id' => $runId,
             'step_id' => $stepId,
             'result' => $this->serializer->serialize($result),
         ]);
     }
 
-    public function load(string $workflowId, string $stepId): ?StepResult
+    public function load(string $runId, string $stepId): ?StepResult
     {
         $stmt = $this->pdo->prepare(
-            "SELECT result FROM {$this->table} WHERE workflow_id = :workflow_id AND step_id = :step_id",
+            "SELECT result FROM {$this->table} WHERE run_id = :run_id AND step_id = :step_id",
         );
-        $stmt->execute(['workflow_id' => $workflowId, 'step_id' => $stepId]);
+        $stmt->execute(['run_id' => $runId, 'step_id' => $stepId]);
         $record = $stmt->fetch();
 
         if (!$record) {
@@ -46,9 +46,9 @@ class DatabasePersistence implements PersistenceInterface
         return $this->serializer->unserialize((string) $record['result']);
     }
 
-    public function delete(string $workflowId): void
+    public function delete(string $runId): void
     {
-        $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE workflow_id = :workflow_id");
-        $stmt->execute(['workflow_id' => $workflowId]);
+        $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE run_id = :run_id");
+        $stmt->execute(['run_id' => $runId]);
     }
 }

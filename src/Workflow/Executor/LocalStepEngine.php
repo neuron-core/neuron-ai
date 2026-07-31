@@ -23,7 +23,7 @@ use Throwable;
  */
 class LocalStepEngine implements StepEngineInterface
 {
-    protected string $workflowId;
+    protected string $runId;
 
     /**
      * The inbound resume payload staged by prepareExecution(). Null means this run
@@ -39,9 +39,9 @@ class LocalStepEngine implements StepEngineInterface
     ) {
     }
 
-    public function prepareExecution(string $workflowId, ?array $payload = null, bool $timedOut = false): void
+    public function prepareExecution(string $runId, ?array $payload = null, bool $timedOut = false): void
     {
-        $this->workflowId = $workflowId;
+        $this->runId = $runId;
         $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
     }
@@ -118,7 +118,7 @@ class LocalStepEngine implements StepEngineInterface
         $this->pendingPayload = null;
         $this->pendingTimedOut = false;
 
-        $this->persistence->delete($this->workflowId);
+        $this->persistence->delete($this->runId);
     }
 
     /**
@@ -145,11 +145,11 @@ class LocalStepEngine implements StepEngineInterface
 
     protected function getStepResult(string $stepId): ?StepResult
     {
-        return $this->persistence->load($this->workflowId, $stepId);
+        return $this->persistence->load($this->runId, $stepId);
     }
 
     protected function setStepResult(string $stepId, StepResult $result): void
     {
-        $this->persistence->save($this->workflowId, $stepId, $result);
+        $this->persistence->save($this->runId, $stepId, $result);
     }
 }

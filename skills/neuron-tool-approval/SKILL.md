@@ -9,7 +9,7 @@ This skill helps you gate agent tool execution behind human approval and build t
 
 ## The Mental Model
 
-**Chat history is the system of record for tool approval.** Everything the application needs — which tools await a decision, why each one is asking, what was already decided, and the token the framework uses to resume — lives on the **last message of the thread**. You never inspect workflow state, never boot the agent just to render, and never store a workflow id on the side.
+**Chat history is the system of record for tool approval.** Everything the application needs — which tools await a decision, why each one is asking, what was already decided, and the token the framework uses to resume — lives on the **last message of the thread**. You never inspect workflow state, never boot the agent just to render, and never store a runId on the side.
 
 While an approval is pending, the annotated `tool_call` message is guaranteed to be the thread's tail: partial decisions update it in place, they never append.
 
@@ -72,7 +72,7 @@ $handler->getMessage();           // the annotated ToolCallMessage (see JSON bel
 $handler->getInterruptRequest();  // ApprovalRequest — in-process render source
 ```
 
-On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states, reasons, and the resume token, all stamped. Serialize it straight to your client — it is the same message persisted in chat history.
+On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states, reasons, and the runId, all stamped. Serialize it straight to your client — it is the same message persisted in chat history.
 
 ## The JSON the UI Deals With
 
@@ -80,7 +80,7 @@ A suspended thread's tail message, serialized (two gated tools — one pending, 
 
 ```json
 {
-    "resume_token": "workflow_6650a1b2c3d4e",
+    "run_id": "workflow_6650a1b2c3d4e",
     "role": "assistant",
     "content": [],
     "type": "tool_call",
@@ -115,7 +115,7 @@ A suspended thread's tail message, serialized (two gated tools — one pending, 
 | `tools[].name`, `tools[].inputs` | What the human is approving: which action, with which arguments. |
 | `tools[].approvalReason` | **Outbound** — why approval is being asked (declared by the tool or middleware config). Show it on the approval card. |
 | `tools[].rejectReason` | **Inbound** — the approver's feedback, rejections only. The model receives it verbatim. |
-| `resume_token` | Framework-internal; the framework reads it back from history on resume. Never used by the UI — just preserve it if you re-serialize. |
+| `run_id` | Framework-internal; the framework reads it back from history on resume. Never used by the UI — just preserve it if you re-serialize. |
 
 The two reason fields are a matched pair with opposite authors: `approvalReason` is the *tool talking to the human*; `rejectReason` is the *human talking back to the model*.
 
@@ -168,7 +168,7 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ## One Endpoint for the Whole Conversation
 
-A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With a `payload`, the resume token is adopted from the chat history tail automatically; with a message, a fresh turn starts.
+A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With a `payload`, the runId is adopted from the chat history tail automatically; with a message, a fresh turn starts.
 
 ```php
 use NeuronAI\Chat\Messages\ToolCallMessage;

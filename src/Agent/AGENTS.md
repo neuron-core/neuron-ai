@@ -191,16 +191,16 @@ There is no agent-level guard: if a new turn slips through anyway, the chat hist
 message-alternation rule rejects the `UserMessage` appended after the pending
 `ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
 
-### Resume token lives in chat history (ADR 0005)
+### The runId lives in chat history (ADR 0005)
 
-At suspend, `ToolApproval` stamps the workflowId onto the annotated `ToolCallMessage`
-(`ToolCallMessage::getResumeToken()`), so history alone is sufficient to **resume**, not just
+At suspend, `ToolApproval` stamps the runId onto the annotated `ToolCallMessage`
+(`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
 to render. A payload-carrying `chat()`/`stream()`/`structured()` call with no explicit
-resumeToken **adopts** the token from the history tail — the approve/deny endpoint needs only
+runId **adopts** the id from the history tail — the approve/deny endpoint needs only
 the thread id:
 
 ```php
-// New execution cycle: no workflowId stored anywhere by the application.
+// New execution cycle: no runId stored anywhere by the application.
 $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence($persistence)
@@ -209,7 +209,7 @@ $agent = Agent::make()
 $agent->chat(payload: ['call_123' => 'approve']);
 ```
 
-The stamp wins even over a `resumeToken` passed to `make()` — history is the system of
-record. With no stamp on the tail the agent keeps its current workflowId, so explicit-token
-resumes of non-approval suspensions work unchanged. The token is stamped on every middleware
+The stamp wins even over a `runId` passed to `make()` — history is the system of
+record. With no stamp on the tail the agent keeps its current runId, so explicit-id
+resumes of non-approval suspensions work unchanged. The id is stamped on every middleware
 pass and never stripped: once the message is no longer the tail it is inert.

@@ -28,7 +28,7 @@ interface StepEngineInterface
      *
      * @param array<string, mixed>|null $payload The delivered event body, or null when not resuming.
      */
-    public function prepareExecution(string $workflowId, ?array $payload = null, bool $timedOut = false): void;
+    public function prepareExecution(string $runId, ?array $payload = null, bool $timedOut = false): void;
 
     /**
      * Run a single step, memoized by step id.

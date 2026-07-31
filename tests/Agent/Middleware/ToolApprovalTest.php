@@ -427,6 +427,31 @@ class ToolApprovalTest extends TestCase
         $this->assertSame(1, $toolCallCount, 'Exactly one ToolCallMessage across initial run + two resumes');
     }
 
+    public function test_run_id_is_stamped_from_state(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+        $state->set('__runId', 'workflow_current_1');
+
+        $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$this->gatedTool('a', 'call_a')]), $state);
+
+        $this->assertSame('workflow_current_1', $this->lastToolCall($node)->getRunId());
+    }
+
+    public function test_run_id_falls_back_to_legacy_workflow_id_state_key(): void
+    {
+        // A state snapshot persisted before the runId rename carries __workflowId.
+        $middleware = new ToolApproval();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+        $state->set('__workflowId', 'workflow_legacy_1');
+
+        $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$this->gatedTool('a', 'call_a')]), $state);
+
+        $this->assertSame('workflow_legacy_1', $this->lastToolCall($node)->getRunId());
+    }
+
     public function test_non_tool_call_event_is_ignored(): void
     {
         $middleware = new ToolApproval(['some_tool']);

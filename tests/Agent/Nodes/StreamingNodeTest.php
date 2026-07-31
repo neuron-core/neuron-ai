@@ -66,19 +66,19 @@ class StreamingNodeTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Completed answer'));
         $provider->setStreamChunkSize(4);
 
-        $workflowId = 'streaming_recovery_test';
+        $runId = 'streaming_recovery_test';
         $persistence = new InMemoryPersistence();
         $stepId = StreamingNode::class . '-0';
 
         $state = new AgentState();
-        $state->set('__workflowId', $workflowId);
+        $state->set('__runId', $runId);
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setMessages(new UserMessage('hi'));
 
         // Run 1: live stream + record the response as a durable memo.
         $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($workflowId);
+        $engine1->prepareExecution($runId);
         $node1 = new StreamingNode($provider, $chatHistory);
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
@@ -98,10 +98,10 @@ class StreamingNodeTest extends TestCase
         // the node step committed — so the prior assistant message was never
         // persisted and the response must come from the memo, not from state).
         $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($workflowId);
+        $engine2->prepareExecution($runId);
         $node2 = new StreamingNode($provider, $chatHistory);
         $state2 = new AgentState();
-        $state2->set('__workflowId', $workflowId);
+        $state2->set('__runId', $runId);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
 
         $generator2 = $node2($event, $state2);

@@ -39,7 +39,7 @@ class AgentDurabilityTest extends TestCase
 {
     public function testCrashRecoveryDuringToolExecution(): void
     {
-        $workflowId = 'agent_recovery_test';
+        $runId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
@@ -54,7 +54,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, tool crashes
-        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1 = Agent::make(runId: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -70,8 +70,8 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(1, $searchTool->getCallCount());
 
-        // Recovery: same workflowId, same step engine → ChatNode:0 memoized
-        $agent2 = Agent::make(resumeToken: $workflowId);
+        // Recovery: same runId, same step engine → ChatNode:0 memoized
+        $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -91,7 +91,7 @@ class AgentDurabilityTest extends TestCase
         // mid-node, then the node crashes BEFORE its step completes. On recovery with
         // a fresh step engine + same persistence, the node re-executes but the inference
         // must NOT be billed again.
-        $workflowId = 'agent_chatnode_memo_test';
+        $runId = 'agent_chatnode_memo_test';
         $persistence = new InMemoryPersistence();
         $stepId = ChatNode::class . '-0';
 
@@ -104,10 +104,10 @@ class AgentDurabilityTest extends TestCase
         // The inference memo is persisted on the first run. (We never record the node
         // step itself as completed — simulating a crash right after memoize().)
         $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($workflowId);
+        $engine1->prepareExecution($runId);
 
         $state1 = new AgentState();
-        $state1->set('__workflowId', $workflowId);
+        $state1->set('__runId', $runId);
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId));
         $node1($event, $state1);
@@ -116,10 +116,10 @@ class AgentDurabilityTest extends TestCase
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
         $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($workflowId);
+        $engine2->prepareExecution($runId);
 
         $state2 = new AgentState();
-        $state2->set('__workflowId', $workflowId);
+        $state2->set('__runId', $runId);
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
         $node2($event, $state2);
@@ -129,7 +129,7 @@ class AgentDurabilityTest extends TestCase
 
     public function testInterruptResumeWithToolApproval(): void
     {
-        $workflowId = 'agent_approval_test';
+        $runId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
@@ -144,7 +144,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, ToolApproval pauses BEFORE the tool executes.
-        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1 = Agent::make(runId: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -159,9 +159,9 @@ class AgentDurabilityTest extends TestCase
         // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
-        // Resume: deliver the approval payload (call_1 approved). Same workflowId →
+        // Resume: deliver the approval payload (call_1 approved). Same runId →
         // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
-        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -176,7 +176,7 @@ class AgentDurabilityTest extends TestCase
 
     public function testChatNoToolsStepCleanupAfterCompletion(): void
     {
-        $workflowId = 'agent_cleanup_test';
+        $runId = 'agent_cleanup_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
@@ -184,7 +184,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Hello!'),
         );
 
-        $agent = Agent::make(resumeToken: $workflowId);
+        $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
         $agent->setExecutor($executor);
 
@@ -194,12 +194,12 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($persistence->load($workflowId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
+        $this->assertNull($persistence->load($runId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
     }
 
     public function testToolApprovalRejectsTool(): void
     {
-        $workflowId = 'agent_rejection_test';
+        $runId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
@@ -213,7 +213,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('I see the search was rejected. Is there anything else I can help with?'),
         );
 
-        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1 = Agent::make(runId: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -229,7 +229,7 @@ class AgentDurabilityTest extends TestCase
 
         // Resume with rejection: the tool is NOT executed; its rejection message
         // is fed back as the tool result and reaches the next inference.
-        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -249,7 +249,7 @@ class AgentDurabilityTest extends TestCase
 
     public function testSuccessfulToolCallWithStepEngine(): void
     {
-        $workflowId = 'agent_tool_success_test';
+        $runId = 'agent_tool_success_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
@@ -262,7 +262,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Based on the search results, here are the top PHP frameworks...'),
         );
 
-        $agent = Agent::make(resumeToken: $workflowId);
+        $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
         $agent->setExecutor($executor);
@@ -273,13 +273,13 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($persistence->load($workflowId, ChatNode::class . '-0'));
+        $this->assertNull($persistence->load($runId, ChatNode::class . '-0'));
     }
 
     public function testInterruptResumeWithFilePersistence(): void
     {
-        $workflowId = 'agent_file_interrupt_test';
-        $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
+        $runId = 'agent_file_interrupt_test';
+        $dir = sys_get_temp_dir() . '/neuron_test_' . $runId;
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
@@ -288,7 +288,7 @@ class AgentDurabilityTest extends TestCase
         $persistence = new FilePersistence($dir);
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
-        $agent = Agent::make(resumeToken: $workflowId);
+        $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
         $agent->setExecutor($executor);
 
@@ -296,7 +296,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame('Hello!', $message->getContent());
 
         // After successful completion, persistence file should be deleted
-        $this->assertFileDoesNotExist($dir . '/' . $workflowId . '.workflow');
+        $this->assertFileDoesNotExist($dir . '/' . $runId . '.workflow');
 
         $this->removeDirectory($dir);
     }

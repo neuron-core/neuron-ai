@@ -41,18 +41,35 @@ class ToolCallMessage extends AssistantMessage implements Stringable
      * (ADR 0005). Stamped by the ToolApproval middleware at suspend time; an
      * opaque string here — the Chat module knows nothing about workflows.
      */
-    public function setResumeToken(string $token): self
+    public function setRunId(string $runId): self
     {
-        $this->addMetadata('resume_token', $token);
+        $this->addMetadata('run_id', $runId);
 
         return $this;
     }
 
+    public function getRunId(): ?string
+    {
+        // Histories stored before the runId rename carry the legacy key.
+        $runId = $this->getMetadata('run_id') ?? $this->getMetadata('resume_token');
+
+        return is_string($runId) ? $runId : null;
+    }
+
+    /**
+     * @deprecated Use setRunId() instead. Will be removed in the next major version.
+     */
+    public function setResumeToken(string $token): self
+    {
+        return $this->setRunId($token);
+    }
+
+    /**
+     * @deprecated Use getRunId() instead. Will be removed in the next major version.
+     */
     public function getResumeToken(): ?string
     {
-        $token = $this->getMetadata('resume_token');
-
-        return is_string($token) ? $token : null;
+        return $this->getRunId();
     }
 
     /**

@@ -91,19 +91,19 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $workflowId = 'structured_recovery_test';
+        $runId = 'structured_recovery_test';
         $persistence = new InMemoryPersistence();
         $stepId = StructuredOutputNode::class . '-0';
 
         // Run 1: two real inference calls (bad then good), node succeeds.
         $state = new AgentState();
-        $state->set('__workflowId', $workflowId);
+        $state->set('__runId', $runId);
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setMessages(new UserMessage('Generate a user'));
 
         $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($workflowId);
+        $engine1->prepareExecution($runId);
         $node1 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
@@ -117,10 +117,10 @@ class StructuredOutputNodeTest extends TestCase
         // (prior bad response + correction text) are reconstructed deterministically
         // from the recalled memos, so both attempts are served from cache.
         $state2 = new AgentState();
-        $state2->set('__workflowId', $workflowId);
+        $state2->set('__runId', $runId);
 
         $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($workflowId);
+        $engine2->prepareExecution($runId);
         $node2 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
 

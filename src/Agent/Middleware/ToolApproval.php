@@ -102,10 +102,11 @@ class ToolApproval extends AgentMiddleware
             $this->mergePayload($node->getResumePayload() ?? [], $toolsToApprove);
         }
 
-        // The resume token (ADR 0005) makes history alone sufficient to resume.
-        $workflowId = $state->get('__workflowId');
-        if (is_string($workflowId) && $workflowId !== '') {
-            $event->toolCallMessage->setResumeToken($workflowId);
+        // The stamped runId (ADR 0005) makes history alone sufficient to resume.
+        // State snapshots persisted before the runId rename carry the legacy key.
+        $runId = $state->get('__runId') ?? $state->get('__workflowId');
+        if (is_string($runId) && $runId !== '') {
+            $event->toolCallMessage->setRunId($runId);
         }
 
         // Persist the annotated message (pending states + resume token) before any

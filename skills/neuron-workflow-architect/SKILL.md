@@ -162,7 +162,7 @@ Each completed node becomes a durable **step** persisted via `PersistenceInterfa
 - Steps from a **previous generation** (a prior run) are reused from persistence — they are **not re-executed**.
 - Steps from the **current generation** are always re-executed.
 
-This means: if your process crashes mid-workflow, simply re-run it with the same persistence and workflow ID. The engine will replay all completed steps from cache and resume from the point of failure.
+This means: if your process crashes mid-workflow, simply re-run it with the same persistence and runId. The engine will replay all completed steps from cache and resume from the point of failure.
 
 ### Persistence Backends
 
@@ -306,13 +306,13 @@ $state = $workflow->run();
 if ($state->isInterrupted()) {
     // Present the request to the user and collect a decision
     $request = $state->getInterruptRequest();
-    $workflowId = $workflow->getWorkflowId();
+    $runId = $workflow->getRunId();
 
     // ... user approves/rejects, mutating $request ...
 
-    // Resume — same persistence + resume token. Completed nodes are skipped;
+    // Resume — same persistence + runId. Completed nodes are skipped;
     // only the interrupted node re-runs with $request.
-    $state = Workflow::make(resumeToken: $workflowId)
+    $state = Workflow::make(runId: $runId)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->run($request);
@@ -362,7 +362,7 @@ Resume delivers the event by passing a hydrated request to `run()`:
 // matched event into the request and resumes:
 $request = new \NeuronAI\Workflow\Interrupt\WaitForEventRequest('payment.received', $paymentPayload);
 
-$state = Workflow::make(resumeToken: $workflowId)
+$state = Workflow::make(runId: $runId)
     ->setPersistence($persistence)
     ->addNodes([...])
     ->run($request);
@@ -865,11 +865,11 @@ $state = $workflow->run();
 
 if ($state->isInterrupted()) {
     $request = $state->getInterruptRequest();
-    $workflowId = $workflow->getWorkflowId();
+    $runId = $workflow->getRunId();
 
     // ... user responds, mutating $request ...
 
-    $state = Workflow::make(resumeToken: $workflowId)
+    $state = Workflow::make(runId: $runId)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->run($request);

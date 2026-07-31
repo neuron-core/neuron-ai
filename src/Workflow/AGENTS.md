@@ -90,7 +90,7 @@ if ($state->isInterrupted()) {
 
     // ... collect the decision / event data ...
 
-    $state = MyWorkflow::make(resumeToken: $workflow->getWorkflowId())
+    $state = MyWorkflow::make(runId: $workflow->getRunId())
         ->resume(['id' => 42]);                 // deliver the inbound payload (no stepId)
 }
 ```
@@ -117,7 +117,7 @@ $workflow = Workflow::make()
 The default `NullScheduler` is inert: it never wakes anything, preserving the
 caller-driven model where a caller re-invokes `resume()` to resume. The executor fires
 `onSuspend()` after a suspend (carrying the outbound request),
-`onResume($workflowId)` on a deliberate resume (cancels the satisfied wakeup — keeps
+`onResume($runId)` on a deliberate resume (cancels the satisfied wakeup — keeps
 inline resume consistent), and `onComplete()` on a clean terminal `StopEvent`. The
 deadline (`expiresAt`) lives on the outbound request and the scheduler's timer wheel;
 the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure KV store

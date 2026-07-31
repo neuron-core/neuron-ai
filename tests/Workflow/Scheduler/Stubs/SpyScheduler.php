@@ -13,7 +13,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  */
 class SpyScheduler implements SchedulerInterface
 {
-    /** @var array<int, array{workflowId: string, request: InterruptRequest}> */
+    /** @var array<int, array{runId: string, request: InterruptRequest}> */
     public array $onSuspendCalls = [];
 
     /** @var array<int, string> */
@@ -22,18 +22,18 @@ class SpyScheduler implements SchedulerInterface
     /** @var array<int, string> */
     public array $onCompleteCalls = [];
 
-    public function onSuspend(string $workflowId, InterruptRequest $request): void
+    public function onSuspend(string $runId, InterruptRequest $request): void
     {
-        $this->onSuspendCalls[] = ['workflowId' => $workflowId, 'request' => $request];
+        $this->onSuspendCalls[] = ['runId' => $runId, 'request' => $request];
     }
 
-    public function onResume(string $workflowId): void
+    public function onResume(string $runId): void
     {
-        $this->onResumeCalls[] = $workflowId;
+        $this->onResumeCalls[] = $runId;
     }
 
-    public function onComplete(string $workflowId): void
+    public function onComplete(string $runId): void
     {
-        $this->onCompleteCalls[] = $workflowId;
+        $this->onCompleteCalls[] = $runId;
     }
 }

@@ -40,7 +40,7 @@ use function reset;
 use function uniqid;
 
 /**
- * @method static static make(?string $resumeToken = null, ?WorkflowState $state = null)
+ * @method static static make(?string $runId = null, ?WorkflowState $state = null)
  */
 class Workflow implements WorkflowInterface
 {
@@ -60,7 +60,7 @@ class Workflow implements WorkflowInterface
 
     protected ExporterInterface $exporter;
 
-    protected string $workflowId;
+    protected string $runId;
 
     protected Event $startEvent;
 
@@ -80,11 +80,11 @@ class Workflow implements WorkflowInterface
      * @throws WorkflowException
      */
     public function __construct(
-        ?string $resumeToken = null,
+        ?string $runId = null,
         protected ?WorkflowState   $state = null,
     ) {
         $this->exporter = new ConsoleExporter();
-        $this->workflowId = $resumeToken ?? uniqid('workflow_');
+        $this->runId = $runId ?? uniqid('workflow_');
 
         $this->addGlobalMiddleware($this->globalMiddleware());
         foreach ($this->middleware() as $node => $middleware) {
@@ -400,11 +400,12 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Get the workflow ID.
+     * The unique identifier of this workflow run — also the resume handle: pass
+     * it back to the constructor to reattach to a suspended run.
      */
-    public function getWorkflowId(): string
+    public function getRunId(): string
     {
-        return $this->workflowId;
+        return $this->runId;
     }
 
     /**

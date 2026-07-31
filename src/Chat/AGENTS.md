@@ -90,12 +90,13 @@ asking for approval, declared by the tool or middleware config), and `rejectReas
 (inbound — the approver's feedback, rejection-only). Old stored histories without these
 keys deserialize as `null` (not gated).
 
-The suspended `ToolCallMessage` also carries a `resume_token` metadata entry (ADR 0005) —
+The suspended `ToolCallMessage` also carries a `run_id` metadata entry (ADR 0005) —
 the handle to reattach to the suspended run, exposed via
-`ToolCallMessage::getResumeToken(): ?string`. It is an opaque string here: the Chat module
+`ToolCallMessage::getRunId(): ?string`. It is an opaque string here: the Chat module
 knows nothing about workflows. Stamped by the `ToolApproval` middleware at suspend, it makes
-chat history sufficient to *resume* an approval flow, not just render it. Old histories
-deserialize it as `null`.
+chat history sufficient to *resume* an approval flow, not just render it. Histories stored
+before the rename carry the legacy `resume_token` key — `getRunId()` reads it as a fallback;
+histories with neither key deserialize it as `null`.
 
 ### History Trimming
 

@@ -65,7 +65,11 @@ interface WorkflowInterface
      */
     public function getEventNodeMap(): array;
 
-    public function getWorkflowId(): string;
+    /**
+     * The unique identifier of this workflow run — also the resume handle: pass
+     * it back to the constructor to reattach to a suspended run.
+     */
+    public function getRunId(): string;
 
     /**
      * @deprecated Use subscribe() with a PSR-14 listener instead. Will be

@@ -8,21 +8,21 @@ use NeuronAI\Workflow\Executor\StepResult;
 
 class InMemoryPersistence implements PersistenceInterface
 {
-    /** @var array<string, array<string, StepResult>> keyed by workflowId then stepId */
+    /** @var array<string, array<string, StepResult>> keyed by runId then stepId */
     protected array $storage = [];
 
-    public function save(string $workflowId, string $stepId, StepResult $result): void
+    public function save(string $runId, string $stepId, StepResult $result): void
     {
-        $this->storage[$workflowId][$stepId] = $result;
+        $this->storage[$runId][$stepId] = $result;
     }
 
-    public function load(string $workflowId, string $stepId): ?StepResult
+    public function load(string $runId, string $stepId): ?StepResult
     {
-        return $this->storage[$workflowId][$stepId] ?? null;
+        return $this->storage[$runId][$stepId] ?? null;
     }
 
-    public function delete(string $workflowId): void
+    public function delete(string $runId): void
     {
-        unset($this->storage[$workflowId]);
+        unset($this->storage[$runId]);
     }
 }

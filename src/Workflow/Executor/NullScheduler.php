@@ -16,17 +16,17 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  */
 class NullScheduler implements SchedulerInterface
 {
-    public function onSuspend(string $workflowId, InterruptRequest $request): void
+    public function onSuspend(string $runId, InterruptRequest $request): void
     {
         // Intentionally inert.
     }
 
-    public function onResume(string $workflowId): void
+    public function onResume(string $runId): void
     {
         // Intentionally inert.
     }
 
-    public function onComplete(string $workflowId): void
+    public function onComplete(string $runId): void
     {
         // Intentionally inert.
     }

@@ -42,7 +42,7 @@ class SuspendTypesTest extends TestCase
         $executor = $this->createExecutor($persistence);
         $token = 'wfe-basic';
 
-        $workflow = Workflow::make(resumeToken: $token)
+        $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         $state = $this->execute($workflow, $executor);
@@ -56,7 +56,7 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
 
         // Resume on a fresh executor sharing the persistence, delivering the payload.
-        $resumed = Workflow::make(resumeToken: $token)
+        $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         $state = $this->resume(
@@ -76,7 +76,7 @@ class SuspendTypesTest extends TestCase
         $executor = $this->createExecutor($persistence);
         $token = 'sleep-basic';
 
-        $workflow = Workflow::make(resumeToken: $token)
+        $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
 
         $state = $this->execute($workflow, $executor);
@@ -88,7 +88,7 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
 
         // Resume carries no payload — the wakeup itself is the signal (empty payload).
-        $resumed = Workflow::make(resumeToken: $token)
+        $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
 
         $state = $this->resume(
@@ -113,13 +113,13 @@ class SuspendTypesTest extends TestCase
         $token = 'wfe-serial';
 
         try {
-            $workflow = Workflow::make(resumeToken: $token)
+            $workflow = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
             $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterruptRequest();
             $this->assertInstanceOf(WaitForEventRequest::class, $request);
 
-            $resumed = Workflow::make(resumeToken: $token)
+            $resumed = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
             $state = $this->resume(
@@ -142,12 +142,12 @@ class SuspendTypesTest extends TestCase
         $executor = $this->createExecutor($persistence);
         $token = 'wfe-empty-payload';
 
-        $workflow = Workflow::make(resumeToken: $token)
+        $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         $this->execute($workflow, $executor);
 
-        $resumed = Workflow::make(resumeToken: $token)
+        $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         // Resume with an empty payload — the node receives an empty event body.
@@ -166,7 +166,7 @@ class SuspendTypesTest extends TestCase
     {
         // The engine does NOT enforce timeliness — a past wakeAt still suspends.
         // Whether to fire is exclusively the scheduler's responsibility.
-        $workflow = Workflow::make(resumeToken: 'sleep-past')
+        $workflow = Workflow::make(runId: 'sleep-past')
             ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('-1 minute')), new NodeThree()]);
 
         $state = $this->execute($workflow, $this->createExecutor());
@@ -220,7 +220,7 @@ class SuspendTypesTest extends TestCase
 
         // Run 1: suspends on a bounded wait. The expressed deadline is carried on
         // the interrupted request (outbound).
-        $workflow = Workflow::make(resumeToken: $token)
+        $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
         $state = $this->execute($workflow, $executor);
 
@@ -231,7 +231,7 @@ class SuspendTypesTest extends TestCase
 
         // Resume with $timedOut — exactly what the scheduler does when the
         // deadline fires.
-        $resumed = Workflow::make(resumeToken: $token)
+        $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
         $state = $this->resume($resumed, $executor, [], true);
 
@@ -254,14 +254,14 @@ class SuspendTypesTest extends TestCase
         $token = 'object-carrying';
 
         try {
-            $workflow = Workflow::make(resumeToken: $token)
+            $workflow = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
             $state = $this->execute($workflow, $this->createExecutor($persistence));
 
             $this->assertTrue($state->isInterrupted());
             $this->assertInstanceOf(ObjectCarryingRequest::class, $state->getInterruptRequest());
 
-            $resumed = Workflow::make(resumeToken: $token)
+            $resumed = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
             $state = $this->resume($resumed, $this->createExecutor($persistence), []);
 

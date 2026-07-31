@@ -24,14 +24,15 @@ $workflow = Workflow::make()
 // returned state is marked interrupted — no exception is thrown to the caller.
 $state = $workflow->run();
 
-// The resume token is auto-generated and available from the workflow instance.
-$workflowId = $workflow->getWorkflowId();
+// The runId is auto-generated and available from the workflow instance — it is
+// also the handle to resume a suspended run.
+$runId = $workflow->getRunId();
 $approvalRequest = null;
 
 if ($state->isInterrupted()) {
     $approvalRequest = $state->getInterruptRequest();
     echo "Paused: {$approvalRequest->getMessage()}\n";
-    echo "Resume token: {$workflowId}\n";
+    echo "Run ID: {$runId}\n";
 }
 
 /*
@@ -39,7 +40,7 @@ if ($state->isInterrupted()) {
  * Imagine a new execution cycle starts here
  * ---------------------------------------
  *
- * Rebuild the workflow with the resume token and the same persistence, then
+ * Rebuild the workflow with the runId and the same persistence, then
  * resume by delivering an inbound PAYLOAD — a plain array carrying the answer
  * to the pause (a human decision, an event body, etc.). The outbound
  * InterruptRequest is never passed back in: it described the pause, the payload
@@ -50,7 +51,7 @@ if ($state->isInterrupted()) {
  * It carries only NEW decisions; the cumulative state lives in chat history
  * (ADR 0003), not in the payload.
  */
-$workflow = Workflow::make(resumeToken: $workflowId)
+$workflow = Workflow::make(runId: $runId)
     ->setPersistence($persistence)
     ->addNodes([
         new NodeOne(),

@@ -356,7 +356,7 @@ $response = MyAgent::make()
 
 When the agent suspends (e.g., waiting for tool approval), no exception is thrown — the
 handler is marked interrupted. Deliver the decisions later as a payload; with a durable
-chat history the resume token is adopted from the thread automatically:
+chat history the runId is adopted from the thread automatically:
 
 ```php
 $agent = MyAgent::make()

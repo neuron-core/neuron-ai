@@ -31,7 +31,7 @@ class ParallelInterruptTest extends TestCase
     {
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -53,7 +53,7 @@ class ParallelInterruptTest extends TestCase
         // Durability: resume on a fresh executor sharing only persistence.
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -64,7 +64,7 @@ class ParallelInterruptTest extends TestCase
         $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $resumed = Workflow::make(resumeToken: 'test-resume-token')
+        $resumed = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -88,7 +88,7 @@ class ParallelInterruptTest extends TestCase
         // proving completed branches are retained, not lost, across the pause.
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new ImageFirstForkNode(),
                 new InterruptableTextProcessNode(),
@@ -111,7 +111,7 @@ class ParallelInterruptTest extends TestCase
     {
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -133,7 +133,7 @@ class ParallelInterruptTest extends TestCase
     {
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new ThreeBranchImageFirstForkNode(),
                 new InterruptableTextProcessNode(),
@@ -158,7 +158,7 @@ class ParallelInterruptTest extends TestCase
     {
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-resume-token')
+        $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableStep1TextProcessNode(),
@@ -189,7 +189,7 @@ class ParallelInterruptTest extends TestCase
         // resumes through the request. (No parallel-specific metadata exists.)
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-linear-token')
+        $workflow = Workflow::make(runId: 'test-linear-token')
             ->addNodes([new LinearInterruptNode()]);
 
         $request = $this->execute($workflow, $executor)->getInterruptRequest();
@@ -204,7 +204,7 @@ class ParallelInterruptTest extends TestCase
     {
         $executor = new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
-        $workflow = Workflow::make(resumeToken: 'test-async-token')
+        $workflow = Workflow::make(runId: 'test-async-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -222,7 +222,7 @@ class ParallelInterruptTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(resumeToken: 'test-async-token')
+        $workflow = Workflow::make(runId: 'test-async-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -233,7 +233,7 @@ class ParallelInterruptTest extends TestCase
         $request = $this->execute($workflow, new AsyncExecutor(new LocalStepEngine($persistence)))->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $resumed = Workflow::make(resumeToken: 'test-async-token')
+        $resumed = Workflow::make(runId: 'test-async-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),

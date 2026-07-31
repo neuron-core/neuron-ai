@@ -8,7 +8,7 @@ use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use NeuronAI\RAG\Nodes\PostProcessNode;
 use NeuronAI\RAG\Nodes\PreProcessNode;
@@ -24,7 +24,7 @@ use function explode;
 use function is_array;
 
 /**
- * @method static static make(?AIProviderInterface $aiProvider = null, ?string $resumeToken = null)
+ * @method static static make(?string $runId = null, ?WorkflowState $state = null)
  */
 class RAG extends Agent
 {

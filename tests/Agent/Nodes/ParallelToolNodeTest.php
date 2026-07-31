@@ -131,7 +131,7 @@ class ParallelToolNodeTest extends TestCase
         // persistence — the node re-executes but the memoized batch must NOT
         // re-run: side-effecting tools stay at-most-once, and the run counters
         // (incremented inside the memo) must not advance a second time.
-        $workflowId = 'parallel_recovery_test';
+        $runId = 'parallel_recovery_test';
         $persistence = new InMemoryPersistence();
         $stepId = ParallelToolNode::class . '-0';
 
@@ -148,11 +148,11 @@ class ParallelToolNodeTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $state = new AgentState();
-        $state->set('__workflowId', $workflowId);
+        $state->set('__runId', $runId);
 
         // Run 1: the batch executes and its result is memoized mid-node.
         $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($workflowId);
+        $engine1->prepareExecution($runId);
         $node1 = new ParallelToolNode(new InMemoryChatHistory());
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
         foreach ($node1($event, $state) as $_) {
@@ -164,7 +164,7 @@ class ParallelToolNodeTest extends TestCase
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
         $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($workflowId);
+        $engine2->prepareExecution($runId);
         $node2 = new ParallelToolNode(new InMemoryChatHistory());
         $node2->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine2, $stepId));
         foreach ($node2($event, $state) as $_) {

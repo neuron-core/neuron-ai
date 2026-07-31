@@ -56,8 +56,8 @@ echo "-------------------------------------------------------------------\n\n";
 /*
  * The agent is rebuilt on every execution cycle from the only identity the
  * application owns: the chat thread. The durable chat history is the system
- * of record for the suspension — pending tools, decisions, AND the resume
- * token (ADR 0005) — so no workflowId needs to be stored anywhere.
+ * of record for the suspension — pending tools, decisions, AND the runId
+ * (ADR 0005) — so no runId needs to be stored anywhere by the application.
  */
 $makeAgent = fn (): Agent => Agent::make()
     ->setPersistence(new FilePersistence(__DIR__))
@@ -93,10 +93,10 @@ while ($handler->interrupted()) {
     $approvalRequest = $handler->getInterruptRequest();
 
     // The suspension is fully recorded in chat history: the annotated tool
-    // call message carries the approval states and the resume token.
+    // call message carries the approval states and the runId.
     $tail = $agent->getChatHistory()->getLastMessage();
     if ($tail instanceof ToolCallMessage) {
-        echo "Resume token (stored in chat history): {$tail->getResumeToken()}\n";
+        echo "Run ID (stored in chat history): {$tail->getRunId()}\n";
     }
 
     echo "Message: {$approvalRequest->getMessage()}\n\n";
@@ -126,7 +126,7 @@ while ($handler->interrupted()) {
     /*
      * Imagine a new execution cycle starts here (e.g. the approve/deny HTTP
      * endpoint): rebuild the agent from the thread alone and deliver the
-     * payload. The resume token is adopted from the chat history tail —
+     * payload. The runId is adopted from the chat history tail —
      * nothing else to store, nothing else to pass.
      */
     echo "\nResuming workflow...\n\n";

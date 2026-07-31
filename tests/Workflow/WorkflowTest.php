@@ -168,9 +168,9 @@ class WorkflowTest extends TestCase
     public function testWorkflowInterrupt(): void
     {
         $executor = $this->createExecutor();
-        $workflowId = 'test-workflow';
+        $runId = 'test-workflow';
 
-        $workflow = Workflow::make(resumeToken: $workflowId)
+        $workflow = Workflow::make(runId: $runId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -189,9 +189,9 @@ class WorkflowTest extends TestCase
     public function testWorkflowResume(): void
     {
         $executor = $this->createExecutor();
-        $workflowId = 'test-workflow';
+        $runId = 'test-workflow';
 
-        $workflow = Workflow::make(resumeToken: $workflowId)
+        $workflow = Workflow::make(runId: $runId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -215,7 +215,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testWorkflowIdAutoGenerates(): void
+    public function testRunIdAutoGenerates(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -224,8 +224,8 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $this->assertNotEmpty($workflow->getWorkflowId());
-        $this->assertStringStartsWith('workflow_', $workflow->getWorkflowId());
+        $this->assertNotEmpty($workflow->getRunId());
+        $this->assertStringStartsWith('workflow_', $workflow->getRunId());
     }
 
     public function testInterruptStateIsResumableFromToken(): void
@@ -242,12 +242,12 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $token = $workflow->getWorkflowId();
+        $token = $workflow->getRunId();
         $request = $this->execute($workflow, $executor)->getInterruptRequest();
 
         $this->assertNotNull($request);
 
-        $resumed = Workflow::make(resumeToken: $token)
+        $resumed = Workflow::make(runId: $token)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),

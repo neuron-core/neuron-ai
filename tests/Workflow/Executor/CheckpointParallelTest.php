@@ -22,7 +22,7 @@ class CheckpointParallelTest extends TestCase
         $executor = $this->createExecutor();
 
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(resumeToken: 'test-checkpoint-token')
+        $workflow = Workflow::make(runId: 'test-checkpoint-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 $checkpointNode,
@@ -42,7 +42,7 @@ class CheckpointParallelTest extends TestCase
         $executor = $this->createExecutor();
 
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(resumeToken: 'test-checkpoint-resume')
+        $workflow = Workflow::make(runId: 'test-checkpoint-resume')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 $checkpointNode,
@@ -70,7 +70,7 @@ class CheckpointParallelTest extends TestCase
         $executor = $this->createExecutor();
 
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(resumeToken: 'test-checkpoint-order')
+        $workflow = Workflow::make(runId: 'test-checkpoint-order')
             ->addNodes([
                 new ImageFirstForkNode(),
                 $checkpointNode,
@@ -95,7 +95,7 @@ class CheckpointParallelTest extends TestCase
     {
         $executor = $this->createExecutor();
 
-        $workflow = Workflow::make(resumeToken: 'test-multi-checkpoint')
+        $workflow = Workflow::make(runId: 'test-multi-checkpoint')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new MultiCheckpointTextProcessNode(),

@@ -26,10 +26,10 @@ interface SchedulerInterface
     /**
      * Called by the executor immediately after a suspend has been persisted.
      *
-     * @param string           $workflowId The suspended workflow (also its resume token).
+     * @param string           $runId The suspended workflow (also its resume token).
      * @param InterruptRequest $request    The suspend request; its type() selects the wakeup strategy.
      */
-    public function onSuspend(string $workflowId, InterruptRequest $request): void;
+    public function onSuspend(string $runId, InterruptRequest $request): void;
 
     /**
      * Called by the executor when a suspended workflow is resumed — whether inline
@@ -48,9 +48,9 @@ interface SchedulerInterface
      * The resume payload is not passed: the scheduler cancels by workflow id, and a
      * scheduler that fired a timeout already knows it did.
      *
-     * @param string $workflowId The resumed workflow.
+     * @param string $runId The resumed workflow.
      */
-    public function onResume(string $workflowId): void;
+    public function onResume(string $runId): void;
 
     /**
      * Called by the executor when a workflow reaches a clean terminal (StopEvent).
@@ -58,7 +58,7 @@ interface SchedulerInterface
      * subscriptions). Not called on a suspend or on a thrown error — only on
      * completion.
      *
-     * @param string $workflowId The completed workflow.
+     * @param string $runId The completed workflow.
      */
-    public function onComplete(string $workflowId): void;
+    public function onComplete(string $runId): void;
 }
