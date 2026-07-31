@@ -9,11 +9,11 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 
 trait HandleAgentState
 {
+    protected ChatHistoryInterface $chatHistory;
+
     protected function state(): AgentState
     {
-        $state = new AgentState();
-        $state->setChatHistory($this->chatHistory());
-        return $state;
+        return new AgentState();
     }
 
     protected function chatHistory(): ChatHistoryInterface
@@ -23,16 +23,12 @@ trait HandleAgentState
 
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        /** @var AgentState $state */
-        $state = $this->resolveState();
-        $state->setChatHistory($chatHistory);
+        $this->chatHistory = $chatHistory;
         return $this;
     }
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        /** @var AgentState $state */
-        $state = $this->resolveState();
-        return $state->getChatHistory();
+        return $this->chatHistory ??= $this->chatHistory();
     }
 }

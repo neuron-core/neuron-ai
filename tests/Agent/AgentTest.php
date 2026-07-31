@@ -144,9 +144,8 @@ class AgentTest extends TestCase
 
         $handler = $agent->stream(new UserMessage('Hi'));
 
-        /** @var AgentState $state */
-        $state = $handler->run();
-        $this->assertSame('Hello world', $state->getMessage()->getContent());
+        $handler->run();
+        $this->assertSame('Hello world', $handler->getMessage()->getContent());
     }
 
     public function test_structured_output(): void

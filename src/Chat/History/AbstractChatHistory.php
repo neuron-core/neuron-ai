@@ -33,6 +33,7 @@ use function end;
 use function is_array;
 use function is_string;
 use function json_decode;
+use function json_encode;
 
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
@@ -103,28 +104,68 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Whether $message is a ToolCallMessage carrying the same tool callIds as the
-     * current last message — i.e. a re-write of the message that is already at the
-     * tail (an approval-state update, or a node re-adding it on replay). See ADR 0003.
+     * Whether $message is a re-write of the message already at the tail, so the
+     * add must replace instead of appending. See ADR 0003.
+     *
+     * Three convergence rules, most specific first:
+     * - A ToolCallMessage carrying the same tool callIds as the tail (an
+     *   approval-state update, or a node re-adding it on replay).
+     * - A message with the same stable id (`__id` metadata) as the tail — a node
+     *   re-adding the exact message on crash-replay against the live history.
+     * - A message of the same class, role and content as the tail — the
+     *   cross-process replay of the same logical turn, where the re-built message
+     *   carries a fresh id but identical content.
      */
     protected function shouldReplaceLastMessage(Message $message): bool
     {
-        if (!$message instanceof ToolCallMessage || $this->history === []) {
+        if ($this->history === []) {
             return false;
         }
 
         $last = end($this->history);
 
-        if (!$last instanceof ToolCallMessage) {
+        if ($message instanceof ToolCallMessage) {
+            if (!$last instanceof ToolCallMessage) {
+                return false;
+            }
+
+            $ids = static fn (ToolCallMessage $m): array => array_map(
+                static fn (ToolInterface $tool): ?string => $tool->getCallId(),
+                $m->getTools()
+            );
+
+            return $ids($message) === $ids($last);
+        }
+
+        $id = $message->getMetadata('__id');
+
+        if ($id !== null && $id === $last->getMetadata('__id')) {
+            return true;
+        }
+
+        if ($message::class !== $last::class || $message->getRole() !== $last->getRole()) {
             return false;
         }
 
-        $ids = static fn (ToolCallMessage $m): array => array_map(
-            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
-            $m->getTools()
-        );
+        // A ToolResultMessage carries no content blocks — compare its tool callIds.
+        if ($message instanceof ToolResultMessage && $last instanceof ToolResultMessage) {
+            $ids = static fn (ToolResultMessage $m): array => array_map(
+                static fn (ToolInterface $tool): ?string => $tool->getCallId(),
+                $m->getTools()
+            );
 
-        return $ids($message) === $ids($last);
+            return $ids($message) === $ids($last);
+        }
+
+        return $this->serializeContentBlocks($message) === $this->serializeContentBlocks($last);
+    }
+
+    protected function serializeContentBlocks(Message $message): string
+    {
+        return (string) json_encode(array_map(
+            static fn (ContentBlockInterface $block): array => $block->toArray(),
+            $message->getContentBlocks()
+        ));
     }
 
     /**

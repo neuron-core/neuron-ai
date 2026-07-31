@@ -74,7 +74,7 @@ class RAG extends Agent
     protected function ragNodes(): array
     {
         return [
-            new PreProcessNode($this->preProcessors()),
+            new PreProcessNode($this->getChatHistory(), $this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval()),
             new PostProcessNode($this->postProcessors()),
             new InstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),

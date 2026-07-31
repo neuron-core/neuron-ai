@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Middleware;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\ToolApproval;
@@ -102,9 +103,9 @@ class ToolApprovalTest extends TestCase
         return $byId;
     }
 
-    private function lastToolCall(AgentState $state): ToolCallMessage
+    private function lastToolCall(ToolNode $node): ToolCallMessage
     {
-        $last = $state->getChatHistory()->getLastMessage();
+        $last = $node->getChatHistory()->getLastMessage();
         $this->assertInstanceOf(ToolCallMessage::class, $last);
         return $last;
     }
@@ -112,7 +113,7 @@ class ToolApprovalTest extends TestCase
     public function test_tool_self_declaration_triggers_interrupt(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = $this->gatedTool('delete_file', 'call_a', ['path' => '/tmp/x']);
@@ -125,27 +126,27 @@ class ToolApprovalTest extends TestCase
         $this->assertEquals(ActionDecision::Pending, $byId['call_a']->decision);
 
         // History now carries the annotated ToolCallMessage with the tool pending.
-        $last = $this->lastToolCall($state);
+        $last = $this->lastToolCall($node);
         $this->assertEquals(ApprovalState::Pending, $last->getTools()[0]->getApprovalState());
     }
 
     public function test_default_tools_do_not_interrupt_with_empty_config(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = $this->plainTool('read_file', 'call_a');
         $event = $this->createToolCallEvent([$tool]);
 
         $this->assertDoesNotInterrupt($middleware, $node, $event, $state, 'A plain tool with empty config must not interrupt');
-        $this->assertCount(0, $state->getChatHistory()->getMessages(), 'History must be untouched');
+        $this->assertCount(0, $node->getChatHistory()->getMessages(), 'History must be untouched');
     }
 
     public function test_config_string_forces_approval_over_declaration(): void
     {
         $middleware = new ToolApproval(['read_file']);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = $this->plainTool('read_file', 'call_a', ['path' => '/tmp/x']);
@@ -157,7 +158,7 @@ class ToolApprovalTest extends TestCase
     public function test_config_callable_waives_declared_approval(): void
     {
         $middleware = new ToolApproval(['delete_file' => fn (ToolInterface $tool): bool => false]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = $this->gatedTool('delete_file', 'call_a');
@@ -169,7 +170,7 @@ class ToolApprovalTest extends TestCase
     public function test_incremental_resume_partial_re_suspends_with_progress(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         // First run — suspend for both gated tools.
@@ -190,7 +191,7 @@ class ToolApprovalTest extends TestCase
         $this->assertEquals(ActionDecision::Approved, $byId['call_a']->decision, 'call_a was approved → progress shown');
         $this->assertEquals(ActionDecision::Pending, $byId['call_b']->decision);
 
-        $last = $this->lastToolCall($state);
+        $last = $this->lastToolCall($node);
         $byCall = [];
         foreach ($last->getTools() as $tool) {
             $byCall[$tool->getCallId()] = $tool;
@@ -202,7 +203,7 @@ class ToolApprovalTest extends TestCase
     public function test_incremental_resume_completes_and_rejects(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $a = $this->gatedTool('a', 'call_a');
@@ -228,7 +229,7 @@ class ToolApprovalTest extends TestCase
         $this->assertStringContainsString('not now', $b3->getResult());
 
         // History reflects the final states.
-        $last = $this->lastToolCall($state);
+        $last = $this->lastToolCall($node);
         $byCall = [];
         foreach ($last->getTools() as $tool) {
             $byCall[$tool->getCallId()] = $tool;
@@ -240,7 +241,7 @@ class ToolApprovalTest extends TestCase
     public function test_decision_overwrite_before_completeness(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $a = $this->gatedTool('a', 'call_a');
@@ -262,7 +263,7 @@ class ToolApprovalTest extends TestCase
 
         $this->assertInterrupts($middleware, $node, $event2, $state, 'Still incomplete — must re-suspend');
 
-        $last = $this->lastToolCall($state);
+        $last = $this->lastToolCall($node);
         $byCall = [];
         foreach ($last->getTools() as $tool) {
             $byCall[$tool->getCallId()] = $tool;
@@ -274,7 +275,7 @@ class ToolApprovalTest extends TestCase
     public function test_unknown_call_id_in_payload_is_ignored(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $a = $this->gatedTool('a', 'call_a');
@@ -289,7 +290,7 @@ class ToolApprovalTest extends TestCase
 
         $this->assertInterrupts($middleware, $node, $event, $state);
 
-        $last = $this->lastToolCall($state);
+        $last = $this->lastToolCall($node);
         $byCall = [];
         foreach ($last->getTools() as $tool) {
             $byCall[$tool->getCallId()] = $tool;
@@ -301,7 +302,7 @@ class ToolApprovalTest extends TestCase
     public function test_non_gated_tools_untouched(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $gated = $this->gatedTool('gated', 'call_gated');
@@ -318,7 +319,7 @@ class ToolApprovalTest extends TestCase
     public function test_tool_reason_string_gates_and_surfaces_the_reason(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = new class () extends Tool {
@@ -341,7 +342,7 @@ class ToolApprovalTest extends TestCase
         $this->assertSame('Deleting files is irreversible', $this->actionsById($request)['call_a']->reason);
 
         // The reason is recorded on the tool entry persisted in chat history.
-        $recorded = $this->lastToolCall($state)->getTools()[0];
+        $recorded = $this->lastToolCall($node)->getTools()[0];
         $this->assertSame('Deleting files is irreversible', $recorded->getApprovalReason());
         $this->assertSame('Deleting files is irreversible', $recorded->jsonSerialize()['approvalReason']);
     }
@@ -353,7 +354,7 @@ class ToolApprovalTest extends TestCase
                 ? 'Transfers above $100 require a human sign-off'
                 : false,
         ]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $tool = $this->plainTool('transfer_money', 'call_a', ['amount' => 500]);
@@ -379,7 +380,7 @@ class ToolApprovalTest extends TestCase
     public function test_history_write_is_idempotent_across_resumes(): void
     {
         $middleware = new ToolApproval();
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $a = $this->gatedTool('a', 'call_a');
@@ -401,7 +402,7 @@ class ToolApprovalTest extends TestCase
         $this->assertInterrupts($middleware, $node, $event2, $state);
 
         $toolCallCount = 0;
-        foreach ($state->getChatHistory()->getMessages() as $message) {
+        foreach ($node->getChatHistory()->getMessages() as $message) {
             if ($message instanceof ToolCallMessage) {
                 $toolCallCount++;
             }
@@ -412,7 +413,7 @@ class ToolApprovalTest extends TestCase
     public function test_non_tool_call_event_is_ignored(): void
     {
         $middleware = new ToolApproval(['some_tool']);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
         $event = new AIInferenceEvent('instructions', []);

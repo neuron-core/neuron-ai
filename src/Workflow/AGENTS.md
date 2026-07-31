@@ -161,9 +161,12 @@ be a pure function of the node's event and state.** Concretely:
 - For side-effecting operations, `memoize()` gives **at-most-once** execution across
   recovery. Pair it with an idempotency key at the call site for true exactly-once.
 
-Mid-node state mutations (e.g. `addToChatHistory`, `$state->set(...)`) are not durable —
-only step boundaries are. They are discarded if the node crashes and re-applied on replay,
-which is correct as long as they are idempotent given the replayed inputs.
+Mid-node state mutations (`$state->set(...)`) are not durable — only step boundaries
+are. They are discarded if the node crashes and re-applied on replay, which is correct
+as long as they are idempotent given the replayed inputs. (Agent chat-history writes
+are different: the history is a live external service, so its writes are durable
+immediately and the replay re-add converges via the replace-last rules — see
+`src/Chat/AGENTS.md`.)
 
 ### `recallMemo()` — the read-only counterpart
 

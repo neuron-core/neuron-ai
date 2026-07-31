@@ -6,6 +6,8 @@ namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Nodes\AgentNodeInterface;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -13,9 +15,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
-use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\WorkflowState;
 use Exception;
 
 use function array_map;
@@ -26,7 +25,7 @@ use function max;
 use function sprintf;
 use function strtoupper;
 
-class Summarization implements WorkflowMiddleware
+class Summarization extends AgentMiddleware
 {
     public function __construct(
         protected AIProviderInterface $provider,
@@ -41,13 +40,11 @@ class Summarization implements WorkflowMiddleware
      *
      * Checks if summarization is needed based on token count and performs
      * the summarization if the threshold is exceeded.
-     *
-     * @param AgentState $state
      */
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
     {
         // Only apply to ChatNode, StreamingNode, and StructuredOutputNode
-        if (!$event instanceof AIInferenceEvent || !$state instanceof AgentState) {
+        if (!$event instanceof AIInferenceEvent) {
             return;
         }
 
@@ -56,7 +53,7 @@ class Summarization implements WorkflowMiddleware
             return;
         }
 
-        $chatHistory = $state->getChatHistory();
+        $chatHistory = $node->getChatHistory();
         $messages = $chatHistory->getMessages();
 
         // Not enough messages to warrant summarization
@@ -70,15 +67,7 @@ class Summarization implements WorkflowMiddleware
         }
 
         // Perform summarization
-        $this->summarizeHistory($state, $messages);
-    }
-
-    /**
-     * Execute after the node runs.
-     */
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
-    {
-        // No action needed after node execution
+        $this->summarizeHistory($chatHistory, $messages);
     }
 
     /**
@@ -86,7 +75,7 @@ class Summarization implements WorkflowMiddleware
      *
      * @param Message[] $messages
      */
-    protected function summarizeHistory(AgentState $state, array $messages): void
+    protected function summarizeHistory(ChatHistoryInterface $chatHistory, array $messages): void
     {
         // Find a safe cutoff point
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
@@ -110,9 +99,9 @@ class Summarization implements WorkflowMiddleware
         ];
 
         // Update chat history
-        $state->getChatHistory()->flushAll();
+        $chatHistory->flushAll();
         foreach ($newMessages as $message) {
-            $state->getChatHistory()->addMessage($message);
+            $chatHistory->addMessage($message);
         }
     }
 

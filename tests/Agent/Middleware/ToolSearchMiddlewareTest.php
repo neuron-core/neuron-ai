@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -52,7 +53,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $middleware = $this->createMiddleware([]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $middleware->before($node, $event, new AgentState());
 
@@ -64,7 +65,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $middleware = $this->createMiddleware([]);
         $event = new AIInferenceEvent(new SystemMessage('original instructions'), []);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $middleware->before($node, $event, new AgentState());
 
@@ -78,7 +79,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $originalInstructions = $inferenceEvent->instructions->getContent();
         $middleware->before($node, $toolCallEvent, new AgentState());
@@ -92,7 +93,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([]);
         $existing = new ToolSearchTool([]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existing]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $middleware->before($node, $event, new AgentState());
 
@@ -110,7 +111,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $existingTool = $this->createTool('existing', 'An existing tool');
         $middleware = $this->createMiddleware([]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingTool]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $middleware->before($node, $event, new AgentState());
 
@@ -125,7 +126,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $dbTool = $this->createTool('query_database', 'Execute SQL queries');
         $middleware = $this->createMiddleware([$dbTool]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $searchTool = new ToolSearchTool([$dbTool]);
         $searchTool->setInputs(['query' => 'database']);
@@ -145,7 +146,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $dbTool = $this->createTool('query_database', 'Execute SQL queries');
         $middleware = $this->createMiddleware([$dbTool]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $existingDbTool = $this->createTool('query_database', 'Execute SQL queries');
         $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingDbTool]);
@@ -171,7 +172,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         // Should not throw or modify anything
         $middleware->after($node, $toolCallEvent, new AgentState());
@@ -190,7 +191,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $event->setMessages($toolResultMessage);
 
         $middleware = $this->createMiddleware([]);
-        $middleware->after(new ToolNode(), $event, new AgentState());
+        $middleware->after(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
 
         $this->assertCount(0, $event->tools);
     }
@@ -198,7 +199,7 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_after_does_nothing_when_search_found_nothing(): void
     {
         $middleware = $this->createMiddleware([]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $searchTool = new ToolSearchTool([]);
         $searchTool->setInputs(['query' => 'nonexistent']);
@@ -218,7 +219,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $tool1 = $this->createTool('get_weather', 'Get current weather');
         $tool2 = $this->createTool('get_forecast', 'Get weather forecast');
         $middleware = $this->createMiddleware([$tool1, $tool2]);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         $searchTool = new ToolSearchTool([$tool1, $tool2]);
         $searchTool->setInputs(['query' => 'weather']);
@@ -326,7 +327,7 @@ class ToolSearchMiddlewareTest extends TestCase
 
         // Use MCP tools as the search pool
         $middleware = new ToolSearchMiddleware($mcpTools);
-        $node = new ToolNode();
+        $node = new ToolNode(new InMemoryChatHistory());
 
         // Simulate: model calls tool_search for "database" tools
         $searchTool = new ToolSearchTool($mcpTools);

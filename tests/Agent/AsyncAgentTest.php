@@ -33,7 +33,7 @@ class AsyncAgentTest extends TestCase
         $result = $future->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
-        $this->assertInstanceOf(AssistantMessage::class, $result->getChatHistory()->getLastMessage());
+        $this->assertInstanceOf(AssistantMessage::class, $agent->getChatHistory()->getLastMessage());
         $provider->assertCallCount(1);
     }
 
@@ -82,7 +82,7 @@ class AsyncAgentTest extends TestCase
 
         $this->assertInstanceOf(AgentState::class, $agentResult);
         $this->assertEquals('delay_completed', $delayResult);
-        $this->assertInstanceOf(AssistantMessage::class, $agentResult->getChatHistory()->getLastMessage());
+        $this->assertInstanceOf(AssistantMessage::class, $agent->getChatHistory()->getLastMessage());
         $provider->assertCallCount(1);
     }
 }

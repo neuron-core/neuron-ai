@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -57,6 +58,7 @@ class ToolNodeTest extends TestCase
         $errorHandler = fn (Throwable $e, \NeuronAI\Tools\ToolInterface $tool): string => "Error handled: {$e->getMessage()}";
 
         $toolNode = new ToolNode(
+            new InMemoryChatHistory(),
             maxRuns: 10,
             errorHandler: $errorHandler
         );
@@ -102,6 +104,7 @@ class ToolNodeTest extends TestCase
 
         // Create the ToolNode WITHOUT an error handler
         $toolNode = new ToolNode(
+            new InMemoryChatHistory(),
             maxRuns: 10
         );
 
@@ -134,7 +137,7 @@ class ToolNodeTest extends TestCase
     {
         $tool = new TestParametrizedTool('param_tool', 'offset=0');
 
-        $toolNode = new ToolNode(maxRuns: 2);
+        $toolNode = new ToolNode(new InMemoryChatHistory(), maxRuns: 2);
         $state = new AgentState();
 
         // First execution
@@ -165,7 +168,7 @@ class ToolNodeTest extends TestCase
         $tool1 = new TestParametrizedTool('read_tool', 'offset=0');
         $tool2 = new TestParametrizedTool('read_tool', 'offset=100');
 
-        $toolNode = new ToolNode(maxRuns: 1);
+        $toolNode = new ToolNode(new InMemoryChatHistory(), maxRuns: 1);
 
         // First call with offset=0
         $state = new AgentState();
@@ -196,7 +199,7 @@ class ToolNodeTest extends TestCase
         $tool->setCallId('call_1');
         $tool->setInputs([]);
 
-        $toolNode = new ToolNode(maxRuns: 2);
+        $toolNode = new ToolNode(new InMemoryChatHistory(), maxRuns: 2);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
@@ -216,7 +219,7 @@ class ToolNodeTest extends TestCase
     {
         $tool = new TestParametrizedTool('bounded_tool', 'id=123');
 
-        $toolNode = new ToolNode(maxRuns: 1);
+        $toolNode = new ToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
@@ -246,7 +249,7 @@ class ToolNodeTest extends TestCase
 
     public function test_different_parameters_allow_more_calls_than_max_runs(): void
     {
-        $toolNode = new ToolNode(maxRuns: 1);
+        $toolNode = new ToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
 
         // Create tools with different parameters - each should get maxRuns calls

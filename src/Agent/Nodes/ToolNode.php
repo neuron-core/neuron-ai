@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
@@ -26,7 +27,7 @@ use function json_encode;
 /**
  * Node responsible for executing tool calls.
  */
-class ToolNode extends Node
+class ToolNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
@@ -36,9 +37,11 @@ class ToolNode extends Node
     protected $errorHandler;
 
     public function __construct(
+        ChatHistoryInterface $chatHistory,
         protected int $maxRuns = 10,
         ?callable $errorHandler = null
     ) {
+        $this->chatHistory = $chatHistory;
         $this->errorHandler = $errorHandler;
     }
 
@@ -50,7 +53,7 @@ class ToolNode extends Node
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history.
-        $this->addToChatHistory($state, $event->toolCallMessage);
+        $this->addToChatHistory($event->toolCallMessage);
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 

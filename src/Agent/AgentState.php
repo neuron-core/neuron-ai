@@ -4,41 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\ProviderResponse;
-use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\WorkflowState;
-
-use function array_map;
-use function end;
-use function count;
 
 /**
  * Extends WorkflowState with agent-specific state management.
+ *
+ * Pure serializable data: the chat history is a runtime service injected into
+ * agent nodes (see AgentNodeInterface), never carried through the durable
+ * state — each per-step snapshot stays O(1) instead of embedding the whole
+ * conversation.
  */
 class AgentState extends WorkflowState
 {
-    protected ChatHistoryInterface $chatHistory;
-
-    public function getMessage(): Message
-    {
-        return $this->getChatHistory()->getLastMessage();
-    }
-
-    public function getChatHistory(): ChatHistoryInterface
-    {
-        return $this->chatHistory ??= new InMemoryChatHistory();
-    }
-
-    public function setChatHistory(ChatHistoryInterface $chatHistory): AgentState
-    {
-        $this->chatHistory = $chatHistory;
-        return $this;
-    }
-
     /**
      * @param string $toolName The tool name for regular tools, or a custom run key
      *                         when the tool implements HasRunKey.
@@ -63,52 +41,6 @@ class AgentState extends WorkflowState
     public function resetToolRuns(): void
     {
         $this->delete('__tool_runs');
-    }
-
-    public function addStep(Message $message): void
-    {
-        $steps = $this->get('__steps', []);
-
-        if (
-            $message instanceof ToolCallMessage
-            && $steps !== []
-            && end($steps) instanceof ToolCallMessage
-            && $this->callIds($message) === $this->callIds(end($steps))
-        ) {
-            $steps[count($steps) - 1] = $message;
-        } else {
-            $steps[] = $message;
-        }
-
-        $this->set('__steps', $steps);
-    }
-
-    /**
-     * The ordered list of tool callIds on a ToolCallMessage, used to detect a re-write
-     * of an already-recorded step (an approval-state update on replay). Mirrors the
-     * replace-last rule in AbstractChatHistory (ADR 0003).
-     *
-     * @return array<int, string|null>
-     */
-    protected function callIds(ToolCallMessage $message): array
-    {
-        return array_map(
-            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
-            $message->getTools()
-        );
-    }
-
-    /**
-     * @return Message[]
-     */
-    public function getSteps(): array
-    {
-        return $this->get('__steps', []);
-    }
-
-    public function resetSteps(): void
-    {
-        $this->delete('__steps');
     }
 
     public function setResponse(ProviderResponse $response): AgentState

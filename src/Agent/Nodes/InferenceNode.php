@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Node;
 
@@ -15,12 +16,14 @@ use NeuronAI\Workflow\Node;
  * Agent composes exactly one of these per mode, so attaching to any single
  * subclass would otherwise be dropped in the other two modes.
  */
-abstract class InferenceNode extends Node
+abstract class InferenceNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
     public function __construct(
         protected AIProviderInterface $provider,
+        ChatHistoryInterface $chatHistory,
     ) {
+        $this->chatHistory = $chatHistory;
     }
 }

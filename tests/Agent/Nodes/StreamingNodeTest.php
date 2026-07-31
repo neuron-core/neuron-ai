@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
@@ -22,10 +23,11 @@ class StreamingNodeTest extends TestCase
 {
     public function test_live_stream_yields_chunks_and_records_response(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
         $provider->setStreamChunkSize(5);
 
-        $node = new StreamingNode($provider);
+        $node = new StreamingNode($provider, $chatHistory);
         $state = new AgentState();
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
@@ -55,6 +57,7 @@ class StreamingNodeTest extends TestCase
 
     public function test_recovery_serves_cached_response_without_re_streaming(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         // A provider stream is non-resumable, so only the terminal response is
         // durable. After a crash between the memoize() commit and the node-step
         // commit, re-running the node on a fresh engine (same persistence) must
@@ -76,7 +79,7 @@ class StreamingNodeTest extends TestCase
         // Run 1: live stream + record the response as a durable memo.
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
-        $node1 = new StreamingNode($provider);
+        $node1 = new StreamingNode($provider, $chatHistory);
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
         $generator1 = $node1($event, $state);
@@ -96,7 +99,7 @@ class StreamingNodeTest extends TestCase
         // persisted and the response must come from the memo, not from state).
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
-        $node2 = new StreamingNode($provider);
+        $node2 = new StreamingNode($provider, $chatHistory);
         $state2 = new AgentState();
         $state2->set('__workflowId', $workflowId);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));

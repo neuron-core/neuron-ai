@@ -8,6 +8,8 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Nodes\AgentNodeInterface;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -19,7 +21,7 @@ use NeuronAI\Workflow\Node;
  *
  * Preprocessors can transform the query (e.g., query expansion, rewriting).
  */
-class PreProcessNode extends Node
+class PreProcessNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
@@ -27,8 +29,10 @@ class PreProcessNode extends Node
      * @param PreProcessorInterface[] $preProcessors
      */
     public function __construct(
+        ChatHistoryInterface $chatHistory,
         private readonly array $preProcessors
     ) {
+        $this->chatHistory = $chatHistory;
     }
 
     /**
@@ -36,9 +40,9 @@ class PreProcessNode extends Node
      */
     public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
-        $this->addToChatHistory($state, $event->getMessages());
+        $this->addToChatHistory($event->getMessages());
 
-        $query = $state->getChatHistory()->getLastMessage();
+        $query = $this->chatHistory->getLastMessage();
 
         foreach ($this->preProcessors as $processor) {
             $this->emit(new PreProcessing($processor::class, $query));

@@ -118,6 +118,40 @@ mode (`chat()` / `stream()` / `structured()`). They all share the
 `InferenceNode::class` to have it fire in **all three** modes rather than only
 the one whose node class you named.
 
+### `AgentMiddleware` — typed hooks for the agent context
+
+The generic `WorkflowMiddleware` contract receives `NodeInterface`/`WorkflowState`
+(the Workflow layer cannot know agent types, and PHP parameter contravariance
+forbids narrowing in a subclass). `AgentMiddleware` centralizes the runtime
+narrowing once (template method): extend it and implement
+`beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state)` /
+`afterAgentNode(...)` with real types. When the middleware is attached outside
+the agent context, `onAgentContextMismatch($node, $event, $state)` fires instead —
+empty by default; middleware whose silent skip would be a safety hazard override
+it to throw (`ToolApproval` does).
+
+Agent middleware access the chat history through the node they wrap
+(`$node->getChatHistory()`), **never** through their own constructor — so they can
+only ever see the exact instance the node reads and writes.
+
+## Chat history is a service, not state
+
+The chat history is bound to its own storage (SQL, file, memory) and is injected
+into agent nodes as a **constructor dependency** (`AgentNodeInterface` exposes it).
+It never travels through the durable workflow state: `AgentState` is pure
+serializable data, so per-step snapshots stay O(1) instead of embedding the whole
+conversation on every step (and PDO-backed histories never meet the serializer).
+Consequences:
+
+- Nodes and middleware read/write the **live** history; on crash-replay the re-add
+  converges via the replace-last rules (`src/Chat/AGENTS.md`).
+- Durable workflow persistence requires a comparably durable chat history — an
+  `InMemoryChatHistory` loses the thread across processes, so a cross-process
+  resume reconstructs an incomplete prompt (the documented ADR 0003 requirement,
+  now load-bearing).
+- The final message of a run is read from the history (`AgentHandler::getMessage()`),
+  not from state.
+
 ## Persistence & Tool Approval
 
 `ToolApproval` gates tool execution behind human approval. Attach it to `ToolNode::class`

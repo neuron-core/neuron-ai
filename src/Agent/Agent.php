@@ -60,8 +60,8 @@ class Agent extends Workflow implements AgentInterface
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
-            : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
+            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $this->addNodes([
             ...$nodes,
@@ -97,11 +97,12 @@ class Agent extends Workflow implements AgentInterface
         );
 
         $this->compose(
-            new ChatNode($this->resolveProvider()),
+            new ChatNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut)
+            $this->events($payload, $timedOut),
+            $this->getChatHistory(),
         );
     }
 
@@ -121,11 +122,12 @@ class Agent extends Workflow implements AgentInterface
         );
 
         $this->compose(
-            new StreamingNode($this->resolveProvider()),
+            new StreamingNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut)
+            $this->events($payload, $timedOut),
+            $this->getChatHistory(),
         );
     }
 
@@ -151,7 +153,7 @@ class Agent extends Workflow implements AgentInterface
         $class ??= $this->getOutputClass();
 
         $this->compose(
-            new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
+            new StructuredOutputNode($this->resolveProvider(), $this->getChatHistory(), $class, $maxRetries),
         );
 
         /** @var AgentState $finalState */
@@ -187,7 +189,7 @@ class Agent extends Workflow implements AgentInterface
             return;
         }
 
-        $messages = $this->resolveState()->getChatHistory()->getMessages();
+        $messages = $this->getChatHistory()->getMessages();
         $last = end($messages);
         $token = $last instanceof ToolCallMessage ? $last->getResumeToken() : null;
 
