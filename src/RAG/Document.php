@@ -63,7 +63,7 @@ class Document implements JsonSerializable
         return $this;
     }
 
-    public function addMetadata(string $key, string|int $value): Document
+    public function addMetadata(string $key, string|int|float|bool|array|null $value): Document
     {
         $this->metadata[$key] = $value;
         return $this;
