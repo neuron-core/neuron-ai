@@ -26,9 +26,9 @@ class ChatNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
-        $this->addToChatHistory($state, $event->getMessages());
+        $this->addToChatHistory($event->getMessages(), 'history.inbound');
 
-        $chatHistory = $state->getChatHistory();
+        $chatHistory = $this->chatHistory;
         $lastMessage = $chatHistory->getLastMessage();
 
         $this->emit(new InferenceStart($lastMessage));
@@ -47,7 +47,7 @@ class ChatNode extends InferenceNode
         }
 
         // Add the final response to chat history (after tool loop)
-        $this->addToChatHistory($state, $message);
+        $this->addToChatHistory($message, 'history.response');
 
         return new StopEvent();
     }

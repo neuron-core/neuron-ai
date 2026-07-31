@@ -8,33 +8,11 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use PHPUnit\Framework\TestCase;
 
+use function serialize;
+use function unserialize;
+
 class AgentStateTest extends TestCase
 {
-    public function test_tool_attempts_increment_and_retrieve(): void
-    {
-        $state = new AgentState();
-
-        $this->assertSame(0, $state->getToolRuns('calculator'));
-
-        $state->incrementToolRun('calculator');
-        $this->assertSame(1, $state->getToolRuns('calculator'));
-
-        $state->incrementToolRun('calculator');
-        $this->assertSame(2, $state->getToolRuns('calculator'));
-    }
-
-    public function test_tool_attempts_reset(): void
-    {
-        $state = new AgentState();
-
-        $state->incrementToolRun('calculator');
-        $state->incrementToolRun('calculator');
-        $this->assertSame(2, $state->getToolRuns('calculator'));
-
-        $state->resetToolRuns();
-        $this->assertSame(0, $state->getToolRuns('calculator'));
-    }
-
     public function test_add_and_get_steps(): void
     {
         $state = new AgentState();
@@ -61,6 +39,47 @@ class AgentStateTest extends TestCase
 
         $state->resetSteps();
         $this->assertEmpty($state->getSteps());
+    }
+
+    public function test_steps_are_excluded_from_serialization(): void
+    {
+        // The steps transcript is per-execution-cycle and duplicates messages
+        // already persisted in the chat history — it must never reach the
+        // durable step snapshots.
+        $state = new AgentState();
+        $state->set('some_key', 'some_value');
+        $state->addStep(new AssistantMessage('Step 1'));
+
+        /** @var AgentState $restored */
+        $restored = unserialize(serialize($state));
+
+        $this->assertEmpty($restored->getSteps());
+        $this->assertSame('some_value', $restored->get('some_key'));
+    }
+
+    public function test_tool_attempts_increment_and_retrieve(): void
+    {
+        $state = new AgentState();
+
+        $this->assertSame(0, $state->getToolRuns('calculator'));
+
+        $state->incrementToolRun('calculator');
+        $this->assertSame(1, $state->getToolRuns('calculator'));
+
+        $state->incrementToolRun('calculator');
+        $this->assertSame(2, $state->getToolRuns('calculator'));
+    }
+
+    public function test_tool_attempts_reset(): void
+    {
+        $state = new AgentState();
+
+        $state->incrementToolRun('calculator');
+        $state->incrementToolRun('calculator');
+        $this->assertSame(2, $state->getToolRuns('calculator'));
+
+        $state->resetToolRuns();
+        $this->assertSame(0, $state->getToolRuns('calculator'));
     }
 
     public function test_tool_runs_with_key_increment_and_retrieve(): void

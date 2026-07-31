@@ -118,6 +118,30 @@ mode (`chat()` / `stream()` / `structured()`). They all share the
 `InferenceNode::class` to have it fire in **all three** modes rather than only
 the one whose node class you named.
 
+### `AgentMiddleware` — typed hooks for the agent context
+
+Extend `AgentMiddleware` and implement `beforeAgentNode(AgentNodeInterface $node,
+Event $event, AgentState $state)` / `afterAgentNode(...)`. On misattachment
+outside the agent context `onAgentContextMismatch()` fires instead — empty by
+default, `ToolApproval` overrides it to throw. Middleware read the chat history
+from the node they wrap (`$node->getChatHistory()`), never from their own
+constructor.
+
+## Chat history is a service, not state
+
+The chat history is injected into agent nodes as a constructor dependency
+(`AgentNodeInterface`), never carried in `AgentState` — per-step snapshots stay
+O(1) instead of embedding the conversation. Consequences:
+
+- History writes go through `addToChatHistory($messages, $memo)`, which wraps
+  the write in a durable memo so a crash-replay skips it instead of duplicating
+  the tail.
+- Durable workflow persistence requires a comparably durable chat history
+  (`InMemoryChatHistory` loses the thread across processes).
+- `AgentHandler::getMessage()` reads the final message from the history;
+  `AgentState::getSteps()` reports the current execution cycle's messages only
+  (transient, available even on an interrupted final state).
+
 ## Persistence & Tool Approval
 
 `ToolApproval` gates tool execution behind human approval. Attach it to `ToolNode::class`

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\ProviderResponse;
@@ -13,32 +11,34 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_map;
-use function end;
 use function count;
+use function end;
+use function get_object_vars;
 
 /**
  * Extends WorkflowState with agent-specific state management.
+ *
+ * The chat history is a runtime service injected into agent nodes, never part
+ * of this state. The `__steps` accumulator is transient: excluded from durable
+ * snapshots, it reports the messages of the current execution cycle only.
  */
 class AgentState extends WorkflowState
 {
-    protected ChatHistoryInterface $chatHistory;
-
-    public function getMessage(): Message
+    // Exclude the transient `__steps` accumulator from durable snapshots.
+    public function __serialize(): array
     {
-        return $this->getChatHistory()->getLastMessage();
+        $properties = get_object_vars($this);
+        unset($properties['data']['__steps']);
+
+        return $properties;
     }
 
-    public function getChatHistory(): ChatHistoryInterface
+    public function __unserialize(array $properties): void
     {
-        return $this->chatHistory ??= new InMemoryChatHistory();
+        foreach ($properties as $name => $value) {
+            $this->{$name} = $value;
+        }
     }
-
-    public function setChatHistory(ChatHistoryInterface $chatHistory): AgentState
-    {
-        $this->chatHistory = $chatHistory;
-        return $this;
-    }
-
     /**
      * @param string $toolName The tool name for regular tools, or a custom run key
      *                         when the tool implements HasRunKey.
@@ -99,6 +99,8 @@ class AgentState extends WorkflowState
     }
 
     /**
+     * The messages generated during the current execution cycle.
+     *
      * @return Message[]
      */
     public function getSteps(): array

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -53,7 +54,7 @@ class ParallelToolNodeTest extends TestCase
         $tools[0]->setCallId('call_1');
         $tools[1]->setCallId('call_2');
 
-        $toolNode = new ParallelToolNode(maxRuns: 1);
+        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $tools);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $tools);
@@ -81,7 +82,7 @@ class ParallelToolNodeTest extends TestCase
         $tool2->setCallId('call_2');
         $tool2->setInputs([]);
 
-        $toolNode = new ParallelToolNode(maxRuns: 1);
+        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1, $tool2]);
@@ -107,7 +108,7 @@ class ParallelToolNodeTest extends TestCase
         $tools[0]->setCallId('call_1');
         $tools[1]->setCallId('call_2');
 
-        $toolNode = new ParallelToolNode(maxRuns: 1);
+        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $tools);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $tools);
@@ -152,7 +153,7 @@ class ParallelToolNodeTest extends TestCase
         // Run 1: the batch executes and its result is memoized mid-node.
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
-        $node1 = new ParallelToolNode();
+        $node1 = new ParallelToolNode(new InMemoryChatHistory());
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
         foreach ($node1($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -164,7 +165,7 @@ class ParallelToolNodeTest extends TestCase
         // Recovery: brand-new engine, same persistence (simulates a process restart).
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
-        $node2 = new ParallelToolNode();
+        $node2 = new ParallelToolNode(new InMemoryChatHistory());
         $node2->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine2, $stepId));
         foreach ($node2($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.

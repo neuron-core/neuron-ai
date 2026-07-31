@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -41,6 +42,7 @@ class AgentDurabilityTest extends TestCase
         $workflowId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
+        $history = new InMemoryChatHistory();
 
         $searchTool = new CrashSearchTool();
 
@@ -53,6 +55,7 @@ class AgentDurabilityTest extends TestCase
 
         // Run 1: ChatNode completes, tool crashes
         $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setExecutor($executor);
@@ -69,6 +72,7 @@ class AgentDurabilityTest extends TestCase
 
         // Recovery: same workflowId, same step engine → ChatNode:0 memoized
         $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setExecutor($executor);
@@ -82,6 +86,7 @@ class AgentDurabilityTest extends TestCase
 
     public function testChatNodeInferenceMemoizedAcrossCrashRecovery(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         // Crash window under test: ChatNode's inference succeeds and is memoized
         // mid-node, then the node crashes BEFORE its step completes. On recovery with
         // a fresh step engine + same persistence, the node re-executes but the inference
@@ -103,7 +108,7 @@ class AgentDurabilityTest extends TestCase
 
         $state1 = new AgentState();
         $state1->set('__workflowId', $workflowId);
-        $node1 = new ChatNode($provider);
+        $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId));
         $node1($event, $state1);
 
@@ -115,7 +120,7 @@ class AgentDurabilityTest extends TestCase
 
         $state2 = new AgentState();
         $state2->set('__workflowId', $workflowId);
-        $node2 = new ChatNode($provider);
+        $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
         $node2($event, $state2);
 
@@ -127,6 +132,7 @@ class AgentDurabilityTest extends TestCase
         $workflowId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
+        $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
 
@@ -139,6 +145,7 @@ class AgentDurabilityTest extends TestCase
 
         // Run 1: ChatNode completes, ToolApproval pauses BEFORE the tool executes.
         $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
@@ -155,6 +162,7 @@ class AgentDurabilityTest extends TestCase
         // Resume: deliver the approval payload (call_1 approved). Same workflowId →
         // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
         $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
@@ -194,6 +202,7 @@ class AgentDurabilityTest extends TestCase
         $workflowId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
         $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
+        $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
 
@@ -205,6 +214,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
@@ -220,6 +230,7 @@ class AgentDurabilityTest extends TestCase
         // Resume with rejection: the tool is NOT executed; its rejection message
         // is fed back as the tool result and reaches the next inference.
         $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));

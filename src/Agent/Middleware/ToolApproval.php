@@ -6,7 +6,9 @@ namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -14,7 +16,6 @@ use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -44,7 +45,7 @@ use const JSON_PRETTY_PRINT;
  * decided. Decisions are revisable (last-write-wins) until the set completes;
  * completeness is the point of no return.
  */
-class ToolApproval implements WorkflowMiddleware
+class ToolApproval extends AgentMiddleware
 {
     /**
      * @param array<int|string, string|callable(ToolInterface): bool|string> $tools Tool approval configuration.
@@ -77,7 +78,7 @@ class ToolApproval implements WorkflowMiddleware
      *
      * @throws WorkflowInterrupt
      */
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
     {
         if (!$event instanceof ToolCallEvent) {
             return;
@@ -91,9 +92,9 @@ class ToolApproval implements WorkflowMiddleware
         }
 
         // The event tools are fresh replayed instances; history is the memory (ADR 0003).
-        if ($state instanceof AgentState) {
-            $this->restoreRecordedState($state, $event);
-        }
+        $chatHistory = $node->getChatHistory();
+
+        $this->restoreRecordedState($chatHistory->getMessages(), $event);
 
         // Every gated tool that still has no recorded state starts out pending.
         $this->initializePending($toolsToApprove);
@@ -109,14 +110,12 @@ class ToolApproval implements WorkflowMiddleware
         // stamped alongside (ADR 0005) so history alone is sufficient to resume — and it
         // is stamped on the completing pass too: stripping it would open a crash window
         // between set-completion and run-end.
-        if ($state instanceof AgentState) {
-            $workflowId = $state->get('__workflowId');
-            if (is_string($workflowId) && $workflowId !== '') {
-                $event->toolCallMessage->setResumeToken($workflowId);
-            }
-
-            $state->getChatHistory()->addMessage($event->toolCallMessage);
+        $workflowId = $state->get('__workflowId');
+        if (is_string($workflowId) && $workflowId !== '') {
+            $event->toolCallMessage->setResumeToken($workflowId);
         }
+
+        $chatHistory->addMessage($event->toolCallMessage);
 
         // A tool runs iff explicitly approved; silence is never consent.
         $pending = array_filter(
@@ -138,22 +137,26 @@ class ToolApproval implements WorkflowMiddleware
     }
 
     /**
-     * Execute after the node runs.
+     * A silently skipped approval gate is a safety hazard — fail loudly.
      */
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    protected function onAgentContextMismatch(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        //
+        throw new AgentException(sprintf(
+            'ToolApproval requires an agent node and AgentState, got %s with %s.',
+            $node::class,
+            $state::class,
+        ));
     }
 
     /**
      * Restore the previously recorded approval state from chat history onto the fresh
      * event tools. Only runs when the tail message is a ToolCallMessage carrying the
      * same ordered callIds as the event (i.e. a resume of the suspended approval step).
+     *
+     * @param \NeuronAI\Chat\Messages\Message[] $history
      */
-    protected function restoreRecordedState(AgentState $state, ToolCallEvent $event): void
+    protected function restoreRecordedState(array $history, ToolCallEvent $event): void
     {
-        $history = $state->getChatHistory()->getMessages();
-
         if ($history === []) {
             return;
         }

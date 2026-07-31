@@ -12,11 +12,14 @@ use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -30,10 +33,11 @@ use function is_array;
  */
 class Agent extends Workflow implements AgentInterface
 {
-    use HandleAgentState;
     use ResolveProvider;
     use HandleTools;
     use HandleInstructions;
+
+    protected ChatHistoryInterface $chatHistory;
 
     protected bool $parallelToolCalls = false;
 
@@ -44,6 +48,43 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->parallelToolCalls = $enabled;
         return $this;
+    }
+
+    protected function state(): AgentState
+    {
+        return new AgentState();
+    }
+
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new InMemoryChatHistory();
+    }
+
+    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    {
+        $this->chatHistory = $chatHistory;
+        return $this;
+    }
+
+    public function getChatHistory(): ChatHistoryInterface
+    {
+        return $this->chatHistory ??= $this->chatHistory();
+    }
+
+    /**
+     * Steps are per-execution-cycle: a state restored from a replayed snapshot
+     * starts a fresh transcript. Serializing backends already strip it
+     * (AgentState::__serialize); this covers InMemoryPersistence, which stores
+     * live object references.
+     */
+    public function setState(WorkflowState $state): WorkflowInterface
+    {
+        if ($state instanceof AgentState && $state !== $this->state && $state->getSteps() !== []) {
+            $state = clone $state;
+            $state->resetSteps();
+        }
+
+        return parent::setState($state);
     }
 
     /**
@@ -60,8 +101,8 @@ class Agent extends Workflow implements AgentInterface
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
-            : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
+            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $this->addNodes([
             ...$nodes,
@@ -97,11 +138,12 @@ class Agent extends Workflow implements AgentInterface
         );
 
         $this->compose(
-            new ChatNode($this->resolveProvider()),
+            new ChatNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut)
+            $this->events($payload, $timedOut),
+            $this->getChatHistory(),
         );
     }
 
@@ -121,11 +163,12 @@ class Agent extends Workflow implements AgentInterface
         );
 
         $this->compose(
-            new StreamingNode($this->resolveProvider()),
+            new StreamingNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut)
+            $this->events($payload, $timedOut),
+            $this->getChatHistory(),
         );
     }
 
@@ -151,7 +194,7 @@ class Agent extends Workflow implements AgentInterface
         $class ??= $this->getOutputClass();
 
         $this->compose(
-            new StructuredOutputNode($this->resolveProvider(), $class, $maxRetries),
+            new StructuredOutputNode($this->resolveProvider(), $this->getChatHistory(), $class, $maxRetries),
         );
 
         /** @var AgentState $finalState */
@@ -187,7 +230,7 @@ class Agent extends Workflow implements AgentInterface
             return;
         }
 
-        $messages = $this->resolveState()->getChatHistory()->getMessages();
+        $messages = $this->getChatHistory()->getMessages();
         $last = end($messages);
         $token = $last instanceof ToolCallMessage ? $last->getResumeToken() : null;
 

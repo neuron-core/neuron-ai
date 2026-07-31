@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Testing\FakeMiddleware;
@@ -286,7 +287,7 @@ class WorkflowMiddlewareTest extends TestCase
         $workflow = Workflow::make()
             ->addMiddleware(ToolNode::class, $middleware);
 
-        $resolved = $workflow->getMiddlewareForNode(new ParallelToolNode());
+        $resolved = $workflow->getMiddlewareForNode(new ParallelToolNode(new InMemoryChatHistory()));
 
         $this->assertCount(1, $resolved);
         $this->assertSame($middleware, $resolved[0]);

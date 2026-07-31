@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use Generator;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Providers\ProviderResponse;
@@ -18,6 +19,7 @@ class AgentHandler
 
     public function __construct(
         protected Generator $generator,
+        protected ChatHistoryInterface $chatHistory,
     ) {
     }
 
@@ -89,7 +91,9 @@ class AgentHandler
      */
     public function getMessage(): Message
     {
-        return $this->run()->getMessage();
+        $this->run();
+
+        return $this->chatHistory->getLastMessage();
     }
 
     /**

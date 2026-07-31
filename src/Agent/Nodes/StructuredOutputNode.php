@@ -8,6 +8,7 @@ use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -46,10 +47,11 @@ class StructuredOutputNode extends InferenceNode
 {
     public function __construct(
         AIProviderInterface $provider,
+        ChatHistoryInterface $chatHistory,
         protected readonly string $outputClass,
         protected int $maxTries = 1,
     ) {
-        parent::__construct($provider);
+        parent::__construct($provider, $chatHistory);
 
         // Fewer than 1 retry has no meaning for a retry loop — normalize it.
         $this->maxTries = max(1, $this->maxTries);
@@ -63,7 +65,7 @@ class StructuredOutputNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
-        $this->addToChatHistory($state, $event->getMessages());
+        $this->addToChatHistory($event->getMessages(), 'history.inbound');
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
@@ -85,10 +87,10 @@ class StructuredOutputNode extends InferenceNode
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $this->addToChatHistory($state, $correctionMessage);
+                    $this->addToChatHistory($correctionMessage, "history.correction.{$attempt}");
                 }
 
-                $chatHistory = $state->getChatHistory();
+                $chatHistory = $this->chatHistory;
                 $messages = $chatHistory->getMessages();
 
                 $last = clone $chatHistory->getLastMessage();
@@ -118,7 +120,7 @@ class StructuredOutputNode extends InferenceNode
                 }
 
                 // Add the final message to the chat history (after tool loop)
-                $this->addToChatHistory($state, $message);
+                $this->addToChatHistory($message, 'history.response');
 
                 // Process the response: extract, deserialize, and validate
                 $output = $this->processResponse($message, $schema, $this->outputClass);

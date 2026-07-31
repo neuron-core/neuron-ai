@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -39,7 +40,7 @@ class RejectedToolExecutionTest extends TestCase
         $tool->setApprovalState(ApprovalState::Rejected);
         $tool->setResult('TOOL NOT EXECUTED. The user rejected this action.');
 
-        $toolNode = new ToolNode();
+        $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent('test', []);
@@ -76,7 +77,7 @@ class RejectedToolExecutionTest extends TestCase
         $tool->setInputs([]);
         $tool->setApprovalState(ApprovalState::Approved);
 
-        $toolNode = new ToolNode();
+        $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent('test', []);

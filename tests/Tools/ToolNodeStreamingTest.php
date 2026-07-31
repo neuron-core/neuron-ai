@@ -55,14 +55,14 @@ class ToolNodeStreamingTest extends TestCase
         $chatHistory = new InMemoryChatHistory();
         $chatHistory->addMessage(new \NeuronAI\Chat\Messages\UserMessage('Test user message'));
         $chatHistory->addMessage($toolCallMessage);
-        $state = (new AgentState())->setChatHistory($chatHistory);
+        $state = new AgentState();
 
         // Create the events
         $inferenceEvent = new AIInferenceEvent('Test instructions', []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         // Create the ToolNode
-        $toolNode = new ToolNode();
+        $toolNode = new ToolNode($chatHistory);
         $toolNode->setWorkflowContext($state, $inferenceEvent);
 
         // Invoke the node and collect yielded chunks

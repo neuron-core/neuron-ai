@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -25,12 +26,13 @@ class StructuredOutputNodeTest extends TestCase
      */
     public function test_retry_succeeds_across_attempts(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         $provider = new FakeAIProvider(
             new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $node = new StructuredOutputNode($provider, User::class, 1);
+        $node = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
         $state = new AgentState();
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
@@ -54,12 +56,13 @@ class StructuredOutputNodeTest extends TestCase
      */
     public function test_max_tries_floored_to_one(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         $provider = new FakeAIProvider(
             new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $node = new StructuredOutputNode($provider, User::class, 0);
+        $node = new StructuredOutputNode($provider, $chatHistory, User::class, 0);
         $state = new AgentState();
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
@@ -82,6 +85,7 @@ class StructuredOutputNodeTest extends TestCase
      */
     public function test_recovery_recalls_inference_without_re_calling(): void
     {
+        $chatHistory = new InMemoryChatHistory();
         $provider = new FakeAIProvider(
             new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
@@ -100,7 +104,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($workflowId);
-        $node1 = new StructuredOutputNode($provider, User::class, 1);
+        $node1 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
         $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
 
         $firstReturn = $node1($event, $state);
@@ -117,7 +121,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($workflowId);
-        $node2 = new StructuredOutputNode($provider, User::class, 1);
+        $node2 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
         $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
 
         $secondReturn = $node2($event, $state2);

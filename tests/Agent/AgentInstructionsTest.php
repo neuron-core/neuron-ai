@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -76,7 +77,7 @@ class AgentInstructionsTest extends TestCase
             []
         );
 
-        $middleware->before(new ToolNode(), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
 
         $blocks = $event->instructions->getTextBlocks();
         $this->assertCount(3, $blocks);
@@ -90,7 +91,7 @@ class AgentInstructionsTest extends TestCase
         $middleware = new TodoPlanning();
         $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
 
-        $middleware->before(new ToolNode(), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
 
         $blocks = $event->instructions->getTextBlocks();
         $this->assertCount(2, $blocks);
@@ -104,10 +105,10 @@ class AgentInstructionsTest extends TestCase
         $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
 
         // Simulate multiple ChatNode passes (tool loop)
-        $middleware->before(new ToolNode(), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
         $this->assertCount(2, $event->instructions->getContentBlocks());
 
-        $middleware->before(new ToolNode(), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
 
         $this->assertCount(2, $event->instructions->getContentBlocks(), 'Instructions should not grow on second pass.');
     }

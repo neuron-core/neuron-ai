@@ -79,7 +79,7 @@ foreach ($messages as $index => $userMessage) {
         }
 
         // Show token count and message count
-        $chatHistory = $agent->resolveState()->getChatHistory();
+        $chatHistory = $agent->getChatHistory();
         $messageCount = \count($chatHistory->getMessages());
         $totalTokens = $chatHistory->calculateTotalUsage();
 
