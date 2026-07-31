@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
@@ -164,6 +165,17 @@ trait HandleStream
 
         if ($delta['type'] === 'input_json_delta') {
             $this->streamState->composeToolCalls($event);
+
+            $partialJson = $delta['partial_json'] ?? '';
+            $toolCall = $this->streamState->getToolCall($index);
+            if ($partialJson !== '' && $toolCall !== null) {
+                yield new ToolArgumentChunk(
+                    $this->streamState->messageId(),
+                    $toolCall['name'],
+                    $partialJson,
+                    $toolCall['id'],
+                );
+            }
         }
     }
 }

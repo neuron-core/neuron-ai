@@ -93,6 +93,8 @@ class Deepseek extends OpenAI
      */
     protected function processToolCallDelta(array $choice): Generator
     {
+        yield from parent::processToolCallDelta($choice);
+
         if (isset($choice['delta']['reasoning_content'])) {
             $reasoningContent = $choice['delta']['reasoning_content'];
 

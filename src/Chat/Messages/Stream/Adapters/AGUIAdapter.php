@@ -6,6 +6,7 @@ namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 
@@ -34,6 +35,9 @@ class AGUIAdapter extends SSEAdapter
     /** @var array<string, bool> Track which tool calls have started */
     protected array $toolCallStarted = [];
 
+    /** @var array<string, bool> Track which tool calls already streamed their arguments */
+    protected array $toolCallArgsStreamed = [];
+
     protected bool $reasoningStarted = false;
 
     protected ?string $reasoningMessageId = null;
@@ -52,6 +56,7 @@ class AGUIAdapter extends SSEAdapter
         yield from match (true) {
             $chunk instanceof TextChunk => $this->handleText($chunk),
             $chunk instanceof ReasoningChunk => $this->handleReasoning($chunk),
+            $chunk instanceof ToolArgumentChunk => $this->handleToolArgument($chunk),
             $chunk instanceof ToolCallChunk => $this->handleToolCall($chunk),
             $chunk instanceof ToolResultChunk => $this->handleToolResult($chunk),
             default => []
@@ -125,6 +130,51 @@ class AGUIAdapter extends SSEAdapter
         ]);
     }
 
+    protected function handleToolArgument(ToolArgumentChunk $chunk): iterable
+    {
+        // Capture the parent message id before closing the text stream resets it
+        $parentMessageId = $this->currentMessageId;
+
+        // Close any open streams before starting tool calls
+        foreach ($this->endReasoning() as $event) {
+            yield $event;
+        }
+        foreach ($this->endText() as $event) {
+            yield $event;
+        }
+
+        $toolCallId = $chunk->toolCallId
+            ?? $this->toolCallIds[$chunk->toolName]
+            ?? $this->generateId('call');
+        $this->toolCallIds[$chunk->toolName] = $toolCallId;
+
+        // Emit ToolCallStart only once per tool call
+        if (! isset($this->toolCallStarted[$toolCallId])) {
+            $this->toolCallStarted[$toolCallId] = true;
+
+            $event = [
+                'type' => 'TOOL_CALL_START',
+                'toolCallId' => $toolCallId,
+                'toolCallName' => $chunk->toolName,
+            ];
+
+            if ($parentMessageId !== null) {
+                $event['parentMessageId'] = $parentMessageId;
+            }
+
+            yield $this->sse($event);
+        }
+
+        // Stream the argument fragment
+        $this->toolCallArgsStreamed[$toolCallId] = true;
+
+        yield $this->sse([
+            'type' => 'TOOL_CALL_ARGS',
+            'toolCallId' => $toolCallId,
+            'delta' => $chunk->delta,
+        ]);
+    }
+
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
         // Capture the parent message id before closing the text stream resets it
@@ -158,9 +208,9 @@ class AGUIAdapter extends SSEAdapter
             yield $this->sse($event);
         }
 
-        // Stream tool arguments as JSON
+        // Stream tool arguments as JSON, unless already streamed as ToolArgumentChunk deltas
         $args = $chunk->tool->getInputs();
-        if ($args !== []) {
+        if ($args !== [] && ! isset($this->toolCallArgsStreamed[$toolCallId])) {
             yield $this->sse([
                 'type' => 'TOOL_CALL_ARGS',
                 'toolCallId' => $toolCallId,

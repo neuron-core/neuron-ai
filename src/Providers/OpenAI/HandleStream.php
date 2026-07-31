@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
@@ -99,8 +100,8 @@ trait HandleStream
 
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
-                toolcall:
                 yield from $this->processToolCallDelta($choice);
+                toolcall:
                 $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()
@@ -134,12 +135,32 @@ trait HandleStream
      * to store provider-specific data that will be available in enrichMessage().
      *
      * Can yield custom chunk types (e.g., ReasoningChunk) for real-time streaming.
+     * Overrides should call `yield from parent::processToolCallDelta($choice)` to
+     * preserve tool argument streaming.
      *
      * @return Generator<StreamChunk>
      */
     protected function processToolCallDelta(array $choice): Generator
     {
-        yield from [];
+        foreach ($choice['delta']['tool_calls'] ?? [] as $call) {
+            $arguments = $call['function']['arguments'] ?? '';
+            if ($arguments === '') {
+                continue;
+            }
+
+            // The entry is created by composeToolCalls() on the delta carrying the tool name.
+            $toolCall = $this->streamState->getToolCall($call['index']);
+            if ($toolCall === null) {
+                continue;
+            }
+
+            yield new ToolArgumentChunk(
+                $this->streamState->messageId(),
+                $toolCall['function']['name'],
+                $arguments,
+                $toolCall['id'] ?? null,
+            );
+        }
     }
 
     /**

@@ -91,6 +91,16 @@ class BasicStreamState
         return $this->toolCalls;
     }
 
+    /**
+     * Raw provider-specific tool call entry as accumulated during streaming.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getToolCall(int|string $index): ?array
+    {
+        return $this->toolCalls[$index] ?? null;
+    }
+
     public function addMetadata(string $key, mixed $value): self
     {
         $this->metadata[$key] = $value;

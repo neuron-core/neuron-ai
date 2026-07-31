@@ -6,6 +6,7 @@ namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\UniqueIdGenerator;
@@ -22,6 +23,9 @@ class VercelAIAdapter extends SSEAdapter
     /** @var array<string, string> */
     protected array $toolCallIds = [];
 
+    /** @var array<string, bool> Track which tool calls emitted tool-input-start */
+    protected array $toolInputStarted = [];
+
     public function transform(object $chunk): iterable
     {
         // Lazy init on the first chunk
@@ -33,6 +37,7 @@ class VercelAIAdapter extends SSEAdapter
         yield from match (true) {
             $chunk instanceof TextChunk => $this->handleText($chunk),
             $chunk instanceof ReasoningChunk => $this->handleReasoning($chunk),
+            $chunk instanceof ToolArgumentChunk => $this->handleToolArgument($chunk),
             $chunk instanceof ToolCallChunk => $this->handleToolCall($chunk),
             $chunk instanceof ToolResultChunk => $this->handleToolResult($chunk),
             default => []
@@ -59,9 +64,36 @@ class VercelAIAdapter extends SSEAdapter
         ]);
     }
 
+    protected function handleToolArgument(ToolArgumentChunk $chunk): iterable
+    {
+        $callId = $chunk->toolCallId
+            ?? $this->toolCallIds[$chunk->toolName]
+            ?? $this->generateId('call');
+        $this->toolCallIds[$chunk->toolName] = $callId;
+
+        if (!isset($this->toolInputStarted[$callId])) {
+            $this->toolInputStarted[$callId] = true;
+
+            yield $this->sse([
+                'type' => 'tool-input-start',
+                'toolCallId' => $callId,
+                'toolName' => $chunk->toolName,
+            ]);
+        }
+
+        yield $this->sse([
+            'type' => 'tool-input-delta',
+            'toolCallId' => $callId,
+            'inputTextDelta' => $chunk->delta,
+        ]);
+    }
+
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
-        $callId = $this->generateId('call');
+        // Reuse the call id of the streamed argument deltas, if any
+        $callId = $chunk->tool->getCallId()
+            ?? $this->toolCallIds[$chunk->tool->getName()]
+            ?? $this->generateId('call');
         $this->toolCallIds[$chunk->tool->getName()] = $callId;
 
         yield $this->sse([

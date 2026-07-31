@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
@@ -90,6 +91,19 @@ trait HandleStream
             // Compile tool calls
             if ($this->isToolCallPart($line)) {
                 $this->streamState->composeToolCalls($line);
+
+                foreach ($choice['delta']['tool_calls'] as $call) {
+                    $arguments = $call['function']['arguments'] ?? '';
+                    $toolCall = $this->streamState->getToolCall($call['index']);
+                    if ($arguments !== '' && $toolCall !== null) {
+                        yield new ToolArgumentChunk(
+                            $this->streamState->messageId(),
+                            $toolCall['function']['name'],
+                            $arguments,
+                            $toolCall['id'] ?? null,
+                        );
+                    }
+                }
 
                 // Handle tool calls
                 if ($choice['finish_reason'] === 'tool_calls') {

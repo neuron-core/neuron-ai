@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
@@ -84,7 +85,17 @@ trait HandleStream
                 }
 
                 if ($toolContent !== null && isset($event['contentBlockDelta']['delta']['toolUse'])) {
-                    $toolContent['toolUse']['input'] .= $event['contentBlockDelta']['delta']['toolUse']['input'];
+                    $input = $event['contentBlockDelta']['delta']['toolUse']['input'];
+                    $toolContent['toolUse']['input'] .= $input;
+
+                    if ($input !== '') {
+                        yield new ToolArgumentChunk(
+                            $this->streamState->messageId(),
+                            $toolContent['toolUse']['name'],
+                            $input,
+                            $toolContent['toolUse']['toolUseId'] ?? null,
+                        );
+                    }
                 }
             }
 

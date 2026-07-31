@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
@@ -83,6 +84,21 @@ trait HandleStream
                     }
                     if ($event['item']['type'] === 'message') {
                         $this->streamState->addContentBlock($event['item']['id'], new TextContent($event['item']['content'][0]['text'] ?? ''));
+                    }
+                    break;
+
+                    // Stream tool call argument fragments. The final arguments are
+                    // consolidated by the "done" event below, so this only yields.
+                case 'response.function_call_arguments.delta':
+                    $delta = $event['delta'] ?? '';
+                    $toolCall = $this->streamState->getToolCall($event['item_id']);
+                    if ($delta !== '' && $toolCall !== null) {
+                        yield new ToolArgumentChunk(
+                            $event['item_id'],
+                            $toolCall['name'],
+                            $delta,
+                            $toolCall['call_id'] ?? null,
+                        );
                     }
                     break;
 

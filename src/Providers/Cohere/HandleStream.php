@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
@@ -48,6 +49,17 @@ trait HandleStream
             // Compile tool calls
             if ($line['type'] === 'tool-call-start' || $line['type'] === 'tool-call-delta') {
                 $this->streamState->composeToolCalls($line);
+
+                $arguments = $line['delta']['message']['tool_calls']['function']['arguments'] ?? '';
+                $toolCall = $this->streamState->getToolCall($line['index']);
+                if ($arguments !== '' && $toolCall !== null) {
+                    yield new ToolArgumentChunk(
+                        $this->streamState->messageId(),
+                        $toolCall['function']['name'],
+                        $arguments,
+                        $toolCall['id'] ?? null,
+                    );
+                }
             }
 
             if ($line['type'] === 'tool-call-end') {

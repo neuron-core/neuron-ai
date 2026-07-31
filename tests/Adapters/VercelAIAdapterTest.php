@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
@@ -76,11 +77,11 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_transform_reasoning_chunk(): void
     {
-        // Initialize with a text chunk first to set message ID
-        $this->adapter->transform(new TextChunk('msg_123', 'init'));
+        // Initialize with a text chunk first (consume the generator so it executes)
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
 
         $chunk = new ReasoningChunk('sig_123', 'Thinking...');
-        $result = iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk), false);
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"reasoning-delta"', $result[0]);
@@ -89,13 +90,13 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_transform_tool_call_chunk(): void
     {
-        // Initialize with a text chunk first
-        $this->adapter->transform(new TextChunk('msg_123', 'init'));
+        // Initialize with a text chunk first (consume the generator so it executes)
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
 
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
         $chunk = new ToolCallChunk($tool);
 
-        $result = iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk), false);
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"tool-input-available"', $result[0]);
@@ -105,20 +106,67 @@ class VercelAIAdapterTest extends TestCase
 
     public function test_transform_tool_result_chunk(): void
     {
-        // Initialize and call tool first
-        $this->adapter->transform(new TextChunk('msg_123', 'init'));
+        // Initialize and call tool first (consume the generators so they execute)
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        $this->adapter->transform(new ToolCallChunk($tool));
+        iterator_to_array($this->adapter->transform(new ToolCallChunk($tool)), false);
 
         // Now send result
         $tool->setResult('42');
         $chunk = new ToolResultChunk($tool);
 
-        $result = iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk), false);
 
         $this->assertCount(1, $result);
         $this->assertStringContainsString('"type":"tool-output-available"', $result[0]);
         $this->assertStringContainsString('"output":"42"', $result[0]);
+    }
+
+    public function test_transform_tool_argument_chunks_stream_input_deltas(): void
+    {
+        // Initialize with a text chunk first (consume the generator so it executes)
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
+
+        $first = iterator_to_array($this->adapter->transform(
+            new ToolArgumentChunk('msg_123', 'calculator', '{"operation":', 'call_1')
+        ), false);
+
+        // First fragment opens the input stream
+        $this->assertCount(2, $first);
+        $this->assertStringContainsString('"type":"tool-input-start"', $first[0]);
+        $this->assertStringContainsString('"toolCallId":"call_1"', $first[0]);
+        $this->assertStringContainsString('"toolName":"calculator"', $first[0]);
+        $this->assertStringContainsString('"type":"tool-input-delta"', $first[1]);
+        $this->assertStringContainsString('"inputTextDelta":"{\"operation\":"', $first[1]);
+
+        $second = iterator_to_array($this->adapter->transform(
+            new ToolArgumentChunk('msg_123', 'calculator', '"add"}', 'call_1')
+        ), false);
+
+        // Subsequent fragments only emit deltas
+        $this->assertCount(1, $second);
+        $this->assertStringContainsString('"type":"tool-input-delta"', $second[0]);
+        $this->assertStringContainsString('"toolCallId":"call_1"', $second[0]);
+    }
+
+    public function test_tool_call_chunk_reuses_streamed_call_id(): void
+    {
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
+        iterator_to_array($this->adapter->transform(new ToolArgumentChunk('msg_123', 'calculator', '{"operation":"add"}', 'call_1')), false);
+
+        $tool = $this->createMockTool('calculator', ['operation' => 'add'])->setCallId('call_1');
+        $result = iterator_to_array($this->adapter->transform(new ToolCallChunk($tool)), false);
+
+        $this->assertCount(1, $result);
+        $this->assertStringContainsString('"type":"tool-input-available"', $result[0]);
+        $this->assertStringContainsString('"toolCallId":"call_1"', $result[0]);
+
+        $tool->setResult('42');
+        $result = iterator_to_array($this->adapter->transform(new ToolResultChunk($tool)), false);
+
+        $this->assertCount(1, $result);
+        $this->assertStringContainsString('"type":"tool-output-available"', $result[0]);
+        $this->assertStringContainsString('"toolCallId":"call_1"', $result[0]);
     }
 
     public function test_message_id_is_consistent_across_chunks(): void
@@ -154,7 +202,10 @@ class VercelAIAdapterTest extends TestCase
     public function test_sse_format_is_correct(): void
     {
         $chunk = new TextChunk('msg_123', 'Test');
-        $result = iterator_to_array($this->adapter->transform($chunk));
+        $result = iterator_to_array($this->adapter->transform($chunk), false);
+
+        // Both the lazy "start" event and the text-delta must survive collection
+        $this->assertCount(2, $result);
 
         foreach ($result as $line) {
             $this->assertStringStartsWith('data: ', $line);
