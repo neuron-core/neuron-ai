@@ -27,7 +27,7 @@ if ($autoloadFile === '') {
 
 // Load the custom file first, in addition to the default autoloader below
 if ($autoloadFile !== null) {
-    if (!file_exists($autoloadFile)) {
+    if (!is_file($autoloadFile)) {
         fwrite(STDERR, "Error: autoload file not found: $autoloadFile\n");
         exit(1);
     }
