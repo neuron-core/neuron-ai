@@ -3,33 +3,50 @@
 
 declare(strict_types=1);
 
-// Find autoloader
-$autoloadPaths = [
-    __DIR__ . '/../vendor/autoload.php',
-    __DIR__ . '/../../../autoload.php',
-    __DIR__ . '/../../../../autoload.php',
-];
+$autoloadFile = null;
+$args = [$argv[0]];
+for ($i = 1; $i < $argc; $i++) {
+    if ($argv[$i] === '--autoload-file') {
+        if (!isset($argv[$i + 1])) {
+            fwrite(STDERR, 'The --autoload-file option requires a file path' . PHP_EOL);
+            exit(1);
+        }
 
-$autoloaderFound = false;
-foreach ($autoloadPaths as $autoloadPath) {
-    if (file_exists($autoloadPath)) {
-        require_once $autoloadPath;
-        $autoloaderFound = true;
-        break;
+        $autoloadFile = $argv[++$i];
+    } elseif (str_starts_with($argv[$i], '--autoload-file=')) {
+        $autoloadFile = substr($argv[$i], strlen('--autoload-file='));
+    } else {
+        $args[] = $argv[$i];
     }
 }
 
-if (!$autoloaderFound) {
+if ($autoloadFile === '') {
+    fwrite(STDERR, 'The --autoload-file option requires a file path' . PHP_EOL);
+    exit(1);
+}
+
+// Find default autoloader
+if ($autoloadFile === null) {
+    $autoloadFile = current(array_filter([
+        __DIR__ . '/../vendor/autoload.php',
+        __DIR__ . '/../../../autoload.php',
+        __DIR__ . '/../../../../autoload.php',
+    ], fn (string $p): bool => file_exists($p))) ?: null;
+}
+
+if ($autoloadFile === null) {
     fwrite(STDERR, "Error: Could not find Composer autoloader.\n");
     fwrite(STDERR, "Please run 'composer install' first.\n");
     exit(1);
 }
 
+require_once $autoloadFile;
+
 use NeuronAI\Console\NeuronCli;
 
 try {
     $command = new NeuronCli();
-    $exitCode = $command->run($argv);
+    $exitCode = $command->run($args);
     exit($exitCode);
 } catch (Throwable $e) {
     fwrite(STDERR, "Fatal Error: " . $e->getMessage() . "\n");

@@ -94,11 +94,13 @@ class NeuronCli
               make:event      Create a new Event class
 
             Options:
-              --help, -h   Show this help message
+              --autoload-file=<path>  Load a custom autoloader file before running the command
+              --help, -h              Show this help message
 
             Examples:
               neuron evaluation --path=/path/to/evaluators
               neuron evaluation /path/to/evaluators --verbose
+              neuron evaluation /path/to/evaluators --autoload-file=bootstrap.php
               neuron make:agent MyAgent
               neuron make:tool MyApp\Tools\MyTool
               neuron --help
