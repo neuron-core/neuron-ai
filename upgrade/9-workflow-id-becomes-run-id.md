@@ -25,28 +25,7 @@ What changed:
    `resume_token` / `__workflowId` keys is still read transparently, so in-flight
    suspended runs persisted before the upgrade remain resumable.
 
-## 1. Migrate the workflow steps table
-
-Only needed if you use `DatabasePersistence` or `EloquentPersistence`. Rename the
-`workflow_id` column to `run_id` (the default table name `workflow_steps` is unchanged):
-
-MySQL:
-
-```sql
-ALTER TABLE workflow_steps RENAME COLUMN workflow_id TO run_id;
-```
-
-PostgreSQL / SQLite:
-
-```sql
-ALTER TABLE workflow_steps RENAME COLUMN workflow_id TO run_id;
-```
-
-If the column is part of a unique key or index (e.g. the upsert key used by
-`DatabasePersistence`), the rename preserves it on every mainstream engine — no index
-changes needed.
-
-## 2. Update your code
+## Update your code
 
 ```php
 // Before
