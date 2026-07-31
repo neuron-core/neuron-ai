@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use NeuronAI\Chat\History\AbstractChatHistory;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
@@ -32,6 +33,8 @@ interface AgentInterface
     public function getTools(): array;
 
     public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
+
+    public function getChatHistory(): ChatHistoryInterface;
 
     /**
      * @param Message|Message[] $messages

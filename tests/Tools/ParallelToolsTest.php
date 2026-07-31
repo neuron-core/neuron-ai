@@ -268,8 +268,8 @@ class ParallelToolsTest extends TestCase
 
         $handler = $agent->stream(new UserMessage('Run tools in parallel'));
 
-        $state = $handler->run();
-        $this->assertSame('I have results from both tools.', $state->getMessage()->getContent());
+        $handler->run();
+        $this->assertSame('I have results from both tools.', $handler->getMessage()->getContent());
         $provider->assertCallCount(2);
         $provider->assertMethodCallCount('stream', 2);
     }
