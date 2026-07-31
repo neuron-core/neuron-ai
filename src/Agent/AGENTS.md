@@ -155,6 +155,11 @@ Consequences:
   now load-bearing).
 - The final message of a run is read from the history (`AgentHandler::getMessage()`),
   not from state.
+- `AgentState::getSteps()` reports the messages generated during the **current
+  execution cycle** (available on the final state even when interrupted). The
+  accumulator is transient — excluded from durable snapshots and reset when a
+  replayed snapshot is restored — so a resumed run reports only the messages
+  produced since the resume; the full thread lives in the chat history.
 
 ## Persistence & Tool Approval
 

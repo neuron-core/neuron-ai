@@ -37,9 +37,9 @@ trait ChatHistoryHelper
      */
     protected function addToChatHistory(Message|array $messages, string $memo): void
     {
-        $this->memoize($memo, function () use ($messages): bool {
-            $messages = is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? $messages : [$messages];
 
+        $this->memoize($memo, function () use ($messages): bool {
             foreach ($messages as $message) {
                 $this->emit(new MessageSaving($message));
                 $this->chatHistory->addMessage($message);
@@ -48,5 +48,15 @@ trait ChatHistoryHelper
 
             return true;
         });
+
+        // Record the messages on the current execution cycle's transcript —
+        // outside the memo, so a replayed (skipped) write still registers the
+        // message this cycle processed. The transcript is transient state
+        // (excluded from durable snapshots, see AgentState).
+        if (isset($this->state) && $this->state instanceof AgentState) {
+            foreach ($messages as $message) {
+                $this->state->addStep($message);
+            }
+        }
     }
 }

@@ -133,6 +133,55 @@ class AgentDurableHistoryTest extends TestCase
         );
     }
 
+    public function test_final_state_carries_the_current_cycle_steps_across_interrupt(): void
+    {
+        // The steps transcript is per-execution-cycle: the interrupted run's final
+        // state reports the messages produced before the pause, and the resumed
+        // run's final state reports only the messages produced since the resume —
+        // the transcript is transient and never restored from durable snapshots.
+        $workflowId = 'steps_cycle_test';
+        $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
+        $executor = new \NeuronAI\Workflow\Executor\WorkflowExecutor(new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence));
+        $history = new \NeuronAI\Chat\History\InMemoryChatHistory();
+
+        $searchTool = new SearchTool();
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+            ]),
+            new AssistantMessage('Here are the results.'),
+        );
+
+        $agent1 = Agent::make(resumeToken: $workflowId);
+        $agent1->setChatHistory($history);
+        $agent1->setAiProvider($provider);
+        $agent1->addTool($searchTool);
+        $agent1->setExecutor($executor);
+        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
+
+        $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'))->run();
+
+        $this->assertTrue($state1->isInterrupted());
+        $steps1 = $state1->getSteps();
+        $this->assertCount(1, $steps1, 'The interrupted cycle processed only the inbound user message');
+        $this->assertSame('Search for PHP frameworks', $steps1[0]->getContent());
+
+        $agent2 = Agent::make(resumeToken: $workflowId);
+        $agent2->setChatHistory($history);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->setExecutor($executor);
+        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
+
+        $state2 = $agent2->chat(payload: ['call_1' => 'approve'])->run();
+
+        $steps2 = $state2->getSteps();
+        $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
+        $this->assertInstanceOf(ToolCallMessage::class, $steps2[0]);
+        $this->assertSame('Here are the results.', $steps2[2]->getContent());
+    }
+
     public function test_crash_replay_does_not_duplicate_history_writes(): void
     {
         // History writes are durable memos: when a node crashes after writing to

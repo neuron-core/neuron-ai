@@ -28,9 +28,12 @@ $handler = $agent->chat($message);
 $handler->getMessage();             // unchanged — reads the history tail
 ```
 
-`AgentState::addStep()` / `getSteps()` / `resetSteps()` are removed — nothing in
-the framework consumed them, and the duplicate message copy was the second half
-of the quadratic snapshot growth. Read the conversation from the chat history.
+`AgentState::getSteps()` still reports the messages generated during the
+execution cycle — including on an interrupted final state — but the accumulator
+is now **transient**: it is excluded from durable snapshots (the duplicate
+message copy was the second half of the quadratic snapshot growth), so a
+*resumed* run reports only the messages produced since the resume, not the
+whole thread. Read the full conversation from the chat history.
 
 ### Agent node constructors take the history
 

@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -68,6 +69,24 @@ class Agent extends Workflow implements AgentInterface
     public function getChatHistory(): ChatHistoryInterface
     {
         return $this->chatHistory ??= $this->chatHistory();
+    }
+
+    /**
+     * A state restored from a persisted snapshot (replay of a completed step)
+     * starts this cycle's transcript fresh: steps are per-execution-cycle,
+     * never inherited from a previous run. Serializing backends already strip
+     * them (AgentState::__serialize); this covers InMemoryPersistence, which
+     * stores live object references. Clone before resetting so the shared
+     * object keeps the transcript it reported to its own cycle's caller.
+     */
+    public function setState(WorkflowState $state): WorkflowInterface
+    {
+        if ($state instanceof AgentState && $state !== $this->state && $state->getSteps() !== []) {
+            $state = clone $state;
+            $state->resetSteps();
+        }
+
+        return parent::setState($state);
     }
 
     /**
