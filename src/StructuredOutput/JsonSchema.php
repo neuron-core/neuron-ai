@@ -270,15 +270,12 @@ class JsonSchema
     }
 
     /**
-     * Get the Property attribute if it exists on a property
+     * Get the SchemaProperty definition for a property, from the
+     * SchemaPropertiesInterface runtime map or the attribute.
      */
     protected function getPropertyAttribute(ReflectionProperty $property): ?SchemaProperty
     {
-        $attributes = $property->getAttributes(SchemaProperty::class);
-        if ($attributes !== []) {
-            return $attributes[0]->newInstance();
-        }
-        return null;
+        return SchemaProperty::resolve($property);
     }
 
     /**
