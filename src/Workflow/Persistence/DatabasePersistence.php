@@ -18,10 +18,15 @@ class DatabasePersistence implements PersistenceInterface
 
     public function save(string $runId, string $stepId, StepResult $result): void
     {
+        // MySQL/MariaDB have no ON CONFLICT; PostgreSQL and SQLite have no ON DUPLICATE KEY.
+        $upsert = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql'
+            ? 'ON DUPLICATE KEY UPDATE result = VALUES(result), updated_at = CURRENT_TIMESTAMP'
+            : 'ON CONFLICT (run_id, step_id) DO UPDATE SET result = excluded.result, updated_at = CURRENT_TIMESTAMP';
+
         $stmt = $this->pdo->prepare("
             INSERT INTO {$this->table} (run_id, step_id, result, created_at, updated_at)
-            VALUES (:run_id, :step_id, :result, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE result = VALUES(result), updated_at = NOW()
+            VALUES (:run_id, :step_id, :result, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            {$upsert}
         ");
 
         $stmt->execute([
