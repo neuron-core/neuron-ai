@@ -25,22 +25,30 @@ if ($autoloadFile === '') {
     exit(1);
 }
 
-// Find default autoloader
-if ($autoloadFile === null) {
-    $autoloadFile = current(array_filter([
-        __DIR__ . '/../vendor/autoload.php',
-        __DIR__ . '/../../../autoload.php',
-        __DIR__ . '/../../../../autoload.php',
-    ], fn (string $p): bool => file_exists($p))) ?: null;
+// Load the custom file first, in addition to the default autoloader below
+if ($autoloadFile !== null) {
+    if (!file_exists($autoloadFile)) {
+        fwrite(STDERR, "Error: autoload file not found: $autoloadFile\n");
+        exit(1);
+    }
+
+    require_once $autoloadFile;
 }
 
-if ($autoloadFile === null) {
+// Find default autoloader
+$defaultAutoload = current(array_filter([
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+    __DIR__ . '/../../../../autoload.php',
+], fn (string $p): bool => file_exists($p))) ?: null;
+
+if ($defaultAutoload === null) {
     fwrite(STDERR, "Error: Could not find Composer autoloader.\n");
     fwrite(STDERR, "Please run 'composer install' first.\n");
     exit(1);
 }
 
-require_once $autoloadFile;
+require_once $defaultAutoload;
 
 use NeuronAI\Console\NeuronCli;
 

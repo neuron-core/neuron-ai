@@ -94,7 +94,7 @@ class NeuronCli
               make:event      Create a new Event class
 
             Options:
-              --autoload-file=<path>  Load a custom autoloader file before running the command
+              --autoload-file=<path>  Load a custom bootstrap file before the default autoloader
               --help, -h              Show this help message
 
             Examples:
