@@ -66,7 +66,10 @@ class NeuronCli extends Command
 
         try {
             // Prepare arguments for the sub-command (restore script name simulation)
-            return $factory()->run(['neuron', ...$args]);
+            $command = $factory();
+            // Inherit the error stream so redirected output propagates to sub-commands
+            $command->setErrorStream($this->errorStream);
+            return $command->run(['neuron', ...$args]);
         } catch (Throwable $e) {
             $this->printError("Error executing command '{$commandName}': " . $e->getMessage());
             return 1;

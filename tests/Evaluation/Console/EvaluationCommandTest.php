@@ -10,6 +10,9 @@ use PHPUnit\Framework\TestCase;
 
 use function ob_end_clean;
 use function ob_start;
+use function fopen;
+use function rewind;
+use function stream_get_contents;
 
 class EvaluationCommandTest extends TestCase
 {
@@ -47,12 +50,20 @@ class EvaluationCommandTest extends TestCase
     public function testRejectsInvalidConcurrency(): void
     {
         $command = new EvaluationCommand();
+        /** @var resource $stream */
+        $stream = fopen('php://memory', 'r+');
+        $command->setErrorStream($stream);
 
         ob_start();
         $exitCode = $command->run(['evaluation', __DIR__ . '/Fixtures', '--concurrency=0']);
         ob_end_clean();
 
-        // The rejection message goes to STDERR; the exit code is the observable contract here
         $this->assertEquals(1, $exitCode);
+
+        rewind($stream);
+        $this->assertStringContainsString(
+            'Concurrency must be a positive integer',
+            (string) stream_get_contents($stream)
+        );
     }
 }

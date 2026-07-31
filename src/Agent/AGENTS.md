@@ -160,9 +160,8 @@ declaration and a config callback return `bool|string` — a string counts as `t
 doubles as the approval reason shown to the approver (persisted as `approvalReason` on the
 tool entry in chat history, exposed on the `ApprovalRequest` actions as `reason`). When a gated
 tool is requested, `chat()` returns suspended instead of completed — this requires **workflow
-persistence AND a durable chat history** (chat history is the system of record for approval
-state — ADR 0003). `InMemoryChatHistory` keeps the safety property but loses progress across
-processes.
+persistence AND a durable chat history** (the suspend-time `ToolCallMessage` in chat history
+is what lets a cold process render and resume the pending approval — ADR 0006).
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -173,20 +172,24 @@ $agent = YouTubeAgent::make()
     ->addMiddleware(ToolNode::class, new ToolApproval());
 ```
 
-Resume delivers decisions as an **incremental** payload keyed by tool callId — only NEW
-decisions, never a restatement:
+Resume delivers decisions as a **cumulative** payload keyed by tool callId — the entire
+decision set, restated on every resume (ADR 0006):
 
 ```php
 $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 
-A tool runs iff explicitly approved; silence is never consent. Decisions are revisable
-(last-write-wins) until the full set completes. The UI re-renders pending approvals by
-reading chat history (last message, tools with `getApprovalState()`) — no workflow boot.
-The thread must stay **locked** until every decision is delivered — thread integrity is the
-application's responsibility (ADR 0003). There is no agent-level guard: if a new turn slips
-through anyway, the chat history's message-alternation rule rejects the `UserMessage` appended
-after the pending `ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
+A tool runs iff explicitly approved; silence is never consent. An incomplete payload
+re-suspends, and partial decisions are deliberately **not** persisted anywhere —
+accumulation lives with the caller (an app collecting decisions one at a time gathers
+them itself before resuming). The latest payload wins, so decisions are revisable until
+the set completes. The UI re-renders pending approvals by reading chat history (last
+message, tools with `getApprovalState()`) — no workflow boot; final outcomes are read
+from the `ToolResultMessage` that follows. The thread must stay **locked** until the
+full decision set is delivered — thread integrity is the application's responsibility.
+There is no agent-level guard: if a new turn slips through anyway, the chat history's
+message-alternation rule rejects the `UserMessage` appended after the pending
+`ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
 
 ### Resume token lives in chat history (ADR 0005)
 

@@ -22,6 +22,7 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
+use function end;
 use function json_encode;
 
 /**
@@ -52,8 +53,17 @@ class ToolNode extends Node implements AgentNodeInterface
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
-        // the ToolNode before the tool call is added to the history.
-        $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+        // the ToolNode before the tool call is added to the history. The history is
+        // append-only (ADR 0006): when ToolApproval already wrote this message at suspend
+        // time it sits at the tail, and the write is skipped instead of duplicated — but
+        // the message still belongs to this cycle's transcript.
+        $messages = $this->chatHistory->getMessages();
+        $tail = end($messages);
+        if ($tail === false || !$event->toolCallMessage->isSameToolCall($tail)) {
+            $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+        } else {
+            $state->addStep($event->toolCallMessage);
+        }
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 

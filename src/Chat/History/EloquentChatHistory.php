@@ -58,30 +58,6 @@ class EloquentChatHistory extends AbstractChatHistory
         ]);
     }
 
-    protected function onLastMessageReplaced(Message $message): void
-    {
-        /** @var Model $model */
-        $model = new $this->modelClass();
-
-        $lastId = $model->newQuery()
-            ->where('thread_id', $this->threadId)
-            ->orderByDesc('id')
-            ->value('id');
-
-        if ($lastId === null) {
-            $this->onNewMessage($message);
-            return;
-        }
-
-        $model->newQuery()
-            ->where('id', $lastId)
-            ->update([
-                'role' => $message->getRole(),
-                'content' => $message->getContentBlocks(),
-                'meta' => $this->serializeMessageMeta($message),
-            ]);
-    }
-
     protected function onTrimHistory(int $index): void
     {
         if ($index <= 0) {

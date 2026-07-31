@@ -167,7 +167,7 @@ class ToolApprovalTest extends TestCase
         $this->assertDoesNotInterrupt($middleware, $node, $event, $state, 'A callable returning false must waive a tool that declares true');
     }
 
-    public function test_incremental_resume_partial_re_suspends_with_progress(): void
+    public function test_cumulative_resume_partial_re_suspends_with_progress(): void
     {
         $middleware = new ToolApproval();
         $node = new ToolNode(new InMemoryChatHistory());
@@ -178,7 +178,7 @@ class ToolApprovalTest extends TestCase
         $b = $this->gatedTool('b', 'call_b');
         $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$a, $b]), $state);
 
-        // Resume with one decision — fresh replayed tools.
+        // Resume with an incomplete set — fresh replayed tools.
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event = $this->createToolCallEvent([$a2, $b2]);
@@ -188,19 +188,18 @@ class ToolApprovalTest extends TestCase
         $this->assertInstanceOf(ApprovalRequest::class, $request);
 
         $byId = $this->actionsById($request);
-        $this->assertEquals(ActionDecision::Approved, $byId['call_a']->decision, 'call_a was approved → progress shown');
+        $this->assertEquals(ActionDecision::Approved, $byId['call_a']->decision, 'call_a decision reflected on the outbound request');
         $this->assertEquals(ActionDecision::Pending, $byId['call_b']->decision);
 
+        // The history keeps the suspend-time pending snapshot (ADR 0006): resume
+        // passes never write, and final outcomes travel on the ToolResultMessage.
         $last = $this->lastToolCall($node);
-        $byCall = [];
         foreach ($last->getTools() as $tool) {
-            $byCall[$tool->getCallId()] = $tool;
+            $this->assertEquals(ApprovalState::Pending, $tool->getApprovalState());
         }
-        $this->assertEquals(ApprovalState::Approved, $byCall['call_a']->getApprovalState());
-        $this->assertEquals(ApprovalState::Pending, $byCall['call_b']->getApprovalState());
     }
 
-    public function test_incremental_resume_completes_and_rejects(): void
+    public function test_partial_decisions_are_not_remembered_across_resumes(): void
     {
         $middleware = new ToolApproval();
         $node = new ToolNode(new InMemoryChatHistory());
@@ -210,32 +209,52 @@ class ToolApprovalTest extends TestCase
         $b = $this->gatedTool('b', 'call_b');
         $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$a, $b]), $state);
 
-        // Approve a.
+        // Approve a on the first resume.
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event1 = $this->createToolCallEvent([$a2, $b2]);
         $node->setWorkflowContext($state, $event1, ['call_a' => 'approve']);
         $this->assertInterrupts($middleware, $node, $event1, $state);
 
-        // Reject b — complete set.
+        // Second resume restates only b: a's earlier approval is NOT remembered —
+        // the payload is cumulative and accumulation lives with the caller.
         $a3 = $this->gatedTool('a', 'call_a');
         $b3 = $this->gatedTool('b', 'call_b');
         $event2 = $this->createToolCallEvent([$a3, $b3]);
-        $node->setWorkflowContext($state, $event2, ['call_b' => ['reject', 'not now']]);
+        $node->setWorkflowContext($state, $event2, ['call_b' => 'approve']);
 
-        $this->assertDoesNotInterrupt($middleware, $node, $event2, $state, 'A complete decision set must proceed');
+        $request = $this->assertInterrupts($middleware, $node, $event2, $state, 'A payload omitting a prior decision must re-suspend')->getRequest();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
 
-        $this->assertStringContainsString('TOOL NOT EXECUTED', $b3->getResult());
-        $this->assertStringContainsString('not now', $b3->getResult());
+        $byId = $this->actionsById($request);
+        $this->assertEquals(ActionDecision::Pending, $byId['call_a']->decision, 'call_a reverted to pending — not restated');
+        $this->assertEquals(ActionDecision::Approved, $byId['call_b']->decision);
+    }
 
-        // History reflects the final states.
-        $last = $this->lastToolCall($node);
-        $byCall = [];
-        foreach ($last->getTools() as $tool) {
-            $byCall[$tool->getCallId()] = $tool;
-        }
-        $this->assertEquals(ApprovalState::Approved, $byCall['call_a']->getApprovalState());
-        $this->assertEquals(ApprovalState::Rejected, $byCall['call_b']->getApprovalState());
+    public function test_cumulative_resume_completes_and_rejects(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+
+        $a = $this->gatedTool('a', 'call_a');
+        $b = $this->gatedTool('b', 'call_b');
+        $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$a, $b]), $state);
+
+        // The full decision set in one resume — approve a, reject b.
+        $a2 = $this->gatedTool('a', 'call_a');
+        $b2 = $this->gatedTool('b', 'call_b');
+        $event = $this->createToolCallEvent([$a2, $b2]);
+        $node->setWorkflowContext($state, $event, [
+            'call_a' => 'approve',
+            'call_b' => ['reject', 'not now'],
+        ]);
+
+        $this->assertDoesNotInterrupt($middleware, $node, $event, $state, 'A complete decision set must proceed');
+
+        $this->assertEquals(ApprovalState::Approved, $a2->getApprovalState());
+        $this->assertStringContainsString('TOOL NOT EXECUTED', $b2->getResult());
+        $this->assertStringContainsString('not now', $b2->getResult());
     }
 
     public function test_decision_overwrite_before_completeness(): void
@@ -255,21 +274,19 @@ class ToolApprovalTest extends TestCase
         $node->setWorkflowContext($state, $event1, ['call_a' => 'approve']);
         $this->assertInterrupts($middleware, $node, $event1, $state);
 
-        // Overwrite a to rejected, b still pending → last-write-wins, still suspends.
+        // The next cumulative payload flips a to rejected; b still pending → suspends.
         $a3 = $this->gatedTool('a', 'call_a');
         $b3 = $this->gatedTool('b', 'call_b');
         $event2 = $this->createToolCallEvent([$a3, $b3]);
         $node->setWorkflowContext($state, $event2, ['call_a' => ['reject', 'changed my mind']]);
 
-        $this->assertInterrupts($middleware, $node, $event2, $state, 'Still incomplete — must re-suspend');
+        $request = $this->assertInterrupts($middleware, $node, $event2, $state, 'Still incomplete — must re-suspend')->getRequest();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
 
-        $last = $this->lastToolCall($node);
-        $byCall = [];
-        foreach ($last->getTools() as $tool) {
-            $byCall[$tool->getCallId()] = $tool;
-        }
-        $this->assertEquals(ApprovalState::Rejected, $byCall['call_a']->getApprovalState());
-        $this->assertEquals('changed my mind', $byCall['call_a']->getRejectReason());
+        $byId = $this->actionsById($request);
+        $this->assertEquals(ActionDecision::Rejected, $byId['call_a']->decision, 'Latest payload wins');
+        $this->assertEquals('changed my mind', $byId['call_a']->feedback);
+        $this->assertEquals(ActionDecision::Pending, $byId['call_b']->decision);
     }
 
     public function test_unknown_call_id_in_payload_is_ignored(): void

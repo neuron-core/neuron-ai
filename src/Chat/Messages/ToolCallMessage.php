@@ -55,6 +55,27 @@ class ToolCallMessage extends AssistantMessage implements Stringable
         return is_string($token) ? $token : null;
     }
 
+    /**
+     * Whether $other is a ToolCallMessage carrying the same ordered tool callIds —
+     * i.e. the same logical tool call. Safe as identity because two distinct
+     * ToolCallMessages can never be adjacent in a valid thread (a tool call must be
+     * answered by a ToolResultMessage first); callIds are not globally unique across
+     * providers (Gemini uses the tool name).
+     */
+    public function isSameToolCall(?Message $other): bool
+    {
+        if (!$other instanceof self) {
+            return false;
+        }
+
+        $ids = static fn (ToolCallMessage $message): array => array_map(
+            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
+            $message->getTools()
+        );
+
+        return $ids($this) === $ids($other);
+    }
+
     public function jsonSerialize(): array
     {
         return array_merge(

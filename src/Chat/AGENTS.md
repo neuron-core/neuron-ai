@@ -50,7 +50,10 @@ Implementations of `ChatHistoryInterface`:
 | `SQLChatHistory` | PDO database (one row per message, keyed by `thread_id`) |
 | `EloquentChatHistory` | Laravel Eloquent (one row per message, keyed by `thread_id`) |
 
-**Base**: `AbstractChatHistory` provides common logic.
+**Base**: `AbstractChatHistory` provides common logic. Subclasses persist through one
+protected no-op hook per primitive history mutation — append (`onNewMessage`), head-trim
+(`onTrimHistory`), clear (`clear`) — or ignore the granular hooks and rewrite the whole
+state via `setMessages()` (File, InMemory).
 
 ### Message alternation
 
@@ -61,19 +64,25 @@ which runs on every `addMessage()` append and therefore also covers sequences lo
 storage. This is pure sequence validation, independent of tool approval; note that a custom
 `HistoryTrimmerInterface` implementation takes over this responsibility.
 
-### Replace-last rule (ADR 0003)
+### Append-only history & tool approval (ADR 0006)
 
-`addMessage()` recognizes an incoming `ToolCallMessage` whose tool callIds match the
-current last message and **replaces** it instead of appending. This makes the
-suspend-time write, each partial-resume update, and `ToolNode`'s replay re-add all converge
-to a single message reflecting the latest approval state.
+`addMessage()` always appends — the history has no update or replace operation, so a
+direct `ChatHistoryInterface` implementation that appends is fully conformant. The
+convergence of the approval flow's writers lives with the callers, not the store:
+`ToolApproval` writes the annotated `ToolCallMessage` (pending states + resume token)
+**once**, at suspend time, and `ToolNode` skips its own write when that message already
+sits at the tail. Both use `ToolCallMessage::isSameToolCall()` — same ordered callIds —
+as the identity check. Its safety proof is adjacency, not callId uniqueness (Gemini uses
+the tool name as callId): two distinct `ToolCallMessage`s can never be adjacent in a
+valid thread, so a `ToolCallMessage` at the tail is always this same logical message.
 
-(Replay convergence for other message types is handled by the agent nodes' memoized
+The `tool_call` message keeps its pending snapshot forever; the **final approval
+outcomes** (approved/rejected + feedback + results) are recorded on the
+`ToolResultMessage` that follows it. "Is approval pending?" = the thread tail is a
+`tool_call` whose tools are pending.
+
+(Replay convergence for message writes is handled by the agent nodes' memoized
 history writes — see `src/Agent/AGENTS.md`.)
-
-Backends that persist via `setMessages()` (File, InMemory) get this for free — the
-whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,
-`EloquentChatHistory`) override `onLastMessageReplaced()` to update the last row.
 
 Serialized tool entries carry three approval fields: `approval` (`pending`|`approved`|
 `rejected`, or absent for a non-gated tool), `approvalReason` (outbound — why the tool is

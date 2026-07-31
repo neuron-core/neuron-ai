@@ -22,6 +22,9 @@ use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function fopen;
+use function rewind;
+use function stream_get_contents;
 
 class MakeCommandTest extends TestCase
 {
@@ -80,21 +83,49 @@ class MakeCommandTest extends TestCase
         mkdir($this->workDir . '/src/Agents', 0o755, true);
         file_put_contents($this->workDir . '/src/Agents/MyAgent.php', 'existing');
 
+        $cli = new NeuronCli();
+        $stream = $this->captureErrorStream($cli);
+
         ob_start();
-        $exitCode = (new NeuronCli())->run(['neuron', 'make:agent', 'App\\Agents\\MyAgent']);
+        $exitCode = $cli->run(['neuron', 'make:agent', 'App\\Agents\\MyAgent']);
         ob_end_clean();
 
         $this->assertSame(1, $exitCode);
         $this->assertSame('existing', (string) file_get_contents($this->workDir . '/src/Agents/MyAgent.php'));
+        $this->assertStringContainsString('File already exists', $this->readStream($stream));
     }
 
     public function testFailsWithoutClassName(): void
     {
+        $cli = new NeuronCli();
+        $stream = $this->captureErrorStream($cli);
+
         ob_start();
-        $exitCode = (new NeuronCli())->run(['neuron', 'make:agent']);
+        $exitCode = $cli->run(['neuron', 'make:agent']);
         ob_end_clean();
 
         $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Class name argument is required', $this->readStream($stream));
+    }
+
+    /**
+     * @return resource
+     */
+    private function captureErrorStream(NeuronCli $cli): mixed
+    {
+        /** @var resource $stream */
+        $stream = fopen('php://memory', 'r+');
+        $cli->setErrorStream($stream);
+        return $stream;
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private function readStream(mixed $stream): string
+    {
+        rewind($stream);
+        return (string) stream_get_contents($stream);
     }
 
     private function removeDirectory(string $directory): void

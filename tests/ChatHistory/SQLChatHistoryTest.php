@@ -202,40 +202,6 @@ class SQLChatHistoryTest extends TestCase
         $this->assertEquals('test_tool', $toolCallMessage->getTools()[0]->getName());
     }
 
-    public function test_replace_last_tool_call_is_persisted(): void
-    {
-        $pending = ToolDefinition::make('test_tool', 'A test tool')
-            ->setInputs(['param' => 'value'])
-            ->setCallId('call_999');
-
-        $this->history->addMessage(new UserMessage('Use the tool'));
-        $this->history->addMessage(new ToolCallMessage(tools: [$pending]));
-
-        // Re-write the same tool call with an updated approval state.
-        $approved = ToolDefinition::make('test_tool', 'A test tool')
-            ->setInputs(['param' => 'value'])
-            ->setCallId('call_999');
-        $approved->setApprovalState(\NeuronAI\Tools\ApprovalState::Approved);
-        $this->history->addMessage(new ToolCallMessage(tools: [$approved]));
-
-        // The replace must update the last row, not append a new one.
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM chat_messages WHERE thread_id = :thread_id");
-        $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $this->assertEquals(2, $result['count']);
-
-        // Reload from storage — there must be exactly one tool call, carrying the
-        // updated approval state (idempotent replace, not a duplicate).
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
-        $messages = $newHistory->getMessages();
-
-        $this->assertCount(2, $messages);
-        $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
-        $tools = $messages[1]->getTools();
-        $this->assertCount(1, $tools);
-        $this->assertEquals(\NeuronAI\Tools\ApprovalState::Approved, $tools[0]->getApprovalState());
-    }
-
     public function test_persists_content_blocks(): void
     {
         $message = new UserMessage([

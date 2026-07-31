@@ -74,26 +74,6 @@ class SQLChatHistory extends AbstractChatHistory
         ));
     }
 
-    protected function onLastMessageReplaced(Message $message): void
-    {
-        $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id DESC LIMIT 1");
-        $stmt->execute(['thread_id' => $this->thread_id]);
-        $lastId = $stmt->fetchColumn();
-
-        if ($lastId === false) {
-            $this->onNewMessage($message);
-            return;
-        }
-
-        $stmt = $this->pdo->prepare(
-            "UPDATE {$this->table} SET role = :role, content = :content, meta = :meta WHERE id = :id"
-        );
-        $stmt->execute(array_merge(
-            ['id' => $lastId],
-            $this->serializeMessage($message)
-        ));
-    }
-
     protected function onTrimHistory(int $index): void
     {
         if ($index <= 0) {

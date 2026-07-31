@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Console;
 
+use NeuronAI\Console\Command;
 use NeuronAI\Console\NeuronCli;
 use PHPUnit\Framework\TestCase;
 
@@ -11,6 +12,9 @@ use function array_keys;
 use function ob_get_clean;
 use function ob_start;
 use function ob_end_clean;
+use function fopen;
+use function rewind;
+use function stream_get_contents;
 
 class NeuronCliTest extends TestCase
 {
@@ -35,11 +39,37 @@ class NeuronCliTest extends TestCase
 
     public function testUnknownCommandFails(): void
     {
+        $cli = new NeuronCli();
+        $stream = $this->captureErrorStream($cli);
+
         ob_start();
-        $exitCode = (new NeuronCli())->run(['neuron', 'does-not-exist']);
+        $exitCode = $cli->run(['neuron', 'does-not-exist']);
         ob_end_clean();
 
         $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Unknown command: does-not-exist', $this->readStream($stream));
+    }
+
+    /**
+     * Redirect a command's error output to an in-memory stream.
+     *
+     * @return resource
+     */
+    private function captureErrorStream(Command $command): mixed
+    {
+        /** @var resource $stream */
+        $stream = fopen('php://memory', 'r+');
+        $command->setErrorStream($stream);
+        return $stream;
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private function readStream(mixed $stream): string
+    {
+        rewind($stream);
+        return (string) stream_get_contents($stream);
     }
 
     public function testUsageListsEveryRegisteredCommand(): void

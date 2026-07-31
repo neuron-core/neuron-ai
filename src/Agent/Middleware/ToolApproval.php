@@ -7,7 +7,6 @@ namespace NeuronAI\Agent\Middleware;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
@@ -30,20 +29,23 @@ use function is_string;
 use function json_encode;
 use function sprintf;
 use function uniqid;
-use function array_map;
 
 use const JSON_PRETTY_PRINT;
 
 /**
- * Human-in-the-loop approval gate for tool execution (ADR 0003 / ADR 0004).
+ * Human-in-the-loop approval gate for tool execution (ADR 0004 / ADR 0006).
  *
- * Approval state lives on the tool entries of the ToolCallMessage persisted in CHAT
- * HISTORY — that is the system of record, not the middleware or the resume payload.
- * The middleware's job on every pass is: decide which tools are gated, restore any
- * previously recorded decisions from history, merge the inbound payload on top, write
- * the annotated message back to history, and proceed only when every gated tool is
- * decided. Decisions are revisable (last-write-wins) until the set completes;
- * completeness is the point of no return.
+ * The gate is stateless: on every pass the middleware decides which tools are gated,
+ * marks them pending, applies the CUMULATIVE resume payload — the full decision set,
+ * restated on every resume; accumulation lives with the caller — and proceeds only
+ * when every gated tool is decided. A tool runs iff explicitly approved; an incomplete
+ * decision set re-suspends, and undelivered partial decisions are deliberately not
+ * persisted anywhere.
+ *
+ * Chat history stays append-only: the annotated ToolCallMessage (pending states +
+ * resume token) is written once at suspend time so a cold process can render pending
+ * approvals from history alone; the final outcomes are recorded on the
+ * ToolResultMessage that follows it in the conversation.
  */
 class ToolApproval extends AgentMiddleware
 {
@@ -91,31 +93,33 @@ class ToolApproval extends AgentMiddleware
             return;
         }
 
-        // The event tools are fresh replayed instances; history is the memory (ADR 0003).
-        $chatHistory = $node->getChatHistory();
-
-        $this->restoreRecordedState($chatHistory->getMessages(), $event);
-
-        // Every gated tool that still has no recorded state starts out pending.
+        // Every gated tool starts out pending; the cumulative resume payload restates
+        // the full decision set on every resume (ADR 0006) — nothing is restored from
+        // history or any other store.
         $this->initializePending($toolsToApprove);
 
-        // An inbound resume payload carries incremental NEW decisions only.
         if ($node->isResuming()) {
             $this->mergePayload($node->getResumePayload() ?? [], $toolsToApprove);
         }
 
-        // Persist the annotated message. Idempotent by the replace-last rule: the first
-        // run appends; every later run (resume) replaces the tail. The history write MUST
-        // happen before any suspend so the pending state is durable. The resume token is
-        // stamped alongside (ADR 0005) so history alone is sufficient to resume — and it
-        // is stamped on the completing pass too: stripping it would open a crash window
-        // between set-completion and run-end.
+        // The resume token (ADR 0005) makes history alone sufficient to resume.
         $workflowId = $state->get('__workflowId');
         if (is_string($workflowId) && $workflowId !== '') {
             $event->toolCallMessage->setResumeToken($workflowId);
         }
 
-        $chatHistory->addMessage($event->toolCallMessage);
+        // Persist the annotated message (pending states + resume token) before any
+        // suspend, so a cold process can render the pending approvals from history
+        // alone. The history is append-only (ADR 0006): the write happens once, on the
+        // first pass — on resume passes the message already sits at the tail and stays
+        // untouched. Final outcomes reach the conversation record on the
+        // ToolResultMessage that follows.
+        $chatHistory = $node->getChatHistory();
+        $messages = $chatHistory->getMessages();
+        $tail = end($messages);
+        if ($tail === false || !$event->toolCallMessage->isSameToolCall($tail)) {
+            $chatHistory->addMessage($event->toolCallMessage);
+        }
 
         // A tool runs iff explicitly approved; silence is never consent.
         $pending = array_filter(
@@ -149,49 +153,6 @@ class ToolApproval extends AgentMiddleware
     }
 
     /**
-     * Restore the previously recorded approval state from chat history onto the fresh
-     * event tools. Only runs when the tail message is a ToolCallMessage carrying the
-     * same ordered callIds as the event (i.e. a resume of the suspended approval step).
-     *
-     * @param \NeuronAI\Chat\Messages\Message[] $history
-     */
-    protected function restoreRecordedState(array $history, ToolCallEvent $event): void
-    {
-        if ($history === []) {
-            return;
-        }
-
-        $last = end($history);
-
-        if (!$last instanceof ToolCallMessage || !$this->sameCallIds($last, $event->toolCallMessage)) {
-            return;
-        }
-
-        $recorded = [];
-        foreach ($last->getTools() as $recordedTool) {
-            $id = $recordedTool->getCallId();
-            if ($id !== null) {
-                $recorded[$id] = $recordedTool;
-            }
-        }
-
-        foreach ($event->toolCallMessage->getTools() as $tool) {
-            $id = $tool->getCallId();
-            if ($id === null) {
-                continue;
-            }
-            if (!array_key_exists($id, $recorded)) {
-                continue;
-            }
-
-            $recordedState = $recorded[$id]->getApprovalState();
-            if ($recordedState instanceof \NeuronAI\Tools\ApprovalState) {
-                $tool->setApprovalState($recordedState, $recorded[$id]->getRejectReason());
-            }
-        }
-    }
-
-    /**
      * Stamp every gated tool that still has null state as Pending.
      *
      * @param ToolInterface[] $tools
@@ -206,9 +167,9 @@ class ToolApproval extends AgentMiddleware
     }
 
     /**
-     * Merge the incremental inbound payload onto the gated tools. Last-write-wins: a
-     * payload entry overwrites any previously recorded decision for an undecided-set
-     * suspension. Entries for unknown callIds (or malformed decisions) are ignored.
+     * Apply the cumulative inbound payload onto the gated tools. The payload is the
+     * entire decision set — every resume restates all decisions, and the latest
+     * delivery wins. Entries for unknown callIds (or malformed decisions) are ignored.
      *
      * @param array<string, mixed> $payload  Decisions keyed by callId.
      * @param ToolInterface[]      $toolsToApprove
@@ -366,16 +327,4 @@ class ToolApproval extends AgentMiddleware
         return $tool->requiresApproval($tool->getInputs());
     }
 
-    /**
-     * Whether two ToolCallMessages carry the same ordered list of callIds.
-     */
-    protected function sameCallIds(ToolCallMessage $a, ToolCallMessage $b): bool
-    {
-        $ids = static fn (ToolCallMessage $m): array => array_map(
-            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
-            $m->getTools()
-        );
-
-        return $ids($a) === $ids($b);
-    }
 }
