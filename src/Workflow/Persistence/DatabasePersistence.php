@@ -33,12 +33,22 @@ class DatabasePersistence implements PersistenceInterface, SerializablePersisten
 
     public function save(string $workflowId, WorkflowInterrupt $interrupt): void
     {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->table} (workflow_id, interrupt, created_at, updated_at)
-            VALUES (:id, :interrupt, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE interrupt = VALUES(interrupt), updated_at = NOW()
-        ");
+        $driver = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 
+        // CURRENT_TIMESTAMP is standard SQL and works across MySQL, PostgreSQL and SQLite.
+        // The UPSERT syntax is the only driver-specific part: MySQL uses its own
+        // ON DUPLICATE KEY UPDATE, while PostgreSQL and SQLite share ON CONFLICT.
+        if ($driver === 'mysql') {
+            $sql = "INSERT INTO {$this->table} (workflow_id, interrupt, created_at, updated_at)
+                VALUES (:id, :interrupt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE interrupt = VALUES(interrupt), updated_at = CURRENT_TIMESTAMP";
+        } else {
+            $sql = "INSERT INTO {$this->table} (workflow_id, interrupt, created_at, updated_at)
+                VALUES (:id, :interrupt, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(workflow_id) DO UPDATE SET interrupt = excluded.interrupt, updated_at = CURRENT_TIMESTAMP";
+        }
+
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             'id' => $workflowId,
             // Simple Base64 string is compatible with all databases
