@@ -65,7 +65,7 @@ class StructuredOutputNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
-        $this->addToChatHistory($event->getMessages());
+        $this->addToChatHistory($event->getMessages(), 'history.inbound');
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
@@ -87,7 +87,7 @@ class StructuredOutputNode extends InferenceNode
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $this->addToChatHistory($correctionMessage);
+                    $this->addToChatHistory($correctionMessage, "history.correction.{$attempt}");
                 }
 
                 $chatHistory = $this->chatHistory;
@@ -120,7 +120,7 @@ class StructuredOutputNode extends InferenceNode
                 }
 
                 // Add the final message to the chat history (after tool loop)
-                $this->addToChatHistory($message);
+                $this->addToChatHistory($message, 'history.response');
 
                 // Process the response: extract, deserialize, and validate
                 $output = $this->processResponse($message, $schema, $this->outputClass);

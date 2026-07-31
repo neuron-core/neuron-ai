@@ -63,23 +63,14 @@ storage. This is pure sequence validation, independent of tool approval; note th
 
 ### Replace-last rule (ADR 0003)
 
-`addMessage()` recognizes an incoming message that is a re-write of the current last
-message and **replaces** it instead of appending. Three convergence rules, most
-specific first:
+`addMessage()` recognizes an incoming `ToolCallMessage` whose tool callIds match the
+current last message and **replaces** it instead of appending. This makes the
+suspend-time write, each partial-resume update, and `ToolNode`'s replay re-add all converge
+to a single message reflecting the latest approval state.
 
-- A `ToolCallMessage` whose tool callIds match the tail — the suspend-time write,
-  each partial-resume update, and `ToolNode`'s replay re-add all converge to a single
-  message reflecting the latest approval state.
-- A message carrying the same stable id (`__id` metadata, stamped at construction and
-  persisted) as the tail — a node re-adding the exact message on crash-replay against
-  the live history.
-- A message of the same class, role and content as the tail — a cross-process replay
-  of the same logical turn, re-built as a fresh object with a fresh id
-  (`ToolResultMessage` compares tool callIds instead, having no content blocks).
-
-The last two rules exist because agent nodes write to the **live** history and re-run
-against it on crash-replay (see `src/Agent/AGENTS.md`): without them a replayed
-`addMessage()` would duplicate the tail.
+(Replay convergence for every other message type is NOT a chat-history concern: agent
+nodes wrap their history writes in a durable memo, so a crash-replay skips the write
+instead of re-adding — see `src/Agent/AGENTS.md`.)
 
 Backends that persist via `setMessages()` (File, InMemory) get this for free — the
 whole history is rewritten on every add. Row-per-message backends (`SQLChatHistory`,

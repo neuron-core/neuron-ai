@@ -15,10 +15,11 @@ use function is_array;
 /**
  * Holds the chat history reference for agent nodes and centralizes writes.
  *
- * The history is a live service bound to its own storage — writes are durable
- * immediately. On crash-replay a node re-adds the same messages against the
- * live history; the replace-last convergence rules in AbstractChatHistory make
- * the re-add idempotent.
+ * The history is a live service bound to its own storage, so a write is a
+ * side-effecting operation like tool execution or inference — it is wrapped in
+ * a durable memo so it runs at most once across crash recovery: on replay the
+ * recorded memo is recalled and the write is skipped instead of duplicating
+ * the tail. Each call site passes a stable memo name for this reason.
  */
 trait ChatHistoryHelper
 {
@@ -30,16 +31,22 @@ trait ChatHistoryHelper
     }
 
     /**
+     * @param string $memo Stable memo name identifying this write within the
+     *                     node execution (e.g. 'history.inbound').
      * @throws InspectorException
      */
-    protected function addToChatHistory(Message|array $messages): void
+    protected function addToChatHistory(Message|array $messages, string $memo): void
     {
-        $messages = is_array($messages) ? $messages : [$messages];
+        $this->memoize($memo, function () use ($messages): bool {
+            $messages = is_array($messages) ? $messages : [$messages];
 
-        foreach ($messages as $message) {
-            $this->emit(new MessageSaving($message));
-            $this->chatHistory->addMessage($message);
-            $this->emit(new MessageSaved($message));
-        }
+            foreach ($messages as $message) {
+                $this->emit(new MessageSaving($message));
+                $this->chatHistory->addMessage($message);
+                $this->emit(new MessageSaved($message));
+            }
+
+            return true;
+        });
     }
 }

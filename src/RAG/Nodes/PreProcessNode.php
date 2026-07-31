@@ -40,7 +40,7 @@ class PreProcessNode extends Node implements AgentNodeInterface
      */
     public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
-        $this->addToChatHistory($event->getMessages());
+        $this->addToChatHistory($event->getMessages(), 'history.inbound');
 
         $query = $this->chatHistory->getLastMessage();
 

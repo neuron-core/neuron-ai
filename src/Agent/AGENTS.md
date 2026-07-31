@@ -143,8 +143,12 @@ serializable data, so per-step snapshots stay O(1) instead of embedding the whol
 conversation on every step (and PDO-backed histories never meet the serializer).
 Consequences:
 
-- Nodes and middleware read/write the **live** history; on crash-replay the re-add
-  converges via the replace-last rules (`src/Chat/AGENTS.md`).
+- Nodes and middleware read/write the **live** history, so a history write is a
+  side effect like tool execution: `addToChatHistory()` wraps it in `memoize()`
+  with a stable per-site name (`history.inbound`, `history.response`, ...), so a
+  crash-replay recalls the memo and skips the write instead of duplicating the
+  tail. (`ToolApproval`'s suspend-time write stays unmemoized by design — its
+  per-pass re-writes converge via the ADR 0003 replace-last rule.)
 - Durable workflow persistence requires a comparably durable chat history — an
   `InMemoryChatHistory` loses the thread across processes, so a cross-process
   resume reconstructs an incomplete prompt (the documented ADR 0003 requirement,

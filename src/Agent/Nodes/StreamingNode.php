@@ -24,7 +24,7 @@ class StreamingNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent
     {
-        $this->addToChatHistory($event->getMessages());
+        $this->addToChatHistory($event->getMessages(), 'history.inbound');
 
         $chatHistory = $this->chatHistory;
         $lastMessage = $chatHistory->getLastMessage();
@@ -68,7 +68,7 @@ class StreamingNode extends InferenceNode
             }
 
             // Add the final message to the chat history (after tool loop)
-            $this->addToChatHistory($message);
+            $this->addToChatHistory($message, 'history.response');
 
             return new StopEvent();
 

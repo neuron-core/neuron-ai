@@ -133,6 +133,49 @@ class AgentDurableHistoryTest extends TestCase
         );
     }
 
+    public function test_crash_replay_does_not_duplicate_history_writes(): void
+    {
+        // History writes are durable memos: when a node crashes after writing to
+        // the live history but before its step commits, the replay recalls the
+        // 'history.*' memos and skips the writes instead of re-adding them.
+        $workflowId = 'history_memo_replay_test';
+        $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
+        $stepId = ChatNode::class . '-0';
+
+        $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
+
+        $chatHistory = new \NeuronAI\Chat\History\InMemoryChatHistory();
+
+        $event = new \NeuronAI\Agent\Events\AIInferenceEvent('Be helpful', []);
+        $event->setMessages(new UserMessage('Hi'));
+
+        // Run 1: the node executes fully (all memos committed) but its step is
+        // never recorded — simulating a crash right before the step boundary.
+        $engine1 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
+        $engine1->prepareExecution($workflowId);
+        $state1 = new \NeuronAI\Agent\AgentState();
+        $node1 = new ChatNode($provider, $chatHistory);
+        $node1->setWorkflowContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine1, $stepId));
+        $node1($event, $state1);
+
+        $this->assertCount(2, $chatHistory->getMessages());
+
+        // Recovery: fresh engine, same persistence, same durable history. The
+        // node re-runs; the history writes and the inference are all recalled.
+        $engine2 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
+        $engine2->prepareExecution($workflowId);
+        $state2 = new \NeuronAI\Agent\AgentState();
+        $node2 = new ChatNode($provider, $chatHistory);
+        $node2->setWorkflowContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine2, $stepId));
+        $node2($event, $state2);
+
+        $messages = $chatHistory->getMessages();
+        $this->assertCount(2, $messages, 'Replayed history writes must be skipped, not duplicated');
+        $this->assertSame('Hi', $messages[0]->getContent());
+        $this->assertSame('Hello back!', $messages[1]->getContent());
+        $this->assertSame(1, $provider->getCallCount());
+    }
+
     public function test_resume_with_sql_history_across_agent_instances(): void
     {
         // Interrupt (tool approval) in one process, resume from another agent

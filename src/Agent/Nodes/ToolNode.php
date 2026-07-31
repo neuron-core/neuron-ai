@@ -53,7 +53,7 @@ class ToolNode extends Node implements AgentNodeInterface
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history.
-        $this->addToChatHistory($event->toolCallMessage);
+        $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 

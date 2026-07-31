@@ -164,9 +164,9 @@ be a pure function of the node's event and state.** Concretely:
 Mid-node state mutations (`$state->set(...)`) are not durable — only step boundaries
 are. They are discarded if the node crashes and re-applied on replay, which is correct
 as long as they are idempotent given the replayed inputs. (Agent chat-history writes
-are different: the history is a live external service, so its writes are durable
-immediately and the replay re-add converges via the replace-last rules — see
-`src/Chat/AGENTS.md`.)
+are different: the history is a live external service, so its writes are side effects
+like tool execution — the agent nodes wrap them in `memoize()` so a replay skips the
+write instead of duplicating it — see `src/Agent/AGENTS.md`.)
 
 ### `recallMemo()` — the read-only counterpart
 

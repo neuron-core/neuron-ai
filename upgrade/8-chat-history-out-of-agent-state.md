@@ -86,9 +86,11 @@ be a safety hazard (`ToolApproval` does).
   snapshot. That accidental rescue is gone: an in-memory history loses the
   thread across processes (in-process resume is unaffected). This was already
   the documented requirement for tool approval (ADR 0003).
-- **`addMessage()` converges replayed messages.** Nodes re-run against the live
-  history on crash-replay, so a message whose stable id — or class + role +
-  content — matches the current tail replaces it instead of duplicating
-  (extends the ADR 0003 replace-last rule beyond `ToolCallMessage`).
+- **History writes are durable memos.** Nodes re-run against the live history on
+  crash-replay, so `addToChatHistory()` now wraps the write in `memoize()` (like
+  tool execution and inference): on replay the recorded memo is recalled and the
+  write is skipped instead of duplicating the tail. Custom nodes using the
+  `ChatHistoryHelper` trait must pass a stable memo name:
+  `$this->addToChatHistory($messages, 'history.inbound')`.
 - **SQL/Eloquent chat histories now work with durable workflow persistence** —
   the state snapshot no longer serializes the history object.
