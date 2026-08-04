@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\Assertions\Judges\HelpfulnessJudge;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 use function json_encode;
 use function str_contains;
@@ -144,7 +145,7 @@ class HelpfulnessJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new HelpfulnessJudge($agent, 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }

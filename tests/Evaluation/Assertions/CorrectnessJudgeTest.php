@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\Assertions\Judges\CorrectnessJudge;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 use function json_encode;
 use function str_contains;
@@ -166,7 +167,7 @@ class CorrectnessJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new CorrectnessJudge($agent, 'Expected', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }

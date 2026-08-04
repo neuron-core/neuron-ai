@@ -63,6 +63,13 @@ interface ToolInterface extends JsonSerializable
 
 
     /**
+     * Whether the tool has executed and holds a result. False for a tool
+     * that never ran (e.g. a pending or rejected call), where getResult()
+     * must not be called.
+     */
+    public function hasResult(): bool;
+
+    /**
      * The result of the execution: a string, or a ToolOutput when the tool
      * returned multimodal content blocks from __invoke().
      */

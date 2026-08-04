@@ -62,12 +62,7 @@ abstract class BaseEvaluator implements EvaluatorInterface
         // Call developer's evaluate() implementation
         $this->evaluate($output, $datasetItem);
 
-        return new AssertionOutcomes(
-            $this->ruleExecutor->getPassedCount(),
-            $this->ruleExecutor->getFailedCount(),
-            $this->ruleExecutor->getFailures(),
-            $this->ruleExecutor->getScoreRecords(),
-        );
+        return $this->ruleExecutor->snapshot();
     }
 
     /**

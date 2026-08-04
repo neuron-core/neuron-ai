@@ -21,6 +21,9 @@ use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
+use function serialize;
+use function unserialize;
+
 class TrajectoryTest extends TestCase
 {
     protected function makeTool(string $name, array $inputs = [], ?string $callId = null): ToolInterface
@@ -113,14 +116,15 @@ class TrajectoryTest extends TestCase
         $this->assertSame('rejected by the user', $call->getResult());
     }
 
-    public function testParallelCallsWithDuplicateCallIdsMatchInOrder(): void
+    public function testParallelCallsOfTheSameToolMatchByCallId(): void
     {
-        // Gemini uses the tool name as callId — two calls of the same tool share it.
-        $first = $this->makeTool('search', ['q' => 'a'], 'search');
-        $second = $this->makeTool('search', ['q' => 'b'], 'search');
+        // Providers stamp a unique callId on every call, including parallel
+        // calls of the same tool (Gemini synthesizes one when the API omits it).
+        $first = $this->makeTool('search', ['q' => 'a'], 'call_a');
+        $second = $this->makeTool('search', ['q' => 'b'], 'call_b');
 
-        $firstDone = $this->makeTool('search', ['q' => 'a'], 'search')->setResult('result A');
-        $secondDone = $this->makeTool('search', ['q' => 'b'], 'search')->setResult('result B');
+        $firstDone = $this->makeTool('search', ['q' => 'a'], 'call_a')->setResult('result A');
+        $secondDone = $this->makeTool('search', ['q' => 'b'], 'call_b')->setResult('result B');
 
         $trajectory = Trajectory::fromMessages([
             new UserMessage('Search a and b'),

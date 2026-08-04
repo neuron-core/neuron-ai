@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Evaluation\Assertions\StringLengthBetween;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use InvalidArgumentException;
 
 class StringLengthBetweenTest extends TestCase
 {
@@ -99,7 +100,7 @@ class StringLengthBetweenTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringLengthBetween(5, 15);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -107,7 +108,7 @@ class StringLengthBetweenTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringLengthBetween(5, 15);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -115,7 +116,7 @@ class StringLengthBetweenTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringLengthBetween(5, 15);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -123,7 +124,7 @@ class StringLengthBetweenTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringLengthBetween(5, 15);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }

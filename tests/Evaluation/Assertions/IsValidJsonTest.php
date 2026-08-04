@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Evaluation\Assertions\IsValidJson;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use InvalidArgumentException;
 
 class IsValidJsonTest extends TestCase
 {
@@ -155,7 +156,7 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new IsValidJson();
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -163,7 +164,7 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new IsValidJson();
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -171,7 +172,7 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new IsValidJson();
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -179,7 +180,7 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new IsValidJson();
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }

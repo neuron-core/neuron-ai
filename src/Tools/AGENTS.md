@@ -88,7 +88,9 @@ class GetTranscriptionTool extends Tool
 
 ## Multimodal Tool Output
 
-A tool result is `string|ToolOutput` (`ToolInterface::getResult()`). Return a
+A tool result is `string|ToolOutput` (`ToolInterface::getResult()`; call it only when
+`hasResult()` is true — a never-executed tool, e.g. a pending or rejected call, has no
+result). Return a
 `ToolOutput` from `__invoke()` to send content blocks (reusing the Chat module's
 `ContentBlockInterface` implementations) back to the model instead of plain text —
 no opt-in interface, the feature is first-class on every tool:

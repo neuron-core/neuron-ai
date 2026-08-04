@@ -13,6 +13,7 @@ use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use Throwable;
 
 use function array_key_exists;
 use function get_debug_type;
@@ -104,7 +105,7 @@ class Conversation
      * Drive the conversation to completion and return the recorded Trajectory.
      *
      * @throws EvaluationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function run(): Trajectory
     {
@@ -131,7 +132,7 @@ class Conversation
 
     /**
      * @throws EvaluationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function runSimulated(): Trajectory
     {
@@ -156,7 +157,7 @@ class Conversation
      * any suspensions along the way — identical in both configuration paths.
      *
      * @throws EvaluationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function deliver(UserMessage $message): void
     {
@@ -172,7 +173,7 @@ class Conversation
      * loop; termination rides on the agent's own tool-run limits.
      *
      * @throws EvaluationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function resolveInterrupts(AgentHandler $handler): void
     {

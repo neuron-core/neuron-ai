@@ -25,6 +25,8 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
+use function json_encode;
+
 class ConversationTest extends TestCase
 {
     protected function makeAgent(FakeAIProvider $provider, bool $withApproval = false): Agent
@@ -242,7 +244,7 @@ class ConversationTest extends TestCase
 
     protected function simulatorResponse(bool $stop, ?string $message = null): AssistantMessage
     {
-        return new AssistantMessage((string) \json_encode([
+        return new AssistantMessage((string) json_encode([
             'stop' => $stop,
             'message' => $message,
             'reason' => $stop ? 'goal satisfied' : 'continuing',

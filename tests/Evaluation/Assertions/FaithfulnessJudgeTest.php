@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\Assertions\Judges\FaithfulnessJudge;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 use function json_encode;
 use function str_contains;
@@ -172,7 +173,7 @@ class FaithfulnessJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new FaithfulnessJudge($agent, 'Context', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['array']);
     }

@@ -8,10 +8,6 @@ use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Score;
 
 use function array_map;
-use function array_sum;
-use function count;
-use function max;
-use function min;
 
 class EvaluatorResult
 {
@@ -116,29 +112,5 @@ class EvaluatorResult
     public function getAssertionScores(): array
     {
         return array_map(fn (Score $score): float => $score->value, $this->assertionScores);
-    }
-
-    public function getAverageAssertionScore(): float
-    {
-        if ($this->assertionScores === []) {
-            return 0.0;
-        }
-        return array_sum($this->getAssertionScores()) / count($this->assertionScores);
-    }
-
-    public function getMinAssertionScore(): float
-    {
-        if ($this->assertionScores === []) {
-            return 0.0;
-        }
-        return min($this->getAssertionScores());
-    }
-
-    public function getMaxAssertionScore(): float
-    {
-        if ($this->assertionScores === []) {
-            return 0.0;
-        }
-        return max($this->getAssertionScores());
     }
 }

@@ -95,6 +95,11 @@ class TestParametrizedTool implements ToolInterface
         return $this;
     }
 
+    public function hasResult(): bool
+    {
+        return true;
+    }
+
     public function getResult(): string
     {
         return 'executed';

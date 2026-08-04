@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Evaluation\Assertions\MatchesRegex;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use InvalidArgumentException;
 
 class MatchesRegexTest extends TestCase
 {
@@ -88,7 +89,7 @@ class MatchesRegexTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new MatchesRegex('/\d+/');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -96,7 +97,7 @@ class MatchesRegexTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new MatchesRegex('/hello/');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -104,7 +105,7 @@ class MatchesRegexTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new MatchesRegex('/test/');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -112,7 +113,7 @@ class MatchesRegexTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new MatchesRegex('/test/');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }

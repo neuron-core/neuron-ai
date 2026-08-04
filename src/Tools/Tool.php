@@ -183,6 +183,11 @@ abstract class Tool implements ToolInterface
         return $this;
     }
 
+    public function hasResult(): bool
+    {
+        return $this->result !== null;
+    }
+
     public function getResult(): string|ToolOutput
     {
         return $this->result;

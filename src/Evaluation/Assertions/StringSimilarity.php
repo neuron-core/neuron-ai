@@ -9,7 +9,6 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorSimilarity;
 
-
 class StringSimilarity extends StringAssertion
 {
     public function __construct(

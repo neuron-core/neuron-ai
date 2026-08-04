@@ -108,12 +108,10 @@ class UserSimulatorTest extends TestCase
 
         $this->makeSimulator($provider)->nextTurn($this->emptyTrajectory());
 
-        $provider->assertSent(function (RequestRecord $record): bool {
-            return str_contains(
-                (string) $record->messages[0]->getContent(),
-                'the conversation has not started yet'
-            );
-        });
+        $provider->assertSent(fn (RequestRecord $record): bool => str_contains(
+            (string) $record->messages[0]->getContent(),
+            'the conversation has not started yet'
+        ));
     }
 
     public function testEachStepIsStateless(): void

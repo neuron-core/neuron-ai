@@ -8,6 +8,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
+use Throwable;
 
 /**
  * An agent that plays the user — a persona plus a goal — generating each next
@@ -53,7 +54,7 @@ class UserSimulator extends Agent
      * transcript), so the simulator's own chat history is flushed every call.
      *
      * @throws EvaluationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function nextTurn(Trajectory $soFar): ?UserMessage
     {

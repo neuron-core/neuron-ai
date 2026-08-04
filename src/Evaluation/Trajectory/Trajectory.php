@@ -19,12 +19,10 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
-use TypeError;
 
 use function array_filter;
 use function array_key_last;
 use function array_map;
-use function array_shift;
 use function array_values;
 use function count;
 use function end;
@@ -84,8 +82,8 @@ class Trajectory
      * wins — results, approval state, and reject reason come from what actually
      * happened. A suspended tail keeps its pending entries.
      *
-     * Note: ToolInterface::getResult() throws a TypeError on a tool that never
-     * executed (pending or rejected calls) — guard custom assertions accordingly.
+     * Note: a tool that never executed (pending or rejected calls) has no
+     * result — check ToolInterface::hasResult() before calling getResult().
      *
      * @return ToolInterface[]
      */
@@ -94,10 +92,10 @@ class Trajectory
         /** @var ToolInterface[] $calls */
         $calls = [];
 
-        // Indices (into $calls) of the entries from the last tool_call message,
-        // queued per callId (falling back to tool name — Gemini uses the name as
-        // callId, so duplicates are possible and order decides).
-        /** @var array<string, array<int, int>> $open */
+        // Index (into $calls) of each entry from the last tool_call message,
+        // keyed by callId (falling back to tool name for hand-rolled histories
+        // without callIds — providers always stamp a unique one).
+        /** @var array<string, int> $open */
         $open = [];
 
         foreach ($this->messages as $message) {
@@ -105,12 +103,11 @@ class Trajectory
                 $open = [];
                 foreach ($message->getTools() as $tool) {
                     $calls[] = $tool;
-                    $open[$tool->getCallId() ?? $tool->getName()][] = array_key_last($calls);
+                    $open[$tool->getCallId() ?? $tool->getName()] = array_key_last($calls);
                 }
             } elseif ($message instanceof ToolResultMessage) {
                 foreach ($message->getTools() as $tool) {
-                    $key = $tool->getCallId() ?? $tool->getName();
-                    $index = isset($open[$key]) ? array_shift($open[$key]) : null;
+                    $index = $open[$tool->getCallId() ?? $tool->getName()] ?? null;
                     if ($index !== null) {
                         $calls[$index] = $tool;
                     }
@@ -237,7 +234,7 @@ class Trajectory
             $line = "{$role}: " . ($message->getContent() ?? '');
 
             $descriptors = array_filter(array_map(
-                static fn (ContentBlockInterface $block): ?string => self::describeAttachment($block),
+                self::describeAttachment(...),
                 $message->getContentBlocks()
             ));
             if ($descriptors !== []) {
@@ -273,10 +270,8 @@ class Trajectory
 
         $lines = [$line];
 
-        try {
+        if ($tool->hasResult()) {
             $lines[] = "Tool result ({$tool->getName()}): {$tool->getResult()}";
-        } catch (TypeError) {
-            // Declared string, null until executed — a pending call has no result.
         }
 
         return $lines;

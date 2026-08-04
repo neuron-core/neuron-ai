@@ -7,11 +7,6 @@ namespace NeuronAI\Evaluation;
 use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
 use function debug_backtrace;
-use function array_map;
-use function array_sum;
-use function count;
-use function max;
-use function min;
 
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
 
@@ -48,37 +43,16 @@ class RuleExecutor
     }
 
     /**
-     * Get the number of passed assertions
+     * The accumulated outcomes as an immutable value object.
      */
-    public function getPassedCount(): int
+    public function snapshot(): AssertionOutcomes
     {
-        return $this->passedCount;
-    }
-
-    /**
-     * Get the number of failed assertions
-     */
-    public function getFailedCount(): int
-    {
-        return $this->failedCount;
-    }
-
-    /**
-     * Get the total number of assertions
-     */
-    public function getTotalCount(): int
-    {
-        return $this->passedCount + $this->failedCount;
-    }
-
-    /**
-     * Get all assertion failures
-     *
-     * @return array<AssertionFailure>
-     */
-    public function getFailures(): array
-    {
-        return $this->failures;
+        return new AssertionOutcomes(
+            $this->passedCount,
+            $this->failedCount,
+            $this->failures,
+            $this->scores,
+        );
     }
 
     /**
@@ -90,59 +64,6 @@ class RuleExecutor
         $this->failedCount = 0;
         $this->failures = [];
         $this->scores = [];
-    }
-
-    /**
-     * Get all assertion score values
-     *
-     * @return array<float>
-     */
-    public function getScores(): array
-    {
-        return array_map(fn (Score $score): float => $score->value, $this->scores);
-    }
-
-    /**
-     * Get all labeled assertion scores
-     *
-     * @return array<Score>
-     */
-    public function getScoreRecords(): array
-    {
-        return $this->scores;
-    }
-
-    /**
-     * Get the average assertion score
-     */
-    public function getAverageScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return array_sum($this->getScores()) / count($this->scores);
-    }
-
-    /**
-     * Get the minimum assertion score
-     */
-    public function getMinScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return min($this->getScores());
-    }
-
-    /**
-     * Get the maximum assertion score
-     */
-    public function getMaxScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return max($this->getScores());
     }
 
     /**

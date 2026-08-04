@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasCalled;
+use InvalidArgumentException;
 
 class ToolWasCalledTest extends TrajectoryAssertionTestCase
 {
@@ -88,7 +89,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
 
     public function testThrowsOnNonTrajectoryInput(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('evaluates a Trajectory, got string');
 
         (new ToolWasCalled('search'))->evaluate('a plain string');

@@ -81,9 +81,9 @@ $trajectory->toTranscript();      // canonical rendering (judges & simulator rea
 and use the whole assertion/judge layer — the Conversation runner is sugar over it.
 Serialization reuses the chat-history storage format, so a Trajectory survives the parallel
 runner's fork boundary (live tools rehydrate as data-only `ToolDefinition`s). Gotchas:
-`ToolInterface::getResult()` TypeErrors on a never-executed tool; accessors return the LIVE
-tool entries, which `ToolApproval` annotates in place on resume — read values, don't hold
-objects across a resume.
+a never-executed tool has no result — check `ToolInterface::hasResult()` before calling
+`getResult()`; accessors return the LIVE tool entries, which `ToolApproval` annotates in
+place on resume — read values, don't hold objects across a resume.
 
 ### Conversation — the runner
 
@@ -191,8 +191,9 @@ $this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $traje
 `EvaluatorSummary::getScoresByLabel()` groups the records;
 `getScoreStatisticsByLabel()` returns per-metric `{average, min, max, count}` across the
 dataset (rendered by `ConsoleOutput`, and emitted by `JsonOutput` as the `metrics` block
-plus a per-result `scores` list). The flat float views (`getAssertionScores()`,
-`getAllAssertionScores()`, avg/min/max) are derived from the same records.
+plus a per-result `scores` list). The flat float views (`EvaluatorResult::getAssertionScores()`,
+`EvaluatorSummary::getAllAssertionScores()` and the summary avg/min/max) are derived from
+the same records — the summary is the single home for statistics.
 
 ## Output Configuration
 

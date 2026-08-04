@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Evaluation\Assertions\StringEndsWith;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use InvalidArgumentException;
 
 class StringEndsWithTest extends TestCase
 {
@@ -52,7 +53,7 @@ class StringEndsWithTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringEndsWith('test');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -60,7 +61,7 @@ class StringEndsWithTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringEndsWith('world');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -68,7 +69,7 @@ class StringEndsWithTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringEndsWith('test');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -76,7 +77,7 @@ class StringEndsWithTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringEndsWith('test');
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }

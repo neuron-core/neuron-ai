@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\Assertions\Judges\RelevanceJudge;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 use function json_encode;
 use function str_contains;
@@ -168,7 +169,7 @@ class RelevanceJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new RelevanceJudge($agent, 'Question?', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }

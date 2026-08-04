@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringContainsAny;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 class StringContainsAnyTest extends TestCase
 {
@@ -59,7 +60,7 @@ class StringContainsAnyTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringContainsAny(['test']);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -67,7 +68,7 @@ class StringContainsAnyTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringContainsAny(['hello']);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -75,7 +76,7 @@ class StringContainsAnyTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringContainsAny(['test']);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }

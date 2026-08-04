@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
-use function array_map;
-use function array_sum;
-use function count;
-use function max;
-use function min;
-
 /**
  * Immutable value object representing assertion outcomes from an evaluation.
  */
@@ -35,56 +29,5 @@ class AssertionOutcomes
     public function isPassed(): bool
     {
         return $this->failedCount === 0;
-    }
-
-    /**
-     * Get the total number of assertions
-     */
-    public function getTotalCount(): int
-    {
-        return $this->passedCount + $this->failedCount;
-    }
-
-    /**
-     * Get all assertion score values
-     *
-     * @return array<float>
-     */
-    public function getScoreValues(): array
-    {
-        return array_map(fn (Score $score): float => $score->value, $this->scores);
-    }
-
-    /**
-     * Get the average assertion score
-     */
-    public function getAverageScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return array_sum($this->getScoreValues()) / count($this->scores);
-    }
-
-    /**
-     * Get the minimum assertion score
-     */
-    public function getMinScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return min($this->getScoreValues());
-    }
-
-    /**
-     * Get the maximum assertion score
-     */
-    public function getMaxScore(): float
-    {
-        if ($this->scores === []) {
-            return 0.0;
-        }
-        return max($this->getScoreValues());
     }
 }

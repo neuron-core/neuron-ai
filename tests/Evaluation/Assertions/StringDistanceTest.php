@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Evaluation\Assertions\StringDistance;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use InvalidArgumentException;
 
 use function str_repeat;
 
@@ -64,7 +65,7 @@ class StringDistanceTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -72,7 +73,7 @@ class StringDistanceTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringDistance('hello', 0.5, 10);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -80,7 +81,7 @@ class StringDistanceTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -88,7 +89,7 @@ class StringDistanceTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }

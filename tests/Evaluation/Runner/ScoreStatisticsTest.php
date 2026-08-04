@@ -12,6 +12,8 @@ use NeuronAI\Tests\Evaluation\Stubs\FixedScoreAssertion;
 use NeuronAI\Tests\Evaluation\Stubs\ScoreBasedEvaluator;
 use PHPUnit\Framework\TestCase;
 
+use function array_keys;
+
 class ScoreStatisticsTest extends TestCase
 {
     public function testScoreStatisticsAreTracked(): void
@@ -93,14 +95,10 @@ class ScoreStatisticsTest extends TestCase
         // First result has 2 assertions with scores 0.5, 0.7
         $result0 = $results[0];
         $this->assertEquals([0.5, 0.7], $result0->getAssertionScores());
-        $this->assertEqualsWithDelta(0.6, $result0->getAverageAssertionScore(), 0.001);
-        $this->assertEquals(0.5, $result0->getMinAssertionScore());
-        $this->assertEquals(0.7, $result0->getMaxAssertionScore());
 
         // Second result has 1 assertion with score 0.9
         $result1 = $results[1];
         $this->assertEquals([0.9], $result1->getAssertionScores());
-        $this->assertEquals(0.9, $result1->getAverageAssertionScore());
 
         // Summary aggregates all 3 scores
         $this->assertEqualsWithDelta(0.7, $summary->getAverageAssertionScore(), 0.001);

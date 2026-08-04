@@ -17,6 +17,7 @@ use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 use function count;
 use function json_encode;
@@ -110,7 +111,7 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check format', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['array', 'input']);
     }
@@ -120,7 +121,7 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check value', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -130,7 +131,7 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check content', 0.5);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }

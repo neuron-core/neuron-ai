@@ -10,6 +10,7 @@ use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 use stdClass;
+use InvalidArgumentException;
 
 use function array_fill;
 
@@ -79,7 +80,7 @@ class StringSimilarityTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(123);
     }
@@ -87,7 +88,7 @@ class StringSimilarityTest extends TestCase
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringSimilarity('hello', $this->embeddingsProvider, 0.6);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(['hello', 'world']);
     }
@@ -95,7 +96,7 @@ class StringSimilarityTest extends TestCase
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(null);
     }
@@ -103,7 +104,7 @@ class StringSimilarityTest extends TestCase
     public function testFailsWithObjectInput(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $assertion->evaluate(new stdClass());
     }
