@@ -11,6 +11,7 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Gemini\Gemini;
@@ -308,5 +309,74 @@ class GeminiTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_parallel_calls_of_the_same_tool_get_distinct_call_ids(): void
+    {
+        $body = '{
+            "candidates": [
+                {
+                    "content": {
+                        "role": "model",
+                        "parts": [
+                            {"functionCall": {"name": "get_weather", "args": {"city": "Rome"}}},
+                            {"functionCall": {"name": "get_weather", "args": {"city": "Milan"}}}
+                        ]
+                    },
+                    "finishReason": "STOP"
+                }
+            ]
+        }';
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $body),
+        ]);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))
+            ->setTools([ToolDefinition::make('get_weather', 'description')])
+            ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
+
+        $message = $provider->chat(new UserMessage('Weather in Rome and Milan?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $tools = $message->getTools();
+        $this->assertCount(2, $tools);
+        $this->assertSame(['city' => 'Rome'], $tools[0]->getInputs());
+        $this->assertSame(['city' => 'Milan'], $tools[1]->getInputs());
+        $this->assertNotNull($tools[0]->getCallId());
+        $this->assertNotNull($tools[1]->getCallId());
+        $this->assertNotSame($tools[0]->getCallId(), $tools[1]->getCallId());
+    }
+
+    public function test_api_provided_function_call_id_is_used_as_call_id(): void
+    {
+        $body = '{
+            "candidates": [
+                {
+                    "content": {
+                        "role": "model",
+                        "parts": [
+                            {"functionCall": {"id": "fc_1", "name": "get_weather", "args": {"city": "Rome"}}},
+                            {"functionCall": {"id": "fc_2", "name": "get_weather", "args": {"city": "Milan"}}}
+                        ]
+                    },
+                    "finishReason": "STOP"
+                }
+            ]
+        }';
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $body),
+        ]);
+
+        $provider = (new Gemini('', 'gemini-2.0-flash'))
+            ->setTools([ToolDefinition::make('get_weather', 'description')])
+            ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
+
+        $message = $provider->chat(new UserMessage('Weather in Rome and Milan?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('fc_1', $message->getTools()[0]->getCallId());
+        $this->assertSame('fc_2', $message->getTools()[1]->getCallId());
     }
 }

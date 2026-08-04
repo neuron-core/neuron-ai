@@ -16,9 +16,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolInterface;
 
-use function array_map;
 use function uniqid;
 use function array_values;
 
@@ -88,13 +86,21 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $blocks, array $toolCalls): ToolCallMessage
     {
-        $tools = array_map(function (array $item): ToolInterface {
-            return $this->findTool($item['functionCall']['name'])
-                ->setInputs($item['functionCall']['args'])
-                ->setCallId($item['functionCall']['name']); // Gemini uses the tool's name as a unique identifier.
-        }, $toolCalls);
+        $toolCalls = array_values($toolCalls);
 
-        $message = new ToolCallMessage($blocks, array_values($tools));
+        $tools = [];
+        foreach ($toolCalls as $index => $item) {
+            // Gemini identifies calls by tool name on the wire and only optionally provides
+            // an id, but the framework treats callId as per-call identity (memoization,
+            // approval decisions, stream protocols) — parallel calls of the same tool must
+            // never share it. Prefer the API id, otherwise synthesize a locally-unique one;
+            // the mapper never echoes callId back to Gemini, so a synthetic id is wire-safe.
+            $tools[] = $this->findTool($item['functionCall']['name'])
+                ->setInputs($item['functionCall']['args'])
+                ->setCallId($item['functionCall']['id'] ?? uniqid($item['functionCall']['name'].'_'.$index.'_'));
+        }
+
+        $message = new ToolCallMessage($blocks, $tools);
 
         if (isset($toolCalls[0]['thoughtSignature'])) {
             $message->addMetadata('thought_signature', $toolCalls[0]['thoughtSignature']);

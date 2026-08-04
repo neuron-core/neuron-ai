@@ -79,9 +79,9 @@ class StepResult
     public function __serialize(): array
     {
         return [
-            'version' => 2,
+            'version' => 3,
             'stepId' => $this->stepId,
-            'event' => $this->event?->toSnapshot(),
+            'event' => $this->event,
             'state' => $this->state,
             'interrupted' => $this->interrupted,
             'output' => $this->output,
@@ -92,7 +92,7 @@ class StepResult
     public function __unserialize(array $data): void
     {
         $this->stepId = $data['stepId'];
-        $this->event = isset($data['event']) ? Event::fromSnapshot($data['event']) : null;
+        $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
         $this->interrupted = $data['interrupted'] ?? false;
         $this->output = $data['output'] ?? null;

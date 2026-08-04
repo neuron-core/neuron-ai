@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Events;
 
-class StopEvent extends Event
+class StopEvent implements Event
 {
     public function __construct(protected mixed $result = null)
     {

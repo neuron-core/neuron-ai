@@ -12,7 +12,7 @@ use NeuronAI\Workflow\Events\Event;
  *
  * Emitted by PrepareRAGNode to initiate the RAG pipeline.
  */
-class QueryPreProcessEvent extends Event
+class QueryPreProcessEvent implements Event
 {
     public function __construct(
         public readonly Message $query

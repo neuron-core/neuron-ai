@@ -93,7 +93,8 @@ class ToolNode extends Node implements AgentNodeInterface
      * Execute a single tool with proper error handling and retry logic.
      *
      * The tool execution is wrapped in a durable memo keyed by the tool call id
-     * (or name + position when the provider supplies no call id). On replay — when
+     * (or name when the provider supplies none) plus the call's position in the
+     * message, so parallel calls sharing a callId never share a memo. On replay — when
      * the node re-executes because its step crashed before completing — the recorded
      * result is restored onto the tool WITHOUT re-running it, so side-effecting tools
      * (emails, payments, ...) execute at most once.
@@ -113,7 +114,7 @@ class ToolNode extends Node implements AgentNodeInterface
 
         $this->emit(new ToolCalling($tool));
 
-        $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName() . '.' . $index);
+        $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName()) . '.' . $index;
 
         try {
             $result = $this->memoize($memoKey, function () use ($tool, $state): string {

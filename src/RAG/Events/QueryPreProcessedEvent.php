@@ -12,7 +12,7 @@ use NeuronAI\Workflow\Events\Event;
  *
  * Triggers document retrieval from vector store.
  */
-class QueryPreProcessedEvent extends Event
+class QueryPreProcessedEvent implements Event
 {
     public function __construct(
         public readonly Message $query

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
@@ -37,14 +38,17 @@ class ApprovalRequestTest extends TestCase
         $this->assertEquals('action2', $request->getActions()[1]->id);
     }
 
-    public function testConstructorDeduplicatesActionsById(): void
+    public function testConstructorRejectsDuplicateActionIds(): void
     {
-        $request = new ApprovalRequest('Test message', [
+        // Decisions are delivered as a payload keyed by action id — a silent
+        // collapse would make one action invisible and forever undecidable.
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Duplicate approval action id "same"');
+
+        new ApprovalRequest('Test message', [
             new Action('same', 'First'),
             new Action('same', 'Second'),
         ]);
-
-        $this->assertCount(1, $request->getActions());
     }
 
     public function testJsonSerializeProducesNestedActionsArray(): void

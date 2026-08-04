@@ -6,6 +6,6 @@ namespace NeuronAI\Tests\Workflow\Executor\Stubs;
 
 use NeuronAI\Workflow\Events\Event;
 
-class SecondTextProcessEvent extends Event
+class SecondTextProcessEvent implements Event
 {
 }

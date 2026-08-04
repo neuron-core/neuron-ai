@@ -58,7 +58,7 @@ use function array_is_list;
  *       }
  *   }
  */
-class ParallelEvent extends Event
+class ParallelEvent implements Event
 {
     /** @var array<string, Event> */
     public readonly array $branches;

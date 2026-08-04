@@ -20,7 +20,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * durability detail like the interrupted step's id (that stays with the step
  * engine, which re-derives it during replay).
  */
-class InterruptEvent extends Event
+class InterruptEvent implements Event
 {
     public function __construct(
         public readonly InterruptRequest $request,

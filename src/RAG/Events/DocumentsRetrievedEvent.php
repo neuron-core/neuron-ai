@@ -12,7 +12,7 @@ use NeuronAI\Workflow\Events\Event;
  *
  * Triggers document post-processing (reranking, filtering, etc.).
  */
-class DocumentsRetrievedEvent extends Event
+class DocumentsRetrievedEvent implements Event
 {
     /**
      * @param Message $query The original query
