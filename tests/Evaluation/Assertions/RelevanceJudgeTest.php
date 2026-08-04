@@ -168,10 +168,8 @@ class RelevanceJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new RelevanceJudge($agent, 'Question?', 0.5);
 
-        $result = $assertion->evaluate(123);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected actual value to be a string', $result->message);
+        $assertion->evaluate(123);
     }
 }

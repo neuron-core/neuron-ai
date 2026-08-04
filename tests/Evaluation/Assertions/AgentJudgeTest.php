@@ -7,9 +7,15 @@ namespace NeuronAI\Tests\Evaluation\Assertions;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Assertions\AgentJudge;
+use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
+use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -104,11 +110,9 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check format', 0.5);
 
-        $result = $assertion->evaluate(['array', 'input']);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got array', $result->message);
+        $assertion->evaluate(['array', 'input']);
     }
 
     public function testFailsWithIntegerInput(): void
@@ -116,11 +120,9 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check value', 0.5);
 
-        $result = $assertion->evaluate(123);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
+        $assertion->evaluate(123);
     }
 
     public function testFailsWithNullInput(): void
@@ -128,11 +130,9 @@ class AgentJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check content', 0.5);
 
-        $result = $assertion->evaluate(null);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
+        $assertion->evaluate(null);
     }
 
     public function testIncludesReferenceInPrompt(): void
@@ -275,6 +275,44 @@ class AgentJudgeTest extends TestCase
                    str_contains($content, 'Actual Output:') &&
                    str_contains($content, 'Examples of graded outputs:') &&
                    str_contains($content, 'Provide a score between 0.0 and 1.0');
+        });
+    }
+
+    public function testEvaluatesTrajectoryByRenderingItsTranscript(): void
+    {
+        $fakeProvider = FakeAIProvider::make();
+        for ($i = 0; $i < 3; $i++) {
+            $fakeProvider->addResponses(new AssistantMessage(json_encode([
+                'score' => 0.9,
+                'reasoning' => 'The conversation handled the rejection gracefully.',
+            ], JSON_THROW_ON_ERROR)));
+        }
+        $agent = Agent::make()->setAiProvider($fakeProvider);
+        $assertion = new AgentJudge($agent, 'Judge the conversation', 0.7);
+
+        $tool = ToolDefinition::make('refund_order', 'The refund tool')
+            ->setInputs(['order_id' => '123'])
+            ->setCallId('call_1');
+        $tool->setApprovalState(ApprovalState::Rejected, 'too expensive');
+        $tool->setResult('rejected by the user');
+
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage('Refund order 123'),
+            new ToolCallMessage(null, [$tool]),
+            new ToolResultMessage([$tool]),
+            new AssistantMessage('I cannot process the refund.'),
+        ]);
+
+        $result = $assertion->evaluate($trajectory);
+
+        $this->assertTrue($result->passed);
+        $this->assertEquals(0.9, $result->score);
+        $fakeProvider->assertSent(function (RequestRecord $record): bool {
+            $content = (string) $record->messages[0]->getContent();
+            return str_contains($content, 'User: Refund order 123') &&
+                   str_contains($content, 'Tool call: refund_order({"order_id":"123"})') &&
+                   str_contains($content, '[rejected: too expensive]') &&
+                   str_contains($content, 'Assistant: I cannot process the refund.');
         });
     }
 }

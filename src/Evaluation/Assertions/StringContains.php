@@ -6,26 +6,17 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
-use function gettype;
-use function is_string;
 use function str_contains;
 use function strtolower;
 
-class StringContains extends AbstractAssertion
+class StringContains extends StringAssertion
 {
     public function __construct(protected string $keyword)
     {
     }
 
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-            );
-        }
-
         if (str_contains(strtolower($actual), strtolower($this->keyword))) {
             return AssertionResult::pass(1.0);
         }

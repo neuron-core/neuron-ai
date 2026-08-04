@@ -56,7 +56,7 @@ Chat ◄────────────────────────
 | `src/MCP/` | Model Context Protocol connector                              | HttpClient |
 | `src/Observability/` | PSR-14 event dispatching and observers                        | None |
 | `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
-| `src/Evaluation/` | AI evaluation framework                                       | None |
+| `src/Evaluation/` | AI evaluation framework (incl. multi-turn conversation eval)  | Agent, Chat, Workflow, Tools |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
 
 ## Context Discovery

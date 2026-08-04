@@ -144,10 +144,8 @@ class HelpfulnessJudgeTest extends TestCase
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new HelpfulnessJudge($agent, 0.5);
 
-        $result = $assertion->evaluate(null);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected actual value to be a string', $result->message);
+        $assertion->evaluate(null);
     }
 }

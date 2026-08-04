@@ -1,6 +1,6 @@
 ---
 name: neuron-evaluation-engineer
-description: Create and run AI evaluations with datasets, assertions, and output drivers in Neuron AI. Use this skill whenever the user mentions evaluation, testing AI systems, creating evaluators, dataset-driven testing, assertion-based validation, or wants to measure AI system performance. Also trigger for tasks involving evaluator discovery, output configuration, result analysis, or building custom assertions.
+description: Create and run AI evaluations with datasets, assertions, and output drivers in Neuron AI. Use this skill whenever the user mentions evaluation, testing AI systems, creating evaluators, dataset-driven testing, assertion-based validation, or wants to measure AI system performance. Also trigger for tasks involving evaluator discovery, output configuration, result analysis, building custom assertions, multi-turn conversation evaluation, agent trajectory testing, tool-call assertions, human-in-the-loop (approval flow) testing, or simulated user conversations.
 ---
 
 # Neuron AI Evaluation Engineer
@@ -191,7 +191,9 @@ $this->assert(new IsValidJson(), $output);
 ### AI Judge Assertions
 
 #### AgentJudge
-Use an AI agent to evaluate outputs with custom criteria:
+Use an AI agent to evaluate outputs with custom criteria. Judges accept a `string` **or a
+`Trajectory`** (see Multi-Turn Conversation Evaluation below) — a Trajectory is rendered
+into the judge prompt as the full conversation transcript:
 
 ```php
 use NeuronAI\Evaluation\Assertions\AgentJudge;
@@ -264,9 +266,26 @@ $this->assert(new HelpfulnessJudge(
     judge: $judge,
     threshold: 0.7
 ), $output);
+
+// Task completion - did the assistant accomplish the user's goal over a whole
+// conversation? Feed it a Trajectory (see Multi-Turn Conversation Evaluation).
+use NeuronAI\Evaluation\Assertions\Judges\TaskCompletionJudge;
+
+$this->assert(new TaskCompletionJudge(
+    judge: $judge,
+    goal: $datasetItem['goal'],
+    threshold: 0.7
+), $trajectory);
 ```
 
 ### Creating Custom Assertions
+
+The type contract: `evaluate(mixed $actual)` stays `mixed` (the interface supports different
+input types per assertion family), but a wrong input type is a **coding error in the
+evaluator** — throw `InvalidArgumentException` (the runner records it as an item error).
+An assertion *failure* is reserved for facts about the agent's output. For string-based
+assertions, extend `StringAssertion` (implement `evaluateString(string $actual)`) and the
+type is enforced for you; for trajectory-based ones extend `TrajectoryAssertion`.
 
 ```php
 use NeuronAI\Evaluation\Assertions\AbstractAssertion;
@@ -275,15 +294,14 @@ use NeuronAI\Evaluation\AssertionResult;
 class GreaterThanAssertion extends AbstractAssertion
 {
     public function __construct(
-        private readonly float $threshold
+        protected float $threshold
     ) {}
 
     public function evaluate(mixed $actual): AssertionResult
     {
         if (!is_numeric($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected numeric value, got ' . gettype($actual),
+            throw new \InvalidArgumentException(
+                static::class . ' evaluates a number, got ' . get_debug_type($actual)
             );
         }
 
@@ -303,6 +321,180 @@ Use it:
 
 ```php
 $this->assert(new GreaterThanAssertion(0.8), $score);
+```
+
+## Multi-Turn Conversation Evaluation
+
+For agentic systems the unit under test is not a single response but a whole conversation:
+tool calls, human approval decisions, and the final outcome. One sentence anchors the model:
+**you run a Conversation; you evaluate its Trajectory.**
+
+### Conversation — driving the agent
+
+`Conversation` drives an agent through a multi-turn exchange inside `run()` and returns a
+`Trajectory` to assert against:
+
+```php
+use NeuronAI\Evaluation\Conversation\Conversation;
+use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
+
+public function run(array $datasetItem): mixed
+{
+    return Conversation::make($this->makeAgent())
+        ->withTurns($datasetItem['turns'])        // list of strings (or UserMessage objects)
+        ->run();                                  // : Trajectory
+}
+```
+
+Turns are delivered in order; each one is sent only after the previous turn fully completed.
+
+### Human-in-the-loop: the approval policy
+
+If the agent under test uses the `ToolApproval` middleware, `chat()` suspends mid-turn and a
+human must decide. In an evaluation there is no human — `withApprovals()` scripts the
+approver. The callable is invoked whenever the agent suspends, at any point in the
+conversation (that's why it is not an entry in the turns script — you can't know in advance
+*when* the model will call the gated tool):
+
+```php
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+
+Conversation::make($agent)
+    ->withTurns(['I want a refund for order #123', 'Yes, do it.'])
+    ->withApprovals(function (ApprovalRequest $request, Trajectory $soFar): array {
+        $payload = [];
+        foreach ($request->getActions() as $action) {
+            if ($action->isPending()) {
+                // Argument-dependent decisions: read the args from the trajectory
+                // tail at policy time (read values — the entries are live objects).
+                $args = $soFar->lastToolCall($action->name)?->getInputs();
+
+                $payload[$action->id] = ($args['amount'] ?? 0) > 100
+                    ? ['reject', 'above the auto-approve threshold']
+                    : 'approve';
+            }
+        }
+        return $payload;   // complete decision set, keyed by callId
+    })
+    ->run();
+```
+
+Fail-loud rules (each throws `EvaluationException`, recorded as an item error):
+- a suspension occurs and no policy is configured — silence is never consent;
+- the returned payload misses a pending action id (an incomplete set would re-suspend and
+  loop the runner).
+
+The parameter can be typed as the generic `InterruptRequest` to handle custom suspensions,
+narrowing with `instanceof`.
+
+### Simulated users
+
+Instead of a script, let an agent play the user — persona + goal, generating each next
+message from the conversation so far and deciding itself when to stop (goal satisfied or
+giving up):
+
+```php
+use NeuronAI\Evaluation\Conversation\UserSimulator;
+
+$simulator = UserSimulator::make()
+    ->withPersona('An impatient customer who gives short answers')
+    ->withGoal('Get a refund for order 123');
+$simulator->setAiProvider($provider);   // set the provider on a separate statement
+
+$trajectory = Conversation::make($agent)
+    ->withUser($simulator, maxTurns: 10)   // hard cap required — no infinite default
+    ->withApprovals($policy)               // approvals STAY with the policy: the user
+    ->run();                               // and the approver are different humans
+```
+
+`withTurns()` and `withUser()` are mutually exclusive. Hitting `maxTurns` ends the
+conversation normally — whether an unfinished conversation is a failure is the assertions'
+judgment (use `TaskCompletionJudge`), not the runner's.
+
+### Trajectory — the record you assert against
+
+A read-only view over the conversation's messages. Key accessors:
+
+```php
+$trajectory->toolCalls('refund_order');  // ToolInterface[] — one entry per call, with
+                                         // final results and approval state merged in
+$trajectory->lastToolCall();             // ?ToolInterface
+$trajectory->finalAnswer();              // string — last assistant message ('' if none)
+$trajectory->userMessages();             // string[]
+$trajectory->usage();                    // Usage — aggregate token usage (cost checks)
+$trajectory->toTranscript();             // human-readable transcript (what judges see)
+$trajectory->messages();                 // the raw Message[] — full fidelity
+```
+
+You don't need the Conversation runner to get one — any hand-rolled multi-turn loop can
+project its chat history: `Trajectory::fromChatHistory($agent->getChatHistory())`.
+
+### Trajectory assertions
+
+```php
+use NeuronAI\Evaluation\Assertions\Trajectory\{
+    Mode, ToolWasCalled, ToolWasNotCalled, TrajectoryMatches, ToolWasApproved, ToolWasRejected
+};
+
+public function evaluate(mixed $trajectory, array $datasetItem): void
+{
+    // The workhorse — optional argument constraint (subset match or callable)
+    $this->assert(new ToolWasCalled('search_orders', ['customer' => $datasetItem['customer']]), $trajectory);
+    $this->assert(new ToolWasCalled('refund_order', fn (array $args): bool => $args['amount'] <= 100), $trajectory);
+
+    // Guardrails
+    $this->assert(new ToolWasNotCalled('delete_account'), $trajectory);
+
+    // Sequence matching (names only), four modes:
+    //   Strict    — exact sequence, nothing else
+    //   Unordered — same calls, any order
+    //   Subset    — expected appears in order, extras allowed
+    //   Superset  — no call outside the expected set
+    $this->assert(new TrajectoryMatches($datasetItem['expected_tools'], Mode::Subset), $trajectory);
+
+    // HITL outcomes (approval state recorded in chat history)
+    $this->assert(new ToolWasRejected('refund_order'), $trajectory);
+
+    // Final answer: reuse the string catalog and judges on finalAnswer()
+    $this->assert(new StringContains('cannot process'), $trajectory->finalAnswer());
+
+    // Conversation-level judge: goal + whole transcript
+    $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['goal']), $trajectory);
+}
+```
+
+### Complete example: refund conversation with rejection
+
+```php
+class RefundConversationEvaluator extends BaseEvaluator
+{
+    public function getDataset(): DatasetInterface
+    {
+        return new JsonDataset(__DIR__ . '/datasets/refunds.json');
+    }
+
+    public function run(array $datasetItem): mixed
+    {
+        return Conversation::make($this->makeAgent())
+            ->withTurns($datasetItem['turns'])
+            ->withApprovals(fn (ApprovalRequest $request, Trajectory $soFar): array =>
+                array_reduce($request->getActions(), function (array $payload, $action) use ($datasetItem) {
+                    $payload[$action->id] = $datasetItem['decisions'][$action->name] ?? 'approve';
+                    return $payload;
+                }, [])
+            )
+            ->run();
+    }
+
+    public function evaluate(mixed $trajectory, array $datasetItem): void
+    {
+        $this->assert(new TrajectoryMatches($datasetItem['expected_tools'], Mode::Subset), $trajectory);
+        $this->assert(new ToolWasRejected('refund_order'), $trajectory);
+        $this->assert(new StringContains('cannot'), $trajectory->finalAnswer());
+        $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['goal']), $trajectory);
+    }
+}
 ```
 
 ## Running Evaluations
@@ -655,8 +847,7 @@ public function evaluate(mixed $output, array $datasetItem): void
 ## CLI Generation
 
 ```bash
-# (Note: Neuron CLI doesn't have make:evaluator yet)
-# Create evaluator manually in evaluators directory
+vendor/bin/neuron make:evaluators MyEvaluator
 ```
 
 ## Testing Evaluators
@@ -733,6 +924,9 @@ When helping users with evaluations:
     - Pattern matching → `MatchesRegex`
     - Semantic similarity → `StringSimilarity` (embeddings)
     - Fuzzy matching → `StringDistance`
+    - Tool calls / HITL / call sequences → trajectory assertions (`ToolWasCalled`,
+      `TrajectoryMatches`, `ToolWasApproved`/`ToolWasRejected`) on a `Trajectory`
+    - Whole-conversation quality → `TaskCompletionJudge` (and other judges) on a `Trajectory`
 
 3. **Output configuration** based on:
     - Development → `ConsoleOutput` with verbose mode

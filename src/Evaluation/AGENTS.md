@@ -1,6 +1,11 @@
 # Evaluation Module
 
-Dataset-driven AI evaluation with flexible assertions and output drivers.
+Dataset-driven AI evaluation with flexible assertions and output drivers, including
+first-class multi-turn conversation evaluation (tool calls, human-in-the-loop, simulated
+users).
+
+**Dependencies**: Agent, Chat, Workflow, Tools (typed against their general contracts:
+`AgentInterface`, `ChatHistoryInterface`, `InterruptRequest`, `ToolInterface`).
 
 ## Running Evaluations
 
@@ -32,11 +37,127 @@ are replaced with a placeholder string in the results.
 | `Contracts/` | Interfaces: `EvaluatorInterface`, `DatasetInterface`, `AssertionInterface`, `EvaluationOutputInterface` |
 | `BaseEvaluator.php` | Abstract base with assertion management |
 | `Dataset/` | `ArrayDataset`, `JsonDataset` |
-| `Assertions/` | Built-in: string, JSON, similarity, distance |
+| `Assertions/` | Built-in: string (via `StringAssertion` base), JSON, similarity, distance; `Assertions/Trajectory/` for tool-call/HITL assertions; `Assertions/Judges/` for LLM judges |
+| `Conversation/` | `Conversation` (multi-turn runner), `UserSimulator`, `SimulatorOutput` |
+| `Trajectory/` | `Trajectory` — the recorded evaluation subject (view over chat messages) |
 | `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary` |
 | `Output/` | `ConsoleOutput`, `JsonOutput`, `OutputPipeline` |
 | `Config/` | Config loading and driver resolution |
 | `Discovery/` | Auto-discover evaluator classes |
+
+### Assertion type contract
+
+`AssertionInterface::evaluate(mixed $actual)` stays `mixed` (the polymorphic seam), but each
+assertion family enforces its concrete input type and **throws `InvalidArgumentException`** on
+a mismatch — a wrong input type is a coding error in the evaluator (surfaced as a per-item
+*error* by the runner), never a failed assertion about the agent. `StringAssertion` and
+`TrajectoryAssertion` are the shared bases; subclasses implement `evaluateString()` /
+`evaluateTrajectory()`.
+
+## Multi-Turn Conversation Evaluation
+
+One sentence anchors the design: **you run a Conversation; you evaluate its Trajectory**
+(vocabulary in `CONTEXT.md`, decision record in ADR 0007).
+
+### Trajectory — the recorded subject
+
+A read-only **view over the original typed chat messages** — no parallel data schema.
+Accessors answer evaluation questions directly from framework types:
+
+```php
+$trajectory = Trajectory::fromChatHistory($agent->getChatHistory()); // or fromMessages()
+
+$trajectory->messages();          // Message[] — full fidelity
+$trajectory->toolCalls('refund'); // ToolInterface[] — one entry per call (the "fold":
+                                  // pending snapshot + final outcome merged, final wins — ADR 0006)
+$trajectory->lastToolCall();      // ?ToolInterface
+$trajectory->finalAnswer();       // string ('' on a suspended tail)
+$trajectory->usage();             // Usage — aggregated provider-reported tokens
+$trajectory->toTranscript();      // canonical rendering (judges & simulator read this);
+                                  // attachments described, approval decisions annotated
+```
+
+`fromMessages()` is a public seam: any hand-rolled multi-turn loop can project its history
+and use the whole assertion/judge layer — the Conversation runner is sugar over it.
+Serialization reuses the chat-history storage format, so a Trajectory survives the parallel
+runner's fork boundary (live tools rehydrate as data-only `ToolDefinition`s). Gotchas:
+`ToolInterface::getResult()` TypeErrors on a never-executed tool; accessors return the LIVE
+tool entries, which `ToolApproval` annotates in place on resume — read values, don't hold
+objects across a resume.
+
+### Conversation — the runner
+
+```php
+public function run(array $item): mixed
+{
+    return Conversation::make($this->makeAgent())
+        ->withTurns($item['turns'])              // scripted: list<string|UserMessage>
+        ->withApprovals(function (InterruptRequest $request, Trajectory $soFar): array {
+            $payload = [];
+            foreach ($request->getActions() as $action) {
+                if ($action->isPending()) {
+                    $payload[$action->id] = 'approve';   // or ['reject', $reason]
+                }
+            }
+            return $payload;
+        })
+        ->run();                                 // : Trajectory
+}
+```
+
+- Each scripted turn is sent only after the previous one fully completed (including any
+  suspend → decide → resume cycle).
+- **Approval policy** (`withApprovals`): the callable plays the human whenever the agent
+  suspends, at any point. Typed against the generic `InterruptRequest` — narrow with
+  `instanceof` as needed. Fail-loud: a suspension with no policy throws
+  `EvaluationException`, and for `ApprovalRequest`s the returned payload must cover every
+  pending action id (an incomplete set would re-suspend per ADR 0002 and loop the runner).
+- Simulated path: `->withUser($simulator, maxTurns: 10)` instead of `withTurns()` (mutually
+  exclusive). `maxTurns` is required; hitting the cap ends the conversation *normally* —
+  whether unfinished is a failure is the assertions' judgment.
+
+### UserSimulator — goal-driven conversations
+
+An `Agent` subclass that plays the user and declares its own stop:
+
+```php
+$simulator = UserSimulator::make()
+    ->withPersona('An impatient customer')
+    ->withGoal('Get a refund for order 123');
+$simulator->setAiProvider($provider);   // returns AgentInterface — keep it off the chain
+```
+
+Each step is stateless (self-contained prompt: persona + goal + transcript; own history
+flushed per call). The simulator never answers suspensions — the user and the approver are
+different humans; approvals stay with the policy.
+
+### Trajectory assertions
+
+```php
+$this->assert(new ToolWasCalled('refund_order', ['order_id' => '123']), $trajectory);
+$this->assert(new ToolWasNotCalled('delete_account'), $trajectory);
+$this->assert(new TrajectoryMatches(['search', 'refund_order'], Mode::Subset), $trajectory);
+$this->assert(new ToolWasApproved('send_email'), $trajectory);
+$this->assert(new ToolWasRejected('refund_order'), $trajectory);
+```
+
+`ToolWasCalled` takes an optional argument constraint (array = subset match, strict
+equality per listed key; or `fn(array $inputs): bool`). `TrajectoryMatches` is names-only,
+with `Mode::Strict` (exact sequence), `Unordered` (same multiset), `Subset` (in-order
+subsequence, extras allowed), `Superset` (no call outside the allowed set). Final-answer
+assertions deliberately don't exist: the string catalog and judges apply to
+`$trajectory->finalAnswer()`.
+
+### Transcript-aware judges
+
+`AgentJudge` (and all prebuilt judges) accept `string|Trajectory` — a Trajectory is rendered
+into the prompt via the protected `renderTranscript()` seam (default `toTranscript()`).
+`TaskCompletionJudge` is the conversation-level judge: goal + full trajectory → did the
+assistant accomplish it.
+
+```php
+$this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $trajectory);
+```
 
 ## Creating Evaluators
 
@@ -60,7 +181,7 @@ class MyEvaluator extends BaseEvaluator
 
 ## Output Configuration
 
-Create `neuron-evaluation.php` in project root. Each `output` entry is either a
+Create `evaluation.php` in project root. Each `output` entry is either a
 class string of a zero-argument driver, or a fully-constructed driver instance.
 Drivers that need constructor arguments (dependencies, options) **must** be
 supplied as concrete instances - this lets the host framework resolve them

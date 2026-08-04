@@ -6,25 +6,16 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
-use function gettype;
-use function is_string;
 use function preg_match;
 
-class MatchesRegex extends AbstractAssertion
+class MatchesRegex extends StringAssertion
 {
     public function __construct(protected string $regex)
     {
     }
 
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-            );
-        }
-
         $result = preg_match($this->regex, $actual) === 1;
 
         if ($result) {

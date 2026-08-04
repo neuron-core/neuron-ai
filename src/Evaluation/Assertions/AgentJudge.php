@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Assertions;
 
+use InvalidArgumentException;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\JudgeScoreOutput;
+use NeuronAI\Evaluation\Trajectory\Trajectory;
 
-use function gettype;
+use function get_debug_type;
 use function implode;
 use function is_string;
 
@@ -33,10 +35,13 @@ class AgentJudge extends AbstractAssertion
 
     public function evaluate(mixed $actual): AssertionResult
     {
+        if ($actual instanceof Trajectory) {
+            $actual = $this->renderTranscript($actual);
+        }
+
         if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
+            throw new InvalidArgumentException(
+                static::class . ' evaluates a string or a Trajectory, got ' . get_debug_type($actual)
             );
         }
 
@@ -63,6 +68,15 @@ class AgentJudge extends AbstractAssertion
             "Score {$result->score} below threshold {$this->threshold}. Reasoning: {$result->reasoning}",
             $this->buildContext()
         );
+    }
+
+    /**
+     * How a Trajectory is presented to the judge — the canonical transcript by
+     * default. Override to control how much of the conversation the judge sees.
+     */
+    protected function renderTranscript(Trajectory $trajectory): string
+    {
+        return $trajectory->toTranscript();
     }
 
     /**

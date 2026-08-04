@@ -155,44 +155,33 @@ class IsValidJsonTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new IsValidJson();
-        $result = $assertion->evaluate(123);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
-        $this->assertEquals(['actual' => 123], $result->context);
+        $assertion->evaluate(123);
     }
 
     public function testFailsWithArrayInput(): void
     {
         $assertion = new IsValidJson();
-        $result = $assertion->evaluate(['hello', 'world']);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got array', $result->message);
-        $this->assertEquals(['actual' => ['hello', 'world']], $result->context);
+        $assertion->evaluate(['hello', 'world']);
     }
 
     public function testFailsWithNullInput(): void
     {
         $assertion = new IsValidJson();
-        $result = $assertion->evaluate(null);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
-        $this->assertEquals(['actual' => null], $result->context);
+        $assertion->evaluate(null);
     }
 
     public function testFailsWithObjectInput(): void
     {
         $assertion = new IsValidJson();
-        $result = $assertion->evaluate(new stdClass());
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got object', $result->message);
+        $assertion->evaluate(new stdClass());
     }
 
     public function testFailsWithUnclosedBrackets(): void

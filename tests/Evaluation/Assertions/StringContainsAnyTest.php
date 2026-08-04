@@ -59,31 +59,25 @@ class StringContainsAnyTest extends TestCase
     public function testFailsWithNonStringInput(): void
     {
         $assertion = new StringContainsAny(['test']);
-        $result = $assertion->evaluate(123);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got integer', $result->message);
+        $assertion->evaluate(123);
     }
 
     public function testFailsWithArrayInput(): void
     {
         $assertion = new StringContainsAny(['hello']);
-        $result = $assertion->evaluate(['hello', 'world']);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got array', $result->message);
+        $assertion->evaluate(['hello', 'world']);
     }
 
     public function testFailsWithNullInput(): void
     {
         $assertion = new StringContainsAny(['test']);
-        $result = $assertion->evaluate(null);
+        $this->expectException(\InvalidArgumentException::class);
 
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals('Expected actual value to be a string, got NULL', $result->message);
+        $assertion->evaluate(null);
     }
 
     public function testPassesWithEmptyKeywordsArray(): void

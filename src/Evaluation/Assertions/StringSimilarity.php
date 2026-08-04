@@ -9,10 +9,8 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorSimilarity;
 
-use function gettype;
-use function is_string;
 
-class StringSimilarity extends AbstractAssertion
+class StringSimilarity extends StringAssertion
 {
     public function __construct(
         protected string $reference,
@@ -24,15 +22,8 @@ class StringSimilarity extends AbstractAssertion
     /**
      * @throws VectorStoreException
      */
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-            );
-        }
-
         $actualEmbeddings = $this->embeddingsProvider->embedText($actual);
         $referenceEmbeddings = $this->embeddingsProvider->embedText($this->reference);
 

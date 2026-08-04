@@ -6,25 +6,16 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
-use function gettype;
-use function is_string;
 use function mb_strlen;
 
-class StringLengthBetween extends AbstractAssertion
+class StringLengthBetween extends StringAssertion
 {
     public function __construct(protected int $min, protected int $max)
     {
     }
 
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-            );
-        }
-
         $length = mb_strlen($actual);
         $result = $length >= $this->min && $length <= $this->max;
 

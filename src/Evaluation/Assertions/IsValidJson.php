@@ -6,26 +6,16 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
-use function gettype;
-use function is_string;
 use function json_decode;
 use function json_last_error;
 use function json_last_error_msg;
 
 use const JSON_ERROR_NONE;
 
-class IsValidJson extends AbstractAssertion
+class IsValidJson extends StringAssertion
 {
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-                ['actual' => $actual]
-            );
-        }
-
         json_decode($actual);
         $result = json_last_error() === JSON_ERROR_NONE;
 

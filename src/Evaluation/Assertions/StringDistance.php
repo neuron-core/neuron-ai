@@ -6,11 +6,9 @@ namespace NeuronAI\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\AssertionResult;
 
-use function gettype;
-use function is_string;
 use function levenshtein;
 
-class StringDistance extends AbstractAssertion
+class StringDistance extends StringAssertion
 {
     public function __construct(
         protected string $reference,
@@ -19,15 +17,8 @@ class StringDistance extends AbstractAssertion
     ) {
     }
 
-    public function evaluate(mixed $actual): AssertionResult
+    protected function evaluateString(string $actual): AssertionResult
     {
-        if (!is_string($actual)) {
-            return AssertionResult::fail(
-                0.0,
-                'Expected actual value to be a string, got ' . gettype($actual),
-            );
-        }
-
         $distance = levenshtein($actual, $this->reference);
 
         if ($distance <= $this->maxDistance) {
