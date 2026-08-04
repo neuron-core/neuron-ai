@@ -21,8 +21,8 @@ What changed:
    `EvaluatorSummary::getAllAssertionScores()`, and all average/min/max methods keep
    their signatures and return the same values (now derived from the labeled records).
    Custom output drivers that only read these methods need no changes.
-3. **New labeled-score APIs** — `EvaluatorResult::getScores(): array<Score>`,
-   `EvaluatorSummary::getAllScores()`, `EvaluatorSummary::getScoresByLabel()`, and
+3. **New labeled-score APIs** — `EvaluatorResult::getScoreRecords(): array<Score>`,
+   `EvaluatorSummary::getAllScoreRecords()`, `EvaluatorSummary::getScoresByLabel()`, and
    `EvaluatorSummary::getScoreStatisticsByLabel()` (per-metric average/min/max/count).
 4. **Constructor argument types changed** — `AssertionOutcomes` (4th argument) and
    `EvaluatorResult` (9th argument) now take `array<Score>` instead of `array<float>`.

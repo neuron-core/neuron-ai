@@ -93,7 +93,7 @@ class JsonOutput implements EvaluationOutputInterface
                             'value' => $s->value,
                             'passed' => $s->passed,
                         ],
-                        $r->getScores()
+                        $r->getScoreRecords()
                     ),
                 ],
                 $summary->getResults()

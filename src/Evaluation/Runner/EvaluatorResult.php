@@ -105,7 +105,7 @@ class EvaluatorResult
      *
      * @return array<Score>
      */
-    public function getScores(): array
+    public function getScoreRecords(): array
     {
         return $this->assertionScores;
     }

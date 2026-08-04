@@ -112,7 +112,7 @@ class ScoreStatisticsTest extends TestCase
         $runner = new EvaluatorRunner();
         $summary = $runner->run($evaluator);
 
-        $scores = $summary->getAllScores();
+        $scores = $summary->getAllScoreRecords();
         $this->assertCount(2, $scores);
         $this->assertEquals('FixedScoreAssertion', $scores[0]->label);
         $this->assertEquals(0.8, $scores[0]->value);
@@ -143,7 +143,7 @@ class ScoreStatisticsTest extends TestCase
         $runner = new EvaluatorRunner();
         $summary = $runner->run($evaluator);
 
-        $scores = $summary->getAllScores();
+        $scores = $summary->getAllScoreRecords();
         $this->assertCount(1, $scores);
         $this->assertEquals('task_completion', $scores[0]->label);
         $this->assertEquals(0.85, $scores[0]->value);

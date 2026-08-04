@@ -167,11 +167,11 @@ class EvaluatorSummary
      *
      * @return array<Score>
      */
-    public function getAllScores(): array
+    public function getAllScoreRecords(): array
     {
         $scores = [];
         foreach ($this->results as $result) {
-            $scores = array_merge($scores, $result->getScores());
+            $scores = array_merge($scores, $result->getScoreRecords());
         }
         return $scores;
     }
@@ -184,7 +184,7 @@ class EvaluatorSummary
     public function getScoresByLabel(): array
     {
         $grouped = [];
-        foreach ($this->getAllScores() as $score) {
+        foreach ($this->getAllScoreRecords() as $score) {
             $grouped[$score->label][] = $score;
         }
         return $grouped;
@@ -217,7 +217,7 @@ class EvaluatorSummary
      */
     public function getAllAssertionScores(): array
     {
-        return array_map(fn (Score $score): float => $score->value, $this->getAllScores());
+        return array_map(fn (Score $score): float => $score->value, $this->getAllScoreRecords());
     }
 
     /**
