@@ -7,6 +7,7 @@ namespace NeuronAI\Evaluation\Output;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
+use NeuronAI\Evaluation\Score;
 use RuntimeException;
 use JsonException;
 
@@ -73,6 +74,7 @@ class JsonOutput implements EvaluationOutputInterface
                 'min_score' => $summary->getMinAssertionScore(),
                 'max_score' => $summary->getMaxAssertionScore(),
             ] : null,
+            'metrics' => $allScores !== [] ? $summary->getScoreStatisticsByLabel() : null,
             'has_failures' => $summary->hasFailures(),
             'results' => array_map(
                 fn (EvaluatorResult $r): array => [
@@ -85,6 +87,14 @@ class JsonOutput implements EvaluationOutputInterface
                     'assertions_passed' => $r->getAssertionsPassed(),
                     'assertions_failed' => $r->getAssertionsFailed(),
                     'assertion_scores' => $r->getAssertionScores(),
+                    'scores' => array_map(
+                        fn (Score $s): array => [
+                            'label' => $s->label,
+                            'value' => $s->value,
+                            'passed' => $s->passed,
+                        ],
+                        $r->getScores()
+                    ),
                 ],
                 $summary->getResults()
             ),

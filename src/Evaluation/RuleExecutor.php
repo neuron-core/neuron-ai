@@ -7,6 +7,7 @@ namespace NeuronAI\Evaluation;
 use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
 use function debug_backtrace;
+use function array_map;
 use function array_sum;
 use function count;
 use function max;
@@ -23,18 +24,18 @@ class RuleExecutor
     /** @var array<AssertionFailure> */
     protected array $failures = [];
 
-    /** @var array<float> */
+    /** @var array<Score> */
     protected array $scores = [];
 
     /**
      * Execute an evaluation rule and track the result
      */
-    public function execute(AssertionInterface $rule, mixed $actual): bool
+    public function execute(AssertionInterface $rule, mixed $actual, ?string $label = null): bool
     {
         $result = $rule->evaluate($actual);
 
         // Track the score regardless of pass/fail
-        $this->scores[] = $result->score;
+        $this->scores[] = new Score($label ?? $rule->getName(), $result->score, $result->passed);
 
         if ($result->passed) {
             $this->passedCount++;
@@ -92,11 +93,21 @@ class RuleExecutor
     }
 
     /**
-     * Get all assertion scores
+     * Get all assertion score values
      *
      * @return array<float>
      */
     public function getScores(): array
+    {
+        return array_map(fn (Score $score): float => $score->value, $this->scores);
+    }
+
+    /**
+     * Get all labeled assertion scores
+     *
+     * @return array<Score>
+     */
+    public function getScoreRecords(): array
     {
         return $this->scores;
     }
@@ -109,7 +120,7 @@ class RuleExecutor
         if ($this->scores === []) {
             return 0.0;
         }
-        return array_sum($this->scores) / count($this->scores);
+        return array_sum($this->getScores()) / count($this->scores);
     }
 
     /**
@@ -120,7 +131,7 @@ class RuleExecutor
         if ($this->scores === []) {
             return 0.0;
         }
-        return min($this->scores);
+        return min($this->getScores());
     }
 
     /**
@@ -131,7 +142,7 @@ class RuleExecutor
         if ($this->scores === []) {
             return 0.0;
         }
-        return max($this->scores);
+        return max($this->getScores());
     }
 
     /**

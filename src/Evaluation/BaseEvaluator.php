@@ -66,15 +66,17 @@ abstract class BaseEvaluator implements EvaluatorInterface
             $this->ruleExecutor->getPassedCount(),
             $this->ruleExecutor->getFailedCount(),
             $this->ruleExecutor->getFailures(),
-            $this->ruleExecutor->getScores(),
+            $this->ruleExecutor->getScoreRecords(),
         );
     }
 
     /**
-     * Execute an evaluation rule
+     * Execute an evaluation rule.
+     * The optional label names the metric the score is recorded under
+     * (defaults to the assertion's getName()).
      */
-    protected function assert(AssertionInterface $rule, mixed $actual): bool
+    protected function assert(AssertionInterface $rule, mixed $actual, ?string $label = null): bool
     {
-        return $this->ruleExecutor->execute($rule, $actual);
+        return $this->ruleExecutor->execute($rule, $actual, $label);
     }
 }

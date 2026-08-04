@@ -136,7 +136,7 @@ class EvaluatorRunner
                 $result->getAssertionsPassed(),
                 $result->getAssertionsFailed(),
                 $result->getAssertionFailures(),
-                $result->getAssertionScores(),
+                $result->getScores(),
                 $result->getError()
             );
         }

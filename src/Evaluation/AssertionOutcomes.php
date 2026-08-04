@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
+use function array_map;
 use function array_sum;
 use function count;
 use function max;
@@ -18,7 +19,7 @@ class AssertionOutcomes
      * @param int $passedCount Number of assertions that passed
      * @param int $failedCount Number of assertions that failed
      * @param array<AssertionFailure> $failures List of assertion failures
-     * @param array<float> $scores List of assertion scores
+     * @param array<Score> $scores List of labeled assertion scores
      */
     public function __construct(
         public readonly int $passedCount,
@@ -45,6 +46,16 @@ class AssertionOutcomes
     }
 
     /**
+     * Get all assertion score values
+     *
+     * @return array<float>
+     */
+    public function getScoreValues(): array
+    {
+        return array_map(fn (Score $score): float => $score->value, $this->scores);
+    }
+
+    /**
      * Get the average assertion score
      */
     public function getAverageScore(): float
@@ -52,7 +63,7 @@ class AssertionOutcomes
         if ($this->scores === []) {
             return 0.0;
         }
-        return array_sum($this->scores) / count($this->scores);
+        return array_sum($this->getScoreValues()) / count($this->scores);
     }
 
     /**
@@ -63,7 +74,7 @@ class AssertionOutcomes
         if ($this->scores === []) {
             return 0.0;
         }
-        return min($this->scores);
+        return min($this->getScoreValues());
     }
 
     /**
@@ -74,6 +85,6 @@ class AssertionOutcomes
         if ($this->scores === []) {
             return 0.0;
         }
-        return max($this->scores);
+        return max($this->getScoreValues());
     }
 }

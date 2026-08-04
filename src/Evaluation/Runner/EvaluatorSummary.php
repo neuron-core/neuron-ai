@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
+use NeuronAI\Evaluation\Score;
 
 use function array_filter;
 use function array_map;
@@ -162,17 +163,61 @@ class EvaluatorSummary
     }
 
     /**
+     * Get all labeled assertion scores across all results
+     *
+     * @return array<Score>
+     */
+    public function getAllScores(): array
+    {
+        $scores = [];
+        foreach ($this->results as $result) {
+            $scores = array_merge($scores, $result->getScores());
+        }
+        return $scores;
+    }
+
+    /**
+     * Get all assertion scores grouped by label
+     *
+     * @return array<string, array<Score>>
+     */
+    public function getScoresByLabel(): array
+    {
+        $grouped = [];
+        foreach ($this->getAllScores() as $score) {
+            $grouped[$score->label][] = $score;
+        }
+        return $grouped;
+    }
+
+    /**
+     * Get per-metric score statistics across all results
+     *
+     * @return array<string, array{average: float, min: float, max: float, count: int}>
+     */
+    public function getScoreStatisticsByLabel(): array
+    {
+        $statistics = [];
+        foreach ($this->getScoresByLabel() as $label => $scores) {
+            $values = array_map(fn (Score $score): float => $score->value, $scores);
+            $statistics[$label] = [
+                'average' => array_sum($values) / count($values),
+                'min' => min($values),
+                'max' => max($values),
+                'count' => count($values),
+            ];
+        }
+        return $statistics;
+    }
+
+    /**
      * Get all assertion scores across all results
      *
      * @return array<float>
      */
     public function getAllAssertionScores(): array
     {
-        $scores = [];
-        foreach ($this->results as $result) {
-            $scores = array_merge($scores, $result->getAssertionScores());
-        }
-        return $scores;
+        return array_map(fn (Score $score): float => $score->value, $this->getAllScores());
     }
 
     /**

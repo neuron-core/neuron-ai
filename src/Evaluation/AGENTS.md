@@ -179,6 +179,21 @@ class MyEvaluator extends BaseEvaluator
 }
 ```
 
+## Named Scores & Per-Metric Aggregation
+
+Every `assert()` records a `Score` (`label`, `value`, `passed`). The label defaults to the
+assertion's `getName()` and can be overridden to aggregate under a shared metric name:
+
+```php
+$this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $trajectory, 'task_completion');
+```
+
+`EvaluatorSummary::getScoresByLabel()` groups the records;
+`getScoreStatisticsByLabel()` returns per-metric `{average, min, max, count}` across the
+dataset (rendered by `ConsoleOutput`, and emitted by `JsonOutput` as the `metrics` block
+plus a per-result `scores` list). The flat float views (`getAssertionScores()`,
+`getAllAssertionScores()`, avg/min/max) are derived from the same records.
+
 ## Output Configuration
 
 Create `evaluation.php` in project root. Each `output` entry is either a

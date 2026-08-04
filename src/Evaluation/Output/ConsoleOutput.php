@@ -113,6 +113,17 @@ class ConsoleOutput implements EvaluationOutputInterface
                 $minScore,
                 $maxScore
             );
+
+            foreach ($summary->getScoreStatisticsByLabel() as $label => $stats) {
+                echo sprintf(
+                    "  %s: Avg: %s, Min: %s, Max: %s (%d assertions)\n",
+                    $label,
+                    round($stats['average'], 3),
+                    round($stats['min'], 3),
+                    round($stats['max'], 3),
+                    $stats['count']
+                );
+            }
         }
     }
 

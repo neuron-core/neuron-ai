@@ -9,6 +9,7 @@ use NeuronAI\Evaluation\Output\JsonOutput;
 use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
+use NeuronAI\Evaluation\Score;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -240,6 +241,68 @@ class OutputDriversTest extends TestCase
         $this->assertEquals(['output' => ['nested' => 'array']], json_decode((string) $data['results'][0]['output'], true));
         $this->assertEquals(['output' => 'object'], json_decode((string) $data['results'][1]['output'], true));
         $this->assertTrue($data['results'][2]['output']);
+    }
+
+    public function testJsonOutputDriverIncludesLabeledScoresAndMetrics(): void
+    {
+        $result1 = new EvaluatorResult(
+            0,
+            true,
+            ['input' => 'data1'],
+            'output1',
+            0.1,
+            2,
+            0,
+            [],
+            [
+                new Score('task_completion', 0.8, true),
+                new Score('helpfulness', 0.6, true),
+            ]
+        );
+
+        $result2 = new EvaluatorResult(
+            1,
+            true,
+            ['input' => 'data2'],
+            'output2',
+            0.2,
+            1,
+            0,
+            [],
+            [
+                new Score('task_completion', 0.4, true),
+            ]
+        );
+
+        $summary = new EvaluatorSummary([$result1, $result2], 0.3);
+
+        $driver = new JsonOutput();
+
+        ob_start();
+        $driver->output($summary);
+        $output = ob_get_clean();
+
+        $data = json_decode($output, true);
+
+        // Legacy keys are preserved
+        $this->assertEquals([0.8, 0.6], $data['results'][0]['assertion_scores']);
+        $this->assertEqualsWithDelta(0.6, $data['score_statistics']['average_score'], 0.001);
+
+        // Per-item labeled scores
+        $this->assertEquals(
+            [
+                ['label' => 'task_completion', 'value' => 0.8, 'passed' => true],
+                ['label' => 'helpfulness', 'value' => 0.6, 'passed' => true],
+            ],
+            $data['results'][0]['scores']
+        );
+
+        // Per-metric aggregation
+        $this->assertEqualsWithDelta(0.6, $data['metrics']['task_completion']['average'], 0.001);
+        $this->assertEquals(0.4, $data['metrics']['task_completion']['min']);
+        $this->assertEquals(0.8, $data['metrics']['task_completion']['max']);
+        $this->assertEquals(2, $data['metrics']['task_completion']['count']);
+        $this->assertEquals(1, $data['metrics']['helpfulness']['count']);
     }
 
     private function createSummary(): EvaluatorSummary
