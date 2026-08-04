@@ -111,7 +111,7 @@ class VercelAIAdapter extends SSEAdapter
         yield $this->sse([
             'type' => 'tool-output-available',
             'toolCallId' => $callId,
-            'output' => $chunk->tool->getResult(),
+            'output' => (string) $chunk->tool->getResult(),
         ]);
     }
 

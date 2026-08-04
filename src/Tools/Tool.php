@@ -53,7 +53,7 @@ abstract class Tool implements ToolInterface
     /**
      * The result of the execution.
      */
-    protected string|null $result = null;
+    protected string|ToolOutput|null $result = null;
 
     /**
      * Approval state of this specific call (ADR 0003). Null = not approval-gated.
@@ -183,14 +183,18 @@ abstract class Tool implements ToolInterface
         return $this;
     }
 
-    public function getResult(): string
+    public function getResult(): string|ToolOutput
     {
         return $this->result;
     }
 
     public function setResult(mixed $result): ToolInterface
     {
-        $this->result = is_array($result) ? json_encode($result) : (string) $result;
+        if ($result instanceof ToolOutput) {
+            $this->result = $result;
+        } else {
+            $this->result = is_array($result) ? json_encode($result) : (string) $result;
+        }
 
         return $this;
     }
@@ -328,7 +332,7 @@ abstract class Tool implements ToolInterface
             'description' => $this->description,
             'parameters' => $this->parameters,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
-            'result' => $this->result,
+            'result' => $this->result instanceof ToolOutput ? $this->result->jsonSerialize() : $this->result,
             'approval' => $this->approvalState?->value,
             'approvalReason' => $this->approvalReason,
             'rejectReason' => $this->rejectReason,

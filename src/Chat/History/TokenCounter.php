@@ -72,7 +72,7 @@ class TokenCounter
         $chars = array_reduce(
             $message->getTools(),
             function (int $carry, ToolInterface $tool): int {
-                $carry += mb_strlen($tool->getResult());
+                $carry += mb_strlen((string) $tool->getResult());
 
                 if ($tool->getCallId() !== null) {
                     $carry += mb_strlen($tool->getCallId());

@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\ToolOutput;
 use stdClass;
 
 use function array_filter;
@@ -158,7 +159,9 @@ class MessageMapper implements MessageMapperInterface
             $this->mapping[] = [
                 'type' => 'function_call_output',
                 'call_id' => $tool->getCallId(),
-                'output' => $tool->getResult(),
+                'output' => ($result = $tool->getResult()) instanceof ToolOutput
+                    ? $this->mapBlocks($result->getBlocks(), true)
+                    : $result,
             ];
         }
     }

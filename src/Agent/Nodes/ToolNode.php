@@ -19,6 +19,7 @@ use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
@@ -117,7 +118,7 @@ class ToolNode extends Node implements AgentNodeInterface
         $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName()) . '.' . $index;
 
         try {
-            $result = $this->memoize($memoKey, function () use ($tool, $state): string {
+            $result = $this->memoize($memoKey, function () use ($tool, $state): string|ToolOutput {
                 $key = $tool->getRunKey();
 
                 $state->incrementToolRun($key);

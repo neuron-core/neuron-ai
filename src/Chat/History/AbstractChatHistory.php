@@ -25,6 +25,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolOutput;
 
 use function array_map;
 use function count;
@@ -220,7 +221,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             $definition = ToolDefinition::make($tool['name'], $tool['description'])
                 ->setInputs($tool['inputs'])
                 ->setCallId($tool['callId'])
-                ->setResult($tool['result'])
+                ->setResult($this->deserializeToolResult($tool['result']))
                 ->setApprovalReason($tool['approvalReason'] ?? null);
 
             if (isset($tool['approval'])) {
@@ -234,6 +235,19 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         }, $message['tools']);
 
         return new ToolResultMessage($tools);
+    }
+
+    /**
+     * A multimodal result is stored as an array of content blocks;
+     * a legacy (or plain text) result is stored as a string.
+     */
+    protected function deserializeToolResult(mixed $result): string|ToolOutput
+    {
+        if (is_array($result) && isset($result[0]['type'])) {
+            return new ToolOutput(array_map($this->deserializeContentBlock(...), $result));
+        }
+
+        return (string) $result;
     }
 
     /**

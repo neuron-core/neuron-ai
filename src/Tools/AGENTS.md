@@ -8,6 +8,7 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 |------|---------------------------------------------------------------------------|
 | `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `execute()` |
 | `Tool.php` | Base class with property definitions                                      |
+| `ToolOutput.php` | Multimodal tool result: wraps content blocks (text, image, file, audio, video) |
 | `ProviderTool.php` | Wrapper for MCP server tools                                              |
 | `ProviderToolInterface.php` | Contract for provider-exposed tools                                       |
 
@@ -84,6 +85,46 @@ class GetTranscriptionTool extends Tool
     }
 }
 ```
+
+## Multimodal Tool Output
+
+A tool result is `string|ToolOutput` (`ToolInterface::getResult()`). Return a
+`ToolOutput` from `__invoke()` to send content blocks (reusing the Chat module's
+`ContentBlockInterface` implementations) back to the model instead of plain text —
+no opt-in interface, the feature is first-class on every tool:
+
+```php
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Tools\ToolOutput;
+
+public function __invoke(string $symbol): ToolOutput
+{
+    return new ToolOutput([
+        new TextContent("Price chart for {$symbol}"),
+        new ImageContent($base64, SourceType::BASE64, 'image/png'),
+    ]);
+}
+```
+
+Single-block shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`,
+`::audio(...)`, `::video(...)` — each mirrors the corresponding content block's
+constructor.
+
+Consumers detect multimodality on the **value**, never the tool type:
+`$tool->getResult() instanceof ToolOutput`. Providers whose API accepts content
+blocks in tool results map them natively; text-only consumers (Ollama, stream
+adapters, token counting) fall back to `ToolOutput::getText()` — the concatenated
+text blocks (empty when there are none, so include a `TextContent` in outputs meant
+to work everywhere). `ToolOutput` is `Stringable` (delegating to `getText()`), so
+string interpolation degrades gracefully.
+
+String and array returns from `__invoke()` behave exactly as before (arrays are
+JSON-encoded). Chat history round-trips a `ToolOutput` result as a content block
+array (see `src/Chat/AGENTS.md`), and `ToolNode`'s durable memo records the full
+`ToolOutput`, so crash-replay restores multimodal results without re-running the
+tool.
 
 ## Custom Run Key Tracking
 

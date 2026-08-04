@@ -49,6 +49,26 @@ Each provider has:
 | `OpenAILikeResponses.php` | Response handling for OpenAI-like APIs |
 | `BasicStreamState.php` | Stream state tracking |
 
+## Multimodal Tool Results
+
+A tool result is `string|ToolOutput` (see `src/Tools/AGENTS.md`). Each MessageMapper's
+tool-result mapping checks `$tool->getResult() instanceof ToolOutput` — detection is on
+the value, never the tool type — and maps the content blocks natively where the
+underlying API accepts them, reusing the mapper's existing block-mapping code:
+
+| Provider | Behavior with a `ToolOutput` result |
+|----------|-------------------------------------|
+| Anthropic | `tool_result.content` as native block array (`text`, `image`, `document`) |
+| AWS Bedrock | `toolResult.content` as native block array (`text`, `image`, `document`, `video`, `audio`) |
+| Gemini | `functionResponse.response.content` = `{parts: [...]}` (`text`, `inline_data`, `file_data`) |
+| OpenAI Chat Completions | `content` as block array (`text`, `image_url`). Inherited by Cohere, Deepseek, ZAI |
+| OpenAI Responses | `function_call_output.output` as block array (`input_text`, `input_image`, `input_file`) |
+| Mistral | `content` as block array (`text`, `image_url`, `document_url`, `input_audio`) |
+| Ollama | Text-only API — falls back to `ToolOutput::getText()` |
+
+Block types a provider's API doesn't support fall out through the mapper's existing
+null-filtering. Plain string results map exactly as before.
+
 ## Usage with Agent Extension Pattern
 
 Create a custom agent class extending `Agent`:

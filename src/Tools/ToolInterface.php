@@ -62,7 +62,11 @@ interface ToolInterface extends JsonSerializable
     public function setCallId(string $callId): ToolInterface;
 
 
-    public function getResult(): string;
+    /**
+     * The result of the execution: a string, or a ToolOutput when the tool
+     * returned multimodal content blocks from __invoke().
+     */
+    public function getResult(): string|ToolOutput;
 
     public function setResult(mixed $result): ToolInterface;
 

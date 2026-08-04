@@ -233,7 +233,7 @@ class AGUIAdapter extends SSEAdapter
         yield $this->sse([
             'type' => 'TOOL_CALL_RESULT',
             'toolCallId' => $toolCallId,
-            'content' => $chunk->tool->getResult(),
+            'content' => (string) $chunk->tool->getResult(),
             'role' => 'tool',
             'messageId' => $this->generateId('msg'),
         ]);

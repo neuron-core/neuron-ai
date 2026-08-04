@@ -90,6 +90,12 @@ asking for approval, declared by the tool or middleware config), and `rejectReas
 (inbound — the approver's feedback, rejection-only). Old stored histories without these
 keys deserialize as `null` (not gated).
 
+A tool entry's `result` is a string, or a content block array when the tool returned a
+multimodal `ToolOutput` (see `src/Tools/AGENTS.md`). `AbstractChatHistory::
+deserializeToolResult()` discriminates on shape — an array whose first element has a
+`type` key rebuilds a `ToolOutput` through the shared content block deserializer,
+anything else stays a string — so legacy stored histories deserialize unchanged.
+
 The suspended `ToolCallMessage` also carries a `run_id` metadata entry (ADR 0005) —
 the handle to reattach to the suspended run, exposed via
 `ToolCallMessage::getRunId(): ?string`. It is an opaque string here: the Chat module

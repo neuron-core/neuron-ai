@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\ToolOutput;
 use stdClass;
 
 use function array_key_exists;
@@ -99,7 +100,10 @@ class MessageMapper implements MessageMapperInterface
         foreach ($message->getTools() as $tool) {
             $this->mapping[] = [
                 'role' => MessageRole::TOOL->value,
-                'content' => $tool->getResult(),
+                // Ollama's API is text-only for tool results.
+                'content' => ($result = $tool->getResult()) instanceof ToolOutput
+                    ? $result->getText()
+                    : $result,
             ];
         }
     }
