@@ -1,6 +1,6 @@
 ---
 name: neuron-evaluation
-description: Create and run AI evaluations with datasets, assertions, and output drivers in Neuron AI. Use this skill whenever the user mentions evaluation, testing AI systems, creating evaluators, dataset-driven testing, assertion-based validation, or wants to measure AI system performance. Also trigger for tasks involving evaluator discovery, output configuration, result analysis, building custom assertions, multi-turn conversation evaluation, agent trajectory testing, tool-call assertions, human-in-the-loop (approval flow) testing, or simulated user conversations.
+description: Create and run AI evaluations with datasets, assertions, and output drivers in Neuron AI. Use this skill whenever the user mentions evaluation, testing AI systems, creating evaluators, dataset-driven testing, assertion-based validation, or wants to measure AI system performance. Also trigger for tasks involving evaluator discovery, output configuration, result analysis, building custom assertions, multi-turn conversation evaluation, agent trajectory testing, tool-call assertions, human-in-the-loop (approval flow) testing, simulated user conversations, or connecting an evaluation suite to the Neuron Cloud platform.
 ---
 
 # Neuron AI Evaluation
@@ -1044,3 +1044,84 @@ When helping users with evaluations:
     - Unit tests → Single assertion per evaluator
     - Integration tests → Multiple assertions
     - System tests → Multiple evaluators covering different scenarios
+
+## Connecting to Neuron Cloud (Optional)
+
+**This integration is completely optional.** Everything documented above runs
+entirely locally — datasets from arrays or JSON files, results to console or
+JSON. Only suggest Neuron Cloud when the user explicitly asks to connect their
+evaluation suite to the platform (hosted datasets, cross-run aggregation,
+sharing results with a team). Never treat it as a required setup step.
+
+Neuron Cloud adds two things to an evaluation suite:
+
+1. **Hosted datasets** — dataset items managed on the platform, consumed by
+   evaluators like any other `DatasetInterface`.
+2. **Hosted results** — evaluation runs (summary, per-item results, labeled
+   scores, failures, multi-turn trajectories) shipped to the platform for
+   cross-run aggregation and comparison over time.
+
+### Installation
+
+The SDK is available on Packagist:
+
+```bash
+composer require neuron-core/cloud-sdk
+```
+
+Laravel and Symfony applications can use `neuron-core/neuron-cloud-laravel` or
+`neuron-core/neuron-cloud-symfony` instead, which register the configured SDK
+root in the framework container — see the **neuron-monitoring** skill for the
+per-framework setup details.
+
+### Setup
+
+Everything hangs off one configured root:
+
+```php
+use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\Cloud\Http\GuzzleTransport;
+
+$cloud = new NeuronCloud(
+    transport: GuzzleTransport::discover(),
+    platformUrl: 'https://cloud.neuron-ai.dev',
+    apiKey: $_ENV['NEURON_CLOUD_API_KEY'],
+    signingKey: $_ENV['NEURON_CLOUD_SIGNING_KEY'],
+);
+```
+
+### Using a Platform Dataset
+
+`$cloud->dataset(slug)` returns a regular `DatasetInterface` — return it from
+`getDataset()` in place of an `ArrayDataset` or `JsonDataset`:
+
+```php
+public function getDataset(): DatasetInterface
+{
+    return $cloud->dataset('customer-support-eval');
+}
+```
+
+### Shipping Results to the Platform
+
+`$cloud->evaluationOutput()` builds an output driver for the platform's
+evaluation endpoint. Register it as a **constructed instance** in
+`evaluation.php` (it needs the platform credentials, so it cannot be listed as
+a class string):
+
+```php
+return [
+    'output' => [
+        ConsoleOutput::class,
+        $cloud->evaluationOutput(
+            'SupportEvaluator',                 // run name shown on the platform
+            dataset: 'customer-support-eval',   // optional: link to a platform dataset
+            environment: 'ci',                  // optional: label the environment
+        ),
+    ],
+];
+```
+
+It composes with the local drivers — keep `ConsoleOutput` alongside it. A
+failed upload is logged and never crashes the evaluation run, and `Trajectory`
+outputs are serialized as transcripts with tool calls and token usage.

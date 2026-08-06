@@ -424,3 +424,11 @@ class MyAgent extends Agent { ... }
 **For Symfony projects:**
 - Use dependency injection for providers
 - Configure a service in services.yaml
+
+## Related Skills
+
+- Use the **neuron-evaluation** skill to test agents with dataset-driven
+  evaluations, assertions, AI judges, and multi-turn conversation testing.
+- Use the **neuron-monitoring** skill to debug and monitor agents with the
+  observability event system, from local logging to production tracing on
+  Neuron Cloud.
