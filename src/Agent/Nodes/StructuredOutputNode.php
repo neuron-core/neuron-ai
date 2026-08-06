@@ -33,6 +33,7 @@ use NeuronAI\Workflow\Events\StopEvent;
 use ReflectionException;
 
 use function count;
+use function end;
 use function implode;
 use function trim;
 
@@ -60,8 +61,6 @@ class StructuredOutputNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
-        $this->addToChatHistory($state, $event->getMessages());
-
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
             $this->emit('schema-generation', new SchemaGeneration($this->outputClass));
@@ -73,21 +72,22 @@ class StructuredOutputNode extends InferenceNode
         $schema = $state->get('structured_schema');
         $error = '';
 
+        // Inbound and correction messages stay pending until a provider call succeeds.
+        $pending = $event->getMessages();
+
         do {
             try {
                 // If something goes wrong, retry informing the model about the error
                 if (trim($error) !== '') {
-                    $correctionMessage = new UserMessage(
+                    $pending[] = new UserMessage(
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $this->addToChatHistory($state, $correctionMessage);
                 }
 
-                $chatHistory = $state->getChatHistory();
-                $messages = $chatHistory->getMessages();
+                $messages = $this->pendingConversation($state, $pending);
 
-                $last = clone $chatHistory->getLastMessage();
+                $last = clone end($messages);
 
                 $this->emit('inference-start', new InferenceStart($last));
 
@@ -95,6 +95,9 @@ class StructuredOutputNode extends InferenceNode
                     ->systemPrompt($event->instructions)
                     ->setTools($event->tools)
                     ->structured($messages, $this->outputClass, $schema);
+
+                $this->addToChatHistory($state, $pending);
+                $pending = [];
 
                 $this->emit('inference-stop', new InferenceStop($last, $response));
 

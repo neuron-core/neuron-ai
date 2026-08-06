@@ -6,10 +6,12 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
@@ -121,6 +123,72 @@ class AgentTest extends TestCase
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
         $provider->assertMethodCallCount('structured', 1);
+    }
+
+    public function test_failed_chat_does_not_persist_inbound_message(): void
+    {
+        $history = new InMemoryChatHistory();
+
+        // An empty response queue makes the provider throw, like a failed API call.
+        $agent = Agent::make()
+            ->setAiProvider(new FakeAIProvider())
+            ->setChatHistory($history);
+
+        try {
+            $agent->chat(new UserMessage('Hi'))->getMessage();
+            $this->fail('Expected the provider call to fail.');
+        } catch (ProviderException) {
+        }
+
+        // The failed call must not leave the user message in the chat history,
+        // otherwise the next attempt produces two consecutive user messages.
+        $this->assertCount(0, $history->getMessages());
+
+        // Retrying on the same history succeeds with a valid message sequence.
+        $agent = Agent::make()
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')))
+            ->setChatHistory($history);
+
+        $message = $agent->chat(new UserMessage('Hi'))->getMessage();
+
+        $this->assertSame('Hello!', $message->getContent());
+        $this->assertCount(2, $history->getMessages());
+        $this->assertSame('Hi', $history->getMessages()[0]->getContent());
+    }
+
+    public function test_failed_stream_does_not_persist_inbound_message(): void
+    {
+        $history = new InMemoryChatHistory();
+
+        $agent = Agent::make()
+            ->setAiProvider(new FakeAIProvider())
+            ->setChatHistory($history);
+
+        try {
+            foreach ($agent->stream(new UserMessage('Hi'))->events() as $event) {
+            }
+            $this->fail('Expected the provider call to fail.');
+        } catch (ProviderException) {
+        }
+
+        $this->assertCount(0, $history->getMessages());
+    }
+
+    public function test_failed_structured_does_not_persist_inbound_message(): void
+    {
+        $history = new InMemoryChatHistory();
+
+        $agent = Agent::make()
+            ->setAiProvider(new FakeAIProvider())
+            ->setChatHistory($history);
+
+        try {
+            $agent->structured(new UserMessage('Generate a user'), User::class);
+            $this->fail('Expected the provider call to fail.');
+        } catch (ProviderException) {
+        }
+
+        $this->assertCount(0, $history->getMessages());
     }
 
     public function test_multiple_turns(): void
