@@ -12,7 +12,7 @@ This skill helps you create and configure Neuron AI agents for building agentic 
 A Neuron agent extends the `Agent` class and implements key methods:
 
 ```php
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;

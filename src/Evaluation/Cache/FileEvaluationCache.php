@@ -55,7 +55,7 @@ class FileEvaluationCache implements EvaluationCacheInterface
             return;
         }
 
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0755, true) && !is_dir($this->directory)) {
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true) && !is_dir($this->directory)) {
             return;
         }
 

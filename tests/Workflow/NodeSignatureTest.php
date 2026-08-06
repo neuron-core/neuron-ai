@@ -14,6 +14,8 @@ use NeuronAI\Workflow\NodeSignature;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+use Countable;
+use Stringable;
 
 interface PrioritizedSignal
 {
@@ -82,7 +84,7 @@ class NodeSignatureTest extends TestCase
     public function testRejectsIntersectionWithoutAnEventMember(): void
     {
         $node = new class () extends Node {
-            public function __invoke(\Countable&\Stringable $event, WorkflowState $state): StopEvent
+            public function __invoke(Countable&Stringable $event, WorkflowState $state): StopEvent
             {
                 return new StopEvent();
             }

@@ -9,6 +9,8 @@ use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 
+use function is_callable;
+
 class NonSerializableOutputEvaluator extends BaseEvaluator
 {
     public static int $runCalls = 0;
