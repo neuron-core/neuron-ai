@@ -511,9 +511,26 @@ vendor/bin/neuron evaluation --verbose /path/to/evaluators
 # Using --path flag
 vendor/bin/neuron evaluation --path=/path/to/evaluators
 
+# Run dataset items in parallel processes
+vendor/bin/neuron evaluation /path/to/evaluators --concurrency=4
+
+# Load a custom bootstrap file before the default Composer autoloader
+vendor/bin/neuron evaluation /path/to/evaluators --autoload-file=bootstrap.php
+
 # Help
 vendor/bin/neuron evaluation --help
 ```
+
+**`--concurrency=N`** runs each evaluator's dataset items in N parallel processes.
+Requires the `pcntl` extension and `spatie/fork`; if unavailable, the runner prints a
+notice and falls back to sequential execution. The same option exists
+programmatically: `$runner->run($evaluator, concurrency: 4)`.
+
+**`--autoload-file=<path>`** (also `--autoload-file <path>`) loads a custom bootstrap
+file *before* (in addition to) the default Composer autoloader. It's a global
+`vendor/bin/neuron` option, so it works with any command. Use it when evaluators need
+framework bootstrapping (e.g. a Laravel/Symfony bootstrap that sets up the DI
+container) or an autoloader not covered by the project's `composer.json`.
 
 ### Programmatic Execution
 
