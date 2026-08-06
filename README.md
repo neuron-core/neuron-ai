@@ -20,13 +20,19 @@ In addition, we provide tutorials and other educational content to help you get 
 
 [![Neuron & Inspector](./docs/images/youtube.png)](https://docs.neuron-ai.dev/overview/fast-learning-by-video)
 
-## Why Neuron Is Unique
+## Why Neuron
 
-Most agentic frameworks ask you to pick a side. Some are simple enough to learn in an afternoon, and you hit a wall the first time your use case grows beyond a demo. Others are powerful enough for a use case but you spend weeks fighting their abstractions before you ship anything real.
+Your next application will be agentic. A growing share of new software is no longer a web application with AI features added along the way, but an application born agentic, where the agent is the architecture itself, driving how the system reasons, acts, and talks to its interface. Building this kind of application requires a specific set of foundations: event-driven workflows with checkpointing, human-in-the-loop interruption, multi-agent orchestration, streaming through agentic UI protocols like AG-UI and the Vercel AI SDK protocol, MCP, and asynchronous execution.
 
-Neuron is built on a Workflow architecture that removes those compromises. The first spark came from the Workflow concept on LLmaindex in the Python world. Shaped around the patterns of modern PHP, the Neuron Workflow is a PHP native solution that now follows a path of its own, one we continue to draw as the agentic ecosystem in PHP takes shape around it.
+In the PHP ecosystem, this set of foundations exists in one place. Each one is a chapter of the documentation:
+[Workflow](#workflow),
+[Human in the loop](https://docs.neuron-ai.dev/workflow/human-in-the-loop),
+[Streaming & UI protocols](https://docs.neuron-ai.dev/agent/streaming#stream-adapters),
+[MCP](#mcp-connector),
+[Async](https://docs.neuron-ai.dev/agent/async).
+You can compare it with any other option available to a PHP developer, and the comparison is the answer.
 
-**The result is one foundation that a newcomer can pick up on the first day, and that already carries everything a serious agent needs underneath**: unified messaging layer, tools & toolkits, MCP, human-in-the-loop, agentic UI protocols, multi-agent interactions, asynchronous execution, and more. You never switch frameworks when your project gets ambitious. The architecture you learned at the start of this journey is the same one running your most complex system in production in the future.
+There is also no second framework waiting for you when the project grows. The same Workflow that runs your first agent in the getting started guide runs a multi-agent system with state, loops, and human approvals in production. What you learn on day one is what you ship in future projects.
 
 ## A Vertical & Independent Ecosystem
 
