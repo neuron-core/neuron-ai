@@ -1,9 +1,9 @@
 ---
-name: neuron-agent-builder
+name: neuron-agent
 description: Create and configure Neuron AI agents with providers, tools, instructions, and memory. Use this skill whenever the user mentions building agents, creating AI assistants, setting up LLM-powered chat bots, configuring chat agents, or wants to create an agent that can talk, use tools, or handle conversations. Also trigger for any task involving agent configuration, provider setup, tool integration, or chat history management in Neuron AI.
 ---
 
-# Neuron AI Agent Builder
+# Neuron AI Agent
 
 This skill helps you create and configure Neuron AI agents for building agentic applications in PHP.
 

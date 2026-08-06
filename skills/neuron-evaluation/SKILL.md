@@ -1,9 +1,9 @@
 ---
-name: neuron-evaluation-engineer
+name: neuron-evaluation
 description: Create and run AI evaluations with datasets, assertions, and output drivers in Neuron AI. Use this skill whenever the user mentions evaluation, testing AI systems, creating evaluators, dataset-driven testing, assertion-based validation, or wants to measure AI system performance. Also trigger for tasks involving evaluator discovery, output configuration, result analysis, building custom assertions, multi-turn conversation evaluation, agent trajectory testing, tool-call assertions, human-in-the-loop (approval flow) testing, or simulated user conversations.
 ---
 
-# Neuron AI Evaluation Engineer
+# Neuron AI Evaluation
 
 This skill helps you create and run evaluations for AI systems in Neuron AI. The evaluation system provides dataset-driven testing with flexible assertions, comprehensive result reporting, and extensible output drivers.
 

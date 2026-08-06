@@ -1,9 +1,9 @@
 ---
-name: neuron-test-engineer
+name: neuron-test
 description: Write tests for Neuron AI agents, RAG systems, workflows, and tools using the built-in testing utilities. Use this skill when the user mentions testing agents, writing unit tests, mocking AI providers, testing tool execution, verifying RAG retrieval, testing workflow behavior, or creating test cases for Neuron AI components. Also trigger for any task involving PHPUnit tests, fake providers, test assertions, or quality assurance in Neuron AI projects.
 ---
 
-# Neuron AI Test Engineer
+# Neuron AI Test
 
 This skill helps you write comprehensive tests for Neuron AI applications using the built-in testing utilities in `NeuronAI\Testing`.
 

@@ -1,9 +1,9 @@
 ---
-name: neuron-rag-specialist
+name: neuron-rag
 description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI including vector stores, embeddings providers, document loaders, and retrieval strategies. Use this skill whenever the user mentions RAG, retrieval, vector search, document retrieval, semantic search, knowledge bases, chat with documents, or wants to build AI systems that can query and understand external documents. Also trigger for tasks involving vector databases, embeddings, document chunking, or retrieval strategies.
 ---
 
-# Neuron AI RAG Specialist
+# Neuron AI RAG
 
 This skill helps you implement Retrieval-Augmented Generation (RAG) in Neuron AI. RAG extends the Agent class with document retrieval capabilities.
 

@@ -1,9 +1,9 @@
 ---
-name: neuron-tool-creator
+name: neuron-tool
 description: Create custom tools, toolkits, and MCP integrations for Neuron AI agents. Use this skill when the user mentions creating tools, building toolkits, extending Tool class, defining tool properties, implementing tool execution, MCP server integration, Model Context Protocol, connecting external tools, or tool guidelines. Also trigger for any task involving ToolProperty, ArrayProperty, ObjectProperty, AbstractToolkit, McpConnector, or StdioTransport/SseHttpTransport/StreamableHttpTransport.
 ---
 
-# Neuron AI Tool Creator
+# Neuron AI Tool
 
 This skill helps you create custom tools, toolkits, and MCP integrations for Neuron AI agents.
 
