@@ -232,6 +232,66 @@ class ToolApprovalTest extends TestCase
         $this->assertEquals(ActionDecision::Approved, $byId['call_b']->decision);
     }
 
+    public function test_stale_approval_does_not_survive_on_reused_tool_instances(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+
+        // The SAME tool instances are reused across every pass. InMemoryPersistence
+        // aliases stored steps by reference, so replay hands back the objects the
+        // previous pass already stamped — unlike the durable backends, which
+        // round-trip through a Serializer and yield fresh tools.
+        $a = $this->gatedTool('a', 'call_a');
+        $b = $this->gatedTool('b', 'call_b');
+
+        $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$a, $b]), $state);
+
+        // Approve a only — the set is incomplete, so it re-suspends.
+        $event1 = $this->createToolCallEvent([$a, $b]);
+        $node->setWorkflowContext(new NodeContext($state, $event1, ['call_a' => 'approve']));
+        $this->assertInterrupts($middleware, $node, $event1, $state);
+        $this->assertEquals(ApprovalState::Approved, $a->getApprovalState(), 'call_a approved on this pass');
+
+        // Restate only b. a's earlier approval must NOT survive on the reused instance.
+        $event2 = $this->createToolCallEvent([$a, $b]);
+        $node->setWorkflowContext(new NodeContext($state, $event2, ['call_b' => 'approve']));
+
+        $request = $this->assertInterrupts($middleware, $node, $event2, $state, 'An omitted decision must not survive on a reused tool instance')->getRequest();
+        $this->assertInstanceOf(ApprovalRequest::class, $request);
+
+        $byId = $this->actionsById($request);
+        $this->assertEquals(ActionDecision::Pending, $byId['call_a']->decision, 'call_a reverted to pending — not restated');
+        $this->assertEquals(ActionDecision::Approved, $byId['call_b']->decision);
+        $this->assertEquals(ApprovalState::Pending, $a->getApprovalState(), 'the reused instance itself was reset');
+    }
+
+    public function test_stale_rejection_does_not_survive_on_reused_tool_instances(): void
+    {
+        $middleware = new ToolApproval();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+
+        $a = $this->gatedTool('a', 'call_a');
+        $b = $this->gatedTool('b', 'call_b');
+
+        $this->assertInterrupts($middleware, $node, $this->createToolCallEvent([$a, $b]), $state);
+
+        // Reject a only — incomplete, so it re-suspends.
+        $event1 = $this->createToolCallEvent([$a, $b]);
+        $node->setWorkflowContext(new NodeContext($state, $event1, ['call_a' => ['reject', 'not now']]));
+        $this->assertInterrupts($middleware, $node, $event1, $state);
+        $this->assertEquals(ApprovalState::Rejected, $a->getApprovalState());
+
+        // A payload omitting a must not leave the stale rejection (or its reason) behind.
+        $event2 = $this->createToolCallEvent([$a, $b]);
+        $node->setWorkflowContext(new NodeContext($state, $event2, ['call_b' => 'approve']));
+        $this->assertInterrupts($middleware, $node, $event2, $state);
+
+        $this->assertEquals(ApprovalState::Pending, $a->getApprovalState());
+        $this->assertNull($a->getRejectReason(), 'the stale rejection reason was cleared with the state');
+    }
+
     public function test_cumulative_resume_completes_and_rejects(): void
     {
         $middleware = new ToolApproval();

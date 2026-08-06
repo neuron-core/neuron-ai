@@ -154,16 +154,21 @@ class ToolApproval extends AgentMiddleware
     }
 
     /**
-     * Stamp every gated tool that still has null state as Pending.
+     * Reset every gated tool to Pending — on every pass, not only the first.
+     *
+     * The inbound payload is the sole source of truth for decisions (ADR 0006): a
+     * decision that is not restated is not remembered. Resetting unconditionally is
+     * what makes that hold for a tool instance that survives in memory between passes
+     * (InMemoryPersistence aliases stored steps by reference, while the durable
+     * backends round-trip them through a Serializer and hand back fresh objects), so a
+     * stale approval cannot outlive a payload that omits it.
      *
      * @param ToolInterface[] $tools
      */
     protected function initializePending(array $tools): void
     {
         foreach ($tools as $tool) {
-            if ($tool->getApprovalState() === null) {
-                $tool->setApprovalState(ApprovalState::Pending);
-            }
+            $tool->setApprovalState(ApprovalState::Pending);
         }
     }
 
