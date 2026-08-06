@@ -200,7 +200,7 @@ protected function tools(): array
 
 ### Creating Custom Tools
 
-use the `neuron-tool-creator` skills for more complex tool creation:
+use the `neuron-tool` skills for more complex tool creation:
 
 ```php
 use NeuronAI\Tools\Tool;
