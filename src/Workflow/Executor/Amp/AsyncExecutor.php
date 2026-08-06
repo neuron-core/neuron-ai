@@ -8,6 +8,7 @@ use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\BranchResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\WorkflowInterface;
@@ -39,9 +40,24 @@ class AsyncExecutor extends WorkflowExecutor
                 continue;
             }
 
-            $futures[$branchId] = async(
-                fn (): BranchResult => $this->executeBranch($workflow, $branchId, $branchEvent)
-            );
+            // executeBranch() is a live generator; a fiber has no consumer to
+            // yield into, so each branch buffers its streamed events and the
+            // parent re-emits them after the await.
+            $futures[$branchId] = async(function () use ($workflow, $branchId, $branchEvent): BranchResult {
+                $streamedEvents = [];
+                $branch = $this->executeBranch($workflow, $branchId, $branchEvent);
+                foreach ($branch as $streamedEvent) {
+                    $streamedEvents[] = $streamedEvent;
+                }
+                $terminal = $branch->getReturn();
+
+                return new BranchResult(
+                    branchId: $branchId,
+                    result: $terminal instanceof StopEvent ? $terminal->getResult() : null,
+                    streamedEvents: $streamedEvents,
+                    interrupt: $terminal instanceof InterruptEvent ? $terminal : null,
+                );
+            });
         }
 
         $firstInterrupt = null;

@@ -12,7 +12,8 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * Returned by a node (or surfaced by a pausing middleware) instead of throwing
  * an exception. Like {@see StopEvent}, it terminates traversal — but the
  * workflow is paused rather than complete. The executor surfaces it as the
- * final yielded event and attaches the request to the {@see \NeuronAI\Workflow\WorkflowResult}.
+ * final yielded event and marks the returned {@see \NeuronAI\Workflow\WorkflowState}
+ * as interrupted, carrying the request outbound.
  *
  * Resume is driven by step replay: the interrupted step is persisted as an
  * interrupted StepResult and re-run with the user's resume request, so this

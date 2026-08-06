@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use Generator;
+use NeuronAI\Workflow\Events\Event;
+
 /**
  * Replay and memoization engine for a durable workflow run.
  *
@@ -31,17 +34,21 @@ interface StepEngineInterface
     public function prepareExecution(string $runId, ?array $payload = null, bool $timedOut = false): void;
 
     /**
-     * Run a single step, memoized by step id.
+     * Run a single step, memoized by step id, yielding its streamed events
+     * through in real time and returning the final StepResult.
      *
-     * Returns the cached StepResult when a prior generation completed this step;
-     * resumes an interrupted step with the staged payload; otherwise executes $fn
-     * (which runs the node) and persists the outcome. The callable receives the
-     * resume payload + timedOut flag (payload is null when not resuming), and returns
-     * the live result.
+     * Returns the cached StepResult when a prior generation completed this step
+     * (yielding nothing — streamed events are not replayed); resumes an
+     * interrupted step with the staged payload; otherwise executes $fn (which
+     * runs the node) and persists the outcome. The callable receives the resume
+     * payload + timedOut flag (payload is null when not resuming) and returns
+     * either the live result directly or a Generator that streams events and
+     * returns it.
      *
-     * @param callable(array<string,mixed>|null $payload, bool $timedOut): StepResult $fn
+     * @param callable(array<string,mixed>|null $payload, bool $timedOut): (Generator<int, Event, mixed, StepResult>|StepResult) $fn
+     * @return Generator<int, Event, mixed, StepResult>
      */
-    public function runStep(string $stepId, callable $fn): StepResult;
+    public function runStep(string $stepId, callable $fn): Generator;
 
     /**
      * Return a prior-generation, successfully-completed step result, or null.

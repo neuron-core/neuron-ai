@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
@@ -38,7 +39,7 @@ class NodeTest extends TestCase
         $state = new WorkflowState(['existing' => 'data']);
         $event = new StartEvent();
 
-        $node->setWorkflowContext($state, $event);
+        $node->setWorkflowContext(new NodeContext($state, $event));
 
         $node->run($event, $state);
 

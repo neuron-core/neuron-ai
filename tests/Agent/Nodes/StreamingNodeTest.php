@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -33,7 +34,7 @@ class StreamingNodeTest extends TestCase
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setMessages(new UserMessage('hi'));
 
-        $node->setWorkflowContext($state, $event);
+        $node->setWorkflowContext(new NodeContext($state, $event));
 
         $generator = $node($event, $state);
 
@@ -80,7 +81,7 @@ class StreamingNodeTest extends TestCase
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($runId);
         $node1 = new StreamingNode($provider, $chatHistory);
-        $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
 
         $generator1 = $node1($event, $state);
         foreach ($generator1 as $_) {
@@ -102,7 +103,7 @@ class StreamingNodeTest extends TestCase
         $node2 = new StreamingNode($provider, $chatHistory);
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
-        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
 
         $generator2 = $node2($event, $state2);
 

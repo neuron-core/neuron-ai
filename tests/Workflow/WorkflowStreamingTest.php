@@ -13,7 +13,9 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
+use Generator;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -90,6 +92,38 @@ class WorkflowStreamingTest extends TestCase
         $this->assertTrue($finalState->get('step1_executed'));
         $this->assertTrue($finalState->get('streaming_step_executed'));
         $this->assertTrue($finalState->get('final_step_executed'));
+    }
+
+    /**
+     * Streamed events must reach the caller in real time — while the node is
+     * still running — not buffered until the durable step completes. This is
+     * what makes Agent::stream() deliver LLM chunks live.
+     */
+    public function testStreamedEventsAreDeliveredBeforeTheNodeCompletes(): void
+    {
+        $workflow = Workflow::make()->addNodes([
+            new class () extends Node {
+                public function __invoke(StartEvent $event, WorkflowState $state): Generator
+                {
+                    yield new ChunkEvent('live');
+                    // Runs only after the chunk has been yielded to the caller.
+                    $state->set('node_completed', true);
+                    return new StopEvent();
+                }
+            },
+        ]);
+
+        $chunkSeenBeforeCompletion = false;
+        foreach ($workflow->events() as $event) {
+            if ($event instanceof ChunkEvent && $workflow->resolveState()->get('node_completed') !== true) {
+                $chunkSeenBeforeCompletion = true;
+            }
+        }
+
+        $this->assertTrue(
+            $chunkSeenBeforeCompletion,
+            'Streamed events must be delivered before the node completes, not buffered per step',
+        );
     }
 
     /**

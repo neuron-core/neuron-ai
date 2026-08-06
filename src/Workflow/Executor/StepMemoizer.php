@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Closure;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 /**
  * Durable memoizer bound to a single node-execution step.
@@ -30,15 +29,21 @@ final class StepMemoizer
     {
         $memoStepId = $this->stepId . '::' . $name;
 
-        $result = $this->engine->runStep(
+        $step = $this->engine->runStep(
             $memoStepId,
-            fn (?InterruptRequest $resume): StepResult => new StepResult(
+            fn (?array $payload, bool $timedOut): StepResult => new StepResult(
                 stepId: $memoStepId,
                 output: $operation(),
             ),
         );
 
-        return $result->getOutput();
+        // runStep is a generator; a memo step streams nothing, so driving it to
+        // completion just executes (or recalls) the operation.
+        while ($step->valid()) {
+            $step->next();
+        }
+
+        return $step->getReturn()->getOutput();
     }
 
     /**

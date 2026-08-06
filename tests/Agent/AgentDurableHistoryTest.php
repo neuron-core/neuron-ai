@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -186,7 +187,7 @@ class AgentDurableHistoryTest extends TestCase
         $engine1->prepareExecution($runId);
         $state1 = new \NeuronAI\Agent\AgentState();
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine1, $stepId)));
         $node1($event, $state1);
 
         $this->assertCount(2, $chatHistory->getMessages());
@@ -195,7 +196,7 @@ class AgentDurableHistoryTest extends TestCase
         $engine2->prepareExecution($runId);
         $state2 = new \NeuronAI\Agent\AgentState();
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine2, $stepId)));
         $node2($event, $state2);
 
         $messages = $chatHistory->getMessages();

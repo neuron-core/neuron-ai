@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -182,7 +183,7 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event, ['call_a' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event, ['call_a' => 'approve']));
 
         $request = $this->assertInterrupts($middleware, $node, $event, $state, 'An incomplete set must re-suspend')->getRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
@@ -213,7 +214,7 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event1 = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event1, ['call_a' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event1, ['call_a' => 'approve']));
         $this->assertInterrupts($middleware, $node, $event1, $state);
 
         // Second resume restates only b: a's earlier approval is NOT remembered —
@@ -221,7 +222,7 @@ class ToolApprovalTest extends TestCase
         $a3 = $this->gatedTool('a', 'call_a');
         $b3 = $this->gatedTool('b', 'call_b');
         $event2 = $this->createToolCallEvent([$a3, $b3]);
-        $node->setWorkflowContext($state, $event2, ['call_b' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event2, ['call_b' => 'approve']));
 
         $request = $this->assertInterrupts($middleware, $node, $event2, $state, 'A payload omitting a prior decision must re-suspend')->getRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
@@ -245,10 +246,10 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event, [
+        $node->setWorkflowContext(new NodeContext($state, $event, [
             'call_a' => 'approve',
             'call_b' => ['reject', 'not now'],
-        ]);
+        ]));
 
         $this->assertDoesNotInterrupt($middleware, $node, $event, $state, 'A complete decision set must proceed');
 
@@ -271,14 +272,14 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event1 = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event1, ['call_a' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event1, ['call_a' => 'approve']));
         $this->assertInterrupts($middleware, $node, $event1, $state);
 
         // The next cumulative payload flips a to rejected; b still pending → suspends.
         $a3 = $this->gatedTool('a', 'call_a');
         $b3 = $this->gatedTool('b', 'call_b');
         $event2 = $this->createToolCallEvent([$a3, $b3]);
-        $node->setWorkflowContext($state, $event2, ['call_a' => ['reject', 'changed my mind']]);
+        $node->setWorkflowContext(new NodeContext($state, $event2, ['call_a' => ['reject', 'changed my mind']]));
 
         $request = $this->assertInterrupts($middleware, $node, $event2, $state, 'Still incomplete — must re-suspend')->getRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
@@ -303,7 +304,7 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event, ['bogus' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event, ['bogus' => 'approve']));
 
         $this->assertInterrupts($middleware, $node, $event, $state);
 
@@ -325,7 +326,7 @@ class ToolApprovalTest extends TestCase
         $gated = $this->gatedTool('gated', 'call_gated');
         $plain = $this->plainTool('plain', 'call_plain');
         $event = $this->createToolCallEvent([$gated, $plain]);
-        $node->setWorkflowContext($state, $event, ['call_gated' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event, ['call_gated' => 'approve']));
 
         $this->assertDoesNotInterrupt($middleware, $node, $event, $state);
 
@@ -408,14 +409,14 @@ class ToolApprovalTest extends TestCase
         $a2 = $this->gatedTool('a', 'call_a');
         $b2 = $this->gatedTool('b', 'call_b');
         $event1 = $this->createToolCallEvent([$a2, $b2]);
-        $node->setWorkflowContext($state, $event1, ['call_a' => 'approve']);
+        $node->setWorkflowContext(new NodeContext($state, $event1, ['call_a' => 'approve']));
         $this->assertInterrupts($middleware, $node, $event1, $state);
 
         // Second partial resume (overwrite call_a, call_b still pending → re-suspend).
         $a3 = $this->gatedTool('a', 'call_a');
         $b3 = $this->gatedTool('b', 'call_b');
         $event2 = $this->createToolCallEvent([$a3, $b3]);
-        $node->setWorkflowContext($state, $event2, ['call_a' => ['reject', 'flip']]);
+        $node->setWorkflowContext(new NodeContext($state, $event2, ['call_a' => ['reject', 'flip']]));
         $this->assertInterrupts($middleware, $node, $event2, $state);
 
         $toolCallCount = 0;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -109,7 +110,7 @@ class AgentDurabilityTest extends TestCase
         $state1 = new AgentState();
         $state1->set('__runId', $runId);
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId)));
         $node1($event, $state1);
 
         $this->assertSame(1, $provider->getCallCount());
@@ -121,7 +122,7 @@ class AgentDurabilityTest extends TestCase
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
         $node2($event, $state2);
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');

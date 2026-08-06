@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -63,7 +64,7 @@ class ToolNodeStreamingTest extends TestCase
 
         // Create the ToolNode
         $toolNode = new ToolNode($chatHistory);
-        $toolNode->setWorkflowContext($state, $inferenceEvent);
+        $toolNode->setWorkflowContext(new NodeContext($state, $inferenceEvent));
 
         // Invoke the node and collect yielded chunks
         $generator = $toolNode->__invoke($toolCallEvent, $state);

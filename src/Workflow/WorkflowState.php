@@ -10,8 +10,6 @@ use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
 use function array_diff_key;
-use function is_array;
-use function is_object;
 use function serialize;
 use function unserialize;
 
@@ -103,31 +101,12 @@ class WorkflowState
     }
 
     /**
-     * Create a deep copy for complete isolation in parallel branches.
+     * Create a deep copy for complete isolation in parallel branches: nested
+     * objects get their own independent instances, eliminating state leakage.
+     * State must be serializable anyway for durable persistence.
      */
     public function __clone(): void
     {
-        // Deep clone nested arrays/objects if needed
-        $this->data = $this->deepCloneArray($this->data);
-    }
-
-    /**
-     * Recursively clone arrays and objects.
-     */
-    protected function deepCloneArray(array $data): array
-    {
-        $result = [];
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $result[$key] = $this->deepCloneArray($value);
-            } elseif (is_object($value)) {
-                // rue deep copy — nested objects get their own independent instances,
-                // eliminating state leakage between parallel branches.
-                $result[$key] = unserialize(serialize($value));
-            } else {
-                $result[$key] = $value;
-            }
-        }
-        return $result;
+        $this->data = unserialize(serialize($this->data));
     }
 }

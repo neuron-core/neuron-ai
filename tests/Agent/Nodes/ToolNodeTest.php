@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -73,7 +74,7 @@ class ToolNodeTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         // Set up the workflow context (required for Node::emit() to work)
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         // Execute the ToolNode - should NOT throw because error handler catches it
         $generator = $toolNode($event, $state);
@@ -118,7 +119,7 @@ class ToolNodeTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         // Set up the workflow context (required for Node::emit() to work)
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         // Expect the exception to be thrown
         $this->expectException(MissingCallbackParameter::class);
@@ -145,7 +146,7 @@ class ToolNodeTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -155,7 +156,7 @@ class ToolNodeTest extends TestCase
         $toolCallMessage2 = new ToolCallMessage(null, [$tool]);
         $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
-        $toolNode->setWorkflowContext($state, $event2);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event2));
         foreach ($toolNode($event2, $state) as $_) {
         }
 
@@ -175,7 +176,7 @@ class ToolNodeTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool1]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -185,7 +186,7 @@ class ToolNodeTest extends TestCase
         $toolCallMessage2 = new ToolCallMessage(null, [$tool2]);
         $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool2]);
         $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
-        $toolNode->setWorkflowContext($state, $event2);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event2));
         foreach ($toolNode($event2, $state) as $_) {
         }
 
@@ -205,7 +206,7 @@ class ToolNodeTest extends TestCase
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -225,7 +226,7 @@ class ToolNodeTest extends TestCase
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         // First call succeeds
         foreach ($toolNode($event, $state) as $_) {
@@ -240,7 +241,7 @@ class ToolNodeTest extends TestCase
         $toolCallMessage2 = new ToolCallMessage(null, [$tool]);
         $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
-        $toolNode->setWorkflowContext($state, $event2);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event2));
 
         foreach ($toolNode($event2, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -264,7 +265,7 @@ class ToolNodeTest extends TestCase
             $toolCallMessage = new ToolCallMessage(null, [$tool]);
             $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
             $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-            $toolNode->setWorkflowContext($state, $event);
+            $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
             foreach ($toolNode($event, $state) as $_) {
                 $_ = null; // This is to prevent rector from removing it.

@@ -18,7 +18,7 @@ trait ResolveState
     }
 
     /**
-     * Get the current instance of the chat history.
+     * Get the current workflow state, creating the default if none was set.
      */
     public function resolveState(): WorkflowState
     {

@@ -8,7 +8,11 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 
 /**
- * Encapsulates the result of a parallel branch execution.
+ * Buffered outcome of a parallel branch executed inside an Amp fiber.
+ *
+ * The sequential executor streams branches live and needs no buffer; only
+ * {@see \NeuronAI\Workflow\Executor\Amp\AsyncExecutor} uses this, because a
+ * fiber has no consumer to yield into while it runs.
  */
 class BranchResult
 {

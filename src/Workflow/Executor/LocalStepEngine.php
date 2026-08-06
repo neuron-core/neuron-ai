@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use Generator;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use Throwable;
@@ -46,12 +47,13 @@ class LocalStepEngine implements StepEngineInterface
         $this->pendingTimedOut = $timedOut;
     }
 
-    public function runStep(string $stepId, callable $fn): StepResult
+    public function runStep(string $stepId, callable $fn): Generator
     {
         $cached = $this->getStepResult($stepId);
 
         // Memoized: return a previously completed result without re-executing.
-        // Failed steps are never replayed from cache — they must retry.
+        // Nothing is yielded — streamed events are not replayed. Failed steps
+        // are never replayed from cache — they must retry.
         if ($cached instanceof StepResult
             && !$cached->isInterrupted()
             && !$cached->isFailed()
@@ -64,31 +66,20 @@ class LocalStepEngine implements StepEngineInterface
             && $cached->isInterrupted()
             && $this->pendingPayload !== null
         ) {
-            $result = $fn($this->pendingPayload, $this->pendingTimedOut);
-
-            $stamped = new StepResult(
-                stepId: $result->getStepId(),
-                event: $result->getEvent(),
-                state: $result->getState(),
-                output: $result->getOutput(),
-            );
-            $this->setStepResult($stepId, $stamped);
-
-            return $stamped;
-        }
-
-        // Execute the callable.
-        try {
-            $result = $fn(null, false);
-        } catch (Throwable $e) {
-            // Record a failed-step marker for crash observability, then rethrow.
-            // On recovery the marker makes this step retry (it is never replayed from cache).
-            $stamped = new StepResult(
-                stepId: $stepId,
-                error: ['message' => $e->getMessage(), 'class' => $e::class],
-            );
-            $this->setStepResult($stepId, $stamped);
-            throw $e;
+            $result = yield from $this->drive($fn($this->pendingPayload, $this->pendingTimedOut));
+        } else {
+            // Execute the callable, yielding its streamed events through in real time.
+            try {
+                $result = yield from $this->drive($fn(null, false));
+            } catch (Throwable $e) {
+                // Record a failed-step marker for crash observability, then rethrow.
+                // On recovery the marker makes this step retry (it is never replayed from cache).
+                $this->setStepResult($stepId, new StepResult(
+                    stepId: $stepId,
+                    error: ['message' => $e->getMessage(), 'class' => $e::class],
+                ));
+                throw $e;
+            }
         }
 
         // Interrupted: the step's terminal event is an InterruptEvent. Persist only an
@@ -102,15 +93,25 @@ class LocalStepEngine implements StepEngineInterface
         }
 
         // Persist the completed result.
-        $stamped = new StepResult(
-            stepId: $result->getStepId(),
-            event: $result->getEvent(),
-            state: $result->getState(),
-            output: $result->getOutput(),
-        );
-        $this->setStepResult($stepId, $stamped);
+        $this->setStepResult($stepId, $result);
 
-        return $stamped;
+        return $result;
+    }
+
+    /**
+     * Normalize the callable's outcome: a Generator streams events through and
+     * returns the StepResult; a plain StepResult (e.g. a memo step) has nothing
+     * to stream.
+     *
+     * @return Generator<int, \NeuronAI\Workflow\Events\Event, mixed, StepResult>
+     */
+    protected function drive(Generator|StepResult $outcome): Generator
+    {
+        if ($outcome instanceof StepResult) {
+            return $outcome;
+        }
+
+        return yield from $outcome;
     }
 
     public function deleteSteps(): void

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Executor\StepMemoizer;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Generator;
 
 interface NodeInterface
@@ -14,16 +12,10 @@ interface NodeInterface
     public function run(Event $event, WorkflowState $state): Generator|Event;
 
     /**
-     * @param array<string, mixed>|null $payload The inbound resume payload, or null when not resuming.
+     * Receive the execution context for the upcoming run. Called by the
+     * executor before every node execution.
      */
-    public function setWorkflowContext(
-        WorkflowState $currentState,
-        Event         $currentEvent,
-        ?array        $payload = null,
-        bool          $timedOut = false,
-        ?StepMemoizer $memoizer = null,
-        ?EventDispatcherInterface $dispatcher = null,
-    ): void;
+    public function setWorkflowContext(NodeContext $context): void;
 
     /**
      * Check if the node is in resuming mode.

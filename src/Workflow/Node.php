@@ -47,20 +47,14 @@ abstract class Node implements NodeInterface
         return $this->__invoke($event, $state);
     }
 
-    public function setWorkflowContext(
-        WorkflowState $currentState,
-        Event         $currentEvent,
-        ?array        $payload = null,
-        bool          $timedOut = false,
-        ?StepMemoizer $memoizer = null,
-        ?EventDispatcherInterface $dispatcher = null,
-    ): void {
-        $this->state = $currentState;
-        $this->event = $currentEvent;
-        $this->payload = $payload;
-        $this->timedOut = $timedOut;
-        $this->memoizer = $memoizer;
-        $this->dispatcher = $dispatcher;
+    public function setWorkflowContext(NodeContext $context): void
+    {
+        $this->state = $context->state;
+        $this->event = $context->event;
+        $this->payload = $context->payload;
+        $this->timedOut = $context->timedOut;
+        $this->memoizer = $context->memoizer;
+        $this->dispatcher = $context->dispatcher;
     }
 
     /**

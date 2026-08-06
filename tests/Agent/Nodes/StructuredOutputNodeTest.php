@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -38,7 +39,7 @@ class StructuredOutputNodeTest extends TestCase
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setMessages(new UserMessage('Generate a user'));
 
-        $node->setWorkflowContext($state, $event);
+        $node->setWorkflowContext(new NodeContext($state, $event));
 
         $return = $node($event, $state);
 
@@ -68,7 +69,7 @@ class StructuredOutputNodeTest extends TestCase
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setMessages(new UserMessage('Generate a user'));
 
-        $node->setWorkflowContext($state, $event);
+        $node->setWorkflowContext(new NodeContext($state, $event));
 
         $return = $node($event, $state);
 
@@ -105,7 +106,7 @@ class StructuredOutputNodeTest extends TestCase
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($runId);
         $node1 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
-        $node1->setWorkflowContext($state, $event, null, false, new StepMemoizer($engine1, $stepId));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
 
         $firstReturn = $node1($event, $state);
 
@@ -122,7 +123,7 @@ class StructuredOutputNodeTest extends TestCase
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($runId);
         $node2 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
-        $node2->setWorkflowContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
 
         $secondReturn = $node2($event, $state2);
 

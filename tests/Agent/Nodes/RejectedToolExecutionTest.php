@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -45,7 +46,7 @@ class RejectedToolExecutionTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent('test', []);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // consume the generator
@@ -82,7 +83,7 @@ class RejectedToolExecutionTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [$tool]);
         $inferenceEvent = new AIInferenceEvent('test', []);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-        $toolNode->setWorkflowContext($state, $event);
+        $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {
             $_ = null;

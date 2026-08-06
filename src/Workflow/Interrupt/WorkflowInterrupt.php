@@ -15,8 +15,8 @@ use NeuronAI\Exceptions\WorkflowException;
  * it into an {@see \NeuronAI\Workflow\Events\InterruptEvent}.
  *
  * This is never persisted and never reaches user code — a paused workflow is
- * surfaced to callers as a {@see \NeuronAI\Workflow\WorkflowResult}, not as a
- * thrown exception. It carries only the request that describes the pause; all
+ * surfaced to callers as an interrupted {@see \NeuronAI\Workflow\WorkflowState},
+ * not as a thrown exception. It carries only the request that describes the pause; all
  * other resume context (node, state, branch) is derived by the executor from
  * its traversal context and step replay.
  */
