@@ -9,6 +9,7 @@ use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
+use ReflectionClass;
 use ReflectionException;
 use stdClass;
 
@@ -78,6 +79,14 @@ abstract class Tool implements ToolInterface
     protected ?int $maxRuns = null;
 
     protected bool $visible = true;
+
+    /**
+     * True when this instance was rebuilt from a persisted snapshot: __serialize()
+     * drops subclass dependencies (connections, clients, closures), so the tool
+     * carries its call data but cannot execute. ToolNode swaps dehydrated tools
+     * for fresh clones from the live registry before execution.
+     */
+    protected bool $dehydrated = false;
 
     public function getName(): string
     {
@@ -327,6 +336,78 @@ abstract class Tool implements ToolInterface
         }, []);
 
         $this->setResult($this->__invoke(...$parameters));
+    }
+
+    public function isDehydrated(): bool
+    {
+        return $this->dehydrated;
+    }
+
+    /**
+     * The persisted form of a tool is data-only. The contract: properties declared
+     * on the Tool base class are call data and survive serialization; properties
+     * declared below it are execution capability (DB connections, HTTP clients,
+     * closures) and are dropped — capability is never persisted, it is re-supplied
+     * by the live process on replay via rehydrate(). Without this, attaching a
+     * durable persistence backend would fail on any tool holding a non-serializable
+     * dependency (e.g. "Serialization of 'Pdo\Mysql' is not allowed" with the
+     * MySQL toolkit).
+     *
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        // Materialize the schema so the snapshot keeps it even when a subclass
+        // builds properties() from a dependency that is dropped.
+        $this->getProperties();
+
+        $data = [];
+        foreach ((new ReflectionClass(self::class))->getProperties() as $property) {
+            if ($property->getName() !== 'dehydrated' && $property->isInitialized($this)) {
+                $data[$property->getName()] = $property->getValue($this);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function __unserialize(array $data): void
+    {
+        foreach ($data as $name => $value) {
+            $this->{$name} = $value;
+        }
+
+        $this->dehydrated = true;
+    }
+
+    /**
+     * Restore execution capability onto a dehydrated instance by transplanting
+     * the subclass-declared properties — the ones __serialize() dropped — from a
+     * live donor of the same class. The inverse of dehydration: the call data
+     * stays untouched, the shell already owns it. Skips silently when the donor
+     * is missing or of a different class (code drift between suspend and
+     * recovery): a dependency-free shell is still executable as-is.
+     */
+    public function rehydrate(?ToolInterface $donor): void
+    {
+        if ($donor === null || $donor::class !== $this::class) {
+            return;
+        }
+
+        foreach ((new ReflectionClass($this))->getProperties() as $property) {
+            if ($property->isStatic() || $property->getDeclaringClass()->getName() === self::class) {
+                continue;
+            }
+
+            if ($property->isInitialized($donor)) {
+                $property->setValue($this, $property->getValue($donor));
+            }
+        }
+
+        $this->dehydrated = false;
     }
 
     public function jsonSerialize(): array

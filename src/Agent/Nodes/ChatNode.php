@@ -15,6 +15,8 @@ use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Workflow\Events\StopEvent;
 
+use function end;
+
 /**
  * Receives an AIInferenceEvent containing instructions and tools that middleware can
  * modify before the actual inference call is made.
@@ -26,16 +28,16 @@ class ChatNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent
     {
-        $this->addToChatHistory($event->getMessages(), 'history.inbound');
-
-        $chatHistory = $this->chatHistory;
-        $lastMessage = $chatHistory->getLastMessage();
+        $inbound = $event->getMessages();
+        $messages = $this->pendingConversation($inbound);
+        $lastMessage = end($messages);
 
         $this->emit(new InferenceStart($lastMessage));
         $providerResponse = $this->memoize(
             'inference',
-            fn (): ProviderResponse => $this->inference($event, $chatHistory->getMessages()),
+            fn (): ProviderResponse => $this->inference($event, $messages),
         );
+        $this->addToChatHistory($inbound, 'history.inbound');
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
         $this->emit(new InferenceStop($lastMessage, $providerResponse));

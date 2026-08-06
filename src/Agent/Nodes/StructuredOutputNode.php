@@ -34,6 +34,7 @@ use NeuronAI\Workflow\Events\StopEvent;
 use ReflectionException;
 
 use function count;
+use function end;
 use function implode;
 use function trim;
 use function max;
@@ -65,7 +66,10 @@ class StructuredOutputNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
-        $this->addToChatHistory($event->getMessages(), 'history.inbound');
+        // User-side messages (inbound, then corrections) awaiting a successful
+        // provider call before being committed to the chat history — see
+        // InferenceNode::pendingConversation().
+        $pending = $event->getMessages();
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
@@ -83,17 +87,15 @@ class StructuredOutputNode extends InferenceNode
             try {
                 // If something goes wrong, retry informing the model about the error
                 if (trim($error) !== '') {
-                    $correctionMessage = new UserMessage(
+                    $pending[] = new UserMessage(
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
                         "Try to generate the correct JSON structure based on the provided schema."
                     );
-                    $this->addToChatHistory($correctionMessage, "history.correction.{$attempt}");
                 }
 
-                $chatHistory = $this->chatHistory;
-                $messages = $chatHistory->getMessages();
+                $messages = $this->pendingConversation($pending);
 
-                $last = clone $chatHistory->getLastMessage();
+                $last = clone end($messages);
 
                 $this->emit(new InferenceStart($last));
 
@@ -110,6 +112,9 @@ class StructuredOutputNode extends InferenceNode
                         ->structured($messages, $this->outputClass, $schema),
                 );
 
+                $this->addToChatHistory($pending, "history.inbound.{$attempt}");
+                $pending = [];
+
                 $message = $providerResponse->message();
 
                 $this->emit(new InferenceStop($last, $providerResponse));
@@ -119,8 +124,10 @@ class StructuredOutputNode extends InferenceNode
                     return new ToolCallEvent($message, $event);
                 }
 
-                // Add the final message to the chat history (after tool loop)
-                $this->addToChatHistory($message, 'history.response');
+                // The response memo is attempt-indexed too: a shared name would be
+                // recorded on the first attempt and silently skip the write of every
+                // retry's corrected response within the same step.
+                $this->addToChatHistory($message, "history.response.{$attempt}");
 
                 // Process the response: extract, deserialize, and validate
                 $output = $this->processResponse($message, $schema, $this->outputClass);

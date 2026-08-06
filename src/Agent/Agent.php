@@ -101,8 +101,8 @@ class Agent extends Workflow implements AgentInterface
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
-            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
+            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler(), $this->bootstrapTools())
+            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler(), $this->bootstrapTools());
 
         $this->addNodes([
             ...$nodes,

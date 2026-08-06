@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Agent\Tools\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\Tool;
@@ -298,6 +299,95 @@ class AgentDurabilityTest extends TestCase
 
         // After successful completion, persistence file should be deleted
         $this->assertFileDoesNotExist($dir . '/' . $runId . '.workflow');
+
+        $this->removeDirectory($dir);
+    }
+
+    public function testToolCallWithFilePersistenceAndUnserializableToolDependency(): void
+    {
+        // Regression: with a durable persistence backend every step (and the inference
+        // memo) is serialized. A tool holding a non-serializable dependency (PDO,
+        // HTTP client, closure) must not break the run — Tool::__serialize() persists
+        // only the call data.
+        $runId = 'agent_file_unserializable_tool_test';
+        $dir = sys_get_temp_dir() . '/neuron_test_' . $runId;
+
+        $tool = new ClosureDependencyTool(fn (): string => '42');
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $tool)->setCallId('call_1'),
+            ]),
+            new AssistantMessage('There are 42 users in the database.'),
+        );
+
+        $agent = Agent::make(runId: $runId);
+        $agent->setAiProvider($provider);
+        $agent->addTool($tool);
+        $agent->setExecutor(new WorkflowExecutor(new LocalStepEngine(new FilePersistence($dir))));
+
+        $message = $agent->chat(new UserMessage('How many users in the database?'))->getMessage();
+
+        $this->assertSame('There are 42 users in the database.', $message->getContent());
+        $this->assertSame(2, $provider->getCallCount());
+
+        $this->removeDirectory($dir);
+    }
+
+    public function testCrashRecoveryRehydratesToolsFromLiveRegistry(): void
+    {
+        $runId = 'agent_file_tool_recovery_test';
+        $dir = sys_get_temp_dir() . '/neuron_test_' . $runId;
+        $persistence = new FilePersistence($dir);
+        $history = new InMemoryChatHistory();
+
+        $calls = 0;
+        $tool = new ClosureDependencyTool(function () use (&$calls): string {
+            $calls++;
+            if ($calls === 1) {
+                throw new RuntimeException('Simulated crash during tool execution');
+            }
+
+            return '42';
+        });
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $tool)->setCallId('call_1'),
+            ]),
+            new AssistantMessage('There are 42 users in the database.'),
+        );
+
+        // Run 1: ChatNode completes (its step is serialized to disk, dropping the
+        // tool's closure), then the tool crashes.
+        $agent1 = Agent::make(runId: $runId);
+        $agent1->setChatHistory($history);
+        $agent1->setAiProvider($provider);
+        $agent1->addTool($tool);
+        $agent1->setExecutor(new WorkflowExecutor(new LocalStepEngine($persistence)));
+
+        try {
+            $agent1->chat(new UserMessage('How many users in the database?'))->getMessage();
+            $this->fail('Expected RuntimeException was not thrown');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Simulated crash', $e->getMessage());
+        }
+
+        // Recovery in a new process: fresh engine, same file persistence. The recalled
+        // ChatNode step carries dehydrated tools — ToolNode must rehydrate them from
+        // the live registry to execute with a working dependency.
+        $agent2 = Agent::make(runId: $runId);
+        $agent2->setChatHistory($history);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($tool);
+        $agent2->setExecutor(new WorkflowExecutor(new LocalStepEngine($persistence)));
+
+        $message = $agent2->chat(new UserMessage('How many users in the database?'))->getMessage();
+
+        $this->assertSame('There are 42 users in the database.', $message->getContent());
+        $this->assertSame(2, $calls);
+        // The recalled inference was not re-billed: one call per distinct response.
+        $this->assertSame(2, $provider->getCallCount());
 
         $this->removeDirectory($dir);
     }

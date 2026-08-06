@@ -103,21 +103,12 @@ trait HandleTools
      * just traverses the array of tools without any action.
      *
      * @return ToolInterface[]
-     * @throws InspectorException
      */
     public function bootstrapTools(): array
     {
         if (!empty($this->toolsBootstrapCache)) {
             return $this->toolsBootstrapCache;
         }
-
-        /*EventBus::emit(
-            'tools-bootstrapping',
-            $this,
-            null,
-            $this->runId,
-            $this->resolveState()->get('__branchId', '__main__')
-        );*/
 
         $guidelines = [];
 
@@ -168,14 +159,6 @@ trait HandleTools
         }
 
         $this->setInstructions(new SystemMessage($blocks));
-
-        /*EventBus::emit(
-            'tools-bootstrapped',
-            $this,
-            new ToolsBootstrapped($this->toolsBootstrapCache, $guidelines),
-            $this->runId,
-            $this->resolveState()->get('__branchId', '__main__')
-        );*/
 
         return $this->toolsBootstrapCache;
     }

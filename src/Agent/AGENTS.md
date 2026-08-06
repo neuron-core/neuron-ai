@@ -9,10 +9,10 @@ AI agent built on Workflow. Provides chat, streaming, and structured output mode
 Create a custom agent class extending `Agent`:
 
 ```php
-use NeuronAI\Agent;
+use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\SystemPrompt;
 
 class YouTubeAgent extends Agent
 {
@@ -24,19 +24,19 @@ class YouTubeAgent extends Agent
         );
     }
 
-    public function instructions(): string
+    protected function instructions(): SystemMessage|string
     {
-        return (string) new SystemPrompt(
-            background: ['You are an AI agent specialized in writing YouTube video summaries.'],
-            steps: [
-                'Get the URL of a YouTube video, or ask the user to provide one.',
-                'Use the tools you have available to retrieve the transcription of the video.',
-                'Write the summary.',
-            ],
-            output: [
-                'Write a summary in a paragraph without using lists.',
-                'After the summary add a list of three sentences as the most important takeaways.',
-            ]
+        return new SystemMessage(
+            <<<PROMPT
+            You are an AI agent specialized in writing YouTube video summaries.
+
+            Get the URL of a YouTube video, or ask the user to provide one.
+            Use the tools you have available to retrieve the transcription of the video,
+            then write the summary.
+
+            Write the summary in a paragraph without using lists.
+            After the summary add a list of three sentences as the most important takeaways.
+            PROMPT
         );
     }
 
@@ -57,6 +57,10 @@ $response = YouTubeAgent::make()
     )
     ->getMessage();
 ```
+
+`instructions()` can also return a plain string — it gets wrapped in a `SystemMessage`
+automatically. Call `->cache()` on the `SystemMessage` to mark its system content blocks
+for provider-side prompt caching.
 
 ## Fluent Definition (Alternative)
 

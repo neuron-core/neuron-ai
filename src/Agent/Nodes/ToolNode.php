@@ -18,6 +18,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Node;
@@ -38,10 +39,15 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     protected $errorHandler;
 
+    /**
+     * @param ToolInterface[] $tools Live tool registry, used to rehydrate
+     *                               dehydrated tools recalled from persistence.
+     */
     public function __construct(
         ChatHistoryInterface $chatHistory,
         protected int $maxRuns = 10,
-        ?callable $errorHandler = null
+        ?callable $errorHandler = null,
+        protected array $tools = []
     ) {
         $this->chatHistory = $chatHistory;
         $this->errorHandler = $errorHandler;
@@ -53,6 +59,8 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
+        $this->rehydrateTools($event->toolCallMessage);
+
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history. The history is
         // append-only (ADR 0006): when ToolApproval already wrote this message at suspend
@@ -73,6 +81,32 @@ class ToolNode extends Node implements AgentNodeInterface
 
         // Go back to the AI provider
         return $event->inferenceEvent;
+    }
+
+    /**
+     * A ToolCallMessage recalled from persistence carries dehydrated tools:
+     * data-only snapshots whose subclass dependencies (DB connections, clients)
+     * were dropped by Tool::__serialize(). Give each one its capability back by
+     * transplanting the live registry tool's dependencies onto it in place.
+     */
+    protected function rehydrateTools(ToolCallMessage $toolCallMessage): void
+    {
+        foreach ($toolCallMessage->getTools() as $tool) {
+            if ($tool instanceof Tool && $tool->isDehydrated()) {
+                $tool->rehydrate($this->findLiveTool($tool->getName()));
+            }
+        }
+    }
+
+    protected function findLiveTool(string $name): ?ToolInterface
+    {
+        foreach ($this->tools as $tool) {
+            if ($tool->getName() === $name) {
+                return $tool;
+            }
+        }
+
+        return null;
     }
 
     /**

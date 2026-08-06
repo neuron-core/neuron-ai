@@ -17,6 +17,8 @@ use NeuronAI\Workflow\Events\StopEvent;
 use Generator;
 use Throwable;
 
+use function end;
+
 class StreamingNode extends InferenceNode
 {
     /**
@@ -24,10 +26,9 @@ class StreamingNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent
     {
-        $this->addToChatHistory($event->getMessages(), 'history.inbound');
-
-        $chatHistory = $this->chatHistory;
-        $lastMessage = $chatHistory->getLastMessage();
+        $inbound = $event->getMessages();
+        $messages = $this->pendingConversation($inbound);
+        $lastMessage = end($messages);
 
         $this->emit(new InferenceStart($lastMessage));
 
@@ -44,7 +45,7 @@ class StreamingNode extends InferenceNode
                 $stream = $this->provider
                     ->systemPrompt($event->instructions)
                     ->setTools($event->tools)
-                    ->stream(...$chatHistory->getMessages());
+                    ->stream(...$messages);
 
                 // Yield all chunks as-is (TextChunk, ReasoningChunk, etc.)
                 foreach ($stream as $chunk) {
@@ -56,6 +57,8 @@ class StreamingNode extends InferenceNode
 
                 $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
             }
+
+            $this->addToChatHistory($inbound, 'history.inbound');
 
             $state->setResponse($providerResponse);
             $message = $providerResponse->message();
