@@ -1,48 +1,18 @@
 ---
-name: neuron-debugger
-description: Debug and monitor Neuron AI applications with Inspector APM, event observability, logging, and performance analysis. Use this skill whenever the user mentions debugging, monitoring, observability, performance analysis, tracing, Inspector, or needs to understand why an agent is behaving a certain way. Also trigger for tasks involving agent execution timeline, tool call inspection, response quality issues, latency problems, or general troubleshooting of Neuron AI applications.
+name: neuron-monitoring
+description: Monitor Neuron AI agents and workflows with events observability, logging, and performance analysis. Use this skill whenever the user mentions debugging, monitoring, observability, performance analysis, tracing, connecting to the Neuron Cloud platform, or needs to understand why an agent is behaving a certain way. Also trigger for tasks involving agent execution timeline, tool call inspection, latency problems, or general troubleshooting of Neuron AI applications.
 ---
 
-# Neuron AI Debugger
+# Neuron AI Monitoring
 
-This skill helps you debug and monitor Neuron AI applications using Inspector APM and the framework's observability system.
+This skill helps you debug and monitor Neuron AI applications using the
+framework's event-driven observability system — from local logging with
+`LogListener` up to production tracing on the **Neuron Cloud** platform
+(setup instructions at the bottom of this document).
 
-## Inspector APM Integration
-
-Inspector provides deep insights into agent execution, helping you understand:
-
-- Why the model took certain decisions
-- What data the model reacted to
-- Timeline of all operations (LLM calls, tool usage, vector search)
-- Performance bottlenecks and latency
-
-### Setup
-
-1. **Get an Inspector account** at https://inspector.dev
-2. **Set the ingestion key** in your environment:
-
-```bash
-# .env file
-INSPECTOR_INGESTION_KEY=your_ingestion_key_here
-```
-
-3. **Agent execution is automatically tracked** - no code changes needed!
-
-### Viewing Execution Timeline
-
-After running an agent, visit your Inspector dashboard to see:
-
-```
-[AI Inference] → [Tool Call: search_database] → [AI Inference] → [Response]
-     ↓                    ↓                        ↓
-  850ms               1.2s                     920ms
-```
-
-Each segment shows:
-- Duration and timing
-- Input/output data
-- Errors if any occurred
-- Metadata (model used, tokens, etc.)
+The progression is always the same: components emit events → you subscribe
+listeners. A `LogListener` writing to stdout and the Neuron Cloud tracing
+listener are the same mechanism, differing only in where the events go.
 
 ## Event System Observability
 
@@ -140,7 +110,7 @@ observers to listeners registered via `subscribe()`.
 
 **Diagnosis Steps**:
 
-1. Check Inspector timeline - are tool calls being made?
+1. Check the run trace (Neuron Cloud timeline, or `LogListener` output) - are tool calls being made?
 2. Verify tool descriptions are clear and specific
 3. Check if tool properties are correctly defined
 4. Review agent instructions - are tools mentioned?
@@ -162,7 +132,7 @@ protected function instructions(): string
 
 **Diagnosis Steps**:
 
-1. **Check Inspector timeline** - identify slow segments
+1. **Check the trace timeline** - identify slow segments (`InferenceStart`/`InferenceStop` and `ToolCalling`/`ToolCalled` pairs bracket each operation)
 2. **Common bottlenecks**:
    - LLM inference: Check model choice, token count
    - Tool execution: Database queries, API calls
@@ -184,7 +154,7 @@ $agent->parallelToolCalls(true);
 
 **Diagnosis Steps**:
 
-1. **Check Inspector** - what context was provided?
+1. **Check the trace** - what context was provided to the LLM?
 2. **Review LLM calls**:
    - System prompt quality
    - Context window usage
@@ -221,7 +191,7 @@ protected function instructions(): string
 
 **Diagnosis Steps**:
 
-1. **Check Inspector timeline** - see error details
+1. **Check the run trace** - see error details (`AgentError` events carry the exception)
 2. **Verify tool configuration**:
    - Property types match
    - Required parameters provided
@@ -326,12 +296,16 @@ public function testToolExecution(): void
 
 ## Production Error Analysis
 
-Inspector provides detailed error analysis:
+With the Neuron Cloud tracing listener attached (see the bottom of this
+document), a failed run ships a trace with terminal status `failed`, so the
+platform gives you:
 
-1. **Error Summary**: Frequency, severity, affected code
+1. **Error Summary**: Frequency, severity, affected runs
 2. **Stack Traces**: Full call chain with framework code
 3. **Context**: Input data, state at time of error
 4. **Patterns**: Repeated issues, common failure modes
+
+Locally, subscribe to the `AgentError` event to capture failures as they happen.
 
 ### Tracing Node Execution
 
@@ -361,8 +335,8 @@ file_put_contents('workflow_diagram.mmd', $diagram);
 
 When troubleshooting:
 
-- [ ] Is Inspector configured with valid ingestion key?
-- [ ] Can you see the execution in Inspector dashboard?
+- [ ] Is an observability listener attached (`LogListener` locally, the Neuron Cloud listener in production)?
+- [ ] Can you see the run trace in the Neuron Cloud dashboard?
 - [ ] Are errors shown in the timeline?
 - [ ] What was the LLM prompt and response?
 - [ ] Were tools called, and what were the results?
@@ -370,4 +344,115 @@ When troubleshooting:
 - [ ] Check logs for additional context
 - [ ] Verify tool property types match what was sent
 - [ ] For RAG, check retrieved documents and scores
-- [ ] Consider adding a custom observer for specific events
+- [ ] Consider subscribing a custom listener for specific events
+
+## Connecting to Neuron Cloud
+
+Neuron Cloud is the hosted observability platform for Neuron. Attach its
+tracing listener to a workflow or agent and every run ships a trace — node,
+inference, tool, RAG, and structured-output spans — stitched across the
+suspend/resume segments of a durable run into a single timeline.
+
+It plugs into the same event system documented above: the Cloud listener is a
+plain PSR-14 listener subscribed to `ObservabilityEvent::class`, exactly like
+`LogListener`. No agent code changes are required — only a `subscribe()` call.
+
+### Choosing the Package
+
+Suggest the package that matches the application environment you are working in:
+
+| Application environment | Package to install |
+|---|---|
+| Laravel (`laravel/framework` in composer.json, `artisan` file present) | `neuron-core/neuron-cloud-laravel` |
+| Symfony (`symfony/framework-bundle` in composer.json, `config/bundles.php` present) | `neuron-core/neuron-cloud-symfony` |
+| Any other PHP application | `neuron-core/cloud-sdk` (framework-agnostic) |
+
+All three are available on Packagist. The Laravel and Symfony packages wire
+the framework-agnostic SDK into the application container with config and env
+plumbing; the plain SDK is configured by hand.
+
+### Plain PHP: neuron-core/cloud-sdk
+
+```bash
+composer require neuron-core/cloud-sdk
+```
+
+Build the SDK entry point. Everything hangs off one configured root:
+
+```php
+use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\Cloud\Http\GuzzleTransport;
+
+$cloud = new NeuronCloud(
+    transport: GuzzleTransport::discover(),
+    platformUrl: 'https://cloud.neuron-ai.dev',
+    apiKey: $_ENV['NEURON_CLOUD_API_KEY'],
+    signingKey: $_ENV['NEURON_CLOUD_SIGNING_KEY'],
+);
+```
+
+### Laravel: neuron-core/neuron-cloud-laravel
+
+```bash
+composer require neuron-core/neuron-cloud-laravel
+php artisan vendor:publish --tag=neuron-cloud-config
+```
+
+The service provider is auto-discovered and registers `NeuronCloud` as a
+singleton, resolved from `config/neuron-cloud.php`:
+
+```bash
+# .env file
+NEURON_CLOUD_API_KEY=your_api_key
+NEURON_CLOUD_SIGNING_KEY=your_signing_key
+```
+
+Resolve the client anywhere with `app(NeuronCloud::class)` or constructor
+injection.
+
+### Symfony: neuron-core/neuron-cloud-symfony
+
+```bash
+composer require neuron-core/neuron-cloud-symfony
+```
+
+Register the bundle in `config/bundles.php`:
+
+```php
+return [
+    // ...
+    NeuronCore\Cloud\Symfony\NeuronCloudBundle::class => ['all' => true],
+];
+```
+
+Configure it:
+
+```yaml
+# config/packages/neuron_cloud.yaml
+neuron_cloud:
+    platform_url: '%env(NEURON_CLOUD_PLATFORM_URL)%'
+    api_key:      '%env(NEURON_CLOUD_API_KEY)%'
+    signing_key:  '%env(NEURON_CLOUD_SIGNING_KEY)%'
+```
+
+The bundle registers `NeuronCore\Cloud\NeuronCloud` as a service, available
+for autowiring.
+
+### Attaching the Tracing Listener
+
+However `$cloud` was obtained, connecting an agent or workflow is a single
+`subscribe()` — the same call used for `LogListener` above:
+
+```php
+use NeuronAI\Observability\ObservabilityEvent;
+
+$agent->subscribe(ObservabilityEvent::class, $cloud->listener('support-agent'));
+```
+
+One trace is flushed per run, carrying the run id and a terminal status
+(`completed`, `suspended`, `failed`). The listener resets itself after each
+flush, so one instance follows every run of the workflow it is attached to,
+including the resumes of a durable run.
+
+Listeners compose: attach both a `LogListener` for local visibility and the
+Cloud listener for the platform timeline on the same agent.
