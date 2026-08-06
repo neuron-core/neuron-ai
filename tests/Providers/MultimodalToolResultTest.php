@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Providers;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolDefinition;
@@ -35,6 +36,21 @@ class MultimodalToolResultTest extends TestCase
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult('plain result');
+    }
+
+    /**
+     * A ToolOutput whose only block is unmappable for the OpenAI/Anthropic/Mistral
+     * APIs, so the provider must fall back to getText().
+     */
+    protected function unmappableTool(): ToolInterface
+    {
+        return ToolDefinition::make('get_clip', 'Render a video clip')
+            ->setCallId('call_1')
+            ->setInputs([])
+            ->setResult(new ToolOutput([
+                new TextContent('clip caption'),
+                new VideoContent('clipdata', SourceType::BASE64, 'video/mp4'),
+            ]));
     }
 
     public function test_anthropic_maps_tool_output_as_native_blocks(): void
@@ -216,5 +232,65 @@ class MultimodalToolResultTest extends TestCase
         $payload = $mapper->map([new ToolResultMessage([$this->stringTool()])]);
 
         $this->assertSame('plain result', $payload[0]['content']);
+    }
+
+    public function test_openai_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\OpenAI\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame('clip caption', $payload[0]['content']);
+    }
+
+    public function test_anthropic_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\Anthropic\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame('clip caption', $payload[0]['content'][0]['content']);
+    }
+
+    public function test_mistral_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\Mistral\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame('clip caption', $payload[0]['content']);
+    }
+
+    public function test_openai_responses_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\OpenAI\Responses\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame('clip caption', $payload[0]['output']);
+    }
+
+    public function test_bedrock_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\AWS\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame(
+            [['json' => ['result' => 'clip caption']]],
+            $payload[0]['content'][0]['toolResult']['content']
+        );
+    }
+
+    public function test_gemini_falls_back_to_text_when_blocks_unmappable(): void
+    {
+        $mapper = new \NeuronAI\Providers\Gemini\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->unmappableTool()])]);
+
+        $this->assertSame(
+            ['parts' => [['text' => 'clip caption']]],
+            $payload[0]['parts'][0]['functionResponse']['response']['content']
+        );
     }
 }

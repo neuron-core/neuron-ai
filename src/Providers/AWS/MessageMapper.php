@@ -63,7 +63,7 @@ class MessageMapper implements MessageMapperInterface
             $toolContents[] = [
                 'toolResult' => [
                     'content' => $result instanceof ToolOutput
-                        ? $this->mapBlocks($result->getBlocks())
+                        ? ($this->mapBlocks($result->getBlocks()) ?: [['json' => ['result' => $result->getText()]]])
                         : [
                             [
                                 'json' => [

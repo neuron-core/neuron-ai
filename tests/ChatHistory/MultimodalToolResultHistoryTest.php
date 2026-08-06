@@ -166,4 +166,31 @@ class MultimodalToolResultHistoryTest extends TestCase
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
         $this->assertSame('legacy result', $messages[2]->getTools()[0]->getResult());
     }
+
+    public function test_empty_tool_output_result_round_trips(): void
+    {
+        $key = 'empty_multimodal_result';
+
+        $callTool = ToolDefinition::make('no_op', 'Does nothing observable')
+            ->setCallId('call_1')
+            ->setInputs([]);
+
+        $resultTool = ToolDefinition::make('no_op', 'Does nothing observable')
+            ->setCallId('call_1')
+            ->setInputs([])
+            ->setResult(new ToolOutput([]));
+
+        $history = new FileChatHistory($this->testDir, $key);
+        $history->addMessage(new ToolCallMessage(null, [$callTool]));
+        $history->addMessage(new ToolResultMessage([$resultTool]));
+
+        $reloaded = new FileChatHistory($this->testDir, $key);
+        $messages = $reloaded->getMessages();
+
+        $this->assertInstanceOf(ToolResultMessage::class, $messages[1]);
+        $result = $messages[1]->getTools()[0]->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertSame([], $result->getBlocks());
+        $this->assertSame('', $result->getText());
+    }
 }
