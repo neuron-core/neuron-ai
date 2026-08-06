@@ -243,8 +243,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolResult(mixed $result): string|ToolOutput
     {
-        if (is_array($result) && isset($result[0]['type'])) {
-            return new ToolOutput(array_map($this->deserializeContentBlock(...), $result));
+        if (is_array($result)) {
+            return new ToolOutput(array_map(
+                $this->deserializeContentBlock(...),
+                isset($result[0]['type']) ? $result : []
+            ));
         }
 
         return (string) $result;

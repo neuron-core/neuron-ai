@@ -100,6 +100,11 @@ class ConsoleOutput implements EvaluationOutputInterface
             $assertionSuccessRate
         );
 
+        $cachedRuns = $summary->getCachedRunCount();
+        if ($cachedRuns > 0) {
+            echo sprintf("Cached runs: %d of %d (assertions re-evaluated)\n", $cachedRuns, $totalCount);
+        }
+
         // Display score statistics if there are any scores
         $allScores = $summary->getAllAssertionScores();
         if ($allScores !== []) {

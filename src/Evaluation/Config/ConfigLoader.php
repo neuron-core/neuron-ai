@@ -8,6 +8,7 @@ use NeuronAI\Evaluation\Output\ConsoleOutput;
 use RuntimeException;
 
 use function is_array;
+use function is_string;
 use function realpath;
 
 class ConfigLoader
@@ -54,5 +55,16 @@ class ConfigLoader
     public function getOutputDrivers(): array
     {
         return $this->load()['output'] ?? [ConsoleOutput::class];
+    }
+
+    /**
+     * Directory for the run() output cache (--cache). Overridable via
+     * a 'cache' => ['path' => ...] entry in evaluation.php.
+     */
+    public function getCachePath(): string
+    {
+        $path = $this->load()['cache']['path'] ?? '.neuron/cache/evaluation';
+
+        return is_string($path) ? $path : '.neuron/cache/evaluation';
     }
 }

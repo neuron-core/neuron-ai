@@ -144,7 +144,7 @@ class MessageMapper implements MessageMapperInterface
                 'response' => [
                     'name' => $tool->getName(),
                     'content' => ($result = $tool->getResult()) instanceof ToolOutput
-                        ? ['parts' => $this->mapBlocks($result->getBlocks())]
+                        ? ['parts' => $this->mapBlocks($result->getBlocks()) ?: [['text' => $result->getText()]]]
                         : $result,
                 ],
             ],

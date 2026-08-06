@@ -514,6 +514,12 @@ vendor/bin/neuron evaluation --path=/path/to/evaluators
 # Run dataset items in parallel processes
 vendor/bin/neuron evaluation /path/to/evaluators --concurrency=4
 
+# Serve unchanged run() outputs from the evaluation cache (assertions always re-run)
+vendor/bin/neuron evaluation /path/to/evaluators --cache
+
+# Re-run everything and overwrite the evaluation cache
+vendor/bin/neuron evaluation /path/to/evaluators --fresh
+
 # Load a custom bootstrap file before the default Composer autoloader
 vendor/bin/neuron evaluation /path/to/evaluators --autoload-file=bootstrap.php
 
@@ -531,6 +537,75 @@ file *before* (in addition to) the default Composer autoloader. It's a global
 `vendor/bin/neuron` option, so it works with any command. Use it when evaluators need
 framework bootstrapping (e.g. a Laravel/Symfony bootstrap that sets up the DI
 container) or an autoloader not covered by the project's `composer.json`.
+
+### Run Output Caching (`--cache`)
+
+The cache stores the **output of `run()`, never the verdict** — `evaluate()` always
+executes fresh. An unchanged dataset item skips the expensive agent run (LLM calls,
+tool execution, whole conversations), while assertions, thresholds, and judges still
+run against the recorded output. That makes it both a cost saver in CI and a
+development workflow: iterate on `evaluate()` against frozen outputs without
+re-running agents.
+
+A cached run is skipped because re-running unchanged inputs yields no new information
+about *your change* — it only samples the same distribution again. It tells you nothing
+about provider drift either, so pair `--cache` in CI with a periodic `--fresh` run.
+
+**What invalidates an entry** (the key is a content fingerprint):
+
+- editing the evaluator's `run()` method — and only `run()`: changing `evaluate()`
+  keeps cached runs valid on purpose;
+- any content change in the declared cache dependencies (see below);
+- the dataset item itself (content-addressed: reordering a dataset invalidates
+  nothing; appended items simply miss);
+- upgrading the framework.
+
+**Declare what `run()` depends on.** The fingerprint can't see through `run()` into
+your agent class or prompt files — declare them by overriding `cacheDependencies()`:
+
+```php
+class RefundEvaluator extends BaseEvaluator
+{
+    public function cacheDependencies(): array
+    {
+        return [
+            RefundAgent::class,               // class-string → its source file is hashed
+            __DIR__ . '/prompts/refund.txt',  // or a file path
+        ];
+    }
+
+    // ...
+}
+```
+
+Undeclared dependencies (e.g. a prompt loaded from a database) are invisible to
+invalidation — run `--fresh` after changing them.
+
+Entries live in `.neuron/cache/evaluation/` (gitignore it; override the path via the
+config file — see Output Configuration). Cached items are visible everywhere: per
+result (`EvaluatorResult::isCachedRun()`, `cached_run` in JSON output) and in the
+console summary (`Cached runs: N of M (assertions re-evaluated)`), so a skip is never
+confusable with a fresh run. A non-serializable `run()` output (same contract as
+`--concurrency`'s fork boundary) is silently not cached.
+
+Programmatically, pass the cache to the runner:
+
+```php
+use NeuronAI\Evaluation\Cache\FileEvaluationCache;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+
+$runner = new EvaluatorRunner(new FileEvaluationCache('.neuron/cache/evaluation'));
+$summary = $runner->run(new MyEvaluator());
+
+$summary->getCachedRunCount();   // how many items skipped run()
+
+// refresh: true bypasses cache reads but still records outputs (--fresh)
+$runner = new EvaluatorRunner(new FileEvaluationCache($path), refresh: true);
+```
+
+`EvaluationCacheInterface` (`has`/`get`/`set`) is the storage seam —
+implement it to back the cache with Redis, a database, or a shared team store.
+To wipe the cache entirely, delete the cache directory.
 
 ### Programmatic Execution
 
@@ -573,6 +648,11 @@ return [
 
         // Constructed instance (e.g. to set the output path)
         new JsonOutput('evaluation-results.json'),
+    ],
+
+    // Optional: where --cache stores run() outputs (default: .neuron/cache/evaluation)
+    'cache' => [
+        'path' => '.neuron/cache/evaluation',
     ],
 ];
 ```
@@ -698,6 +778,7 @@ $summary->getAssertionSuccessRate();      // float (0.0 - 1.0)
 // Detailed results
 $summary->getResults();                 // array<EvaluatorResult>
 $summary->getFailedResults();           // array<EvaluatorResult>
+$summary->getCachedRunCount();          // int — items whose run() came from the cache
 
 // Assertion failures grouped by location
 $summary->getAssertionFailuresByLocation();  // array<string, AssertionFailure[]>
@@ -712,6 +793,7 @@ foreach ($summary->getResults() as $result) {
     $result->getInput();             // array
     $result->getOutput();            // mixed
     $result->getExecutionTime();      // float
+    $result->isCachedRun();          // bool — run() was served from the evaluation cache
     $result->getError();             // ?string
     $result->getAssertionsPassed();   // int
     $result->getAssertionsFailed();   // int
@@ -927,6 +1009,14 @@ jobs:
 # Run and exit with 1 if any failures
 vendor/bin/neuron evaluation evaluators || exit 1
 ```
+
+### Caching in CI
+
+Persist `.neuron/cache/evaluation/` across CI runs (e.g. `actions/cache`) and run with
+`--cache`: only evaluators whose `run()`, declared dependencies, or dataset items
+changed re-execute against the provider. Schedule a periodic `--fresh` run (e.g.
+nightly) — cache hits carry no information about provider drift, so drift detection
+should be time-based, not commit-based.
 
 ## Key Decision Points
 

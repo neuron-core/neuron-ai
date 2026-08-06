@@ -164,7 +164,7 @@ class MessageMapper implements MessageMapperInterface
             'type' => 'tool_result',
             'tool_use_id' => $tool->getCallId(),
             'content' => ($result = $tool->getResult()) instanceof ToolOutput
-                ? $this->mapBlocks($result->getBlocks())
+                ? ($this->mapBlocks($result->getBlocks()) ?: $result->getText())
                 : $result,
         ], $message->getTools());
 

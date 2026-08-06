@@ -49,6 +49,19 @@ abstract class BaseEvaluator implements EvaluatorInterface
     abstract public function evaluate(mixed $output, array $datasetItem): void;
 
     /**
+     * Sources that participate in the run() cache key, beyond the evaluator
+     * itself: the agent classes and prompt files that run() depends on.
+     * Return class-strings or file paths; when any of their content changes,
+     * cached runs are invalidated. Only consulted when caching is enabled.
+     *
+     * @return array<string> Class-strings or file paths
+     */
+    public function cacheDependencies(): array
+    {
+        return [];
+    }
+
+    /**
      * Perform evaluation and return assertion outcomes.
      * This is the wrapper method called by the runner.
      *

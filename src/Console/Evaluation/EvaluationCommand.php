@@ -6,6 +6,7 @@ namespace NeuronAI\Console\Evaluation;
 
 use NeuronAI\Console\Command;
 use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
@@ -59,7 +60,13 @@ class EvaluationCommand extends Command
         }
 
         try {
-            return $this->executeEvaluations($options['path'], $options['verbose'], $options['concurrency']);
+            return $this->executeEvaluations(
+                $options['path'],
+                $options['verbose'],
+                $options['concurrency'],
+                $options['cache'] || $options['fresh'],
+                $options['fresh']
+            );
         } catch (Throwable $e) {
             $this->printError($e->getMessage());
             return 1;
@@ -68,7 +75,7 @@ class EvaluationCommand extends Command
 
     /**
      * @param array<string> $args
-     * @return array{path: string, verbose: bool, help: bool, concurrency: int}
+     * @return array{path: string, verbose: bool, help: bool, concurrency: int, cache: bool, fresh: bool}
      */
     protected function parseArguments(array $args): array
     {
@@ -77,6 +84,8 @@ class EvaluationCommand extends Command
             'verbose' => false,
             'help' => false,
             'concurrency' => 1,
+            'cache' => false,
+            'fresh' => false,
         ];
 
         // Skip script name
@@ -91,6 +100,10 @@ class EvaluationCommand extends Command
                 $options['path'] = substr($arg, 7); // Remove '--path='
             } elseif (str_starts_with($arg, '--concurrency=')) {
                 $options['concurrency'] = (int) substr($arg, 14); // Remove '--concurrency='
+            } elseif ($arg === '--cache') {
+                $options['cache'] = true;
+            } elseif ($arg === '--fresh') {
+                $options['fresh'] = true;
             } elseif (empty($options['path']) && !str_starts_with($arg, '-')) {
                 $options['path'] = $arg;
             }
@@ -99,7 +112,7 @@ class EvaluationCommand extends Command
         return $options;
     }
 
-    protected function executeEvaluations(string $path, bool $verbose, int $concurrency): int
+    protected function executeEvaluations(string $path, bool $verbose, int $concurrency, bool $cache, bool $fresh): int
     {
         echo "Neuron AI Evaluation Runner\n\n";
 
@@ -107,6 +120,10 @@ class EvaluationCommand extends Command
             echo "Parallel execution requires the pcntl extension and spatie/fork. Running sequentially.\n\n";
             $concurrency = 1;
         }
+
+        $runner = $cache
+            ? new EvaluatorRunner(new FileEvaluationCache($this->configLoader->getCachePath()), $fresh)
+            : $this->runner;
 
         $evaluatorClasses = $this->discovery->discover($path);
 
@@ -126,7 +143,7 @@ class EvaluationCommand extends Command
             }
 
             try {
-                $summary = $this->runner->run($this->createEvaluator($evaluatorClass), $concurrency);
+                $summary = $runner->run($this->createEvaluator($evaluatorClass), $concurrency);
             } catch (Throwable $e) {
                 $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
                 $totalFailures++;
@@ -191,6 +208,8 @@ class EvaluationCommand extends Command
         echo "  path                   Path to directory containing evaluators\n\n";
         echo "Options:\n";
         echo "  --concurrency=N        Run dataset items in N parallel processes (requires pcntl and spatie/fork)\n";
+        echo "  --cache                Serve unchanged run() outputs from the evaluation cache (assertions always re-run)\n";
+        echo "  --fresh                Re-run everything and overwrite the evaluation cache\n";
         echo "  --verbose, -v          Show verbose output\n";
         echo "  --help, -h             Show this help message\n";
     }

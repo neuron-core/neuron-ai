@@ -6,6 +6,7 @@ namespace [namespace];
 
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 class [classname] extends Tool
@@ -32,10 +33,10 @@ class [classname] extends Tool
     /**
      * Implementing the tool logic
      */
-    public function __invoke(string $input): string
+    public function __invoke(string $input): ToolOutput
     {
         // ...
 
-        return $input;
+        return ToolOutput::text($input);
     }
 }

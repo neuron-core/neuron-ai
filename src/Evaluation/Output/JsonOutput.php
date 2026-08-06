@@ -69,6 +69,7 @@ class JsonOutput implements EvaluationOutputInterface
             'assertions_passed' => $summary->getTotalAssertionsPassed(),
             'assertions_failed' => $summary->getTotalAssertionsFailed(),
             'assertion_success_rate' => $summary->getAssertionSuccessRate(),
+            'cached_runs' => $summary->getCachedRunCount(),
             'score_statistics' => $allScores !== [] ? [
                 'average_score' => $summary->getAverageAssertionScore(),
                 'min_score' => $summary->getMinAssertionScore(),
@@ -83,6 +84,7 @@ class JsonOutput implements EvaluationOutputInterface
                     'input' => $r->getInput(),
                     'output' => $this->formatOutput($r->getOutput()),
                     'execution_time' => $r->getExecutionTime(),
+                    'cached_run' => $r->isCachedRun(),
                     'error' => $r->getError(),
                     'assertions_passed' => $r->getAssertionsPassed(),
                     'assertions_failed' => $r->getAssertionsFailed(),

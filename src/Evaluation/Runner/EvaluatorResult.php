@@ -26,8 +26,18 @@ class EvaluatorResult
         private readonly int $assertionsFailed,
         private readonly array $assertionFailures = [],
         private readonly array $assertionScores = [],
-        private readonly ?string $error = null
+        private readonly ?string $error = null,
+        private readonly bool $cachedRun = false
     ) {
+    }
+
+    /**
+     * Whether run() was skipped and its output served from the evaluation cache.
+     * Assertions always execute fresh, so passed/failed reflects the current evaluate().
+     */
+    public function isCachedRun(): bool
+    {
+        return $this->cachedRun;
     }
 
     public function getIndex(): int

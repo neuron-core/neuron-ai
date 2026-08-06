@@ -22,6 +22,42 @@ counters, appending to files) won't be visible across items. Evaluator outputs
 must be serializable to cross the process boundary; non-serializable outputs
 are replaced with a placeholder string in the results.
 
+## Run Output Caching (`--cache`)
+
+One sentence anchors the design: **the cache stores the output of `run()`, never the
+verdict — `evaluate()` always executes fresh.** Skipping an unchanged run is sound
+because a re-run of unchanged inputs yields no new information about your change (it
+samples the same distribution); re-evaluating stays free and lets you iterate on
+assertions, thresholds, and judges against frozen trajectories without re-running agents.
+
+```bash
+vendor/bin/neuron evaluation path/to/evaluators --cache    # skip unchanged runs
+vendor/bin/neuron evaluation path/to/evaluators --fresh    # re-run all, overwrite cache
+```
+
+The cache key (`Cache/CacheKey.php`) is a content fingerprint of what determines
+`run()`'s output:
+
+- the evaluator class and the **source of its `run()` method only** — editing
+  `evaluate()` does not invalidate recorded runs;
+- declared dependencies via `BaseEvaluator::cacheDependencies()` (override it to
+  return class-strings or file paths — your Agent class, prompt files). Undeclared
+  dependencies are invisible to invalidation: use `--fresh` after changing them;
+- the dataset item content (content-addressed — reordering a dataset invalidates
+  nothing, appended items simply miss);
+- the installed framework version.
+
+Entries live in `.neuron/cache/evaluation/` (override via `'cache' => ['path' => ...]`
+in `evaluation.php`), one file per key, written atomically so `--concurrency` children
+can't collide. Storage honors the same contract as the fork boundary: a non-serializable
+`run()` output is silently not cached. Cached items are flagged per result
+(`EvaluatorResult::isCachedRun()`, `cached_run` in JSON) and counted in the console
+summary — a skip is never confusable with a fresh run. Cache hits tell you nothing about
+provider drift: pair `--cache` in CI with a periodic `--fresh` run.
+
+`EvaluationCacheInterface` (`has`/`get`/`set`) is the storage seam;
+`FileEvaluationCache` is the built-in driver. To wipe the cache, delete the directory.
+
 ## Architecture
 
 **Template Method Pattern**: `BaseEvaluator` workflow:

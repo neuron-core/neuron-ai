@@ -1,6 +1,6 @@
 ---
 name: neuron-tool
-description: Create custom tools, toolkits, and MCP integrations for Neuron AI agents. Use this skill when the user mentions creating tools, building toolkits, extending Tool class, defining tool properties, implementing tool execution, MCP server integration, Model Context Protocol, connecting external tools, or tool guidelines. Also trigger for any task involving ToolProperty, ArrayProperty, ObjectProperty, AbstractToolkit, McpConnector, or StdioTransport/SseHttpTransport/StreamableHttpTransport.
+description: Create custom tools, toolkits, and MCP integrations for Neuron AI agents. Use this skill when the user mentions creating tools, building toolkits, extending Tool class, defining tool properties, implementing tool execution, MCP server integration, Model Context Protocol, connecting external tools, multimodal tool results, or tool guidelines. Also trigger for any task involving ToolOutput, ToolProperty, ArrayProperty, ObjectProperty, AbstractToolkit, McpConnector, or StdioTransport/SseHttpTransport/StreamableHttpTransport.
 ---
 
 # Neuron AI Tool
@@ -18,7 +18,7 @@ Every tool has:
 - **Name**: Unique identifier
 - **Description**: Explains what the tool does (critical for LLM)
 - **Properties**: Input parameters with types and descriptions
-- **`__invoke()`**: The actual logic to run
+- **`__invoke()`**: The actual logic to run — returns a `ToolOutput` (default), or a plain string/array
 
 ## Creating Custom Tools
 
@@ -28,6 +28,7 @@ The cleanest approach for complex tools:
 
 ```php
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
 
@@ -56,12 +57,12 @@ class WeatherTool extends Tool
         ];
     }
 
-    public function __invoke(string $location, ?string $units = 'celsius'): string
+    public function __invoke(string $location, ?string $units = 'celsius'): ToolOutput
     {
         // Your API call or logic here
         $weatherData = $this->fetchWeather($location, $units);
 
-        return json_encode($weatherData);
+        return ToolOutput::text(json_encode($weatherData));
     }
 
     private function fetchWeather(string $location, string $units): array
@@ -83,6 +84,7 @@ For tools that need external dependencies (database, API client), keep the const
 
 ```php
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
 use PDO;
@@ -115,7 +117,7 @@ class DatabaseQueryTool extends Tool
         ];
     }
 
-    public function __invoke(?string $email = null, ?int $limit = 10): array
+    public function __invoke(?string $email = null, ?int $limit = 10): ToolOutput
     {
         $query = "SELECT * FROM users";
 
@@ -133,7 +135,7 @@ class DatabaseQueryTool extends Tool
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
 
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return ToolOutput::text(json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)));
     }
 }
 ```
@@ -269,7 +271,40 @@ new ArrayProperty(
 
 ### Return Values
 
-Tools must return a string or stringifiable value:
+The default return type is `ToolOutput` — a multimodal result that wraps content blocks (text, images, files, audio, video) sent back to the model:
+
+```php
+use NeuronAI\Tools\ToolOutput;
+
+// Text output (most common)
+public function __invoke(string $query): ToolOutput
+{
+    return ToolOutput::text("Result: {$query}");
+}
+```
+
+Single-block factory shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`, `::audio(...)`, `::video(...)`.
+
+For multi-block outputs, pass the content blocks to the constructor:
+
+```php
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Tools\ToolOutput;
+
+public function __invoke(string $symbol): ToolOutput
+{
+    return new ToolOutput([
+        new TextContent("Price chart for {$symbol}"),
+        new ImageContent($base64, SourceType::BASE64, 'image/png'),
+    ]);
+}
+```
+
+Providers whose API accepts content blocks in tool results map them natively; text-only providers fall back to `ToolOutput::getText()` — the concatenated text blocks (empty when there are none, so include a `TextContent` in outputs meant to work everywhere).
+
+Plain string and array returns are still supported:
 
 ```php
 // String
@@ -283,22 +318,12 @@ public function __invoke(string $query): array
 {
     return ['status' => 'success', 'data' => []];
 }
-
-// Object with __toString
-public function __invoke(): Stringable
-{
-    return new class implements Stringable {
-        public function __toString(): string {
-            return 'result';
-        }
-    };
-}
 ```
 
 ### Accessing Inputs Directly
 
 ```php
-public function __invoke(string $query, ?string $filter = null): string
+public function __invoke(string $query, ?string $filter = null): ToolOutput
 {
     // Access individual input
     $value = $this->getInput('query');
@@ -316,14 +341,14 @@ public function __invoke(string $query, ?string $filter = null): string
 ### Error Handling
 
 ```php
-public function __invoke(string $url): string
+public function __invoke(string $url): ToolOutput
 {
     try {
         $response = $this->httpClient->get($url);
-        return (string) $response->getBody();
+        return ToolOutput::text((string) $response->getBody());
     } catch (\Exception $e) {
         // Return error message for the LLM to understand
-        return "Error fetching URL: {$e->getMessage()}";
+        return ToolOutput::text("Error fetching URL: {$e->getMessage()}");
     }
 }
 ```
@@ -611,31 +636,31 @@ ToolProperty::make(
 ### 4. Return Structured Data
 
 ```php
-public function __invoke(string $query): string
+public function __invoke(string $query): ToolOutput
 {
     $results = $this->search($query);
 
     // Return structured JSON
-    return json_encode([
+    return ToolOutput::text(json_encode([
         'success' => true,
         'query' => $query,
         'count' => count($results),
         'results' => $results,
-    ]);
+    ]));
 }
 ```
 
 ### 5. Handle Errors Gracefully
 
 ```php
-public function __invoke(string $url): string
+public function __invoke(string $url): ToolOutput
 {
     if (!filter_var($url, FILTER_VALIDATE_URL)) {
-        return json_encode([
+        return ToolOutput::text(json_encode([
             'success' => false,
             'error' => 'Invalid URL format',
             'hint' => 'Please provide a valid URL starting with http:// or https://'
-        ]);
+        ]));
     }
 
     // ...
@@ -645,14 +670,14 @@ public function __invoke(string $url): string
 ### 6. Validate Inputs
 
 ```php
-public function __invoke(string $email, int $limit = 10): string
+public function __invoke(string $email, int $limit = 10): ToolOutput
 {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return "Invalid email format: {$email}";
+        return ToolOutput::text("Invalid email format: {$email}");
     }
 
     if ($limit < 1 || $limit > 100) {
-        return "Limit must be between 1 and 100, got: {$limit}";
+        return ToolOutput::text("Limit must be between 1 and 100, got: {$limit}");
     }
 
     // ...
@@ -667,7 +692,7 @@ public function __invoke(
     string $query,
     ?int $limit = 10,
     bool $includeMetadata = false
-): string {
+): ToolOutput {
     // ...
 }
 ```
@@ -704,6 +729,7 @@ declare(strict_types=1);
 namespace App\Neuron\Tools;
 
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -758,7 +784,7 @@ class GitHubSearchTool extends Tool
         string $query,
         ?string $sort = 'stars',
         ?int $limit = 10
-    ): string {
+    ): ToolOutput {
         $limit = min(max($limit ?? 10, 1), 100);
 
         try {
@@ -782,17 +808,17 @@ class GitHubSearchTool extends Tool
                 ];
             }, $data['items'] ?? []);
 
-            return json_encode([
+            return ToolOutput::text(json_encode([
                 'success' => true,
                 'count' => count($results),
                 'results' => $results,
-            ]);
+            ]));
 
         } catch (\Exception $e) {
-            return json_encode([
+            return ToolOutput::text(json_encode([
                 'success' => false,
                 'error' => $e->getMessage(),
-            ]);
+            ]));
         }
     }
 }
@@ -830,7 +856,8 @@ class WeatherToolTest extends TestCase
 
         $tool->execute();
 
-        $result = json_decode($tool->getResult(), true);
+        // getResult() returns string|ToolOutput; cast to string for the text projection
+        $result = json_decode((string) $tool->getResult(), true);
         $this->assertArrayHasKey('temperature', $result);
         $this->assertEquals('Paris, France', $result['location']);
     }

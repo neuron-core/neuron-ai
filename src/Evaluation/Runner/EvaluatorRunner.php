@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionOutcomes;
+use NeuronAI\Evaluation\Cache\CacheKey;
+use NeuronAI\Evaluation\Cache\EvaluationCacheInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 use Spatie\Fork\Fork;
 use Throwable;
@@ -18,6 +20,19 @@ use function serialize;
 
 class EvaluatorRunner
 {
+    /**
+     * @param EvaluationCacheInterface|null $cache When set, run() outputs are
+     *        cached by content fingerprint and unchanged items skip run();
+     *        evaluate() always executes fresh against the cached output.
+     * @param bool $refresh Bypass cache reads while still recording outputs
+     *        (the --fresh flag).
+     */
+    public function __construct(
+        protected readonly ?EvaluationCacheInterface $cache = null,
+        protected readonly bool $refresh = false,
+    ) {
+    }
+
     /**
      * Run the evaluator and return a summary of results
      */
@@ -92,9 +107,24 @@ class EvaluatorRunner
         $error = null;
         $output = null;
         $outcomes = null;
+        $cachedRun = false;
 
         try {
-            $output = $evaluator->run($item);
+            $cacheKey = $this->cache instanceof EvaluationCacheInterface
+                ? CacheKey::make($evaluator, $item)
+                : null;
+
+            if ($cacheKey !== null && !$this->refresh && $this->cache?->has($cacheKey) === true) {
+                $output = $this->cache->get($cacheKey);
+                $cachedRun = true;
+            } else {
+                $output = $evaluator->run($item);
+
+                if ($cacheKey !== null) {
+                    $this->cache?->set($cacheKey, $output);
+                }
+            }
+
             $outcomes = $evaluator->performEvaluation($output, $item);
         } catch (Throwable $e) {
             $error = $e->getMessage();
@@ -112,7 +142,8 @@ class EvaluatorRunner
             $outcomes instanceof AssertionOutcomes ? $outcomes->failedCount : 0,
             $outcomes instanceof AssertionOutcomes ? $outcomes->failures : [],
             $outcomes instanceof AssertionOutcomes ? $outcomes->scores : [],
-            $error
+            $error,
+            $cachedRun
         );
     }
 
@@ -137,7 +168,8 @@ class EvaluatorRunner
                 $result->getAssertionsFailed(),
                 $result->getAssertionFailures(),
                 $result->getScoreRecords(),
-                $result->getError()
+                $result->getError(),
+                $result->isCachedRun()
             );
         }
     }

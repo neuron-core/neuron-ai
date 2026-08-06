@@ -143,7 +143,7 @@ class MessageMapper implements MessageMapperInterface
             'role' => MessageRole::TOOL,
             'tool_call_id' => $tool->getCallId(),
             'content' => ($result = $tool->getResult()) instanceof ToolOutput
-                ? $this->mapBlocks($result->getBlocks())
+                ? ($this->mapBlocks($result->getBlocks()) ?: $result->getText())
                 : $result,
         ], $message->getTools());
     }

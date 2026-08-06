@@ -49,6 +49,14 @@ class EvaluatorSummary
         return $this->getTotalCount() - $this->getPassedCount();
     }
 
+    /**
+     * Number of results whose run() output was served from the evaluation cache
+     */
+    public function getCachedRunCount(): int
+    {
+        return count(array_filter($this->results, fn (EvaluatorResult $result): bool => $result->isCachedRun()));
+    }
+
     public function getSuccessRate(): float
     {
         if ($this->getTotalCount() === 0) {

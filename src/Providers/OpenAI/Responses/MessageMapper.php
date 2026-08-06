@@ -160,7 +160,7 @@ class MessageMapper implements MessageMapperInterface
                 'type' => 'function_call_output',
                 'call_id' => $tool->getCallId(),
                 'output' => ($result = $tool->getResult()) instanceof ToolOutput
-                    ? $this->mapBlocks($result->getBlocks(), true)
+                    ? ($this->mapBlocks($result->getBlocks(), true) ?: $result->getText())
                     : $result,
             ];
         }
