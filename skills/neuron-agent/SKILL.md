@@ -13,7 +13,7 @@ A Neuron agent extends the `Agent` class and implements key methods:
 
 ```php
 use NeuronAI\Agent;
-use NeuronAI\Agent\SystemPrompt;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
@@ -27,13 +27,9 @@ class MyAgent extends Agent
         );
     }
 
-    protected function instructions(): string
+    protected function instructions(): SystemMessage|string
     {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a helpful AI assistant."
-            ]
-        );
+        return new SystemMessage("You are a helpful AI assistant.");
     }
 }
 ```
@@ -239,25 +235,31 @@ class WeatherTool extends Tool
 }
 ```
 
-## System Prompt Engineering
+## Agent Instructions
 
-Use `SystemPrompt` for structured agent instructions:
+Agent instructions are a `SystemMessage` (`instructions()` returns `SystemMessage|string` — a plain string is wrapped automatically). A `SystemMessage` carries one or more `SystemContent` blocks; mark a block with `->cache()` to enable provider prompt caching on it:
 
 ```php
-new SystemPrompt(
-    background: [
-        "You are a data analyst expert in creating reports.",
-    ],
-    steps: [
-        "Analyze the user's request",
-        "Query the database",
-        "Generate a summary",
-    ],
-    output: [
-        "Always cite your sources",
-        "Never make up data",
-    ]
-)
+use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+
+protected function instructions(): SystemMessage|string
+{
+    return new SystemMessage([
+        // Large static context: cache it to reduce cost and latency.
+        (new SystemContent("You are a data analyst expert in creating reports. ..."))->cache(),
+        // Dynamic part, left uncached.
+        new SystemContent("Today is " . date('Y-m-d')),
+    ]);
+}
+```
+
+`SystemMessage::cache()` marks all of the message's blocks as cached at once.
+
+Instructions can also be set fluently:
+
+```php
+$agent->setInstructions('You are a helpful assistant.');
 ```
 
 ## Chat History
