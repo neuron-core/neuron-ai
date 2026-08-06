@@ -11,6 +11,8 @@ use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use PHPUnit\Framework\TestCase;
@@ -185,6 +187,82 @@ class ToolApprovalTest extends TestCase
             $interrupted = true;
         }
         $this->assertFalse($interrupted, 'Non-ToolCallEvent should be ignored');
+    }
+
+    private function resumeWithDecisions(ToolApproval $middleware, array $tools, ApprovalRequest $request): void
+    {
+        $event = $this->createToolCallEvent($tools);
+        $node = new ToolNode();
+        $node->setWorkflowContext(new AgentState(), $event, $request);
+        $middleware->before($node, $event, new AgentState());
+    }
+
+    private function createExecutableTool(string $name): Tool
+    {
+        $tool = $this->createToolWithInputs($name);
+        $tool->setCallable(fn (): string => 'EXECUTED');
+        return $tool;
+    }
+
+    public function test_resume_with_approved_action_executes_the_tool(): void
+    {
+        $tool = $this->createExecutableTool('dangerous_tool');
+
+        $this->resumeWithDecisions(
+            new ToolApproval(['dangerous_tool']),
+            [$tool],
+            new ApprovalRequest('m', [
+                new Action('call_dangerous_tool', 'dangerous_tool', decision: ActionDecision::Approved),
+            ])
+        );
+
+        $tool->execute();
+        $this->assertSame('EXECUTED', $tool->getResult());
+    }
+
+    /**
+     * @dataProvider nonApprovedDecisionsProvider
+     */
+    public function test_resume_without_explicit_approval_blocks_the_tool(?ActionDecision $decision): void
+    {
+        $tool = $this->createExecutableTool('dangerous_tool');
+
+        $actions = $decision instanceof ActionDecision
+            ? [new Action('call_dangerous_tool', 'dangerous_tool', decision: $decision)]
+            : [];
+
+        $this->resumeWithDecisions(
+            new ToolApproval(['dangerous_tool']),
+            [$tool],
+            new ApprovalRequest('m', $actions)
+        );
+
+        $tool->execute();
+        $this->assertStringContainsString('TOOL NOT EXECUTED', $tool->getResult());
+    }
+
+    public static function nonApprovedDecisionsProvider(): array
+    {
+        return [
+            'pending' => [ActionDecision::Pending],
+            'edit' => [ActionDecision::Edit],
+            'rejected' => [ActionDecision::Rejected],
+            'no matching action' => [null],
+        ];
+    }
+
+    public function test_resume_leaves_tools_not_requiring_approval_untouched(): void
+    {
+        $tool = $this->createExecutableTool('read_file');
+
+        $this->resumeWithDecisions(
+            new ToolApproval(['delete_file']),
+            [$tool],
+            new ApprovalRequest('m', [])
+        );
+
+        $tool->execute();
+        $this->assertSame('EXECUTED', $tool->getResult());
     }
 
     public function test_multiple_tools_only_matching_ones_require_approval(): void

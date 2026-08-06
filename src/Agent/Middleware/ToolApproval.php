@@ -173,35 +173,31 @@ class ToolApproval implements WorkflowMiddleware
     /**
      * Process human decisions and modify tools accordingly.
      *
-     * This method modifies the tools in-place based on human decisions:
-     *  - Rejected: Tool callback is replaced to return rejection message
-     *  - Edited: Tool inputs are modified
-     *  - Approved: No changes, tool executes normally
+     * Fails closed: a tool that requires approval executes only when its action
+     * carries an explicit Approved decision. Any other state - pending, edit,
+     * or no matching action at all - is treated as a rejection.
+     *
+     * Tools that don't require approval are left untouched.
      */
     protected function processDecisions(
         ApprovalRequest $request,
         ToolCallEvent   $event,
     ): void {
-        foreach ($event->toolCallMessage->getTools() as $tool) {
+        foreach ($this->filterToolsRequiringApproval($event->toolCallMessage->getTools()) as $tool) {
             $toolCallId = $tool->getCallId();
-            if ($toolCallId === null) {
-                // Tool doesn't require approval, skip
+            $action = $toolCallId === null ? null : $request->getAction($toolCallId);
+
+            if ($action instanceof Action && $action->isApproved()) {
+                // Approved: the tool executes normally
                 continue;
             }
 
-            $action = $request->getAction($toolCallId);
-
-            if (!$action instanceof Action) {
-                // Tool doesn't require approval, skip
-                continue;
-            }
-
-            // Process based on decision
-            if ($action->isRejected()) {
-                $this->handleRejectedTool($tool, $action);
-            }
-
-            // If approved, do nothing - the tool will be executed normally
+            $this->handleRejectedTool($tool, $action ?? new Action(
+                id: $toolCallId ?? uniqid('tool_'),
+                name: $tool->getName(),
+                decision: ActionDecision::Rejected,
+                feedback: 'No human approval was provided for this action.',
+            ));
         }
     }
 
