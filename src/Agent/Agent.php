@@ -17,6 +17,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -147,11 +148,11 @@ class Agent extends Workflow implements AgentInterface
     /**
      * @param Message|Message[] $messages
      * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
+     * @throws WorkflowException
      */
     public function chat(
         Message|array $messages = [],
-        ?array $payload = null,
-        bool $timedOut = false
+        ?array $payload = null
     ): AgentHandler {
         $this->checkRunId($payload);
 
@@ -164,7 +165,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut),
+            $this->events($payload),
             $this->getChatHistory(),
         );
     }
@@ -172,11 +173,11 @@ class Agent extends Workflow implements AgentInterface
     /**
      * @param Message|Message[] $messages
      * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
+     * @throws WorkflowException
      */
     public function stream(
         Message|array $messages = [],
         ?array $payload = null,
-        bool $timedOut = false
     ): AgentHandler {
         $this->checkRunId($payload);
 
@@ -189,7 +190,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return new AgentHandler(
-            $this->events($payload, $timedOut),
+            $this->events($payload),
             $this->getChatHistory(),
         );
     }
@@ -205,7 +206,6 @@ class Agent extends Workflow implements AgentInterface
         ?string $class = null,
         int $maxRetries = 1,
         ?array $payload = null,
-        bool $timedOut = false
     ): mixed {
         $this->checkRunId($payload);
 
@@ -220,7 +220,7 @@ class Agent extends Workflow implements AgentInterface
         );
 
         /** @var AgentState $finalState */
-        $finalState = $payload === null ? $this->run() : $this->resume($payload, $timedOut);
+        $finalState = $payload === null ? $this->run() : $this->resume($payload);
 
         return $finalState->get('structured_output');
     }
