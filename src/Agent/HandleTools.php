@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;

@@ -152,7 +152,7 @@ class AnthropicPromptCachingTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $tool = new ToolStub('search', description: 'Search the web')
+        $tool = (new ToolStub('search', description: 'Search the web'))
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))

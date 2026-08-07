@@ -10,7 +10,6 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\ToolSearchMiddleware;
-use NeuronAI\Agent\Middleware\ToolSearchTool;
 use NeuronAI\Agent\Middleware\TodoPlanning;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\AssistantMessage;

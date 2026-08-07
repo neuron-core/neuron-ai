@@ -14,7 +14,6 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;

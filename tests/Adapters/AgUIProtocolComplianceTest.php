@@ -9,9 +9,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;

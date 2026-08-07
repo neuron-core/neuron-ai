@@ -219,7 +219,7 @@ class ToolNode extends Node implements AgentNodeInterface
             function (ToolCall $call): bool {
                 try {
                     $this->findLiveTool($call->getName());
-                } catch (ToolException $exception) {
+                } catch (ToolException) {
                     return false;
                 }
 

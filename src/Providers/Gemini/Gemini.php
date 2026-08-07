@@ -16,7 +16,6 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolCall;
 
 use function uniqid;
 use function array_values;

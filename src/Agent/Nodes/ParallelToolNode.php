@@ -15,7 +15,6 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
