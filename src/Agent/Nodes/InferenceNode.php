@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -21,6 +23,13 @@ use NeuronAI\Workflow\Node;
 abstract class InferenceNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
+
+    /**
+     * Narrowed for static analysis.
+     *
+     * @var AIInferenceEvent
+     */
+    protected Event $event;
 
     public function __construct(
         protected AIProviderInterface $provider,

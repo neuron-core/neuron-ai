@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\SQLChatHistory;
@@ -49,7 +49,7 @@ class AgentDurableHistoryTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Here are the results.'),
         );
@@ -77,7 +77,7 @@ class AgentDurableHistoryTest extends TestCase
         $responses = [];
         for ($i = 0; $i < $rounds; $i++) {
             $responses[] = new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_' . $i)->setInputs(['query' => 'q' . $i]),
+                ToolCall::make($searchTool->getName(), 'call_' . $i, ['query' => 'q' . $i]),
             ]);
         }
         $responses[] = new AssistantMessage('Done.');
@@ -132,10 +132,13 @@ class AgentDurableHistoryTest extends TestCase
         $history = new \NeuronAI\Chat\History\InMemoryChatHistory();
 
         $searchTool = new SearchTool();
+        // Attach-time approval config (ADR 0009): the flag rides on the
+        // instance, so the clone in the tool call message carries it too.
+        $searchTool->requireApproval();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Here are the results.'),
         );
@@ -145,21 +148,20 @@ class AgentDurableHistoryTest extends TestCase
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setExecutor($executor);
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
 
         $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'))->run();
 
         $this->assertTrue($state1->isInterrupted());
         $steps1 = $state1->getSteps();
-        $this->assertCount(1, $steps1, 'The interrupted cycle processed only the inbound user message');
+        $this->assertCount(2, $steps1, 'The interrupted cycle carries the inbound user message and the pending tool call');
         $this->assertSame('Search for PHP frameworks', $steps1[0]->getContent());
+        $this->assertInstanceOf(ToolCallMessage::class, $steps1[1]);
 
         $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setExecutor($executor);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
 
         $state2 = $agent2->chat(payload: ['call_1' => 'approve'])->run();
 
@@ -215,10 +217,13 @@ class AgentDurableHistoryTest extends TestCase
         )');
 
         $searchTool = new SearchTool();
+        // Attach-time approval config (ADR 0009): the flag rides on the
+        // instance, so the clone in the tool call message carries it too.
+        $searchTool->requireApproval();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Search results ready.'),
         );
@@ -231,7 +236,6 @@ class AgentDurableHistoryTest extends TestCase
         $agent1->addTool($searchTool);
         $agent1->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
         $agent1->setPersistence(new FilePersistence($dir));
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
         $handler1->run();
@@ -248,7 +252,6 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
 
         $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();
 

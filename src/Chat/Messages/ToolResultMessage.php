@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages;
 
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use Stringable;
 
 use function array_map;
@@ -12,12 +12,12 @@ use function array_merge;
 use function json_encode;
 
 /**
- * @method static static make(ToolInterface[] $tools)
+ * @method static static make(ToolCall[] $tools)
  */
 class ToolResultMessage extends UserMessage implements Stringable
 {
     /**
-     * @param ToolInterface[] $tools
+     * @param ToolCall[] $tools
      */
     public function __construct(protected array $tools)
     {
@@ -25,9 +25,12 @@ class ToolResultMessage extends UserMessage implements Stringable
     }
 
     /**
-     * @return ToolInterface[]
+     * The settled calls this message answers — each carries its result (or its
+     * rejection outcome) as conversation data (ADR 0010).
+     *
+     * @return ToolCall[]
      */
-    public function getTools(): array
+    public function getToolCalls(): array
     {
         return $this->tools;
     }
@@ -38,13 +41,13 @@ class ToolResultMessage extends UserMessage implements Stringable
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call_result',
-                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools),
+                'tools' => array_map(fn (ToolCall $tool): array => $tool->jsonSerialize(), $this->tools),
             ]
         );
     }
 
     public function __toString(): string
     {
-        return (string) json_encode($this->getTools());
+        return (string) json_encode($this->getToolCalls());
     }
 }

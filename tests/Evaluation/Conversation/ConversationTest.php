@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Conversation;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -17,6 +15,7 @@ use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -36,8 +35,8 @@ class ConversationTest extends TestCase
         $agent->setAiProvider($provider);
 
         if ($withApproval) {
-            $agent->addTool(new SearchTool());
-            $agent->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
+            // Attach-time approval config (ADR 0009).
+            $agent->addTool((new SearchTool())->requireApproval());
             $agent->setExecutor(new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence())));
         }
 
@@ -47,7 +46,7 @@ class ConversationTest extends TestCase
     protected function searchCall(string $callId, string $query): ToolCallMessage
     {
         return new ToolCallMessage(null, [
-            (new SearchTool())->setCallId($callId)->setInputs(['query' => $query]),
+            ToolCall::make('search', $callId, ['query' => $query]),
         ]);
     }
 

@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Events;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Tools\ToolInterface;
 
+use function get_object_vars;
 use function is_string;
 
 /**
@@ -30,5 +31,32 @@ class AIInferenceEvent extends AgentStartEvent
         public ?int $maxRetries = null,
     ) {
         $this->instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
+    }
+
+    /**
+     * Tools are execution capability — often holding DB connections, HTTP
+     * clients, or closures — and capability is never persisted (ADR 0010): a
+     * durably stored step carries this event without its tool list, and
+     * Workflow::restoreEventNode() re-seeds the live registry when the executor
+     * recalls the event from a persisted step.
+     *
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        $data = get_object_vars($this);
+        $data['tools'] = [];
+
+        return $data;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function __unserialize(array $data): void
+    {
+        foreach ($data as $name => $value) {
+            $this->{$name} = $value;
+        }
     }
 }

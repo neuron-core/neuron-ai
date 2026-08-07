@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StreamingNode;
@@ -17,6 +18,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
@@ -88,6 +90,30 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * The agent's transient capability is its live tool registry: persisted
+     * events drop it (AIInferenceEvent::__serialize — tools hold connections,
+     * clients, closures), so a recalled inference or tool-call event comes back
+     * with an empty tool list. Re-seed the base registry here; middleware
+     * re-supply their own additions in before() (each contributor restores what
+     * it contributes). Idempotent: a live tool-calling event never has an empty
+     * list, so this only ever touches stripped events.
+     */
+    public function restoreEventNode(Event $event): Event
+    {
+        $inference = match (true) {
+            $event instanceof AIInferenceEvent => $event,
+            $event instanceof ToolCallEvent => $event->inferenceEvent,
+            default => null,
+        };
+
+        if ($inference instanceof AIInferenceEvent && $inference->tools === []) {
+            $inference->tools = $this->bootstrapTools();
+        }
+
+        return $event;
+    }
+
+    /**
      * Prepare the agent workflow with mode-specific nodes.
      *
      * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
@@ -101,8 +127,8 @@ class Agent extends Workflow implements AgentInterface
         $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler(), $this->bootstrapTools())
-            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler(), $this->bootstrapTools());
+            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $this->addNodes([
             ...$nodes,
@@ -110,9 +136,6 @@ class Agent extends Workflow implements AgentInterface
         ]);
     }
 
-    /**
-     * @throws InspectorException
-     */
     protected function startEvent(): AgentStartEvent
     {
         $tools = $this->bootstrapTools();

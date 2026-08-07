@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\Testing\FakeMcpTransport;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -75,8 +76,7 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_before_skips_non_inference_event(): void
     {
         $middleware = $this->createMiddleware([]);
-        $tool = $this->createTool('test', 'test');
-        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
         $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $node = new ToolNode(new InMemoryChatHistory());
@@ -128,11 +128,9 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([$dbTool]);
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $searchTool = new ToolSearchTool([$dbTool]);
-        $searchTool->setInputs(['query' => 'database']);
-        $searchTool->execute();
-
-        $toolResultMessage = new ToolResultMessage([$searchTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
+        ]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
@@ -151,11 +149,9 @@ class ToolSearchMiddlewareTest extends TestCase
         $existingDbTool = $this->createTool('query_database', 'Execute SQL queries');
         $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingDbTool]);
 
-        $searchTool = new ToolSearchTool([$dbTool]);
-        $searchTool->setInputs(['query' => 'database']);
-        $searchTool->execute();
-
-        $toolResultMessage = new ToolResultMessage([$searchTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
+        ]);
         $event->setMessages($toolResultMessage);
 
         $middleware->after($node, $event, new AgentState());
@@ -168,8 +164,7 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_after_skips_non_inference_event(): void
     {
         $middleware = $this->createMiddleware([]);
-        $tool = $this->createTool('test', 'test');
-        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
         $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $node = new ToolNode(new InMemoryChatHistory());
@@ -182,12 +177,10 @@ class ToolSearchMiddlewareTest extends TestCase
 
     public function test_after_does_nothing_when_no_tool_search_in_results(): void
     {
-        $regularTool = $this->createTool('read_file', 'Read file contents');
-        $regularTool->setInputs([]);
-        $regularTool->execute();
-
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $toolResultMessage = new ToolResultMessage([$regularTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('read_file', 'call_1', [])->setResult('file contents'),
+        ]);
         $event->setMessages($toolResultMessage);
 
         $middleware = $this->createMiddleware([]);
@@ -201,11 +194,9 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([]);
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $searchTool = new ToolSearchTool([]);
-        $searchTool->setInputs(['query' => 'nonexistent']);
-        $searchTool->execute();
-
-        $toolResultMessage = new ToolResultMessage([$searchTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => 'nonexistent'])->setResult('found'),
+        ]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
@@ -221,11 +212,9 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware([$tool1, $tool2]);
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $searchTool = new ToolSearchTool([$tool1, $tool2]);
-        $searchTool->setInputs(['query' => 'weather']);
-        $searchTool->execute();
-
-        $toolResultMessage = new ToolResultMessage([$searchTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => 'weather'])->setResult('found'),
+        ]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 
@@ -247,7 +236,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $result = $searchTool->__invoke('database');
 
         $this->assertStringContainsString('query_database', $result);
-        $this->assertCount(1, $searchTool->discoveredTools());
+        $this->assertCount(1, $searchTool->search('database'));
     }
 
     public function test_search_finds_by_description(): void
@@ -258,7 +247,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $result = $searchTool->__invoke('SQL');
 
         $this->assertStringContainsString('db', $result);
-        $this->assertCount(1, $searchTool->discoveredTools());
+        $this->assertCount(1, $searchTool->search('SQL'));
     }
 
     public function test_search_is_case_insensitive(): void
@@ -267,7 +256,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $searchTool = new ToolSearchTool([$tool]);
 
         $searchTool->__invoke('sendemail');
-        $this->assertCount(1, $searchTool->discoveredTools());
+        $this->assertCount(1, $searchTool->search('sendemail'));
     }
 
     public function test_search_returns_no_matches(): void
@@ -278,7 +267,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $result = $searchTool->__invoke('database');
 
         $this->assertStringContainsString('No tools found', $result);
-        $this->assertCount(0, $searchTool->discoveredTools());
+        $this->assertCount(0, $searchTool->search('database'));
     }
 
     // --- MCP tools integration ---
@@ -329,18 +318,16 @@ class ToolSearchMiddlewareTest extends TestCase
         $middleware = new ToolSearchMiddleware($mcpTools);
         $node = new ToolNode(new InMemoryChatHistory());
 
-        // Simulate: model calls tool_search for "database" tools
-        $searchTool = new ToolSearchTool($mcpTools);
-        $searchTool->setInputs(['query' => 'database']);
-        $searchTool->execute();
-
+        // Simulate: model called tool_search for "database" tools.
         // Only query_users should match (description contains "database")
-        $discovered = $searchTool->discoveredTools();
+        $discovered = (new ToolSearchTool($mcpTools))->search('database');
         $this->assertCount(1, $discovered);
         $this->assertSame('query_users', $discovered[0]->getName());
 
         // Middleware injects the MCP tool into the event
-        $toolResultMessage = new ToolResultMessage([$searchTool]);
+        $toolResultMessage = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
+        ]);
         $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
         $event->setMessages($toolResultMessage);
 

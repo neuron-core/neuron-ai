@@ -7,7 +7,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function implode;
@@ -47,13 +47,13 @@ class ToolWasRejected extends TrajectoryAssertion
     }
 
     /**
-     * @param ToolInterface[] $calls
+     * @param ToolCall[] $calls
      * @return string[]
      */
     protected static function approvalStates(array $calls): array
     {
         return array_map(
-            static fn (ToolInterface $tool): string => $tool->getApprovalState() instanceof ApprovalState
+            static fn (ToolCall $tool): string => $tool->getApprovalState() instanceof ApprovalState
                 ? $tool->getApprovalState()->value
                 : 'not approval-gated',
             $calls

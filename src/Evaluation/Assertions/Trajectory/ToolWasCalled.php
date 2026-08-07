@@ -7,7 +7,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 use Closure;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_key_exists;
 use function array_map;
@@ -50,7 +50,7 @@ class ToolWasCalled extends TrajectoryAssertion
         }
 
         $actual = implode(', ', array_map(
-            static fn (ToolInterface $tool): string => (string) json_encode($tool->getInputs()),
+            static fn (ToolCall $tool): string => (string) json_encode($tool->getInputs()),
             $calls
         ));
 
@@ -61,7 +61,7 @@ class ToolWasCalled extends TrajectoryAssertion
         );
     }
 
-    protected function matchesArguments(ToolInterface $call): bool
+    protected function matchesArguments(ToolCall $call): bool
     {
         if ($this->arguments === null) {
             return true;

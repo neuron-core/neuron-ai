@@ -24,7 +24,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 
 use function array_map;
@@ -184,21 +184,25 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCall(array $message): ToolCallMessage
     {
-        $tools = array_map(function (array $tool) {
-            $definition = ToolDefinition::make($tool['name'], $tool['description'])
-                ->setParameters($tool['parameters'] ?? [])
-                ->setInputs($tool['inputs'])
-                ->setCallId($tool['callId'] ?? null)
-                ->setApprovalReason($tool['approvalReason'] ?? null);
+        $tools = array_map(function (array $tool): ToolCall {
+            // Legacy histories may carry schema-side keys (e.g. 'parameters');
+            // they are ignored — a call record needs no schema (ADR 0010).
+            $call = new ToolCall(
+                $tool['name'],
+                $tool['callId'] ?? null,
+                $tool['inputs'],
+                $tool['description'] ?? null,
+            );
+            $call->setApprovalReason($tool['approvalReason'] ?? null);
 
             if (isset($tool['approval'])) {
-                $definition->setApprovalState(
+                $call->setApprovalState(
                     ApprovalState::from($tool['approval']),
                     $tool['rejectReason'] ?? null
                 );
             }
 
-            return $definition;
+            return $call;
         }, $message['tools']);
 
         $item = new ToolCallMessage(tools: $tools);
@@ -217,21 +221,24 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeToolCallResult(array $message): ToolResultMessage
     {
-        $tools = array_map(function (array $tool) {
-            $definition = ToolDefinition::make($tool['name'], $tool['description'])
-                ->setInputs($tool['inputs'])
-                ->setCallId($tool['callId'])
-                ->setResult($this->deserializeToolResult($tool['result']))
+        $tools = array_map(function (array $tool): ToolCall {
+            $call = new ToolCall(
+                $tool['name'],
+                $tool['callId'] ?? null,
+                $tool['inputs'],
+                $tool['description'] ?? null,
+            );
+            $call->setResult($this->deserializeToolResult($tool['result']))
                 ->setApprovalReason($tool['approvalReason'] ?? null);
 
             if (isset($tool['approval'])) {
-                $definition->setApprovalState(
+                $call->setApprovalState(
                     ApprovalState::from($tool['approval']),
                     $tool['rejectReason'] ?? null
                 );
             }
 
-            return $definition;
+            return $call;
         }, $message['tools']);
 
         return new ToolResultMessage($tools);

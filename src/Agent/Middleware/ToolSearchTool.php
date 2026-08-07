@@ -33,11 +33,6 @@ class ToolSearchTool extends Tool
     protected ?string $description = 'Search for available tools by name or description. Returns matching tools that will become available for you to use.';
 
     /**
-     * @var ToolInterface[]
-     */
-    protected array $discovered = [];
-
-    /**
      * @var array<int, array{tool: ToolInterface, nameLower: string, descLower: string, nameWords: string[], descWords: string[]}>|null
      */
     protected ?array $toolIndex = null;
@@ -66,9 +61,7 @@ class ToolSearchTool extends Tool
 
     public function __invoke(string $query): string
     {
-        $matches = $this->defaultSearch($query);
-
-        $this->discovered = $matches;
+        $matches = $this->search($query);
 
         if ($matches === []) {
             return "No tools found matching '{$query}'.";
@@ -87,17 +80,13 @@ class ToolSearchTool extends Tool
     }
 
     /**
+     * The matches for a query — deterministic for a given pool, so the
+     * middleware can re-derive a past call's discoveries from its recorded
+     * inputs (ADR 0010: no side-channel data travels on message entries).
+     *
      * @return ToolInterface[]
      */
-    public function discoveredTools(): array
-    {
-        return $this->discovered;
-    }
-
-    /**
-     * @return ToolInterface[]
-     */
-    protected function defaultSearch(string $query): array
+    public function search(string $query): array
     {
         $queryKeywords = $this->tokenize($query);
         if ($queryKeywords === []) {

@@ -8,7 +8,7 @@ use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -30,13 +30,13 @@ class ApprovalSerializationTest extends TestCase
 {
     public function test_round_trip_preserves_approval_state_and_reason(): void
     {
-        $pending = ToolDefinition::make('pending_tool', 'd')
+        $pending = ToolCall::make('pending_tool', description: 'd')
             ->setCallId('c1')
             ->setInputs(['a' => 1]);
         $pending->setApprovalState(ApprovalState::Pending);
         $pending->setApprovalReason('This action is irreversible');
 
-        $rejected = ToolDefinition::make('rejected_tool', 'd')
+        $rejected = ToolCall::make('rejected_tool', description: 'd')
             ->setCallId('c2')
             ->setInputs(['b' => 2]);
         $rejected->setApprovalState(ApprovalState::Rejected, 'too risky');
@@ -51,7 +51,7 @@ class ApprovalSerializationTest extends TestCase
 
         $restoredMessage = $restored[0];
         $this->assertInstanceOf(ToolCallMessage::class, $restoredMessage);
-        $tools = $restoredMessage->getTools();
+        $tools = $restoredMessage->getToolCalls();
         $this->assertCount(2, $tools);
 
         $this->assertEquals(ApprovalState::Pending, $tools[0]->getApprovalState());
@@ -64,7 +64,7 @@ class ApprovalSerializationTest extends TestCase
 
     public function test_round_trip_preserves_run_id(): void
     {
-        $tool = ToolDefinition::make('gated_tool', 'd')
+        $tool = ToolCall::make('gated_tool', description: 'd')
             ->setCallId('c1')
             ->setInputs(['q' => 'x']);
         $tool->setApprovalState(ApprovalState::Pending);
@@ -81,7 +81,7 @@ class ApprovalSerializationTest extends TestCase
     public function test_legacy_shape_without_run_id_loads_as_null(): void
     {
         $message = new ToolCallMessage(tools: [
-            ToolDefinition::make('gated_tool', 'd')->setCallId('c1')->setInputs(['q' => 'x']),
+            ToolCall::make('gated_tool', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']),
         ]);
 
         $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
@@ -95,7 +95,7 @@ class ApprovalSerializationTest extends TestCase
         // A history stored before the runId rename carries the token under the
         // legacy resume_token metadata key.
         $message = new ToolCallMessage(tools: [
-            ToolDefinition::make('gated_tool', 'd')->setCallId('c1')->setInputs(['q' => 'x']),
+            ToolCall::make('gated_tool', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']),
         ]);
         $message->addMetadata('resume_token', 'workflow_legacy_1');
 
@@ -130,7 +130,7 @@ class ApprovalSerializationTest extends TestCase
 
         $restoredMessage = $restored[0];
         $this->assertInstanceOf(ToolCallMessage::class, $restoredMessage);
-        $tools = $restoredMessage->getTools();
+        $tools = $restoredMessage->getToolCalls();
         $this->assertCount(1, $tools);
         $this->assertNull($tools[0]->getApprovalState());
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -23,7 +24,6 @@ use NeuronAI\Tests\Stubs\StructuredOutput\Color;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -290,7 +290,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                ToolDefinition::make('tool', 'description')
+                new ToolStub('tool', description: 'description')
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -354,7 +354,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                ToolDefinition::make('tool', 'description')
+                new ToolStub('tool', description: 'description')
                     ->addProperty(
                         new ObjectProperty(
                             name: 'obj_prop',
@@ -432,7 +432,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                ToolDefinition::make('tool', 'description')
+                new ToolStub('tool', description: 'description')
                     ->addProperty(
                         new ObjectProperty(
                             name: 'color',
@@ -511,7 +511,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                ToolDefinition::make('tool', 'description')
+                new ToolStub('tool', description: 'description')
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',

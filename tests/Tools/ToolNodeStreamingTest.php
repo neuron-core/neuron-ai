@@ -14,6 +14,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 class CalculatorTool extends Tool
@@ -44,12 +45,13 @@ class ToolNodeStreamingTest extends TestCase
 {
     public function test_tool_node_streams_chunks_and_returns_final_event(): void
     {
-        // Create two simple tools
-        $tool1 = (new CalculatorTool())->setInputs([]);
-        $tool2 = (new GreeterTool())->setInputs([]);
+        // Two simple registry tools and their calls
+        $registry = [new CalculatorTool(), new GreeterTool()];
+        $call1 = ToolCall::make('calculator', 'call_1', []);
+        $call2 = ToolCall::make('greeter', 'call_2', []);
 
         // Create the ToolCallMessage
-        $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);
+        $toolCallMessage = new ToolCallMessage(null, [$call1, $call2]);
 
         // Create the agent state with chat history
         // Add a user message and tool call message (required for valid message sequence)
@@ -59,12 +61,12 @@ class ToolNodeStreamingTest extends TestCase
         $state = new AgentState();
 
         // Create the events
-        $inferenceEvent = new AIInferenceEvent('Test instructions', []);
+        $inferenceEvent = new AIInferenceEvent('Test instructions', $registry);
         $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
-        // Create the ToolNode
+        // Create the ToolNode (the executor hands the node the event it dispatches)
         $toolNode = new ToolNode($chatHistory);
-        $toolNode->setWorkflowContext(new NodeContext($state, $inferenceEvent));
+        $toolNode->setWorkflowContext(new NodeContext($state, $toolCallEvent));
 
         // Invoke the node and collect yielded chunks
         $generator = $toolNode->__invoke($toolCallEvent, $state);

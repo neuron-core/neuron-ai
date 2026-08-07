@@ -11,7 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 
@@ -103,17 +103,17 @@ class ToolOutputTest extends TestCase
     {
         $output = ToolOutput::text('hello');
 
-        $tool = ToolDefinition::make('test', 'test')->setResult($output);
+        $tool = ToolCall::make('test', description: 'test')->setResult($output);
 
         $this->assertSame($output, $tool->getResult());
     }
 
     public function test_tool_set_result_keeps_string_behaviour(): void
     {
-        $tool = ToolDefinition::make('test', 'test')->setResult('plain');
+        $tool = ToolCall::make('test', description: 'test')->setResult('plain');
         $this->assertSame('plain', $tool->getResult());
 
-        $tool = ToolDefinition::make('test', 'test')->setResult(['foo' => 'bar']);
+        $tool = ToolCall::make('test', description: 'test')->setResult(['foo' => 'bar']);
         $this->assertSame('{"foo":"bar"}', $tool->getResult());
     }
 
@@ -141,7 +141,7 @@ class ToolOutputTest extends TestCase
 
     public function test_tool_json_serialize_with_tool_output(): void
     {
-        $tool = ToolDefinition::make('test', 'test')
+        $tool = ToolCall::make('test', description: 'test')
             ->setCallId('call_1')
             ->setResult(new ToolOutput([
                 new TextContent('caption'),
@@ -157,7 +157,7 @@ class ToolOutputTest extends TestCase
 
     public function test_tool_json_serialize_with_string_result_unchanged(): void
     {
-        $tool = ToolDefinition::make('test', 'test')->setResult('plain');
+        $tool = ToolCall::make('test', description: 'test')->setResult('plain');
 
         $this->assertSame('plain', $tool->jsonSerialize()['result']);
     }

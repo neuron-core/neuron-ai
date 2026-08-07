@@ -8,17 +8,14 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 class AppendOnlyHistoryTest extends TestCase
 {
-    private function toolWithState(string $name, string $callId, ?ApprovalState $state = null): Tool
+    private function toolWithState(string $name, string $callId, ?ApprovalState $state = null): ToolCall
     {
-        $tool = ToolDefinition::make($name, "desc {$name}")
-            ->setInputs([])
-            ->setCallId($callId);
+        $tool = ToolCall::make($name, $callId, [], "desc {$name}");
 
         if ($state instanceof ApprovalState) {
             $tool->setApprovalState($state);
@@ -38,8 +35,8 @@ class AppendOnlyHistoryTest extends TestCase
         ]);
         $history->addMessage($first);
 
-        // ADR 0006: the history is append-only — a matching ToolCallMessage is the
-        // caller's responsibility to dedup (ToolNode / ToolApproval tail guards).
+        // ADR 0006: the history is append-only — write-once convergence lives with
+        // the writer (ToolNode's memoized single write, ADR 0009), not the store.
         $duplicate = new ToolCallMessage(tools: [
             $this->toolWithState('a', 'c1', ApprovalState::Approved),
             $this->toolWithState('b', 'c2', ApprovalState::Rejected),
@@ -51,29 +48,4 @@ class AppendOnlyHistoryTest extends TestCase
         $this->assertSame($duplicate, $history->getMessages()[2]);
     }
 
-    public function test_is_same_tool_call_matches_ordered_call_ids(): void
-    {
-        $message = new ToolCallMessage(tools: [
-            $this->toolWithState('a', 'c1'),
-            $this->toolWithState('b', 'c2'),
-        ]);
-
-        $sameIds = new ToolCallMessage(tools: [
-            $this->toolWithState('a', 'c1', ApprovalState::Approved),
-            $this->toolWithState('b', 'c2'),
-        ]);
-        $this->assertTrue($message->isSameToolCall($sameIds));
-
-        $differentIds = new ToolCallMessage(tools: [$this->toolWithState('b', 'c3')]);
-        $this->assertFalse($message->isSameToolCall($differentIds));
-
-        $reordered = new ToolCallMessage(tools: [
-            $this->toolWithState('b', 'c2'),
-            $this->toolWithState('a', 'c1'),
-        ]);
-        $this->assertFalse($message->isSameToolCall($reordered));
-
-        $this->assertFalse($message->isSameToolCall(new UserMessage('not a tool call')));
-        $this->assertFalse($message->isSameToolCall(null));
-    }
 }

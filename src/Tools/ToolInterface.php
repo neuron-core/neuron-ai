@@ -102,9 +102,11 @@ interface ToolInterface extends JsonSerializable
     public function execute(): void;
 
     /**
-     * Whether this tool call requires human approval before execution (ADR 0004).
-     * Consulted only when the ToolApproval middleware is attached to the agent;
-     * middleware configuration overrides this declaration in both directions.
+     * The effective answer to "does this tool call require human approval before
+     * execution?" (ADR 0004/0009), consulted by ToolNode on every tool call. On the
+     * Tool base class this resolves the attach-time overrides — requireApproval(),
+     * suppressApproval(), withApprovalPolicy() — falling back to the class's own
+     * protected approvalPolicy() declaration.
      *
      * Returning a string counts as true AND carries the reason the approval is
      * being requested — surfaced to the approver via the ApprovalRequest actions
@@ -113,30 +115,4 @@ interface ToolInterface extends JsonSerializable
      * @param array<string, mixed> $inputs The arguments the model is calling the tool with.
      */
     public function requiresApproval(array $inputs): bool|string;
-
-    /**
-     * The reason this call is asking for approval (the tool author's or middleware
-     * config's outbound message to the approver). Null when no reason was declared.
-     * Distinct from getRejectReason(), which is the approver's inbound feedback.
-     */
-    public function getApprovalReason(): ?string;
-
-    public function setApprovalReason(?string $reason): ToolInterface;
-
-    /**
-     * The recorded approval state of this tool call, or null when the call is
-     * not approval-gated (ADR 0003).
-     */
-    public function getApprovalState(): ?ApprovalState;
-
-    /**
-     * Record the approval state. $reason is meaningful only for rejections
-     * (reject reasons are a rejection-only concept — see CONTEXT.md); pass null otherwise.
-     */
-    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface;
-
-    /**
-     * The rejection reason recorded with a Rejected state, null otherwise.
-     */
-    public function getRejectReason(): ?string;
 }

@@ -18,7 +18,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_filter;
 use function array_key_last;
@@ -82,14 +82,14 @@ class Trajectory
      * wins — results, approval state, and reject reason come from what actually
      * happened. A suspended tail keeps its pending entries.
      *
-     * Note: a tool that never executed (pending or rejected calls) has no
-     * result — check ToolInterface::hasResult() before calling getResult().
+     * Note: a call that never executed (pending or rejected) has no result —
+     * check ToolCall::hasResult() before calling getResult().
      *
-     * @return ToolInterface[]
+     * @return ToolCall[]
      */
     public function toolCalls(?string $name = null): array
     {
-        /** @var ToolInterface[] $calls */
+        /** @var ToolCall[] $calls */
         $calls = [];
 
         // Index (into $calls) of each entry from the last tool_call message,
@@ -101,12 +101,12 @@ class Trajectory
         foreach ($this->messages as $message) {
             if ($message instanceof ToolCallMessage) {
                 $open = [];
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $calls[] = $tool;
                     $open[$tool->getCallId() ?? $tool->getName()] = array_key_last($calls);
                 }
             } elseif ($message instanceof ToolResultMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $index = $open[$tool->getCallId() ?? $tool->getName()] ?? null;
                     if ($index !== null) {
                         $calls[$index] = $tool;
@@ -122,16 +122,16 @@ class Trajectory
 
         return array_values(array_filter(
             $calls,
-            fn (ToolInterface $tool): bool => $tool->getName() === $name
+            fn (ToolCall $tool): bool => $tool->getName() === $name
         ));
     }
 
-    public function lastToolCall(?string $name = null): ?ToolInterface
+    public function lastToolCall(?string $name = null): ?ToolCall
     {
         $calls = $this->toolCalls($name);
         $last = end($calls);
 
-        return $last instanceof ToolInterface ? $last : null;
+        return $last instanceof ToolCall ? $last : null;
     }
 
     /**
@@ -219,7 +219,7 @@ class Trajectory
 
                 // The folded list holds every call in message order — consume
                 // positionally so each renders with its final outcome.
-                foreach ($message->getTools() as $ignored) {
+                foreach ($message->getToolCalls() as $ignored) {
                     $lines = [...$lines, ...$this->renderToolCall($calls[$position])];
                     $position++;
                 }
@@ -250,7 +250,7 @@ class Trajectory
     /**
      * @return string[]
      */
-    protected function renderToolCall(ToolInterface $tool): array
+    protected function renderToolCall(ToolCall $tool): array
     {
         $line = "Tool call: {$tool->getName()}(" . json_encode($tool->getInputs()) . ')';
 
@@ -304,9 +304,8 @@ class Trajectory
     /**
      * Serialization reuses the chat-history storage format (jsonSerialize per
      * message, history-style rehydration) so a Trajectory survives the parallel
-     * runner's fork boundary even when the live messages carry tools holding
-     * closures or connections — they come back as data-only ToolDefinitions,
-     * exactly like a stored history.
+     * runner's fork boundary. Messages carry ToolCall data (ADR 0010) — nothing
+     * here ever holds closures or connections.
      *
      * @return array{messages: array<int, array<string, mixed>>}
      */

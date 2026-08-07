@@ -351,8 +351,9 @@ Turns are delivered in order; each one is sent only after the previous turn full
 
 ### Human-in-the-loop: the approval policy
 
-If the agent under test uses the `ToolApproval` middleware, `chat()` suspends mid-turn and a
-human must decide. In an evaluation there is no human — `withApprovals()` scripts the
+If the agent under test gates tools behind approval (tools declaring an `approvalPolicy()`,
+or attach-time `requireApproval()` overrides), `chat()` suspends mid-turn and a human must
+decide. In an evaluation there is no human — `withApprovals()` scripts the
 approver. The callable is invoked whenever the agent suspends, at any point in the
 conversation (that's why it is not an entry in the turns script — you can't know in advance
 *when* the model will call the gated tool):
@@ -417,9 +418,9 @@ judgment (use `TaskCompletionJudge`), not the runner's.
 A read-only view over the conversation's messages. Key accessors:
 
 ```php
-$trajectory->toolCalls('refund_order');  // ToolInterface[] — one entry per call, with
+$trajectory->toolCalls('refund_order');  // ToolCall[] — one entry per call, with
                                          // final results and approval state merged in
-$trajectory->lastToolCall();             // ?ToolInterface
+$trajectory->lastToolCall();             // ?ToolCall
 $trajectory->finalAnswer();              // string — last assistant message ('' if none)
 $trajectory->userMessages();             // string[]
 $trajectory->usage();                    // Usage — aggregate token usage (cost checks)

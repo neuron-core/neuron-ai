@@ -16,7 +16,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -150,11 +150,11 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_persists_tool_calls_and_results(): void
     {
-        $tool = ToolDefinition::make('test_tool', 'A test tool')
+        $tool = ToolCall::make('test_tool', description: 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123');
 
-        $toolWithResult = ToolDefinition::make('test_tool', 'A test tool')
+        $toolWithResult = ToolCall::make('test_tool', description: 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123')
             ->setResult('Tool result');
@@ -173,8 +173,8 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
 
         $toolCallMessage = $messages[1];
-        $this->assertCount(1, $toolCallMessage->getTools());
-        $this->assertEquals('test_tool', $toolCallMessage->getTools()[0]->getName());
+        $this->assertCount(1, $toolCallMessage->getToolCalls());
+        $this->assertEquals('test_tool', $toolCallMessage->getToolCalls()[0]->getName());
     }
 
     public function test_truncates_history_when_context_window_exceeded(): void

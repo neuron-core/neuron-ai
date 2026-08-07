@@ -19,7 +19,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function is_array;
@@ -146,9 +146,10 @@ class Anthropic implements AIProviderInterface
      */
     protected function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
-        $tools = array_map(fn (array $tool): ToolInterface => $this->findTool($tool['name'])
-            ->setInputs($tool['input'])
-            ->setCallId($tool['id']), $toolCalls);
+        $tools = array_map(
+            fn (array $tool): ToolCall => $this->newToolCall($tool['name'], $tool['id'], $tool['input']),
+            $toolCalls
+        );
 
         return new ToolCallMessage($content, array_values($tools));
     }

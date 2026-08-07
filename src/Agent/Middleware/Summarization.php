@@ -13,7 +13,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\Event;
 use Exception;
 
@@ -215,8 +215,8 @@ class Summarization extends AgentMiddleware
 
             if ($message instanceof ToolCallMessage) {
                 $toolNames = array_map(
-                    fn (ToolInterface $tool): string => $tool->getName(),
-                    $message->getTools()
+                    fn (ToolCall $tool): string => $tool->getName(),
+                    $message->getToolCalls()
                 );
                 $formatted[] = sprintf(
                     '[%s]: Called tools: %s',

@@ -10,6 +10,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\ProviderResponse;
@@ -24,6 +25,7 @@ use function end;
 class ChatNode extends InferenceNode
 {
     /**
+     * @throws ChatHistoryException
      * @throws InspectorException
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): StopEvent|ToolCallEvent

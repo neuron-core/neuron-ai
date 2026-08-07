@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -55,8 +56,8 @@ class DuplicateCallIdToolExecutionTest extends TestCase
     {
         $registered = new DuplicateCallIdWeatherTool();
 
-        $first = (clone $registered)->setInputs(['city' => 'Rome'])->setCallId('get_weather');
-        $second = (clone $registered)->setInputs(['city' => 'Milan'])->setCallId('get_weather');
+        $first = ToolCall::make($registered->getName(), 'get_weather', ['city' => 'Rome']);
+        $second = ToolCall::make($registered->getName(), 'get_weather', ['city' => 'Milan']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$first, $second]),
@@ -74,7 +75,7 @@ class DuplicateCallIdToolExecutionTest extends TestCase
         $results = [];
         foreach ($agent->getChatHistory()->getMessages() as $message) {
             if ($message instanceof ToolResultMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $results[] = $tool->getResult();
                 }
             }

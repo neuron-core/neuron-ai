@@ -5,7 +5,7 @@ first-class multi-turn conversation evaluation (tool calls, human-in-the-loop, s
 users).
 
 **Dependencies**: Agent, Chat, Workflow, Tools (typed against their general contracts:
-`AgentInterface`, `ChatHistoryInterface`, `InterruptRequest`, `ToolInterface`).
+`AgentInterface`, `ChatHistoryInterface`, `InterruptRequest`, `ToolCall`).
 
 ## Running Evaluations
 
@@ -104,9 +104,9 @@ Accessors answer evaluation questions directly from framework types:
 $trajectory = Trajectory::fromChatHistory($agent->getChatHistory()); // or fromMessages()
 
 $trajectory->messages();          // Message[] — full fidelity
-$trajectory->toolCalls('refund'); // ToolInterface[] — one entry per call (the "fold":
+$trajectory->toolCalls('refund'); // ToolCall[] — one entry per call (the "fold":
                                   // pending snapshot + final outcome merged, final wins — ADR 0006)
-$trajectory->lastToolCall();      // ?ToolInterface
+$trajectory->lastToolCall();      // ?ToolCall
 $trajectory->finalAnswer();       // string ('' on a suspended tail)
 $trajectory->usage();             // Usage — aggregated provider-reported tokens
 $trajectory->toTranscript();      // canonical rendering (judges & simulator read this);
@@ -116,10 +116,10 @@ $trajectory->toTranscript();      // canonical rendering (judges & simulator rea
 `fromMessages()` is a public seam: any hand-rolled multi-turn loop can project its history
 and use the whole assertion/judge layer — the Conversation runner is sugar over it.
 Serialization reuses the chat-history storage format, so a Trajectory survives the parallel
-runner's fork boundary (live tools rehydrate as data-only `ToolDefinition`s). Gotchas:
-a never-executed tool has no result — check `ToolInterface::hasResult()` before calling
-`getResult()`; accessors return the LIVE tool entries, which `ToolApproval` annotates in
-place on resume — read values, don't hold objects across a resume.
+runner's fork boundary (messages carry `ToolCall` data — ADR 0010). Gotchas:
+a call that never executed has no result — check `ToolCall::hasResult()` before calling
+`getResult()`; accessors return the LIVE call entries, which the approval flow annotates
+in place on resume — read values, don't hold objects across a resume.
 
 ### Conversation — the runner
 

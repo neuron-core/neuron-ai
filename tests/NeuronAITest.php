@@ -14,7 +14,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\RAG;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use const PHP_EOL;
@@ -51,7 +51,7 @@ class NeuronAITest extends TestCase
     public function test_message_instance(): void
     {
         $tools = [
-            new ToolDefinition('example', 'example'),
+            new ToolCall('example', description: 'example'),
         ];
 
         $this->assertInstanceOf(Message::class, new UserMessage(''));

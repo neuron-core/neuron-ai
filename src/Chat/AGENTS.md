@@ -19,8 +19,8 @@ $message = new UserMessage([
 | `SystemMessage` | System instructions, carries `SystemContent` blocks (cacheable via `->cache()`) |
 | `UserMessage` | User input |
 | `AssistantMessage` | AI response |
-| `ToolCallMessage` | Tool invocation request |
-| `ToolResultMessage` | Tool execution result |
+| `ToolCallMessage` | Tool invocation request — carries `ToolCall[]` (conversation data, ADR 0010) |
+| `ToolResultMessage` | Tool execution result — the same `ToolCall[]`, settled with results |
 
 **Key methods**: `getContent()` (text only), `getContentBlocks()`, `addContentBlock()`
 
@@ -67,14 +67,11 @@ storage. This is pure sequence validation, independent of tool approval; note th
 ### Append-only history & tool approval (ADR 0006)
 
 `addMessage()` always appends — the history has no update or replace operation, so a
-direct `ChatHistoryInterface` implementation that appends is fully conformant. The
-convergence of the approval flow's writers lives with the callers, not the store:
-`ToolApproval` writes the annotated `ToolCallMessage` (pending states + resume token)
-**once**, at suspend time, and `ToolNode` skips its own write when that message already
-sits at the tail. Both use `ToolCallMessage::isSameToolCall()` — same ordered callIds —
-as the identity check. Its safety proof is adjacency, not callId uniqueness (Gemini uses
-the tool name as callId): two distinct `ToolCallMessage`s can never be adjacent in a
-valid thread, so a `ToolCallMessage` at the tail is always this same logical message.
+direct `ChatHistoryInterface` implementation that appends is fully conformant.
+Write-once convergence lives with the single writer, not the store: `ToolNode` writes the
+annotated `ToolCallMessage` (pending states + runId) exactly once, through a durable
+memoized write, **before** any approval suspend (ADR 0009) — a resume or crash-replay
+pass skips the write instead of duplicating the tail.
 
 The `tool_call` message keeps its pending snapshot forever; the **final approval
 outcomes** (approved/rejected + feedback + results) are recorded on the
@@ -84,9 +81,11 @@ outcomes** (approved/rejected + feedback + results) are recorded on the
 (Replay convergence for message writes is handled by the agent nodes' memoized
 history writes — see `src/Agent/AGENTS.md`.)
 
-Serialized tool entries carry three approval fields: `approval` (`pending`|`approved`|
+Tool entries are `ToolCall` value objects (`NeuronAI\Tools\ToolCall`, ADR 0010) — pure
+conversation data; executable tools never appear in messages. Serialized entries carry
+three approval fields: `approval` (`pending`|`approved`|
 `rejected`, or absent for a non-gated tool), `approvalReason` (outbound — why the tool is
-asking for approval, declared by the tool or middleware config), and `rejectReason`
+asking for approval, declared by the tool or its attach-time policy), and `rejectReason`
 (inbound — the approver's feedback, rejection-only). Old stored histories without these
 keys deserialize as `null` (not gated).
 
@@ -99,7 +98,7 @@ anything else stays a string — so legacy stored histories deserialize unchange
 The suspended `ToolCallMessage` also carries a `run_id` metadata entry (ADR 0005) —
 the handle to reattach to the suspended run, exposed via
 `ToolCallMessage::getRunId(): ?string`. It is an opaque string here: the Chat module
-knows nothing about workflows. Stamped by the `ToolApproval` middleware at suspend, it makes
+knows nothing about workflows. Stamped by `ToolNode` before an approval suspend, it makes
 chat history sufficient to *resume* an approval flow, not just render it. Histories stored
 before the rename carry the legacy `resume_token` key — `getRunId()` reads it as a fallback;
 histories with neither key deserialize it as `null`.

@@ -224,6 +224,13 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `resolveExecutor()`.
 
+**Two contracts, two audiences (ADR 0011).** Applications hold `WorkflowInterface`
+(run/resume/events + configuration). Executors type against `WorkflowRuntimeInterface` —
+the engine-facing collaboration points (`getStartEvent`, `resolveState`/`setState`,
+`getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode`, `getRunId`,
+`getEventDispatcher`, `restoreEventNode`). `Workflow` implements both; anything the engine
+must call for correctness belongs on the runtime contract, never on the one users hold.
+
 There are three genuine extension points:
 
 - **`PersistenceInterface`** — where steps are stored (InMemory, File, Database, Eloquent). Owns **state**.
@@ -241,6 +248,15 @@ Workflow
   └─ SchedulerInterface (coordination — wakeups for suspended workflows)
        └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
 ```
+
+**Recalled events and transient capability.** A cached step returns its persisted output
+event, and events may declare parts of themselves transient (objects that must not
+serialize — e.g. the Agent's live tools, dropped in `AIInferenceEvent::__serialize()`).
+The symmetric restore seam is `WorkflowRuntimeInterface::restoreEventNode(Event $event): Event`:
+the executor calls it on **every** step-result event before dispatching it to the next
+node (so implementations must be idempotent — restore only what is missing). `Workflow`
+ships an identity default; subclasses whose events carry live objects override it
+(`Agent` re-seeds its tool registry there).
 
 `StepEngineInterface` is the replay/memoization contract: persist each step, skip completed steps on replay, resume interrupted steps. `LocalStepEngine` is the in-process implementation; it owns persistence and the memoization machinery. `Workflow` constructs it from the persistence you configure and injects it into the executor, so the executor depends on the `StepEngineInterface` abstraction, never on a persistence backend or a concrete engine directly.
 

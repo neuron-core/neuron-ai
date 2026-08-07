@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function count;
@@ -32,7 +32,7 @@ class ToolWasNotCalled extends TrajectoryAssertion
         }
 
         $arguments = implode(', ', array_map(
-            static fn (ToolInterface $tool): string => (string) json_encode($tool->getInputs()),
+            static fn (ToolCall $tool): string => (string) json_encode($tool->getInputs()),
             $calls
         ));
 

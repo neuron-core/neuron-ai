@@ -57,7 +57,7 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCallResult(ToolResultMessage $message): array
     {
         $toolContents = [];
-        foreach ($message->getTools() as $tool) {
+        foreach ($message->getToolCalls() as $tool) {
             $result = $tool->getResult();
 
             $toolContents[] = [
@@ -86,7 +86,7 @@ class MessageMapper implements MessageMapperInterface
     {
         $toolCallContents = [];
 
-        foreach ($message->getTools() as $tool) {
+        foreach ($message->getToolCalls() as $tool) {
             $toolCallContents[] = [
                 'toolUse' => [
                     'name' => $tool->getName(),

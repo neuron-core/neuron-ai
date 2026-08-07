@@ -251,8 +251,8 @@ class WorkflowMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make()
-            ->addMiddleware(NodeOne::class, $middleware);
+        $workflow = Workflow::make();
+        $workflow->addMiddleware(NodeOne::class, $middleware);
 
         // A subclass of NodeOne inherits the middleware registered against its parent.
         $child = new class () extends NodeOne {
@@ -268,8 +268,8 @@ class WorkflowMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make()
-            ->addMiddleware(NodeTwo::class, $middleware);
+        $workflow = Workflow::make();
+        $workflow->addMiddleware(NodeTwo::class, $middleware);
 
         // NodeOne is a sibling of NodeTwo, not a subclass — no match.
         $resolved = $workflow->getMiddlewareForNode(new NodeOne());
@@ -284,8 +284,8 @@ class WorkflowMiddlewareTest extends TestCase
         // execution-mode switch (see CONTEXT.md).
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make()
-            ->addMiddleware(ToolNode::class, $middleware);
+        $workflow = Workflow::make();
+        $workflow->addMiddleware(ToolNode::class, $middleware);
 
         $resolved = $workflow->getMiddlewareForNode(new ParallelToolNode(new InMemoryChatHistory()));
 

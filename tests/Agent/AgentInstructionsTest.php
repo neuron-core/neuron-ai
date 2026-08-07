@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
@@ -122,14 +123,12 @@ class AgentInstructionsTest extends TestCase
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
 
-        $searchTool = new ToolSearchTool($toolPool);
-        $searchTool->setCallId('call_1');
-        $searchTool->setInputs(['query' => 'database']);
+        $searchTool = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$searchTool]),
             new ToolCallMessage(null, [
-                (clone $dbTool)->setCallId('call_2')->setInputs(['sql' => 'SELECT 1']),
+                ToolCall::make($dbTool->getName(), 'call_2', ['sql' => 'SELECT 1']),
             ]),
             new AssistantMessage('Done.'),
         );
@@ -155,14 +154,12 @@ class AgentInstructionsTest extends TestCase
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
 
-        $searchTool = new ToolSearchTool($toolPool);
-        $searchTool->setCallId('call_1');
-        $searchTool->setInputs(['query' => 'database']);
+        $searchTool = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$searchTool]),
             new ToolCallMessage(null, [
-                (clone $dbTool)->setCallId('call_2')->setInputs(['sql' => 'SELECT 1']),
+                ToolCall::make($dbTool->getName(), 'call_2', ['sql' => 'SELECT 1']),
             ]),
             new AssistantMessage('Done.'),
         );
@@ -196,14 +193,12 @@ class AgentInstructionsTest extends TestCase
         $weatherTool = new GetWeatherTool();
         $toolPool = [clone $dbTool, clone $weatherTool];
 
-        $searchTool = new ToolSearchTool($toolPool);
-        $searchTool->setCallId('call_1');
-        $searchTool->setInputs(['query' => 'database']);
+        $searchTool = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$searchTool]),
             new ToolCallMessage(null, [
-                (clone $dbTool)->setCallId('call_2')->setInputs(['sql' => 'SELECT 1']),
+                ToolCall::make($dbTool->getName(), 'call_2', ['sql' => 'SELECT 1']),
             ]),
             new AssistantMessage('Done.'),
         );
@@ -236,13 +231,9 @@ class AgentInstructionsTest extends TestCase
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
 
-        $searchTool1 = new ToolSearchTool($toolPool);
-        $searchTool1->setCallId('call_1');
-        $searchTool1->setInputs(['query' => 'database']);
+        $searchTool1 = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
-        $searchTool2 = new ToolSearchTool($toolPool);
-        $searchTool2->setCallId('call_2');
-        $searchTool2->setInputs(['query' => 'database']);
+        $searchTool2 = ToolCall::make('tool_search', 'call_2', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$searchTool1]),
@@ -278,17 +269,15 @@ class AgentInstructionsTest extends TestCase
         $weatherTool = new GetWeatherTool();
         $toolPool = [clone $dbTool];
 
-        $searchTool = new ToolSearchTool($toolPool);
-        $searchTool->setCallId('call_1');
-        $searchTool->setInputs(['query' => 'database']);
+        $searchTool = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
                 $searchTool,
-                (clone $weatherTool)->setCallId('call_2')->setInputs(['location' => 'Rome']),
+                ToolCall::make($weatherTool->getName(), 'call_2', ['location' => 'Rome']),
             ]),
             new ToolCallMessage(null, [
-                (clone $dbTool)->setCallId('call_3')->setInputs(['sql' => 'SELECT 1']),
+                ToolCall::make($dbTool->getName(), 'call_3', ['sql' => 'SELECT 1']),
             ]),
             new AssistantMessage('Done.'),
         );
@@ -314,14 +303,12 @@ class AgentInstructionsTest extends TestCase
         $dbTool = new QueryDatabaseTool();
         $toolPool = [clone $dbTool];
 
-        $searchTool = new ToolSearchTool($toolPool);
-        $searchTool->setCallId('call_1');
-        $searchTool->setInputs(['query' => 'database']);
+        $searchTool = ToolCall::make('tool_search', 'call_1', ['query' => 'database']);
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [$searchTool]),
             new ToolCallMessage(null, [
-                (clone $dbTool)->setCallId('call_2')->setInputs(['sql' => 'SELECT 1']),
+                ToolCall::make($dbTool->getName(), 'call_2', ['sql' => 'SELECT 1']),
             ]),
             new AssistantMessage('Done.'),
         );

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use Stringable;
 
 use function array_map;
@@ -14,12 +14,12 @@ use function is_string;
 use function json_encode;
 
 /**
- * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content, ToolInterface[] $tools)
+ * @method static static make(string|ContentBlockInterface|array<int, ContentBlockInterface>|null $content, ToolCall[] $tools)
  */
 class ToolCallMessage extends AssistantMessage implements Stringable
 {
     /**
-     * @param ToolInterface[] $tools
+     * @param ToolCall[] $tools
      */
     public function __construct(
         string|ContentBlockInterface|array|null $content = null,
@@ -29,16 +29,19 @@ class ToolCallMessage extends AssistantMessage implements Stringable
     }
 
     /**
-     * @return ToolInterface[]
+     * The calls carried by this message — pure conversation data (ADR 0010).
+     * Execution capability lives on the agent's live tool registry, never here.
+     *
+     * @return ToolCall[]
      */
-    public function getTools(): array
+    public function getToolCalls(): array
     {
         return $this->tools;
     }
 
     /**
      * The handle to reattach to the suspended run that produced this tool call
-     * (ADR 0005). Stamped by the ToolApproval middleware at suspend time; an
+     * (ADR 0005). Stamped by ToolNode's approval flow before suspending; an
      * opaque string here — the Chat module knows nothing about workflows.
      */
     public function setRunId(string $runId): self
@@ -72,40 +75,19 @@ class ToolCallMessage extends AssistantMessage implements Stringable
         return $this->getRunId();
     }
 
-    /**
-     * Whether $other is a ToolCallMessage carrying the same ordered tool callIds —
-     * i.e. the same logical tool call. Safe as identity because two distinct
-     * ToolCallMessages can never be adjacent in a valid thread (a tool call must be
-     * answered by a ToolResultMessage first); callIds are not globally unique across
-     * providers (Gemini uses the tool name).
-     */
-    public function isSameToolCall(?Message $other): bool
-    {
-        if (!$other instanceof self) {
-            return false;
-        }
-
-        $ids = static fn (ToolCallMessage $message): array => array_map(
-            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
-            $message->getTools()
-        );
-
-        return $ids($this) === $ids($other);
-    }
-
     public function jsonSerialize(): array
     {
         return array_merge(
             parent::jsonSerialize(),
             [
                 'type' => 'tool_call',
-                'tools' => array_map(fn (ToolInterface $tool): array => $tool->jsonSerialize(), $this->tools),
+                'tools' => array_map(fn (ToolCall $tool): array => $tool->jsonSerialize(), $this->tools),
             ]
         );
     }
 
     public function __toString(): string
     {
-        return (string) json_encode($this->getTools());
+        return (string) json_encode($this->getToolCalls());
     }
 }

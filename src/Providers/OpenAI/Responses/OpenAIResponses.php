@@ -19,7 +19,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function array_merge;
@@ -127,11 +127,11 @@ class OpenAIResponses implements AIProviderInterface
     protected function createToolCallMessage(array $toolCalls, array|null $content = null): ToolCallMessage
     {
         $tools = array_map(
-            fn (array $item): ToolInterface => $this->findTool($item['name'])
-                ->setInputs(
-                    json_decode((string) $item['arguments'], true)
-                )
-                ->setCallId($item['call_id']),
+            fn (array $item): ToolCall => $this->newToolCall(
+                $item['name'],
+                $item['call_id'],
+                json_decode((string) $item['arguments'], true) ?? [],
+            ),
             $toolCalls
         );
 

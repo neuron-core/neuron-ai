@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -15,7 +16,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -152,7 +152,7 @@ class AnthropicPromptCachingTest extends TestCase
         $stack = HandlerStack::create($mockHandler);
         $stack->push($history);
 
-        $tool = ToolDefinition::make('search', 'Search the web')
+        $tool = new ToolStub('search', description: 'Search the web')
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))

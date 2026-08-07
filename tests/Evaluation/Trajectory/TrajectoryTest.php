@@ -17,8 +17,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolDefinition;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function serialize;
@@ -26,9 +25,9 @@ use function unserialize;
 
 class TrajectoryTest extends TestCase
 {
-    protected function makeTool(string $name, array $inputs = [], ?string $callId = null): ToolInterface
+    protected function makeTool(string $name, array $inputs = [], ?string $callId = null): ToolCall
     {
-        return ToolDefinition::make($name, "The {$name} tool")
+        return ToolCall::make($name, description: "The {$name} tool")
             ->setInputs($inputs)
             ->setCallId($callId);
     }
@@ -85,7 +84,7 @@ class TrajectoryTest extends TestCase
         ]);
 
         $call = $trajectory->lastToolCall('refund_order');
-        $this->assertInstanceOf(ToolInterface::class, $call);
+        $this->assertInstanceOf(ToolCall::class, $call);
         $this->assertSame(ApprovalState::Pending, $call->getApprovalState());
         $this->assertSame('Refunds move money', $call->getApprovalReason());
         $this->assertSame('', $trajectory->finalAnswer());
@@ -110,7 +109,7 @@ class TrajectoryTest extends TestCase
         ]);
 
         $call = $trajectory->lastToolCall('refund_order');
-        $this->assertInstanceOf(ToolInterface::class, $call);
+        $this->assertInstanceOf(ToolCall::class, $call);
         $this->assertSame(ApprovalState::Rejected, $call->getApprovalState());
         $this->assertSame('Amount too high', $call->getRejectReason());
         $this->assertSame('rejected by the user', $call->getResult());
@@ -158,7 +157,7 @@ class TrajectoryTest extends TestCase
         $this->assertCount(2, $trajectory->toolCalls());
         $this->assertCount(1, $trajectory->toolCalls('send_email'));
         $last = $trajectory->lastToolCall();
-        $this->assertInstanceOf(ToolInterface::class, $last);
+        $this->assertInstanceOf(ToolCall::class, $last);
         $this->assertSame('send_email', $last->getName());
         $this->assertNull($trajectory->lastToolCall('unknown_tool'));
     }
@@ -217,7 +216,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame($trajectory->count(), $restored->count());
         $this->assertSame('I cannot do that.', $restored->finalAnswer());
         $call = $restored->lastToolCall('refund_order');
-        $this->assertInstanceOf(ToolInterface::class, $call);
+        $this->assertInstanceOf(ToolCall::class, $call);
         $this->assertSame(ApprovalState::Rejected, $call->getApprovalState());
         $this->assertSame('Too expensive', $call->getRejectReason());
     }

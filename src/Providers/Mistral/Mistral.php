@@ -17,7 +17,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\HandleStructured;
 use NeuronAI\Providers\OpenAI\ToolMapper;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function json_decode;
@@ -91,11 +91,11 @@ class Mistral implements AIProviderInterface
     protected function createToolCallMessage(array $toolCalls, array|ContentBlockInterface|null $blocks = null): ToolCallMessage
     {
         $tools = array_map(
-            fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
-                ->setInputs(
-                    json_decode((string) $item['function']['arguments'], true)
-                )
-                ->setCallId($item['id']),
+            fn (array $item): ToolCall => $this->newToolCall(
+                $item['function']['name'],
+                $item['id'],
+                json_decode((string) $item['function']['arguments'], true) ?? [],
+            ),
             $toolCalls
         );
 

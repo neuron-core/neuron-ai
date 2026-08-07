@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function ceil;
 use function json_encode;
@@ -70,8 +70,8 @@ class TokenCounter
         $chars = mb_strlen($message->getRole());
 
         $chars = array_reduce(
-            $message->getTools(),
-            function (int $carry, ToolInterface $tool): int {
+            $message->getToolCalls(),
+            function (int $carry, ToolCall $tool): int {
                 $carry += mb_strlen((string) $tool->getResult());
 
                 if ($tool->getCallId() !== null) {

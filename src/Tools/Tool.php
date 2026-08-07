@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
+use Closure;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
-use ReflectionClass;
 use ReflectionException;
 use stdClass;
 
@@ -57,21 +57,19 @@ abstract class Tool implements ToolInterface
     protected string|ToolOutput|null $result = null;
 
     /**
-     * Approval state of this specific call (ADR 0003). Null = not approval-gated.
+     * Attach-time approval override (ADR 0009): forces the gate's answer in either
+     * direction, beating the class's own approvalPolicy(). Set via requireApproval()
+     * / suppressApproval(); null = no flat override.
      */
-    protected ?ApprovalState $approvalState = null;
+    protected ?bool $approvalRequired = null;
 
     /**
-     * Rejection reason. Only ever non-null when $approvalState is Rejected.
+     * Attach-time conditional policy override (ADR 0009): replaces the class's own
+     * approvalPolicy(). Set via withApprovalPolicy().
+     *
+     * @var (Closure(ToolInterface): (bool|string))|null
      */
-    protected ?string $rejectReason = null;
-
-    /**
-     * Why this call is asking for approval — the tool author's (or middleware
-     * config's) outbound message to the approver. Stamped by ToolApproval when
-     * requiresApproval() or a config callback returns a string.
-     */
-    protected ?string $approvalReason = null;
+    protected ?Closure $approvalPolicyOverride = null;
 
     /**
      * Define the maximum number of calls for the tool in a single agent session.
@@ -79,14 +77,6 @@ abstract class Tool implements ToolInterface
     protected ?int $maxRuns = null;
 
     protected bool $visible = true;
-
-    /**
-     * True when this instance was rebuilt from a persisted snapshot: __serialize()
-     * drops subclass dependencies (connections, clients, closures), so the tool
-     * carries its call data but cannot execute. ToolNode swaps dehydrated tools
-     * for fresh clones from the live registry before execution.
-     */
-    protected bool $dehydrated = false;
 
     public function getName(): string
     {
@@ -240,37 +230,70 @@ abstract class Tool implements ToolInterface
         return $this->getName();
     }
 
+    /**
+     * The effective answer to "does this call require human approval?" (ADR 0009).
+     * Resolution order: attach-time policy callback → attach-time flat override →
+     * the class's own approvalPolicy(). A string counts as true and doubles as the
+     * approval reason shown to the approver.
+     */
     public function requiresApproval(array $inputs): bool|string
+    {
+        if ($this->approvalPolicyOverride instanceof Closure) {
+            return ($this->approvalPolicyOverride)($this);
+        }
+
+        if ($this->approvalRequired !== null) {
+            return $this->approvalRequired;
+        }
+
+        return $this->approvalPolicy($inputs);
+    }
+
+    /**
+     * The tool author's intrinsic approval declaration (ADR 0004/0009): override in
+     * a subclass to declare the tool's own risk. Returning a string counts as true
+     * AND carries the reason shown to the approver. The agent developer can override
+     * the declaration at attach time in both directions — requireApproval(),
+     * suppressApproval(), withApprovalPolicy() — deployment policy beats tool default.
+     */
+    protected function approvalPolicy(array $inputs): bool|string
     {
         return false;
     }
 
-    public function getApprovalReason(): ?string
+    /**
+     * Force the approval gate's answer for this tool instance, beating its own
+     * approvalPolicy() in either direction. Clears any policy callback previously
+     * set via withApprovalPolicy() — the last configured override wins.
+     */
+    public function requireApproval(bool $require = true): ToolInterface
     {
-        return $this->approvalReason;
-    }
-
-    public function setApprovalReason(?string $reason): ToolInterface
-    {
-        $this->approvalReason = $reason;
+        $this->approvalRequired = $require;
+        $this->approvalPolicyOverride = null;
         return $this;
     }
 
-    public function getApprovalState(): ?ApprovalState
+    /**
+     * Waive this tool's declared approval requirement. Sugar for requireApproval(false).
+     */
+    public function suppressApproval(): ToolInterface
     {
-        return $this->approvalState;
+        return $this->requireApproval(false);
     }
 
-    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface
+    /**
+     * Install a conditional approval policy on this tool instance, replacing its own
+     * approvalPolicy(). Returning a string counts as true and doubles as the approval
+     * reason. Clears any flat override previously set via requireApproval() — the
+     * last configured override wins.
+     *
+     * @param callable(ToolInterface): (bool|string) $policy
+     */
+    public function withApprovalPolicy(callable $policy): ToolInterface
     {
-        $this->approvalState = $state;
-        $this->rejectReason = $state === ApprovalState::Rejected ? $reason : null;
+        $this->approvalPolicyOverride = $policy(...);
+        $this->approvalRequired = null;
         return $this;
-    }
-
-    public function getRejectReason(): ?string
-    {
-        return $this->rejectReason;
     }
 
     /**
@@ -338,78 +361,6 @@ abstract class Tool implements ToolInterface
         $this->setResult($this->__invoke(...$parameters));
     }
 
-    public function isDehydrated(): bool
-    {
-        return $this->dehydrated;
-    }
-
-    /**
-     * The persisted form of a tool is data-only. The contract: properties declared
-     * on the Tool base class are call data and survive serialization; properties
-     * declared below it are execution capability (DB connections, HTTP clients,
-     * closures) and are dropped — capability is never persisted, it is re-supplied
-     * by the live process on replay via rehydrate(). Without this, attaching a
-     * durable persistence backend would fail on any tool holding a non-serializable
-     * dependency (e.g. "Serialization of 'Pdo\Mysql' is not allowed" with the
-     * MySQL toolkit).
-     *
-     * @return array<string, mixed>
-     */
-    public function __serialize(): array
-    {
-        // Materialize the schema so the snapshot keeps it even when a subclass
-        // builds properties() from a dependency that is dropped.
-        $this->getProperties();
-
-        $data = [];
-        foreach ((new ReflectionClass(self::class))->getProperties() as $property) {
-            if ($property->getName() !== 'dehydrated' && $property->isInitialized($this)) {
-                $data[$property->getName()] = $property->getValue($this);
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    public function __unserialize(array $data): void
-    {
-        foreach ($data as $name => $value) {
-            $this->{$name} = $value;
-        }
-
-        $this->dehydrated = true;
-    }
-
-    /**
-     * Restore execution capability onto a dehydrated instance by transplanting
-     * the subclass-declared properties — the ones __serialize() dropped — from a
-     * live donor of the same class. The inverse of dehydration: the call data
-     * stays untouched, the shell already owns it. Skips silently when the donor
-     * is missing or of a different class (code drift between suspend and
-     * recovery): a dependency-free shell is still executable as-is.
-     */
-    public function rehydrate(?ToolInterface $donor): void
-    {
-        if ($donor === null || $donor::class !== $this::class) {
-            return;
-        }
-
-        foreach ((new ReflectionClass($this))->getProperties() as $property) {
-            if ($property->isStatic() || $property->getDeclaringClass()->getName() === self::class) {
-                continue;
-            }
-
-            if ($property->isInitialized($donor)) {
-                $property->setValue($this, $property->getValue($donor));
-            }
-        }
-
-        $this->dehydrated = false;
-    }
-
     public function jsonSerialize(): array
     {
         return [
@@ -419,9 +370,6 @@ abstract class Tool implements ToolInterface
             'parameters' => $this->parameters,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
             'result' => $this->result instanceof ToolOutput ? $this->result->jsonSerialize() : $this->result,
-            'approval' => $this->approvalState?->value,
-            'approvalReason' => $this->approvalReason,
-            'rejectReason' => $this->rejectReason,
         ];
     }
 }

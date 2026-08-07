@@ -15,7 +15,7 @@ use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 use InvalidArgumentException;
 
@@ -291,7 +291,7 @@ class AgentJudgeTest extends TestCase
         $agent = Agent::make()->setAiProvider($fakeProvider);
         $assertion = new AgentJudge($agent, 'Judge the conversation', 0.7);
 
-        $tool = ToolDefinition::make('refund_order', 'The refund tool')
+        $tool = ToolCall::make('refund_order', description: 'The refund tool')
             ->setInputs(['order_id' => '123'])
             ->setCallId('call_1');
         $tool->setApprovalState(ApprovalState::Rejected, 'too expensive');

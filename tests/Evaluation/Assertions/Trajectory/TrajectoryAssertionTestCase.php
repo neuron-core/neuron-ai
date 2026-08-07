@@ -9,20 +9,19 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
-use NeuronAI\Tools\ToolDefinition;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 abstract class TrajectoryAssertionTestCase extends TestCase
 {
-    protected function makeTool(string $name, array $inputs = [], ?string $callId = null): ToolInterface
+    protected function makeTool(string $name, array $inputs = [], ?string $callId = null): ToolCall
     {
-        return ToolDefinition::make($name, "The {$name} tool")
+        return ToolCall::make($name, description: "The {$name} tool")
             ->setInputs($inputs)
             ->setCallId($callId ?? "call_{$name}");
     }
 
-    protected function trajectoryWithTools(ToolInterface ...$tools): Trajectory
+    protected function trajectoryWithTools(ToolCall ...$tools): Trajectory
     {
         return Trajectory::fromMessages([
             new UserMessage('Do the task'),

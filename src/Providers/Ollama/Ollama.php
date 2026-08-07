@@ -14,7 +14,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function array_values;
@@ -74,8 +74,10 @@ class Ollama implements AIProviderInterface
      */
     protected function createToolCallMessage(array $toolCalls, array|string|null $content = null): ToolCallMessage
     {
-        $tools = array_map(fn (array $item): ToolInterface => $this->findTool($item['function']['name'])
-            ->setInputs($item['function']['arguments']), $toolCalls);
+        $tools = array_map(
+            fn (array $item): ToolCall => $this->newToolCall($item['function']['name'], null, $item['function']['arguments']),
+            $toolCalls
+        );
 
         return new ToolCallMessage($content, array_values($tools));
     }

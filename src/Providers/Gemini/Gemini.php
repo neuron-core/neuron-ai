@@ -16,6 +16,7 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function uniqid;
 use function array_values;
@@ -95,9 +96,11 @@ class Gemini implements AIProviderInterface
             // approval decisions, stream protocols) — parallel calls of the same tool must
             // never share it. Prefer the API id, otherwise synthesize a locally-unique one;
             // the mapper never echoes callId back to Gemini, so a synthetic id is wire-safe.
-            $tools[] = $this->findTool($item['functionCall']['name'])
-                ->setInputs($item['functionCall']['args'])
-                ->setCallId($item['functionCall']['id'] ?? uniqid($item['functionCall']['name'].'_'.$index.'_'));
+            $tools[] = $this->newToolCall(
+                $item['functionCall']['name'],
+                $item['functionCall']['id'] ?? uniqid($item['functionCall']['name'].'_'.$index.'_'),
+                $item['functionCall']['args'],
+            );
         }
 
         $message = new ToolCallMessage($blocks, $tools);

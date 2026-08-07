@@ -15,6 +15,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
@@ -51,50 +52,55 @@ class ParallelToolNode extends ToolNode
             return yield from parent::executeTools($toolCallMessage, $state);
         }
 
-        $tools = $toolCallMessage->getTools();
+        $calls = $toolCallMessage->getToolCalls();
 
         // If there's only one tool, no need for concurrency
-        if (count($tools) === 1) {
+        if (count($calls) === 1) {
             return yield from parent::executeTools($toolCallMessage, $state);
         }
 
-        // Partition: rejected tools are skipped — their rejection result was set by the
-        // ToolApproval middleware (ADR 0002/0003: a tool runs iff explicitly approved).
-        // Only runnable tools enter the concurrent batch; rejected tools keep their
+        // Partition: rejected calls are skipped — their rejection result was set by the
+        // approval flow (ADR 0002/0009: a tool runs iff explicitly approved).
+        // Only runnable calls enter the concurrent batch; rejected calls keep their
         // original positions in the result message.
-        $rejectedTools = [];
+        $rejectedCalls = [];
         $runnable = [];
-        foreach ($tools as $index => $tool) {
-            if ($tool->getApprovalState() === ApprovalState::Rejected) {
-                $rejectedTools[$index] = $tool;
+        foreach ($calls as $index => $call) {
+            if ($call->getApprovalState() === ApprovalState::Rejected) {
+                $rejectedCalls[$index] = $call;
             } else {
-                $runnable[$index] = $tool;
+                $runnable[$index] = $call;
             }
         }
 
-        // Notify and stream tool-call signals up-front for ALL tools. These are pure
+        // Notify and stream tool-call signals up-front for ALL calls. These are pure
         // stream artifacts and safe to re-emit when the node replays.
-        foreach ($tools as $tool) {
-            $this->emit(new ToolCalling($tool, true));
+        foreach ($calls as $call) {
+            $this->emit(new ToolCalling($call, true));
 
-            yield new ToolCallChunk($tool);
+            yield new ToolCallChunk($call);
         }
 
-        // Rejected tools already carry their rejection result.
-        $executedTools = $rejectedTools;
+        // Rejected calls already carry their rejection result.
+        $executedCalls = $rejectedCalls;
 
         if ($runnable !== []) {
-            $runnableTools = array_values($runnable);
+            $runnableCalls = array_values($runnable);
             $runnableKeys = array_keys($runnable);
 
-            // Execute the batch durably. Run-count accounting, the max-runs guard,
-            // and the concurrent execution all live inside the memo so they happen
-            // at most once: on replay the cached serialized tool states are returned
-            // and the tools are NOT re-invoked — side-effecting tools (emails,
-            // payments, ...) stay at-most-once across crash recovery.
-            $serializedTools = $this->memoize('parallel.tools', function () use ($runnableTools, $state): array {
-                // Check max tries before execution
-                foreach ($runnableTools as $tool) {
+            // Execute the batch durably. Resolution against the live registry,
+            // run-count accounting, the max-runs guard, and the concurrent execution
+            // all live inside the memo so they happen at most once: on replay the
+            // cached serialized results are returned and the tools are NOT
+            // re-invoked — side-effecting tools (emails, payments, ...) stay
+            // at-most-once across crash recovery.
+            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls, $state): array {
+                // Resolve every call against the live registry (parent-side) and
+                // apply the run guards before forking.
+                $resolved = [];
+                foreach ($runnableCalls as $pos => $call) {
+                    $tool = $this->resolveTool($call);
+
                     $key = $tool->getRunKey();
 
                     $state->incrementToolRun($key);
@@ -102,22 +108,23 @@ class ParallelToolNode extends ToolNode
                     // Single tool max tries have the highest priority over the global max tries
                     $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
                     if ($state->getToolRuns($key) > $maxTries) {
-                        throw new ToolRunsExceededException("Tool {$tool->getName()} has been attempted too many times: {$maxTries} attempts.");
+                        throw new ToolRunsExceededException("Tool {$call->getName()} has been attempted too many times: {$maxTries} attempts.");
                     }
+
+                    $resolved[$pos] = $tool;
                 }
 
-                // Execute tools concurrently and collect serialized tool states
+                // Fork children return the serialized RESULT only (ADR 0010) — the
+                // tool object and its dependencies never cross the process boundary.
                 return Fork::new()->run(
                     ...array_map(
                         fn (ToolInterface $tool): Closure => function () use ($tool): string {
                             try {
-                                // Execute the tool - this mutates the tool's internal state
                                 $tool->execute();
 
-                                // Serialize the entire tool object with its new state
-                                return serialize($tool);
+                                return serialize($tool->getResult());
                             } catch (Throwable $exception) {
-                                // Wrap the exception info with the tool for proper error handling
+                                // Wrap the exception info for proper error handling
                                 return serialize([
                                     'error' => true,
                                     'exception_class' => $exception::class,
@@ -127,14 +134,15 @@ class ParallelToolNode extends ToolNode
                                 ]);
                             }
                         },
-                        $runnableTools
+                        $resolved
                     )
                 );
             });
 
-            // Unserialize and merge the executed tools back into their original positions.
-            foreach ($serializedTools as $pos => $serializedTool) {
-                $data = unserialize($serializedTool);
+            // Settle each result onto its call, back in the original positions.
+            foreach ($serializedResults as $pos => $serializedResult) {
+                $data = unserialize($serializedResult);
+                $call = $runnableCalls[$pos];
 
                 // Check if this is an error response
                 if (is_array($data) && isset($data['error']) && $data['error'] === true) {
@@ -148,28 +156,26 @@ class ParallelToolNode extends ToolNode
                         $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
                     }
 
-                    // Get the original tool to handle the error
-                    $originalTool = $runnableTools[$pos];
-                    $this->handleError($exception, $originalTool);
-                    $executedTools[$runnableKeys[$pos]] = $originalTool;
+                    $this->handleError($exception, $call);
                 } else {
-                    // Collect the executed tool with its new state
-                    $executedTools[$runnableKeys[$pos]] = $data;
+                    $call->setResult($data);
                 }
+
+                $executedCalls[$runnableKeys[$pos]] = $call;
             }
         }
 
-        // Stream results and notify completion in the original tool order (rejected
-        // tools interleave with executed ones at their natural positions).
-        ksort($executedTools);
+        // Stream results and notify completion in the original call order (rejected
+        // calls interleave with executed ones at their natural positions).
+        ksort($executedCalls);
 
-        foreach ($executedTools as $tool) {
-            yield new ToolResultChunk($tool);
+        foreach ($executedCalls as $call) {
+            yield new ToolResultChunk($call);
 
-            $this->emit(new ToolCalled($tool));
+            $this->emit(new ToolCalled($call));
         }
 
-        // Return a new ToolCallResultMessage with the executed tools in original order
-        return new ToolResultMessage(array_values($executedTools));
+        // Return a new ToolCallResultMessage with the settled calls in original order
+        return new ToolResultMessage(array_values($executedCalls));
     }
 }

@@ -98,7 +98,7 @@ vendor/bin/neuron make:agent DataAnalystAgent
 namespace App\Neuron;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\SystemPrompt;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
@@ -112,19 +112,14 @@ class DataAnalystAgent extends Agent
         );
     }
 
-    protected function instructions(): string
+    protected function instructions(): SystemMessage
     {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a data analyst expert in creating reports from SQL databases."
-            ]
+        return new SystemMessage(
+            "You are a data analyst expert in creating reports from SQL databases."
         );
     }
 }
 ```
-
-The `SystemPrompt` class is designed to take your base instructions and build a consistent prompt for the underlying model
-reducing the effort for prompt engineering.
 
 <a name="talk">
 
@@ -219,11 +214,9 @@ Make your agent able to perform concrete tasks, like reading from a database, by
 namespace App\Neuron;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Agent\SystemPrompt;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\Toolkits\MySQL\MySQLToolkit;
 
 class DataAnalystAgent extends Agent
@@ -236,12 +229,10 @@ class DataAnalystAgent extends Agent
         );
     }
 
-    protected function instructions(): string
+    protected function instructions(): SystemMessage
     {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a data analyst expert in creating reports from SQL databases."
-            ]
+        return new SystemMessage(
+            "You are a data analyst expert in creating reports from SQL databases."
         );
     }
 
@@ -281,22 +272,10 @@ namespace App\Neuron;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\MCP\McpConnector;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\Tool;
 
 class DataAnalystAgent extends Agent
 {
-    protected function provider(): AIProviderInterface
-    {
-        ...
-    }
-
-    protected function instructions(): string
-    {
-        ...
-    }
+    ...
 
     protected function tools(): array
     {

@@ -6,7 +6,7 @@ namespace NeuronAI\Workflow\Executor;
 
 use Generator;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\WorkflowInterface;
+use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
@@ -31,7 +31,7 @@ interface WorkflowExecutorInterface
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function execute(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         ?array $payload = null,
         bool $timedOut = false,
     ): Generator;

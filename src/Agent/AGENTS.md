@@ -109,9 +109,11 @@ Register via `$workflow->middleware(NodeClass::class, $middleware)`:
 
 | Middleware | Purpose |
 |------------|---------|
-| `ToolApproval` | Human-in-the-loop for tool execution |
 | `TodoPlanning` | Injects todo planning capabilities |
 | `Summarization` | Adds conversation summarization |
+
+Middleware shapes events before a node acts; flow control and I/O belong to the nodes
+themselves (ADR 0009 — tool approval, previously a middleware, now lives in `ToolNode`).
 
 Node matching is subclass-aware (`instanceof`), so middleware registered for a
 class also applies to its subclasses. `ChatNode`, `StreamingNode`, and
@@ -127,9 +129,9 @@ the one whose node class you named.
 Extend `AgentMiddleware` and implement `beforeAgentNode(AgentNodeInterface $node,
 Event $event, AgentState $state)` / `afterAgentNode(...)`. On misattachment
 outside the agent context `onAgentContextMismatch()` fires instead — empty by
-default, `ToolApproval` overrides it to throw. Middleware read the chat history
-from the node they wrap (`$node->getChatHistory()`), never from their own
-constructor.
+default, override it to fail loudly when a silent skip would be a hazard.
+Middleware read the chat history from the node they wrap
+(`$node->getChatHistory()`), never from their own constructor.
 
 ## Chat history is a service, not state
 
@@ -148,32 +150,51 @@ O(1) instead of embedding the conversation. Consequences:
 
 ## Persistence & Tool Approval
 
-`ToolApproval` gates tool execution behind human approval. Attach it to `ToolNode::class`
-(subclass-aware matching covers `ParallelToolNode` too):
+`ToolNode` gates tool execution behind human approval (ADR 0009) — there is no middleware
+to attach; the gate runs on every tool call and asks each tool. Messages carry `ToolCall`
+value objects (ADR 0010): the node resolves every call against ONE source — the inference
+event's tool list, the cycle's effective set (agent base plus middleware additions, minus
+middleware removals) — clones the match, binds the call's inputs, executes, and settles
+the result back onto the call. A call naming a tool outside that set throws a
+`ToolException` (routed through `toolErrorHandler(fn (Throwable $e, ToolCall $call):
+?string)` when set). Event capability is transient in persistence: the executor passes every
+step-result event through `Workflow::restoreEventNode()` before it re-enters traversal,
+and the Agent's override re-seeds `bootstrapTools()` on stripped inference/tool-call
+events (idempotent — a live effective set is never touched); tool-contributing middleware
+re-supply their own additions in `before()`. The node itself holds no tool registry. **Each tool declares** its
+intrinsic risk via the protected `approvalPolicy(array $inputs)` hook (ADR 0004's
+"tools declare" survives), and the agent developer overrides the declaration per tool at
+attach time, in both directions:
 
 ```php
-use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ToolNode;
-
-$agent->addMiddleware(ToolNode::class, new ToolApproval());
+protected function tools(): array
+{
+    return [
+        DeleteFileTool::make()->requireApproval(),        // force, even if it declares false
+        RiskyThirdPartyTool::make()->suppressApproval(),  // waive a declared gate
+        TransferMoneyTool::make()->withApprovalPolicy(    // replace the policy
+            fn (ToolInterface $t): bool|string => ($t->getInputs()['amount'] ?? 0) > 100
+                ? 'Transfers above $100 require a human sign-off'
+                : false
+        ),
+    ];
+}
 ```
 
-With no constructor config, **each tool decides** via its own `requiresApproval()`
-declaration (ADR 0004); middleware config overrides that in both directions. Both the
-declaration and a config callback return `bool|string` — a string counts as `true` and
-doubles as the approval reason shown to the approver (persisted as `approvalReason` on the
-tool entry in chat history, exposed on the `ApprovalRequest` actions as `reason`). When a gated
-tool is requested, `chat()` returns suspended instead of completed — this requires **workflow
-persistence AND a durable chat history** (the suspend-time `ToolCallMessage` in chat history
-is what lets a cold process render and resume the pending approval — ADR 0006).
+Both the declaration and a policy callback return `bool|string` — a string counts as `true`
+and doubles as the approval reason shown to the approver (persisted as `approvalReason` on
+the tool entry in chat history, exposed on the `ApprovalRequest` actions as `reason`). When
+a gated tool is requested, `chat()` returns suspended instead of completed — cross-process
+flows require **workflow persistence AND a durable chat history** (the suspend-time
+`ToolCallMessage` in chat history is what lets a cold process render and resume the pending
+approval — ADR 0006).
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
 $agent = YouTubeAgent::make()
-    ->setPersistence(new FilePersistence($directory))
+    ->setPersistence(new FilePersistence($directory));
     // + a durable ChatHistory
-    ->addMiddleware(ToolNode::class, new ToolApproval());
 ```
 
 Resume delivers decisions as a **cumulative** payload keyed by tool callId — the entire
@@ -197,7 +218,7 @@ message-alternation rule rejects the `UserMessage` appended after the pending
 
 ### The runId lives in chat history (ADR 0005)
 
-At suspend, `ToolApproval` stamps the runId onto the annotated `ToolCallMessage`
+Before suspending, `ToolNode` stamps the runId onto the annotated `ToolCallMessage`
 (`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
 to render. A payload-carrying `chat()`/`stream()`/`structured()` call with no explicit
 runId **adopts** the id from the history tail — the approve/deny endpoint needs only
@@ -207,13 +228,12 @@ the thread id:
 // New execution cycle: no runId stored anywhere by the application.
 $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
-    ->setPersistence($persistence)
-    ->addMiddleware(ToolNode::class, new ToolApproval());
+    ->setPersistence($persistence);
 
 $agent->chat(payload: ['call_123' => 'approve']);
 ```
 
 The stamp wins even over a `runId` passed to `make()` — history is the system of
 record. With no stamp on the tail the agent keeps its current runId, so explicit-id
-resumes of non-approval suspensions work unchanged. The id is stamped on every middleware
+resumes of non-approval suspensions work unchanged. The id is stamped on every gated
 pass and never stripped: once the message is no longer the tail it is inert.

@@ -6,6 +6,7 @@ namespace NeuronAI\Providers;
 
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Tools\ProviderToolInterface;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 
 use function array_filter;
@@ -23,6 +24,23 @@ trait HandleWithTools
     {
         $this->tools = $tools;
         return $this;
+    }
+
+    /**
+     * Build the ToolCall record for a tool invocation requested by the model
+     * (ADR 0010): validates the name against the registered tools (unknown names
+     * throw, exactly like findTool()) and copies the live tool's description onto
+     * the call for rendering. The call is pure conversation data — execution
+     * resolves against the live registry later, in ToolNode.
+     *
+     * @param array<string, mixed> $inputs
+     * @throws ProviderException
+     */
+    public function newToolCall(string $name, ?string $callId, array $inputs): ToolCall
+    {
+        $tool = $this->findTool($name);
+
+        return new ToolCall($name, $callId, $inputs, $tool->getDescription());
     }
 
     /**

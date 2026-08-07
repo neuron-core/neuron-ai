@@ -13,6 +13,7 @@ use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
@@ -47,18 +48,16 @@ class ParallelToolNodeTest extends TestCase
 {
     public function test_parameterized_tools_tracked_by_run_key_in_parallel(): void
     {
-        $tools = [
-            new TestParametrizedTool('parallel_tool', 'id=1'),
-            new TestParametrizedTool('parallel_tool', 'id=2'),
+        $registry = [new TestParametrizedTool('parallel_tool')];
+        $calls = [
+            ToolCall::make('parallel_tool', 'call_1', ['key' => 'id=1']),
+            ToolCall::make('parallel_tool', 'call_2', ['key' => 'id=2']),
         ];
-
-        $tools[0]->setCallId('call_1');
-        $tools[1]->setCallId('call_2');
 
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, $tools);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $tools);
+        $toolCallMessage = new ToolCallMessage(null, $calls);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
@@ -75,18 +74,16 @@ class ParallelToolNodeTest extends TestCase
 
     public function test_regular_tools_tracked_by_name_in_parallel(): void
     {
-        $tool1 = new ParallelRegularTool();
-        $tool1->setCallId('call_1');
-        $tool1->setInputs([]);
-
-        $tool2 = new ParallelAnotherTool();
-        $tool2->setCallId('call_2');
-        $tool2->setInputs([]);
+        $registry = [new ParallelRegularTool(), new ParallelAnotherTool()];
+        $calls = [
+            ToolCall::make('regular_tool', 'call_1', []),
+            ToolCall::make('another_tool', 'call_2', []),
+        ];
 
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1, $tool2]);
+        $toolCallMessage = new ToolCallMessage(null, $calls);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
@@ -101,18 +98,16 @@ class ParallelToolNodeTest extends TestCase
 
     public function test_max_runs_enforced_per_run_key_in_parallel(): void
     {
-        $tools = [
-            new TestParametrizedTool('bounded_tool', 'id=1'),
-            new TestParametrizedTool('bounded_tool', 'id=1'),
+        $registry = [new TestParametrizedTool('bounded_tool')];
+        $calls = [
+            ToolCall::make('bounded_tool', 'call_1', ['key' => 'id=1']),
+            ToolCall::make('bounded_tool', 'call_2', ['key' => 'id=1']),
         ];
-
-        $tools[0]->setCallId('call_1');
-        $tools[1]->setCallId('call_2');
 
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, $tools);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $tools);
+        $toolCallMessage = new ToolCallMessage(null, $calls);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
@@ -136,16 +131,14 @@ class ParallelToolNodeTest extends TestCase
         $persistence = new InMemoryPersistence();
         $stepId = ParallelToolNode::class . '-0';
 
-        $tool1 = new ParallelRegularTool();
-        $tool1->setCallId('call_1');
-        $tool1->setInputs([]);
+        $registry = [new ParallelRegularTool(), new ParallelAnotherTool()];
+        $calls = [
+            ToolCall::make('regular_tool', 'call_1', []),
+            ToolCall::make('another_tool', 'call_2', []),
+        ];
 
-        $tool2 = new ParallelAnotherTool();
-        $tool2->setCallId('call_2');
-        $tool2->setInputs([]);
-
-        $toolCallMessage = new ToolCallMessage(null, [$tool1, $tool2]);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool1, $tool2]);
+        $toolCallMessage = new ToolCallMessage(null, $calls);
+        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $state = new AgentState();

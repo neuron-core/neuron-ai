@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -50,7 +49,7 @@ class AgentDurabilityTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Based on my search, here are the top PHP frameworks...'),
         );
@@ -129,7 +128,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
     }
 
-    public function testInterruptResumeWithToolApproval(): void
+    public function testInterruptResumeWithApprovalGate(): void
     {
         $runId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
@@ -137,20 +136,22 @@ class AgentDurabilityTest extends TestCase
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
+        // Attach-time approval config (ADR 0009): the flag rides on the
+        // instance, so the clone in the tool call message carries it too.
+        $searchTool->requireApproval();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Here are the search results...'),
         );
 
-        // Run 1: ChatNode completes, ToolApproval pauses BEFORE the tool executes.
+        // Run 1: ChatNode completes, the approval gate pauses ToolNode before the tool executes.
         $agent1 = Agent::make(runId: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent1->setExecutor($executor);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -167,7 +168,6 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), ['call_1' => 'approve'])->getMessage();
@@ -199,7 +199,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertNull($persistence->load($runId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
     }
 
-    public function testToolApprovalRejectsTool(): void
+    public function testApprovalGateRejectsTool(): void
     {
         $runId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
@@ -207,10 +207,13 @@ class AgentDurabilityTest extends TestCase
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
+        // Attach-time approval config (ADR 0009): the flag rides on the
+        // instance, so the clone in the tool call message carries it too.
+        $searchTool->requireApproval();
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('I see the search was rejected. Is there anything else I can help with?'),
         );
@@ -219,7 +222,6 @@ class AgentDurabilityTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent1->setExecutor($executor);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -235,7 +237,6 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(
@@ -259,7 +260,7 @@ class AgentDurabilityTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Based on the search results, here are the top PHP frameworks...'),
         );
@@ -316,7 +317,7 @@ class AgentDurabilityTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $tool)->setCallId('call_1'),
+                ToolCall::make($tool->getName(), 'call_1'),
             ]),
             new AssistantMessage('There are 42 users in the database.'),
         );
@@ -334,7 +335,7 @@ class AgentDurabilityTest extends TestCase
         $this->removeDirectory($dir);
     }
 
-    public function testCrashRecoveryRehydratesToolsFromLiveRegistry(): void
+    public function testCrashRecoveryResolvesToolsFromLiveRegistry(): void
     {
         $runId = 'agent_file_tool_recovery_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $runId;
@@ -353,13 +354,13 @@ class AgentDurabilityTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $tool)->setCallId('call_1'),
+                ToolCall::make($tool->getName(), 'call_1'),
             ]),
             new AssistantMessage('There are 42 users in the database.'),
         );
 
-        // Run 1: ChatNode completes (its step is serialized to disk, dropping the
-        // tool's closure), then the tool crashes.
+        // Run 1: ChatNode completes (its step is serialized to disk — carrying only
+        // ToolCall data, never the tool's closure), then the tool crashes.
         $agent1 = Agent::make(runId: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
@@ -374,8 +375,8 @@ class AgentDurabilityTest extends TestCase
         }
 
         // Recovery in a new process: fresh engine, same file persistence. The recalled
-        // ChatNode step carries dehydrated tools — ToolNode must rehydrate them from
-        // the live registry to execute with a working dependency.
+        // ChatNode step carries ToolCall data only (ADR 0010) — ToolNode resolves the
+        // calls against the live registry to execute with a working dependency.
         $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);

@@ -11,7 +11,7 @@ use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\BranchResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\WorkflowInterface;
+use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
 
 use function Amp\async;
@@ -31,7 +31,7 @@ class AsyncExecutor extends WorkflowExecutor
      * @throws Throwable
      */
     protected function executeBranches(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
     ): Generator {
         $futures = [];

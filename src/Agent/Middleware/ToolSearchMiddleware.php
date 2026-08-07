@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ToolInterface;
@@ -14,6 +16,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 use function in_array;
+use function is_string;
 use function max;
 
 class ToolSearchMiddleware implements WorkflowMiddleware
@@ -44,6 +47,11 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
+        if ($event instanceof ToolCallEvent) {
+            $this->resupplyExecutionTools($node, $event);
+            return;
+        }
+
         if (!$event instanceof AIInferenceEvent) {
             return;
         }
@@ -54,6 +62,37 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
         if (!$this->hasToolSearchTool($event->tools)) {
             $event->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
+        }
+    }
+
+    /**
+     * Re-establish this middleware's contribution on the execution event's tool
+     * list. The inference event's tools are the SINGLE source ToolNode resolves
+     * calls against, and they are transient in persistence (ADR 0010): on a
+     * replayed event the node re-seeds the agent base at context time, and each
+     * middleware re-supplies what it added — here, the search tool itself plus
+     * every tool discovered earlier in the conversation, re-derived from chat
+     * history (deterministic for a given pool). On the live path everything is
+     * already present, making this a no-op.
+     */
+    protected function resupplyExecutionTools(NodeInterface $node, ToolCallEvent $event): void
+    {
+        $inference = $event->inferenceEvent;
+        $existingNames = $this->getToolNames($inference->tools);
+
+        if (!$this->hasToolSearchTool($inference->tools)) {
+            $inference->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
+        }
+
+        if (!$node instanceof AgentNodeInterface) {
+            return;
+        }
+
+        foreach ($this->discoverFromMessages($node->getChatHistory()->getMessages()) as $tool) {
+            if (!in_array($tool->getName(), $existingNames, true)) {
+                $inference->tools[] = $tool;
+                $existingNames[] = $tool->getName();
+            }
         }
     }
 
@@ -84,16 +123,37 @@ class ToolSearchMiddleware implements WorkflowMiddleware
      */
     protected function extractDiscoveredTools(AIInferenceEvent $event): array
     {
+        return $this->discoverFromMessages($event->getMessages());
+    }
+
+    /**
+     * Re-derive discovered tools from recorded tool_search calls: the search is
+     * deterministic for a given pool, and message entries carry no side-channel
+     * objects (ADR 0010).
+     *
+     * @param iterable<mixed> $messages
+     * @return ToolInterface[]
+     */
+    protected function discoverFromMessages(iterable $messages): array
+    {
+        $finder = null;
         $discovered = [];
 
-        foreach ($event->getMessages() as $message) {
+        foreach ($messages as $message) {
             if (!$message instanceof ToolResultMessage) {
                 continue;
             }
 
-            foreach ($message->getTools() as $tool) {
-                if ($tool instanceof ToolSearchTool) {
-                    $discovered = [...$discovered, ...$tool->discoveredTools()];
+            foreach ($message->getToolCalls() as $call) {
+                $finder ??= new ToolSearchTool($this->toolPool, $this->topN);
+
+                if ($call->getName() !== $finder->getName()) {
+                    continue;
+                }
+
+                $query = $call->getInput('query');
+                if (is_string($query)) {
+                    $discovered = [...$discovered, ...$finder->search($query)];
                 }
             }
         }

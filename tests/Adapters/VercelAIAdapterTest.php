@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
@@ -219,36 +220,8 @@ class VercelAIAdapterTest extends TestCase
         }
     }
 
-    private function createMockTool(string $name, array $inputs): Tool
+    private function createMockTool(string $name, array $inputs): ToolCall
     {
-        return new class ($name, $inputs) extends Tool {
-            protected ?string $description = 'Mock tool';
-
-            public function __construct(protected string $name, array $inputs)
-            {
-                $this->inputs = $inputs;
-            }
-
-            public function setResult(mixed $result): self
-            {
-                $this->result = $result;
-                return $this;
-            }
-
-            public function description(): string
-            {
-                return 'Mock tool';
-            }
-
-            protected function handle(): string
-            {
-                return '';
-            }
-
-            protected function rules(): array
-            {
-                return [];
-            }
-        };
+        return ToolCall::make($name, null, $inputs, 'Mock tool');
     }
 }

@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -41,7 +41,7 @@ class ChatHistoryTrimmerTest extends TestCase
     {
         // Sequences that bypass addMessage() (e.g. loaded from storage) are caught
         // by the trimmer's whole-history validation with the same alternation rule.
-        $tool = ToolDefinition::make('search', 'd')->setCallId('c1')->setInputs(['q' => 'x']);
+        $tool = ToolCall::make('search', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']);
 
         $messages = [
             new UserMessage('Question'),
@@ -57,7 +57,7 @@ class ChatHistoryTrimmerTest extends TestCase
 
     public function test_validation_accepts_tool_result_after_tool_call(): void
     {
-        $tool = ToolDefinition::make('search', 'd')->setCallId('c1')->setInputs(['q' => 'x']);
+        $tool = ToolCall::make('search', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']);
         $toolWithResult = (clone $tool)->setResult('Results');
 
         $messages = [
@@ -185,11 +185,11 @@ class ChatHistoryTrimmerTest extends TestCase
         $toolName = "tool_{$iteration}";
         $callId = "call_{$iteration}_" . uniqid();
 
-        $tool = ToolDefinition::make($toolName, "Tool number {$iteration}")
+        $tool = ToolCall::make($toolName, description: "Tool number {$iteration}")
             ->setInputs(['param' => "value_{$iteration}", 'data' => $this->generateContent($iteration, 'tool_input')])
             ->setCallId($callId);
 
-        $toolWithResult = ToolDefinition::make($toolName, "Tool number {$iteration}")
+        $toolWithResult = ToolCall::make($toolName, description: "Tool number {$iteration}")
             ->setInputs(['param' => "value_{$iteration}", 'data' => $this->generateContent($iteration, 'tool_input')])
             ->setCallId($callId)
             ->setResult($this->generateContent($iteration, 'tool_result'));
@@ -238,12 +238,12 @@ class ChatHistoryTrimmerTest extends TestCase
 
         foreach ($messages as $message) {
             if ($message instanceof ToolCallMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $toolCallIds[] = $tool->getCallId();
                 }
             }
             if ($message instanceof ToolResultMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $toolResultIds[] = $tool->getCallId();
                 }
             }

@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
@@ -51,12 +52,11 @@ class MultimodalToolResultReplayTest extends TestCase
     public function test_tool_output_survives_execution(): void
     {
         $tool = new MultimodalTool();
-        $tool->setCallId('call_1');
-        $tool->setInputs([]);
+        $call = ToolCall::make('multimodal_tool', 'call_1', []);
 
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, [$tool]);
+        $toolCallMessage = new ToolCallMessage(null, [$call]);
         $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
@@ -65,7 +65,7 @@ class MultimodalToolResultReplayTest extends TestCase
             $_ = null; // This is to prevent rector from removing it.
         }
 
-        $result = $tool->getResult();
+        $result = $call->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertCount(2, $result->getBlocks());
         $this->assertSame('the chart', $result->getText());
@@ -80,16 +80,15 @@ class MultimodalToolResultReplayTest extends TestCase
         $persistence = new InMemoryPersistence();
         $stepId = ToolNode::class . '-0';
 
-        $tool1 = new MultimodalTool();
-        $tool1->setCallId('call_1');
-        $tool1->setInputs([]);
+        $registry = [new MultimodalTool()];
+        $call1 = ToolCall::make('multimodal_tool', 'call_1', []);
 
         $state = new AgentState();
         $state->set('__runId', $runId);
 
         // Run 1: the tool executes and its result is memoized mid-node.
-        $toolCallMessage1 = new ToolCallMessage(null, [$tool1]);
-        $inferenceEvent1 = new AIInferenceEvent(instructions: 'Test', tools: [$tool1]);
+        $toolCallMessage1 = new ToolCallMessage(null, [$call1]);
+        $inferenceEvent1 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event1 = new ToolCallEvent($toolCallMessage1, $inferenceEvent1);
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($runId);
@@ -101,14 +100,12 @@ class MultimodalToolResultReplayTest extends TestCase
 
         $this->assertSame(1, MultimodalTool::$executions);
 
-        // Recovery: brand-new engine and fresh tool instance, same persistence
+        // Recovery: brand-new engine and fresh call instance, same persistence
         // (simulates a process restart replaying the node).
-        $tool2 = new MultimodalTool();
-        $tool2->setCallId('call_1');
-        $tool2->setInputs([]);
+        $call2 = ToolCall::make('multimodal_tool', 'call_1', []);
 
-        $toolCallMessage2 = new ToolCallMessage(null, [$tool2]);
-        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: [$tool2]);
+        $toolCallMessage2 = new ToolCallMessage(null, [$call2]);
+        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($runId);
@@ -120,7 +117,7 @@ class MultimodalToolResultReplayTest extends TestCase
 
         $this->assertSame(1, MultimodalTool::$executions, 'Tool must not re-execute on replay');
 
-        $result = $tool2->getResult();
+        $result = $call2->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertCount(2, $result->getBlocks());
         $this->assertSame('the chart', $result->getText());

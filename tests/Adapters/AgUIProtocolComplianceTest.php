@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -324,36 +325,8 @@ class AgUIProtocolComplianceTest extends TestCase
     /**
      * @param array<string, mixed> $inputs
      */
-    private function makeTool(string $name, array $inputs): Tool
+    private function makeTool(string $name, array $inputs): ToolCall
     {
-        return new class ($name, $inputs) extends Tool {
-            public function __construct(protected string $name, array $inputs)
-            {
-                $this->description = 'Mock tool';
-                $this->inputs = $inputs;
-            }
-
-            public function setResult(mixed $result): ToolInterface
-            {
-                $this->result = $result;
-
-                return $this;
-            }
-
-            public function description(): string
-            {
-                return 'Mock tool';
-            }
-
-            protected function handle(): string
-            {
-                return '';
-            }
-
-            protected function rules(): array
-            {
-                return [];
-            }
-        };
+        return ToolCall::make($name, null, $inputs, 'Mock tool');
     }
 }

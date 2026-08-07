@@ -11,7 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 
@@ -55,11 +55,11 @@ class MultimodalToolResultHistoryTest extends TestCase
     {
         $key = 'multimodal_result';
 
-        $callTool = ToolDefinition::make('get_chart', 'Render a chart')
+        $callTool = ToolCall::make('get_chart', description: 'Render a chart')
             ->setCallId('call_1')
             ->setInputs(['symbol' => 'AAPL']);
 
-        $resultTool = ToolDefinition::make('get_chart', 'Render a chart')
+        $resultTool = ToolCall::make('get_chart', description: 'Render a chart')
             ->setCallId('call_1')
             ->setInputs(['symbol' => 'AAPL'])
             ->setResult(new ToolOutput([
@@ -79,7 +79,7 @@ class MultimodalToolResultHistoryTest extends TestCase
         $this->assertCount(3, $messages);
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
 
-        $result = $messages[2]->getTools()[0]->getResult();
+        $result = $messages[2]->getToolCalls()[0]->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertCount(2, $result->getBlocks());
 
@@ -96,11 +96,11 @@ class MultimodalToolResultHistoryTest extends TestCase
     {
         $key = 'string_result';
 
-        $callTool = ToolDefinition::make('get_price', 'Get a price')
+        $callTool = ToolCall::make('get_price', description: 'Get a price')
             ->setCallId('call_1')
             ->setInputs([]);
 
-        $resultTool = ToolDefinition::make('get_price', 'Get a price')
+        $resultTool = ToolCall::make('get_price', description: 'Get a price')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult('42.5');
@@ -114,7 +114,7 @@ class MultimodalToolResultHistoryTest extends TestCase
         $messages = $reloaded->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
-        $this->assertSame('42.5', $messages[2]->getTools()[0]->getResult());
+        $this->assertSame('42.5', $messages[2]->getToolCalls()[0]->getResult());
     }
 
     public function test_legacy_stored_string_result_deserializes_as_string(): void
@@ -164,18 +164,18 @@ class MultimodalToolResultHistoryTest extends TestCase
         $messages = $history->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
-        $this->assertSame('legacy result', $messages[2]->getTools()[0]->getResult());
+        $this->assertSame('legacy result', $messages[2]->getToolCalls()[0]->getResult());
     }
 
     public function test_empty_tool_output_result_round_trips(): void
     {
         $key = 'empty_multimodal_result';
 
-        $callTool = ToolDefinition::make('no_op', 'Does nothing observable')
+        $callTool = ToolCall::make('no_op', description: 'Does nothing observable')
             ->setCallId('call_1')
             ->setInputs([]);
 
-        $resultTool = ToolDefinition::make('no_op', 'Does nothing observable')
+        $resultTool = ToolCall::make('no_op', description: 'Does nothing observable')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([]));
@@ -188,7 +188,7 @@ class MultimodalToolResultHistoryTest extends TestCase
         $messages = $reloaded->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[1]);
-        $result = $messages[1]->getTools()[0]->getResult();
+        $result = $messages[1]->getToolCalls()[0]->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertSame([], $result->getBlocks());
         $this->assertSame('', $result->getText());

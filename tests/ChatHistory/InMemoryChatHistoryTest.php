@@ -12,7 +12,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function end;
@@ -53,7 +53,7 @@ class InMemoryChatHistoryTest extends TestCase
         $history = new InMemoryChatHistory();
         $history->addMessage(new UserMessage('Delete the file'));
         $history->addMessage(new ToolCallMessage(null, [
-            ToolDefinition::make('delete_file', 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']),
+            ToolCall::make('delete_file', description: 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']),
         ]));
 
         $this->expectException(ChatHistoryException::class);
@@ -64,7 +64,7 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_tool_result_after_tool_call_is_allowed(): void
     {
-        $tool = ToolDefinition::make('delete_file', 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']);
+        $tool = ToolCall::make('delete_file', description: 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']);
         $toolWithResult = (clone $tool)->setResult('File deleted');
 
         $history = new InMemoryChatHistory();
@@ -107,20 +107,20 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_multiple_tool_call_pairs_are_handled_correctly(): void
     {
         // Create two different tools
-        $tool1 = ToolDefinition::make('tool_1', 'First tool')
+        $tool1 = ToolCall::make('tool_1', description: 'First tool')
             ->setInputs(['param1' => 'value1'])
             ->setCallId('call_1');
 
-        $tool1WithResult = ToolDefinition::make('tool_1', 'First tool')
+        $tool1WithResult = ToolCall::make('tool_1', description: 'First tool')
             ->setInputs(['param1' => 'value1'])
             ->setCallId('call_1')
             ->setResult('First tool result');
 
-        $tool2 = ToolDefinition::make('tool_2', 'Second tool')
+        $tool2 = ToolCall::make('tool_2', description: 'Second tool')
             ->setInputs(['param2' => 'value2'])
             ->setCallId('call_2');
 
-        $tool2WithResult = ToolDefinition::make('tool_2', 'Second tool')
+        $tool2WithResult = ToolCall::make('tool_2', description: 'Second tool')
             ->setInputs(['param2' => 'value2'])
             ->setCallId('call_2')
             ->setResult('Second tool result');
@@ -153,12 +153,12 @@ class InMemoryChatHistoryTest extends TestCase
 
         foreach ($messages as $message) {
             if ($message instanceof ToolCallMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $toolCallNames[] = $tool->getName();
                 }
             }
             if ($message instanceof ToolResultMessage) {
-                foreach ($message->getTools() as $tool) {
+                foreach ($message->getToolCalls() as $tool) {
                     $toolResultNames[] = $tool->getName();
                 }
             }
@@ -205,11 +205,11 @@ class InMemoryChatHistoryTest extends TestCase
         $this->expectException(ChatHistoryException::class);
         $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant, got user');
 
-        $tool = ToolDefinition::make('mixed_tool', 'A mixed tool')
+        $tool = ToolCall::make('mixed_tool', description: 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123');
 
-        $toolWithResult = ToolDefinition::make('mixed_tool', 'A mixed tool')
+        $toolWithResult = ToolCall::make('mixed_tool', description: 'A mixed tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('123')
             ->setResult('Mixed tool result');
@@ -316,20 +316,20 @@ class InMemoryChatHistoryTest extends TestCase
         $history = new InMemoryChatHistory(300);
 
         // Create tools for multiple tool call/result pairs
-        $tool1 = ToolDefinition::make('search_tool', 'Search for information')
+        $tool1 = ToolCall::make('search_tool', description: 'Search for information')
             ->setInputs(['query' => 'test query 1'])
             ->setCallId('call_1');
 
-        $tool1WithResult = ToolDefinition::make('search_tool', 'Search for information')
+        $tool1WithResult = ToolCall::make('search_tool', description: 'Search for information')
             ->setInputs(['query' => 'test query 1'])
             ->setCallId('call_1')
             ->setResult('Search result 1');
 
-        $tool2 = ToolDefinition::make('weather_tool', 'Get weather info')
+        $tool2 = ToolCall::make('weather_tool', description: 'Get weather info')
             ->setInputs(['location' => 'London'])
             ->setCallId('call_2');
 
-        $tool2WithResult = ToolDefinition::make('weather_tool', 'Get weather info')
+        $tool2WithResult = ToolCall::make('weather_tool', description: 'Get weather info')
             ->setInputs(['location' => 'London'])
             ->setCallId('call_2')
             ->setResult('Sunny, 25°C');

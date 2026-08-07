@@ -10,6 +10,17 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+/**
+ * The application-facing contract of a workflow: run it, resume it, stream its
+ * events, and configure it (graph, middleware, listeners).
+ *
+ * The engine-facing collaboration points — what an executor must call to
+ * traverse a workflow — live on {@see WorkflowRuntimeInterface} instead.
+ * `Workflow` implements both. `getRunId()` and `setState()` appear on both
+ * contracts deliberately: applications hold the resume handle and seed the
+ * initial state; the engine reads the same identity and follows persisted
+ * state during replay.
+ */
 interface WorkflowInterface
 {
     /**
@@ -37,13 +48,9 @@ interface WorkflowInterface
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator;
 
-    public function getStartEvent(): Event;
-
     public function setStartEvent(Event $event): WorkflowInterface;
 
     public function setState(WorkflowState $state): WorkflowInterface;
-
-    public function resolveState(): WorkflowState;
 
     public function addNode(NodeInterface $node): Workflow;
 
@@ -52,18 +59,9 @@ interface WorkflowInterface
      */
     public function addNodes(array $nodes): Workflow;
 
-    public function getNodeForEvent(string $eventClass): NodeInterface;
-
     public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): WorkflowInterface;
 
     public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): WorkflowInterface;
-
-    public function getMiddlewareForNode(NodeInterface $node): array;
-
-    /**
-     * @return array<string, NodeInterface>
-     */
-    public function getEventNodeMap(): array;
 
     /**
      * The unique identifier of this workflow run — also the resume handle: pass
@@ -88,11 +86,6 @@ interface WorkflowInterface
      * Forward this workflow's events to an external PSR-14 dispatcher.
      */
     public function setEventDispatcher(EventDispatcherInterface $dispatcher): WorkflowInterface;
-
-    /**
-     * The PSR-14 dispatcher owned by this workflow instance.
-     */
-    public function getEventDispatcher(): EventDispatcherInterface;
 
     public function export(): string;
 }

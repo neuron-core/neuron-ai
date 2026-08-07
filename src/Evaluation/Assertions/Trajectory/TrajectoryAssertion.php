@@ -8,7 +8,7 @@ use InvalidArgumentException;
 use NeuronAI\Evaluation\Assertions\AbstractAssertion;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function get_debug_type;
@@ -52,7 +52,7 @@ abstract class TrajectoryAssertion extends AbstractAssertion
         }
 
         return 'called: ' . implode(', ', array_map(
-            static fn (ToolInterface $tool): string => $tool->getName() . '(' . json_encode($tool->getInputs()) . ')',
+            static fn (ToolCall $tool): string => $tool->getName() . '(' . json_encode($tool->getInputs()) . ')',
             $calls
         ));
     }

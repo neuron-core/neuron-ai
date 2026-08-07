@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -16,7 +17,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -255,7 +255,7 @@ class GeminiTest extends TestCase
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
             ->setTools([
-                ToolDefinition::make('tool', 'description')
+                new ToolStub('tool', description: 'description')
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -333,13 +333,13 @@ class GeminiTest extends TestCase
         ]);
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
-            ->setTools([ToolDefinition::make('get_weather', 'description')])
+            ->setTools([new ToolStub('get_weather', description: 'description')])
             ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
 
         $message = $provider->chat(new UserMessage('Weather in Rome and Milan?'))->message();
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $tools = $message->getTools();
+        $tools = $message->getToolCalls();
         $this->assertCount(2, $tools);
         $this->assertSame(['city' => 'Rome'], $tools[0]->getInputs());
         $this->assertSame(['city' => 'Milan'], $tools[1]->getInputs());
@@ -370,13 +370,13 @@ class GeminiTest extends TestCase
         ]);
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
-            ->setTools([ToolDefinition::make('get_weather', 'description')])
+            ->setTools([new ToolStub('get_weather', description: 'description')])
             ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
 
         $message = $provider->chat(new UserMessage('Weather in Rome and Milan?'))->message();
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame('fc_1', $message->getTools()[0]->getCallId());
-        $this->assertSame('fc_2', $message->getTools()[1]->getCallId());
+        $this->assertSame('fc_1', $message->getToolCalls()[0]->getCallId());
+        $this->assertSame('fc_2', $message->getToolCalls()[1]->getCallId());
     }
 }

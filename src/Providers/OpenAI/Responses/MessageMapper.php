@@ -143,7 +143,7 @@ class MessageMapper implements MessageMapperInterface
         }
 
         // Add function call items
-        foreach ($message->getTools() as $tool) {
+        foreach ($message->getToolCalls() as $tool) {
             $this->mapping[] = [
                 'type' => 'function_call',
                 'name' => $tool->getName(),
@@ -155,7 +155,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolsResult(ToolResultMessage $message): void
     {
-        foreach ($message->getTools() as $tool) {
+        foreach ($message->getToolCalls() as $tool) {
             $this->mapping[] = [
                 'type' => 'function_call_output',
                 'call_id' => $tool->getCallId(),

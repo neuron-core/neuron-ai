@@ -13,19 +13,16 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 class RejectedToolExecutionTest extends TestCase
 {
-    public function test_rejected_tool_is_not_executed(): void
+    private function sideEffectTool(string $name, bool &$executed): Tool
     {
-        $executed = false;
-
         $tool = new class ($executed) extends Tool {
             public function __construct(public bool &$executedFlag)
             {
-                $this->name = 'side_effect_tool';
-                $this->description = 'A tool with side effects';
             }
 
             public function __invoke(): string
@@ -35,16 +32,25 @@ class RejectedToolExecutionTest extends TestCase
             }
         };
 
-        // The ToolApproval middleware would do this before the node runs.
-        $tool->setCallId('call_1');
-        $tool->setInputs([]);
-        $tool->setApprovalState(ApprovalState::Rejected);
-        $tool->setResult('TOOL NOT EXECUTED. The user rejected this action.');
+        $tool->setName($name)->setDescription('A tool with side effects');
+
+        return $tool;
+    }
+
+    public function test_rejected_tool_is_not_executed(): void
+    {
+        $executed = false;
+        $tool = $this->sideEffectTool('side_effect_tool', $executed);
+
+        // The approval flow stamps this on the call before execution (ADR 0009/0010).
+        $call = ToolCall::make('side_effect_tool', 'call_1', []);
+        $call->setApprovalState(ApprovalState::Rejected);
+        $call->setResult('TOOL NOT EXECUTED. The user rejected this action.');
 
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, [$tool]);
-        $inferenceEvent = new AIInferenceEvent('test', []);
+        $toolCallMessage = new ToolCallMessage(null, [$call]);
+        $inferenceEvent = new AIInferenceEvent('test', [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
@@ -53,35 +59,21 @@ class RejectedToolExecutionTest extends TestCase
         }
 
         $this->assertFalse($executed, 'A rejected tool must not run its logic');
-        $this->assertStringContainsString('TOOL NOT EXECUTED', $tool->getResult());
+        $this->assertStringContainsString('TOOL NOT EXECUTED', $call->getResult());
     }
 
     public function test_approved_tool_is_executed(): void
     {
         $executed = false;
+        $tool = $this->sideEffectTool('approved_tool', $executed);
 
-        $tool = new class ($executed) extends Tool {
-            public function __construct(public bool &$executedFlag)
-            {
-                $this->name = 'approved_tool';
-                $this->description = 'An approved tool';
-            }
-
-            public function __invoke(): string
-            {
-                $this->executedFlag = true;
-                return 'real result';
-            }
-        };
-
-        $tool->setCallId('call_2');
-        $tool->setInputs([]);
-        $tool->setApprovalState(ApprovalState::Approved);
+        $call = ToolCall::make('approved_tool', 'call_2', []);
+        $call->setApprovalState(ApprovalState::Approved);
 
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
-        $toolCallMessage = new ToolCallMessage(null, [$tool]);
-        $inferenceEvent = new AIInferenceEvent('test', []);
+        $toolCallMessage = new ToolCallMessage(null, [$call]);
+        $inferenceEvent = new AIInferenceEvent('test', [$tool]);
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
@@ -90,6 +82,6 @@ class RejectedToolExecutionTest extends TestCase
         }
 
         $this->assertTrue($executed, 'An approved tool must run');
-        $this->assertSame('real result', $tool->getResult());
+        $this->assertSame('real result', $call->getResult());
     }
 }

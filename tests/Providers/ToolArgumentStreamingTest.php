@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
 use Generator;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -17,7 +18,6 @@ use NeuronAI\Providers\Cohere\Cohere;
 use NeuronAI\Providers\Mistral\Mistral;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Providers\OpenAI\Responses\OpenAIResponses;
-use NeuronAI\Tools\ToolDefinition;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
@@ -67,7 +67,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= "data: [DONE]\n\n";
 
         $provider = (new OpenAI('', 'gpt-4o'))
-            ->setTools([ToolDefinition::make('tool', 'description')])
+            ->setTools([new ToolStub('tool', description: 'description')])
             ->setHttpClient($this->guzzle($streamBody));
 
         [$chunks, $message] = $this->consume($provider->stream(new UserMessage('Hi')));
@@ -80,7 +80,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame('{"city":"Rome"}', implode('', array_map(fn (ToolArgumentChunk $chunk): string => $chunk->delta, $argumentChunks)));
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame(['city' => 'Rome'], $message->getTools()[0]->getInputs());
+        $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
     }
 
     public function test_mistral_stream_yields_tool_argument_chunks_without_duplicates_on_finish(): void
@@ -91,7 +91,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= "data: [DONE]\n\n";
 
         $provider = (new Mistral('', 'mistral-large-latest'))
-            ->setTools([ToolDefinition::make('tool', 'description')])
+            ->setTools([new ToolStub('tool', description: 'description')])
             ->setHttpClient($this->guzzle($streamBody));
 
         [$chunks, $message] = $this->consume($provider->stream(new UserMessage('Hi')));
@@ -103,7 +103,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame('call_9', $argumentChunks[0]->toolCallId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame(['city' => 'Rome'], $message->getTools()[0]->getInputs());
+        $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
     }
 
     public function test_anthropic_stream_yields_tool_argument_chunks(): void
@@ -122,7 +122,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}' . "\n\n";
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
-            ->setTools([ToolDefinition::make('tool', 'description')])
+            ->setTools([new ToolStub('tool', description: 'description')])
             ->setHttpClient($this->guzzle($streamBody));
 
         [$chunks, $message] = $this->consume($provider->stream(new UserMessage('Hi')));
@@ -135,7 +135,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame('msg_123', $argumentChunks[0]->messageId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame(['city' => 'Rome'], $message->getTools()[0]->getInputs());
+        $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
     }
 
     public function test_cohere_stream_yields_tool_argument_chunks(): void
@@ -148,7 +148,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= 'data: {"type":"tool-call-end","index":0}' . "\n\n";
 
         $provider = (new Cohere('', 'command-r'))
-            ->setTools([ToolDefinition::make('tool', 'description')])
+            ->setTools([new ToolStub('tool', description: 'description')])
             ->setHttpClient($this->guzzle($streamBody));
 
         [$chunks, $message] = $this->consume($provider->stream(new UserMessage('Hi')));
@@ -160,7 +160,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame('call_7', $argumentChunks[0]->toolCallId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame(['city' => 'Rome'], $message->getTools()[0]->getInputs());
+        $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
     }
 
     public function test_openai_responses_stream_yields_tool_argument_chunks(): void
@@ -172,7 +172,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= 'data: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":5}}}' . "\n\n";
 
         $provider = (new OpenAIResponses('', 'gpt-4o'))
-            ->setTools([ToolDefinition::make('tool', 'description')])
+            ->setTools([new ToolStub('tool', description: 'description')])
             ->setHttpClient($this->guzzle($streamBody));
 
         [$chunks, $message] = $this->consume($provider->stream(new UserMessage('Hi')));
@@ -185,6 +185,6 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame('fc_1', $argumentChunks[0]->messageId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame(['city' => 'Rome'], $message->getTools()[0]->getInputs());
+        $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
     }
 }

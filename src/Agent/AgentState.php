@@ -7,7 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\ProviderResponse;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_map;
@@ -93,8 +93,8 @@ class AgentState extends WorkflowState
     protected function callIds(ToolCallMessage $message): array
     {
         return array_map(
-            static fn (ToolInterface $tool): ?string => $tool->getCallId(),
-            $message->getTools()
+            static fn (ToolCall $tool): ?string => $tool->getCallId(),
+            $message->getToolCalls()
         );
     }
 

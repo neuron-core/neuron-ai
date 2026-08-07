@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
@@ -22,6 +24,8 @@ use function end;
 class StreamingNode extends InferenceNode
 {
     /**
+     * @throws InspectorException
+     * @throws ChatHistoryException
      * @throws Throwable
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|ToolCallEvent

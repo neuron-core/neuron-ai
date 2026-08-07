@@ -14,7 +14,7 @@ use NeuronAI\Evaluation\Assertions\Judges\TaskCompletionJudge;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
@@ -42,7 +42,7 @@ class TaskCompletionJudgeTest extends TestCase
 
     protected function refundTrajectory(): Trajectory
     {
-        $tool = ToolDefinition::make('refund_order', 'The refund tool')
+        $tool = ToolCall::make('refund_order', description: 'The refund tool')
             ->setInputs(['order_id' => '123'])
             ->setCallId('call_1')
             ->setResult('refund issued');

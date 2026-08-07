@@ -15,39 +15,70 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\ActionDecision;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
-use function end;
+use function array_filter;
+use function array_key_exists;
+use function count;
+use function is_array;
+use function is_string;
 use function json_encode;
+use function sprintf;
+use function uniqid;
+
+use const JSON_PRETTY_PRINT;
 
 /**
- * Node responsible for executing tool calls.
+ * Node responsible for executing tool calls, including the human-in-the-loop
+ * approval flow (ADR 0009).
+ *
+ * The gate is Tool-centric and stateless: on every pass the node asks each tool
+ * whether it requires approval (the tool's own declaration, overridable at attach
+ * time — see Tool::requireApproval()/suppressApproval()/withApprovalPolicy()),
+ * marks the gated ones pending, and applies the CUMULATIVE resume payload — the
+ * full decision set, restated on every resume; accumulation lives with the caller
+ * (ADR 0002/0006). A tool runs iff explicitly approved; an incomplete decision set
+ * re-suspends, and undelivered partial decisions are deliberately not persisted.
+ *
+ * Chat history stays append-only with a single writer: the annotated ToolCallMessage
+ * (pending states + runId) goes through one memoized write before any suspend, so a
+ * cold process can render pending approvals from history alone and a resume pass
+ * skips the write instead of duplicating the tail. Final outcomes are recorded on
+ * the ToolResultMessage that follows it in the conversation.
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
     /**
-     * @var callable|null fn(Throwable $e, ToolInterface $tool): string
+     * Narrowed for static analysis.
+     *
+     * @var ToolCallEvent
+     */
+    protected Event $event;
+
+    /**
+     * @var callable|null fn(Throwable $e, ToolCall $call): ?string
      */
     protected $errorHandler;
 
-    /**
-     * @param ToolInterface[] $tools Live tool registry, used to rehydrate
-     *                               dehydrated tools recalled from persistence.
-     */
     public function __construct(
         ChatHistoryInterface $chatHistory,
         protected int $maxRuns = 10,
-        ?callable $errorHandler = null,
-        protected array $tools = []
+        ?callable $errorHandler = null
     ) {
         $this->chatHistory = $chatHistory;
         $this->errorHandler = $errorHandler;
@@ -59,19 +90,45 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
-        $this->rehydrateTools($event->toolCallMessage);
+        // Every gated tool starts out pending on every pass — the cumulative resume
+        // payload is the sole source of truth for decisions (ADR 0006): a decision
+        // that is not restated is not remembered, even on tool instances that
+        // survive in memory between passes (InMemoryPersistence aliases stored
+        // steps by reference).
+        $gated = $this->filterToolsRequiringApproval($event->toolCallMessage->getToolCalls());
 
-        // Adding the tool call message to the chat history here allows the middleware to hook
-        // the ToolNode before the tool call is added to the history. The history is
-        // append-only (ADR 0006): when ToolApproval already wrote this message at suspend
-        // time it sits at the tail, and the write is skipped instead of duplicated — but
-        // the message still belongs to this cycle's transcript.
-        $messages = $this->chatHistory->getMessages();
-        $tail = end($messages);
-        if ($tail === false || !$event->toolCallMessage->isSameToolCall($tail)) {
-            $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
-        } else {
-            $state->addStep($event->toolCallMessage);
+        foreach ($gated as $call) {
+            $call->setApprovalState(ApprovalState::Pending);
+        }
+
+        if ($gated !== []) {
+            // The runId makes history alone sufficient to resume (ADR 0005).
+            $event->toolCallMessage->setRunId(
+                $state->get('__runId') ?? throw new WorkflowException("Missing workflow RUN_ID")
+            );
+        }
+
+        // The single memoized write of the tool call message (ADR 0009): annotated
+        // with pending states and runId BEFORE any suspend, so a cold process renders
+        // pending approvals from history alone. On a resume or crash-replay pass the
+        // memo skips the write instead of duplicating the tail.
+        $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+
+        // Settle: a tool runs iff explicitly approved; silence is never consent.
+        // The first pass throws the suspend signal; the resume pass receives the
+        // cumulative decision set; an incomplete set loops and re-suspends with
+        // the delivered decisions reflected on the outbound request.
+        while ($this->pendingTools($gated) !== []) {
+            $payload = $this->interrupt($this->buildApprovalRequest($gated));
+            $this->applyDecisions($payload ?? [], $gated);
+        }
+
+        // Complete decision set: stamp rejection results (rejected tools are
+        // skipped by executeSingleTool), then approved and non-gated tools run.
+        foreach ($gated as $call) {
+            if ($call->getApprovalState() === ApprovalState::Rejected) {
+                $this->stampRejectionResult($call);
+            }
         }
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
@@ -84,29 +141,205 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * A ToolCallMessage recalled from persistence carries dehydrated tools:
-     * data-only snapshots whose subclass dependencies (DB connections, clients)
-     * were dropped by Tool::__serialize(). Give each one its capability back by
-     * transplanting the live registry tool's dependencies onto it in place.
+     * The single source for resolution is the inference event's tool list — the
+     * cycle's effective set (base registry plus middleware additions, minus
+     * middleware removals). A recalled event arrives here already re-seeded by
+     * Workflow::restoreEventNode() (ADR 0010) — the node holds no registry of
+     * its own, so a tool removed from the offering is removed from execution.
      */
-    protected function rehydrateTools(ToolCallMessage $toolCallMessage): void
+    protected function findLiveTool(string $name): ToolInterface
     {
-        foreach ($toolCallMessage->getTools() as $tool) {
-            if ($tool instanceof Tool && $tool->isDehydrated()) {
-                $tool->rehydrate($this->findLiveTool($tool->getName()));
-            }
-        }
-    }
-
-    protected function findLiveTool(string $name): ?ToolInterface
-    {
-        foreach ($this->tools as $tool) {
-            if ($tool->getName() === $name) {
+        foreach ($this->event->inferenceEvent->tools as $tool) {
+            if ($tool instanceof ToolInterface && $tool->getName() === $name) {
                 return $tool;
             }
         }
 
-        return null;
+        throw new ToolException(
+            "The tool {$name} is not registered on this agent: the call cannot be executed."
+        );
+    }
+
+    /**
+     * Resolve a call against the live tool registry and bind the call data onto a
+     * fresh clone (ADR 0010): execution capability never travels with the message,
+     * it is re-supplied here. A tool missing from the registry is a loud error —
+     * never a silently skipped or dependency-free execution.
+     *
+     * @throws ToolException
+     */
+    protected function resolveTool(ToolCall $call): ToolInterface
+    {
+        $tool = $this->findLiveTool($call->getName());
+
+        $tool = clone $tool;
+        $tool->setInputs($call->getInputs());
+        if ($call->getCallId() !== null) {
+            $tool->setCallId($call->getCallId());
+        }
+
+        return $tool;
+    }
+
+    /**
+     * Filter calls that require approval by asking the LIVE registry tool (ADR
+     * 0009/0010: the policy and its attach-time overrides live on the tool; the
+     * question is always answered by live capability, so the answer cannot drift
+     * across a suspend/resume boundary). A string decision counts as true and is
+     * stamped on the call as its approval reason — the outbound "why am I asking"
+     * surfaced to the approver via the ApprovalRequest actions and chat history.
+     *
+     * An unresolvable call is never gated: execution will fail loudly instead.
+     *
+     * @param ToolCall[] $calls
+     * @return ToolCall[]
+     * @throws ToolException
+     */
+    protected function filterToolsRequiringApproval(array $calls): array
+    {
+        return array_filter(
+            $calls,
+            function (ToolCall $call): bool {
+                try {
+                    $this->findLiveTool($call->getName());
+                } catch (ToolException $exception) {
+                    return false;
+                }
+
+                // Ask a clone with the call's inputs bound, so a policy callback
+                // reading $tool->getInputs() sees this call's arguments.
+                $tool = $this->resolveTool($call);
+
+                $decision = $tool->requiresApproval($call->getInputs());
+
+                if (is_string($decision)) {
+                    $call->setApprovalReason($decision);
+                    return true;
+                }
+
+                return $decision;
+            }
+        );
+    }
+
+    /**
+     * @param ToolCall[] $gated
+     * @return ToolCall[]
+     */
+    protected function pendingTools(array $gated): array
+    {
+        return array_filter(
+            $gated,
+            fn (ToolCall $call): bool => $call->getApprovalState() === ApprovalState::Pending
+        );
+    }
+
+    /**
+     * Apply the cumulative inbound payload onto the gated tools. The payload is the
+     * entire decision set — every resume restates all decisions, and the latest
+     * delivery wins. Entries for unknown callIds (or malformed decisions) are ignored.
+     *
+     * @param array<string, mixed> $payload Decisions keyed by callId.
+     * @param ToolCall[]           $gated
+     */
+    protected function applyDecisions(array $payload, array $gated): void
+    {
+        $byCallId = [];
+        foreach ($gated as $call) {
+            $id = $call->getCallId();
+            if ($id !== null) {
+                $byCallId[$id] = $call;
+            }
+        }
+
+        foreach ($payload as $callId => $decision) {
+            if (!is_string($callId)) {
+                continue;
+            }
+            if (!array_key_exists($callId, $byCallId)) {
+                continue;
+            }
+            $call = $byCallId[$callId];
+
+            if ($decision === 'approve') {
+                $call->setApprovalState(ApprovalState::Approved);
+                continue;
+            }
+
+            if ($decision === 'reject') {
+                $call->setApprovalState(ApprovalState::Rejected);
+                continue;
+            }
+
+            if (is_array($decision) && ($decision[0] ?? null) === 'reject') {
+                $reason = isset($decision[1]) && is_string($decision[1]) ? $decision[1] : null;
+                $call->setApprovalState(ApprovalState::Rejected, $reason);
+            }
+            // Anything else: ignore the entry, leave the current state.
+        }
+    }
+
+    /**
+     * Build the outbound ApprovalRequest snapshot from the current tool states. The
+     * request is outbound-only (ADR 0001); the inbound decisions travel as a payload.
+     *
+     * @param ToolCall[] $gated
+     * @throws WorkflowException
+     */
+    protected function buildApprovalRequest(array $gated): ApprovalRequest
+    {
+        $actions = [];
+        foreach ($gated as $call) {
+            $inputs = $call->getInputs();
+
+            $actions[] = new Action(
+                id: $call->getCallId() ?? uniqid('tool_'),
+                name: $call->getName(),
+                description: $inputs === []
+                    ? '(no arguments)'
+                    : json_encode($inputs, JSON_PRETTY_PRINT),
+                decision: $this->mapDecision($call->getApprovalState()),
+                feedback: $call->getRejectReason(),
+                reason: $call->getApprovalReason(),
+            );
+        }
+
+        $count = count($actions);
+
+        return new ApprovalRequest(
+            message: sprintf(
+                '%d tool call%s require%s approval before execution',
+                $count,
+                $count === 1 ? '' : 's',
+                $count === 1 ? 's' : ''
+            ),
+            actions: $actions
+        );
+    }
+
+    protected function mapDecision(?ApprovalState $state): ActionDecision
+    {
+        return match ($state) {
+            ApprovalState::Approved => ActionDecision::Approved,
+            ApprovalState::Rejected => ActionDecision::Rejected,
+            default => ActionDecision::Pending,
+        };
+    }
+
+    /**
+     * Handle a rejected tool by setting a rejection message as its result.
+     *
+     * executeSingleTool skips execution for rejected tools; this result is what
+     * flows back to the model in place of the tool's real output.
+     */
+    protected function stampRejectionResult(ToolCall $call): void
+    {
+        $feedback = $call->getRejectReason() ?? 'No specific instruction provided.';
+
+        $call->setResult(sprintf(
+            "TOOL NOT EXECUTED. The user rejected this action. User instruction: %s. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
+            $feedback
+        ));
     }
 
     /**
@@ -115,13 +348,13 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
     {
-        foreach ($toolCallMessage->getTools() as $index => $tool) {
-            yield new ToolCallChunk($tool);
-            $this->executeSingleTool($tool, $state, $index);
-            yield new ToolResultChunk($tool);
+        foreach ($toolCallMessage->getToolCalls() as $index => $call) {
+            yield new ToolCallChunk($call);
+            $this->executeSingleTool($call, $state, $index);
+            yield new ToolResultChunk($call);
         }
 
-        return new ToolResultMessage($toolCallMessage->getTools());
+        return new ToolResultMessage($toolCallMessage->getToolCalls());
     }
 
     /**
@@ -137,22 +370,24 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
      */
-    protected function executeSingleTool(ToolInterface $tool, AgentState $state, int $index): void
+    protected function executeSingleTool(ToolCall $call, AgentState $state, int $index): void
     {
-        if ($tool->getApprovalState() === ApprovalState::Rejected) {
-            // The rejection result was set by the ToolApproval middleware; the tool
-            // must not run (ADR 0002/0003: a tool runs iff explicitly approved).
-            $this->emit(new ToolCalling($tool));
-            $this->emit(new ToolCalled($tool));
+        if ($call->getApprovalState() === ApprovalState::Rejected) {
+            // The rejection result was stamped by the approval flow; the tool
+            // must not run (ADR 0002/0009: a tool runs iff explicitly approved).
             return;
         }
 
-        $this->emit(new ToolCalling($tool));
+        $this->emit(new ToolCalling($call));
 
-        $memoKey = 'tool.' . ($tool->getCallId() ?? $tool->getName()) . '.' . $index;
+        $memoKey = 'tool.' . ($call->getCallId() ?? $call->getName()) . '.' . $index;
 
         try {
-            $result = $this->memoize($memoKey, function () use ($tool, $state): string|ToolOutput {
+            $result = $this->memoize($memoKey, function () use ($call, $state): string|ToolOutput {
+                // Resolution happens inside the memo: on replay the recorded result
+                // is returned and the live registry is never consulted.
+                $tool = $this->resolveTool($call);
+
                 $key = $tool->getRunKey();
 
                 $state->incrementToolRun($key);
@@ -160,20 +395,19 @@ class ToolNode extends Node implements AgentNodeInterface
                 // Single tool max tries have the highest priority over the global max tries
                 $runs = $tool->getMaxRuns() ?? $this->maxRuns;
                 if ($state->getToolRuns($key) > $runs) {
-                    throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
+                    throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($call->getInputs()));
                 }
 
                 $tool->execute();
                 return $tool->getResult();
             });
 
-            // Restore the result onto the tool. On first execution this is a no-op-ish
-            // re-set; on replay it is what makes execute() skippable.
-            $tool->setResult($result);
+            // The result settles onto the call — the conversation record.
+            $call->setResult($result);
         } catch (Throwable $e) {
-            $this->handleError($e, $tool);
+            $this->handleError($e, $call);
         } finally {
-            $this->emit(new ToolCalled($tool));
+            $this->emit(new ToolCalled($call));
         }
     }
 
@@ -184,16 +418,16 @@ class ToolNode extends Node implements AgentNodeInterface
      *
      * @throws Throwable If no error handler is set
      */
-    protected function handleError(Throwable $e, ToolInterface $tool): void
+    protected function handleError(Throwable $e, ToolCall $call): void
     {
         if ($this->errorHandler === null) {
             throw $e;
         }
 
-        $errorMessage = ($this->errorHandler)($e, $tool);
+        $errorMessage = ($this->errorHandler)($e, $call);
 
         if ($errorMessage !== null) {
-            $tool->setResult($errorMessage);
+            $call->setResult($errorMessage);
         }
     }
 }

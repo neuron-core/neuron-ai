@@ -32,7 +32,7 @@ use function uniqid;
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null)
  */
-class Workflow implements WorkflowInterface
+class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 {
     use StaticConstructor;
     use HandleMiddleware;
@@ -196,6 +196,7 @@ class Workflow implements WorkflowInterface
     /**
      * Start the workflow to completion, consuming the generator internally.
      * Never resumes — use {@see resume()} to deliver a payload to a suspended step.
+     * @throws WorkflowException
      */
     public function run(): WorkflowState
     {
@@ -207,7 +208,8 @@ class Workflow implements WorkflowInterface
      * interrupted step. Consumes the generator internally.
      *
      * @param array<string, mixed> $payload The delivered event payload (the answer).
-     * @param bool                 $timedOut True when the resume was a deadline elapsing.
+     * @param bool $timedOut True when the resume was a deadline elapsing.
+     * @throws WorkflowException
      */
     public function resume(array $payload = [], bool $timedOut = false): WorkflowState
     {
@@ -221,6 +223,7 @@ class Workflow implements WorkflowInterface
      *
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
+     * @throws WorkflowException
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator
     {
@@ -363,6 +366,16 @@ class Workflow implements WorkflowInterface
         }
 
         return $this->eventNodeMap[$eventClass];
+    }
+
+    /**
+     * Restore a recalled event's transient capability (see WorkflowRuntimeInterface).
+     * A plain workflow has none — subclasses whose events carry live objects
+     * (e.g. Agent re-seeding its tool registry) override this.
+     */
+    public function restoreEventNode(Event $event): Event
+    {
+        return $event;
     }
 
     /**

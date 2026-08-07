@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -115,7 +116,7 @@ class AgentTest extends TestCase
         // Second response: the model uses the tool result to answer
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Based on my search, here are the top PHP frameworks...')
         );
@@ -227,7 +228,7 @@ class AgentTest extends TestCase
         // Second response: model uses the error message from handler
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
+                ToolCall::make($failingTool->getName(), 'call_1', ['input' => 'test']),
             ]),
             new AssistantMessage('I see the tool failed. Let me try something else.')
         );
@@ -235,7 +236,7 @@ class AgentTest extends TestCase
         $agent = Agent::make();
         $agent->setAiProvider($provider);
         $agent->addTool($failingTool);
-        $agent->toolErrorHandler(fn (Throwable $e, \NeuronAI\Tools\ToolInterface $tool): string => "Custom error: {$e->getMessage()}");
+        $agent->toolErrorHandler(fn (Throwable $e, \NeuronAI\Tools\ToolCall $call): string => "Custom error: {$e->getMessage()}");
 
         // Should NOT throw - error handler should catch it
         $message = $agent->chat(new UserMessage('Test'))->getMessage();
@@ -249,7 +250,7 @@ class AgentTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
+                ToolCall::make($failingTool->getName(), 'call_1', ['input' => 'test']),
             ]),
             new AssistantMessage('This should not be reached.')
         );

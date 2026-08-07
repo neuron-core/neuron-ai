@@ -12,7 +12,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -136,7 +136,7 @@ class ParallelToolsTest extends TestCase
         $agent = Agent::make();
         $agent->parallelToolCalls(true);
 
-        $tool = ToolDefinition::make('test', 'Test tool');
+        $tool = new WorkingTool();
         $agent->addTool($tool);
 
         $provider = new FakeAIProvider(
@@ -166,8 +166,8 @@ class ParallelToolsTest extends TestCase
         // Second response: model uses tool results
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
-                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+                ToolCall::make($toolA->getName(), 'call_1', ['input' => 'test A']),
+                ToolCall::make($toolB->getName(), 'call_2', ['input' => 'test B']),
             ]),
             new AssistantMessage('I have results from both tools.')
         );
@@ -198,8 +198,8 @@ class ParallelToolsTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $multiplyTool)->setCallId('call_1')->setInputs(['a' => 3, 'b' => 4]),
-                (clone $addTool)->setCallId('call_2')->setInputs(['x' => 5, 'y' => 7]),
+                ToolCall::make($multiplyTool->getName(), 'call_1', ['a' => 3, 'b' => 4]),
+                ToolCall::make($addTool->getName(), 'call_2', ['x' => 5, 'y' => 7]),
             ]),
             new AssistantMessage('Results: multiply=12, add=12')
         );
@@ -225,8 +225,8 @@ class ParallelToolsTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
-                (clone $workingTool)->setCallId('call_2')->setInputs(['input' => 'test']),
+                ToolCall::make($failingTool->getName(), 'call_1', ['input' => 'test']),
+                ToolCall::make($workingTool->getName(), 'call_2', ['input' => 'test']),
             ]),
             new AssistantMessage('Response')
         );
@@ -254,8 +254,8 @@ class ParallelToolsTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
-                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+                ToolCall::make($toolA->getName(), 'call_1', ['input' => 'test A']),
+                ToolCall::make($toolB->getName(), 'call_2', ['input' => 'test B']),
             ]),
             new AssistantMessage('I have results from both tools.')
         );
@@ -284,12 +284,12 @@ class ParallelToolsTest extends TestCase
 
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
-                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+                ToolCall::make($toolA->getName(), 'call_1', ['input' => 'test A']),
+                ToolCall::make($toolB->getName(), 'call_2', ['input' => 'test B']),
             ]),
             new ToolCallMessage(null, [
-                (clone $toolA)->setCallId('call_3')->setInputs(['input' => 'test A']),
-                (clone $toolB)->setCallId('call_4')->setInputs(['input' => 'test B']),
+                ToolCall::make($toolA->getName(), 'call_3', ['input' => 'test A']),
+                ToolCall::make($toolB->getName(), 'call_4', ['input' => 'test B']),
             ]),
             new AssistantMessage('Done')
         );

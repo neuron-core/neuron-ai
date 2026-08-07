@@ -1,5 +1,11 @@
 # Upgrade: Tool approval remodel — chat history as system of record
 
+> **Forward note:** guide 11 removes the `ToolApproval` middleware entirely (approval becomes
+> Tool-centric, owned by `ToolNode`) and renames the subclass hook `requiresApproval()` →
+> `approvalPolicy()`. The concepts this guide introduces (self-declaration, approval state in
+> chat history, string reasons) all survive — only the middleware attachment does not. If you
+> are upgrading in one sitting, apply sections 1 and 3–5 here and fold section 2 into step 11.
+
 ## Summary
 
 Tool approval was reworked so that **chat history is the system of record** for approval
@@ -9,7 +15,8 @@ breaking change to four areas:
 1. **`ToolInterface` gained six approval methods** — direct implementors must add them.
 2. **`ToolApproval` empty-config semantics changed** — `new ToolApproval()` now means
    "each tool decides" (was: "all tools require approval").
-3. **Resume payloads are incremental** — they carry only NEW decisions, not the full set.
+3. **Resume payloads are cumulative** — every resume restates the entire decision set
+   (ADR 0006; an earlier incremental contract from ADR 0003 never shipped).
 4. **`ApprovalRequest`/`Action` lost their round-trip mutators** — `fromArray()`,
    `generatePayload()`, and the `Action` mutators are removed.
 5. **A new user turn on a thread with a pending tool call is rejected** at the chat history
@@ -70,22 +77,26 @@ new ToolApproval([                              // empty = each tool decides (NE
 **Migration:** if you relied on `new ToolApproval()` meaning "approve ALL tools", switch to
 listing the tools explicitly, or have each tool declare `requiresApproval() => true`.
 
-## 3. Resume payloads are incremental
+## 3. Resume payloads are cumulative
 
-The payload now carries **only new decisions**, keyed by the tool callId. Prior decisions
-are no longer re-stated — they persist in chat history.
+The payload is the **entire decision set**, keyed by the tool callId, restated on every
+resume (ADR 0006). Accumulation lives with the caller: gather decisions app-side and resume
+with the full set. An incomplete set re-suspends; undelivered partial decisions are
+deliberately persisted nowhere.
 
 ```php
-// Deliver one decision at a time — supported natively.
-$agent->chat(payload: ['call_123' => 'approve']);
-$agent->chat(payload: ['call_456' => ['reject', 'too expensive']]);
+// The full decision set in one resume.
+$agent->chat(payload: [
+    'call_123' => 'approve',
+    'call_456' => ['reject', 'too expensive'],
+]);
 ```
 
 A tool runs **iff** explicitly approved; silence is never consent. Decisions are revisable
-(last-write-wins) until the full set is complete.
+(the latest delivered payload wins) until the set completes.
 
-**Migration:** stop accumulating the full decision set client-side. Send each decision as it
-arrives. Remove any use of `ApprovalRequest::generatePayload()`.
+**Migration:** accumulate the decision set client-side and send it whole. Remove any use of
+`ApprovalRequest::generatePayload()`.
 
 ## 4. `ApprovalRequest` and `Action` are outbound-only
 

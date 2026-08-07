@@ -97,7 +97,7 @@ class MessageMapper implements MessageMapperInterface
 
     public function mapToolsResult(ToolResultMessage $message): void
     {
-        foreach ($message->getTools() as $tool) {
+        foreach ($message->getToolCalls() as $tool) {
             $this->mapping[] = [
                 'role' => MessageRole::TOOL->value,
                 // Ollama's API is text-only for tool results.

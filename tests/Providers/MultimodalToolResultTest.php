@@ -9,8 +9,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 
@@ -19,9 +18,9 @@ use function base64_encode;
 
 class MultimodalToolResultTest extends TestCase
 {
-    protected function multimodalTool(string $imageData = 'imgdata'): ToolInterface
+    protected function multimodalTool(string $imageData = 'imgdata'): ToolCall
     {
-        return ToolDefinition::make('get_chart', 'Render a chart')
+        return ToolCall::make('get_chart', description: 'Render a chart')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -30,9 +29,9 @@ class MultimodalToolResultTest extends TestCase
             ]));
     }
 
-    protected function stringTool(): ToolInterface
+    protected function stringTool(): ToolCall
     {
-        return ToolDefinition::make('get_price', 'Get a price')
+        return ToolCall::make('get_price', description: 'Get a price')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult('plain result');
@@ -223,7 +222,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\OpenAI\MessageMapper();
 
-        $tool = ToolDefinition::make('get_clip', 'Render a clip')
+        $tool = ToolCall::make('get_clip', description: 'Render a clip')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -239,7 +238,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\Anthropic\MessageMapper();
 
-        $tool = ToolDefinition::make('get_clip', 'Render a clip')
+        $tool = ToolCall::make('get_clip', description: 'Render a clip')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -255,7 +254,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\Mistral\MessageMapper();
 
-        $tool = ToolDefinition::make('get_clip', 'Render a clip')
+        $tool = ToolCall::make('get_clip', description: 'Render a clip')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -271,7 +270,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\OpenAI\Responses\MessageMapper();
 
-        $tool = ToolDefinition::make('get_clip', 'Render a clip')
+        $tool = ToolCall::make('get_clip', description: 'Render a clip')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -287,7 +286,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\AWS\MessageMapper();
 
-        $tool = ToolDefinition::make('get_chart', 'Render a chart')
+        $tool = ToolCall::make('get_chart', description: 'Render a chart')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([
@@ -306,7 +305,7 @@ class MultimodalToolResultTest extends TestCase
     {
         $mapper = new \NeuronAI\Providers\Gemini\MessageMapper();
 
-        $tool = ToolDefinition::make('get_chart', 'Render a chart')
+        $tool = ToolCall::make('get_chart', description: 'Render a chart')
             ->setCallId('call_1')
             ->setInputs([])
             ->setResult(new ToolOutput([

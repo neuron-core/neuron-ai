@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_diff;
 use function array_map;
@@ -33,7 +33,7 @@ class TrajectoryMatches extends TrajectoryAssertion
     protected function evaluateTrajectory(Trajectory $trajectory): AssertionResult
     {
         $actual = array_map(
-            static fn (ToolInterface $tool): string => $tool->getName(),
+            static fn (ToolCall $tool): string => $tool->getName(),
             $trajectory->toolCalls()
         );
 

@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -35,7 +34,6 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent->setChatHistory($history);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
-        $agent->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent->setExecutor($executor);
 
         $handler = $agent->chat(new UserMessage('Search for PHP frameworks'));
@@ -48,9 +46,13 @@ class AgentRunIdAdoptionTest extends TestCase
 
     protected function makeProvider(SearchTool $searchTool): FakeAIProvider
     {
+        // Attach-time approval config (ADR 0009): the flag rides on the
+        // instance, so the clone in the tool call message carries it too.
+        $searchTool->requireApproval();
+
         return new FakeAIProvider(
             new ToolCallMessage(null, [
-                (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
             ]),
             new AssistantMessage('Here are the search results...'),
         );
@@ -84,7 +86,6 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();
@@ -110,7 +111,6 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->addMiddleware(ToolNode::class, new ToolApproval([SearchTool::class]));
         $agent2->setExecutor($executor);
 
         $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();

@@ -8,9 +8,26 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 |------|---------------------------------------------------------------------------|
 | `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `execute()` |
 | `Tool.php` | Base class with property definitions                                      |
+| `ToolCall.php` | The value object a tool invocation travels as (see below)                 |
 | `ToolOutput.php` | Multimodal tool result: wraps content blocks (text, image, file, audio, video) |
 | `ProviderTool.php` | Wrapper for MCP server tools                                              |
 | `ProviderToolInterface.php` | Contract for provider-exposed tools                                       |
+
+## Tool vs ToolCall (ADR 0010)
+
+A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP
+clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is
+**conversation data**: the record of one invocation — name, callId, inputs, description,
+result (`string|ToolOutput`, guarded by `hasResult()`), and per-call approval state
+(`ApprovalState` + `approvalReason` + `rejectReason`). ToolCalls are what
+`ToolCallMessage`/`ToolResultMessage`, stream chunks, observability events, persistence,
+and the evaluation Trajectory carry; they are plain data and serialize natively.
+Providers build them (`HandleWithTools::newToolCall()`, validating the name against the
+registry), and `ToolNode` resolves each call back to a live tool at execution — against
+the inference event's tool list only, the cycle's effective set (see
+`src/Agent/AGENTS.md`). A call naming a tool outside that set is a loud `ToolException`,
+never a silent no-op.
+There is no `ToolDefinition` anymore: its data-only stand-in role IS `ToolCall`.
 
 ## Creating Custom Tools
 
@@ -88,9 +105,9 @@ class GetTranscriptionTool extends Tool
 
 ## Multimodal Tool Output
 
-A tool result is `string|ToolOutput` (`ToolInterface::getResult()`; call it only when
-`hasResult()` is true — a never-executed tool, e.g. a pending or rejected call, has no
-result). Return a
+A tool result is `string|ToolOutput` (read from the settled `ToolCall`'s `getResult()`;
+call it only when `hasResult()` is true — a call that never executed, e.g. pending or
+rejected, has no result). Return a
 `ToolOutput` from `__invoke()` to send content blocks (reusing the Chat module's
 `ContentBlockInterface` implementations) back to the model instead of plain text —
 no opt-in interface, the feature is first-class on every tool:
@@ -115,7 +132,7 @@ Single-block shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`,
 constructor.
 
 Consumers detect multimodality on the **value**, never the tool type:
-`$tool->getResult() instanceof ToolOutput`. Providers whose API accepts content
+`$call->getResult() instanceof ToolOutput`. Providers whose API accepts content
 blocks in tool results map them natively; text-only consumers (Ollama, stream
 adapters, token counting) fall back to `ToolOutput::getText()` — the concatenated
 text blocks (empty when there are none, so include a `TextContent` in outputs meant
@@ -292,11 +309,22 @@ protected function tools(): array
 
 ## Tool Approval
 
-A tool may declare its own intrinsic risk by overriding
-`requiresApproval(array $inputs): bool|string` (default `false`). This is the tool author's
-self-declaration — it does nothing until the `ToolApproval` middleware is attached to the
-agent (ADR 0004: tools declare, middleware activates). When the middleware IS attached,
-middleware config overrides the declaration in both directions.
+A tool declares its own intrinsic risk by overriding the protected
+`approvalPolicy(array $inputs): bool|string` hook (default `false`). Declarations are
+**live by default** (ADR 0009): `ToolNode` asks every tool on every call — no middleware
+or agent-level switch exists. The agent developer overrides the declaration per instance,
+at attach time, in both directions:
+
+- `requireApproval(bool $require = true)` — force the gate's answer either way.
+- `suppressApproval()` — sugar for `requireApproval(false)`; waives a declared gate.
+- `withApprovalPolicy(callable $policy)` — replace the policy with a
+  `fn(ToolInterface $tool): bool|string` callback.
+
+The last configured override wins (each clears the other). The public
+`requiresApproval(array $inputs)` on `ToolInterface` is the *resolution point* the node
+consults: override → declaration. The node always asks the LIVE registry tool with the
+call's inputs bound (ADR 0010), so the answer cannot drift across a suspend/resume
+boundary — and nothing about the tool (closures included) is ever serialized.
 
 Returning a **string counts as `true`** and doubles as the approval reason — the outbound
 "why am I asking" shown to the approver, surfaced on the `ApprovalRequest` actions and
@@ -306,7 +334,7 @@ message):
 ```php
 class TransferMoneyTool extends Tool
 {
-    public function requiresApproval(array $inputs): bool|string
+    protected function approvalPolicy(array $inputs): bool|string
     {
         return ($inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
@@ -315,12 +343,13 @@ class TransferMoneyTool extends Tool
 }
 ```
 
-Per-call approval state (`pending` / `approved` / `rejected`) is stamped on the tool entries
-of the `ToolCallMessage` and persisted in **chat history** — that is the system of record
-(ADR 0003), not workflow state. See `ApprovalState`. Two reasons may accompany it, with
-opposite directions: `approvalReason` (outbound, the requester's purpose) and `rejectReason`
-(inbound, the approver's feedback — rejection-only, recorded via
-`setApprovalState(ApprovalState::Rejected, $reason)` and read via `getRejectReason()`).
+Per-call approval state (`pending` / `approved` / `rejected`) is stamped on the
+`ToolCall` entries of the `ToolCallMessage` and persisted in **chat history** — that is
+the system of record (ADR 0003), not workflow state. See `ApprovalState`. Two reasons may
+accompany it, with opposite directions: `approvalReason` (outbound, the requester's
+purpose) and `rejectReason` (inbound, the approver's feedback — rejection-only, recorded
+via `ToolCall::setApprovalState(ApprovalState::Rejected, $reason)` and read via
+`getRejectReason()`).
 
 ## Dependencies
 

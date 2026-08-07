@@ -7,11 +7,9 @@ namespace NeuronAI\Tests\Agent\Middleware;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\AgentMiddleware;
-use NeuronAI\Agent\Middleware\ToolApproval;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
@@ -89,16 +87,4 @@ class AgentMiddlewareTest extends TestCase
         $this->assertSame(1, $middleware->mismatchCalls, 'A mismatch reaction is a before()-only concern');
     }
 
-    public function test_tool_approval_fails_loudly_on_misattachment(): void
-    {
-        // An approval gate silently skipped would leave the user believing tools
-        // are gated while nothing is — ToolApproval overrides the mismatch hook
-        // to throw.
-        $middleware = new ToolApproval(['some_tool']);
-
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('ToolApproval requires an agent node and AgentState');
-
-        $middleware->before(new PlainWorkflowNode(), new StartEvent(), new AgentState());
-    }
 }

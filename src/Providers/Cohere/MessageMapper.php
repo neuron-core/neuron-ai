@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Providers\OpenAI\MessageMapper as OpenAIMessageMapper;
-use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function json_encode;
@@ -34,14 +34,14 @@ class MessageMapper extends OpenAIMessageMapper
         return [
             'role' => MessageRole::ASSISTANT,
             'tool_plan' => $message->getContent(),
-            'tool_calls' => array_map(fn (ToolInterface $tool): array => [
+            'tool_calls' => array_map(fn (ToolCall $tool): array => [
                 'id' => $tool->getCallId(),
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->getName(),
                     'arguments' => $tool->getInputs() === [] ? '{}' : json_encode($tool->getInputs()),
                 ],
-            ], $message->getTools()),
+            ], $message->getToolCalls()),
         ];
     }
 }

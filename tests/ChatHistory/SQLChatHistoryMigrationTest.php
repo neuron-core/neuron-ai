@@ -14,7 +14,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Traits\CheckOpenPort;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -92,11 +92,11 @@ class SQLChatHistoryMigrationTest extends TestCase
 
     public function test_migrates_legacy_thread_to_per_message_rows(): void
     {
-        $tool = ToolDefinition::make('test_tool', 'A test tool')
+        $tool = ToolCall::make('test_tool', description: 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123');
 
-        $toolWithResult = ToolDefinition::make('test_tool', 'A test tool')
+        $toolWithResult = ToolCall::make('test_tool', description: 'A test tool')
             ->setInputs(['param' => 'value'])
             ->setCallId('call_123')
             ->setResult('Tool result');
@@ -120,9 +120,9 @@ class SQLChatHistoryMigrationTest extends TestCase
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
         $this->assertEquals('Use the tool', $messages[0]->getContent());
         $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
-        $this->assertEquals('test_tool', $messages[1]->getTools()[0]->getName());
+        $this->assertEquals('test_tool', $messages[1]->getToolCalls()[0]->getName());
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
-        $this->assertEquals('Tool result', $messages[2]->getTools()[0]->getResult());
+        $this->assertEquals('Tool result', $messages[2]->getToolCalls()[0]->getResult());
         $this->assertInstanceOf(AssistantMessage::class, $messages[3]);
         $this->assertEquals(100, $messages[3]->getUsage()->inputTokens);
     }

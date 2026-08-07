@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
+use NeuronAI\Tools\ToolCall;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\Result;
 use GuzzleHttp\Promise\FulfilledPromise;
@@ -19,7 +21,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Providers\AWS\MessageMapper;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use stdClass;
@@ -131,7 +132,7 @@ class BedrockRuntimeTest extends TestCase
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $tool = ToolDefinition::make('my_tool', 'Tool description')
+        $tool = new ToolStub('my_tool', description: 'Tool description')
             ->addProperty(new ToolProperty('param', PropertyType::STRING, 'Param description', true));
 
         $provider = (new BedrockRuntime(
@@ -146,8 +147,8 @@ class BedrockRuntimeTest extends TestCase
 
         // Response should be a ToolCallMessage (subclass) with tools
         $this->assertSame('tool_call', $response->jsonSerialize()['type']);
-        $this->assertCount(1, $response->getTools());
-        $toolInstance = $response->getTools()[0];
+        $this->assertCount(1, $response->getToolCalls());
+        $toolInstance = $response->getToolCalls()[0];
         $this->assertSame('my_tool', $toolInstance->getName());
         $this->assertSame('call-123', $toolInstance->getCallId());
         $this->assertSame(['param' => 'value'], $toolInstance->getInputs());
@@ -203,7 +204,7 @@ class BedrockRuntimeTest extends TestCase
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $tool = ToolDefinition::make('empty_tool', 'No props'); // no properties added
+        $tool = new ToolStub('empty_tool', description: 'No props'); // no properties added
 
         $provider = (new BedrockRuntime(
             $bedrockClient,
@@ -222,9 +223,7 @@ class BedrockRuntimeTest extends TestCase
 
     public function test_tool_call_with_empty_input_serializes_as_json_object(): void
     {
-        $tool = ToolDefinition::make('noop', 'no params');
-        $tool->setCallId('call-empty');
-        $tool->setInputs([]);
+        $tool = ToolCall::make('noop', 'call-empty', [], 'no params');
 
         $message = new ToolCallMessage(null, [$tool]);
 
@@ -239,9 +238,7 @@ class BedrockRuntimeTest extends TestCase
 
     public function test_tool_call_with_inputs_passes_through_unchanged(): void
     {
-        $tool = ToolDefinition::make('search', 'search the web');
-        $tool->setCallId('call-1');
-        $tool->setInputs(['query' => 'php']);
+        $tool = ToolCall::make('search', 'call-1', ['query' => 'php'], 'search the web');
 
         $message = new ToolCallMessage(null, [$tool]);
 

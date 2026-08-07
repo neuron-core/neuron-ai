@@ -1,5 +1,10 @@
 # Upgrade: ToolApproval Callback Receives ToolInterface
 
+> **Forward note:** guide 11 removes the `ToolApproval` middleware entirely — its config
+> callbacks move onto the tool instances (`withApprovalPolicy()`), with the *same*
+> `fn(ToolInterface $tool)` signature this guide migrates to. If you are upgrading in one
+> sitting, you may fold this step into step 11 and convert each callback directly.
+
 ## Summary
 
 The `ToolApproval` middleware callback signature changed. Previously it received `array $inputs` — the raw input parameters. Now it receives the full `ToolInterface` instance, giving access to tool name, properties, inputs, and all other tool state.

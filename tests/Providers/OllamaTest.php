@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
+use NeuronAI\Tests\Stubs\Tools\ToolStub;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -15,7 +16,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\Ollama\Ollama;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolDefinition;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
@@ -141,7 +141,7 @@ class OllamaTest extends TestCase
             url: '',
             model: 'llama3.2',
         ))->setTools([
-            ToolDefinition::make('tool', 'description')
+            new ToolStub('tool', description: 'description')
                 ->addProperty(
                     new ToolProperty(
                         'prop',

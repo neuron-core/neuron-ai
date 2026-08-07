@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Tools;
 
-use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\TrackByInputs;
 
 /**
- * Test tool that implements HasRunKey for testing parallel execution.
- * Named class required for serialization support in ParallelToolNode.
+ * Direct ToolInterface implementor with an input-derived run key, for testing
+ * per-parameter run tracking. A named class (not anonymous) so instances clone
+ * cleanly when the node resolves calls against the registry.
  */
 class TestParametrizedTool implements ToolInterface
 {
-    use TrackByInputs;
     private ?string $callId = null;
     private array $inputs = [];
     private string $description = 'A parameterized test tool';
@@ -22,8 +20,7 @@ class TestParametrizedTool implements ToolInterface
     private ?int $maxRuns = null;
 
     public function __construct(
-        private readonly string $name,
-        private readonly string $runKey
+        private readonly string $name
     ) {
     }
 
@@ -144,37 +141,12 @@ class TestParametrizedTool implements ToolInterface
 
     public function getRunKey(): string
     {
-        return $this->name . ':' . $this->runKey;
+        return $this->name . ':' . ($this->inputs['key'] ?? '');
     }
 
     public function requiresApproval(array $inputs): bool|string
     {
         return false;
-    }
-
-    public function getApprovalState(): ?ApprovalState
-    {
-        return null;
-    }
-
-    public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface
-    {
-        return $this;
-    }
-
-    public function getApprovalReason(): ?string
-    {
-        return null;
-    }
-
-    public function setApprovalReason(?string $reason): ToolInterface
-    {
-        return $this;
-    }
-
-    public function getRejectReason(): ?string
-    {
-        return null;
     }
 
     public function jsonSerialize(): mixed

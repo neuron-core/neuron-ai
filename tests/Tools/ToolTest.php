@@ -14,7 +14,7 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolDefinition;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
@@ -24,7 +24,14 @@ class ToolTest extends TestCase
 {
     public function test_tool_instance(): void
     {
-        $tool = new ToolDefinition('example', 'example');
+        $tool = new class () extends Tool {
+            protected string $name = 'example';
+            protected ?string $description = 'example';
+
+            public function __invoke(): void
+            {
+            }
+        };
         $this->assertInstanceOf(ToolInterface::class, $tool);
 
         $tool->setInputs(null);
@@ -552,29 +559,50 @@ class ToolTest extends TestCase
         $this->assertEquals('test', $tool->getKey());
     }
 
+    public function test_track_by_inputs_run_key(): void
+    {
+        $tool = new class () extends Tool {
+            use \NeuronAI\Tools\TrackByInputs;
+
+            protected string $name = 'read_file';
+
+            public function __invoke(): void
+            {
+            }
+        };
+
+        $tool->setInputs(['path' => '/tmp/a']);
+        $keyA = $tool->getRunKey();
+        $tool->setInputs(['path' => '/tmp/b']);
+        $keyB = $tool->getRunKey();
+
+        $this->assertStringStartsWith('read_file:', $keyA);
+        $this->assertNotSame($keyA, $keyB, 'Different inputs must produce different run keys');
+    }
+
     public function test_annotations(): void
     {
-        $tool = new ToolDefinition('test', 'test');
-        $this->assertSame([], $tool->getAnnotations());
+        $tool = new class () extends Tool {
+            protected string $name = 'test';
+            protected array $annotations = ['foo' => 'bar'];
 
-        $tool = new ToolDefinition(
-            name: 'test',
-            description: 'test',
-            annotations: ['foo' => 'bar'],
-        );
+            public function __invoke(): void
+            {
+            }
+        };
         $this->assertEquals(['foo' => 'bar'], $tool->getAnnotations());
     }
 
     public function test_parameters(): void
     {
-        $tool = new ToolDefinition('test', 'test');
-        $this->assertSame([], $tool->getAnnotations());
+        $tool = new class () extends Tool {
+            protected string $name = 'test';
+            protected array $parameters = ['foo' => 'bar'];
 
-        $tool = new ToolDefinition(
-            name: 'test',
-            description: 'test',
-            parameters: ['foo' => 'bar'],
-        );
+            public function __invoke(): void
+            {
+            }
+        };
         $this->assertEquals(['foo' => 'bar'], $tool->getParameters());
 
         $tool->setParameters(['foo' => 'baz']);

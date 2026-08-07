@@ -229,7 +229,7 @@ abstract class Node implements NodeInterface
 
     /**
      * The inbound resume payload, or null when not resuming. Read by middleware
-     * (e.g. ToolApproval) to access the delivered answer.
+     * to access the delivered answer.
      *
      * @return array<string, mixed>|null
      */

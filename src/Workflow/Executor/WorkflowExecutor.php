@@ -24,7 +24,7 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\WorkflowInterface;
+use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
@@ -55,10 +55,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
-    public function execute(WorkflowInterface $workflow, ?array $payload = null, bool $timedOut = false): Generator
+    public function execute(WorkflowRuntimeInterface $workflow, ?array $payload = null, bool $timedOut = false): Generator
     {
-        $runId = $workflow->getRunId();
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
+        $runId = $workflow->getRunId();
         $workflow->resolveState()->set('__runId', $runId);
 
         try {
@@ -178,7 +178,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @return Generator<int, Event, mixed, StepResult>
      */
     protected function runNodeStep(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         NodeInterface $node,
         Event $event,
         WorkflowState $state,
@@ -226,7 +226,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws Throwable
      */
     protected function traverse(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         Event $event,
         WorkflowState $state,
         ?string $branchId = null,
@@ -239,7 +239,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             $result = yield from $this->runNodeStep($workflow, $node, $event, $state, $branchId, $stepId);
 
-            $event = $result->getEvent();
+            // A recalled (cached) step returns a deserialized event whose
+            // transient capability was stripped at persistence time; the
+            // workflow restores it before the event re-enters traversal.
+            // Idempotent — a no-op for live results.
+            $event = $workflow->restoreEventNode($result->getEvent());
 
             if ($branchId === null) {
                 // Main-path state follows the step result so a replayed (cached)
@@ -275,7 +279,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws Throwable
      */
     protected function executeBranches(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
     ): Generator {
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
@@ -310,7 +314,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws Throwable
      */
     protected function executeBranch(
-        WorkflowInterface $workflow,
+        WorkflowRuntimeInterface $workflow,
         string $branchId,
         Event $branchEvent,
     ): Generator {
@@ -326,7 +330,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
-    protected function workflowEnd(WorkflowInterface $workflow): void
+    protected function workflowEnd(WorkflowRuntimeInterface $workflow): void
     {
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowEnd($workflow->resolveState()), $workflow);
     }

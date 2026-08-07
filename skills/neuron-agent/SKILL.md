@@ -311,19 +311,22 @@ vendor/bin/neuron make:agent MyCustomAgent
 
 ## Common Patterns
 
-### Tool Approval Middleware
-For human oversight of tool execution, attach `ToolApproval` to `ToolNode::class`
-(subclass-aware matching also covers `ParallelToolNode`):
+### Tool Approval
+Human oversight of tool execution is built into `ToolNode` (ADR 0009) — nothing to attach.
+Each tool declares its own risk via the protected `approvalPolicy(array $inputs): bool|string`
+hook (a string counts as `true` and doubles as the approval reason shown to the approver),
+and you override the declaration per tool where you attach it:
 
 ```php
-use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ToolNode;
-
-$agent->addMiddleware(ToolNode::class, new ToolApproval());
+protected function tools(): array
+{
+    return [
+        DeleteFileTool::make()->requireApproval(),        // force the gate
+        RiskyThirdPartyTool::make()->suppressApproval(),  // waive a declared gate
+    ];
+}
 ```
 
-With no config, each tool decides for itself via `requiresApproval(array $inputs): bool|string`
-(a string counts as `true` and doubles as the approval reason shown to the approver).
 Use the **neuron-tool-approval** skill for the complete flow: rendering the approve/deny
 UI from chat history, submitting decisions, and building a single endpoint that handles
 both conversation turns and approval resumes.
@@ -345,7 +348,7 @@ $agent->parallelToolCalls(true);
 
 ## Persistence and Durability
 
-Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **resume after interruptions** (e.g., `ToolApproval` middleware).
+Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **resume after interruptions** (e.g., a tool-approval suspension).
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -363,8 +366,7 @@ chat history the runId is adopted from the thread automatically:
 ```php
 $agent = MyAgent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
-    ->setPersistence(new FilePersistence('/path/to/storage'))
-    ->addMiddleware(ToolNode::class, new ToolApproval());
+    ->setPersistence(new FilePersistence('/path/to/storage'));
 
 $handler = $agent->chat(new UserMessage('Delete file /tmp/old.log'));
 $handler->run();
@@ -378,7 +380,6 @@ if ($handler->interrupted()) {
     $handler = MyAgent::make()
         ->setChatHistory(new SQLChatHistory($threadId, $pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->addMiddleware(ToolNode::class, new ToolApproval())
         ->chat(payload: ['call_123' => 'approve']);
 }
 
