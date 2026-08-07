@@ -290,7 +290,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -354,7 +354,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ObjectProperty(
                             name: 'obj_prop',
@@ -432,7 +432,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ObjectProperty(
                             name: 'color',
@@ -511,7 +511,7 @@ class AnthropicTest extends TestCase
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',
