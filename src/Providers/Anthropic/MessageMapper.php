@@ -166,6 +166,7 @@ class MessageMapper implements MessageMapperInterface
             'content' => ($result = $tool->getResult()) instanceof ToolOutput
                 ? ($this->mapBlocks($result->getBlocks()) ?: $result->getText())
                 : $result,
+            ...($result instanceof ToolOutput && $result->isError() ? ['is_error' => true] : []),
         ], $message->getToolCalls());
 
         if ($contentBlocks = $message->getContentBlocks()) {

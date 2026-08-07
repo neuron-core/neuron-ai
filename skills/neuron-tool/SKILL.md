@@ -283,7 +283,7 @@ public function __invoke(string $query): ToolOutput
 }
 ```
 
-Single-block factory shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`, `::audio(...)`, `::video(...)`.
+Single-block factory shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`, `::audio(...)`, `::video(...)` — plus `::error(...)` for conversational failures (see Error Handling below).
 
 For multi-block outputs, pass the content blocks to the constructor:
 
@@ -340,6 +340,8 @@ public function __invoke(string $query, ?string $filter = null): ToolOutput
 
 ### Error Handling
 
+A failure the model should see and recover from is *returned* as `ToolOutput::error()` — the feedback becomes the tool result, marked as an error for providers with a native flag (Anthropic, Bedrock), and the agent loop continues. An exception that escapes `__invoke()` is treated as a bug: it propagates and aborts the run. Catch your own exceptions at the tool boundary and convert them:
+
 ```php
 public function __invoke(string $url): ToolOutput
 {
@@ -347,11 +349,13 @@ public function __invoke(string $url): ToolOutput
         $response = $this->httpClient->get($url);
         return ToolOutput::text((string) $response->getBody());
     } catch (\Exception $e) {
-        // Return error message for the LLM to understand
-        return ToolOutput::text("Error fetching URL: {$e->getMessage()}");
+        // Conversational failure: the LLM sees this and can recover
+        return ToolOutput::error("Error fetching URL: {$e->getMessage()}");
     }
 }
 ```
+
+For cross-cutting handling of escaped exceptions, the agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call): string|ToolOutput|null)` can settle a result (string or `ToolOutput`) to continue the loop, or return `null` to decline — the exception then propagates.
 
 ## Tool Visibility
 

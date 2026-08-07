@@ -99,6 +99,31 @@ class ToolOutputTest extends TestCase
         $this->assertSame('img', $serialized[1]['content']);
     }
 
+    public function test_error_factory(): void
+    {
+        $output = ToolOutput::error('Rate limited, retry after 60s');
+
+        $this->assertTrue($output->isError());
+        $this->assertCount(1, $output->getBlocks());
+        $this->assertInstanceOf(TextContent::class, $output->getBlocks()[0]);
+        $this->assertSame('Rate limited, retry after 60s', $output->getText());
+    }
+
+    public function test_plain_outputs_are_not_errors(): void
+    {
+        $this->assertFalse(ToolOutput::text('ok')->isError());
+        $this->assertFalse((new ToolOutput([new TextContent('ok')]))->isError());
+    }
+
+    public function test_error_json_serialize_wraps_blocks(): void
+    {
+        $serialized = ToolOutput::error('boom')->jsonSerialize();
+
+        $this->assertTrue($serialized['is_error']);
+        $this->assertCount(1, $serialized['blocks']);
+        $this->assertSame('boom', $serialized['blocks'][0]['content']);
+    }
+
     public function test_tool_set_result_stores_tool_output(): void
     {
         $output = ToolOutput::text('hello');

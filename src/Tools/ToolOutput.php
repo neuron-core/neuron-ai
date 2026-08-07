@@ -30,14 +30,30 @@ class ToolOutput implements JsonSerializable, Stringable
 {
     /**
      * @param ContentBlockInterface[] $blocks
+     * @param bool $isError Marks the output as a tool failure the model should
+     *                      see and recover from. Providers with a native error
+     *                      flag on tool results (Anthropic, Bedrock) map it;
+     *                      elsewhere the blocks carry the error text as-is.
      */
-    public function __construct(protected array $blocks)
+    public function __construct(protected array $blocks, protected bool $isError = false)
     {
     }
 
     public static function text(string $content): self
     {
         return new self([new TextContent($content)]);
+    }
+
+    /**
+     * A conversational tool failure: the feedback becomes the tool result the
+     * model sees, and the agent loop continues. Return this from a tool's
+     * __invoke() (or from the agent's toolErrorHandler) for failures the model
+     * should recover from; let exceptions escape for real bugs — they abort
+     * the run.
+     */
+    public static function error(string $feedback): self
+    {
+        return new self([new TextContent($feedback)], true);
     }
 
     public static function image(string $content, SourceType $sourceType, ?string $mediaType = null): self
@@ -68,6 +84,11 @@ class ToolOutput implements JsonSerializable, Stringable
         return $this->blocks;
     }
 
+    public function isError(): bool
+    {
+        return $this->isError;
+    }
+
     /**
      * Text-only projection of the output: the concatenated text blocks.
      * Used as fallback for providers whose API does not accept content
@@ -87,10 +108,20 @@ class ToolOutput implements JsonSerializable, Stringable
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * A plain output serializes as its block array — the pre-existing wire
+     * shape. An error output wraps the blocks so the flag survives the chat
+     * history round-trip (see AbstractChatHistory::deserializeToolResult()).
+     *
+     * @return array<int|string, mixed>
      */
     public function jsonSerialize(): array
     {
-        return array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->blocks);
+        $blocks = array_map(fn (ContentBlockInterface $block): array => $block->toArray(), $this->blocks);
+
+        if ($this->isError) {
+            return ['is_error' => true, 'blocks' => $blocks];
+        }
+
+        return $blocks;
     }
 }

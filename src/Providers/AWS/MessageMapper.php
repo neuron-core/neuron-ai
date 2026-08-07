@@ -72,6 +72,7 @@ class MessageMapper implements MessageMapperInterface
                             ],
                         ],
                     'toolUseId' => $tool->getCallId(),
+                    ...($result instanceof ToolOutput && $result->isError() ? ['status' => 'error'] : []),
                 ],
             ];
         }

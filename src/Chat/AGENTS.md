@@ -68,10 +68,14 @@ storage. This is pure sequence validation, independent of tool approval; note th
 
 `addMessage()` always appends — the history has no update or replace operation, so a
 direct `ChatHistoryInterface` implementation that appends is fully conformant.
-Write-once convergence lives with the single writer, not the store: `ToolNode` writes the
-annotated `ToolCallMessage` (pending states + runId) exactly once, through a durable
-memoized write, **before** any approval suspend (ADR 0009) — a resume or crash-replay
-pass skips the write instead of duplicating the tail.
+Write-once convergence lives with the single writer, not the store: when approval-gated
+tools are present, `ToolNode` writes the annotated `ToolCallMessage` (pending states +
+runId) exactly once, through a durable memoized write, **before** any approval suspend
+(ADR 0009) — a resume or crash-replay pass skips the write instead of duplicating the
+tail. With no gated tools nothing is written there at all: the call/result pair travels
+as the next inference's inbound messages and commits together only after that provider
+call succeeds (ADR 0012), so a tool crash or a failed follow-up call can never leave a
+dangling `tool_call` at the tail.
 
 The `tool_call` message keeps its pending snapshot forever; the **final approval
 outcomes** (approved/rejected + feedback + results) are recorded on the
@@ -89,11 +93,14 @@ asking for approval, declared by the tool or its attach-time policy), and `rejec
 (inbound — the approver's feedback, rejection-only). Old stored histories without these
 keys deserialize as `null` (not gated).
 
-A tool entry's `result` is a string, or a content block array when the tool returned a
-multimodal `ToolOutput` (see `src/Tools/AGENTS.md`). `AbstractChatHistory::
-deserializeToolResult()` discriminates on shape — an array whose first element has a
-`type` key rebuilds a `ToolOutput` through the shared content block deserializer,
-anything else stays a string — so legacy stored histories deserialize unchanged.
+A tool entry's `result` is a string, a content block array when the tool returned a
+multimodal `ToolOutput`, or `{is_error: true, blocks: [...]}` when it returned an
+error output (`ToolOutput::error()`, ADR 0013 — see `src/Tools/AGENTS.md`).
+`AbstractChatHistory::deserializeToolResult()` discriminates on shape — the `is_error`
+marker rebuilds an error `ToolOutput`, an array whose first element has a `type` key
+rebuilds a plain `ToolOutput` through the shared content block deserializer, anything
+else stays a string — so legacy stored histories deserialize unchanged (never carrying
+the marker, they come back as non-error).
 
 The suspended `ToolCallMessage` also carries a `run_id` metadata entry (ADR 0005) —
 the handle to reattach to the suspended run, exposed via

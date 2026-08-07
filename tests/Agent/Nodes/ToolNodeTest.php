@@ -18,6 +18,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Throwable;
@@ -86,6 +87,35 @@ class ToolNodeTest extends TestCase
             'Error handled: Missing required parameter: required_input',
             $call->getResult()
         );
+    }
+
+    /**
+     * A handler returning null declines: the exception propagates instead of
+     * leaving the call silently result-less.
+     */
+    public function test_error_handler_returning_null_declines_and_exception_propagates(): void
+    {
+        $call = ToolCall::make('test_tool', 'call_1', []);
+
+        $errorHandler = fn (Throwable $e, ToolCall $call): ?string => null;
+
+        $this->expectException(MissingCallbackParameter::class);
+
+        $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState(), $errorHandler);
+    }
+
+    public function test_error_handler_can_return_error_output(): void
+    {
+        $call = ToolCall::make('test_tool', 'call_1', []);
+
+        $errorHandler = fn (Throwable $e, ToolCall $call): ToolOutput => ToolOutput::error($e->getMessage());
+
+        $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState(), $errorHandler);
+
+        $result = $call->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('Missing required parameter: required_input', $result->getText());
     }
 
     /**

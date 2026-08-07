@@ -53,11 +53,16 @@ use const JSON_PRETTY_PRINT;
  * (ADR 0002/0006). A tool runs iff explicitly approved; an incomplete decision set
  * re-suspends, and undelivered partial decisions are deliberately not persisted.
  *
- * Chat history stays append-only with a single writer: the annotated ToolCallMessage
- * (pending states + runId) goes through one memoized write before any suspend, so a
- * cold process can render pending approvals from history alone and a resume pass
- * skips the write instead of duplicating the tail. Final outcomes are recorded on
- * the ToolResultMessage that follows it in the conversation.
+ * Chat history stays append-only with a single writer: when a suspend is possible
+ * the annotated ToolCallMessage (pending states + runId) goes through one memoized
+ * write before it, so a cold process can render pending approvals from history alone
+ * and a resume pass skips the write instead of duplicating the tail. Final outcomes
+ * are recorded on the ToolResultMessage that follows it in the conversation.
+ *
+ * With no gated tools nothing is written here at all: the call/result pair travels
+ * as the next inference's inbound messages and commits together through that node's
+ * deferred 'history.inbound' write, so a tool crash or a failed follow-up provider
+ * call can never leave a dangling tool call in history.
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
@@ -71,7 +76,7 @@ class ToolNode extends Node implements AgentNodeInterface
     protected Event $event;
 
     /**
-     * @var callable|null fn(Throwable $e, ToolCall $call): ?string
+     * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
     protected $errorHandler;
 
@@ -106,35 +111,47 @@ class ToolNode extends Node implements AgentNodeInterface
             $event->toolCallMessage->setRunId(
                 $state->get('__runId') ?? throw new WorkflowException("Missing workflow RUN_ID")
             );
-        }
 
-        // The single memoized write of the tool call message (ADR 0009): annotated
-        // with pending states and runId BEFORE any suspend, so a cold process renders
-        // pending approvals from history alone. On a resume or crash-replay pass the
-        // memo skips the write instead of duplicating the tail.
-        $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+            // The single memoized write of the tool call message (ADR 0009): annotated
+            // with pending states and runId BEFORE any suspend, so a cold process renders
+            // pending approvals from history alone. On a resume or crash-replay pass the
+            // memo skips the write instead of duplicating the tail.
+            $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
 
-        // Settle: a tool runs iff explicitly approved; silence is never consent.
-        // The first pass throws the suspend signal; the resume pass receives the
-        // cumulative decision set; an incomplete set loops and re-suspends with
-        // the delivered decisions reflected on the outbound request.
-        while ($this->pendingTools($gated) !== []) {
-            $payload = $this->interrupt($this->buildApprovalRequest($gated));
-            $this->applyDecisions($payload ?? [], $gated);
-        }
+            // Settle: a tool runs iff explicitly approved; silence is never consent.
+            // The first pass throws the suspend signal; the resume pass receives the
+            // cumulative decision set; an incomplete set loops and re-suspends with
+            // the delivered decisions reflected on the outbound request.
+            while ($this->pendingTools($gated) !== []) {
+                $payload = $this->interrupt($this->buildApprovalRequest($gated));
+                $this->applyDecisions($payload ?? [], $gated);
+            }
 
-        // Complete decision set: stamp rejection results (rejected tools are
-        // skipped by executeSingleTool), then approved and non-gated tools run.
-        foreach ($gated as $call) {
-            if ($call->getApprovalState() === ApprovalState::Rejected) {
-                $this->stampRejectionResult($call);
+            // Complete decision set: stamp rejection results (rejected tools are
+            // skipped by executeSingleTool), then approved and non-gated tools run.
+            foreach ($gated as $call) {
+                if ($call->getApprovalState() === ApprovalState::Rejected) {
+                    $this->stampRejectionResult($call);
+                }
             }
         }
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
-        // Only carry the tool result message as the next turn in the conversation
-        $event->inferenceEvent->setMessages($toolCallResult);
+        if ($gated === []) {
+            // Deferred pair-commit: without an approval suspend there is no reason
+            // to persist the tool call before its result exists. The call/result
+            // pair travels as the next inference's inbound messages and commits
+            // together through the deferred 'history.inbound' write, only after
+            // that provider call succeeds — a tool crash or a failed follow-up
+            // call leaves the history tail at the last committed message instead
+            // of a dangling tool call that wedges the thread.
+            $event->inferenceEvent->setMessages($event->toolCallMessage, $toolCallResult);
+        } else {
+            // The tool call message is already in history (pre-suspend write):
+            // only the result message travels as the next turn.
+            $event->inferenceEvent->setMessages($toolCallResult);
+        }
 
         // Go back to the AI provider
         return $event->inferenceEvent;
@@ -412,22 +429,23 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * Handle tool execution errors.
-     * If an error handler is set, the error message becomes the tool result.
-     * Otherwise, the exception is re-thrown.
+     * Handle an exception that escaped tool execution. Escaped exceptions are
+     * bugs and propagate by default — a conversational failure is a RETURNED
+     * ToolOutput::error(), never a throw. The error handler is the cross-cutting
+     * override: returning a string or ToolOutput settles it as the call's
+     * result and the loop continues; returning null declines, and the default
+     * policy (propagate) applies.
      *
-     * @throws Throwable If no error handler is set
+     * @throws Throwable When no handler is set, or the handler declines
      */
     protected function handleError(Throwable $e, ToolCall $call): void
     {
-        if ($this->errorHandler === null) {
+        $result = $this->errorHandler === null ? null : ($this->errorHandler)($e, $call);
+
+        if ($result === null) {
             throw $e;
         }
 
-        $errorMessage = ($this->errorHandler)($e, $call);
-
-        if ($errorMessage !== null) {
-            $call->setResult($errorMessage);
-        }
+        $call->setResult($result);
     }
 }

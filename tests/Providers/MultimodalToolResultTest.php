@@ -57,6 +57,31 @@ class MultimodalToolResultTest extends TestCase
         ], $content);
     }
 
+    public function test_anthropic_marks_error_output(): void
+    {
+        $mapper = new \NeuronAI\Providers\Anthropic\MessageMapper();
+
+        $tool = ToolCall::make('send_email', description: 'Send an email')
+            ->setCallId('call_1')
+            ->setInputs([])
+            ->setResult(ToolOutput::error('SMTP connection refused'));
+
+        $payload = $mapper->map([new ToolResultMessage([$tool])]);
+
+        $part = $payload[0]['content'][0];
+        $this->assertTrue($part['is_error']);
+        $this->assertSame([['type' => 'text', 'text' => 'SMTP connection refused']], $part['content']);
+    }
+
+    public function test_anthropic_plain_output_has_no_error_flag(): void
+    {
+        $mapper = new \NeuronAI\Providers\Anthropic\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->multimodalTool()])]);
+
+        $this->assertArrayNotHasKey('is_error', $payload[0]['content'][0]);
+    }
+
     public function test_anthropic_string_result_unchanged(): void
     {
         $mapper = new \NeuronAI\Providers\Anthropic\MessageMapper();
@@ -83,6 +108,31 @@ class MultimodalToolResultTest extends TestCase
                 ],
             ],
         ], $content);
+    }
+
+    public function test_bedrock_marks_error_output(): void
+    {
+        $mapper = new \NeuronAI\Providers\AWS\MessageMapper();
+
+        $tool = ToolCall::make('send_email', description: 'Send an email')
+            ->setCallId('call_1')
+            ->setInputs([])
+            ->setResult(ToolOutput::error('SMTP connection refused'));
+
+        $payload = $mapper->map([new ToolResultMessage([$tool])]);
+
+        $toolResult = $payload[0]['content'][0]['toolResult'];
+        $this->assertSame('error', $toolResult['status']);
+        $this->assertSame([['text' => 'SMTP connection refused']], $toolResult['content']);
+    }
+
+    public function test_bedrock_plain_output_has_no_error_status(): void
+    {
+        $mapper = new \NeuronAI\Providers\AWS\MessageMapper();
+
+        $payload = $mapper->map([new ToolResultMessage([$this->multimodalTool()])]);
+
+        $this->assertArrayNotHasKey('status', $payload[0]['content'][0]['toolResult']);
     }
 
     public function test_bedrock_string_result_unchanged(): void

@@ -11,6 +11,7 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
@@ -24,6 +25,7 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 use function iterator_to_array;
 
@@ -212,13 +214,46 @@ class ToolApprovalFlowTest extends TestCase
         $state = new AgentState();
 
         $call = ToolCall::make('read_file', 'call_a');
+        $event = $this->createToolCallEvent([$call]);
 
-        $this->assertExecutes($node, $this->createToolCallEvent([$call]), $state);
+        $result = $this->assertExecutes($node, $event, $state);
 
         $this->assertSame('executed', $call->getResult());
         $this->assertNull($call->getApprovalState(), 'A non-gated call must keep null approval state');
-        // The node still records the tool call message on the conversation.
-        $this->lastToolCall($node);
+
+        // Deferred pair-commit: with no suspend possible the node writes nothing —
+        // the call/result pair travels as the next inference's inbound messages
+        // and commits only after that provider call succeeds.
+        $this->assertSame([], $node->getChatHistory()->getMessages());
+        $this->assertSame(
+            [$event->toolCallMessage, $result->getMessages()[1]],
+            $result->getMessages()
+        );
+        $this->assertInstanceOf(ToolResultMessage::class, $result->getMessages()[1]);
+    }
+
+    public function test_failed_tool_leaves_no_dangling_tool_call_in_history(): void
+    {
+        $tool = new class () extends Tool {
+            public function __invoke(mixed ...$arguments): string
+            {
+                throw new RuntimeException('boom');
+            }
+        };
+        $tool->setName('boom')->setDescription('Always throws');
+
+        $node = $this->node([$tool]);
+        $state = new AgentState();
+
+        try {
+            $this->runNode($node, $this->createToolCallEvent([ToolCall::make('boom', 'call_a')]), $state);
+            $this->fail('Expected the tool exception to propagate');
+        } catch (RuntimeException) {
+        }
+
+        // Deferred pair-commit: the crash happened before any history write, so
+        // the thread is not wedged behind a tool call with no result.
+        $this->assertSame([], $node->getChatHistory()->getMessages());
     }
 
     public function test_require_approval_forces_the_gate(): void
@@ -628,24 +663,42 @@ class ToolApprovalFlowTest extends TestCase
 
     public function test_distinct_tool_cycles_write_their_own_messages(): void
     {
-        // Two tool cycles in one run = two node steps: the memoized write is scoped
-        // per step, so each cycle records its own ToolCallMessage.
+        // Two gated tool cycles in one run = two node steps: the memoized
+        // pre-suspend write is scoped per step, so each cycle records its own
+        // ToolCallMessage (the non-gated path writes nothing here at all).
         $engine = $this->engine();
         $history = new InMemoryChatHistory();
-        $node = $this->node([$this->plainTool('first'), $this->plainTool('second')], $history);
+        $node = $this->node([$this->gatedTool('first'), $this->gatedTool('second')], $history);
         $state = new AgentState();
 
+        $firstCycle = new StepMemoizer($engine, 'ToolNode-1');
+        $this->assertSuspends(
+            $node,
+            $this->createToolCallEvent([ToolCall::make('first', 'call_1')]),
+            $state,
+            memoizer: $firstCycle
+        );
         $this->assertExecutes(
             $node,
             $this->createToolCallEvent([ToolCall::make('first', 'call_1')]),
             $state,
-            memoizer: new StepMemoizer($engine, 'ToolNode-1')
+            payload: ['call_1' => 'approve'],
+            memoizer: $firstCycle
+        );
+
+        $secondCycle = new StepMemoizer($engine, 'ToolNode-3');
+        $this->assertSuspends(
+            $node,
+            $this->createToolCallEvent([ToolCall::make('second', 'call_2')]),
+            $state,
+            memoizer: $secondCycle
         );
         $this->assertExecutes(
             $node,
             $this->createToolCallEvent([ToolCall::make('second', 'call_2')]),
             $state,
-            memoizer: new StepMemoizer($engine, 'ToolNode-3')
+            payload: ['call_2' => 'approve'],
+            memoizer: $secondCycle
         );
 
         $toolCallCount = 0;

@@ -92,6 +92,34 @@ class MultimodalToolResultHistoryTest extends TestCase
         $this->assertSame('image/png', $image->mediaType);
     }
 
+    public function test_error_result_round_trip(): void
+    {
+        $key = 'error_result';
+
+        $callTool = ToolCall::make('send_email', description: 'Send an email')
+            ->setCallId('call_1')
+            ->setInputs([]);
+
+        $resultTool = ToolCall::make('send_email', description: 'Send an email')
+            ->setCallId('call_1')
+            ->setInputs([])
+            ->setResult(ToolOutput::error('SMTP connection refused'));
+
+        $history = new FileChatHistory($this->testDir, $key);
+        $history->addMessage(new UserMessage('Send the report'));
+        $history->addMessage(new ToolCallMessage(null, [$callTool]));
+        $history->addMessage(new ToolResultMessage([$resultTool]));
+
+        $reloaded = new FileChatHistory($this->testDir, $key);
+        $messages = $reloaded->getMessages();
+
+        $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
+        $result = $messages[2]->getToolCalls()[0]->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('SMTP connection refused', $result->getText());
+    }
+
     public function test_string_result_round_trip_unchanged(): void
     {
         $key = 'string_result';

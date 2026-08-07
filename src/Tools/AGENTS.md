@@ -131,6 +131,27 @@ Single-block shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`,
 `::audio(...)`, `::video(...)` — each mirrors the corresponding content block's
 constructor.
 
+## Tool Failures (ADR 0013)
+
+The split falls on the natural boundary of the language:
+
+- **Return value = conversational outcome.** A failure the model should see and
+  recover from is *returned*: `return ToolOutput::error('Rate limited, retry after
+  60s');` — a `ToolOutput` whose `isError()` is true, carrying the feedback as a
+  text block. Catch your own exceptions at the tool boundary and convert them
+  visibly.
+- **Escaped exception = bug.** It propagates and aborts the run (fail-fast; the
+  history stays consistent — ADR 0012). There is no framework exception class that
+  gets converted to a result.
+
+The agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call):
+string|ToolOutput|null)` is the cross-cutting override for escaped exceptions: a
+returned string or `ToolOutput` settles as the call's result and the loop continues;
+`null` declines and the exception propagates. Providers with a native error concept
+map the flag (`is_error: true` on Anthropic, `status: "error"` on Bedrock);
+elsewhere the feedback text itself carries the semantics. The flag survives the
+chat-history round-trip (see `src/Chat/AGENTS.md`).
+
 Consumers detect multimodality on the **value**, never the tool type:
 `$call->getResult() instanceof ToolOutput`. Providers whose API accepts content
 blocks in tool results map them natively; text-only consumers (Ollama, stream

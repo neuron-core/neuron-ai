@@ -142,6 +142,13 @@ O(1) instead of embedding the conversation. Consequences:
 - History writes go through `addToChatHistory($messages, $memo)`, which wraps
   the write in a durable memo so a crash-replay skips it instead of duplicating
   the tail.
+- A message commits only when the step that consumes it succeeds: inference
+  nodes commit their inbound after the provider call lands, and a non-gated
+  tool cycle commits the call/result pair together through the *next*
+  inference's inbound write (ADR 0012) — a tool crash or failed follow-up call
+  leaves the tail at the last committed message, never at a dangling tool call.
+  Only an approval-gated cycle writes its `ToolCallMessage` early (pre-suspend,
+  ADR 0009).
 - Durable workflow persistence requires a comparably durable chat history
   (`InMemoryChatHistory` loses the thread across processes).
 - `AgentHandler::getMessage()` reads the final message from the history;
@@ -156,8 +163,12 @@ value objects (ADR 0010): the node resolves every call against ONE source — th
 event's tool list, the cycle's effective set (agent base plus middleware additions, minus
 middleware removals) — clones the match, binds the call's inputs, executes, and settles
 the result back onto the call. A call naming a tool outside that set throws a
-`ToolException` (routed through `toolErrorHandler(fn (Throwable $e, ToolCall $call):
-?string)` when set). Event capability is transient in persistence: the executor passes every
+`ToolException`. Exceptions escaping tool execution are bugs and propagate (a
+*conversational* failure is a returned `ToolOutput::error()`, ADR 0013 — see
+`src/Tools/AGENTS.md`); `toolErrorHandler(fn (Throwable $e, ToolCall $call):
+string|ToolOutput|null)` is the cross-cutting override — a returned string or
+`ToolOutput` settles as the call's result, `null` declines and the exception
+propagates. Event capability is transient in persistence: the executor passes every
 step-result event through `Workflow::restoreEventNode()` before it re-enters traversal,
 and the Agent's override re-seeds `bootstrapTools()` on stripped inference/tool-call
 events (idempotent — a live effective set is never touched); tool-contributing middleware

@@ -245,12 +245,25 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * A multimodal result is stored as an array of content blocks;
-     * a legacy (or plain text) result is stored as a string.
+     * A multimodal result is stored as an array of content blocks; an error
+     * result wraps the blocks under an 'is_error' marker (legacy histories
+     * never carry the marker and deserialize as non-error); a legacy (or
+     * plain text) result is stored as a string.
      */
     protected function deserializeToolResult(mixed $result): string|ToolOutput
     {
         if (is_array($result)) {
+            if (isset($result['is_error'])) {
+                $blocks = $result['blocks'] ?? [];
+                return new ToolOutput(
+                    array_map(
+                        $this->deserializeContentBlock(...),
+                        isset($blocks[0]['type']) ? $blocks : []
+                    ),
+                    (bool) $result['is_error']
+                );
+            }
+
             return new ToolOutput(array_map(
                 $this->deserializeContentBlock(...),
                 isset($result[0]['type']) ? $result : []

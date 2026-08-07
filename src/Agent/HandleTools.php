@@ -43,19 +43,20 @@ trait HandleTools
     protected int $toolMaxRuns = 10;
 
     /**
-     * Callback to handle tool execution errors.
-     * If null, exceptions are re-thrown.
+     * Callback to handle exceptions that escape tool execution.
+     * If null, or the callback returns null, the exception is re-thrown.
      *
-     * @var callable|null fn(Throwable $e, ToolInterface $tool): string
+     * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
     protected $toolErrorHandler;
 
     /**
-     * Set a callback to handle tool execution errors.
-     * The callback receives the exception, and the tool, if it returns a value
-     * it will be used as the tool result (visible to the LLM).
+     * Set a callback to handle exceptions that escape tool execution.
+     * A returned string or ToolOutput (e.g. ToolOutput::error(...)) becomes the
+     * tool result visible to the LLM and the agent loop continues; returning
+     * null declines — the exception propagates and aborts the run.
      *
-     * @param callable|null $handler fn(Throwable $e, ToolInterface $tool): string
+     * @param callable|null $handler fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
     public function toolErrorHandler(?callable $handler): Agent
     {
@@ -67,7 +68,7 @@ trait HandleTools
      * Resolve the tool error handler.
      * Override this method to provide a default error handler in your agent.
      *
-     * @return callable|null fn(Throwable $e, ToolInterface $tool): string
+     * @return callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
     protected function resolveToolErrorHandler(): ?callable
     {
