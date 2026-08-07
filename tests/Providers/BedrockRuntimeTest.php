@@ -132,7 +132,7 @@ class BedrockRuntimeTest extends TestCase
             }))
             ->willReturn(new FulfilledPromise($result));
 
-        $tool = new ToolStub('my_tool', description: 'Tool description')
+        $tool = (new ToolStub('my_tool', description: 'Tool description'))
             ->addProperty(new ToolProperty('param', PropertyType::STRING, 'Param description', true));
 
         $provider = (new BedrockRuntime(
