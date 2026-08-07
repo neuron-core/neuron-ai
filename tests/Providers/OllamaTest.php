@@ -141,7 +141,7 @@ class OllamaTest extends TestCase
             url: '',
             model: 'llama3.2',
         ))->setTools([
-            new ToolStub('tool', description: 'description')
+            (new ToolStub('tool', description: 'description'))
                 ->addProperty(
                     new ToolProperty(
                         'prop',

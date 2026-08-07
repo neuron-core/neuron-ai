@@ -202,7 +202,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ToolProperty(
                             'prop',
@@ -267,7 +267,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',
@@ -340,7 +340,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',
@@ -408,7 +408,7 @@ class OpenAITest extends TestCase
 
         $provider = (new OpenAI('', 'gpt-4o'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ArrayProperty(
                             'array_prop',

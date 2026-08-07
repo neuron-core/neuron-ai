@@ -76,7 +76,7 @@ class FakeAIProviderTest extends TestCase
 
     public function test_tools_are_stored(): void
     {
-        $tool = new ToolStub('search', description: 'Search the web')
+        $tool = (new ToolStub('search', description: 'Search the web'))
             ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true));
 
         $provider = new FakeAIProvider(new AssistantMessage('OK'));

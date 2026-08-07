@@ -255,7 +255,7 @@ class GeminiTest extends TestCase
 
         $provider = (new Gemini('', 'gemini-2.0-flash'))
             ->setTools([
-                new ToolStub('tool', description: 'description')
+                (new ToolStub('tool', description: 'description'))
                     ->addProperty(
                         new ToolProperty(
                             'prop',
