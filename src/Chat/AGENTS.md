@@ -9,7 +9,7 @@ Base `Message` class manages content as `ContentBlock[]`:
 ```php
 $message = new UserMessage([
     new TextContent('Analyze this:'),
-    new ImageContent('https://...', SourceType::URL, 'image/jpeg'),
+    new ImageContent('https://...', SourceType::URL, MediaType::JPEG),
 ]);
 ```
 
@@ -38,6 +38,8 @@ All implement `ContentBlock` interface:
 
 Source types: `SourceType::URL` or `SourceType::BASE64`
 
+Media types: pass a `MediaType` enum case (e.g. `MediaType::JPEG`) — the default approach — or a raw MIME string for custom types. The block stores the string value either way.
+
 ## Chat History (`History/`)
 
 Implementations of `ChatHistoryInterface`:
@@ -62,6 +64,7 @@ Implementations of `ChatHistoryInterface`:
 
 - `ContentBlockType` - TEXT, IMAGE, FILE, AUDIO, VIDEO
 - `SourceType` - URL, BASE64
+- `MediaType` - common MIME types for images, audio, video, documents (string-backed)
 - `MessageRole` - USER, ASSISTANT, SYSTEM, TOOL
 
 ## Stream (`Messages/Stream/`)

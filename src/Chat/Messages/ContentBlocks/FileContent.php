@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\Messages\ContentBlocks;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 
 use function array_filter;
 
 class FileContent extends ContentBlock
 {
+    public readonly ?string $mediaType;
+
     public function __construct(
         string $content,
         public readonly SourceType $sourceType,
-        public readonly ?string $mediaType = null,
+        string|MediaType|null $mediaType = null,
         public readonly ?string $filename = null,
     ) {
+        $this->mediaType = $mediaType instanceof MediaType ? $mediaType->value : $mediaType;
         parent::__construct($content);
     }
 

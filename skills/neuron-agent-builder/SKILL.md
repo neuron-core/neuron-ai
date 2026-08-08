@@ -287,6 +287,7 @@ Agents support multiple content types:
 ```php
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 
 $message = new UserMessage([
@@ -294,10 +295,12 @@ $message = new UserMessage([
     new ImageContent(
         content: 'https://example.com/image.jpg',
         sourceType: SourceType::URL,
-        mediaType: 'image/jpeg'
+        mediaType: MediaType::JPEG
     ),
 ]);
 ```
+
+Use the `MediaType` enum for common MIME types (images, audio, video, documents). A raw MIME string is still accepted for custom types.
 
 ## CLI Generation
 
