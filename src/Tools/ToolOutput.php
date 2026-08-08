@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use JsonSerializable;
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
@@ -56,22 +57,22 @@ class ToolOutput implements JsonSerializable, Stringable
         return new self([new TextContent($feedback)], true);
     }
 
-    public static function image(string $content, SourceType $sourceType, ?string $mediaType = null): self
+    public static function image(string $content, SourceType $sourceType, string|MediaType|null $mediaType = null): self
     {
         return new self([new ImageContent($content, $sourceType, $mediaType)]);
     }
 
-    public static function file(string $content, SourceType $sourceType, ?string $mediaType = null, ?string $filename = null): self
+    public static function file(string $content, SourceType $sourceType, string|MediaType|null $mediaType = null, ?string $filename = null): self
     {
         return new self([new FileContent($content, $sourceType, $mediaType, $filename)]);
     }
 
-    public static function audio(string $content, SourceType $sourceType, ?string $mediaType = null): self
+    public static function audio(string $content, SourceType $sourceType, string|MediaType|null $mediaType = null): self
     {
         return new self([new AudioContent($content, $sourceType, $mediaType)]);
     }
 
-    public static function video(string $content, SourceType $sourceType, ?string $mediaType = null): self
+    public static function video(string $content, SourceType $sourceType, string|MediaType|null $mediaType = null): self
     {
         return new self([new VideoContent($content, $sourceType, $mediaType)]);
     }

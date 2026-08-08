@@ -288,6 +288,7 @@ Single-block factory shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file
 For multi-block outputs, pass the content blocks to the constructor:
 
 ```php
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -297,10 +298,12 @@ public function __invoke(string $symbol): ToolOutput
 {
     return new ToolOutput([
         new TextContent("Price chart for {$symbol}"),
-        new ImageContent($base64, SourceType::BASE64, 'image/png'),
+        new ImageContent($base64, SourceType::BASE64, MediaType::PNG),
     ]);
 }
 ```
+
+Use the `MediaType` enum for common MIME types; `mediaType` parameters (content blocks and `ToolOutput` factories alike) also accept a plain string for custom types.
 
 Providers whose API accepts content blocks in tool results map them natively; text-only providers fall back to `ToolOutput::getText()` — the concatenated text blocks (empty when there are none, so include a `TextContent` in outputs meant to work everywhere).
 

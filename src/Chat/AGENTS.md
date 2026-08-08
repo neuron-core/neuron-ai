@@ -9,7 +9,7 @@ Base `Message` class manages content as `ContentBlock[]`:
 ```php
 $message = new UserMessage([
     new TextContent('Analyze this:'),
-    new ImageContent('https://...', SourceType::URL, 'image/jpeg'),
+    new ImageContent('https://...', SourceType::URL, MediaType::JPEG),
 ]);
 ```
 
@@ -121,6 +121,7 @@ histories with neither key deserialize it as `null`.
 
 - `ContentBlockType` - TEXT, IMAGE, FILE, AUDIO, VIDEO
 - `SourceType` - URL, BASE64
+- `MediaType` - common MIME types (JPEG, PNG, PDF, MP3, MP4, ...). Content blocks accept `string|MediaType` for `mediaType` and normalize to `string`, so custom MIME strings always work
 - `MessageRole` - USER, ASSISTANT, SYSTEM, TOOL
 
 ## Stream (`Messages/Stream/`)

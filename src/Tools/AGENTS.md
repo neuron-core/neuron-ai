@@ -113,6 +113,7 @@ rejected, has no result). Return a
 no opt-in interface, the feature is first-class on every tool:
 
 ```php
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -122,7 +123,7 @@ public function __invoke(string $symbol): ToolOutput
 {
     return new ToolOutput([
         new TextContent("Price chart for {$symbol}"),
-        new ImageContent($base64, SourceType::BASE64, 'image/png'),
+        new ImageContent($base64, SourceType::BASE64, MediaType::PNG),
     ]);
 }
 ```
