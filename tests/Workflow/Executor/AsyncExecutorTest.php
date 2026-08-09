@@ -14,7 +14,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -26,9 +25,9 @@ class AsyncExecutorTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    private function createAsyncExecutor(): AsyncExecutor
+    protected function executor(): AsyncExecutor
     {
-        return new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        return new AsyncExecutor();
     }
 
     public function testAsyncExecutorWithNormalNodes(): void
@@ -40,8 +39,7 @@ class AsyncExecutorTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $executor = $this->createAsyncExecutor();
-        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow))->await();
 
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));
@@ -58,11 +56,13 @@ class AsyncExecutorTest extends TestCase
                 new MergeNode(),
             ]);
 
+        // Deliberately bypass the class's async executor override: this test
+        // proves the DEFAULT executor runs branches one by one.
         $start = microtime(true);
-        $this->execute($workflow);
+        $workflow->run();
         $elapsed = microtime(true) - $start;
 
-        $this->assertGreaterThan(0.15, $elapsed, 'SequentialExecutor should run branches one by one');
+        $this->assertGreaterThan(0.15, $elapsed, 'The default executor should run branches one by one');
     }
 
     public function testAsyncExecutorRunsBranchesConcurrently(): void
@@ -75,10 +75,9 @@ class AsyncExecutorTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $executor = $this->createAsyncExecutor();
 
         $start = microtime(true);
-        $this->execute($workflow, $executor);
+        $this->execute($workflow);
         $elapsed = microtime(true) - $start;
 
         $this->assertLessThan(0.18, $elapsed, 'AsyncExecutor should run branches concurrently');
@@ -94,8 +93,7 @@ class AsyncExecutorTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $executor = $this->createAsyncExecutor();
-        $result = $this->execute($workflow, $executor);
+        $result = $this->execute($workflow);
 
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);

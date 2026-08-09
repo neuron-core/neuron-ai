@@ -39,13 +39,12 @@ class SuspendTypesTest extends TestCase
     public function testWaitForEventPausesAndResumes(): void
     {
         $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
         $token = 'wfe-basic';
 
         $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow, $persistence);
 
         // Paused on the wait-for-event; downstream node did not run.
         $this->assertTrue($state->isInterrupted());
@@ -61,7 +60,7 @@ class SuspendTypesTest extends TestCase
 
         $state = $this->resume(
             $resumed,
-            $this->createExecutor($persistence),
+            $persistence,
             ['id' => 7],
         );
 
@@ -73,13 +72,12 @@ class SuspendTypesTest extends TestCase
     public function testSleepUntilPausesAndResumes(): void
     {
         $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
         $token = 'sleep-basic';
 
         $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow, $persistence);
 
         $this->assertTrue($state->isInterrupted());
         $interrupt = $state->getInterruptRequest();
@@ -93,7 +91,7 @@ class SuspendTypesTest extends TestCase
 
         $state = $this->resume(
             $resumed,
-            $this->createExecutor($persistence),
+            $persistence,
             [],
         );
 
@@ -116,7 +114,7 @@ class SuspendTypesTest extends TestCase
             $workflow = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-            $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterruptRequest();
+            $request = $this->execute($workflow, $persistence)->getInterruptRequest();
             $this->assertInstanceOf(WaitForEventRequest::class, $request);
 
             $resumed = Workflow::make(runId: $token)
@@ -124,7 +122,7 @@ class SuspendTypesTest extends TestCase
 
             $state = $this->resume(
                 $resumed,
-                $this->createExecutor($persistence),
+                $persistence,
                 ['id' => 7],
             );
 
@@ -139,13 +137,12 @@ class SuspendTypesTest extends TestCase
     public function testWaitForEventResumeWithoutPayload(): void
     {
         $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
         $token = 'wfe-empty-payload';
 
         $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
-        $this->execute($workflow, $executor);
+        $this->execute($workflow, $persistence);
 
         $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
@@ -153,7 +150,7 @@ class SuspendTypesTest extends TestCase
         // Resume with an empty payload — the node receives an empty event body.
         $state = $this->resume(
             $resumed,
-            $this->createExecutor($persistence),
+            $persistence,
             [],
         );
 
@@ -169,7 +166,7 @@ class SuspendTypesTest extends TestCase
         $workflow = Workflow::make(runId: 'sleep-past')
             ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('-1 minute')), new NodeThree()]);
 
-        $state = $this->execute($workflow, $this->createExecutor());
+        $state = $this->execute($workflow);
 
         $this->assertTrue($state->isInterrupted());
         $this->assertInstanceOf(SleepUntilRequest::class, $state->getInterruptRequest());
@@ -215,14 +212,13 @@ class SuspendTypesTest extends TestCase
         // scheduler resumes the wait with $timedOut, and awaitEvent() surfaces that
         // to the node as null. The node branches on null — it never inspects a flag.
         $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
         $token = 'wfe-timeout';
 
         // Run 1: suspends on a bounded wait. The expressed deadline is carried on
         // the interrupted request (outbound).
         $workflow = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow, $persistence);
 
         $this->assertTrue($state->isInterrupted());
         $interrupt = $state->getInterruptRequest();
@@ -233,7 +229,7 @@ class SuspendTypesTest extends TestCase
         // deadline fires.
         $resumed = Workflow::make(runId: $token)
             ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
-        $state = $this->resume($resumed, $executor, [], true);
+        $state = $this->resume($resumed, $persistence, [], true);
 
         // The node's null branch ran: it saw no event, took the timeout path, and
         // the workflow continued to completion.
@@ -256,14 +252,14 @@ class SuspendTypesTest extends TestCase
         try {
             $workflow = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
-            $state = $this->execute($workflow, $this->createExecutor($persistence));
+            $state = $this->execute($workflow, $persistence);
 
             $this->assertTrue($state->isInterrupted());
             $this->assertInstanceOf(ObjectCarryingRequest::class, $state->getInterruptRequest());
 
             $resumed = Workflow::make(runId: $token)
                 ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
-            $state = $this->resume($resumed, $this->createExecutor($persistence), []);
+            $state = $this->resume($resumed, $persistence, []);
 
             $this->assertFalse($state->isInterrupted());
             $this->assertTrue($state->get('resumed_with_object'));

@@ -197,7 +197,7 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $handler = $this->agent->chat(payload: $payload);
+            $handler = $this->agent->wake($payload);
             $handler->run();
         }
     }

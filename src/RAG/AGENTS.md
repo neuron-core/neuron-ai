@@ -6,13 +6,25 @@ Retrieval Augmented Generation. Extends Agent with document search.
 
 ## Architecture
 
-RAG extends Agent → inherits all Agent + Workflow capabilities.
+RAG extends Agent → inherits all Agent + Workflow capabilities (including
+`wake()`, thread identity, and the ignition record — see `src/Agent/AGENTS.md`).
 
-Before inference:
-1. Extract user question
-2. Retrieve relevant documents from VectorStore
-3. Inject documents into instructions
-4. Call parent Agent with enriched context
+RAG overrides `entryNodes()`: the retrieval chain replaces the Agent's
+`StartNode` as the entry chain, and RAG's inference event is born at its end,
+in `InstructionsNode`:
+
+```
+AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → inference
+```
+
+1. Extract and pre-process the user question (query expansion, rewriting)
+2. Retrieve relevant documents from the VectorStore
+3. Post-process (re-rank, filter)
+4. `InstructionsNode` births the inference event: document-enriched
+   instructions + the run's intent, carried through the chain on each event's
+   `$startEvent` (so a streamed or structured RAG run keeps its mode across
+   the retrieval boundary — a custom node inserted into the chain must thread
+   `$startEvent` through its own event the same way)
 
 ## Core Files
 

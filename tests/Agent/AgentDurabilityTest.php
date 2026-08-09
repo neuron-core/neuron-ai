@@ -19,7 +19,6 @@ use NeuronAI\Tests\Agent\Tools\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
@@ -42,7 +41,6 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
 
         $searchTool = new CrashSearchTool();
@@ -59,7 +57,7 @@ class AgentDurabilityTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setExecutor($executor);
+        $agent1->setPersistence($persistence);
 
         try {
             $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -76,7 +74,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
         $message = $agent2->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
@@ -104,25 +102,21 @@ class AgentDurabilityTest extends TestCase
         // Run 1: invoke the node directly with a durable memoizer bound to the step.
         // The inference memo is persisted on the first run. (We never record the node
         // step itself as completed — simulating a crash right after memoize().)
-        $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($runId);
 
         $state1 = new AgentState();
         $state1->set('__runId', $runId);
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($engine1, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
         $node1($event, $state1);
 
         $this->assertSame(1, $provider->getCallCount());
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
-        $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($runId);
 
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
         $node2($event, $state2);
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
@@ -132,7 +126,6 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
@@ -152,7 +145,7 @@ class AgentDurabilityTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setExecutor($executor);
+        $agent1->setPersistence($persistence);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
         $handler1->run();
@@ -168,9 +161,9 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'), ['call_1' => 'approve'])->getMessage();
+        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -180,7 +173,6 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_cleanup_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
@@ -188,7 +180,7 @@ class AgentDurabilityTest extends TestCase
 
         $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
-        $agent->setExecutor($executor);
+        $agent->setPersistence($persistence);
 
         $message = $agent->chat(new UserMessage('Hi'))->getMessage();
 
@@ -203,7 +195,6 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
@@ -222,7 +213,7 @@ class AgentDurabilityTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setExecutor($executor);
+        $agent1->setPersistence($persistence);
 
         $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
         $handler1->run();
@@ -237,12 +228,9 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(
-            new UserMessage('Search for PHP frameworks'),
-            ['call_1' => ['reject', 'Do not search the web.']]
-        )->getMessage();
+        $message = $agent2->wake(['call_1' => ['reject', 'Do not search the web.']])->getMessage();
 
         $this->assertSame(
             'I see the search was rejected. Is there anything else I can help with?',
@@ -254,7 +242,6 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_tool_success_test';
         $persistence = new InMemoryPersistence();
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $searchTool = new SearchTool();
 
@@ -268,7 +255,7 @@ class AgentDurabilityTest extends TestCase
         $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
-        $agent->setExecutor($executor);
+        $agent->setPersistence($persistence);
 
         $message = $agent->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
@@ -289,11 +276,10 @@ class AgentDurabilityTest extends TestCase
         );
 
         $persistence = new FilePersistence($dir);
-        $executor = new WorkflowExecutor(new LocalStepEngine($persistence));
 
         $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
-        $agent->setExecutor($executor);
+        $agent->setPersistence($persistence);
 
         $message = $agent->chat(new UserMessage('Hi'))->getMessage();
         $this->assertSame('Hello!', $message->getContent());
@@ -325,7 +311,7 @@ class AgentDurabilityTest extends TestCase
         $agent = Agent::make(runId: $runId);
         $agent->setAiProvider($provider);
         $agent->addTool($tool);
-        $agent->setExecutor(new WorkflowExecutor(new LocalStepEngine(new FilePersistence($dir))));
+        $agent->setPersistence(new FilePersistence($dir));
 
         $message = $agent->chat(new UserMessage('How many users in the database?'))->getMessage();
 
@@ -365,7 +351,7 @@ class AgentDurabilityTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($tool);
-        $agent1->setExecutor(new WorkflowExecutor(new LocalStepEngine($persistence)));
+        $agent1->setPersistence($persistence);
 
         try {
             $agent1->chat(new UserMessage('How many users in the database?'))->getMessage();
@@ -381,7 +367,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($tool);
-        $agent2->setExecutor(new WorkflowExecutor(new LocalStepEngine($persistence)));
+        $agent2->setPersistence($persistence);
 
         $message = $agent2->chat(new UserMessage('How many users in the database?'))->getMessage();
 

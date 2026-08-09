@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Node;
@@ -68,11 +68,11 @@ class IgnitionTest extends TestCase
         $record = $persistence->load('ign_write', '__ignition');
         $this->assertInstanceOf(StepResult::class, $record);
 
-        $output = $record->getOutput();
-        $this->assertSame(1, $output['version']);
-        $this->assertInstanceOf(IgnitionStartEvent::class, $output['startEvent']);
-        $this->assertSame('hello', $output['startEvent']->message);
-        $this->assertSame([], $output['context']);
+        $ignition = $record->getOutput();
+        $this->assertInstanceOf(Ignition::class, $ignition);
+        $this->assertInstanceOf(IgnitionStartEvent::class, $ignition->startEvent);
+        $this->assertSame('hello', $ignition->startEvent->message);
+        $this->assertSame([], $ignition->context);
     }
 
     public function test_ignition_record_is_swept_by_clean_completion(): void
@@ -143,21 +143,23 @@ class IgnitionTest extends TestCase
         $workflow->resume(['answer' => 1]);
     }
 
-    public function test_ignition_lands_in_the_executors_store_not_the_workflow_persistence(): void
+    public function test_ignition_and_steps_share_the_workflow_persistence_under_a_custom_executor(): void
     {
-        $engineStore = new InMemoryPersistence();
-        $configured = new InMemoryPersistence();
+        // An executor carries no store of its own: the ignition record and the
+        // node steps both land in the workflow's configured persistence, so a
+        // custom executor can never strand the record where no wake reads.
+        $store = new InMemoryPersistence();
 
         $workflow = Workflow::make(runId: 'ign_routing')
-            ->setPersistence($configured)
-            ->setExecutor(new WorkflowExecutor(new LocalStepEngine($engineStore)))
+            ->setPersistence($store)
+            ->setExecutor(new WorkflowExecutor())
             ->addNode(new IgnitionWaitNode());
         $workflow->setStartEvent(new IgnitionStartEvent());
 
         $workflow->run();
 
-        $this->assertNotNull($engineStore->load('ign_routing', '__ignition'));
-        $this->assertNull($configured->load('ign_routing', '__ignition'));
+        $this->assertNotNull($store->load('ign_routing', '__ignition'));
+        $this->assertNotNull($store->load('ign_routing', IgnitionWaitNode::class . '-0'));
     }
 
     protected function removeDirectory(string $dir): void

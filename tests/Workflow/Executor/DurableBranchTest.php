@@ -9,7 +9,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
@@ -18,13 +17,6 @@ use PHPUnit\Framework\TestCase;
 class DurableBranchTest extends TestCase
 {
     use ExecutorTestHelpers;
-
-    protected function createDurableExecutor(?PersistenceInterface $persistence = null): WorkflowExecutor
-    {
-        return new WorkflowExecutor(
-            new LocalStepEngine($persistence ?? new InMemoryPersistence()),
-        );
-    }
 
     public function testParallelBranchWithStepEngineCompletesAllBranches(): void
     {
@@ -38,7 +30,7 @@ class DurableBranchTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow, $this->createDurableExecutor($persistence));
+        $result = $this->execute($workflow, $persistence);
 
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);
@@ -57,7 +49,7 @@ class DurableBranchTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow, $this->createDurableExecutor($persistence));
+        $result = $this->execute($workflow, $persistence);
 
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);

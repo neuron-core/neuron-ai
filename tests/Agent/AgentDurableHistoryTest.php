@@ -128,7 +128,6 @@ class AgentDurableHistoryTest extends TestCase
     {
         $runId = 'steps_cycle_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
-        $executor = new \NeuronAI\Workflow\Executor\WorkflowExecutor(new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence));
         $history = new \NeuronAI\Chat\History\InMemoryChatHistory();
 
         $searchTool = new SearchTool();
@@ -147,7 +146,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setExecutor($executor);
+        $agent1->setPersistence($persistence);
 
         $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'))->run();
 
@@ -161,9 +160,9 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
-        $state2 = $agent2->chat(payload: ['call_1' => 'approve'])->run();
+        $state2 = $agent2->wake(['call_1' => 'approve'])->run();
 
         $steps2 = $state2->getSteps();
         $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
@@ -185,20 +184,16 @@ class AgentDurableHistoryTest extends TestCase
         $event->setMessages(new UserMessage('Hi'));
 
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
-        $engine1 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
-        $engine1->prepareExecution($runId);
         $state1 = new \NeuronAI\Agent\AgentState();
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine1, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, $runId, $stepId)));
         $node1($event, $state1);
 
         $this->assertCount(2, $chatHistory->getMessages());
 
-        $engine2 = new \NeuronAI\Workflow\Executor\LocalStepEngine($persistence);
-        $engine2->prepareExecution($runId);
         $state2 = new \NeuronAI\Agent\AgentState();
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($engine2, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, $runId, $stepId)));
         $node2($event, $state2);
 
         $messages = $chatHistory->getMessages();
@@ -253,7 +248,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
-        $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();
+        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
 

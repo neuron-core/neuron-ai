@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
 use NeuronAI\Observability\Events\BranchStart;
@@ -24,37 +25,69 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
 /**
- * Durable workflow executor with replay-based traversal.
+ * The run lifecycle, whole and unsplit: ignition (register / adopt / refuse),
+ * bootstrap, replay-based traversal, and terminal handling.
  *
- * Traversal is driven by an injected StepEngineInterface, which owns persistence
- * and the replay/memoization logic. This executor depends on a step engine,
- * never on a persistence backend directly — Workflow constructs the engine from
- * the configured persistence and injects it.
+ * The executor owns no configuration — it reads the run's context (state
+ * store, scheduler, run id, definition) from the WorkflowRuntimeInterface it
+ * is handed, so one executor strategy composes with any persistence backend
+ * or scheduler. Every executed node is persisted as a StepResult: on re-run,
+ * previously completed steps are returned from cache without re-executing the
+ * node; interrupted steps resume from the inbound payload; failed steps
+ * (marked after an unhandled throwable) retry.
  *
- * This is the in-process execution model. Alternative execution models (e.g. a
- * cloud-driven executor) implement WorkflowExecutorInterface directly.
+ * Replay is keyed by step id alone: step ids are unique within a run
+ * (monotonic traversal index, a branch prefix, a per-name memo suffix), so a
+ * completed, non-interrupted, non-failed cached result is always a prior
+ * run's work and is safe to skip. There is no generation counter and no scan
+ * of stored steps.
+ *
+ * This is the in-process execution model. AsyncExecutor subclasses it to run
+ * parallel branches concurrently; alternative execution models implement
+ * WorkflowExecutorInterface directly.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
-    public function __construct(
-        protected StepEngineInterface $stepEngine,
-        protected SchedulerInterface $scheduler = new NullScheduler(),
-    ) {
-    }
-
-    public function getStepEngine(): StepEngineInterface
-    {
-        return $this->stepEngine;
-    }
+    /**
+     * Reserved id under which the ignition record rides the step store: the
+     * envelope reuses the same persistence backend and serializer pipe as
+     * every step, and is swept with them on clean completion. Node steps are
+     * `NodeClass-index` and memo steps `stepId::name`, so the id can never
+     * collide. A storage detail of this executor — the workflow sees only the
+     * typed Ignition.
+     */
+    protected const IGNITION_STEP_ID = '__ignition';
 
     /**
-     * Shared body for start/replay (no payload) and resume (a delivered payload).
+     * The run context of the currently executing run, read off the workflow
+     * runtime at the single entry point (execute) and held for the traversal
+     * methods below.
+     */
+    protected PersistenceInterface $persistence;
+
+    protected SchedulerInterface $scheduler;
+
+    protected string $runId;
+
+    /**
+     * The inbound resume payload for this run. Null means a fresh start or a
+     * crash-recovery replay (no resume); a non-null array (even empty) means
+     * a deliberate resume — the interrupted step consumes it.
+     */
+    protected ?array $pendingPayload = null;
+
+    protected bool $pendingTimedOut = false;
+
+    /**
+     * Execute the run: resolve ignition, bootstrap the definition, then
+     * traverse nodes as durable steps.
      *
      * @param array<string, mixed>|null $payload Null for start/replay; the delivered event payload on resume.
      * @return Generator<int, Event, mixed, WorkflowState>
@@ -62,18 +95,24 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     public function execute(WorkflowRuntimeInterface $workflow, ?array $payload = null, bool $timedOut = false): Generator
     {
+        $this->persistence = $workflow->getPersistence();
+        $this->scheduler = $workflow->getScheduler();
+        $this->runId = $workflow->getRunId();
+        $this->pendingPayload = $payload;
+        $this->pendingTimedOut = $timedOut;
+
+        $this->resolveIgnition($workflow, $payload);
+        $workflow->bootstrap();
+
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
-        $runId = $workflow->getRunId();
-        $workflow->resolveState()->set('__runId', $runId);
+        $workflow->resolveState()->set('__runId', $this->runId);
 
         try {
-            $this->stepEngine->prepareExecution($runId, $payload, $timedOut);
-
             // A resume lets the scheduler cancel the wakeup it satisfies (inline or
             // scheduler push), so a deliberate resume leaves no stale registration.
             // A start/replay passes no payload and fires no onResume.
             if ($payload !== null) {
-                $this->scheduler->onResume($runId);
+                $this->scheduler->onResume($this->runId);
             }
 
             $terminal = yield from $this->traverse(
@@ -90,15 +129,16 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // so it is a dedicated event rather than an AgentError.
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
                 // Let the scheduler register a wakeup for this suspend (inert by default).
-                $this->scheduler->onSuspend($runId, $terminal->request);
+                $this->scheduler->onSuspend($this->runId, $terminal->request);
                 yield $terminal;
             } else {
-                // Completed: clean up persisted steps and clear any stale interrupt
-                // marker (the status describes the outcome of this run only).
-                $this->stepEngine->deleteSteps();
+                // Completed: sweep the run's durable records (steps, memos, and the
+                // ignition record — a completed run cannot be woken) and clear any
+                // stale interrupt marker (the status describes this run only).
+                $this->persistence->delete($this->runId);
                 $workflow->resolveState()->clearInterrupt();
                 // Drop all scheduler coordination state for this workflow.
-                $this->scheduler->onComplete($runId);
+                $this->scheduler->onComplete($this->runId);
             }
 
             return $workflow->resolveState();
@@ -108,6 +148,50 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         } finally {
             $this->workflowEnd($workflow);
         }
+    }
+
+    /**
+     * Make the run self-describing before anything else happens: a fresh
+     * ignition registers the trigger envelope; a wake of a run that was never
+     * durably started fails loudly; an existing record is offered to the
+     * workflow for adoption (a no-op when its local state is already set).
+     *
+     * @throws WorkflowException
+     */
+    protected function resolveIgnition(WorkflowRuntimeInterface $workflow, ?array $payload): void
+    {
+        $ignition = $this->loadIgnition();
+
+        // Fresh ignition: register the run's trigger envelope.
+        if ($ignition === null && $payload === null) {
+            $this->saveIgnition($workflow->makeIgnition());
+            return;
+        }
+
+        // A wake needs a run to wake.
+        if ($ignition === null) {
+            throw new WorkflowException(
+                "Cannot wake run {$this->runId}: no ignition record — the run "
+                . "was never durably started, or already completed."
+            );
+        }
+
+        $workflow->adoptIgnition($ignition);
+    }
+
+    protected function saveIgnition(Ignition $ignition): void
+    {
+        $this->persistence->save($this->runId, self::IGNITION_STEP_ID, new StepResult(
+            stepId: self::IGNITION_STEP_ID,
+            output: $ignition,
+        ));
+    }
+
+    protected function loadIgnition(): ?Ignition
+    {
+        $output = $this->persistence->load($this->runId, self::IGNITION_STEP_ID)?->getOutput();
+
+        return $output instanceof Ignition ? $output : null;
     }
 
     /**
@@ -177,8 +261,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Run one node as a durable step, yielding its streamed events through in
-     * real time and returning the StepResult.
+     * Run one node as a durable step, memoized by step id, yielding its
+     * streamed events through in real time and returning the StepResult.
+     *
+     * Returns the cached StepResult when a prior generation completed this
+     * step (yielding nothing — streamed events are not replayed); resumes an
+     * interrupted step by injecting the run's inbound payload; otherwise runs
+     * the node and persists the outcome. Failed steps are never replayed from
+     * cache — they must retry.
      *
      * @return Generator<int, Event, mixed, StepResult>
      */
@@ -190,34 +280,55 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
-        return yield from $this->stepEngine->runStep($stepId, function (?array $payload, bool $timedOut) use (
-            $node,
-            $event,
-            $state,
-            $workflow,
-            $branchId,
-            $stepId,
-        ): Generator {
-            $result = yield from $this->runNode(
+        $cached = $this->persistence->load($this->runId, $stepId);
+
+        // Memoized: return a previously completed result without re-executing.
+        if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
+            return $cached;
+        }
+
+        // Resuming an interrupted step injects the run's inbound payload.
+        $resuming = $cached instanceof StepResult && $cached->isInterrupted() && $this->pendingPayload !== null;
+
+        try {
+            $terminal = yield from $this->runNode(
                 $node,
                 new NodeContext(
                     state: $state,
                     event: $event,
-                    payload: $payload,
-                    timedOut: $timedOut,
-                    memoizer: new StepMemoizer($this->stepEngine, $stepId),
+                    payload: $resuming ? $this->pendingPayload : null,
+                    timedOut: $resuming && $this->pendingTimedOut,
+                    memoizer: new StepMemoizer($this->persistence, $this->runId, $stepId),
                     dispatcher: $workflow->getEventDispatcher(),
                 ),
                 $workflow->getMiddlewareForNode($node),
                 $branchId,
             );
-
-            return new StepResult(
+        } catch (Throwable $e) {
+            // Record a failed-step marker for crash observability, then rethrow.
+            // On recovery the marker makes this step retry (never replayed from cache).
+            $this->persistence->save($this->runId, $stepId, new StepResult(
                 stepId: $stepId,
-                event: $result,
-                state: $state,
-            );
-        });
+                error: ['message' => $e->getMessage(), 'class' => $e::class],
+            ));
+            throw $e;
+        }
+
+        // Interrupted: the step's terminal event is an InterruptEvent. Persist only an
+        // interrupted marker (no throw) so the step resumes on the next run. The
+        // InterruptRequest rides the event outbound (→ onSuspend / returned state) but
+        // is NOT persisted — it is rebuilt by re-running the node on resume, which keeps
+        // developer objects stuffed into a request out of the serializer.
+        if ($terminal instanceof InterruptEvent) {
+            $this->persistence->save($this->runId, $stepId, new StepResult(stepId: $stepId, interrupted: true));
+            return new StepResult(stepId: $stepId, event: $terminal, state: $state);
+        }
+
+        // Persist the completed result.
+        $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
+        $this->persistence->save($this->runId, $stepId, $result);
+
+        return $result;
     }
 
     /**
@@ -313,7 +424,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * Resume of an interrupted branch is driven by step replay: the interrupted
      * step is cached and re-run with the pending resume request, so this method
      * needs no explicit resume/branch routing — it always starts from the
-     * branch event and lets the step engine skip or resume per step.
+     * branch event and lets step replay skip or resume per step.
      *
      * @return Generator<int, Event, mixed, Event>
      * @throws Throwable

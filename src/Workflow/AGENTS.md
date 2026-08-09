@@ -123,6 +123,39 @@ deadline (`expiresAt`) lives on the outbound request and the scheduler's timer w
 the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure KV store
 (no scan, no `findExpired()`) and stores no request — only the `interrupted` flag.
 
+## The ignition record — runs are self-describing (ADR 0015)
+
+Every durable run registers its **trigger envelope** on the first segment: an
+`Ignition` value object carrying the start event (the run's cause, and the
+entry key replay walks from) plus an engine-opaque **context bag**. This is
+what makes a suspended run continuable from a **blank process** that knows
+only the runId — the analog of Inngest storing and re-delivering the trigger
+event, or Temporal's `WorkflowExecutionStarted` history entry with its `memo`.
+
+The executor resolves ignition before anything else, as a flat truth table:
+
+| record? | payload? | meaning | action |
+|---|---|---|---|
+| no | no | fresh ignition | register the envelope |
+| no | yes | wake of nothing | throw `WorkflowException` (loud) |
+| yes | — | continuation in a blank process | adopt (start event + context) |
+| yes | — | same-instance segment (state set) | nothing — local state wins |
+
+Adoption happens **before** `bootstrap()`, so subclasses can construct
+collaborators from the context (the Agent applies its threadId there). The
+workflow contributes only vocabulary via two runtime-contract methods —
+`makeIgnition()` and `adoptIgnition()` — and two protected hooks:
+`ignitionContext(): array` (write side) and `applyIgnitionContext(array)`
+(read side), both empty by default. The engine never interprets the bag.
+
+The record rides the step store under the executor's reserved `__ignition` id
+(node steps are `NodeClass-index`, memos `stepId::name` — no collisions) and
+is swept with the steps on clean completion: a completed run cannot be woken.
+Consequence for plain workflows: a workflow suspended on `awaitEvent()` can be
+resumed by a bare `Workflow::make(runId:)` factory — including crash-replay
+via bare `run()` by a recovery worker that knows nothing about how the run
+was ignited.
+
 ## Durable memoization (`memoize`)
 
 Every node already executes as a durable step: completed steps are persisted and
@@ -145,8 +178,9 @@ $data = $this->memoize('fetch', fn () => $this->api->fetch($event->query));
 
 Wrap any non-deterministic or expensive work (LLM calls, HTTP, tool execution) in
 `memoize()` so it runs at most once even if the node crashes after it succeeds. The
-built-in `ChatNode` (inference), `ToolNode` (per-call tool execution), and
-`StreamingNode` (terminal response) already use it.
+built-in `ChatNode` (inference — buffered and streamed transport), `ToolNode`
+(per-call tool execution), and `StructuredOutputNode` (attempt-indexed
+inference) already use it.
 
 ### The determinism contract
 
@@ -189,8 +223,8 @@ value. `recallMemo` is the only genuinely new capability (the read).
 
 A provider stream is a live, non-resumable cursor — it can't be replayed, and there is
 no consumer across a crash to receive chunks. So only the terminal value is durable;
-chunks are evanescent. This is why `StreamingNode` recalls the `ProviderResponse` and
-skips the stream on recovery (pattern above), matching how Temporal/Inngest treat
+chunks are evanescent. This is why `ChatNode`'s streaming path recalls the
+`ProviderResponse` and skips the stream on recovery (pattern above), matching how Temporal/Inngest treat
 streams. A crash **mid-stream** re-infers — that is the irreducible cost of a
 non-resumable resource. `memoize()` protects the window that matters: the call completed,
 so it is never billed twice.
@@ -224,29 +258,33 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `resolveExecutor()`.
 
-**Two contracts, two audiences (ADR 0011).** Applications hold `WorkflowInterface`
-(run/resume/events + configuration). Executors type against `WorkflowRuntimeInterface` —
-the engine-facing collaboration points (`getStartEvent`, `resolveState`/`setState`,
-`getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode`, `getRunId`,
-`getEventDispatcher`, `restoreEventNode`). `Workflow` implements both; anything the engine
-must call for correctness belongs on the runtime contract, never on the one users hold.
+**Two contracts, two audiences (ADR 0011, revised by ADR 0015).** Applications hold
+`WorkflowInterface` (run/resume/events + configuration). Executors type against
+`WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
+the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
+`getMiddlewareForNode`), the run (`getRunId`, `resolveState`/`setState`,
+`restoreEventNode`, `getEventDispatcher`), the seams (`getPersistence`,
+`getScheduler`), and the segment lifecycle (`makeIgnition`, `adoptIgnition`,
+`bootstrap`). `Workflow` implements both; anything the engine must call for
+correctness belongs on the runtime contract, never on the one users hold. (The
+former second engine contract, `StepEngineInterface`, was retired: its replay
+logic lives in `WorkflowExecutor` itself — see ADR 0015.)
 
 There are three genuine extension points:
 
-- **`PersistenceInterface`** — where steps are stored (InMemory, File, Database, Eloquent). Owns **state**.
+- **`PersistenceInterface`** — where a run's durable records live (InMemory, File, Database, Eloquent). Owns **state**.
 - **`SchedulerInterface`** — what wakes a suspended workflow (NullScheduler, a queue/cron worker, a cloud platform). Owns **coordination**. See *Suspend & resume* above.
-- **`WorkflowExecutorInterface`** — the execution model: in-process (`WorkflowExecutor`), async branches (`AsyncExecutor`), or an external platform (a future cloud executor).
+- **`WorkflowExecutorInterface`** — the execution model: in-process (`WorkflowExecutor`), async branches (`AsyncExecutor`). One verb (`execute`); an executor holds no configuration of its own.
 
 ```
-Workflow
-  └─ WorkflowExecutorInterface (execution model)
-       ├─ WorkflowExecutor   (in-process; traversal + a StepEngineInterface collaborator)
-       │    └─ AsyncExecutor  (concurrent branches via Amp fibers)
-       └─ <CloudExecutor>     (future: platform-driven durability)
-  └─ PersistenceInterface (state — storage, owned by the step engine)
-       ├─ InMemoryPersistence / FilePersistence / DatabasePersistence / EloquentPersistence
-  └─ SchedulerInterface (coordination — wakeups for suspended workflows)
-       └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
+Workflow (definition + configuration; owns the seams)
+  ├─ PersistenceInterface (state)
+  │    ├─ InMemoryPersistence / FilePersistence / DatabasePersistence / EloquentPersistence
+  ├─ SchedulerInterface (coordination — wakeups for suspended workflows)
+  │    └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
+  └─ WorkflowExecutorInterface (execution model — reads the seams above off the runtime)
+       └─ WorkflowExecutor   (the run lifecycle: ignition → bootstrap → replay traversal → terminal)
+            └─ AsyncExecutor  (overrides branch execution: concurrent Amp fibers)
 ```
 
 **Recalled events and transient capability.** A cached step returns its persisted output
@@ -258,7 +296,7 @@ node (so implementations must be idempotent — restore only what is missing). `
 ships an identity default; subclasses whose events carry live objects override it
 (`Agent` re-seeds its tool registry there).
 
-`StepEngineInterface` is the replay/memoization contract: persist each step, skip completed steps on replay, resume interrupted steps. `LocalStepEngine` is the in-process implementation; it owns persistence and the memoization machinery. `Workflow` constructs it from the persistence you configure and injects it into the executor, so the executor depends on the `StepEngineInterface` abstraction, never on a persistence backend or a concrete engine directly.
+The executor owns the whole run lifecycle in one place: it resolves ignition (register / adopt / refuse), calls the workflow's `bootstrap()`, and traverses nodes as durable steps — persist each step, skip completed steps on replay, resume interrupted steps, retry failed ones. It carries no configuration: constructors are zero-arg, and it reads persistence, scheduler, run id, and the definition off `WorkflowRuntimeInterface` at `execute()` time. Consequence: `setPersistence()`/`setScheduler()` compose freely with any executor — choosing an execution model never affects where state lives.
 
 ### Choosing an executor
 
@@ -277,11 +315,11 @@ $workflow = Workflow::make()
     ->setPersistence(new DatabasePersistence($pdo));
 $workflow->run();
 
-// Async parallel branches (requires ext-amp). A custom executor owns its own
-// persistence (via its LocalStepEngine), so pass it directly — setPersistence()
-// is only used when the default executor is built for you.
+// Async parallel branches (requires ext-amp). Executors carry no storage:
+// the persistence you configure serves any executor.
 $workflow = Workflow::make()
-    ->setExecutor(new AsyncExecutor(new LocalStepEngine(new FilePersistence($dir))));
+    ->setPersistence(new FilePersistence($dir))
+    ->setExecutor(new AsyncExecutor());
 $workflow->run();
 ```
 

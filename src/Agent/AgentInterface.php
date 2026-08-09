@@ -38,19 +38,24 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start; a payload to resume.
      */
-    public function chat(Message|array $messages = [], ?array $payload = null): AgentHandler;
+    public function chat(Message|array $messages = []): AgentHandler;
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start; a payload to resume.
      */
-    public function stream(Message|array $messages = [], ?array $payload = null): AgentHandler;
+    public function stream(Message|array $messages = []): AgentHandler;
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start; a payload to resume.
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?array $payload = null): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
+
+    /**
+     * Wake a suspended run with the delivered payload — the mode-agnostic
+     * continuation verb (a new turn is a new run; an answer is a wake).
+     *
+     * @param array<string, mixed> $payload
+     */
+    public function wake(array $payload = []): AgentHandler;
 }

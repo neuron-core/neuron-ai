@@ -17,7 +17,6 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -37,7 +36,7 @@ class ConversationTest extends TestCase
         if ($withApproval) {
             // Attach-time approval config (ADR 0009).
             $agent->addTool((new SearchTool())->requireApproval());
-            $agent->setExecutor(new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence())));
+            $agent->setExecutor(new WorkflowExecutor());
         }
 
         return $agent;

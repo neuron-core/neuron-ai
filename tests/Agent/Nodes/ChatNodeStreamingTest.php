@@ -15,7 +15,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -80,10 +79,8 @@ class ChatNodeStreamingTest extends TestCase
         $event->setMessages(new UserMessage('hi'));
 
         // Run 1: live stream + record the response as a durable memo.
-        $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($runId);
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
 
         $generator1 = $node1($event, $state);
         foreach ($generator1 as $_) {
@@ -100,12 +97,10 @@ class ChatNodeStreamingTest extends TestCase
         // process restart mid-node, after the inference memo committed but before
         // the node step committed — so the prior assistant message was never
         // persisted and the response must come from the memo, not from state).
-        $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($runId);
         $node2 = new ChatNode($provider, $chatHistory);
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
 
         $generator2 = $node2($event, $state2);
 

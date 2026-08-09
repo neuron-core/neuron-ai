@@ -14,7 +14,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -109,10 +108,8 @@ class StructuredOutputNodeTest extends TestCase
         $event->setStructuredOutput(User::class, 1);
         $event->setMessages(new UserMessage('Generate a user'));
 
-        $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($runId);
         $node1 = new StructuredOutputNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
 
         $firstReturn = $node1($event, $state);
 
@@ -126,10 +123,8 @@ class StructuredOutputNodeTest extends TestCase
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
 
-        $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($runId);
         $node2 = new StructuredOutputNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
 
         $secondReturn = $node2($event, $state2);
 

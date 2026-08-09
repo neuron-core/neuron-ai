@@ -12,9 +12,8 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -26,7 +25,7 @@ class AgentRunIdAdoptionTest extends TestCase
 {
     protected function makeSuspendedRun(
         InMemoryChatHistory $history,
-        WorkflowExecutor $executor,
+        PersistenceInterface $persistence,
         FakeAIProvider $provider,
         SearchTool $searchTool,
     ): Agent {
@@ -34,7 +33,7 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent->setChatHistory($history);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
-        $agent->setExecutor($executor);
+        $agent->setPersistence($persistence);
 
         $handler = $agent->chat(new UserMessage('Search for PHP frameworks'));
         $handler->run();
@@ -61,10 +60,10 @@ class AgentRunIdAdoptionTest extends TestCase
     public function testSuspendStampsRunIdOnHistoryTail(): void
     {
         $history = new InMemoryChatHistory();
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
 
-        $agent = $this->makeSuspendedRun($history, $executor, $this->makeProvider($searchTool), $searchTool);
+        $agent = $this->makeSuspendedRun($history, $persistence, $this->makeProvider($searchTool), $searchTool);
 
         $tail = $history->getLastMessage();
 
@@ -75,20 +74,20 @@ class AgentRunIdAdoptionTest extends TestCase
     public function testResumeAdoptsRunIdFromHistory(): void
     {
         $history = new InMemoryChatHistory();
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent1 = $this->makeSuspendedRun($history, $executor, $provider, $searchTool);
+        $agent1 = $this->makeSuspendedRun($history, $persistence, $provider, $searchTool);
 
         // A new execution cycle: NO runId — only the shared chat history.
         $agent2 = Agent::make();
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();
+        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -99,11 +98,11 @@ class AgentRunIdAdoptionTest extends TestCase
     public function testHistoryRunIdOverridesExplicitRunId(): void
     {
         $history = new InMemoryChatHistory();
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent1 = $this->makeSuspendedRun($history, $executor, $provider, $searchTool);
+        $agent1 = $this->makeSuspendedRun($history, $persistence, $provider, $searchTool);
 
         // Chat history is the system of record: the stamped token wins even over
         // an explicit (here: wrong) runId passed to make().
@@ -111,9 +110,9 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setExecutor($executor);
+        $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(payload: ['call_1' => 'approve'])->getMessage();
+        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -128,7 +127,7 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent->setChatHistory(new InMemoryChatHistory());
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
 
-        $agent->chat(payload: ['call_1' => 'approve']);
+        $agent->wake(['call_1' => 'approve']);
 
         $this->assertSame('my_explicit_token', $agent->getRunId());
     }
@@ -136,16 +135,16 @@ class AgentRunIdAdoptionTest extends TestCase
     public function testSameInstanceResumeKeepsOwnRunId(): void
     {
         $history = new InMemoryChatHistory();
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent = $this->makeSuspendedRun($history, $executor, $provider, $searchTool);
+        $agent = $this->makeSuspendedRun($history, $persistence, $provider, $searchTool);
         $runId = $agent->getRunId();
 
         // Resume on the SAME instance: the interrupted in-memory state short-circuits
         // adoption and the agent keeps its own id.
-        $message = $agent->chat(payload: ['call_1' => 'approve'])->getMessage();
+        $message = $agent->wake(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($runId, $agent->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());

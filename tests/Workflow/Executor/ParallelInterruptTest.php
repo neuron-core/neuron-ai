@@ -18,7 +18,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -29,8 +28,6 @@ class ParallelInterruptTest extends TestCase
 
     public function testInterruptInsideBranchSurfacesRequest(): void
     {
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
@@ -39,7 +36,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         // The branch's pause surfaces on the workflow state, and the join node
         // (which runs only after all branches complete) did not execute.
@@ -61,7 +58,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $this->createExecutor($persistence))->getInterruptRequest();
+        $request = $this->execute($workflow, $persistence)->getInterruptRequest();
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(runId: 'test-resume-token')
@@ -72,7 +69,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->resume($resumed, $this->createExecutor($persistence), []);
+        $result = $this->resume($resumed, $persistence, []);
 
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));
@@ -86,8 +83,6 @@ class ParallelInterruptTest extends TestCase
         // Image branch completes, then the text branch pauses. On resume the
         // already-completed image branch must still contribute its result —
         // proving completed branches are retained, not lost, across the pause.
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new ImageFirstForkNode(),
@@ -96,10 +91,10 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request = $this->execute($workflow)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');
@@ -109,8 +104,6 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelResumeContinuesPastJoinNode(): void
     {
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
@@ -120,10 +113,10 @@ class ParallelInterruptTest extends TestCase
                 new ContinuationNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request = $this->execute($workflow)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $this->assertTrue($result->get('continuation_node_executed'));
@@ -131,8 +124,6 @@ class ParallelInterruptTest extends TestCase
 
     public function testParallelResumeWithThreeBranches(): void
     {
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new ThreeBranchImageFirstForkNode(),
@@ -142,10 +133,10 @@ class ParallelInterruptTest extends TestCase
                 new ThreeBranchMergeNode(),
             ]);
 
-        $request = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request = $this->execute($workflow)->getInterruptRequest();
         $this->assertNotNull($request);
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $mergeResults = $result->get('merge_results');
@@ -156,8 +147,6 @@ class ParallelInterruptTest extends TestCase
 
     public function testReInterruptInResumedBranch(): void
     {
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-resume-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
@@ -168,16 +157,16 @@ class ParallelInterruptTest extends TestCase
             ]);
 
         // First pause: step1 approval
-        $request1 = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request1 = $this->execute($workflow)->getInterruptRequest();
         $this->assertNotNull($request1);
         $this->assertSame('step1 approval', $request1->getMessage());
 
         // Resuming re-enters the branch and pauses again at step2
-        $request2 = $this->resume($workflow, $executor, [])->getInterruptRequest();
+        $request2 = $this->resume($workflow)->getInterruptRequest();
         $this->assertNotNull($request2);
         $this->assertSame('step2 approval', $request2->getMessage());
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));
         $this->assertSame('TWO_STEP_APPROVED', $result->get('analysis')['text']);
@@ -187,24 +176,21 @@ class ParallelInterruptTest extends TestCase
     {
         // A non-parallel interrupt behaves the same way: surfaces on the state,
         // resumes through the request. (No parallel-specific metadata exists.)
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-linear-token')
             ->addNodes([new LinearInterruptNode()]);
 
-        $request = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request = $this->execute($workflow)->getInterruptRequest();
         $this->assertNotNull($request);
         $this->assertSame('linear interrupt', $request->getMessage());
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
         $this->assertFalse($result->isInterrupted());
     }
 
     public function testAsyncParallelInterruptSurfacesRequest(): void
     {
-        $executor = new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
-
         $workflow = Workflow::make(runId: 'test-async-token')
+            ->setExecutor(new AsyncExecutor())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -212,7 +198,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('text branch needs approval', $state->getInterruptRequest()->getMessage());
@@ -223,6 +209,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
 
         $workflow = Workflow::make(runId: 'test-async-token')
+            ->setExecutor(new AsyncExecutor())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -230,10 +217,11 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $request = $this->execute($workflow, new AsyncExecutor(new LocalStepEngine($persistence)))->getInterruptRequest();
+        $request = $this->execute($workflow, $persistence)->getInterruptRequest();
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(runId: 'test-async-token')
+            ->setExecutor(new AsyncExecutor())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -241,7 +229,7 @@ class ParallelInterruptTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->resume($resumed, new AsyncExecutor(new LocalStepEngine($persistence)), []);
+        $result = $this->resume($resumed, $persistence, []);
 
         $this->assertFalse($result->isInterrupted());
         $this->assertTrue($result->get('merge_node_executed'));

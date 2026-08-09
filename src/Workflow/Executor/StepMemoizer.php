@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Closure;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 
 /**
  * Durable memoizer bound to a single node-execution step.
  *
  * Each memo is persisted as a StepResult under the namespaced step id
- * "{stepId}::{name}", reusing the step engine's existing replay machinery:
- * the first call runs the operation and persists the value; on replay the
- * cached value is returned without re-running the operation.
+ * "{stepId}::{name}": the first call runs the operation and persists the
+ * value; on replay the cached value is returned without re-running the
+ * operation.
  *
  * An instance is constructed per step by the executor (which knows the
  * current stepId) and threaded into the node via setWorkflowContext().
@@ -20,7 +21,8 @@ use Closure;
 final class StepMemoizer
 {
     public function __construct(
-        protected StepEngineInterface $engine,
+        protected PersistenceInterface $persistence,
+        protected string $runId,
         protected string $stepId,
     ) {
     }
@@ -29,21 +31,19 @@ final class StepMemoizer
     {
         $memoStepId = $this->stepId . '::' . $name;
 
-        $step = $this->engine->runStep(
-            $memoStepId,
-            fn (?array $payload, bool $timedOut): StepResult => new StepResult(
-                stepId: $memoStepId,
-                output: $operation(),
-            ),
-        );
-
-        // runStep is a generator; a memo step streams nothing, so driving it to
-        // completion just executes (or recalls) the operation.
-        while ($step->valid()) {
-            $step->next();
+        $cached = $this->loadCompleted($memoStepId);
+        if ($cached instanceof StepResult) {
+            return $cached->getOutput();
         }
 
-        return $step->getReturn()->getOutput();
+        $value = $operation();
+
+        $this->persistence->save($this->runId, $memoStepId, new StepResult(
+            stepId: $memoStepId,
+            output: $value,
+        ));
+
+        return $value;
     }
 
     /**
@@ -55,13 +55,26 @@ final class StepMemoizer
      *
      * This is the read-only counterpart to memo(): it lets a node skip
      * non-replayable work whose terminal value was already persisted — e.g. a
-     * StreamingNode recalling a completed provider response instead of re-opening
-     * a non-resumable stream. memo() handles the write side.
+     * streaming node recalling a completed provider response instead of
+     * re-opening a non-resumable stream. memo() handles the write side.
      */
     public function get(string $name): mixed
     {
-        $cached = $this->engine->getStep($this->stepId . '::' . $name);
+        return $this->loadCompleted($this->stepId . '::' . $name)?->getOutput();
+    }
 
-        return $cached?->getOutput();
+    /**
+     * A memo is recallable only when it completed: interrupted or failed
+     * markers never replay from cache.
+     */
+    protected function loadCompleted(string $stepId): ?StepResult
+    {
+        $cached = $this->persistence->load($this->runId, $stepId);
+
+        if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
+            return $cached;
+        }
+
+        return null;
     }
 }

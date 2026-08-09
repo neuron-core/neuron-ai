@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Closure;
 use Generator;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
@@ -17,10 +18,26 @@ class AgentHandler
 {
     protected ?AgentState $result = null;
 
+    /**
+     * The chat history may arrive as a resolver: on a blank-factory wake the
+     * thread identity is adopted from the ignition record during execution,
+     * so the history is materializable only after the run has been consumed.
+     *
+     * @param ChatHistoryInterface|(Closure(): ChatHistoryInterface) $chatHistory
+     */
     public function __construct(
         protected Generator $generator,
-        protected ChatHistoryInterface $chatHistory,
+        protected ChatHistoryInterface|Closure $chatHistory,
     ) {
+    }
+
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        if ($this->chatHistory instanceof Closure) {
+            $this->chatHistory = ($this->chatHistory)();
+        }
+
+        return $this->chatHistory;
     }
 
     /**
@@ -93,7 +110,7 @@ class AgentHandler
     {
         $this->run();
 
-        return $this->chatHistory->getLastMessage();
+        return $this->chatHistory()->getLastMessage();
     }
 
     /**

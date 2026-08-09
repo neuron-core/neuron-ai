@@ -268,7 +268,7 @@ class Agent extends Workflow implements AgentInterface
      * is only touched lazily behind null-safe guards during delivery, so a
      * pending resolver would otherwise silently mean "no channel".
      */
-    protected function bootstrap(): static
+    public function bootstrap(): void
     {
         if ($this->channelResolver instanceof Closure) {
             throw new AgentException(
@@ -278,7 +278,7 @@ class Agent extends Workflow implements AgentInterface
         }
 
         $this->compose();
-        return parent::bootstrap();
+        parent::bootstrap();
     }
 
     /**
@@ -312,50 +312,42 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * Pure ignition: a new turn starts a new run. To continue a suspended run
+     * use {@see wake()} (handler ergonomics) or {@see resume()} (engine verb).
+     *
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      * @throws WorkflowException
      */
-    public function chat(
-        Message|array $messages = [],
-        ?array $payload = null
-    ): AgentHandler {
-        $this->checkRunId($payload);
-
+    public function chat(Message|array $messages = []): AgentHandler
+    {
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
         return new AgentHandler(
-            $this->events($payload),
+            $this->events(),
             $this->getChatHistory(),
         );
     }
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      * @throws WorkflowException
      */
-    public function stream(
-        Message|array $messages = [],
-        ?array $payload = null,
-    ): AgentHandler {
-        $this->checkRunId($payload);
-
+    public function stream(Message|array $messages = []): AgentHandler
+    {
         $this->resolveStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
         return new AgentHandler(
-            $this->events($payload),
+            $this->events(),
             $this->getChatHistory(),
         );
     }
 
     /**
      * @param Message|Message[] $messages
-     * @param array<string, mixed>|null $payload Null to start the run; a payload to resume a suspended agent.
      * @throws AgentException
      * @throws Throwable
      */
@@ -363,10 +355,7 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?string $class = null,
         int $maxRetries = 1,
-        ?array $payload = null,
     ): mixed {
-        $this->checkRunId($payload);
-
         $this->resolveStartEvent()
             ->setStructuredOutput($class ?? $this->getOutputClass(), $maxRetries)
             ->setMessages(
@@ -374,9 +363,48 @@ class Agent extends Workflow implements AgentInterface
             );
 
         /** @var AgentState $finalState */
-        $finalState = $payload === null ? $this->run() : $this->resume($payload);
+        $finalState = $this->run();
 
         return $finalState->get('structured_output');
+    }
+
+    /**
+     * Wake a suspended run with the delivered payload — the mode-agnostic
+     * continuation sugar. Any execution mode wakes the same way: the run's
+     * intent rides its ignition record, so chat, streamed, and structured
+     * runs all continue through this single verb with full handler
+     * ergonomics (getMessage() for approval endpoints, events() for SSE
+     * resumes, interrupted() for incomplete decision sets, getState() for
+     * structured output).
+     *
+     * The chat history is handed to the handler lazily: on a blank-factory
+     * wake the threadId arrives via the adopted ignition context during
+     * execution, so the history may not be materializable before then.
+     *
+     * @param array<string, mixed> $payload The delivered answer (e.g. a cumulative approval decision set).
+     * @throws WorkflowException
+     */
+    public function wake(array $payload = []): AgentHandler
+    {
+        $this->adoptRunIdFromHistory();
+
+        return new AgentHandler(
+            $this->events($payload),
+            fn (): ChatHistoryInterface => $this->getChatHistory(),
+        );
+    }
+
+    /**
+     * The uniform engine verb, unchanged in signature — with the runId
+     * adoption every continuation path shares (ADR 0005).
+     *
+     * @param array<string, mixed> $payload
+     */
+    public function resume(array $payload = [], bool $timedOut = false): WorkflowState
+    {
+        $this->adoptRunIdFromHistory();
+
+        return parent::resume($payload, $timedOut);
     }
 
     /**
@@ -390,19 +418,20 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * A resume payload targets the suspended run recorded on the thread: when the
+     * A continuation targets the suspended run recorded on the thread: when the
      * tail of chat history is a ToolCallMessage stamped with a runId (ADR 0005),
      * that id identifies the run to reattach to — chat history is the system of
-     * record, so nothing else needs to be stored or passed. With no stamp on the
-     * tail the agent keeps its current runId (e.g. a runId passed to make() for a
-     * non-approval suspension).
+     * record, so nothing else needs to be stored or passed. The stamp wins even
+     * over a runId passed to make(); with no stamp on the tail the agent keeps
+     * its current runId (e.g. an explicit runId for a non-approval suspension).
      *
-     * @param array<string, mixed>|null $payload Null starts a fresh turn; a non-null
-     *                                           payload resumes a suspended workflow.
+     * Skipped while a chat-history resolver is pending: without a thread
+     * identity there is no tail to read — the explicit runId governs, and the
+     * threadId arrives via the adopted ignition context during the wake.
      */
-    protected function checkRunId(?array $payload): void
+    protected function adoptRunIdFromHistory(): void
     {
-        if ($payload === null) {
+        if ($this->chatHistoryResolver instanceof Closure) {
             return;
         }
 

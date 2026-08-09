@@ -15,7 +15,6 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -145,10 +144,8 @@ class ParallelToolNodeTest extends TestCase
         $state->set('__runId', $runId);
 
         // Run 1: the batch executes and its result is memoized mid-node.
-        $engine1 = new LocalStepEngine($persistence);
-        $engine1->prepareExecution($runId);
         $node1 = new ParallelToolNode(new InMemoryChatHistory());
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
         foreach ($node1($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -157,10 +154,8 @@ class ParallelToolNodeTest extends TestCase
         $this->assertSame(1, $state->getToolRuns('another_tool'));
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
-        $engine2 = new LocalStepEngine($persistence);
-        $engine2->prepareExecution($runId);
         $node2 = new ParallelToolNode(new InMemoryChatHistory());
-        $node2->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine2, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
         foreach ($node2($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }

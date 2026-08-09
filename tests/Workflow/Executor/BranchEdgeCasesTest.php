@@ -14,7 +14,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -27,9 +26,9 @@ class BranchEdgeCasesTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    private function createAsyncExecutor(): AsyncExecutor
+    protected function executor(): AsyncExecutor
     {
-        return new AsyncExecutor(new LocalStepEngine(new InMemoryPersistence()));
+        return new AsyncExecutor();
     }
 
     public function testMultiStepBranchExecutesAllNodes(): void
@@ -91,7 +90,6 @@ class BranchEdgeCasesTest extends TestCase
 
     public function testAsyncMultiStepBranchCompletesAllNodes(): void
     {
-        $executor = $this->createAsyncExecutor();
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -103,7 +101,7 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow, $executor);
+        $result = $this->execute($workflow);
 
         $analysis = $result->get('analysis');
         $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
@@ -162,7 +160,6 @@ class BranchEdgeCasesTest extends TestCase
 
     public function testAsyncMiddlewareCarriesBranchId(): void
     {
-        $executor = $this->createAsyncExecutor();
         $middleware = new RecordingMiddleware();
 
         $workflow = Workflow::make()
@@ -176,7 +173,7 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $this->execute($workflow, $executor);
+        $this->execute($workflow);
 
         $this->assertCount(6, $middleware->beforeCalls);
         $this->assertCount(6, $middleware->afterCalls);
@@ -208,8 +205,7 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $executor = $this->createAsyncExecutor();
-        [$result, $events] = $this->executeAndCollect($workflow, $executor);
+        [$result, $events] = $this->executeAndCollect($workflow);
 
         $analysis = $result->get('analysis');
         $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);

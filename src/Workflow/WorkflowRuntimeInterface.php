@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Executor\Ignition;
+use NeuronAI\Workflow\Executor\SchedulerInterface;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -75,4 +78,40 @@ interface WorkflowRuntimeInterface
      * idempotent (restore only what is missing). The default restores nothing.
      */
     public function restoreEventNode(Event $event): Event;
+
+    /**
+     * The state store this run's durable records live in (steps, memos, the
+     * ignition record). The workflow owns storage configuration; the executor
+     * reads it here.
+     */
+    public function getPersistence(): PersistenceInterface;
+
+    /**
+     * The coordinator the executor notifies about suspends, resumes, and
+     * completion.
+     */
+    public function getScheduler(): SchedulerInterface;
+
+    /**
+     * Prepare the definition for traversal (load the event-node map,
+     * validate). The executor calls this once per segment, AFTER ignition is
+     * resolved — adoption must precede it, because subclasses construct
+     * collaborators from ignition context (e.g. thread identity) here.
+     */
+    public function bootstrap(): void;
+
+    /**
+     * Build the run's trigger envelope from the resolved start event and the
+     * workflow's context bag. Called by the executor exactly once, on the
+     * first segment, to register the run.
+     */
+    public function makeIgnition(): Ignition;
+
+    /**
+     * Offer a persisted trigger envelope for adoption on a continuation
+     * segment. A blank process adopts the start event and applies the
+     * context; a workflow whose start event is already set keeps its local
+     * state (same-instance segment — the two are identical).
+     */
+    public function adoptIgnition(Ignition $ignition): void;
 }

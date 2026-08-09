@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
@@ -157,7 +158,10 @@ class ThreadIdentityTest extends TestCase
 
         $record = $persistence->load('thread_ignition_test', '__ignition');
         $this->assertInstanceOf(StepResult::class, $record);
-        $this->assertSame(['threadId' => 'thread-42'], $record->getOutput()['context']);
+
+        $ignition = $record->getOutput();
+        $this->assertInstanceOf(Ignition::class, $ignition);
+        $this->assertSame(['threadId' => 'thread-42'], $ignition->context);
     }
 
     public function test_blank_instance_adopts_the_thread_id_and_materializes_resolvers(): void

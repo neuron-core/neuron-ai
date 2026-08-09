@@ -19,8 +19,6 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointValueSavedBeforeInterruptInBranch(): void
     {
-        $executor = $this->createExecutor();
-
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(runId: 'test-checkpoint-token')
             ->addNodes([
@@ -30,7 +28,7 @@ class CheckpointParallelTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         $this->assertTrue($state->isInterrupted());
         // The durable-memoized operation executed exactly once before the branch paused.
@@ -39,8 +37,6 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointNotReExecutedOnParallelResume(): void
     {
-        $executor = $this->createExecutor();
-
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(runId: 'test-checkpoint-resume')
             ->addNodes([
@@ -50,11 +46,11 @@ class CheckpointParallelTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
         $this->assertTrue($state->isInterrupted());
         $this->assertSame(1, $checkpointNode->closureExecutions);
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertFalse($result->isInterrupted());
         // Memo hit on resume: the node re-executes but the memoized closure does NOT.
@@ -67,8 +63,6 @@ class CheckpointParallelTest extends TestCase
 
     public function testCheckpointWithCompletedBranchRetainedAcrossInterrupt(): void
     {
-        $executor = $this->createExecutor();
-
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(runId: 'test-checkpoint-order')
             ->addNodes([
@@ -78,12 +72,12 @@ class CheckpointParallelTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
         $this->assertTrue($state->isInterrupted());
 
         // The already-completed image branch is retained across the pause and
         // contributes its result on resume.
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');
@@ -93,8 +87,6 @@ class CheckpointParallelTest extends TestCase
 
     public function testMultipleCheckpointsInParallelBranch(): void
     {
-        $executor = $this->createExecutor();
-
         $workflow = Workflow::make(runId: 'test-multi-checkpoint')
             ->addNodes([
                 new InterruptableBranchProcessing(),
@@ -103,10 +95,10 @@ class CheckpointParallelTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
         $this->assertTrue($state->isInterrupted());
 
-        $result = $this->resume($workflow, $executor, []);
+        $result = $this->resume($workflow);
 
         $this->assertTrue($result->get('merge_node_executed'));
         $analysis = $result->get('analysis');

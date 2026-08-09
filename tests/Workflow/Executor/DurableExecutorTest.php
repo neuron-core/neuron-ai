@@ -14,7 +14,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
@@ -30,13 +29,6 @@ class DurableExecutorTest extends TestCase
         CountableNode::resetExecutionCount();
     }
 
-    protected function createDurableExecutor(?PersistenceInterface $persistence = null): WorkflowExecutor
-    {
-        return new WorkflowExecutor(
-            new LocalStepEngine($persistence ?? new InMemoryPersistence()),
-        );
-    }
-
     public function testMemoizationOnCrashRecovery(): void
     {
         $runId = 'durable_crash_test';
@@ -50,7 +42,7 @@ class DurableExecutorTest extends TestCase
             ]);
 
         try {
-            $this->execute($workflow, $this->createDurableExecutor($persistence));
+            $this->execute($workflow, $persistence);
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Simulated crash', $e->getMessage());
@@ -68,7 +60,7 @@ class DurableExecutorTest extends TestCase
                 new DurableNodeC(),
             ]);
 
-        $result = $this->execute($workflow2, $this->createDurableExecutor($persistence));
+        $result = $this->execute($workflow2, $persistence);
 
         // Node A should be memoized (skipped), nodes B and C execute fresh
         $this->assertSame(2, CountableNode::getExecutionCount());
@@ -92,7 +84,7 @@ class DurableExecutorTest extends TestCase
         // First run — pauses at node B
         $state = $this->execute(
             $workflow,
-            $this->createDurableExecutor($persistence),
+            $persistence,
         );
 
         $this->assertTrue($state->isInterrupted());
@@ -113,7 +105,7 @@ class DurableExecutorTest extends TestCase
 
         $result = $this->resume(
             $workflow2,
-            $this->createDurableExecutor($persistence),
+            $persistence,
             ['approve_b' => 'approve'],
         );
 
@@ -136,7 +128,7 @@ class DurableExecutorTest extends TestCase
                 new DurableNodeC(),
             ]);
 
-        $this->execute($workflow, $this->createDurableExecutor($persistence));
+        $this->execute($workflow, $persistence);
 
         // Steps should be deleted after successful completion
         $this->assertNull($persistence->load($runId, DurableNodeA::class . '-0'));
@@ -157,7 +149,7 @@ class DurableExecutorTest extends TestCase
             ]);
 
         try {
-            $this->execute($workflow, $this->createDurableExecutor($persistence));
+            $this->execute($workflow, $persistence);
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException) {
             // After crash, completed steps should still be persisted
@@ -167,7 +159,6 @@ class DurableExecutorTest extends TestCase
 
     public function testDefaultInMemoryPersistence(): void
     {
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
         $workflow = Workflow::make()
             ->addNodes([
                 new NodeOne(),
@@ -175,7 +166,7 @@ class DurableExecutorTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $result = $this->execute($workflow, $executor);
+        $result = $this->execute($workflow);
 
         $this->assertTrue($result->get('node_one_executed'));
         $this->assertTrue($result->get('node_two_executed'));
@@ -196,7 +187,7 @@ class DurableExecutorTest extends TestCase
 
         // Run 1: Node A completes, node B crashes
         try {
-            $this->execute($workflow, $this->createDurableExecutor($persistence));
+            $this->execute($workflow, $persistence);
             $this->fail('Expected RuntimeException');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Simulated crash', $e->getMessage());
@@ -213,7 +204,7 @@ class DurableExecutorTest extends TestCase
                 new DurableNodeC(),
             ]);
 
-        $result = $this->execute($workflow2, $this->createDurableExecutor($persistence));
+        $result = $this->execute($workflow2, $persistence);
 
         // Node A memoized via fresh executor, nodes B and C execute
         $this->assertSame(2, CountableNode::getExecutionCount());
@@ -236,7 +227,7 @@ class DurableExecutorTest extends TestCase
             ->addNodes([new MemoizingNode(shouldCrash: true)]);
 
         try {
-            $this->execute($workflow, $this->createDurableExecutor($persistence));
+            $this->execute($workflow, $persistence);
             $this->fail('Expected RuntimeException');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Simulated crash after memoize', $e->getMessage());
@@ -250,7 +241,7 @@ class DurableExecutorTest extends TestCase
         $workflow2 = Workflow::make(runId: $runId)
             ->addNodes([new MemoizingNode(shouldCrash: false)]);
 
-        $result = $this->execute($workflow2, $this->createDurableExecutor($persistence));
+        $result = $this->execute($workflow2, $persistence);
 
         // The node re-executed (it never completed before), but the memoized operation
         // did NOT run again — it was replayed from the persisted memo.
@@ -268,7 +259,7 @@ class DurableExecutorTest extends TestCase
             ->addNodes([new MemoizingNode(shouldCrash: true)]);
 
         try {
-            $this->execute($workflow, $this->createDurableExecutor($persistence));
+            $this->execute($workflow, $persistence);
             $this->fail('Expected RuntimeException');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Simulated crash', $e->getMessage());

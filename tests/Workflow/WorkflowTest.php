@@ -167,7 +167,6 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowInterrupt(): void
     {
-        $executor = $this->createExecutor();
         $runId = 'test-workflow';
 
         $workflow = Workflow::make(runId: $runId)
@@ -177,7 +176,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         // Paused: the interrupt request is surfaced on the state, and nodes after
         // the pausing one did not execute.
@@ -188,7 +187,6 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowResume(): void
     {
-        $executor = $this->createExecutor();
         $runId = 'test-workflow';
 
         $workflow = Workflow::make(runId: $runId)
@@ -198,7 +196,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('human input needed', $state->getInterruptRequest()->getMessage());
@@ -207,7 +205,7 @@ class WorkflowTest extends TestCase
         $this->assertNull($state->get('received_feedback'));
 
         // Resume delivers the payload through interrupt()
-        $state = $this->resume($workflow, $executor, []);
+        $state = $this->resume($workflow);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('interruptable_node_executed'));
@@ -233,7 +231,6 @@ class WorkflowTest extends TestCase
         // Prove durability: resume on a fresh executor + fresh workflow instance,
         // sharing only the persistence and the resume token.
         $persistence = new InMemoryPersistence();
-        $executor = $this->createExecutor($persistence);
 
         $workflow = Workflow::make()
             ->addNodes([
@@ -243,7 +240,7 @@ class WorkflowTest extends TestCase
             ]);
 
         $token = $workflow->getRunId();
-        $request = $this->execute($workflow, $executor)->getInterruptRequest();
+        $request = $this->execute($workflow, $persistence)->getInterruptRequest();
 
         $this->assertNotNull($request);
 
@@ -254,7 +251,7 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $state = $this->resume($resumed, $this->createExecutor($persistence), []);
+        $state = $this->resume($resumed, $persistence, []);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('completed', $state->get('received_feedback'));

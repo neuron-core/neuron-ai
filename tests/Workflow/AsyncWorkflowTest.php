@@ -10,7 +10,6 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -68,9 +67,8 @@ class AsyncWorkflowTest extends TestCase
                 new SecondNode(),
             ]);
 
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
-        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow))->await();
 
         $this->assertInstanceOf(WorkflowState::class, $result);
         $this->assertEquals('executed', $result->get('first'));
@@ -79,7 +77,6 @@ class AsyncWorkflowTest extends TestCase
 
     public function testConcurrentWorkflowExecution(): void
     {
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow1 = Workflow::make()->addNodes([new AsyncDelayNode()]);
         $workflow2 = Workflow::make()->addNodes([new AsyncDelayNode()]);
@@ -88,9 +85,9 @@ class AsyncWorkflowTest extends TestCase
         $startTime = microtime(true);
 
         [$result1, $result2, $result3] = Future\await([
-            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow1, $executor)),
-            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow2, $executor)),
-            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow3, $executor)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow1)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow2)),
+            async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow3)),
         ]);
 
         $duration = microtime(true) - $startTime;
@@ -105,7 +102,6 @@ class AsyncWorkflowTest extends TestCase
     public function testWorkflowStatePreservation(): void
     {
         $state = new WorkflowState(['initial' => 'value']);
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow = Workflow::make(state: $state)
             ->addNodes([
@@ -113,7 +109,7 @@ class AsyncWorkflowTest extends TestCase
                 new SecondNode(),
             ]);
 
-        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow, $executor))->await();
+        $result = async(fn (): \NeuronAI\Workflow\WorkflowState => $this->execute($workflow))->await();
 
         $this->assertEquals('value', $result->get('initial'));
         $this->assertEquals('executed', $result->get('first'));

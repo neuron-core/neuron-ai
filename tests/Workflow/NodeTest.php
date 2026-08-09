@@ -11,7 +11,6 @@ use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -49,11 +48,10 @@ class NodeTest extends TestCase
 
     public function testNodeCheckpoint(): void
     {
-        $executor = new WorkflowExecutor(new LocalStepEngine(new InMemoryPersistence()));
 
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());
 
-        $state = $this->execute($workflow, $executor);
+        $state = $this->execute($workflow);
 
         // Paused: the checkpoint ran, the node blocked at interrupt() before writing feedback
         $this->assertTrue($state->isInterrupted());
@@ -61,7 +59,7 @@ class NodeTest extends TestCase
         $this->assertNull($state->get('feedback'));
 
         // Resume delivers the payload; interrupt() returns it on resume.
-        $state = $this->resume($workflow, $executor, ['message' => 'what do you mean?']);
+        $state = $this->resume($workflow, payload: ['message' => 'what do you mean?']);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('test', $state->get('checkpoint'));

@@ -78,15 +78,42 @@ $agent = Agent::make()
 $response = $agent->chat(new UserMessage('Hello'))->getMessage();
 ```
 
-## Execution Modes
+## The static graph & execution intent (ADR 0015)
 
-`Agent.php` composes a Workflow internally with specialized nodes:
+The Agent composes the SAME node set on every run — the graph is a pure
+function of the agent definition, never of which sugar method was called:
 
-| Method | Node | Description |
-|--------|------|-------------|
-| `chat()` | `ChatNode` | Standard inference, returns full response |
-| `stream()` | `StreamingNode` | Yields chunks via generator |
-| `structured()` | `StructuredOutputNode` | Extracts typed output via JSON schema |
+```
+AgentStartEvent ──► StartNode ──► AIInferenceEvent ────────► ChatNode ──┐
+ (messages+intent)  (births the   or StructuredInferenceEvent           ├─► ToolNode ⟲
+                    inference     ────► StructuredOutputNode ───────────┘
+                    event)
+```
+
+- The start event is **pure run data**: messages plus the inference intent
+  fields (`stream`, `outputClass`, `maxTries`). Sugar methods only *record*
+  intent (`setStream()` / `setStructuredOutput()`); none of them changes the
+  graph or hard-constructs event classes.
+- **`StartNode`** (the default `entryNodes()` chain) births the
+  `AIInferenceEvent` from the definition (instructions cloned, tools
+  injected) plus the start event's data, then derives the routed class via
+  `AIInferenceEvent::routed()` — recorded structured intent yields a
+  `StructuredInferenceEvent`, which exact-class routing sends to
+  `StructuredOutputNode`. RAG overrides `entryNodes()` with its retrieval
+  chain, whose `InstructionsNode` births the inference event the same way.
+- Chat vs stream is **transport, not control flow**: `ChatNode` handles both,
+  branching on the event's `stream` flag; both record the same memoized
+  `ProviderResponse`, so a wrong flag can never corrupt a replay.
+- The tool loop returns to the right inference node by data, not topology:
+  `ToolCallEvent` embeds its originating inference event, and the returned
+  instance's runtime class routes back.
+
+| Method | Effect |
+|--------|--------|
+| `chat()` | Ignites a run (buffered transport) |
+| `stream()` | Ignites a run with stream intent (live chunks) |
+| `structured()` | Ignites a run with structured intent; eager — returns the typed output |
+| `wake($payload)` | Continues a suspended run, whatever its mode |
 
 ```php
 // Chat
@@ -101,7 +128,20 @@ $response = $handler->getMessage();
 
 // Structured output
 $report = MyAgent::make()->structured($message, ReportSchema::class);
+
+// Wake a suspended run (approval endpoint) — mode-agnostic
+$message = MyAgent::make()
+    ->setChatHistory($history)
+    ->setPersistence($persistence)
+    ->wake(['call_123' => 'approve'])
+    ->getMessage();
 ```
+
+**Sugar ignites; `wake()` resumes.** A new turn is a new run; an answer wakes
+the suspended one. The sugar methods take no resume payload — continuation
+goes through `wake($payload)` (handler ergonomics) or the engine verb
+`resume($payload)`. The run's mode never needs restating on a wake: intent is
+persisted in the ignition record (see *Ignition & thread identity* below).
 
 ## Middleware (`Middleware/`)
 
@@ -116,13 +156,12 @@ Middleware shapes events before a node acts; flow control and I/O belong to the 
 themselves (ADR 0009 — tool approval, previously a middleware, now lives in `ToolNode`).
 
 Node matching is subclass-aware (`instanceof`), so middleware registered for a
-class also applies to its subclasses. `ChatNode`, `StreamingNode`, and
-`StructuredOutputNode` are siblings — the Agent instantiates exactly one per
-mode (`chat()` / `stream()` / `structured()`). They all share the
-`InferenceNode` base class, so register mode-agnostic inference middleware
-(`Summarization`, `TodoPlanning`, `ToolSearchMiddleware`) against
-`InferenceNode::class` to have it fire in **all three** modes rather than only
-the one whose node class you named.
+class also applies to its subclasses. `ChatNode` (chat + stream transport) and
+`StructuredOutputNode` are both always registered — the event's exact class
+selects the route at traversal time. They share the `InferenceNode` base
+class, so register mode-agnostic inference middleware (`Summarization`,
+`TodoPlanning`, `ToolSearchMiddleware`) against `InferenceNode::class` to have
+it fire on whichever inference route the run takes.
 
 ### `AgentMiddleware` — typed hooks for the agent context
 
@@ -208,11 +247,11 @@ $agent = YouTubeAgent::make()
     // + a durable ChatHistory
 ```
 
-Resume delivers decisions as a **cumulative** payload keyed by tool callId — the entire
-decision set, restated on every resume (ADR 0006):
+A wake delivers decisions as a **cumulative** payload keyed by tool callId — the entire
+decision set, restated on every wake (ADR 0006):
 
 ```php
-$agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
+$agent->wake(['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 
 A tool runs iff explicitly approved; silence is never consent. An incomplete payload
@@ -231,9 +270,8 @@ message-alternation rule rejects the `UserMessage` appended after the pending
 
 Before suspending, `ToolNode` stamps the runId onto the annotated `ToolCallMessage`
 (`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
-to render. A payload-carrying `chat()`/`stream()`/`structured()` call with no explicit
-runId **adopts** the id from the history tail — the approve/deny endpoint needs only
-the thread id:
+to render. A `wake()` (or `resume()`) with no explicit runId **adopts** the id from
+the history tail — the approve/deny endpoint needs only the thread id:
 
 ```php
 // New execution cycle: no runId stored anywhere by the application.
@@ -241,10 +279,61 @@ $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence($persistence);
 
-$agent->chat(payload: ['call_123' => 'approve']);
+$agent->wake(['call_123' => 'approve']);
 ```
 
 The stamp wins even over a `runId` passed to `make()` — history is the system of
 record. With no stamp on the tail the agent keeps its current runId, so explicit-id
-resumes of non-approval suspensions work unchanged. The id is stamped on every gated
+wakes of non-approval suspensions work unchanged. The id is stamped on every gated
 pass and never stripped: once the message is no longer the tail it is inert.
+Tail-adoption is skipped while a chat-history *resolver* is still pending (no thread
+identity yet, so no tail to read) — there the explicit runId governs and the threadId
+arrives from the ignition record.
+
+## Ignition & thread identity (ADR 0015)
+
+Every durable run persists its **ignition record** at first execution: the start
+event (messages + intent) plus the Agent's context bag (`['threadId' => ...]`).
+That is what makes a suspended run continuable from a **blank process** — a
+factory that knows only the runId:
+
+```php
+// Ignition (a web request): identity set, resolvers materialize eagerly.
+$agent = MyAgent::make()
+    ->setPersistence($persistence)
+    ->setChatHistory(fn (string $threadId) => new SQLChatHistory($threadId, $pdo))
+    ->setChannel(fn (string $threadId) => new PusherChannel($threadId))
+    ->setThreadId($threadId);
+
+$agent->stream(new UserMessage($input));   // suspends on a gated tool
+
+// Wake (another process, later): same factory, runId only — NO threadId.
+$handler = MyAgent::make(runId: $runId)
+    ->setPersistence($persistence)
+    ->setChatHistory(fn (string $threadId) => new SQLChatHistory($threadId, $pdo))
+    ->setChannel(fn (string $threadId) => new PusherChannel($threadId))
+    ->wake($payload);
+// The threadId is adopted from the ignition record before nodes are built;
+// the resolvers materialize with it; the run continues in its recorded mode.
+```
+
+- `setThreadId()` / `getThreadId()` — one identity, three appearances:
+  frontend threadId = chat history thread id = channel name.
+- `setChatHistory()` / `setChannel()` accept a **resolver form** (a closure
+  receiving `string $threadId`) for factories wired before the identity is
+  known. Resolvers materialize exactly once, in either wiring order; a
+  concrete instance clears a pending resolver.
+- **Fail-loud guards**: with a resolver wired and no threadId,
+  `getChatHistory()` throws (never silently falls back to the in-memory
+  default — that would read and write a wrong, empty thread) and
+  `bootstrap()` backstops the channel resolver.
+- **Persisted-wins**: on a wake the recorded start event and context win over
+  the factory's defaults. Editing `instructions()` between suspend and wake
+  does not affect the woken run — the record is the run's contract; the
+  factory supplies capability (provider, tools, history), the record supplies
+  intent.
+
+**Security note — threadId is untrusted input used as a storage key.** The
+frontend-supplied threadId selects which conversation is read, written, and
+resumed. Authorize user ↔ thread ownership BEFORE calling `setThreadId()` or
+opening a history with it; the framework performs no access control.
