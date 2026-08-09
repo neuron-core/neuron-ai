@@ -43,6 +43,11 @@ abstract class SSEAdapter implements StreamAdapterInterface
         return $prefix !== '' ? $prefix . '_' . $id : $id;
     }
 
+    /**
+     * Get the HTTP headers for this protocol.
+     *
+     * @return array<string, string>
+     */
     public function getHeaders(): array
     {
         return [

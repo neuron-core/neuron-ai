@@ -15,13 +15,6 @@ interface StreamAdapterInterface
     public function transform(object $chunk): iterable;
 
     /**
-     * Get HTTP headers for this protocol.
-     *
-     * @return array<string, string>
-     */
-    public function getHeaders(): array;
-
-    /**
      * Protocol initialization sequence (optional).
      *
      * @return iterable<string>
