@@ -19,7 +19,7 @@ class AGUIAdapterTest extends TestCase
 {
     public function test_tool_argument_chunks_stream_start_and_args_deltas(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         // Open a text stream so the tool call gets a parent message id
         $textEvents = iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Let me check')), false);
@@ -51,7 +51,7 @@ class AGUIAdapterTest extends TestCase
 
     public function test_tool_call_chunk_after_streamed_arguments_only_ends_the_call(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         iterator_to_array($adapter->transform(new ToolArgumentChunk('msg_123', 'calculator', '{"operation":"add"}', 'call_1')), false);
 
@@ -73,7 +73,7 @@ class AGUIAdapterTest extends TestCase
 
     public function test_tool_call_chunk_without_streamed_arguments_emits_full_sequence(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         // One-shot providers (e.g. Gemini, Ollama) yield no ToolArgumentChunk
         $tool = $this->createMockTool('calculator', ['operation' => 'add'])->setCallId('call_1');

@@ -58,7 +58,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_get_headers_returns_correct_headers(): void
     {
-        $headers = (new AGUIAdapter())->getHeaders();
+        $headers = (new AGUIAdapter('thread_test'))->getHeaders();
 
         $this->assertSame('text/event-stream', $headers['Content-Type'] ?? null);
         $this->assertSame('no-cache', $headers['Cache-Control'] ?? null);
@@ -67,7 +67,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_text_only_flow_is_compliant(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         $events = $this->collect(
             $adapter->start(),
@@ -81,7 +81,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_reasoning_then_text_flow_is_compliant(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         $events = $this->collect(
             $adapter->start(),
@@ -95,7 +95,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_tool_call_flow_is_compliant(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
         $tool = $this->makeTool('search', ['query' => 'test']);
 
         $callEvents = iterator_to_array($adapter->transform(new ToolCallChunk($tool)));
@@ -114,7 +114,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_full_mixed_flow_is_compliant(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
         $tool = $this->makeTool('calculator', ['x' => 5, 'y' => 3]);
 
         $start = iterator_to_array($adapter->start());
@@ -133,7 +133,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
     public function test_empty_deltas_are_skipped(): void
     {
-        $adapter = new AGUIAdapter();
+        $adapter = new AGUIAdapter('thread_test');
 
         $events = $this->collect(
             $adapter->start(),

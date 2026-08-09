@@ -11,6 +11,7 @@ Test fakes and utilities for testing Neuron applications.
 | `FakeVectorStore` | Mock vector store |
 | `FakeMiddleware` | Track middleware execution |
 | `FakeMcpTransport` | Mock MCP transport, record send/receive |
+| `FakeChannel` | Record channel deliveries (sent/suspensions/completions/failures); `throwOnSend` exercises the failure policy |
 | `FakeMessageMapper` | Mock message mapping |
 | `FakeToolMapper` | Mock tool mapping |
 
@@ -62,3 +63,4 @@ $transport->assertToolCalled('search');
 
 - `Providers` module (implements interfaces)
 - `MCP` module (`FakeMcpTransport` implements `McpTransportInterface`)
+- `Workflow` module (`FakeChannel` implements `ChannelInterface`)

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Closure;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Observability\ListenerRegistry;
 use NeuronAI\Observability\ObserverAdapter;
 use NeuronAI\Observability\ObserverInterface;
@@ -13,7 +15,10 @@ use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\WorkflowEventDispatcher;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use NeuronAI\StaticConstructor;
+use NeuronAI\Workflow\Channel\ChannelInterface;
+use NeuronAI\Workflow\Channel\NullChannel;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\NullScheduler;
@@ -22,8 +27,10 @@ use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use Throwable;
 
 use function array_merge;
 use function is_array;
@@ -59,6 +66,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     protected ?PersistenceInterface $persistence = null;
 
     protected ?SchedulerInterface $scheduler = null;
+
+    protected ?ChannelInterface $channel = null;
 
     protected ?ListenerRegistry $listeners = null;
 
@@ -179,6 +188,45 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * Where in-flight output is delivered while the run is in flight (a
+     * websocket, SSE sink, ...). Default is inert (NullChannel): delivery
+     * goes nowhere and today's behavior is unchanged.
+     */
+    public function setChannel(ChannelInterface $channel): static
+    {
+        $this->channel = $channel;
+        return $this;
+    }
+
+    protected function channel(): ChannelInterface
+    {
+        return $this->channel ??= new NullChannel();
+    }
+
+    /**
+     * Run one channel call under the catch-report-continue policy: a channel
+     * error never fails the run — every failure is dispatched as a ChannelError
+     * and delivery moves on. Circuit-breaking (stop trying after N failures,
+     * retry, back off) is the channel implementation's own policy, not the
+     * engine's: the channel is the code that understands its transport's
+     * failure semantics, and it can short-circuit its own send().
+     */
+    protected function fireChannel(Closure $op): void
+    {
+        if ($this->channel === null || $this->channel instanceof NullChannel) {
+            return;
+        }
+
+        try {
+            $op();
+        } catch (Throwable $e) {
+            $event = new ChannelError($e);
+            $event->source = $this;
+            $this->getEventDispatcher()->dispatch($event);
+        }
+    }
+
+    /**
      * Resolve the executor, creating a default if none was configured.
      *
      * The local executor depends on a LocalStepEngine (which owns persistence),
@@ -229,9 +277,35 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
         $this->bootstrap();
 
-        yield from $this->resolveExecutor()->execute($this, $payload, $timedOut);
+        $generator = $this->resolveExecutor()->execute($this, $payload, $timedOut);
 
-        return $this->resolveState();
+        try {
+            // The single delivery choke point: every yielded item feeds the
+            // channel (push) before it reaches the caller (pull), so a stalled
+            // pull consumer never delays push consumers within an item. The
+            // InterruptEvent terminal is delivered via suspended() instead —
+            // pull consumers still receive it unchanged.
+            foreach ($generator as $item) {
+                if (!$item instanceof InterruptEvent) {
+                    $this->fireChannel(fn () => $this->channel()->send($item));
+                }
+                yield $item;
+            }
+        } catch (Throwable $e) {
+            $this->fireChannel(fn () => $this->channel()->failed($e, $this->runId));
+            throw $e;
+        }
+
+        $state = $this->resolveState();
+        $request = $state->getInterruptRequest();
+
+        if ($request instanceof InterruptRequest) {
+            $this->fireChannel(fn () => $this->channel()->suspended($request, $this->runId));
+        } else {
+            $this->fireChannel(fn () => $this->channel()->completed($state, $this->runId));
+        }
+
+        return $state;
     }
 
     /**

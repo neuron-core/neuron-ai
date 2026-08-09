@@ -23,8 +23,6 @@ use function json_encode;
  */
 class AGUIAdapter extends SSEAdapter
 {
-    protected ?string $threadId;
-
     protected ?string $currentMessageId = null;
 
     protected bool $messageStarted = false;
@@ -43,12 +41,13 @@ class AGUIAdapter extends SSEAdapter
     protected ?string $reasoningMessageId = null;
 
     /**
-     * @param string|null $threadId Optional thread ID for conversation context
+     * @param string $threadId The conversation's thread ID. Required: an invented id would
+     *                         emit protocol events for a conversation the store has never
+     *                         heard of, silently corrupting identity downstream.
      * @param string|null $runId Optional run ID, echoed back to the client as required by the protocol
      */
-    public function __construct(?string $threadId = null, protected ?string $runId = null)
+    public function __construct(protected string $threadId, protected ?string $runId = null)
     {
-        $this->threadId = $threadId ?? $this->generateId('thread');
     }
 
     public function transform(object $chunk): iterable
