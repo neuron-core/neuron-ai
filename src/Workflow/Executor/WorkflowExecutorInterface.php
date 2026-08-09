@@ -35,4 +35,12 @@ interface WorkflowExecutorInterface
         ?array $payload = null,
         bool $timedOut = false,
     ): Generator;
+
+    /**
+     * The step engine driving this executor's replay — the authority on where
+     * a run's durable records actually live. The workflow routes engine-level
+     * reads/writes (the ignition record) through it rather than through its
+     * own configured persistence, which a custom executor may not use.
+     */
+    public function getStepEngine(): StepEngineInterface;
 }

@@ -6,7 +6,6 @@ namespace NeuronAI\RAG;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\RAG\Nodes\InstructionsNode;
@@ -19,9 +18,7 @@ use NeuronAI\Workflow\Node;
 
 use function array_chunk;
 use function array_keys;
-use function array_merge;
 use function explode;
-use function is_array;
 
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null)
@@ -42,36 +39,13 @@ class RAG extends Agent
      */
     protected array $postProcessors = [];
 
-    protected function startEvent(): AgentStartEvent
-    {
-        return new AgentStartEvent();
-    }
-
     /**
-     * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
+     * The retrieval chain replaces the Agent's StartNode as the entry chain:
+     * RAG's inference event is born at its end, in InstructionsNode.
      *
-     * @throws InspectorException
-     */
-    protected function compose(array|Node $nodes): void
-    {
-        if ($this->eventNodeMap !== []) {
-            // it's already been bootstrapped
-            return;
-        }
-
-        $nodes = is_array($nodes) ? $nodes : [$nodes];
-
-        $nodes = array_merge($nodes, $this->ragNodes());
-
-        parent::compose($nodes);
-    }
-
-    /**
      * @return Node[]
-     *
-     * @throws InspectorException
      */
-    protected function ragNodes(): array
+    protected function entryNodes(): array
     {
         return [
             new PreProcessNode($this->getChatHistory(), $this->preProcessors()),

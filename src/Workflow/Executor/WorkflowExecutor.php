@@ -48,6 +48,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     ) {
     }
 
+    public function getStepEngine(): StepEngineInterface
+    {
+        return $this->stepEngine;
+    }
+
     /**
      * Shared body for start/replay (no payload) and resume (a delivered payload).
      *

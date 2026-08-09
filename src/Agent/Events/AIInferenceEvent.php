@@ -23,14 +23,33 @@ class AIInferenceEvent extends AgentStartEvent
     /**
      * @param SystemMessage|string $instructions System instructions for the agent
      * @param ToolInterface[] $tools Available tools for the agent
-     * @param int|null $maxRetries Maximum retry attempts for structured output (StructuredOutputNode only)
      */
     public function __construct(
         SystemMessage|string $instructions,
         public array $tools,
-        public ?int $maxRetries = null,
     ) {
         $this->instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
+    }
+
+    /**
+     * An inference event routes by its exact class: recorded structured
+     * intent derives a StructuredInferenceEvent carrying the same
+     * instructions, tools, messages, and intent fields. Idempotent — an
+     * event already routed (or without structured intent) returns itself.
+     */
+    public function routed(): AIInferenceEvent
+    {
+        if ($this->outputClass === null || $this instanceof StructuredInferenceEvent) {
+            return $this;
+        }
+
+        $event = new StructuredInferenceEvent($this->instructions, $this->tools);
+        $event->setMessages(...$this->messages);
+        $event->stream = $this->stream;
+        $event->outputClass = $this->outputClass;
+        $event->maxTries = $this->maxTries;
+
+        return $event;
     }
 
     /**

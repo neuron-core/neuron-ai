@@ -49,6 +49,6 @@ class RetrievalNode extends Node
 
         $this->emit(new Retrieved($query, $docs));
 
-        return new DocumentsRetrievedEvent($query, $docs);
+        return new DocumentsRetrievedEvent($query, $docs, $event->startEvent);
     }
 }

@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Closure;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
-use NeuronAI\Agent\Nodes\StreamingNode;
+use NeuronAI\Agent\Nodes\StartNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -18,6 +19,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Channel\ChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -27,6 +29,7 @@ use Throwable;
 
 use function end;
 use function is_array;
+use function is_string;
 
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null)
@@ -40,6 +43,24 @@ class Agent extends Workflow implements AgentInterface
     use HandleInstructions;
 
     protected ChatHistoryInterface $chatHistory;
+
+    /**
+     * One identity, three appearances: frontend threadId = chat history
+     * thread id = channel name. Recorded into the ignition context on the
+     * first segment; on wakes it arrives via applyIgnitionContext(), so the
+     * developer never sets it on a wake path.
+     */
+    protected ?string $threadId = null;
+
+    /**
+     * Pending resolver forms of the collaborator setters (closures receiving
+     * string $threadId). Non-null means "wired but not yet materialized" —
+     * each is nulled the moment it resolves, which is what makes
+     * materializeResolvers() idempotent.
+     */
+    protected ?Closure $chatHistoryResolver = null;
+
+    protected ?Closure $channelResolver = null;
 
     protected bool $parallelToolCalls = false;
 
@@ -62,14 +83,103 @@ class Agent extends Workflow implements AgentInterface
         return new InMemoryChatHistory();
     }
 
-    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    /**
+     * Accepts a concrete history or its resolver form — a closure receiving
+     * `string $threadId` — for factories that wire collaborators before the
+     * thread identity is known. A concrete instance clears a pending resolver
+     * (inline opt-out).
+     */
+    public function setChatHistory(ChatHistoryInterface|Closure $chatHistory): self
     {
+        if ($chatHistory instanceof Closure) {
+            $this->chatHistoryResolver = $chatHistory;
+            $this->materializeResolvers();
+            return $this;
+        }
+
+        $this->chatHistoryResolver = null;
         $this->chatHistory = $chatHistory;
         return $this;
     }
 
+    /**
+     * Accepts a concrete channel or its resolver form (closure receiving
+     * `string $threadId`); a concrete instance clears a pending resolver.
+     */
+    public function setChannel(ChannelInterface|Closure $channel): static
+    {
+        if ($channel instanceof Closure) {
+            $this->channelResolver = $channel;
+            $this->materializeResolvers();
+            return $this;
+        }
+
+        $this->channelResolver = null;
+        return parent::setChannel($channel);
+    }
+
+    public function setThreadId(string $threadId): self
+    {
+        $this->threadId = $threadId;
+        $this->materializeResolvers();
+        return $this;
+    }
+
+    public function getThreadId(): ?string
+    {
+        return $this->threadId;
+    }
+
+    /**
+     * Resolve any pending collaborator resolvers with the thread identity.
+     * Order-independent (called from setThreadId() and both setters) and
+     * idempotent (a resolver is nulled the moment it materializes).
+     *
+     * @throws AgentException when a resolver returns the wrong type.
+     */
+    protected function materializeResolvers(): void
+    {
+        if ($this->threadId === null) {
+            return;
+        }
+
+        if ($this->chatHistoryResolver instanceof Closure) {
+            $chatHistory = ($this->chatHistoryResolver)($this->threadId);
+
+            if (!$chatHistory instanceof ChatHistoryInterface) {
+                throw new AgentException('The chat history resolver must return a ' . ChatHistoryInterface::class . '.');
+            }
+
+            $this->chatHistoryResolver = null;
+            $this->chatHistory = $chatHistory;
+        }
+
+        if ($this->channelResolver instanceof Closure) {
+            $channel = ($this->channelResolver)($this->threadId);
+
+            if (!$channel instanceof ChannelInterface) {
+                throw new AgentException('The channel resolver must return a ' . ChannelInterface::class . '.');
+            }
+
+            $this->channelResolver = null;
+            parent::setChannel($channel);
+        }
+    }
+
+    /**
+     * Fail loudly at the real hazard: with a resolver wired and no threadId,
+     * falling back to the default InMemoryChatHistory would silently read and
+     * write the wrong (empty) thread.
+     */
     public function getChatHistory(): ChatHistoryInterface
     {
+        if ($this->chatHistoryResolver instanceof Closure) {
+            throw new AgentException(
+                'A chat history resolver is wired but no threadId is set: call setThreadId() '
+                . 'before running the agent, or pass a concrete chat history instance.'
+            );
+        }
+
         return $this->chatHistory ??= $this->chatHistory();
     }
 
@@ -114,35 +224,91 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Prepare the agent workflow with mode-specific nodes.
-     *
-     * @param Node|Node[] $nodes Mode-specific nodes (ChatNode, StreamingNode, etc.)
+     * Prepare the agent workflow with the static node set. The graph is a pure
+     * function of the agent definition: the entry chain and both inference
+     * routes are always registered, and each event's exact class selects the
+     * path at traversal time.
      */
-    protected function compose(array|Node $nodes): void
+    protected function compose(): void
     {
         if ($this->eventNodeMap !== []) {
             return;
         }
-
-        $nodes = is_array($nodes) ? $nodes : [$nodes];
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
             : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $this->addNodes([
-            ...$nodes,
+            ...$this->entryNodes(),
+            new ChatNode($this->resolveProvider(), $this->getChatHistory()),
+            new StructuredOutputNode($this->resolveProvider(), $this->getChatHistory()),
             $toolNode,
         ]);
     }
 
+    /**
+     * The nodes between the bare start event and the inference nodes, ending
+     * in the node that births the inference event: StartNode here, RAG's
+     * retrieval chain ending in InstructionsNode there.
+     *
+     * @return Node[]
+     */
+    protected function entryNodes(): array
+    {
+        return [
+            new StartNode($this->resolveInstructions(), $this->bootstrapTools()),
+        ];
+    }
+
+    /**
+     * Composition happens here — the lazy step every execution path passes
+     * through — so bare run()/resume() work on an Agent without any sugar
+     * method having been called. Backstops the channel resolver: the channel
+     * is only touched lazily behind null-safe guards during delivery, so a
+     * pending resolver would otherwise silently mean "no channel".
+     */
+    protected function bootstrap(): static
+    {
+        if ($this->channelResolver instanceof Closure) {
+            throw new AgentException(
+                'A channel resolver is wired but no threadId is set: call setThreadId() '
+                . 'before running the agent, or pass a concrete channel instance.'
+            );
+        }
+
+        $this->compose();
+        return parent::bootstrap();
+    }
+
+    /**
+     * The thread identity is the Agent's run context (the engine-opaque
+     * envelope slot): recorded on the first segment, applied by a blank
+     * process on a wake — where setThreadId() also materializes any wired
+     * resolvers before bootstrap() constructs nodes with getChatHistory().
+     *
+     * @return array<string, mixed>
+     */
+    protected function ignitionContext(): array
+    {
+        return $this->threadId !== null ? ['threadId' => $this->threadId] : [];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    protected function applyIgnitionContext(array $context): void
+    {
+        $threadId = $context['threadId'] ?? null;
+
+        if (is_string($threadId)) {
+            $this->setThreadId($threadId);
+        }
+    }
+
     protected function startEvent(): AgentStartEvent
     {
-        $tools = $this->bootstrapTools();
-
-        // Clone so middleware can modify the event instructions
-        // without leaking changes into the agent configuration.
-        return new AIInferenceEvent(clone $this->resolveInstructions(), $tools);
+        return new AgentStartEvent();
     }
 
     /**
@@ -158,10 +324,6 @@ class Agent extends Workflow implements AgentInterface
 
         $this->resolveStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
-        );
-
-        $this->compose(
-            new ChatNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
@@ -181,12 +343,8 @@ class Agent extends Workflow implements AgentInterface
     ): AgentHandler {
         $this->checkRunId($payload);
 
-        $this->resolveStartEvent()->setMessages(
+        $this->resolveStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
-        );
-
-        $this->compose(
-            new StreamingNode($this->resolveProvider(), $this->getChatHistory()),
         );
 
         return new AgentHandler(
@@ -209,15 +367,11 @@ class Agent extends Workflow implements AgentInterface
     ): mixed {
         $this->checkRunId($payload);
 
-        $this->resolveStartEvent()->setMessages(
-            ...(is_array($messages) ? $messages : [$messages])
-        );
-
-        $class ??= $this->getOutputClass();
-
-        $this->compose(
-            new StructuredOutputNode($this->resolveProvider(), $this->getChatHistory(), $class, $maxRetries),
-        );
+        $this->resolveStartEvent()
+            ->setStructuredOutput($class ?? $this->getOutputClass(), $maxRetries)
+            ->setMessages(
+                ...(is_array($messages) ? $messages : [$messages])
+            );
 
         /** @var AgentState $finalState */
         $finalState = $payload === null ? $this->run() : $this->resume($payload);

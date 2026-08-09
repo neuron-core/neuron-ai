@@ -114,8 +114,8 @@ class AgentDurableHistoryTest extends TestCase
 
         $agent->chat(new UserMessage('Loop'))->getMessage();
 
-        $first = $recorder->blobSizes[ChatNode::class . '-0'];
-        $last = $recorder->blobSizes[ToolNode::class . '-' . (2 * $rounds - 1)];
+        $first = $recorder->blobSizes[ChatNode::class . '-1'];
+        $last = $recorder->blobSizes[ToolNode::class . '-' . (2 * $rounds)];
 
         $this->assertLessThan(
             $first * 2,

@@ -26,17 +26,24 @@ class InstructionsNode extends Node
     }
 
     /**
-     * Inject documents into instructions.
+     * Inject documents into instructions. The emitted event is where RAG's
+     * inference event is born, so the start event's inference intent is honored
+     * here: the intent fields carry over and the routed class is derived.
      */
     public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent
     {
         $instructions = new SystemMessage($this->baseInstructions->getContentBlocks());
         $instructions->addContent(new SystemContent($this->buildContextBlock($event->documents)));
 
-        return new AIInferenceEvent(
+        $inference = new AIInferenceEvent(
             instructions: $instructions,
             tools: $this->tools
         );
+        $inference->stream = $event->startEvent->stream;
+        $inference->outputClass = $event->startEvent->outputClass;
+        $inference->maxTries = $event->startEvent->maxTries;
+
+        return $inference->routed();
     }
 
     private function buildContextBlock(array $documents): string

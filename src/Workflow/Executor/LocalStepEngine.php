@@ -114,6 +114,11 @@ class LocalStepEngine implements StepEngineInterface
         return yield from $outcome;
     }
 
+    public function saveStep(string $stepId, StepResult $result): void
+    {
+        $this->setStepResult($stepId, $result);
+    }
+
     public function deleteSteps(): void
     {
         $this->pendingPayload = null;

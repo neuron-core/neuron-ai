@@ -41,6 +41,6 @@ class PostProcessNode extends Node
             $this->emit(new PostProcessed($processor::class, $query, $documents));
         }
 
-        return new DocumentsProcessedEvent($query, $documents);
+        return new DocumentsProcessedEvent($query, $documents, $event->startEvent);
     }
 }

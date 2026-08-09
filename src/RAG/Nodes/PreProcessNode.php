@@ -50,6 +50,6 @@ class PreProcessNode extends Node implements AgentNodeInterface
             $this->emit(new PreProcessed($processor::class, $query));
         }
 
-        return new QueryPreProcessedEvent($query);
+        return new QueryPreProcessedEvent($query, $event);
     }
 }

@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Agent\Nodes;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -33,10 +33,11 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $node = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
+        $node = new StructuredOutputNode($provider, $chatHistory);
         $state = new AgentState();
 
-        $event = new AIInferenceEvent(instructions: 'Test', tools: []);
+        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
+        $event->setStructuredOutput(User::class, 1);
         $event->setMessages(new UserMessage('Generate a user'));
 
         $node->setWorkflowContext(new NodeContext($state, $event));
@@ -63,10 +64,14 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $node = new StructuredOutputNode($provider, $chatHistory, User::class, 0);
+        $node = new StructuredOutputNode($provider, $chatHistory);
         $state = new AgentState();
 
-        $event = new AIInferenceEvent(instructions: 'Test', tools: []);
+        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
+        // Raw field writes bypass setStructuredOutput()'s own normalization,
+        // so this exercises the node's floor specifically.
+        $event->outputClass = User::class;
+        $event->maxTries = 0;
         $event->setMessages(new UserMessage('Generate a user'));
 
         $node->setWorkflowContext(new NodeContext($state, $event));
@@ -100,12 +105,13 @@ class StructuredOutputNodeTest extends TestCase
         $state = new AgentState();
         $state->set('__runId', $runId);
 
-        $event = new AIInferenceEvent(instructions: 'Test', tools: []);
+        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
+        $event->setStructuredOutput(User::class, 1);
         $event->setMessages(new UserMessage('Generate a user'));
 
         $engine1 = new LocalStepEngine($persistence);
         $engine1->prepareExecution($runId);
-        $node1 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
+        $node1 = new StructuredOutputNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($engine1, $stepId)));
 
         $firstReturn = $node1($event, $state);
@@ -122,7 +128,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $engine2 = new LocalStepEngine($persistence);
         $engine2->prepareExecution($runId);
-        $node2 = new StructuredOutputNode($provider, $chatHistory, User::class, 1);
+        $node2 = new StructuredOutputNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($engine2, $stepId)));
 
         $secondReturn = $node2($event, $state2);

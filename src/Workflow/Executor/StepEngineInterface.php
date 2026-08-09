@@ -59,6 +59,17 @@ interface StepEngineInterface
     public function getStep(string $stepId): ?StepResult;
 
     /**
+     * Persist a step result directly, outside the run/replay lifecycle.
+     *
+     * Write-shaped counterpart to getStep(), used by the workflow for
+     * engine-level records (the ignition record): the engine owns the store
+     * where the run's steps actually live, which may differ from the
+     * workflow's configured persistence when a custom executor brings its own
+     * engine.
+     */
+    public function saveStep(string $stepId, StepResult $result): void;
+
+    /**
      * Drop all persisted steps for the current workflow (clean completion).
      */
     public function deleteSteps(): void;

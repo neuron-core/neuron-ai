@@ -23,6 +23,8 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\LocalStepEngine;
 use NeuronAI\Workflow\Executor\NullScheduler;
 use NeuronAI\Workflow\Executor\SchedulerInterface;
+use NeuronAI\Workflow\Executor\StepEngineInterface;
+use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
@@ -245,6 +247,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * Start the workflow to completion, consuming the generator internally.
      * Never resumes — use {@see resume()} to deliver a payload to a suspended step.
      * @throws WorkflowException
+     * @throws Throwable
      */
     public function run(): WorkflowState
     {
@@ -258,6 +261,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * @param array<string, mixed> $payload The delivered event payload (the answer).
      * @param bool $timedOut True when the resume was a deadline elapsing.
      * @throws WorkflowException
+     * @throws Throwable
      */
     public function resume(array $payload = [], bool $timedOut = false): WorkflowState
     {
@@ -272,9 +276,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws WorkflowException
+     * @throws Throwable
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator
     {
+        $this->resolveIgnition($payload);
         $this->bootstrap();
 
         $generator = $this->resolveExecutor()->execute($this, $payload, $timedOut);
@@ -330,6 +336,118 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $this->loadEventNodeMap();
         $this->validate();
         return $this;
+    }
+
+    /**
+     * Reserved step id for the ignition record — the persisted snapshot of how
+     * the run was ignited (start event + context bag). Node steps are
+     * `NodeClass-index` and memo steps `stepId::name`, so it can never collide.
+     */
+    protected const IGNITION_STEP_ID = '__ignition';
+
+    /**
+     * Make the run self-describing before anything else happens: a fresh
+     * ignition writes the record; a blank process adopts the persisted start
+     * event and context; a wake of a run that was never durably started fails
+     * loudly. Runs BEFORE bootstrap() — adoption must precede validate()'s
+     * materialization of the default start event, and subclasses apply their
+     * ignition context (e.g. thread identity) before nodes are constructed.
+     *
+     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload on a wake.
+     * @throws WorkflowException
+     */
+    protected function resolveIgnition(?array $payload): void
+    {
+        // Key the engine to this run for the ignition IO below; the executor
+        // stages the payload itself with its own prepareExecution() call.
+        $this->stepEngine()->prepareExecution($this->runId);
+
+        $ignition = $this->loadIgnition();
+
+        if ($ignition === null) {
+            if ($payload !== null) {
+                throw new WorkflowException(
+                    "Cannot wake run {$this->runId}: no ignition record — the run "
+                    . "was never durably started, or already completed."
+                );
+            }
+
+            $this->writeIgnition();
+            return;
+        }
+
+        if (!isset($this->startEvent)) {
+            // Blank process: adopt. When the start event is already set (same
+            // instance, or explicitly configured) local state wins — on a
+            // same-instance segment the two are identical.
+            $event = $ignition['startEvent'];
+            if ($event instanceof Event) {
+                $this->setStartEvent($this->restoreEventNode($event));
+            }
+
+            $context = $ignition['context'] ?? [];
+            $this->applyIgnitionContext(is_array($context) ? $context : []);
+        }
+    }
+
+    /**
+     * Persist how this run was ignited: its start event plus the subclass's
+     * context bag. Written on the first segment, swept with the run's steps on
+     * clean completion — a completed run cannot be woken.
+     */
+    protected function writeIgnition(): void
+    {
+        $this->stepEngine()->saveStep(self::IGNITION_STEP_ID, new StepResult(
+            stepId: self::IGNITION_STEP_ID,
+            output: [
+                'version' => 1,
+                'startEvent' => $this->resolveStartEvent(),
+                'context' => $this->ignitionContext(),
+            ],
+        ));
+    }
+
+    /**
+     * @return array{version: int, startEvent: Event, context: array<string, mixed>}|null
+     */
+    protected function loadIgnition(): ?array
+    {
+        $output = $this->stepEngine()->getStep(self::IGNITION_STEP_ID)?->getOutput();
+
+        /** @var array{version: int, startEvent: Event, context: array<string, mixed>}|null */
+        return is_array($output) ? $output : null;
+    }
+
+    /**
+     * Subclass hook: run context persisted into the ignition record alongside
+     * the start event. Empty by default — the engine never learns what a
+     * thread or a tenant is.
+     *
+     * @return array<string, mixed>
+     */
+    protected function ignitionContext(): array
+    {
+        return [];
+    }
+
+    /**
+     * Subclass hook: apply a persisted ignition context when a blank process
+     * adopts a run. Symmetric read side of ignitionContext().
+     *
+     * @param array<string, mixed> $context
+     */
+    protected function applyIgnitionContext(array $context): void
+    {
+    }
+
+    /**
+     * The step engine that owns this run's durable records, routed through the
+     * executor: a custom executor brings its own engine (and store), so the
+     * workflow's configured persistence may not be where steps actually live.
+     */
+    protected function stepEngine(): StepEngineInterface
+    {
+        return $this->resolveExecutor()->getStepEngine();
     }
 
     /**

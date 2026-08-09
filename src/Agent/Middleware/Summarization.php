@@ -43,7 +43,7 @@ class Summarization extends AgentMiddleware
      */
     protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
     {
-        // Only apply to ChatNode, StreamingNode, and StructuredOutputNode
+        // Only apply to inference nodes (ChatNode, StructuredOutputNode)
         if (!$event instanceof AIInferenceEvent) {
             return;
         }

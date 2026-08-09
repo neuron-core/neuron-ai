@@ -6,9 +6,8 @@ namespace NeuronAI\Agent\Nodes;
 
 use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -24,7 +23,6 @@ use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
-use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
@@ -44,21 +42,13 @@ use const PHP_EOL;
 
 /**
  * Node responsible for handling structured output requests with retry logic.
+ *
+ * Routed by its ingress event's exact class; the output class and retry
+ * budget are inference intent carried on the event, so the node itself is
+ * constructible by any blank factory.
  */
 class StructuredOutputNode extends InferenceNode
 {
-    public function __construct(
-        AIProviderInterface $provider,
-        ChatHistoryInterface $chatHistory,
-        protected readonly string $outputClass,
-        protected int $maxTries = 1,
-    ) {
-        parent::__construct($provider, $chatHistory);
-
-        // Fewer than 1 retry has no meaning for a retry loop — normalize it.
-        $this->maxTries = max(1, $this->maxTries);
-    }
-
     /**
      * @throws AgentException
      * @throws DeserializerException
@@ -66,8 +56,12 @@ class StructuredOutputNode extends InferenceNode
      * @throws ReflectionException
      * @throws ChatHistoryException
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
+    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
+        $outputClass = $event->outputClass
+            ?? throw new AgentException('Structured inference requires an output class on the event.');
+        // Fewer than 1 retry has no meaning for a retry loop — normalize it.
+        $maxTries = max(1, $event->maxTries);
         // User-side messages (inbound, then corrections) awaiting a successful
         // provider call before being committed to the chat history — see
         // InferenceNode::pendingConversation().
@@ -75,9 +69,9 @@ class StructuredOutputNode extends InferenceNode
 
         // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
-            $this->emit(new SchemaGeneration($this->outputClass));
-            $schema = JsonSchema::make()->generate($this->outputClass);
-            $this->emit(new SchemaGenerated($this->outputClass, $schema));
+            $this->emit(new SchemaGeneration($outputClass));
+            $schema = JsonSchema::make()->generate($outputClass);
+            $this->emit(new SchemaGenerated($outputClass, $schema));
             $state->set('structured_schema', $schema);
         }
 
@@ -111,7 +105,7 @@ class StructuredOutputNode extends InferenceNode
                     fn (): ProviderResponse => $this->provider
                         ->systemPrompt($event->instructions)
                         ->setTools($event->tools)
-                        ->structured($messages, $this->outputClass, $schema),
+                        ->structured($messages, $outputClass, $schema),
                 );
 
                 $this->addToChatHistory($pending, "history.inbound.{$attempt}");
@@ -132,7 +126,7 @@ class StructuredOutputNode extends InferenceNode
                 $this->addToChatHistory($message, "history.response.{$attempt}");
 
                 // Process the response: extract, deserialize, and validate
-                $output = $this->processResponse($message, $schema, $this->outputClass);
+                $output = $this->processResponse($message, $schema, $outputClass);
 
                 // Store the structured output in state
                 $state->set('structured_output', $output);
@@ -146,7 +140,7 @@ class StructuredOutputNode extends InferenceNode
             }
 
             $attempt++;
-        } while ($attempt <= $this->maxTries);
+        } while ($attempt <= $maxTries);
 
         throw $lastException;
     }

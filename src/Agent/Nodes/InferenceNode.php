@@ -14,11 +14,11 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 
 /**
- * Base for nodes that perform AI provider inference (chat, streaming,
- * structured output). Sharing a common ancestor lets middleware target
+ * Base for nodes that perform AI provider inference (chat/stream transport
+ * and structured output). Sharing a common ancestor lets middleware target
  * `InferenceNode::class` once and apply across every execution mode — the
- * Agent composes exactly one of these per mode, so attaching to any single
- * subclass would otherwise be dropped in the other two modes.
+ * event's exact class routes to one subclass per run, so attaching to a
+ * single subclass would otherwise be dropped on the other route.
  */
 abstract class InferenceNode extends Node implements AgentNodeInterface
 {

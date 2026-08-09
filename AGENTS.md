@@ -22,7 +22,6 @@ You never fight the framework: the architecture you use on day one is the same o
 
 ```bash
 composer test          # Run tests (PHPUnit)
-composer format        # Fix code style (PHP CS Fixer)
 composer analyse       # Static analysis (PHPStan level 5)
 ```
 

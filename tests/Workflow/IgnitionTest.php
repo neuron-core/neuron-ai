@@ -1,0 +1,177 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\Workflow;
+
+use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\LocalStepEngine;
+use NeuronAI\Workflow\Executor\StepResult;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\TestCase;
+
+use function is_dir;
+use function mkdir;
+use function rmdir;
+use function scandir;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
+
+class IgnitionStartEvent implements Event
+{
+    public function __construct(public string $message = 'ignite')
+    {
+    }
+}
+
+class IgnitionWaitNode extends Node
+{
+    public function __invoke(IgnitionStartEvent $event, WorkflowState $state): StopEvent
+    {
+        $state->set('ignited_with', $event->message);
+
+        $payload = $this->awaitEvent('go');
+
+        $state->set('answer', $payload['answer'] ?? null);
+
+        return new StopEvent('done');
+    }
+}
+
+class IgnitionTest extends TestCase
+{
+    protected function workflow(string $runId, InMemoryPersistence|FilePersistence $persistence): Workflow
+    {
+        return Workflow::make(runId: $runId)
+            ->setPersistence($persistence)
+            ->addNode(new IgnitionWaitNode());
+    }
+
+    public function test_ignition_record_is_written_on_the_first_segment(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        $workflow = $this->workflow('ign_write', $persistence);
+        $workflow->setStartEvent(new IgnitionStartEvent('hello'));
+
+        $state = $workflow->run();
+        $this->assertTrue($state->isInterrupted());
+
+        $record = $persistence->load('ign_write', '__ignition');
+        $this->assertInstanceOf(StepResult::class, $record);
+
+        $output = $record->getOutput();
+        $this->assertSame(1, $output['version']);
+        $this->assertInstanceOf(IgnitionStartEvent::class, $output['startEvent']);
+        $this->assertSame('hello', $output['startEvent']->message);
+        $this->assertSame([], $output['context']);
+    }
+
+    public function test_ignition_record_is_swept_by_clean_completion(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        $workflow = $this->workflow('ign_sweep', $persistence);
+        $workflow->setStartEvent(new IgnitionStartEvent());
+
+        $workflow->run();
+        $this->assertNotNull($persistence->load('ign_sweep', '__ignition'));
+
+        $state = $workflow->resume(['answer' => 42]);
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame(42, $state->get('answer'));
+        $this->assertNull($persistence->load('ign_sweep', '__ignition'));
+    }
+
+    public function test_blank_factory_wake_adopts_the_persisted_start_event(): void
+    {
+        $dir = sys_get_temp_dir() . '/neuron_ignition_' . uniqid();
+        mkdir($dir);
+
+        try {
+            $first = $this->workflow('ign_roundtrip', new FilePersistence($dir));
+            $first->setStartEvent(new IgnitionStartEvent('from-ignition'));
+            $this->assertTrue($first->run()->isInterrupted());
+
+            // A blank instance: same factory shape, runId only — no start event set.
+            $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
+            $state = $second->resume(['answer' => 42]);
+
+            $this->assertFalse($state->isInterrupted());
+            // The node replayed with the ADOPTED event: without adoption the
+            // default StartEvent would not even route to IgnitionWaitNode.
+            $this->assertSame('from-ignition', $state->get('ignited_with'));
+            $this->assertSame(42, $state->get('answer'));
+        } finally {
+            $this->removeDirectory($dir);
+        }
+    }
+
+    public function test_crash_replay_in_a_fresh_process_works_via_bare_run(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        $first = $this->workflow('ign_replay', $persistence);
+        $first->setStartEvent(new IgnitionStartEvent('recovered'));
+        $this->assertTrue($first->run()->isInterrupted());
+
+        // A recovery worker knows only the runId: bare run() on a blank
+        // instance adopts the record and re-suspends at the same step.
+        $second = $this->workflow('ign_replay', $persistence);
+        $state = $second->run();
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame('recovered', $state->get('ignited_with'));
+    }
+
+    public function test_wake_of_a_never_started_run_fails_loudly(): void
+    {
+        $workflow = $this->workflow('ign_unknown', new InMemoryPersistence());
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Cannot wake run ign_unknown: no ignition record');
+
+        $workflow->resume(['answer' => 1]);
+    }
+
+    public function test_ignition_lands_in_the_executors_store_not_the_workflow_persistence(): void
+    {
+        $engineStore = new InMemoryPersistence();
+        $configured = new InMemoryPersistence();
+
+        $workflow = Workflow::make(runId: 'ign_routing')
+            ->setPersistence($configured)
+            ->setExecutor(new WorkflowExecutor(new LocalStepEngine($engineStore)))
+            ->addNode(new IgnitionWaitNode());
+        $workflow->setStartEvent(new IgnitionStartEvent());
+
+        $workflow->run();
+
+        $this->assertNotNull($engineStore->load('ign_routing', '__ignition'));
+        $this->assertNull($configured->load('ign_routing', '__ignition'));
+    }
+
+    protected function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        foreach (scandir($dir) ?: [] as $item) {
+            if ($item !== '.' && $item !== '..') {
+                unlink($dir . '/' . $item);
+            }
+        }
+
+        rmdir($dir);
+    }
+}
