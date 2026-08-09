@@ -267,6 +267,9 @@ class Agent extends Workflow implements AgentInterface
      * method having been called. Backstops the channel resolver: the channel
      * is only touched lazily behind null-safe guards during delivery, so a
      * pending resolver would otherwise silently mean "no channel".
+     *
+     * @throws WorkflowException
+     * @throws AgentException
      */
     public function bootstrap(): void
     {
@@ -316,6 +319,8 @@ class Agent extends Workflow implements AgentInterface
      * use {@see wake()} (handler ergonomics) or {@see resume()} (engine verb).
      *
      * @param Message|Message[] $messages
+     * @throws AgentException
+     * @throws Throwable
      * @throws WorkflowException
      */
     public function chat(Message|array $messages = []): AgentHandler
@@ -332,6 +337,8 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @param Message|Message[] $messages
+     * @throws AgentException
+     * @throws Throwable
      * @throws WorkflowException
      */
     public function stream(Message|array $messages = []): AgentHandler
@@ -383,6 +390,7 @@ class Agent extends Workflow implements AgentInterface
      *
      * @param array<string, mixed> $payload The delivered answer (e.g. a cumulative approval decision set).
      * @throws WorkflowException
+     * @throws Throwable
      */
     public function wake(array $payload = []): AgentHandler
     {
@@ -399,6 +407,8 @@ class Agent extends Workflow implements AgentInterface
      * adoption every continuation path shares (ADR 0005).
      *
      * @param array<string, mixed> $payload
+     * @throws Throwable
+     * @throws WorkflowException
      */
     public function resume(array $payload = [], bool $timedOut = false): WorkflowState
     {
