@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Workflow\Channel\StreamAdapterChannel;
+use NeuronAI\Workflow\Channel\CallbackChannel;
 use PHPUnit\Framework\TestCase;
 use function count;
 use function implode;
@@ -19,7 +19,7 @@ use function implode;
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
  * ids, so two independent instances produce identical output for the same
  * item sequence — which is what byte-parity needs (adapters are stateful and
- * must never be shared between the pull side and a channel).
+ * must never be shared between the pull side and a push delivery).
  */
 class ParityAdapter implements StreamAdapterInterface
 {
@@ -41,7 +41,7 @@ class ParityAdapter implements StreamAdapterInterface
     }
 }
 
-class StreamAdapterChannelTest extends TestCase
+class PushAdapterDeliveryTest extends TestCase
 {
     public function testPushOutputIsByteIdenticalToThePullPath(): void
     {
@@ -55,20 +55,23 @@ class StreamAdapterChannelTest extends TestCase
             $pulled[] = $line;
         }
 
-        // Push: nobody holds the adapter — the channel renders to the sink
-        // while the stream generator is consumed internally. Two adapter instances.
+        // Push: the workflow owns the adapter (setStreamAdapter) and delivers
+        // adapted lines to the channel's sendLine port. A SECOND adapter
+        // instance — adapters are stateful and never shared between sides.
         $sink = [];
         $pushAgent = Agent::make();
         $pushAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
-        $pushAgent->setChannel(new StreamAdapterChannel(
-            new ParityAdapter(),
-            function (string $line) use (&$sink): void {
+        $pushAgent->setStreamAdapter(new ParityAdapter());
+        $pushAgent->setChannel(new CallbackChannel(
+            onSendLine: function (string $line) use (&$sink): void {
                 $sink[] = $line;
             },
         ));
 
+        // Stream mode so ChatNode yields chunks the channel can adapt; the
+        // pull-side output is discarded — only the channel sink is asserted.
         iterator_to_array($pushAgent->stream(new UserMessage('Hi')));
 
         $this->assertGreaterThan(2, count($sink), 'The stream should carry protocol lines beyond start/end');
@@ -78,8 +81,9 @@ class StreamAdapterChannelTest extends TestCase
     public function testZeroItemRunStillEmitsStartAndEndMatchingPull(): void
     {
         // A zero-item stream (empty content → no TextChunks) still frames the
-        // run with the protocol start/end sequences; so must the eager chat
-        // push path, whose channel fires completed() → finish() → start/end.
+        // run with the protocol start/end sequences; so must the push path,
+        // whose finishDelivery() emits start+end on completion even though no
+        // item was ever delivered to sendLine().
         $pullAgent = Agent::make()->setAiProvider(
             new FakeAIProvider(new AssistantMessage(''))
         );
@@ -94,9 +98,9 @@ class StreamAdapterChannelTest extends TestCase
         $pushAgent->setAiProvider(
             new FakeAIProvider(new AssistantMessage(''))
         );
-        $pushAgent->setChannel(new StreamAdapterChannel(
-            new ParityAdapter(),
-            function (string $line) use (&$sink): void {
+        $pushAgent->setStreamAdapter(new ParityAdapter());
+        $pushAgent->setChannel(new CallbackChannel(
+            onSendLine: function (string $line) use (&$sink): void {
                 $sink[] = $line;
             },
         ));

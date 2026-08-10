@@ -10,23 +10,41 @@ use Throwable;
 
 /**
  * Delivery seam: where in-flight output goes, decoupled from who holds the
- * generator. The channel receives framework-native objects, never protocol
- * strings — formatting is per-consumer edge work (see StreamAdapterChannel).
+ * generator. The channel has two delivery ports:
+ *
+ *  - send(object):       a native framework chunk (TextChunk, ToolCallChunk,
+ *                        custom node yields) — used when NO stream adapter is
+ *                        attached to the workflow.
+ *  - sendLine(string):   an adapted protocol line — used when a stream adapter
+ *                        IS attached; this carries the adapter's transform()
+ *                        output plus its start()/end() framing sequences.
+ *
+ * The framework picks one port per run based on whether an adapter is
+ * attached (Workflow::setStreamAdapter()); a channel never receives both
+ * shapes in the same segment.
  *
  * A channel instance is segment-scoped: constructed for one events()
- * consumption, so implementations may hold per-segment state (e.g. a lazy
- * protocol start) without cross-run leakage.
+ * consumption, so implementations may hold per-segment state without
+ * cross-run leakage.
  *
  * Channels should not throw; the framework guards every call regardless — a
  * channel error never fails the run (see Workflow::fireChannel()).
  */
-interface ChannelInterface
+interface StreamingChannelInterface
 {
     /**
      * A yielded stream item (TextChunk, ToolCallChunk, custom node yields).
-     * Never an InterruptEvent — terminals are explicit methods below.
+     * Called only when no stream adapter is attached. Never an InterruptEvent
+     * — terminals are explicit methods below.
      */
     public function send(object $item): void;
+
+    /**
+     * An adapted protocol line — the output of a stream adapter's transform(),
+     * or one of its start()/end() framing lines. Called only when a stream
+     * adapter is attached to the workflow.
+     */
+    public function sendLine(string $line): void;
 
     /**
      * Run segment ended in a suspension. The request is the live, in-process

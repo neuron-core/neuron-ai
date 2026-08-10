@@ -21,7 +21,7 @@ use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Channel\ChannelInterface;
+use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -104,10 +104,11 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Accepts a concrete channel or its resolver form (closure receiving
-     * `string $threadId`); a concrete instance clears a pending resolver.
+     * Accepts a concrete channel, its resolver form (closure receiving
+     * `string $threadId`), or null to attach none. A concrete instance clears a
+     * pending resolver.
      */
-    public function setChannel(ChannelInterface|Closure $channel): static
+    public function setChannel(StreamingChannelInterface|Closure|null $channel): static
     {
         if ($channel instanceof Closure) {
             $this->channelResolver = $channel;
@@ -150,8 +151,8 @@ class Agent extends Workflow implements AgentInterface
             if ($this->channelResolver instanceof Closure) {
                 $channel = ($this->channelResolver)($threadId);
 
-                if (!$channel instanceof ChannelInterface) {
-                    throw new AgentException('The channel resolver must return a ' . ChannelInterface::class . '.');
+                if (!$channel instanceof StreamingChannelInterface) {
+                    throw new AgentException('The channel resolver must return a ' . StreamingChannelInterface::class . '.');
                 }
 
                 $this->channelResolver = null;
@@ -169,8 +170,8 @@ class Agent extends Workflow implements AgentInterface
         if ($this->channelResolver instanceof Closure && $this->chatHistoryResolver === null) {
             $channel = ($this->channelResolver)($this->getChatHistory()->getThreadId());
 
-            if (!$channel instanceof ChannelInterface) {
-                throw new AgentException('The channel resolver must return a ' . ChannelInterface::class . '.');
+            if (!$channel instanceof StreamingChannelInterface) {
+                throw new AgentException('The channel resolver must return a ' . StreamingChannelInterface::class . '.');
             }
 
             $this->channelResolver = null;
@@ -350,9 +351,10 @@ class Agent extends Workflow implements AgentInterface
      * ToolCallChunk, …) whose {@see Generator::getReturn()} is the final
      * {@see AgentState}. Pass a {@see StreamAdapterInterface} to yield
      * protocol-adapted lines instead (Vercel AI SDK, AG-UI, SSE) — the start/
-     * transform/end sequences are emitted lazily around the raw items, matching
-     * the old pull path. Push delivery to a live sink is still available by
-     * wiring a {@see \NeuronAI\Workflow\Channel\StreamAdapterChannel} on the channel.
+     * transform/end sequences are emitted lazily around the raw items. To push
+     * adapted output to a channel instead, attach the adapter via
+     * {@see setStreamAdapter()} — the workflow then runs each chunk through it
+     * and delivers the resulting lines to the channel's sendLine() port.
      *
      * @param Message|Message[] $messages
      * @return Generator<int, object|string, mixed, AgentState>

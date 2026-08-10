@@ -338,6 +338,16 @@ $state = MyAgent::make(runId: $runId)
   record); the channel resolver fires from the concrete history's `getThreadId()` on a
   fresh run, and from the ignition-record threadId on a resume. A concrete instance clears
   a pending resolver. Resolvers materialize exactly once.
+- **Adapted push delivery**: a `StreamingChannelInterface` has two ports —
+  `send(object)` for native chunks and `sendLine(string)` for protocol lines. With no
+  adapter attached, the channel receives native chunks via `send()`. Attach a stream
+  adapter via `setStreamAdapter($adapter)` and the workflow runs each yielded chunk through
+  it, delivering the resulting lines (plus the adapter's `start()`/`end()` framing) to the
+  channel via `sendLine()`. The adapter and the channel are independent — the adapter
+  decides the output shape, the channel decides the destination (Pusher, websocket, …).
+  The adapter is stateful; never share one instance between `setStreamAdapter()` and a pull
+  consumer (`stream($message, $adapter)`). This is the push path only; the pull path keeps
+  its per-call `stream($message, $adapter)` argument.
 - **Fail-loud guard**: a history resolver pending on a fresh run (no threadId source)
   makes `getChatHistory()` throw — it never silently falls back to the in-memory default,
   which would read and write a wrong, empty thread.

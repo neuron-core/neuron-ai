@@ -128,8 +128,9 @@ foreach ($agent->stream(new UserMessage($input), new VercelAIAdapter()) as $line
 }
 ```
 
-(Push delivery to a live sink is still available via `StreamAdapterChannel` on the
-channel — unchanged.)
+(Push delivery to a live sink is still available: attach a stream adapter via
+`setStreamAdapter($adapter)` and the workflow delivers the adapted protocol lines
+to the channel's `sendLine()` port — the adapter and channel compose independently.)
 
 ### Case 4: Continuing a suspended run (tool approval, etc.)
 

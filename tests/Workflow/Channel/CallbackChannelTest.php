@@ -70,4 +70,23 @@ class CallbackChannelTest extends TestCase
             ['failed', $exception, 'run_1'],
         ], $calls);
     }
+
+    public function testSendLineReceivesEachLineAndIsSilentWhenUnset(): void
+    {
+        // Unset onSendLine: a silent no-op (same shape as the other hooks).
+        (new CallbackChannel())->sendLine('dropped');
+
+        // Set: each adapted protocol line reaches the closure, in order.
+        $received = [];
+        $channel = new CallbackChannel(
+            onSendLine: function (string $line) use (&$received): void {
+                $received[] = $line;
+            },
+        );
+
+        $channel->sendLine("start\n");
+        $channel->sendLine('text:hello');
+
+        $this->assertSame(["start\n", 'text:hello'], $received);
+    }
 }

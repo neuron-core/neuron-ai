@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow;
 
 use Closure;
 use Generator;
+use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Observability\ListenerRegistry;
@@ -15,8 +16,7 @@ use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\WorkflowEventDispatcher;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use NeuronAI\StaticConstructor;
-use NeuronAI\Workflow\Channel\ChannelInterface;
-use NeuronAI\Workflow\Channel\NullChannel;
+use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -67,7 +67,15 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected ?SchedulerInterface $scheduler = null;
 
-    protected ?ChannelInterface $channel = null;
+    protected ?StreamingChannelInterface $channel = null;
+
+    /**
+     * Optional push-side delivery transform. When attached, yielded items are
+     * run through it and delivered to the channel as protocol lines
+     * (sendLine()); otherwise native chunks are delivered via send(). Null
+     * means "deliver native chunks" (the default).
+     */
+    protected ?StreamAdapterInterface $streamAdapter = null;
 
     protected ?ListenerRegistry $listeners = null;
 
@@ -174,6 +182,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this->persistence ??= new InMemoryPersistence();
     }
 
+    protected function persistence(): PersistenceInterface
+    {
+        return $this->getPersistence();
+    }
+
     /**
      * Provide a scheduler to coordinate wakeups for suspended workflows.
      *
@@ -195,38 +208,78 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this->scheduler ??= new NullScheduler();
     }
 
+    protected function scheduler(): SchedulerInterface
+    {
+        return $this->getScheduler();
+    }
+
     /**
      * Where in-flight output is delivered while the run is in flight (a
-     * websocket, SSE sink, ...). Default is inert (NullChannel): delivery
-     * goes nowhere and today's behavior is unchanged.
+     * websocket, SSE sink, ...). Optional — null (the default) means no channel
+     * is attached and delivery is skipped entirely.
      */
-    public function setChannel(ChannelInterface $channel): static
+    public function setChannel(?StreamingChannelInterface $channel): static
     {
         $this->channel = $channel;
         return $this;
     }
 
-    protected function channel(): ChannelInterface
+    protected function resolveChannel(): ?StreamingChannelInterface
     {
-        return $this->channel ??= new NullChannel();
+        return $this->channel ??= $this->channel();
+    }
+
+    protected function channel(): ?StreamingChannelInterface
+    {
+        return $this->channel;
+    }
+
+    /**
+     * Attach a stream adapter as the push-side delivery transform. When set,
+     * the workflow runs each yielded item through the adapter and delivers the
+     * resulting protocol lines (plus the adapter's start()/end() framing) to
+     * the channel via sendLine(); when null (the default), native chunks are
+     * delivered via send(). This is independent of the channel — the two
+     * compose (adapter decides the shape, channel decides the destination).
+     *
+     * The adapter is stateful; do not share one instance between this and a
+     * pull consumer (Agent::stream($message, $adapter)).
+     */
+    public function setStreamAdapter(?StreamAdapterInterface $adapter): static
+    {
+        $this->streamAdapter = $adapter;
+        return $this;
+    }
+
+    protected function resolveAdapter(): ?StreamAdapterInterface
+    {
+        return $this->streamAdapter ??= $this->streamAdapter();
+    }
+
+    protected function streamAdapter(): ?StreamAdapterInterface
+    {
+        return $this->streamAdapter;
     }
 
     /**
      * Run one channel call under the catch-report-continue policy: a channel
      * error never fails the run — every failure is dispatched as a ChannelError
-     * and delivery moves on. Circuit-breaking (stop trying after N failures,
-     * retry, back off) is the channel implementation's own policy, not the
-     * engine's: the channel is the code that understands its transport's
-     * failure semantics, and it can short-circuit its own send().
+     * and delivery moves on. Skipped entirely when no channel is attached.
+     * Circuit-breaking (stop trying after N failures, retry, back off) is the
+     * channel implementation's own policy, not the engine's: the channel is the
+     * code that understands its transport's failure semantics, and it can
+     * short-circuit its own send().
+     *
+     * @param Closure(StreamingChannelInterface): void $op Receives the attached channel (non-null).
      */
     protected function fireChannel(Closure $op): void
     {
-        if ($this->channel === null || $this->channel instanceof NullChannel) {
+        if (!$this->resolveChannel() instanceof StreamingChannelInterface) {
             return;
         }
 
         try {
-            $op();
+            $op($this->resolveChannel());
         } catch (Throwable $e) {
             $event = new ChannelError($e);
             $event->source = $this;
@@ -284,6 +337,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
         $generator = $this->resolveExecutor()->execute($this, $payload, $timedOut);
 
+        // Open the protocol stream eagerly (start() before any output) when an
+        // adapter is attached — no-op otherwise. Mirrors the pull path's eager
+        // start, so push and push-via-adapter emit the same framing timing.
+        $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->start());
+
         try {
             // The single delivery choke point: every yielded item feeds the
             // channel (push) before it reaches the caller (pull), so a stalled
@@ -292,25 +350,65 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             // pull consumers still receive it unchanged.
             foreach ($generator as $item) {
                 if (!$item instanceof InterruptEvent) {
-                    $this->fireChannel(fn () => $this->channel()->send($item));
+                    $this->deliver($item);
                 }
                 yield $item;
             }
         } catch (Throwable $e) {
-            $this->fireChannel(fn () => $this->channel()->failed($e, $this->runId));
+            $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->end());
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->runId));
             throw $e;
         }
+
+        // Close the stream on every clean terminal (completion or suspension).
+        $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->end());
 
         $state = $this->resolveState();
         $request = $state->getInterruptRequest();
 
         if ($request instanceof InterruptRequest) {
-            $this->fireChannel(fn () => $this->channel()->suspended($request, $this->runId));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->runId));
         } else {
-            $this->fireChannel(fn () => $this->channel()->completed($state, $this->runId));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->runId));
         }
 
         return $state;
+    }
+
+    /**
+     * Deliver one yielded item to the channel: through the stream adapter (as
+     * protocol lines via sendLine) when one is attached, or as the native chunk
+     * (via send) otherwise. Routed through fireChannel, so an adapter/channel
+     * throw costs one ChannelError and never fails the run.
+     */
+    protected function deliver(object $item): void
+    {
+        if ($this->streamAdapter() instanceof StreamAdapterInterface) {
+            $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->transform($item));
+        } else {
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
+        }
+    }
+
+    /**
+     * Drain adapter-produced protocol frames to the channel. No-op when no
+     * adapter is attached; otherwise each frame goes out as a sendLine() line
+     * under fireChannel's catch-report-continue guard. `$frames` produces the
+     * iterable of lines — start(), transform($item), or end() depending on the
+     * call site.
+     *
+     * @param Closure(StreamAdapterInterface): iterable<string> $frames
+     */
+    protected function fireAdapter(Closure $frames): void
+    {
+        if (!$this->resolveAdapter() instanceof StreamAdapterInterface) {
+            return;
+        }
+        $this->fireChannel(function (StreamingChannelInterface $ch) use ($frames): void {
+            foreach ($frames($this->resolveAdapter()) as $line) {
+                $ch->sendLine($line);
+            }
+        });
     }
 
     /**
