@@ -26,8 +26,7 @@ class AsyncAgentTest extends TestCase
 
         $agent = Agent::make()->setAiProvider($provider);
 
-        $handler = $agent->chat(new UserMessage('Say hello in one word'));
-        $future = async(fn () => $handler->run());
+        $future = async(fn () => $agent->chat(new UserMessage('Say hello in one word')));
 
         /** @var AgentState $result */
         $result = $future->await();
@@ -47,9 +46,9 @@ class AsyncAgentTest extends TestCase
         $agent2 = Agent::make()->setAiProvider($provider2)->setInstructions('Name 3 colors');
         $agent3 = Agent::make()->setAiProvider($provider3)->setInstructions('Name 3 animals');
 
-        $future1 = async(fn () => $agent1->chat(new UserMessage('Go'))->run());
-        $future2 = async(fn () => $agent2->chat(new UserMessage('Go'))->run());
-        $future3 = async(fn () => $agent3->chat(new UserMessage('Go'))->run());
+        $future1 = async(fn () => $agent1->chat(new UserMessage('Go')));
+        $future2 = async(fn () => $agent2->chat(new UserMessage('Go')));
+        $future3 = async(fn () => $agent3->chat(new UserMessage('Go')));
 
         [$result1, $result2, $result3] = Future\await([$future1, $future2, $future3]);
 
@@ -70,7 +69,7 @@ class AsyncAgentTest extends TestCase
 
         $agent = Agent::make()->setAiProvider($provider);
 
-        $agentFuture = async(fn () => $agent->chat(new UserMessage('Hello'))->run());
+        $agentFuture = async(fn () => $agent->chat(new UserMessage('Hello')));
 
         $delayFuture = async(function (): string {
             delay(0.1);

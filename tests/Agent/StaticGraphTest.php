@@ -26,7 +26,7 @@ class StaticGraphTest extends TestCase
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
 
-        $agent->chat(new UserMessage('hello'))->run();
+        $agent->chat(new UserMessage('hello'));
 
         $map = $agent->getEventNodeMap();
 

@@ -31,7 +31,7 @@ class InferenceNodeMiddlewareTest extends TestCase
     public function test_inference_middleware_fires_in_stream_mode(): void
     {
         $this->assertInferenceMiddlewareFires(
-            fn (Agent $agent): \NeuronAI\Agent\AgentState => $agent->stream(new UserMessage('Hi'))->run()
+            fn (Agent $agent) => iterator_to_array($agent->stream(new UserMessage('Hi')))
         );
     }
 

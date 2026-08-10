@@ -39,6 +39,11 @@ class FileChatHistory extends AbstractChatHistory
         $this->load();
     }
 
+    public function getThreadId(): string
+    {
+        return $this->key;
+    }
+
     protected function load(): void
     {
         if (is_file($this->getFilePath())) {

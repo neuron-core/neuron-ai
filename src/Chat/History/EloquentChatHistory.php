@@ -26,6 +26,11 @@ class EloquentChatHistory extends AbstractChatHistory
         $this->load();
     }
 
+    public function getThreadId(): string
+    {
+        return $this->threadId;
+    }
+
     protected function load(): void
     {
         /** @var Model $model */

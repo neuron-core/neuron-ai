@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -25,11 +26,11 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Phase 5 acceptance: the functional model "new turn → new run; answer →
- * wake" — a suspended run continues from a BLANK factory through the single
- * mode-agnostic wake() verb, with the run's intent and identity supplied by
+ * resume" — a suspended run continues from a BLANK factory through the single
+ * mode-agnostic resume() verb, with the run's intent and identity supplied by
  * its ignition record, never by the caller.
  */
-class AgentWakeTest extends TestCase
+class AgentResumeTest extends TestCase
 {
     /**
      * Chat histories shared across agent instances, keyed by threadId — what
@@ -67,16 +68,18 @@ class AgentWakeTest extends TestCase
             ->setInstructions('You are a search assistant.');
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
-        $agent1->setChatHistory($this->historyResolver());
+        // Ignition carries a concrete history; pre-seed the shared cache so the
+        // wake's resolver (keyed by threadId) returns the SAME history instance.
+        $this->histories['thread-1'] = new InMemoryChatHistory('thread-1');
+        $agent1->setChatHistory($this->histories['thread-1']);
         $agent1->setChannel(fn (string $threadId): FakeChannel => new FakeChannel());
-        $agent1->setThreadId('thread-1');
 
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
-        $handler1->run();
+        iterator_to_array($handler1);
 
-        $this->assertTrue($handler1->interrupted());
+        $this->assertTrue($agent1->resolveState()->isInterrupted());
 
-        // ── Wake: a BLANK factory — runId only, resolvers wired, no threadId.
+        // ── Resume: a BLANK factory — runId only, resolvers wired, no threadId.
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
@@ -93,22 +96,16 @@ class AgentWakeTest extends TestCase
         $agent2->setChatHistory($this->historyResolver());
         $agent2->setChannel(fn (string $threadId): FakeChannel => $channel);
 
-        $handler2 = $agent2->wake(['call_1' => 'approve']);
-
-        $chunks = [];
-        foreach ($handler2->events() as $item) {
-            if ($item instanceof TextChunk) {
-                $chunks[] = $item;
-            }
-        }
+        // resume() runs eagerly → AgentState. The resumed inference's live
+        // chunks are delivered to the channel (push), not pulled by the caller.
+        $state = $agent2->resume(['call_1' => 'approve']);
 
         // The run completed, on the right thread, in the right mode.
-        $this->assertFalse($handler2->interrupted());
-        $this->assertSame('thread-1', $agent2->getThreadId());
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame('thread-1', $agent2->getChatHistory()->getThreadId());
 
-        // Stream intent survived suspend → wake: the post-wake inference
-        // streamed live chunks to the caller AND to the resolved channel.
-        $this->assertNotEmpty($chunks);
+        // Stream intent survived suspend → resume: the post-resume inference
+        // streamed live chunks to the resolved channel.
         $this->assertNotEmpty(
             array_filter($channel->sent, fn (object $item): bool => $item instanceof TextChunk)
         );
@@ -117,7 +114,7 @@ class AgentWakeTest extends TestCase
         // The final message landed in the thread's history.
         $this->assertSame(
             'Here is what I found.',
-            $handler2->getMessage()->getContent()
+            $state->getMessage()->getContent()
         );
         $this->assertSame(
             'Here is what I found.',
@@ -158,15 +155,15 @@ class AgentWakeTest extends TestCase
         $agent2->setPersistence($persistence);
         $agent2->setChatHistory($history);
 
-        // The wake is mode-agnostic: structured intent rides the ignition
-        // record, and the output arrives through the handler's state.
-        $user = $agent2->wake(['call_1' => 'approve'])->getState()->get('structured_output');
+        // The resume is mode-agnostic: structured intent rides the ignition
+        // record, and the output arrives through the state.
+        $user = $agent2->resume(['call_1' => 'approve'])->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
     }
 
-    public function test_incomplete_decision_set_re_suspends_the_wake(): void
+    public function test_incomplete_decision_set_re_suspends_the_resume(): void
     {
         $persistence = new InMemoryPersistence();
         $history = new InMemoryChatHistory();
@@ -187,18 +184,16 @@ class AgentWakeTest extends TestCase
         $agent1->setPersistence($persistence);
         $agent1->setChatHistory($history);
 
-        $handler1 = $agent1->chat(new UserMessage('Run both searches'));
-        $handler1->run();
-        $this->assertTrue($handler1->interrupted());
+        $state1 = $agent1->chat(new UserMessage('Run both searches'));
+        $this->assertTrue($state1->isInterrupted());
 
-        // One decision out of two: the wake re-suspends (silence is never consent).
-        $partial = $agent1->wake(['call_a' => 'approve']);
-        $partial->run();
-        $this->assertTrue($partial->interrupted());
+        // One decision out of two: the resume re-suspends (silence is never consent).
+        $partial = $agent1->resume(['call_a' => 'approve']);
+        $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // The full, restated decision set completes the run.
-        $complete = $agent1->wake(['call_a' => 'approve', 'call_b' => 'approve']);
+        $complete = $agent1->resume(['call_a' => 'approve', 'call_b' => 'approve']);
         $this->assertSame('Both searches done.', $complete->getMessage()->getContent());
     }
 
@@ -243,7 +238,7 @@ class AgentWakeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->wake(['call_1' => 'approve'])->getState()->get('structured_output');
+        $user = $rag2->resume(['call_1' => 'approve'])->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);

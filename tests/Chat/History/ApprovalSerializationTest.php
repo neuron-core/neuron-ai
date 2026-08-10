@@ -24,6 +24,11 @@ class TestableChatHistory extends AbstractChatHistory
     {
         return $this->deserializeMessages($messages);
     }
+
+    public function getThreadId(): string
+    {
+        return 'testable';
+    }
 }
 
 class ApprovalSerializationTest extends TestCase

@@ -29,7 +29,7 @@ class ChatHistoryTrimmerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->chatHistory = new InMemoryChatHistory(self::CONTEXT_WINDOW);
+        $this->chatHistory = new InMemoryChatHistory(contextWindow: self::CONTEXT_WINDOW);
     }
 
     protected function tearDown(): void

@@ -50,6 +50,11 @@ class SQLChatHistory extends AbstractChatHistory
         $this->load();
     }
 
+    public function getThreadId(): string
+    {
+        return $this->thread_id;
+    }
+
     protected function load(): void
     {
         $stmt = $this->pdo->prepare("SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id");

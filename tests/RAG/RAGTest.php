@@ -53,9 +53,10 @@ class RAGTest extends TestCase
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
 
-        $handler = $rag->stream(new UserMessage('Capital of France?'));
+        $stream = $rag->stream(new UserMessage('Capital of France?'));
+        iterator_to_array($stream);
 
-        $this->assertSame('Paris is the capital.', $handler->getMessage()->getContent());
+        $this->assertSame('Paris is the capital.', $stream->getReturn()->getMessage()->getContent());
         $vectorStore->assertSearchCount(1);
     }
 

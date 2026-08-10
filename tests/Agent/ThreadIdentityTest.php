@@ -46,80 +46,66 @@ class ThreadIdentityTest extends TestCase
         };
     }
 
-    public function test_resolver_then_thread_id_materializes_exactly_once(): void
+    public function test_history_resolver_fires_once_on_wake_with_the_ignition_thread_id(): void
     {
+        $persistence = $this->retainingPersistence();
+
+        // Ignition: concrete history carries the identity into the ignition record.
+        $first = Agent::make(runId: 'resolver_wake_test');
+        $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+        $first->setPersistence($persistence);
+        $first->setChatHistory(new InMemoryChatHistory('thread-1'));
+        $first->chat(new UserMessage('hello'))->getMessage();
+
+        // Wake: a BLANK factory — runId only, history resolver wired. The
+        // threadId arrives via the adopted ignition context and fires the
+        // resolver exactly once.
         $calls = [];
-        $agent = Agent::make();
-        $agent->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
+        $second = Agent::make(runId: 'resolver_wake_test');
+        $second->setAiProvider(new FakeAIProvider());
+        $second->setInstructions('test');
+        $second->setPersistence($persistence);
+        $second->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
             $calls[] = $threadId;
-            return new InMemoryChatHistory();
+            return new InMemoryChatHistory($threadId);
         });
 
-        $agent->setThreadId('thread-1');
-        $agent->setThreadId('thread-1');
-        $agent->getChatHistory();
+        $second->run();
 
         $this->assertSame(['thread-1'], $calls);
+        $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
     }
 
-    public function test_thread_id_then_resolver_materializes_exactly_once(): void
+    public function test_channel_resolver_materializes_from_the_history_identity(): void
     {
         $calls = [];
-        $agent = Agent::make();
-        $agent->setThreadId('thread-2');
-        $agent->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
-            $calls[] = $threadId;
-            return new InMemoryChatHistory();
-        });
-
-        $agent->getChatHistory();
-
-        $this->assertSame(['thread-2'], $calls);
-    }
-
-    public function test_channel_resolver_materializes_with_the_thread_id(): void
-    {
-        $calls = [];
-        $channel = new FakeChannel();
 
         $agent = Agent::make();
-        $agent->setChannel(function (string $threadId) use (&$calls, $channel): FakeChannel {
+        $agent->setChatHistory(new InMemoryChatHistory('thread-3'));
+        $agent->setChannel(function (string $threadId) use (&$calls): FakeChannel {
             $calls[] = $threadId;
-            return $channel;
+            return new FakeChannel();
         });
-        $agent->setThreadId('thread-3');
 
         $this->assertSame(['thread-3'], $calls);
     }
 
-    public function test_chat_history_resolver_without_thread_id_fails_loudly(): void
+    public function test_history_resolver_pending_on_a_fresh_run_fails_loud(): void
     {
         $agent = Agent::make();
-        $agent->setChatHistory(fn (string $threadId): ChatHistoryInterface => new InMemoryChatHistory());
+        $agent->setChatHistory(fn (string $threadId): ChatHistoryInterface => new InMemoryChatHistory($threadId));
 
         $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('A chat history resolver is wired but no threadId is set');
+        $this->expectExceptionMessage('A chat history resolver can only be resolved on a wake');
 
         $agent->getChatHistory();
     }
 
-    public function test_channel_resolver_without_thread_id_fails_loudly_at_bootstrap(): void
-    {
-        $agent = Agent::make();
-        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
-            ->setInstructions('test');
-        $agent->setChannel(fn (string $threadId): FakeChannel => new FakeChannel());
-
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('A channel resolver is wired but no threadId is set');
-
-        $agent->run();
-    }
-
-    public function test_concrete_instance_clears_a_pending_resolver(): void
+    public function test_concrete_history_clears_a_pending_resolver(): void
     {
         $calls = [];
-        $concrete = new InMemoryChatHistory();
+        $concrete = new InMemoryChatHistory('thread-4');
 
         $agent = Agent::make();
         $agent->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
@@ -127,21 +113,32 @@ class ThreadIdentityTest extends TestCase
             return new InMemoryChatHistory();
         });
         $agent->setChatHistory($concrete);
-        $agent->setThreadId('thread-4');
 
         $this->assertSame($concrete, $agent->getChatHistory());
         $this->assertSame([], $calls);
     }
 
-    public function test_resolver_returning_the_wrong_type_fails_loudly(): void
+    public function test_resolver_returning_the_wrong_type_fails_loud(): void
     {
-        $agent = Agent::make();
-        $agent->setChatHistory(fn (string $threadId): string => $threadId);
+        $persistence = $this->retainingPersistence();
+
+        $first = Agent::make(runId: 'wrong_type_test');
+        $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+        $first->setPersistence($persistence);
+        $first->setChatHistory(new InMemoryChatHistory('thread-5'));
+        $first->chat(new UserMessage('hello'))->getMessage();
+
+        $second = Agent::make(runId: 'wrong_type_test');
+        $second->setAiProvider(new FakeAIProvider());
+        $second->setInstructions('test');
+        $second->setPersistence($persistence);
+        $second->setChatHistory(fn (string $threadId): string => $threadId);
 
         $this->expectException(AgentException::class);
         $this->expectExceptionMessage('The chat history resolver must return a');
 
-        $agent->setThreadId('thread-5');
+        $second->run();
     }
 
     public function test_thread_id_is_recorded_in_the_ignition_context(): void
@@ -152,7 +149,7 @@ class ThreadIdentityTest extends TestCase
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $agent->setPersistence($persistence);
-        $agent->setThreadId('thread-42');
+        $agent->setChatHistory(new InMemoryChatHistory('thread-42'));
 
         $agent->chat(new UserMessage('hello'))->getMessage();
 
@@ -172,7 +169,7 @@ class ThreadIdentityTest extends TestCase
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
-        $first->setThreadId('thread-42');
+        $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
         // Blank instance: resolver wired, runId only — the threadId arrives
@@ -184,13 +181,13 @@ class ThreadIdentityTest extends TestCase
         $second->setPersistence($persistence);
         $second->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
             $calls[] = $threadId;
-            return new InMemoryChatHistory();
+            return new InMemoryChatHistory($threadId);
         });
 
         $state = $second->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame('thread-42', $second->getThreadId());
+        $this->assertSame('thread-42', $second->getChatHistory()->getThreadId());
         $this->assertSame(['thread-42'], $calls);
     }
 }

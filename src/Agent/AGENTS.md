@@ -110,38 +110,44 @@ AgentStartEvent ──► StartNode ──► AIInferenceEvent ─────�
 
 | Method | Effect |
 |--------|--------|
-| `chat()` | Ignites a run (buffered transport) |
-| `stream()` | Ignites a run with stream intent (live chunks) |
-| `structured()` | Ignites a run with structured intent; eager — returns the typed output |
-| `wake($payload)` | Continues a suspended run, whatever its mode |
+| `chat($messages)` | Eager: ignites and runs to completion → `AgentState` (buffered transport) |
+| `stream($messages, $adapter?)` | Pull-stream: a `Generator` yielding chunks; `getReturn()` is the `AgentState`. Pass a `StreamAdapterInterface` (Vercel/AG-UI/SSE) to yield protocol-formatted lines. |
+| `structured($messages, $class)` | Eager: returns the typed output |
+| `resume($payload)` | Continues a suspended run, whatever its mode → `AgentState` |
 
 ```php
-// Chat
-$response = YouTubeAgent::make()->chat(new UserMessage('Hello'))->getMessage();
+// Chat (eager → AgentState)
+$state = YouTubeAgent::make()->chat(new UserMessage('Hello'));
+echo $state->getMessage()->getContent();
 
-// Streaming
-$handler = YouTubeAgent::make()->stream(new UserMessage('Hello'));
-foreach ($handler->events() as $chunk) {
+// Streaming (Generator → AgentState via getReturn())
+foreach (YouTubeAgent::make()->stream(new UserMessage('Hello')) as $chunk) {
     echo $chunk->content;
 }
-$response = $handler->getMessage();
 
 // Structured output
 $report = MyAgent::make()->structured($message, ReportSchema::class);
 
-// Wake a suspended run (approval endpoint) — mode-agnostic
-$message = MyAgent::make()
+// Resume a suspended run (approval endpoint) — mode-agnostic → AgentState
+$state = MyAgent::make()
     ->setChatHistory($history)
     ->setPersistence($persistence)
-    ->wake(['call_123' => 'approve'])
-    ->getMessage();
+    ->resume(['call_123' => 'approve']);
+echo $state->getMessage()->getContent();
 ```
 
-**Sugar ignites; `wake()` resumes.** A new turn is a new run; an answer wakes
-the suspended one. The sugar methods take no resume payload — continuation
-goes through `wake($payload)` (handler ergonomics) or the engine verb
-`resume($payload)`. The run's mode never needs restating on a wake: intent is
+**Sugar ignites; `resume()` continues.** A new turn is a new run; an answer
+resumes the suspended one. The sugar methods take no resume payload —
+continuation goes through `resume($payload)`, the same engine verb a plain
+Workflow uses. The run's mode never needs restating on a resume: intent is
 persisted in the ignition record (see *Ignition & thread identity* below).
+
+`chat()`/`resume()` are eager and return `AgentState`; `stream()` is the
+pull-stream verb (a `Generator`) — the same eager/lazy split as Workflow's
+`run()` / `events()`. `AgentState::getMessage()` reads the final assistant
+message off the stored provider response; `isInterrupted()` /
+`getInterruptRequest()` surface an approval pause on the state itself, just
+like a plain `WorkflowState`.
 
 ## Middleware (`Middleware/`)
 
@@ -189,9 +195,9 @@ O(1) instead of embedding the conversation. Consequences:
   Only an approval-gated cycle writes its `ToolCallMessage` early (pre-suspend).
 - Durable workflow persistence requires a comparably durable chat history
   (`InMemoryChatHistory` loses the thread across processes).
-- `AgentHandler::getMessage()` reads the final message from the history;
-  `AgentState::getSteps()` reports the current execution cycle's messages only
-  (transient, available even on an interrupted final state).
+- `AgentState::getMessage()` reads the final message off the stored provider
+  response; `AgentState::getSteps()` reports the current execution cycle's
+  messages only (transient, available even on an interrupted final state).
 
 ## Persistence & Tool Approval
 
@@ -246,11 +252,11 @@ $agent = YouTubeAgent::make()
     // + a durable ChatHistory
 ```
 
-A wake delivers decisions as a **cumulative** payload keyed by tool callId — the entire
-decision set, restated on every wake:
+A resume delivers decisions as a **cumulative** payload keyed by tool callId — the entire
+decision set, restated on every resume:
 
 ```php
-$agent->wake(['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
+$agent->resume(['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 
 A tool runs iff explicitly approved; silence is never consent. An incomplete payload
@@ -269,7 +275,7 @@ message-alternation rule rejects the `UserMessage` appended after the pending
 
 Before suspending, `ToolNode` stamps the runId onto the annotated `ToolCallMessage`
 (`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
-to render. A `wake()` (or `resume()`) with no explicit runId **adopts** the id from
+to render. A `resume()` with no explicit runId **adopts** the id from
 the history tail — the approve/deny endpoint needs only the thread id:
 
 ```php
@@ -278,12 +284,12 @@ $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence($persistence);
 
-$agent->wake(['call_123' => 'approve']);
+$agent->resume(['call_123' => 'approve']);
 ```
 
 The stamp wins even over a `runId` passed to `make()` — history is the system of
 record. With no stamp on the tail the agent keeps its current runId, so explicit-id
-wakes of non-approval suspensions work unchanged. The id is stamped on every gated
+resumes of non-approval suspensions work unchanged. The id is stamped on every gated
 pass and never stripped: once the message is no longer the tail it is inert.
 Tail-adoption is skipped while a chat-history *resolver* is still pending (no thread
 identity yet, so no tail to read) — there the explicit runId governs and the threadId
@@ -291,48 +297,57 @@ arrives from the ignition record.
 
 ## Ignition & thread identity
 
+Thread identity lives on the **chat history** — `ChatHistoryInterface::getThreadId(): string`
+is its single source of truth. The Agent holds no parallel `$threadId` property; it reads
+identity back from the history wherever it needs it (the ignition record, channel wiring).
+`getThreadId()` is non-nullable: every history has an identity — durable backends carry
+theirs; `InMemoryChatHistory` generates one (`uniqid()`, or an explicit value passed to its
+constructor).
+
 Every durable run persists its **ignition record** at first execution: the start
-event (messages + intent) plus the Agent's context bag (`['threadId' => ...]`).
-That is what makes a suspended run continuable from a **blank process** — a
-factory that knows only the runId:
+event (messages + intent) plus the Agent's context bag (`['threadId' => ...]`, read from
+the history). That is what makes a suspended run continuable from a **blank process** — a
+factory that knows only the runId.
+
+The history resolver is **resume-only**. On a fresh run the threadId is known (it is a web
+request), so you pass a **concrete** history — its identity is baked in. The resolver form
+(closure receiving `string $threadId`) exists for the resume path, where the threadId is
+unknown at factory time and is recovered from the ignition record:
 
 ```php
-// Ignition (a web request): identity set, resolvers materialize eagerly.
+// Ignition (a web request): you have the threadId — concrete history.
 $agent = MyAgent::make()
     ->setPersistence($persistence)
-    ->setChatHistory(fn (string $threadId) => new SQLChatHistory($threadId, $pdo))
-    ->setChannel(fn (string $threadId) => new PusherChannel($threadId))
-    ->setThreadId($threadId);
+    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+    ->setChannel(new PusherChannel($threadId));   // concrete, or a resolver
 
 $agent->stream(new UserMessage($input));   // suspends on a gated tool
 
-// Wake (another process, later): same factory, runId only — NO threadId.
-$handler = MyAgent::make(runId: $runId)
+// Resume (another process, later): runId only — threadId unknown, resolvers wired.
+$state = MyAgent::make(runId: $runId)
     ->setPersistence($persistence)
     ->setChatHistory(fn (string $threadId) => new SQLChatHistory($threadId, $pdo))
     ->setChannel(fn (string $threadId) => new PusherChannel($threadId))
-    ->wake($payload);
+    ->resume($payload);
 // The threadId is adopted from the ignition record before nodes are built;
-// the resolvers materialize with it; the run continues in its recorded mode.
+// both resolvers materialize with it; the run continues in its recorded mode.
 ```
 
-- `setThreadId()` / `getThreadId()` — one identity, three appearances:
-  frontend threadId = chat history thread id = channel name.
-- `setChatHistory()` / `setChannel()` accept a **resolver form** (a closure
-  receiving `string $threadId`) for factories wired before the identity is
-  known. Resolvers materialize exactly once, in either wiring order; a
-  concrete instance clears a pending resolver.
-- **Fail-loud guards**: with a resolver wired and no threadId,
-  `getChatHistory()` throws (never silently falls back to the in-memory
-  default — that would read and write a wrong, empty thread) and
-  `bootstrap()` backstops the channel resolver.
-- **Persisted-wins**: on a wake the recorded start event and context win over
-  the factory's defaults. Editing `instructions()` between suspend and wake
-  does not affect the woken run — the record is the run's contract; the
+- `setChatHistory()` / `setChannel()` accept a **resolver form** (a closure receiving
+  `string $threadId`). The history resolver fires only on a resume (from the ignition
+  record); the channel resolver fires from the concrete history's `getThreadId()` on a
+  fresh run, and from the ignition-record threadId on a resume. A concrete instance clears
+  a pending resolver. Resolvers materialize exactly once.
+- **Fail-loud guard**: a history resolver pending on a fresh run (no threadId source)
+  makes `getChatHistory()` throw — it never silently falls back to the in-memory default,
+  which would read and write a wrong, empty thread.
+- **Persisted-wins**: on a resume the recorded start event and context win over
+  the factory's defaults. Editing `instructions()` between suspend and resume
+  does not affect the resumed run — the record is the run's contract; the
   factory supplies capability (provider, tools, history), the record supplies
   intent.
 
 **Security note — threadId is untrusted input used as a storage key.** The
 frontend-supplied threadId selects which conversation is read, written, and
-resumed. Authorize user ↔ thread ownership BEFORE calling `setThreadId()` or
-opening a history with it; the framework performs no access control.
+resumed. Authorize user ↔ thread ownership BEFORE opening a history with it;
+the framework performs no access control.

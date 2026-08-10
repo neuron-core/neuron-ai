@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -39,12 +40,13 @@ interface AgentInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function chat(Message|array $messages = []): AgentHandler;
+    public function chat(Message|array $messages = []): AgentState;
 
     /**
      * @param Message|Message[] $messages
+     * @return \Generator<int, object|string, mixed, AgentState>
      */
-    public function stream(Message|array $messages = []): AgentHandler;
+    public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): \Generator;
 
     /**
      * @param Message|Message[] $messages
@@ -52,10 +54,10 @@ interface AgentInterface
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
 
     /**
-     * Wake a suspended run with the delivered payload — the mode-agnostic
-     * continuation verb (a new turn is a new run; an answer is a wake).
+     * Continue a suspended run by delivering the inbound payload — the single
+     * continuation verb (a new turn is a new run; an answer is a resume).
      *
      * @param array<string, mixed> $payload
      */
-    public function wake(array $payload = []): AgentHandler;
+    public function resume(array $payload = [], bool $timedOut = false): AgentState;
 }

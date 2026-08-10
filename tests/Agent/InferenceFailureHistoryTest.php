@@ -73,7 +73,7 @@ class InferenceFailureHistoryTest extends TestCase
             ->setChatHistory($history);
 
         try {
-            iterator_to_array($agent->stream(new UserMessage('Hello'))->events());
+            iterator_to_array($agent->stream(new UserMessage('Hello')));
             $this->fail('Expected the provider failure to propagate.');
         } catch (ProviderException) {
         }
@@ -82,14 +82,14 @@ class InferenceFailureHistoryTest extends TestCase
 
         $provider->addResponses(new AssistantMessage('Hi there!'));
 
-        $handler = Agent::make()
+        $stream = Agent::make()
             ->setAiProvider($provider)
             ->setChatHistory($history)
             ->stream(new UserMessage('Hello'));
 
-        iterator_to_array($handler->events());
+        iterator_to_array($stream);
 
-        $this->assertSame('Hi there!', $handler->getMessage()->getContent());
+        $this->assertSame('Hi there!', $stream->getReturn()->getMessage()->getContent());
         $this->assertCount(2, $history->getMessages());
     }
 

@@ -123,4 +123,14 @@ class AgentState extends WorkflowState
     {
         return $this->get('__provider_response');
     }
+
+    /**
+     * The final assistant message of the run — the message carried by the stored
+     * provider response. Null only when the run paused before any inference
+     * produced a response.
+     */
+    public function getMessage(): ?Message
+    {
+        return $this->getResponse()?->message();
+    }
 }

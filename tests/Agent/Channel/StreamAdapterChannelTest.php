@@ -45,18 +45,18 @@ class StreamAdapterChannelTest extends TestCase
 {
     public function testPushOutputIsByteIdenticalToThePullPath(): void
     {
-        // Pull: the caller drains AgentHandler::events($adapter).
+        // Pull: the caller drains stream($message, $adapter).
         $pullAgent = Agent::make()->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
 
         $pulled = [];
-        foreach ($pullAgent->stream(new UserMessage('Hi'))->events(new ParityAdapter()) as $line) {
+        foreach ($pullAgent->stream(new UserMessage('Hi'), new ParityAdapter()) as $line) {
             $pulled[] = $line;
         }
 
         // Push: nobody holds the adapter — the channel renders to the sink
-        // while the handler is consumed internally. Two adapter instances.
+        // while the stream generator is consumed internally. Two adapter instances.
         $sink = [];
         $pushAgent = Agent::make();
         $pushAgent->setAiProvider(
@@ -69,7 +69,7 @@ class StreamAdapterChannelTest extends TestCase
             },
         ));
 
-        $pushAgent->stream(new UserMessage('Hi'))->run();
+        iterator_to_array($pushAgent->stream(new UserMessage('Hi')));
 
         $this->assertGreaterThan(2, count($sink), 'The stream should carry protocol lines beyond start/end');
         $this->assertSame(implode('', $pulled), implode('', $sink));
@@ -77,21 +77,22 @@ class StreamAdapterChannelTest extends TestCase
 
     public function testZeroItemRunStillEmitsStartAndEndMatchingPull(): void
     {
-        // chat() yields no stream chunks; the pull path still frames the run
-        // with the protocol start/end sequences — so must the push path.
+        // A zero-item stream (empty content → no TextChunks) still frames the
+        // run with the protocol start/end sequences; so must the eager chat
+        // push path, whose channel fires completed() → finish() → start/end.
         $pullAgent = Agent::make()->setAiProvider(
-            new FakeAIProvider(new AssistantMessage('Silent answer'))
+            new FakeAIProvider(new AssistantMessage(''))
         );
 
         $pulled = [];
-        foreach ($pullAgent->chat(new UserMessage('Hi'))->events(new ParityAdapter()) as $line) {
+        foreach ($pullAgent->stream(new UserMessage('Hi'), new ParityAdapter()) as $line) {
             $pulled[] = $line;
         }
 
         $sink = [];
         $pushAgent = Agent::make();
         $pushAgent->setAiProvider(
-            new FakeAIProvider(new AssistantMessage('Silent answer'))
+            new FakeAIProvider(new AssistantMessage(''))
         );
         $pushAgent->setChannel(new StreamAdapterChannel(
             new ParityAdapter(),
@@ -100,7 +101,7 @@ class StreamAdapterChannelTest extends TestCase
             },
         ));
 
-        $pushAgent->chat(new UserMessage('Hi'))->run();
+        $pushAgent->chat(new UserMessage('Hi'));
 
         $this->assertSame(["start\n", "end\n"], $pulled);
         $this->assertSame($pulled, $sink);

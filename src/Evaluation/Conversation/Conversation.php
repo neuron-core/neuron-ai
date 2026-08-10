@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Conversation;
 
 use Closure;
-use NeuronAI\Agent\AgentHandler;
 use NeuronAI\Agent\AgentInterface;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
@@ -161,10 +161,9 @@ class Conversation
      */
     protected function deliver(UserMessage $message): void
     {
-        $handler = $this->agent->chat($message);
-        $handler->run();
+        $state = $this->agent->chat($message);
 
-        $this->resolveInterrupts($handler);
+        $this->resolveInterrupts($state);
     }
 
     /**
@@ -175,11 +174,11 @@ class Conversation
      * @throws EvaluationException
      * @throws Throwable
      */
-    protected function resolveInterrupts(AgentHandler $handler): void
+    protected function resolveInterrupts(AgentState $state): void
     {
-        while ($handler->interrupted()) {
+        while ($state->isInterrupted()) {
             /** @var InterruptRequest $request */
-            $request = $handler->getInterruptRequest();
+            $request = $state->getInterruptRequest();
 
             if (!$this->approvals instanceof Closure) {
                 throw new EvaluationException(
@@ -197,8 +196,7 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $handler = $this->agent->wake($payload);
-            $handler->run();
+            $state = $this->agent->resume($payload);
         }
     }
 

@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\ToolApproval;
-use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -19,13 +17,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 // Create some example tools that we want to gate with approval
 class FileDeleteTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'delete_file',
-            'Delete a file from the filesystem'
-        );
-    }
+    protected string $name = 'delete_file';
 
     protected function properties(): array
     {
@@ -71,8 +63,7 @@ $makeAgent = fn (): Agent => Agent::make()
     ->setInstructions(
         'You are a helpful assistant with access to file and command tools. Be concise.'
     )
-    ->addTool(new FileDeleteTool())
-    ->addMiddleware(ToolNode::class, new ToolApproval());
+    ->addTool(new FileDeleteTool());
 
 $agent = $makeAgent();
 
@@ -82,15 +73,14 @@ $agent->getChatHistory()->flushAll();
 $message = new UserMessage('Delete the C:/old_logs.txt file');
 echo "User: {$message->getContent()}\n\n";
 
-// Run the agent. When a gated tool is requested, execution pauses and the
-// handler is marked interrupted — no exception is thrown to the caller.
-$handler = $agent->chat($message);
-$handler->run();
+// chat() runs eagerly → AgentState. When a gated tool is requested, execution
+// pauses and the state is marked interrupted — no exception is thrown.
+$state = $agent->chat($message);
 
-while ($handler->interrupted()) {
+while ($state->isInterrupted()) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
-    $approvalRequest = $handler->getInterruptRequest();
+    $approvalRequest = $state->getInterruptRequest();
 
     // The suspension is fully recorded in chat history: the annotated tool
     // call message carries the approval states and the runId.
@@ -131,10 +121,10 @@ while ($handler->interrupted()) {
      */
     echo "\nResuming workflow...\n\n";
 
-    $handler = $makeAgent()->chat(payload: $payload)->run();
+    $state = $makeAgent()->resume($payload);
 }
 
-echo "Agent: " . $handler->getMessage()->getContent() . "\n\n";
+echo "Agent: " . $state->getMessage()->getContent() . "\n\n";
 
 // Helper function to simulate user input
 function promptUserForApproval(): bool

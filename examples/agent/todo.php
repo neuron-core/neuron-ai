@@ -5,6 +5,7 @@ declare(strict_types=1);
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\TodoPlanning;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
@@ -16,13 +17,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 // Create example tools for a complex web development task
 class CreateDatabaseSchemaTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'create_database_schema',
-            'Create a database schema for the application'
-        );
-    }
+    protected string $name = 'create_database_schema';
 
     protected function properties(): array
     {
@@ -41,13 +36,7 @@ class CreateDatabaseSchemaTool extends Tool
 
 class CreateApiEndpointTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'create_api_endpoint',
-            'Create a REST API endpoint'
-        );
-    }
+    protected string $name = 'create_api_endpoint';
 
     protected function properties(): array
     {
@@ -66,13 +55,7 @@ class CreateApiEndpointTool extends Tool
 
 class RunTestsTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'run_tests',
-            'Run unit and integration tests'
-        );
-    }
+    protected string $name = 'run_tests';
 
     protected function properties(): array
     {
@@ -90,13 +73,7 @@ class RunTestsTool extends Tool
 
 class WriteDocumentationTool extends Tool
 {
-    public function __construct()
-    {
-        parent::__construct(
-            'write_documentation',
-            'Write documentation for a feature or module'
-        );
-    }
+    protected string $name = 'write_documentation';
 
     protected function properties(): array
     {
@@ -135,7 +112,7 @@ $agent = Agent::make()
         new WriteDocumentationTool(),
     ])
     ->addMiddleware(
-        ChatNode::class,
+        InferenceNode::class,
         new TodoPlanning()
     );
 

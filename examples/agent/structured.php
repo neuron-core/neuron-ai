@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
@@ -15,7 +16,7 @@ class Person
     public int $age;
 }
 
-$result = \NeuronAI\Agent\Agent::make()
+$result = Agent::make()
     ->setAiProvider(
         new Anthropic(
             '',

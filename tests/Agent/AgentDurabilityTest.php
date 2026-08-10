@@ -147,11 +147,10 @@ class AgentDurabilityTest extends TestCase
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
 
-        $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
-        $handler1->run();
+        $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
 
-        $this->assertTrue($handler1->interrupted());
-        $this->assertInstanceOf(ApprovalRequest::class, $handler1->getInterruptRequest());
+        $this->assertTrue($state1->isInterrupted());
+        $this->assertInstanceOf(ApprovalRequest::class, $state1->getInterruptRequest());
         // Only the ChatNode inference ran; the tool never executed (no second inference).
         $this->assertSame(1, $provider->getCallCount());
 
@@ -163,7 +162,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -215,11 +214,10 @@ class AgentDurabilityTest extends TestCase
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
 
-        $handler1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
-        $handler1->run();
+        $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
 
-        $this->assertTrue($handler1->interrupted());
-        $request = $handler1->getInterruptRequest();
+        $this->assertTrue($state1->isInterrupted());
+        $request = $state1->getInterruptRequest();
         $this->assertInstanceOf(ApprovalRequest::class, $request);
 
         // Resume with rejection: the tool is NOT executed; its rejection message
@@ -230,7 +228,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->wake(['call_1' => ['reject', 'Do not search the web.']])->getMessage();
+        $message = $agent2->resume(['call_1' => ['reject', 'Do not search the web.']])->getMessage();
 
         $this->assertSame(
             'I see the search was rejected. Is there anything else I can help with?',

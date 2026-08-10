@@ -48,6 +48,13 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected array $history = [];
 
+    /**
+     * Declared abstract here: the base holds no identity. Each concrete backend
+     * returns its own (a constructor arg for the durable backends, a generated
+     * id for InMemoryChatHistory).
+     */
+    abstract public function getThreadId(): string;
+
     public function __construct(
         protected int $contextWindow = 50000,
         protected HistoryTrimmerInterface $trimmer = new HistoryTrimmer()

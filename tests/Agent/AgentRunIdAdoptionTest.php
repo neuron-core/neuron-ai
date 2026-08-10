@@ -10,6 +10,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -35,10 +36,9 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent->addTool($searchTool);
         $agent->setPersistence($persistence);
 
-        $handler = $agent->chat(new UserMessage('Search for PHP frameworks'));
-        $handler->run();
+        $state = $agent->chat(new UserMessage('Search for PHP frameworks'));
 
-        $this->assertTrue($handler->interrupted());
+        $this->assertTrue($state->isInterrupted());
 
         return $agent;
     }
@@ -87,7 +87,7 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -112,7 +112,7 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->wake(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -127,7 +127,17 @@ class AgentRunIdAdoptionTest extends TestCase
         $agent->setChatHistory(new InMemoryChatHistory());
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
 
-        $agent->wake(['call_1' => 'approve']);
+        // resume() runs adoptRunIdFromHistory() first — a no-op on an empty
+        // history, which is exactly what the old lazy wake() exercised without
+        // ever executing. Eager resume then throws: there is no ignition record
+        // because the run was never durably started. The behavior under test is
+        // that the no-op adoption left the explicit runId untouched.
+        try {
+            $agent->resume(['call_1' => 'approve']);
+            $this->fail('Expected WorkflowException: no ignition record');
+        } catch (WorkflowException $e) {
+            // expected — no durable run exists for this token
+        }
 
         $this->assertSame('my_explicit_token', $agent->getRunId());
     }
@@ -144,7 +154,7 @@ class AgentRunIdAdoptionTest extends TestCase
 
         // Resume on the SAME instance: the interrupted in-memory state short-circuits
         // adoption and the agent keeps its own id.
-        $message = $agent->wake(['call_1' => 'approve'])->getMessage();
+        $message = $agent->resume(['call_1' => 'approve'])->getMessage();
 
         $this->assertSame($runId, $agent->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());

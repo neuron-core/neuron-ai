@@ -13,7 +13,7 @@ use Throwable;
 /**
  * Pull/push bridge: renders framework-native stream items through a protocol
  * adapter and emits each output line to a sink, producing byte parity with
- * the pull path (AgentHandler::events($adapter)) for the same item sequence.
+ * the pull path (Agent::stream($message, $adapter)) for the same item sequence.
  *
  * The adapter is a stateful transcoder, so the channel OWNS its instance:
  * construct one per channel and never share it with a pull consumer.

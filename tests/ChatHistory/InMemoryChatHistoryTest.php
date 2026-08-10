@@ -27,7 +27,7 @@ class InMemoryChatHistoryTest extends TestCase
     {
         parent::setUp();
         // Use a small context window for testing
-        $this->chatHistory = new InMemoryChatHistory(1000);
+        $this->chatHistory = new InMemoryChatHistory(contextWindow: 1000);
     }
 
     protected function tearDown(): void
@@ -77,7 +77,7 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_chat_history_truncate_and_validate(): void
     {
-        $history = new InMemoryChatHistory(13);
+        $history = new InMemoryChatHistory(contextWindow: 13);
 
         $message = new UserMessage('Hello!');
         $history->addMessage($message);
@@ -267,7 +267,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_find_trim_point_progressively_exceeds_context_window(): void
     {
         // Use a small context window to trigger trimming
-        $history = new InMemoryChatHistory(500);
+        $history = new InMemoryChatHistory(contextWindow: 500);
 
         // AI providers report input_tokens as CUMULATIVE (including all prior context).
         // So the last checkpoint (input + output) IS the total tokens used.
@@ -313,7 +313,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_find_trim_point_preserves_tool_call_result_pairs(): void
     {
         // Use a small context window so trimming is triggered
-        $history = new InMemoryChatHistory(300);
+        $history = new InMemoryChatHistory(contextWindow: 300);
 
         // Create tools for multiple tool call/result pairs
         $tool1 = ToolCall::make('search_tool', description: 'Search for information')

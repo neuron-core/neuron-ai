@@ -55,6 +55,13 @@ protected no-op hook per primitive history mutation — append (`onNewMessage`),
 (`onTrimHistory`), clear (`clear`) — or ignore the granular hooks and rewrite the whole
 state via `setMessages()` (File, InMemory).
 
+**Identity**: `ChatHistoryInterface::getThreadId(): string` is the conversation's identity
+and the single source of truth the Agent reads back (ignition record, channel wiring)
+instead of holding its own copy. It is non-nullable — declared abstract in
+`AbstractChatHistory` (which holds no identity) and implemented by each backend: durable
+backends return their constructor arg (`thread_id` / `threadId` / `key`); `InMemoryChatHistory`
+accepts an optional `?string $threadId` and generates one via `uniqid()` when none is given.
+
 ### Message alternation
 
 A pure `UserMessage` can never directly follow a `ToolCallMessage` — the tool calls must be

@@ -12,9 +12,9 @@ declare(strict_types=1);
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 
 // routes/api.php
@@ -25,23 +25,21 @@ Route::post('/chat', function (Request $request) {
     ]);
 
     // Create agent
-    $handler = Agent::make()
+    $agent = Agent::make()
         ->setAiProvider(
             new Anthropic(
                 config('services.anthropic.api_key'),
-                'claude-3-7-sonnet-latest'
+                config('services.anthropic.model'),
             )
         )
         ->addTool(
             CalculatorToolkit::make()
-        )
-        ->stream(
-            new UserMessage($validated['message'])
         );
 
-    $adapter = new VercelAIAdapter();
+    $adapter = new AGUIAdapter($request->threadId);
 
-    $stream = $handler->events($adapter);
+    // stream() returns a generator yielding the adapter's protocol lines.
+    $stream = $agent->stream(new UserMessage($validated['message']), $adapter);
 
     // Return streaming response
     return response()->stream(
@@ -56,40 +54,3 @@ Route::post('/chat', function (Request $request) {
         $adapter->getHeaders()
     );
 });
-
-/**
- * Frontend (React with Vercel AI SDK):
- *
- * ```javascript
- * import { useChat } from 'ai/react';
- *
- * export default function Chat() {
- *   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
- *     api: '/api/chat',
- *   });
- *
- *   return (
- *     <div className="flex flex-col h-screen">
- *       <div className="flex-1 overflow-y-auto p-4">
- *         {messages.map(message => (
- *           <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
- *             <div className="inline-block p-3 rounded-lg bg-gray-100">
- *               {message.content}
- *             </div>
- *           </div>
- *         ))}
- *       </div>
- *       <form onSubmit={handleSubmit} className="p-4 border-t">
- *         <input
- *           value={input}
- *           onChange={handleInputChange}
- *           placeholder="Type your message..."
- *           disabled={isLoading}
- *           className="w-full p-2 border rounded"
- *         />
- *       </form>
- *     </div>
- *   );
- * }
- * ```
- */

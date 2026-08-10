@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
@@ -24,7 +25,9 @@ $agent = Agent::make()
 
 // Stream the response through the Vercel AI SDK adapter. stream() returns a
 // generator yielding protocol-formatted lines; pass the adapter as the 2nd arg.
-foreach ($agent->stream(new UserMessage('What is the square root of 144?'), new VercelAIAdapter()) as $line) {
+$generator = $agent->stream(new UserMessage('What is the square root of 144?'), new AGUIAdapter(uniqid()));
+
+foreach ($generator as $line) {
     echo $line;
     \flush();
 }

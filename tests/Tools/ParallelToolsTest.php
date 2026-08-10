@@ -241,7 +241,7 @@ class ParallelToolsTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Tool execution failed');
 
-        $agent->chat(new UserMessage('Run failing tool'))->run();
+        $agent->chat(new UserMessage('Run failing tool'));
     }
 
     public function test_parallel_tools_work_in_streaming_mode(): void
@@ -266,10 +266,10 @@ class ParallelToolsTest extends TestCase
         $agent->addTool($toolA);
         $agent->addTool($toolB);
 
-        $handler = $agent->stream(new UserMessage('Run tools in parallel'));
+        $generator = $agent->stream(new UserMessage('Run tools in parallel'));
 
-        $handler->run();
-        $this->assertSame('I have results from both tools.', $handler->getMessage()->getContent());
+        iterator_to_array($generator);
+        $this->assertSame('I have results from both tools.', $generator->getReturn()->getMessage()->getContent());
         $provider->assertCallCount(2);
         $provider->assertMethodCallCount('stream', 2);
     }
@@ -303,6 +303,6 @@ class ParallelToolsTest extends TestCase
 
         $this->expectException(ToolRunsExceededException::class);
 
-        $agent->chat(new UserMessage('Exceed tool runs'))->run();
+        $agent->chat(new UserMessage('Exceed tool runs'));
     }
 }

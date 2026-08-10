@@ -62,9 +62,7 @@ The `TextChunk` class is used to represent a piece of text, but there are other 
 - `NeuronAI\Chat\Messages\Chunks\ToolResultChunk`
 
 ```php
-$handler = $agent->stream(new UserMessage("Hello"));
-
-foreach ($handler->events() as $event) {
+foreach ($agent->stream(new UserMessage("Hello")) as $event) {
     if ($event instanceof TextChunk) {
         echo $event->content;
     }
@@ -362,31 +360,31 @@ $response = MyAgent::make()
     ->getMessage();
 ```
 
-When the agent suspends (e.g., waiting for tool approval), no exception is thrown — the
-handler is marked interrupted. Deliver the decisions later as a payload; with a durable
-chat history the runId is adopted from the thread automatically:
+When the agent suspends (e.g., waiting for tool approval), no exception is thrown —
+`chat()` returns an `AgentState` marked interrupted. Deliver the decisions later as a
+payload via `resume()`; with a durable chat history the runId is adopted from the thread
+automatically:
 
 ```php
 $agent = MyAgent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence(new FilePersistence('/path/to/storage'));
 
-$handler = $agent->chat(new UserMessage('Delete file /tmp/old.log'));
-$handler->run();
+$state = $agent->chat(new UserMessage('Delete file /tmp/old.log'));
 
-if ($handler->interrupted()) {
+if ($state->isInterrupted()) {
     // getMessage() is the annotated ToolCallMessage — render approve/deny from it.
     // ... user approves/rejects ...
 
     // A new execution cycle (e.g. the approve endpoint): rebuild from the thread
     // alone and deliver the decisions keyed by tool callId.
-    $handler = MyAgent::make()
+    $state = MyAgent::make()
         ->setChatHistory(new SQLChatHistory($threadId, $pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->chat(payload: ['call_123' => 'approve']);
+        ->resume(['call_123' => 'approve']);
 }
 
-$response = $handler->getMessage();
+$response = $state->getMessage();
 ```
 
 Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements — and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).

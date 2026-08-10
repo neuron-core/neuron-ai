@@ -142,10 +142,10 @@ class AgentTest extends TestCase
         $agent = Agent::make();
         $agent->setAiProvider($provider);
 
-        $handler = $agent->stream(new UserMessage('Hi'));
+        $gen = $agent->stream(new UserMessage('Hi'));
+        iterator_to_array($gen);
 
-        $handler->run();
-        $this->assertSame('Hello world', $handler->getMessage()->getContent());
+        $this->assertSame('Hello world', $gen->getReturn()->getMessage()->getContent());
     }
 
     public function test_structured_output(): void
