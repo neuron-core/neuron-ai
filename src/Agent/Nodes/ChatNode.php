@@ -42,8 +42,9 @@ class ChatNode extends InferenceNode
 
         $this->emit('inference-start', new InferenceStart($lastMessage));
         $response = $this->inference($event, $messages);
-        $this->addToChatHistory($state, $inbound);
         $this->emit('inference-stop', new InferenceStop($lastMessage, $response));
+
+        $this->addToChatHistory($state, $inbound);
 
         // If the response is a tool call, route to the tool node.
         // It will be responsible to add the tool call message to the chat history.

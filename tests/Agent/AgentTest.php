@@ -8,6 +8,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -21,6 +22,8 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+
+use Generator;
 
 class AgentTest extends TestCase
 {
@@ -171,6 +174,38 @@ class AgentTest extends TestCase
         } catch (ProviderException) {
         }
 
+        $this->assertCount(0, $history->getMessages());
+    }
+
+    public function test_failed_stream_mid_flight_does_not_persist_inbound_message(): void
+    {
+        $history = new InMemoryChatHistory();
+
+        // A provider whose stream yields a chunk and then fails mid-flight,
+        // modelling a dropped connection or a mid-stream API error.
+        $provider = new class extends FakeAIProvider {
+            public function stream(Message ...$messages): Generator
+            {
+                yield new TextChunk('fake_msg', 'Hello');
+                throw new ProviderException('Connection dropped mid-stream.');
+            }
+        };
+
+        $agent = Agent::make()
+            ->setAiProvider($provider)
+            ->setChatHistory($history);
+
+        try {
+            foreach ($agent->stream(new UserMessage('Hi'))->events() as $event) {
+                // The provider yields one chunk before throwing, so reaching the
+                // failure path here means streaming genuinely started mid-flight.
+            }
+            $this->fail('Expected the provider stream to fail mid-flight.');
+        } catch (ProviderException) {
+        }
+
+        // The partial stream must not leave the user message in the chat history,
+        // otherwise the next attempt produces two consecutive user messages.
         $this->assertCount(0, $history->getMessages());
     }
 

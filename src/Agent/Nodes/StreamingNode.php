@@ -38,9 +38,9 @@ class StreamingNode extends InferenceNode
         $messages = $this->pendingConversation($state, $inbound);
         $lastMessage = end($messages);
 
-        $this->emit('inference-start', new InferenceStart($lastMessage));
-
         try {
+            $this->emit('inference-start', new InferenceStart($lastMessage));
+
             $stream = $this->provider
                 ->systemPrompt($event->instructions)
                 ->setTools($event->tools)
@@ -54,9 +54,9 @@ class StreamingNode extends InferenceNode
             // Get the final message from the generator return value
             $message = $stream->getReturn();
 
-            $this->addToChatHistory($state, $inbound);
-
             $this->emit('inference-stop', new InferenceStop($lastMessage, $message));
+
+            $this->addToChatHistory($state, $inbound);
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
