@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use Generator;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -146,6 +149,39 @@ class AgentTest extends TestCase
         iterator_to_array($gen);
 
         $this->assertSame('Hello world', $gen->getReturn()->getMessage()->getContent());
+    }
+
+    public function test_mid_stream_failure_leaves_chat_history_consistent(): void
+    {
+        // A provider that yields a few chunks, then dies mid-stream.
+        $provider = new class(new AssistantMessage('Hello world')) extends FakeAIProvider {
+            protected function streamChunks(Message $response): Generator
+            {
+                yield new TextChunk('fake_msg', 'Hel');
+                yield new TextChunk('fake_msg', 'lo w');
+                throw new RuntimeException('connection lost mid-stream');
+            }
+        };
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+
+        // The default history starts empty for a fresh turn.
+        $this->assertSame([], $agent->getChatHistory()->getMessages());
+
+        $stream = $agent->stream(new UserMessage('Hi'));
+
+        try {
+            iterator_to_array($stream);
+            $this->fail('Expected the stream to fail mid-stream.');
+        } catch (Throwable $e) {
+            $this->assertStringContainsString('connection lost mid-stream', $e->getMessage());
+        }
+
+        // Neither the failed-turn inbound user message nor a partial assistant
+        // response is persisted: history stays at its pre-turn state, so the
+        // next attempt doesn't break role alternation with a dangling message.
+        $this->assertSame([], $agent->getChatHistory()->getMessages());
     }
 
     public function test_structured_output(): void

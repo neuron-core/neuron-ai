@@ -51,10 +51,11 @@ class ChatNode extends InferenceNode
             'inference',
             fn (): ProviderResponse => $this->inference($event, $messages),
         );
+        $this->emit(new InferenceStop($lastMessage, $providerResponse));
+
         $this->addToChatHistory($inbound, 'history.inbound');
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
-        $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
         // If the response is a tool call, route to the tool node.
         // It will be responsible to add the tool call message to the chat history.
@@ -82,9 +83,9 @@ class ChatNode extends InferenceNode
         $messages = $this->pendingConversation($inbound);
         $lastMessage = end($messages);
 
-        $this->emit(new InferenceStart($lastMessage));
-
         try {
+            $this->emit(new InferenceStart($lastMessage));
+
             // A provider stream is a live, non-resumable cursor: it cannot be
             // replayed, and there is no consumer across a crash to receive chunks
             // anyway. So only the terminal response is durable. On recovery we
@@ -110,12 +111,12 @@ class ChatNode extends InferenceNode
                 $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
             }
 
+            $this->emit(new InferenceStop($lastMessage, $providerResponse));
+
             $this->addToChatHistory($inbound, 'history.inbound');
 
             $state->setResponse($providerResponse);
             $message = $providerResponse->message();
-
-            $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
             // Route based on the message type
             if ($message instanceof ToolCallMessage) {
