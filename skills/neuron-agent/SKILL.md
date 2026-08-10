@@ -36,6 +36,22 @@ class MyAgent extends Agent
 
 ## Agent Execution Methods
 
+Each verb returns the type its nature produces — the same eager/lazy split a plain
+Workflow uses:
+
+| Method | Returns |
+|--------|---------|
+| `chat($messages)` | `AgentState` — eager; runs to completion |
+| `stream($messages, $adapter?)` | `Generator` — pull-stream; `getReturn()` is the `AgentState` |
+| `structured($messages, $class)` | the typed output — eager |
+| `resume($payload)` | `AgentState` — continues a suspended run |
+
+`chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
+Read the assistant message off it with `getMessage()`, and read an approval pause with
+`isInterrupted()` / `getInterruptRequest()` — the same surface a plain `WorkflowState`
+exposes. There is no `AgentHandler` wrapper and no `wake()`; `resume()` is the single
+continuation verb.
+
 ### Chat Mode (Synchronous)
 
 For standard back-and-forth conversations:
@@ -89,11 +105,14 @@ When connecting a frontend UI to an agent, use streaming adapters to format the 
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 
 Route::post('/chat', function (Request $request) {
-    $handler = MyAgent::make()->stream(
-        new UserMessage($request->input('message'))
-    );
+    $adapter = new VercelAIAdapter();
 
-    $stream = $handler->events(new VercelAIAdapter());
+    // The adapter is the optional second argument to stream(); the generator
+    // yields the adapter's protocol-formatted lines.
+    $stream = MyAgent::make()->stream(
+        new UserMessage($request->input('message')),
+        $adapter
+    );
 
     return response()->stream(
         function () use ($stream) {

@@ -4,7 +4,7 @@
 
 The `WorkflowHandler` class and `WorkflowHandlerInterface` have been removed. The intermediate handler step is no longer necessary — `run()` and `events()` are now called directly on the `Workflow` instance.
 
-**Important:** This change only affects `Workflow` usage. The `Agent` class continues to return an `AgentHandler` from its `chat()` and `stream()` methods. Do not modify Agent handler usage.
+**Important:** This change only affects `Workflow` usage. The `Agent` class still returns an `AgentHandler` from its `chat()` and `stream()` methods at this step — leave Agent handler usage alone for now. It is removed in a later step (upgrade 13).
 
 ## What to Search For
 
@@ -131,8 +131,8 @@ $state = $generator->getReturn();
 
 ## What NOT to Change
 
-- **Agent handler usage is unchanged.** If the code calls `$agent->chat()` or `$agent->stream()` and uses the returned `AgentHandler`, leave it as-is. The `AgentHandler` still exists and works the same way.
-- **Do not remove `AgentHandler` imports or change Agent execution patterns.**
+- **Agent handler usage is unchanged at this step.** If the code calls `$agent->chat()` or `$agent->stream()` and uses the returned `AgentHandler`, leave it as-is. The `AgentHandler` still exists and works the same way — it is removed in a later step (upgrade 13).
+- **Do not remove `AgentHandler` imports or change Agent execution patterns** at this step.
 - Only refactor code that uses `Workflow::init()` or references `WorkflowHandler`/`WorkflowHandlerInterface`.
 
 ## Checklist
@@ -144,5 +144,5 @@ For each file you modify:
 - [ ] `$handler->events()` is replaced with `$workflow->events()` (store the generator in a variable)
 - [ ] `$handler->getResult()` is replaced with `$generator->getReturn()`
 - [ ] No imports of `WorkflowHandler` or `WorkflowHandlerInterface` remain
-- [ ] Agent handler usage (`AgentHandler`) is left untouched
+- [ ] Agent handler usage (`AgentHandler`) is left untouched at this step (upgrade 13 removes it)
 - [ ] The application still uses the same Workflow classes (extending `Workflow`) — only the invocation pattern changed

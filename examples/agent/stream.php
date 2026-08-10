@@ -16,7 +16,7 @@ $agent = Agent::make()
     ->setAiProvider(
         new Anthropic(
             '',
-            'claude-3-7-sonnet-latest'
+            'claude-5-sonnet'
         )
     )
     ->addTool(CalculatorToolkit::make());
