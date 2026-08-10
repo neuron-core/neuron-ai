@@ -93,7 +93,7 @@ a mismatch — a wrong input type is a coding error in the evaluator (surfaced a
 ## Multi-Turn Conversation Evaluation
 
 One sentence anchors the design: **you run a Conversation; you evaluate its Trajectory**
-(vocabulary in `CONTEXT.md`, decision record in ADR 0007).
+(vocabulary in `CONTEXT.md`).
 
 ### Trajectory — the recorded subject
 
@@ -105,7 +105,7 @@ $trajectory = Trajectory::fromChatHistory($agent->getChatHistory()); // or fromM
 
 $trajectory->messages();          // Message[] — full fidelity
 $trajectory->toolCalls('refund'); // ToolCall[] — one entry per call (the "fold":
-                                  // pending snapshot + final outcome merged, final wins — ADR 0006)
+                                  // pending snapshot + final outcome merged, final wins)
 $trajectory->lastToolCall();      // ?ToolCall
 $trajectory->finalAnswer();       // string ('' on a suspended tail)
 $trajectory->usage();             // Usage — aggregated provider-reported tokens
@@ -116,7 +116,7 @@ $trajectory->toTranscript();      // canonical rendering (judges & simulator rea
 `fromMessages()` is a public seam: any hand-rolled multi-turn loop can project its history
 and use the whole assertion/judge layer — the Conversation runner is sugar over it.
 Serialization reuses the chat-history storage format, so a Trajectory survives the parallel
-runner's fork boundary (messages carry `ToolCall` data — ADR 0010). Gotchas:
+runner's fork boundary (messages carry `ToolCall` data). Gotchas:
 a call that never executed has no result — check `ToolCall::hasResult()` before calling
 `getResult()`; accessors return the LIVE call entries, which the approval flow annotates
 in place on resume — read values, don't hold objects across a resume.
@@ -147,7 +147,7 @@ public function run(array $item): mixed
   suspends, at any point. Typed against the generic `InterruptRequest` — narrow with
   `instanceof` as needed. Fail-loud: a suspension with no policy throws
   `EvaluationException`, and for `ApprovalRequest`s the returned payload must cover every
-  pending action id (an incomplete set would re-suspend per ADR 0002 and loop the runner).
+  pending action id (an incomplete set would re-suspend and loop the runner).
 - Simulated path: `->withUser($simulator, maxTurns: 10)` instead of `withTurns()` (mutually
   exclusive). `maxTurns` is required; hitting the cap ends the conversation *normally* —
   whether unfinished is a failure is the assertions' judgment.

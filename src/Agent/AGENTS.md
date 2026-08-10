@@ -78,7 +78,7 @@ $agent = Agent::make()
 $response = $agent->chat(new UserMessage('Hello'))->getMessage();
 ```
 
-## The static graph & execution intent (ADR 0015)
+## The static graph & execution intent
 
 The Agent composes the SAME node set on every run — the graph is a pure
 function of the agent definition, never of which sugar method was called:
@@ -153,7 +153,7 @@ Register via `$workflow->middleware(NodeClass::class, $middleware)`:
 | `Summarization` | Adds conversation summarization |
 
 Middleware shapes events before a node acts; flow control and I/O belong to the nodes
-themselves (ADR 0009 — tool approval, previously a middleware, now lives in `ToolNode`).
+themselves (tool approval, previously a middleware, now lives in `ToolNode`).
 
 Node matching is subclass-aware (`instanceof`), so middleware registered for a
 class also applies to its subclasses. `ChatNode` (chat + stream transport) and
@@ -184,10 +184,9 @@ O(1) instead of embedding the conversation. Consequences:
 - A message commits only when the step that consumes it succeeds: inference
   nodes commit their inbound after the provider call lands, and a non-gated
   tool cycle commits the call/result pair together through the *next*
-  inference's inbound write (ADR 0012) — a tool crash or failed follow-up call
+  inference's inbound write — a tool crash or failed follow-up call
   leaves the tail at the last committed message, never at a dangling tool call.
-  Only an approval-gated cycle writes its `ToolCallMessage` early (pre-suspend,
-  ADR 0009).
+  Only an approval-gated cycle writes its `ToolCallMessage` early (pre-suspend).
 - Durable workflow persistence requires a comparably durable chat history
   (`InMemoryChatHistory` loses the thread across processes).
 - `AgentHandler::getMessage()` reads the final message from the history;
@@ -196,14 +195,14 @@ O(1) instead of embedding the conversation. Consequences:
 
 ## Persistence & Tool Approval
 
-`ToolNode` gates tool execution behind human approval (ADR 0009) — there is no middleware
+`ToolNode` gates tool execution behind human approval — there is no middleware
 to attach; the gate runs on every tool call and asks each tool. Messages carry `ToolCall`
-value objects (ADR 0010): the node resolves every call against ONE source — the inference
+value objects: the node resolves every call against ONE source — the inference
 event's tool list, the cycle's effective set (agent base plus middleware additions, minus
 middleware removals) — clones the match, binds the call's inputs, executes, and settles
 the result back onto the call. A call naming a tool outside that set throws a
 `ToolException`. Exceptions escaping tool execution are bugs and propagate (a
-*conversational* failure is a returned `ToolOutput::error()`, ADR 0013 — see
+*conversational* failure is a returned `ToolOutput::error()` — see
 `src/Tools/AGENTS.md`); `toolErrorHandler(fn (Throwable $e, ToolCall $call):
 string|ToolOutput|null)` is the cross-cutting override — a returned string or
 `ToolOutput` settles as the call's result, `null` declines and the exception
@@ -212,8 +211,8 @@ step-result event through `Workflow::restoreEventNode()` before it re-enters tra
 and the Agent's override re-seeds `bootstrapTools()` on stripped inference/tool-call
 events (idempotent — a live effective set is never touched); tool-contributing middleware
 re-supply their own additions in `before()`. The node itself holds no tool registry. **Each tool declares** its
-intrinsic risk via the protected `approvalPolicy(array $inputs)` hook (ADR 0004's
-"tools declare" survives), and the agent developer overrides the declaration per tool at
+intrinsic risk via the protected `approvalPolicy(array $inputs)` hook, and the agent
+developer overrides the declaration per tool at
 attach time, in both directions:
 
 ```php
@@ -237,7 +236,7 @@ the tool entry in chat history, exposed on the `ApprovalRequest` actions as `rea
 a gated tool is requested, `chat()` returns suspended instead of completed — cross-process
 flows require **workflow persistence AND a durable chat history** (the suspend-time
 `ToolCallMessage` in chat history is what lets a cold process render and resume the pending
-approval — ADR 0006).
+approval).
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -248,7 +247,7 @@ $agent = YouTubeAgent::make()
 ```
 
 A wake delivers decisions as a **cumulative** payload keyed by tool callId — the entire
-decision set, restated on every wake (ADR 0006):
+decision set, restated on every wake:
 
 ```php
 $agent->wake(['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
@@ -266,7 +265,7 @@ There is no agent-level guard: if a new turn slips through anyway, the chat hist
 message-alternation rule rejects the `UserMessage` appended after the pending
 `ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
 
-### The runId lives in chat history (ADR 0005)
+### The runId lives in chat history
 
 Before suspending, `ToolNode` stamps the runId onto the annotated `ToolCallMessage`
 (`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
@@ -290,7 +289,7 @@ Tail-adoption is skipped while a chat-history *resolver* is still pending (no th
 identity yet, so no tail to read) — there the explicit runId governs and the threadId
 arrives from the ignition record.
 
-## Ignition & thread identity (ADR 0015)
+## Ignition & thread identity
 
 Every durable run persists its **ignition record** at first execution: the start
 event (messages + intent) plus the Agent's context bag (`['threadId' => ...]`).

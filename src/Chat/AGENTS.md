@@ -19,7 +19,7 @@ $message = new UserMessage([
 | `SystemMessage` | System instructions, carries `SystemContent` blocks (cacheable via `->cache()`) |
 | `UserMessage` | User input |
 | `AssistantMessage` | AI response |
-| `ToolCallMessage` | Tool invocation request — carries `ToolCall[]` (conversation data, ADR 0010) |
+| `ToolCallMessage` | Tool invocation request — carries `ToolCall[]` (conversation data) |
 | `ToolResultMessage` | Tool execution result — the same `ToolCall[]`, settled with results |
 
 **Key methods**: `getContent()` (text only), `getContentBlocks()`, `addContentBlock()`
@@ -64,17 +64,17 @@ which runs on every `addMessage()` append and therefore also covers sequences lo
 storage. This is pure sequence validation, independent of tool approval; note that a custom
 `HistoryTrimmerInterface` implementation takes over this responsibility.
 
-### Append-only history & tool approval (ADR 0006)
+### Append-only history & tool approval
 
 `addMessage()` always appends — the history has no update or replace operation, so a
 direct `ChatHistoryInterface` implementation that appends is fully conformant.
 Write-once convergence lives with the single writer, not the store: when approval-gated
 tools are present, `ToolNode` writes the annotated `ToolCallMessage` (pending states +
-runId) exactly once, through a durable memoized write, **before** any approval suspend
-(ADR 0009) — a resume or crash-replay pass skips the write instead of duplicating the
+runId) exactly once, through a durable memoized write, **before** any approval suspend —
+a resume or crash-replay pass skips the write instead of duplicating the
 tail. With no gated tools nothing is written there at all: the call/result pair travels
 as the next inference's inbound messages and commits together only after that provider
-call succeeds (ADR 0012), so a tool crash or a failed follow-up call can never leave a
+call succeeds, so a tool crash or a failed follow-up call can never leave a
 dangling `tool_call` at the tail.
 
 The `tool_call` message keeps its pending snapshot forever; the **final approval
@@ -85,7 +85,7 @@ outcomes** (approved/rejected + feedback + results) are recorded on the
 (Replay convergence for message writes is handled by the agent nodes' memoized
 history writes — see `src/Agent/AGENTS.md`.)
 
-Tool entries are `ToolCall` value objects (`NeuronAI\Tools\ToolCall`, ADR 0010) — pure
+Tool entries are `ToolCall` value objects (`NeuronAI\Tools\ToolCall`) — pure
 conversation data; executable tools never appear in messages. Serialized entries carry
 three approval fields: `approval` (`pending`|`approved`|
 `rejected`, or absent for a non-gated tool), `approvalReason` (outbound — why the tool is
@@ -95,14 +95,14 @@ keys deserialize as `null` (not gated).
 
 A tool entry's `result` is a string, a content block array when the tool returned a
 multimodal `ToolOutput`, or `{is_error: true, blocks: [...]}` when it returned an
-error output (`ToolOutput::error()`, ADR 0013 — see `src/Tools/AGENTS.md`).
+error output (`ToolOutput::error()` — see `src/Tools/AGENTS.md`).
 `AbstractChatHistory::deserializeToolResult()` discriminates on shape — the `is_error`
 marker rebuilds an error `ToolOutput`, an array whose first element has a `type` key
 rebuilds a plain `ToolOutput` through the shared content block deserializer, anything
 else stays a string — so legacy stored histories deserialize unchanged (never carrying
 the marker, they come back as non-error).
 
-The suspended `ToolCallMessage` also carries a `run_id` metadata entry (ADR 0005) —
+The suspended `ToolCallMessage` also carries a `run_id` metadata entry —
 the handle to reattach to the suspended run, exposed via
 `ToolCallMessage::getRunId(): ?string`. It is an opaque string here: the Chat module
 knows nothing about workflows. Stamped by `ToolNode` before an approval suspend, it makes

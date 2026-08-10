@@ -13,7 +13,7 @@ Tool system for agent capabilities. Tools are callable functions exposed to AI.
 | `ProviderTool.php` | Wrapper for MCP server tools                                              |
 | `ProviderToolInterface.php` | Contract for provider-exposed tools                                       |
 
-## Tool vs ToolCall (ADR 0010)
+## Tool vs ToolCall
 
 A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP
 clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is
@@ -132,7 +132,7 @@ Single-block shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`,
 `::audio(...)`, `::video(...)` — each mirrors the corresponding content block's
 constructor.
 
-## Tool Failures (ADR 0013)
+## Tool Failures
 
 The split falls on the natural boundary of the language:
 
@@ -142,7 +142,7 @@ The split falls on the natural boundary of the language:
   text block. Catch your own exceptions at the tool boundary and convert them
   visibly.
 - **Escaped exception = bug.** It propagates and aborts the run (fail-fast; the
-  history stays consistent — ADR 0012). There is no framework exception class that
+  history stays consistent). There is no framework exception class that
   gets converted to a result.
 
 The agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call):
@@ -333,7 +333,7 @@ protected function tools(): array
 
 A tool declares its own intrinsic risk by overriding the protected
 `approvalPolicy(array $inputs): bool|string` hook (default `false`). Declarations are
-**live by default** (ADR 0009): `ToolNode` asks every tool on every call — no middleware
+**live by default**: `ToolNode` asks every tool on every call — no middleware
 or agent-level switch exists. The agent developer overrides the declaration per instance,
 at attach time, in both directions:
 
@@ -345,7 +345,7 @@ at attach time, in both directions:
 The last configured override wins (each clears the other). The public
 `requiresApproval(array $inputs)` on `ToolInterface` is the *resolution point* the node
 consults: override → declaration. The node always asks the LIVE registry tool with the
-call's inputs bound (ADR 0010), so the answer cannot drift across a suspend/resume
+call's inputs bound, so the answer cannot drift across a suspend/resume
 boundary — and nothing about the tool (closures included) is ever serialized.
 
 Returning a **string counts as `true`** and doubles as the approval reason — the outbound
@@ -367,7 +367,7 @@ class TransferMoneyTool extends Tool
 
 Per-call approval state (`pending` / `approved` / `rejected`) is stamped on the
 `ToolCall` entries of the `ToolCallMessage` and persisted in **chat history** — that is
-the system of record (ADR 0003), not workflow state. See `ApprovalState`. Two reasons may
+the system of record, not workflow state. See `ApprovalState`. Two reasons may
 accompany it, with opposite directions: `approvalReason` (outbound, the requester's
 purpose) and `rejectReason` (inbound, the approver's feedback — rejection-only, recorded
 via `ToolCall::setApprovalState(ApprovalState::Rejected, $reason)` and read via

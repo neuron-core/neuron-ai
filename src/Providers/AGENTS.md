@@ -69,7 +69,7 @@ underlying API accepts them, reusing the mapper's existing block-mapping code:
 Block types a provider's API doesn't support fall out through the mapper's existing
 null-filtering. Plain string results map exactly as before.
 
-An error output (`ToolOutput::error()`, ADR 0013) additionally sets the provider's
+An error output (`ToolOutput::error()`) additionally sets the provider's
 native error flag where one exists — `is_error: true` on Anthropic's `tool_result`,
 `status: "error"` on Bedrock's `toolResult`. The other providers have no such concept;
 the feedback text itself carries the error semantics.

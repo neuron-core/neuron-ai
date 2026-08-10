@@ -123,7 +123,7 @@ deadline (`expiresAt`) lives on the outbound request and the scheduler's timer w
 the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure KV store
 (no scan, no `findExpired()`) and stores no request — only the `interrupted` flag.
 
-## The ignition record — runs are self-describing (ADR 0015)
+## The ignition record — runs are self-describing
 
 Every durable run registers its **trigger envelope** on the first segment: an
 `Ignition` value object carrying the start event (the run's cause, and the
@@ -258,7 +258,7 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `resolveExecutor()`.
 
-**Two contracts, two audiences (ADR 0011, revised by ADR 0015).** Applications hold
+**Two contracts, two audiences.** Applications hold
 `WorkflowInterface` (run/resume/events + configuration). Executors type against
 `WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
 the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
@@ -268,7 +268,7 @@ the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
 `bootstrap`). `Workflow` implements both; anything the engine must call for
 correctness belongs on the runtime contract, never on the one users hold. (The
 former second engine contract, `StepEngineInterface`, was retired: its replay
-logic lives in `WorkflowExecutor` itself — see ADR 0015.)
+logic lives in `WorkflowExecutor` itself.)
 
 There are three genuine extension points:
 
