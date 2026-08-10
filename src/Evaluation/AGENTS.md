@@ -92,8 +92,7 @@ a mismatch — a wrong input type is a coding error in the evaluator (surfaced a
 
 ## Multi-Turn Conversation Evaluation
 
-One sentence anchors the design: **you run a Conversation; you evaluate its Trajectory**
-(vocabulary in `CONTEXT.md`).
+One sentence anchors the design: **you run a Conversation; you evaluate its Trajectory**.
 
 ### Trajectory — the recorded subject
 
