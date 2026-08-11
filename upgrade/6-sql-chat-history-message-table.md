@@ -75,7 +75,7 @@ a console command, an artisan command, etc.). It reads every thread from the leg
 table, splits the JSON blob into one row per message, and writes them into the new table:
 
 ```php
-use NeuronAI\Chat\History\SQLChatHistoryMigration;
+
 
 $migration = new SQLChatHistoryMigration(
     pdo: $pdo,

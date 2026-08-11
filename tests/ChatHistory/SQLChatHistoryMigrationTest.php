@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\ChatHistory;
 
 use NeuronAI\Chat\History\SQLChatHistory;
-use NeuronAI\Chat\History\SQLChatHistoryMigration;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -17,7 +16,7 @@ use NeuronAI\Tests\Traits\CheckOpenPort;
 use NeuronAI\Tools\ToolCall;
 use PDO;
 use PHPUnit\Framework\TestCase;
-
+use SQLChatHistoryMigration;
 use function array_map;
 use function json_encode;
 use function uniqid;

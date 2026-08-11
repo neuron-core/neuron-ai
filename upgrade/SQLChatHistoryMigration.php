@@ -2,19 +2,6 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\History;
-
-use NeuronAI\Exceptions\ChatHistoryException;
-use PDO;
-use Throwable;
-
-use function in_array;
-use function is_array;
-use function json_decode;
-use function json_encode;
-use function preg_match;
-use function trim;
-
 /**
  * Migrates chat histories from the legacy SQLChatHistory structure
  * (a single row per thread with all the messages serialized in one column)
