@@ -25,7 +25,6 @@ use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -196,22 +195,6 @@ class Agent extends Workflow implements AgentInterface
         }
 
         return $this->chatHistory ??= $this->chatHistory();
-    }
-
-    /**
-     * Steps are per-execution-cycle: a state restored from a replayed snapshot
-     * starts a fresh transcript. Serializing backends already strip it
-     * (AgentState::__serialize); this covers InMemoryPersistence, which stores
-     * live object references.
-     */
-    public function setState(WorkflowState $state): WorkflowInterface
-    {
-        if ($state instanceof AgentState && $state !== $this->state && $state->getSteps() !== []) {
-            $state = clone $state;
-            $state->resetSteps();
-        }
-
-        return parent::setState($state);
     }
 
     /**

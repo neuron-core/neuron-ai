@@ -163,13 +163,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $ignition = $this->loadIgnition();
 
         // Fresh ignition: register the run's trigger envelope.
-        if (!$ignition instanceof \NeuronAI\Workflow\Executor\Ignition && $payload === null) {
+        if (!$ignition instanceof Ignition && $payload === null) {
             $this->saveIgnition($workflow->makeIgnition());
             return;
         }
 
         // A wake needs a run to wake.
-        if (!$ignition instanceof \NeuronAI\Workflow\Executor\Ignition) {
+        if (!$ignition instanceof Ignition) {
             throw new WorkflowException(
                 "Cannot wake run {$this->runId}: no ignition record — the run "
                 . "was never durably started, or already completed."
@@ -271,6 +271,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * cache — they must retry.
      *
      * @return Generator<int, Event, mixed, StepResult>
+     * @throws Throwable
      */
     protected function runNodeStep(
         WorkflowRuntimeInterface $workflow,
