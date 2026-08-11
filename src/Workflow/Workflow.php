@@ -345,7 +345,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Provide the default execution model. Subclasses override this hook —
-     * never Executor(), which memoizes the resolved instance.
+     * never getExecutor(), which memoizes the resolved instance.
      */
     protected function executor(): WorkflowExecutorInterface
     {

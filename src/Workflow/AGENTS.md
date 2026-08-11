@@ -337,7 +337,7 @@ Interface: `before(NodeInterface, Event, WorkflowState)` and `after(NodeInterfac
 
 ## Executors
 
-The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `resolveExecutor()`.
+The executor controls **how** the workflow graph is traversed. `Workflow` delegates to an executor via `getExecutor()`.
 
 **Two contracts, two audiences.** Applications hold
 `WorkflowInterface` (run/resume/events + configuration). Executors type against

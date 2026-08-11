@@ -31,7 +31,7 @@ use function is_string;
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null, ?string $threadId = null)
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
- * @method AgentStartEvent resolveStartEvent()
+ * @method AgentStartEvent getStartEvent()
  * @method AgentState getState()
  */
 class Agent extends Workflow implements AgentInterface
@@ -302,7 +302,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function chat(Message|array $messages = []): AgentState
     {
-        $this->resolveStartEvent()->setMessages(
+        $this->getStartEvent()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
@@ -327,7 +327,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): Generator
     {
-        $this->resolveStartEvent()->setStream()->setMessages(
+        $this->getStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
@@ -370,7 +370,7 @@ class Agent extends Workflow implements AgentInterface
         ?string $class = null,
         int $maxRetries = 1,
     ): mixed {
-        $this->resolveStartEvent()
+        $this->getStartEvent()
             ->setStructuredOutput($class ?? $this->getOutputClass(), $maxRetries)
             ->setMessages(
                 ...(is_array($messages) ? $messages : [$messages])

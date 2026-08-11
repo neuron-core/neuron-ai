@@ -66,7 +66,7 @@ class SchedulerTest extends TestCase
 
     public function testCustomSchedulerIsInjectedViaWorkflow(): void
     {
-        // setScheduler() must reach the executor via resolveExecutor().
+        // setScheduler() must reach the executor via getExecutor().
         $spy = new SpyScheduler();
         $workflow = Workflow::make(runId: 'sched-inject')
             ->setScheduler($spy)
