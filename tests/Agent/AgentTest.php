@@ -22,6 +22,8 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
+use function iterator_to_array;
+
 class AgentSearchTool extends Tool
 {
     protected string $name = 'search';
@@ -154,7 +156,7 @@ class AgentTest extends TestCase
     public function test_mid_stream_failure_leaves_chat_history_consistent(): void
     {
         // A provider that yields a few chunks, then dies mid-stream.
-        $provider = new class(new AssistantMessage('Hello world')) extends FakeAIProvider {
+        $provider = new class (new AssistantMessage('Hello world')) extends FakeAIProvider {
             protected function streamChunks(Message $response): Generator
             {
                 yield new TextChunk('fake_msg', 'Hel');

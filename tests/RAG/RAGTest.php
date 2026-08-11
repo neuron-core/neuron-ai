@@ -13,6 +13,8 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+
 class RAGTest extends TestCase
 {
     public function test_chat_with_retrieved_documents(): void

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Middleware\TodoPlanning;
-use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;

@@ -135,7 +135,7 @@ class AgentRunIdAdoptionTest extends TestCase
         try {
             $agent->resume(['call_1' => 'approve']);
             $this->fail('Expected WorkflowException: no ignition record');
-        } catch (WorkflowException $e) {
+        } catch (WorkflowException) {
             // expected — no durable run exists for this token
         }
 

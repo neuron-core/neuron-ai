@@ -8,9 +8,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 

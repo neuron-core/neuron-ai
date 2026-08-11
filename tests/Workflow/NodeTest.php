@@ -10,8 +10,6 @@ use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
 use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;

@@ -31,7 +31,6 @@ trait ChatHistoryHelper
     /**
      * @param string $memo Stable memo name identifying this write within the
      *                     node execution (e.g. 'history.inbound').
-     * @throws InspectorException
      */
     protected function addToChatHistory(Message|array $messages, string $memo): void
     {

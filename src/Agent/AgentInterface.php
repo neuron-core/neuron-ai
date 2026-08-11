@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use Generator;
 
 interface AgentInterface
 {
@@ -44,9 +45,9 @@ interface AgentInterface
 
     /**
      * @param Message|Message[] $messages
-     * @return \Generator<int, object|string, mixed, AgentState>
+     * @return Generator<int, object|string, mixed, AgentState>
      */
-    public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): \Generator;
+    public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): Generator;
 
     /**
      * @param Message|Message[] $messages

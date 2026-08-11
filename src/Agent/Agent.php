@@ -35,6 +35,7 @@ use function is_string;
 
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null)
+ * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
  */
@@ -167,7 +168,7 @@ class Agent extends Workflow implements AgentInterface
         // resolver is fed from the concrete history's getThreadId() — but only
         // when the history is already concrete. When both resolvers are pending
         // (a resume factory before applyIgnitionContext), defer both to the resume.
-        if ($this->channelResolver instanceof Closure && $this->chatHistoryResolver === null) {
+        if ($this->channelResolver instanceof Closure && !$this->chatHistoryResolver instanceof Closure) {
             $channel = ($this->channelResolver)($this->getChatHistory()->getThreadId());
 
             if (!$channel instanceof StreamingChannelInterface) {
@@ -218,7 +219,7 @@ class Agent extends Workflow implements AgentInterface
      * events drop it (AIInferenceEvent::__serialize — tools hold connections,
      * clients, closures), so a recalled inference or tool-call event comes back
      * with an empty tool list. Re-seed the base registry here; middleware
-     * re-supply their own additions in before() (each contributor restores what
+     * re-supply their own additions (each contributor restores what
      * it contributes). Idempotent: a live tool-calling event never has an empty
      * list, so this only ever touches stripped events.
      */
@@ -237,12 +238,6 @@ class Agent extends Workflow implements AgentInterface
         return $event;
     }
 
-    /**
-     * Prepare the agent workflow with the static node set. The graph is a pure
-     * function of the agent definition: the entry chain and both inference
-     * routes are always registered, and each event's exact class selects the
-     * path at traversal time.
-     */
     protected function compose(): void
     {
         if ($this->eventNodeMap !== []) {
@@ -262,9 +257,7 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The nodes between the bare start event and the inference nodes, ending
-     * in the node that births the inference event: StartNode here, RAG's
-     * retrieval chain ending in InstructionsNode there.
+     * Hook method for child classes.
      *
      * @return Node[]
      */
@@ -276,12 +269,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Composition happens here — the lazy step every execution path passes
-     * through — so bare run()/resume() work on an Agent without any sugar
-     * method having been called. Both resolvers are guaranteed resolved before
-     * this point (history at set-time or via ignition adoption; channel from
-     * the history identity at set-time or the ignition threadId on a resume).
-     *
      * @throws WorkflowException
      */
     public function bootstrap(): void
@@ -292,10 +279,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The thread identity — read from the chat history (the single source of
-     * truth) — is the Agent's run context (the engine-opaque envelope slot):
-     * recorded on the first segment, applied by a blank process on a resume,
-     * where it materializes any wired resolvers before bootstrap() constructs
-     * nodes with getChatHistory().
+     * truth)
      *
      * @return array<string, mixed>
      * @throws AgentException
@@ -370,14 +354,14 @@ class Agent extends Workflow implements AgentInterface
 
         $generator = $this->events();
 
-        if ($adapter !== null) {
+        if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
             foreach ($adapter->start() as $output) {
                 yield $output;
             }
         }
 
         foreach ($generator as $event) {
-            if ($adapter !== null) {
+            if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
                 foreach ($adapter->transform($event) as $output) {
                     yield $output;
                 }
@@ -386,7 +370,7 @@ class Agent extends Workflow implements AgentInterface
             }
         }
 
-        if ($adapter !== null) {
+        if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
             foreach ($adapter->end() as $output) {
                 yield $output;
             }
@@ -417,21 +401,6 @@ class Agent extends Workflow implements AgentInterface
         $finalState = $this->run();
 
         return $finalState->get('structured_output');
-    }
-
-    /**
-     * Run to completion and return the final state, narrowed to the Agent's
-     * own state type. Inherits the workflow traversal; only the return type is
-     * specialized (covariant — {@see AgentState} extends {@see WorkflowState}).
-     *
-     * @throws WorkflowException
-     * @throws Throwable
-     */
-    public function run(): AgentState
-    {
-        /** @var AgentState $state */
-        $state = parent::run();
-        return $state;
     }
 
     /**

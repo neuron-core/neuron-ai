@@ -15,6 +15,7 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 use function str_contains;
 
@@ -55,12 +56,12 @@ class InstructionsNodeIntentTest extends TestCase
     public function testStructuredIntentConvertsToTheRoutedClass(): void
     {
         $startEvent = new AgentStartEvent();
-        $startEvent->setStructuredOutput(\stdClass::class, 3);
+        $startEvent->setStructuredOutput(stdClass::class, 3);
 
         $inference = ($this->node())($this->event($startEvent), new AgentState());
 
         $this->assertInstanceOf(StructuredInferenceEvent::class, $inference);
-        $this->assertSame(\stdClass::class, $inference->outputClass);
+        $this->assertSame(stdClass::class, $inference->outputClass);
         $this->assertSame(3, $inference->maxTries);
 
         // Document enrichment is preserved through the conversion.

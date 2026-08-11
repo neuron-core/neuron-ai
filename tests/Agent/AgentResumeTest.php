@@ -23,6 +23,10 @@ use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
+use Closure;
+
+use function array_filter;
+use function iterator_to_array;
 
 /**
  * Phase 5 acceptance: the functional model "new turn → new run; answer →
@@ -40,11 +44,9 @@ class AgentResumeTest extends TestCase
      */
     protected array $histories = [];
 
-    protected function historyResolver(): \Closure
+    protected function historyResolver(): Closure
     {
-        return function (string $threadId): ChatHistoryInterface {
-            return $this->histories[$threadId] ??= new InMemoryChatHistory();
-        };
+        return fn (string $threadId): ChatHistoryInterface => $this->histories[$threadId] ??= new InMemoryChatHistory();
     }
 
     public function test_streamed_approval_run_wakes_from_a_blank_factory(): void

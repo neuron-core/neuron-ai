@@ -21,6 +21,7 @@ use ReflectionClass;
 use function extension_loaded;
 use function usleep;
 use function class_exists;
+use function iterator_to_array;
 
 /**
  * Simple test tool that can be serialized for parallel execution.

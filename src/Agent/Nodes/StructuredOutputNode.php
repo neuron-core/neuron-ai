@@ -52,7 +52,6 @@ class StructuredOutputNode extends InferenceNode
     /**
      * @throws AgentException
      * @throws DeserializerException
-     * @throws InspectorException
      * @throws ReflectionException
      * @throws ChatHistoryException
      */
@@ -152,7 +151,6 @@ class StructuredOutputNode extends InferenceNode
      * @throws AgentException
      * @throws DeserializerException
      * @throws ReflectionException
-     * @throws InspectorException
      */
     protected function processResponse(
         Message $response,

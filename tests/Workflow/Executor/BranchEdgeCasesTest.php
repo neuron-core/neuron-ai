@@ -14,7 +14,6 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
 use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 

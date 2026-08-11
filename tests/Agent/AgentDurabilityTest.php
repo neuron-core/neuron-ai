@@ -20,7 +20,6 @@ use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\StepMemoizer;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;

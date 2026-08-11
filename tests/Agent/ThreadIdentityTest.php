@@ -97,7 +97,7 @@ class ThreadIdentityTest extends TestCase
         $agent->setChatHistory(fn (string $threadId): ChatHistoryInterface => new InMemoryChatHistory($threadId));
 
         $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('A chat history resolver can only be resolved on a wake');
+        $this->expectExceptionMessage('A chat history resolver can only be resolved on a resume');
 
         $agent->getChatHistory();
     }

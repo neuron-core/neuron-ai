@@ -12,8 +12,10 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Channel\CallbackChannel;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 use function implode;
+use function iterator_to_array;
 
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random

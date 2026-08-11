@@ -13,6 +13,8 @@ use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+
 /**
  * Proves that middleware registered against the shared InferenceNode base class
  * fires in all three Agent execution modes (chat / stream / structured), which
@@ -31,7 +33,7 @@ class InferenceNodeMiddlewareTest extends TestCase
     public function test_inference_middleware_fires_in_stream_mode(): void
     {
         $this->assertInferenceMiddlewareFires(
-            fn (Agent $agent) => iterator_to_array($agent->stream(new UserMessage('Hi')))
+            fn (Agent $agent): array => iterator_to_array($agent->stream(new UserMessage('Hi')))
         );
     }
 

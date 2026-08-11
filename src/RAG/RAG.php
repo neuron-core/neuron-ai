@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Workflow\WorkflowState;

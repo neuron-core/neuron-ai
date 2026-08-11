@@ -340,7 +340,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         // Open the protocol stream eagerly (start() before any output) when an
         // adapter is attached — no-op otherwise. Mirrors the pull path's eager
         // start, so push and push-via-adapter emit the same framing timing.
-        $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->start());
+        $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->start());
 
         try {
             // The single delivery choke point: every yielded item feeds the
@@ -355,13 +355,13 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
                 yield $item;
             }
         } catch (Throwable $e) {
-            $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->end());
+            $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->runId));
             throw $e;
         }
 
         // Close the stream on every clean terminal (completion or suspension).
-        $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->end());
+        $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
 
         $state = $this->resolveState();
         $request = $state->getInterruptRequest();
@@ -384,7 +384,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     protected function deliver(object $item): void
     {
         if ($this->streamAdapter() instanceof StreamAdapterInterface) {
-            $this->fireAdapter(fn (StreamAdapterInterface $a) => $a->transform($item));
+            $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->transform($item));
         } else {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
         }
