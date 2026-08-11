@@ -337,14 +337,14 @@ class Agent extends Workflow implements AgentInterface
 
         $generator = $this->events();
 
-        if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
+        if ($adapter instanceof StreamAdapterInterface) {
             foreach ($adapter->start() as $output) {
                 yield $output;
             }
         }
 
         foreach ($generator as $event) {
-            if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
+            if ($adapter instanceof StreamAdapterInterface) {
                 foreach ($adapter->transform($event) as $output) {
                     yield $output;
                 }
@@ -353,7 +353,7 @@ class Agent extends Workflow implements AgentInterface
             }
         }
 
-        if ($adapter instanceof \NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface) {
+        if ($adapter instanceof StreamAdapterInterface) {
             foreach ($adapter->end() as $output) {
                 yield $output;
             }
