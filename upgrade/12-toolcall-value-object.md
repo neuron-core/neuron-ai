@@ -40,7 +40,7 @@ live registry at execution time.
    the inference event's tool list only — `ToolNode` no longer takes a tool registry in
    its constructor.
 8. **The workflow contract split in two (ADR 0011).** `WorkflowInterface` is now the
-   application contract only; the engine-facing methods (`getStartEvent`, `resolveState`,
+   application contract only; the engine-facing methods (`getStartEvent`, `getState`,
    `getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode`, `getEventDispatcher`, and
    the new `restoreEventNode` — the seam where a workflow restores transient capability on
    events recalled from persisted steps) moved to `WorkflowRuntimeInterface`, which

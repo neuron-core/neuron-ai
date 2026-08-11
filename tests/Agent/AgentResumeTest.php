@@ -77,7 +77,7 @@ class AgentResumeTest extends TestCase
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
         iterator_to_array($handler1);
 
-        $this->assertTrue($agent1->resolveState()->isInterrupted());
+        $this->assertTrue($agent1->getState()->isInterrupted());
 
         // ── Resume: a BLANK factory — runId only, resolvers wired, no threadId.
         $wakeTool = new SearchTool();

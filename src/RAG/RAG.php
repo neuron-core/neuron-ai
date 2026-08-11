@@ -54,7 +54,7 @@ class RAG extends Agent
             new PreProcessNode($this->getChatHistory(), $this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval()),
             new PostProcessNode($this->postProcessors()),
-            new InstructionsNode($this->resolveInstructions(), $tools),
+            new InstructionsNode($this->getInstructions(), $tools),
         ];
     }
 

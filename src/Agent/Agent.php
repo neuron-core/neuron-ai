@@ -32,11 +32,11 @@ use function is_string;
  * @method static static make(?string $runId = null, ?WorkflowState $state = null, ?string $threadId = null)
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent resolveStartEvent()
- * @method AgentState resolveState()
+ * @method AgentState getState()
  */
 class Agent extends Workflow implements AgentInterface
 {
-    use ResolveProvider;
+    use HandleProvider;
     use HandleTools;
     use HandleInstructions;
 
@@ -195,8 +195,8 @@ class Agent extends Workflow implements AgentInterface
 
         $this->addNodes([
             ...$this->entryNodes(),
-            new ChatNode($this->resolveProvider(), $this->getChatHistory()),
-            new StructuredOutputNode($this->resolveProvider(), $this->getChatHistory()),
+            new ChatNode($this->getProvider(), $this->getChatHistory()),
+            new StructuredOutputNode($this->getProvider(), $this->getChatHistory()),
             $toolNode,
         ]);
     }
@@ -213,7 +213,7 @@ class Agent extends Workflow implements AgentInterface
         $tools = $this->bootstrapTools();
 
         return [
-            new StartNode($this->resolveInstructions(), $tools),
+            new StartNode($this->getInstructions(), $tools),
         ];
     }
 

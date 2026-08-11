@@ -7,7 +7,7 @@ namespace NeuronAI\Agent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
 
-trait ResolveProvider
+trait HandleProvider
 {
     /**
      * The AI provider instance.
@@ -37,7 +37,7 @@ trait ResolveProvider
     /**
      * Get the current provider instance.
      */
-    final public function resolveProvider(): AIProviderInterface
+    final public function getProvider(): AIProviderInterface
     {
         return $this->provider ??= $this->provider();
     }

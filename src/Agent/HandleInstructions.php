@@ -28,7 +28,7 @@ trait HandleInstructions
         return $this;
     }
 
-    final public function resolveInstructions(): SystemMessage
+    final public function getInstructions(): SystemMessage
     {
         if (!isset($this->instructions)) {
             $instructions = $this->instructions();

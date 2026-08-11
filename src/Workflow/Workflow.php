@@ -264,14 +264,14 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this;
     }
 
-    final protected function resolveChannel(): ?StreamingChannelInterface
+    final protected function getChannel(): ?StreamingChannelInterface
     {
         return $this->channel ??= $this->channel();
     }
 
     /**
      * Provide the default channel. Subclasses override this hook —
-     * never resolveChannel(), which memoizes the resolved instance.
+     * never getChannel(), which memoizes the resolved instance.
      */
     protected function channel(): ?StreamingChannelInterface
     {
@@ -295,14 +295,14 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this;
     }
 
-    final protected function resolveAdapter(): ?StreamAdapterInterface
+    final protected function getAdapter(): ?StreamAdapterInterface
     {
         return $this->streamAdapter ??= $this->streamAdapter();
     }
 
     /**
      * Provide the default stream adapter. Subclasses override this hook —
-     * never resolveAdapter(), which memoizes the resolved instance.
+     * never getAdapter(), which memoizes the resolved instance.
      */
     protected function streamAdapter(): ?StreamAdapterInterface
     {
@@ -322,12 +322,12 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function fireChannel(Closure $op): void
     {
-        if (!$this->resolveChannel() instanceof StreamingChannelInterface) {
+        if (!$this->getChannel() instanceof StreamingChannelInterface) {
             return;
         }
 
         try {
-            $op($this->resolveChannel());
+            $op($this->getChannel());
         } catch (Throwable $e) {
             $event = new ChannelError($e);
             $event->source = $this;
@@ -336,19 +336,19 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Resolve the executor, creating a default if none was configured. An
+     * Get the executor, creating a default if none was configured. An
      * executor carries no configuration of its own — it reads persistence,
      * scheduler, and the definition from this workflow at execute() time — so
      * choosing an execution model never affects where state lives.
      */
-    final protected function resolveExecutor(): WorkflowExecutorInterface
+    final protected function getExecutor(): WorkflowExecutorInterface
     {
         return $this->executor ??= $this->executor();
     }
 
     /**
      * Provide the default execution model. Subclasses override this hook —
-     * never resolveExecutor(), which memoizes the resolved instance.
+     * never Executor(), which memoizes the resolved instance.
      */
     protected function executor(): WorkflowExecutorInterface
     {
@@ -392,7 +392,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator
     {
-        $generator = $this->resolveExecutor()->execute($this, $payload, $timedOut);
+        $generator = $this->getExecutor()->execute($this, $payload, $timedOut);
 
         // Open the protocol stream eagerly (start() before any output) when an
         // adapter is attached — no-op otherwise. Mirrors the pull path's eager
@@ -420,7 +420,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         // Close the stream on every clean terminal (completion or suspension).
         $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
 
-        $state = $this->resolveState();
+        $state = $this->getState();
         $request = $state->getInterruptRequest();
 
         if ($request instanceof InterruptRequest) {
@@ -440,7 +440,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function deliver(object $item): void
     {
-        if ($this->resolveAdapter() instanceof StreamAdapterInterface) {
+        if ($this->getAdapter() instanceof StreamAdapterInterface) {
             $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->transform($item));
         } else {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
@@ -458,11 +458,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function fireAdapter(Closure $frames): void
     {
-        if (!$this->resolveAdapter() instanceof StreamAdapterInterface) {
+        if (!$this->getAdapter() instanceof StreamAdapterInterface) {
             return;
         }
         $this->fireChannel(function (StreamingChannelInterface $ch) use ($frames): void {
-            foreach ($frames($this->resolveAdapter()) as $line) {
+            foreach ($frames($this->getAdapter()) as $line) {
                 $ch->sendLine($line);
             }
         });
@@ -494,7 +494,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     public function makeIgnition(): Ignition
     {
-        return new Ignition($this->resolveStartEvent(), $this->ignitionContext());
+        return new Ignition($this->getStartEvent(), $this->ignitionContext());
     }
 
     public function adoptIgnition(Ignition $ignition): void
@@ -534,9 +534,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * Get the resolved start event for the workflow.
      */
-    public function getStartEvent(): Event
+    final public function getStartEvent(): Event
     {
-        return $this->resolveStartEvent();
+        return $this->startEvent ??= $this->startEvent();
     }
 
     /**
@@ -554,14 +554,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     protected function startEvent(): Event
     {
         return new StartEvent();
-    }
-
-    /**
-     * Resolve the start event for the workflow.
-     */
-    final protected function resolveStartEvent(): Event
-    {
-        return $this->startEvent ??= $this->startEvent();
     }
 
     public function addNode(NodeInterface $node): Workflow
@@ -706,7 +698,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function validate(): void
     {
-        $startEvent = $this->resolveStartEvent();
+        $startEvent = $this->getStartEvent();
         $startEventClass = $startEvent::class;
 
         if (!isset($this->eventNodeMap[$startEventClass])) {

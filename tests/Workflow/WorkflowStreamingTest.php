@@ -115,7 +115,7 @@ class WorkflowStreamingTest extends TestCase
 
         $chunkSeenBeforeCompletion = false;
         foreach ($workflow->events() as $event) {
-            if ($event instanceof ChunkEvent && $workflow->resolveState()->get('node_completed') !== true) {
+            if ($event instanceof ChunkEvent && $workflow->getState()->get('node_completed') !== true) {
                 $chunkSeenBeforeCompletion = true;
             }
         }

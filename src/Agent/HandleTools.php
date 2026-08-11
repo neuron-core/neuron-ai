@@ -142,7 +142,7 @@ trait HandleTools
 
         // Remove guidelines injected by a previous bootstrap, dropping blocks left empty.
         $blocks = [];
-        foreach ($this->resolveInstructions()->getContentBlocks() as $block) {
+        foreach ($this->getInstructions()->getContentBlocks() as $block) {
             if ($block instanceof TextContent) {
                 $block->content = ContentHelper::removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
                 if ($block->content === '') {

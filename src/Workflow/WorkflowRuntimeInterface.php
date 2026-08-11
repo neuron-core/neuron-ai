@@ -36,7 +36,7 @@ interface WorkflowRuntimeInterface
      * The current run state. The engine reads it at traversal boundaries and
      * after interrupts.
      */
-    public function resolveState(): WorkflowState;
+    public function getState(): WorkflowState;
 
     /**
      * Follow a completed step's persisted state so a replayed (cached) step

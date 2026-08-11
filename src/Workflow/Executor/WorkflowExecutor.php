@@ -117,7 +117,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->bootstrap();
 
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
-        $workflow->resolveState()->set('__runId', $this->runId);
+        $workflow->getState()->set('__runId', $this->runId);
 
         try {
             // A resume lets the scheduler cancel the wakeup it satisfies (inline or
@@ -130,13 +130,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $terminal = yield from $this->traverse(
                 $workflow,
                 $workflow->getStartEvent(),
-                $workflow->resolveState(),
+                $workflow->getState(),
             );
 
             if ($terminal instanceof InterruptEvent) {
                 // Paused: mark the state so callers of run()/events() can detect
                 // the pause functionally. Steps are kept for resume.
-                $workflow->resolveState()->markAsInterrupted($terminal->request);
+                $workflow->getState()->markAsInterrupted($terminal->request);
                 // Surface the pause to listeners — a scheduled wait, not a failure,
                 // so it is a dedicated event rather than an AgentError.
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
@@ -152,12 +152,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // liveness is derived at lookup from the ignition record this
                 // delete just removed.
                 $this->persistence->delete($this->runId);
-                $workflow->resolveState()->clearInterrupt();
+                $workflow->getState()->clearInterrupt();
                 // Drop all scheduler coordination state for this workflow.
                 $this->scheduler->onComplete($this->runId);
             }
 
-            return $workflow->resolveState();
+            return $workflow->getState();
         } catch (Throwable $e) {
             $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
             throw $e;
@@ -451,7 +451,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // step restores its persisted state; a branch keeps its cloned
                 // state for isolation.
                 $workflow->setState($result->getState());
-                $state = $workflow->resolveState();
+                $state = $workflow->getState();
             }
 
             if ($event instanceof ParallelEvent) {
@@ -519,7 +519,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $branchId,
         Event $branchEvent,
     ): Generator {
-        $branchState = clone $workflow->resolveState();
+        $branchState = clone $workflow->getState();
         $branchState->set('__branchId', $branchId);
 
         $this->dispatchEvent($workflow->getEventDispatcher(), new BranchStart($branchId), $workflow, $branchId);
@@ -533,7 +533,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function workflowEnd(WorkflowRuntimeInterface $workflow): void
     {
-        $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowEnd($workflow->resolveState()), $workflow);
+        $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowEnd($workflow->getState()), $workflow);
     }
 
     /**

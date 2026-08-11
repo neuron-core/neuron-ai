@@ -17,11 +17,11 @@ interface AgentInterface
 {
     public function setAiProvider(AIProviderInterface $provider): AgentInterface;
 
-    public function resolveProvider(): AIProviderInterface;
+    public function getProvider(): AIProviderInterface;
 
     public function setInstructions(SystemMessage|string $instructions): AgentInterface;
 
-    public function resolveInstructions(): SystemMessage;
+    public function getInstructions(): SystemMessage;
 
     /**
      * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools

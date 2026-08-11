@@ -20,7 +20,7 @@ trait ResolveState
     /**
      * Get the current workflow state, creating the default if none was set.
      */
-    final public function resolveState(): WorkflowState
+    final public function getState(): WorkflowState
     {
         return $this->state ??= $this->state();
     }

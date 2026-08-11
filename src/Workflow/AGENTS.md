@@ -344,7 +344,7 @@ The executor controls **how** the workflow graph is traversed. `Workflow` delega
 `WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
 the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
 `getMiddlewareForNode`), the run (`getRunId`/`adoptRunId`, `correlationKey`,
-`resolveState`/`setState`, `restoreEventNode`, `getEventDispatcher`), the seams
+`getState`/`setState`, `restoreEventNode`, `getEventDispatcher`), the seams
 (`getPersistence`, `getScheduler`, `getSerializer`), and the segment lifecycle (`makeIgnition`,
 `adoptIgnition`, `bootstrap`). `Workflow` implements both; anything the engine must call for
 correctness belongs on the runtime contract, never on the one users hold. (The
