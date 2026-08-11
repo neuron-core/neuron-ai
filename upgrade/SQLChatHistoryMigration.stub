@@ -47,9 +47,9 @@ class SQLChatHistoryMigration
                     continue;
                 }
 
-                $messages = json_decode((string) $thread['messages'], true);
+                $messages = \json_decode((string) $thread['messages'], true);
 
-                if (!is_array($messages)) {
+                if (!\is_array($messages)) {
                     continue;
                 }
 
@@ -92,14 +92,14 @@ class SQLChatHistoryMigration
         $stmt->execute([
             'thread_id' => $threadId,
             'role' => $role,
-            'content' => $content !== null ? json_encode($content) : null,
-            'meta' => $message === [] ? null : json_encode($message),
+            'content' => $content !== null ? \json_encode($content) : null,
+            'meta' => $message === [] ? null : \json_encode($message),
         ]);
     }
 
     protected function sanitizeTableName(string $tableName): string
     {
-        $tableName = trim($tableName);
+        $tableName = \trim($tableName);
 
         // Whitelist validation
         if (!$this->tableExists($tableName)) {
@@ -107,7 +107,7 @@ class SQLChatHistoryMigration
         }
 
         // Format validation as backup
-        if (in_array(preg_match('/^[a-zA-Z_]\w*$/', $tableName), [0, false], true)) {
+        if (\in_array(\preg_match('/^[a-zA-Z_]\w*$/', $tableName), [0, false], true)) {
             throw new ChatHistoryException('Invalid table name format');
         }
 

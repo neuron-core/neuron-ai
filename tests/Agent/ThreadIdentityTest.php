@@ -12,7 +12,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\MessageSaved;

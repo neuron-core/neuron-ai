@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;

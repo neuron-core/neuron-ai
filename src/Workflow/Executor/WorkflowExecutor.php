@@ -32,6 +32,8 @@ use NeuronAI\Workflow\WorkflowState;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function uniqid;
+
 /**
  * The run lifecycle, whole and unsplit: ignition (register / adopt / refuse),
  * bootstrap, replay-based traversal, and terminal handling.

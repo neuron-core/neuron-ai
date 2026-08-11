@@ -17,6 +17,7 @@ use NeuronAI\Tools\ToolCall;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use SQLChatHistoryMigration;
+
 use function array_map;
 use function json_encode;
 use function uniqid;

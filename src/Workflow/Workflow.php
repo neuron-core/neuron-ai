@@ -58,8 +58,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected ExporterInterface $exporter;
 
-    protected ?string $runId;
-
     protected Event $startEvent;
 
     protected ?WorkflowExecutorInterface $executor = null;
@@ -90,11 +88,10 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * @throws WorkflowException
      */
     public function __construct(
-        ?string $runId = null,
+        protected ?string $runId = null,
         protected ?WorkflowState   $state = null,
     ) {
         $this->exporter = new ConsoleExporter();
-        $this->runId = $runId;
 
         $this->addGlobalMiddleware($this->globalMiddleware());
         foreach ($this->middleware() as $node => $middleware) {
