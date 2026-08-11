@@ -54,7 +54,7 @@ use const JSON_PRETTY_PRINT;
  * re-suspends, and undelivered partial decisions are deliberately not persisted.
  *
  * Chat history stays append-only with a single writer: when a suspend is possible
- * the annotated ToolCallMessage (pending states + runId) goes through one memoized
+ * the annotated ToolCallMessage (pending states) goes through one memoized
  * write before it, so a cold process can render pending approvals from history alone
  * and a resume pass skips the write instead of duplicating the tail. Final outcomes
  * are recorded on the ToolResultMessage that follows it in the conversation.
@@ -107,15 +107,10 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         if ($gated !== []) {
-            // The runId makes history alone sufficient to resume (ADR 0005).
-            $event->toolCallMessage->setRunId(
-                $state->get('__runId') ?? throw new WorkflowException("Missing workflow RUN_ID")
-            );
-
             // The single memoized write of the tool call message (ADR 0009): annotated
-            // with pending states and runId BEFORE any suspend, so a cold process renders
-            // pending approvals from history alone. On a resume or crash-replay pass the
-            // memo skips the write instead of duplicating the tail.
+            // with pending states BEFORE any suspend, so a cold process renders pending
+            // approvals from history alone. On a resume or crash-replay pass the memo
+            // skips the write instead of duplicating the tail.
             $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
 
             // Settle: a tool runs iff explicitly approved; silence is never consent.

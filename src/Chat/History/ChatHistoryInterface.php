@@ -10,12 +10,22 @@ use JsonSerializable;
 interface ChatHistoryInterface extends JsonSerializable
 {
     /**
-     * The conversation's identity — the single source of truth the Agent reads
-     * back (ignition record, channel wiring) instead of holding its own copy.
-     * Non-nullable: every history has an identity (an identity-less backend
-     * generates one, e.g. InMemoryChatHistory).
+     * Bind this history to its conversation. A history is thread-scoped by
+     * nature, but constructible without its thread: the Agent binds the
+     * resolved thread identity itself before first use — developers rarely
+     * call this by hand. Assign-once in effect: re-setting the same id is a
+     * no-op; a different id throws (re-pointing a conversation at another
+     * thread is never legitimate).
      */
-    public function getThreadId(): string;
+    public function setThreadId(string $threadId): void;
+
+    /**
+     * The storage key of the conversation this history reads and writes, or
+     * null while unbound (constructed without a thread, not yet bound by the
+     * Agent). The framework's thread identity lives on the Agent; this is
+     * the history's own key, validated against it.
+     */
+    public function getThreadId(): ?string;
 
     public function addMessage(Message $message): ChatHistoryInterface;
 

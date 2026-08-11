@@ -212,10 +212,10 @@ public function test_agent_streams_response(): void
     $agent = Agent::make();
     $agent->setAiProvider($provider);
 
-    $handler = $agent->stream(new UserMessage('Hi'));
+    $stream = $agent->stream(new UserMessage('Hi'));
 
     $chunks = [];
-    foreach ($handler->events() as $event) {
+    foreach ($stream as $event) {
         if ($event instanceof TextChunk) {
             $chunks[] = $event->content;
         }
@@ -223,7 +223,7 @@ public function test_agent_streams_response(): void
 
     $this->assertSame(['Hello', ' worl', 'd'], $chunks);
 
-    $state = $handler->run();
+    $state = $stream->getReturn();
     $this->assertSame('Hello world', $state->getMessage()->getContent());
 }
 ```

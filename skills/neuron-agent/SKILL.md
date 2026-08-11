@@ -237,7 +237,7 @@ class WeatherTool extends Tool
        return [
             new ToolProperty(
                 name: 'location',
-                type: ToolPropertyType::String,
+                type: PropertyType::STRING,
                 description: 'The city name',
                 required: true,
             ),
@@ -279,19 +279,32 @@ Instructions can also be set fluently:
 $agent->setInstructions('You are a helpful assistant.');
 ```
 
-## Chat History
+## Chat History & Thread Identity
 
-Agents automatically maintain conversation history. For custom components:
+Agents automatically maintain conversation history. The identity model has one
+rule: **the thread identity enters through `make(threadId:)` — never through
+history construction.** Histories are constructed *without* their thread
+(identity-free); the framework binds the resolved threadId into them before
+first use:
 
 ```php
-use NeuronAI\History\FileChatHistory;
+use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\SQLChatHistory;
 
-// In agent class
+// In the agent class: the hook constructs WITHOUT identity.
 protected function chatHistory(): ChatHistoryInterface
 {
-    return new FileChatHistory('/path/to/memory.json');
+    return new SQLChatHistory($this->pdo, contextWindow: 50000);   // identity: not your job
 }
+
+// In the controller: identity is stated once, at the front door.
+$state = MyAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 ```
+
+A history constructed *with* a key (`new SQLChatHistory($pdo, $threadId)`)
+declares that identity — the agent adopts it, and a disagreement with an
+explicit `threadId:` throws. `Agent::getThreadId(): ?string` reads the
+resolved identity back; null means the run is not thread-addressable.
 
 ### Memory Types
 - `InMemoryChatHistory` - Default, session-based
@@ -380,31 +393,36 @@ $response = MyAgent::make()
 ```
 
 When the agent suspends (e.g., waiting for tool approval), no exception is thrown —
-`chat()` returns an `AgentState` marked interrupted. Deliver the decisions later as a
-payload via `resume()`; with a durable chat history the runId is adopted from the thread
-automatically:
+`chat()` returns an `AgentState` marked interrupted. The **thread is the address**:
+the engine records `threadId → runId` in workflow persistence at ignition (the
+correlation pointer), so a later `resume()` built from the threadId alone finds the
+pending run — no runId stored anywhere by the application:
 
 ```php
-$agent = MyAgent::make()
-    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
-    ->setPersistence(new FilePersistence('/path/to/storage'));
-
-$state = $agent->chat(new UserMessage('Delete file /tmp/old.log'));
+$state = MyAgent::make(threadId: $threadId)
+    ->setChatHistory(new SQLChatHistory($pdo))
+    ->setPersistence(new FilePersistence('/path/to/storage'))
+    ->chat(new UserMessage('Delete file /tmp/old.log'));
 
 if ($state->isInterrupted()) {
     // getMessage() is the annotated ToolCallMessage — render approve/deny from it.
     // ... user approves/rejects ...
 
-    // A new execution cycle (e.g. the approve endpoint): rebuild from the thread
-    // alone and deliver the decisions keyed by tool callId.
-    $state = MyAgent::make()
-        ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+    // A new execution cycle (e.g. the approve endpoint): the thread alone
+    // addresses the run; decisions are keyed by tool callId.
+    $state = MyAgent::make(threadId: $threadId)
+        ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
         ->resume(['call_123' => 'approve']);
 }
 
 $response = $state->getMessage();
 ```
+
+This works for every suspension type (approval, `awaitEvent()`, `sleepUntil()`).
+Background (run-first) resumes pass `make(runId:)` instead — the threadId then
+arrives from the run's ignition record and is bound into the history by the
+framework.
 
 Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements — and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
 

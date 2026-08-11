@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -18,22 +17,19 @@ use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-use function end;
 use function is_array;
 use function is_string;
 
 /**
- * @method static static make(?string $runId = null, ?WorkflowState $state = null)
+ * @method static static make(?string $runId = null, ?WorkflowState $state = null, ?string $threadId = null)
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent resolveStartEvent()
  * @method AgentState resolveState()
@@ -47,21 +43,29 @@ class Agent extends Workflow implements AgentInterface
     protected ChatHistoryInterface $chatHistory;
 
     /**
-     * Pending resolver forms of the collaborator setters (closures receiving
-     * string $threadId). Non-null means "wired but not yet materialized" —
-     * each is nulled the moment it resolves, which is what makes
-     * materializeResolvers() idempotent.
-     *
-     * The history resolver is resume-only: it can only fire when a threadId is
-     * recovered from the ignition record (applyIgnitionContext). On a fresh
-     * run the developer passes a concrete history, whose identity is the
-     * single source of truth (read back via getChatHistory()->getThreadId()).
+     * The agent's thread identity — the conversation this run belongs to, and
+     * the run's correlation key. Nullable until resolved, assigned exactly
+     * once through adoptThreadId() (mirroring the engine's runId phase), and
+     * NEVER generated: identity is always a developer statement. Sources, in
+     * precedence order: the explicit make(threadId:) parameter, adoption from
+     * a pre-bound chat history, the ignition record on a run-first resume.
+     * Null means the run is not thread-addressable.
      */
-    protected ?Closure $chatHistoryResolver = null;
-
-    protected ?Closure $channelResolver = null;
+    protected ?string $threadId = null;
 
     protected bool $parallelToolCalls = false;
+
+    public function __construct(
+        ?string $runId = null,
+        ?WorkflowState $state = null,
+        ?string $threadId = null,
+    ) {
+        parent::__construct($runId, $state);
+
+        if ($threadId !== null) {
+            $this->adoptThreadId($threadId);
+        }
+    }
 
     /**
      * Determines whether tools should be executed in parallel.
@@ -79,122 +83,80 @@ class Agent extends Workflow implements AgentInterface
 
     protected function chatHistory(): ChatHistoryInterface
     {
-        return new InMemoryChatHistory();
+        // Identity-aware default: an explicit threadId keys the in-memory
+        // store; with none, the history self-keys (its own storage default,
+        // adopted as the run's identity by the lazy fallback).
+        return new InMemoryChatHistory($this->threadId);
     }
 
     /**
-     * Accepts a concrete history or its resolver form — a closure receiving
-     * `string $threadId`. The resolver is resume-only (fired from the ignition
-     * record); on a fresh run pass a concrete history, whose identity is the
-     * single source of truth. A concrete instance clears a pending resolver
-     * and materializes any pending channel resolver against its identity.
+     * A pre-bound history (constructed with its thread) declares thread
+     * identity by adoption — its key becomes the agent's, conflicts throw.
+     * An unbound history (constructed without a thread, e.g.
+     * `new SQLChatHistory($pdo)`) is the recommended wiring: the agent binds
+     * the resolved identity into it before first use — from make(threadId:),
+     * or from the ignition record on a run-first resume. Identity never
+     * needs to appear in wiring code.
      */
-    public function setChatHistory(ChatHistoryInterface|Closure $chatHistory): self
+    public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        if ($chatHistory instanceof Closure) {
-            $this->chatHistoryResolver = $chatHistory;
-            $this->materializeResolvers();
-            return $this;
-        }
-
-        $this->chatHistoryResolver = null;
-        $this->chatHistory = $chatHistory;
-        $this->materializeResolvers();
+        $this->attachChatHistory($chatHistory);
         return $this;
     }
 
     /**
-     * Accepts a concrete channel, its resolver form (closure receiving
-     * `string $threadId`), or null to attach none. A concrete instance clears a
-     * pending resolver.
+     * Attach a history and reconcile identity between it and the agent:
+     * a bound history declares identity (adoption, conflicts throw); an
+     * unbound one receives the agent's resolved identity; when both are
+     * unresolved the history is stored as-is and adoptThreadId() binds it
+     * the moment identity arrives.
      */
-    public function setChannel(StreamingChannelInterface|Closure|null $channel): static
+    protected function attachChatHistory(ChatHistoryInterface $chatHistory): void
     {
-        if ($channel instanceof Closure) {
-            $this->channelResolver = $channel;
-            $this->materializeResolvers();
-            return $this;
-        }
+        $threadId = $chatHistory->getThreadId();
 
-        $this->channelResolver = null;
-        return parent::setChannel($channel);
-    }
-
-    /**
-     * Resolve any pending collaborator resolvers. Idempotent (a resolver is
-     * nulled the moment it materializes).
-     *
-     * Two modes:
-     *  - Resume ($threadId provided by applyIgnitionContext): the recovered
-     *    identity feeds both pending resolvers (history first, then channel).
-     *    This is the only path that can materialize a history resolver.
-     *  - Ignition ($threadId null): no identity source, so a pending history
-     *    resolver stays pending (getChatHistory() fails loud). A pending
-     *    channel resolver is fed from the concrete history's getThreadId().
-     *
-     * @throws AgentException when a resolver returns the wrong type.
-     */
-    protected function materializeResolvers(?string $threadId = null): void
-    {
         if ($threadId !== null) {
-            if ($this->chatHistoryResolver instanceof Closure) {
-                $chatHistory = ($this->chatHistoryResolver)($threadId);
-
-                if (!$chatHistory instanceof ChatHistoryInterface) {
-                    throw new AgentException('The chat history resolver must return a ' . ChatHistoryInterface::class . '.');
-                }
-
-                $this->chatHistoryResolver = null;
-                $this->chatHistory = $chatHistory;
-            }
-
-            if ($this->channelResolver instanceof Closure) {
-                $channel = ($this->channelResolver)($threadId);
-
-                if (!$channel instanceof StreamingChannelInterface) {
-                    throw new AgentException('The channel resolver must return a ' . StreamingChannelInterface::class . '.');
-                }
-
-                $this->channelResolver = null;
-                parent::setChannel($channel);
-            }
-
-            return;
+            $this->adoptThreadId($threadId);
+        } elseif ($this->threadId !== null) {
+            $chatHistory->setThreadId($this->threadId);
         }
 
-        // Ignition path: no threadId source. A pending history resolver stays
-        // pending (getChatHistory() fails loud when read). A pending channel
-        // resolver is fed from the concrete history's getThreadId() — but only
-        // when the history is already concrete. When both resolvers are pending
-        // (a resume factory before applyIgnitionContext), defer both to the resume.
-        if ($this->channelResolver instanceof Closure && !$this->chatHistoryResolver instanceof Closure) {
-            $channel = ($this->channelResolver)($this->getChatHistory()->getThreadId());
-
-            if (!$channel instanceof StreamingChannelInterface) {
-                throw new AgentException('The channel resolver must return a ' . StreamingChannelInterface::class . '.');
-            }
-
-            $this->channelResolver = null;
-            parent::setChannel($channel);
-        }
+        $this->chatHistory = $chatHistory;
     }
 
     /**
-     * Fail loudly at the real hazard: a history resolver pending on a fresh run
-     * (it is resume-only — fired from the ignition record). Falling back to the
-     * default InMemoryChatHistory would silently read and write the wrong
-     * (empty) thread.
+     * The single assignment door for thread identity (mirrors the engine's
+     * adoptRunId): called by the constructor (explicit parameter),
+     * attachChatHistory (adoption from a pre-bound history), and
+     * applyIgnitionContext (run-first resume). Assigning a conflicting
+     * identity is always a wiring bug and throws — two disagreeing claims
+     * about the same conversation have no honest silent resolution. The
+     * tail binds an already-attached, still-unbound history.
+     *
+     * @throws AgentException
      */
-    public function getChatHistory(): ChatHistoryInterface
+    protected function adoptThreadId(string $threadId): void
     {
-        if ($this->chatHistoryResolver instanceof Closure) {
+        if ($this->threadId !== null && $this->threadId !== $threadId) {
             throw new AgentException(
-                'A chat history resolver can only be resolved on a resume (the threadId is recovered '
-                . 'from the ignition record): on a fresh run pass a concrete chat history instance.'
+                "Conflicting thread identity: '{$threadId}' does not match the agent's '{$this->threadId}'."
             );
         }
 
-        return $this->chatHistory ??= $this->chatHistory();
+        $this->threadId = $threadId;
+
+        if (isset($this->chatHistory) && $this->chatHistory->getThreadId() === null) {
+            $this->chatHistory->setThreadId($threadId);
+        }
+    }
+
+    public function getChatHistory(): ChatHistoryInterface
+    {
+        if (!isset($this->chatHistory)) {
+            $this->attachChatHistory($this->chatHistory());
+        }
+
+        return $this->chatHistory;
     }
 
     /**
@@ -265,11 +227,12 @@ class Agent extends Workflow implements AgentInterface
      * truth)
      *
      * @return array<string, mixed>
-     * @throws AgentException
      */
     protected function ignitionContext(): array
     {
-        return ['threadId' => $this->getChatHistory()->getThreadId()];
+        $threadId = $this->getThreadId();
+
+        return $threadId === null ? [] : ['threadId' => $threadId];
     }
 
     /**
@@ -281,8 +244,37 @@ class Agent extends Workflow implements AgentInterface
         $threadId = $context['threadId'] ?? null;
 
         if (is_string($threadId)) {
-            $this->materializeResolvers($threadId);
+            // Adoption validates as it assigns: a record whose identity
+            // contradicts an explicitly given one is a mis-addressed
+            // continuation and throws.
+            $this->adoptThreadId($threadId);
         }
+    }
+
+    /**
+     * The agent's thread identity, or null when none was declared. A pure
+     * read of the slot: addressability requires identity declared BEFORE
+     * the run starts (make(threadId:), or a pre-bound history passed to
+     * setChatHistory()) — identity discovered later (a pre-bound hook
+     * history materializing during bootstrap) is adopted and validated, but
+     * arrives after the ignition record and pointer are written.
+     */
+    public function getThreadId(): ?string
+    {
+        return $this->threadId;
+    }
+
+    /**
+     * The Agent's business identity is the conversation: the run is
+     * addressable by its threadId, so the engine binds threadId → runId at
+     * ignition and a continuation holding only the thread finds the run.
+     * Null means no thread identity is resolvable here — a run-first resume
+     * before ignition adoption (the explicit runId addresses the run), or a
+     * deliberately anonymous run.
+     */
+    public function correlationKey(): ?string
+    {
+        return $this->getThreadId();
     }
 
     protected function startEvent(): AgentStartEvent
@@ -388,9 +380,10 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The single continuation verb — delivers the inbound payload to a
-     * suspended run. With the runId adoption every continuation path shares
-     * (ADR 0005): a blank factory reattaches to the run whose id is stamped on
-     * the chat-history tail.
+     * suspended run. It carries no identity logic of its own: the engine's
+     * identity-resolution phase addresses the run, either from an explicit
+     * runId (run-first) or from the thread's correlation pointer
+     * (thread-first, {@see correlationKey()}).
      *
      * @param array<string, mixed> $payload
      * @throws Throwable
@@ -398,8 +391,6 @@ class Agent extends Workflow implements AgentInterface
      */
     public function resume(array $payload = [], bool $timedOut = false): AgentState
     {
-        $this->adoptRunIdFromHistory();
-
         /** @var AgentState $state */
         $state = parent::resume($payload, $timedOut);
         return $state;
@@ -413,33 +404,6 @@ class Agent extends Workflow implements AgentInterface
     protected function getOutputClass(): string
     {
         throw new AgentException('You need to set a structured output class.');
-    }
-
-    /**
-     * A continuation targets the suspended run recorded on the thread: when the
-     * tail of chat history is a ToolCallMessage stamped with a runId (ADR 0005),
-     * that id identifies the run to reattach to — chat history is the system of
-     * record, so nothing else needs to be stored or passed. The stamp wins even
-     * over a runId passed to make(); with no stamp on the tail the agent keeps
-     * its current runId (e.g. an explicit runId for a non-approval suspension).
-     *
-     * Skipped while a chat-history resolver is pending: without a thread
-     * identity there is no tail to read — the explicit runId governs, and the
-     * threadId arrives via the adopted ignition context during the resume.
-     */
-    protected function adoptRunIdFromHistory(): void
-    {
-        if ($this->chatHistoryResolver instanceof Closure) {
-            return;
-        }
-
-        $messages = $this->getChatHistory()->getMessages();
-        $last = end($messages);
-        $runId = $last instanceof ToolCallMessage ? $last->getRunId() : null;
-
-        if ($runId !== null) {
-            $this->runId = $runId;
-        }
     }
 
 }

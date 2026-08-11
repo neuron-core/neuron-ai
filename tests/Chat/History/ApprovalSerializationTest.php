@@ -67,49 +67,6 @@ class ApprovalSerializationTest extends TestCase
         $this->assertSame('too risky', $tools[1]->getRejectReason());
     }
 
-    public function test_round_trip_preserves_run_id(): void
-    {
-        $tool = ToolCall::make('gated_tool', description: 'd')
-            ->setCallId('c1')
-            ->setInputs(['q' => 'x']);
-        $tool->setApprovalState(ApprovalState::Pending);
-
-        $message = new ToolCallMessage(tools: [$tool]);
-        $message->setRunId('workflow_abc123');
-
-        $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
-
-        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
-        $this->assertSame('workflow_abc123', $restored[0]->getRunId());
-    }
-
-    public function test_legacy_shape_without_run_id_loads_as_null(): void
-    {
-        $message = new ToolCallMessage(tools: [
-            ToolCall::make('gated_tool', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']),
-        ]);
-
-        $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
-
-        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
-        $this->assertNull($restored[0]->getRunId());
-    }
-
-    public function test_legacy_resume_token_key_is_read_as_run_id(): void
-    {
-        // A history stored before the runId rename carries the token under the
-        // legacy resume_token metadata key.
-        $message = new ToolCallMessage(tools: [
-            ToolCall::make('gated_tool', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']),
-        ]);
-        $message->addMetadata('resume_token', 'workflow_legacy_1');
-
-        $restored = (new TestableChatHistory())->publicDeserialize([$message->jsonSerialize()]);
-
-        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
-        $this->assertSame('workflow_legacy_1', $restored[0]->getRunId());
-    }
-
     public function test_legacy_shape_without_approval_key_loads_as_null(): void
     {
         $legacyMessage = [

@@ -18,20 +18,18 @@ class EloquentChatHistory extends AbstractChatHistory
      * @param class-string<Model> $modelClass
      */
     public function __construct(
-        protected string $threadId,
         protected string $modelClass,
+        ?string $threadId = null,
         int $contextWindow = 50000
     ) {
         parent::__construct($contextWindow);
-        $this->load();
+
+        if ($threadId !== null) {
+            $this->setThreadId($threadId);
+        }
     }
 
-    public function getThreadId(): string
-    {
-        return $this->threadId;
-    }
-
-    protected function load(): void
+    protected function loadThread(): void
     {
         /** @var Model $model */
         $model = new $this->modelClass();
@@ -39,7 +37,7 @@ class EloquentChatHistory extends AbstractChatHistory
         /** @var Collection<int, Model> $messages */
         $messages = $model->newQuery()
             ->select(['role', 'content', 'meta'])
-            ->where('thread_id', $this->threadId)
+            ->where('thread_id', $this->requireThreadId())
             ->orderBy('id')
             ->get();
 
@@ -56,7 +54,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $model = new $this->modelClass();
 
         $model->newQuery()->create([
-            'thread_id' => $this->threadId,
+            'thread_id' => $this->requireThreadId(),
             'role' => $message->getRole(),
             'content' => $message->getContentBlocks(),
             'meta' => $this->serializeMessageMeta($message),
@@ -74,7 +72,7 @@ class EloquentChatHistory extends AbstractChatHistory
 
         // Get the IDs of messages to keep (skip the first $index messages)
         $idsToKeep = $model->newQuery()
-            ->where('thread_id', $this->threadId)
+            ->where('thread_id', $this->requireThreadId())
             ->orderBy('id')
             ->offset($index)
             ->limit(PHP_INT_MAX)
@@ -82,7 +80,7 @@ class EloquentChatHistory extends AbstractChatHistory
 
         // Delete messages not in the keep list
         $model->newQuery()
-            ->where('thread_id', $this->threadId)
+            ->where('thread_id', $this->requireThreadId())
             ->whereNotIn('id', $idsToKeep)
             ->delete();
     }
@@ -93,7 +91,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $model = new $this->modelClass();
 
         $model->newQuery()
-            ->where('thread_id', $this->threadId)
+            ->where('thread_id', $this->requireThreadId())
             ->delete();
     }
 

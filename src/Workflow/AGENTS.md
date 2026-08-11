@@ -104,13 +104,15 @@ if ($state->isInterrupted()) {
 
 ### Coordination vs state — the scheduler seam
 
-`PersistenceInterface` owns **state** (the KV store of steps). `SchedulerInterface`
-owns **coordination** — deciding *when* a suspended workflow runs again. They are
-independent seams routed to different owners:
+`PersistenceInterface` owns **state** (the partitioned KV store — see *The
+unified store* below). `SchedulerInterface` owns **coordination** — deciding
+*when* a suspended workflow runs again. They are independent seams routed to
+different owners:
 
 ```php
 $workflow = Workflow::make()
     ->setPersistence(new DatabasePersistence($pdo))   // state — your DB
+    ->setSerializer(new IgbinarySerializer())          // record codec (optional; default PhpSerializer)
     ->setScheduler(new MyQueueScheduler());            // coordination — a worker/cloud
 ```
 
@@ -120,8 +122,9 @@ caller-driven model where a caller re-invokes `resume()` to resume. The executor
 `onResume($runId)` on a deliberate resume (cancels the satisfied wakeup — keeps
 inline resume consistent), and `onComplete()` on a clean terminal `StopEvent`. The
 deadline (`expiresAt`) lives on the outbound request and the scheduler's timer wheel;
-the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure KV store
-(no scan, no `findExpired()`) and stores no request — only the `interrupted` flag.
+the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure
+partitioned KV store (no scan, no `findExpired()`) and stores no request — only the
+`interrupted` flag.
 
 ## The ignition record — runs are self-describing
 
@@ -155,6 +158,84 @@ Consequence for plain workflows: a workflow suspended on `awaitEvent()` can be
 resumed by a bare `Workflow::make(runId:)` factory — including crash-replay
 via bare `run()` by a recovery worker that knows nothing about how the run
 was ignited.
+
+## The unified store — one partitioned KV space
+
+`PersistenceInterface` is a single store of **string values filed under
+(partition, key)** — three methods: `put(partition, key, value)` (write-or-
+overwrite), `get(partition, key): ?string`, `delete(partition)` (drop a whole
+partition). Backends interpret nothing: partition names and values are opaque,
+and every backend is exactly one artifact (one array / one directory of
+`<partition>.store` files / one `workflow_store` table / one Eloquent model).
+
+**The engine owns all record semantics and serialization.** The codec is a
+workflow-owned seam beside persistence and scheduler —
+`setSerializer(Serializer)` (default `PhpSerializer`, alternative
+`IgbinarySerializer`) — read by the executor at execute time and applied to
+every record. The serializer must be stable across suspend/resume: records
+are read back with the codec the workflow is configured with.
+
+What lives where:
+
+| partition | key | value | record |
+|---|---|---|---|
+| `workflow_abc123` | `__ignition` | serialized `Ignition` | the run's trigger envelope |
+| `workflow_abc123` | `ChatNode-0` | serialized `StepResult` | a step result |
+| `workflow_abc123` | `ChatNode-0::inference` | serialized value | a durable memo |
+| `__correlation` | *business key* | runId (raw string) | most recent run for the key |
+
+Each run gets its own partition; clean completion is one `delete(runId)`.
+Partitions starting with `__` are reserved by the engine.
+
+## The correlation pointer — runs are addressable
+
+The ignition record answers *"given a runId, what is this run?"*. It is stored **under**
+the runId, so it can never answer the reverse question — *"given my business key, which
+run is pending?"* — without a scan the store contract forbids. That question is
+what a stateless approve/deny endpoint actually asks: it holds a conversation, not a
+runId.
+
+The answer is the reserved `__correlation` partition: a row per business key,
+recording **the run most recently ignited for that key**. A workflow opts in by
+overriding **`correlationKey(): ?string`** — an opaque business key (`Agent`
+returns its `threadId`; an order workflow would return `'order:123'`). Plain
+workflows return `null` by default and are entirely unaffected: no pointer is
+written, nothing changes.
+
+**The pointer is a historical fact, not a live flag.** It is written at
+ignition (right after the ignition record, so a crash before the first suspend
+is still recoverable) and **never deleted** — a new run on the same key simply
+overwrites it (last-writer-wins; concurrency policy belongs to the
+application). Whether the named run is *in flight* is **derived at lookup**
+from the one source of truth, the run's own partition:
+
+```
+get('__correlation', key)  → runId          (which run was last ignited?)
+get(runId, '__ignition')   → record | null  (does its partition still exist?)
+        record → run in flight (resume it)
+        null   → run completed and was deleted ("no run in flight")
+```
+
+This derivation is what makes the design race-free by construction: nothing
+ever deletes a pointer, so a superseded run completing can never unaddress its
+successor. (Backends *may* privately vacuum pointer rows whose value equals a
+deleted partition name — inherently safe, never required.)
+
+### The identity-resolution phase
+
+The executor's first act, before anything reads persistence, is to establish *which run
+this segment is*:
+
+| `getRunId()` | `$payload` | correlation key | action |
+|---|---|---|---|
+| non-null | — | — | use it (explicit id, or a later segment of this instance — local state wins) |
+| null | `null` (start/replay) | — | generate `uniqid('workflow_')` |
+| null | non-null (continuation) | non-null | pointer lookup + liveness check (above); live → adopt, else throw "no run in flight" |
+| null | non-null (continuation) | null | throw — the run cannot be addressed |
+
+Consequently `Workflow::getRunId()` returns `?string`: identity is **assigned** by this
+phase, never defaulted at construction, so "the caller provided one" and "the caller got
+a default" are no longer indistinguishable.
 
 ## Durable memoization (`memoize`)
 
@@ -262,24 +343,25 @@ The executor controls **how** the workflow graph is traversed. `Workflow` delega
 `WorkflowInterface` (run/resume/events + configuration). Executors type against
 `WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
 the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
-`getMiddlewareForNode`), the run (`getRunId`, `resolveState`/`setState`,
-`restoreEventNode`, `getEventDispatcher`), the seams (`getPersistence`,
-`getScheduler`), and the segment lifecycle (`makeIgnition`, `adoptIgnition`,
-`bootstrap`). `Workflow` implements both; anything the engine must call for
+`getMiddlewareForNode`), the run (`getRunId`/`adoptRunId`, `correlationKey`,
+`resolveState`/`setState`, `restoreEventNode`, `getEventDispatcher`), the seams
+(`getPersistence`, `getScheduler`, `getSerializer`), and the segment lifecycle (`makeIgnition`,
+`adoptIgnition`, `bootstrap`). `Workflow` implements both; anything the engine must call for
 correctness belongs on the runtime contract, never on the one users hold. (The
 former second engine contract, `StepEngineInterface`, was retired: its replay
 logic lives in `WorkflowExecutor` itself.)
 
 There are three genuine extension points:
 
-- **`PersistenceInterface`** — where a run's durable records live (InMemory, File, Database, Eloquent). Owns **state**.
+- **`PersistenceInterface`** — where a run's durable records live (InMemory, File, Database, Eloquent): a three-method partitioned KV of opaque strings — see *The unified store* above. Owns **state**; the record codec is the workflow-owned `Serializer` seam.
 - **`SchedulerInterface`** — what wakes a suspended workflow (NullScheduler, a queue/cron worker, a cloud platform). Owns **coordination**. See *Suspend & resume* above.
 - **`WorkflowExecutorInterface`** — the execution model: in-process (`WorkflowExecutor`), async branches (`AsyncExecutor`). One verb (`execute`); an executor holds no configuration of its own.
 
 ```
 Workflow (definition + configuration; owns the seams)
-  ├─ PersistenceInterface (state)
+  ├─ PersistenceInterface (state — put/get/delete over partitions of opaque strings)
   │    ├─ InMemoryPersistence / FilePersistence / DatabasePersistence / EloquentPersistence
+  ├─ Serializer (record codec — engine-applied; PhpSerializer default, IgbinarySerializer)
   ├─ SchedulerInterface (coordination — wakeups for suspended workflows)
   │    └─ NullScheduler (inert; caller-driven resume) / SelfHostedScheduler / <CloudScheduler>
   └─ WorkflowExecutorInterface (execution model — reads the seams above off the runtime)

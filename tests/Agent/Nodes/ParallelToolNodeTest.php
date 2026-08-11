@@ -17,6 +17,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 
 class ParallelRegularTool extends Tool
@@ -145,7 +146,7 @@ class ParallelToolNodeTest extends TestCase
 
         // Run 1: the batch executes and its result is memoized mid-node.
         $node1 = new ParallelToolNode(new InMemoryChatHistory());
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         foreach ($node1($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -155,7 +156,7 @@ class ParallelToolNodeTest extends TestCase
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
         $node2 = new ParallelToolNode(new InMemoryChatHistory());
-        $node2->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         foreach ($node2($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }

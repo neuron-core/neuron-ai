@@ -6,22 +6,26 @@ namespace NeuronAI\Workflow\Executor;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\Serializer;
 
 /**
  * Durable memoizer bound to a single node-execution step.
  *
- * Each memo is persisted as a StepResult under the namespaced step id
- * "{stepId}::{name}": the first call runs the operation and persists the
- * value; on replay the cached value is returned without re-running the
- * operation.
+ * Each memo value is serialized directly into the run's partition under the
+ * namespaced key "{stepId}::{name}": the first call runs the operation and
+ * persists the value; on replay the recorded value is returned without
+ * re-running the operation. A memo record is by construction a completed
+ * value — interrupted/failed markers only ever live under plain step ids.
  *
  * An instance is constructed per step by the executor (which knows the
- * current stepId) and threaded into the node via setWorkflowContext().
+ * current stepId and the run's codec) and threaded into the node via
+ * setWorkflowContext().
  */
 final class StepMemoizer
 {
     public function __construct(
         protected PersistenceInterface $persistence,
+        protected Serializer $serializer,
         protected string $runId,
         protected string $stepId,
     ) {
@@ -29,19 +33,18 @@ final class StepMemoizer
 
     public function memo(string $name, Closure $operation): mixed
     {
-        $memoStepId = $this->stepId . '::' . $name;
+        $key = $this->stepId . '::' . $name;
 
-        $cached = $this->loadCompleted($memoStepId);
-        if ($cached instanceof StepResult) {
-            return $cached->getOutput();
+        // Record existence (not the decoded value) is the hit signal, so a
+        // memoized null replays as null instead of re-running the operation.
+        $recorded = $this->persistence->get($this->runId, $key);
+        if ($recorded !== null) {
+            return $this->serializer->unserialize($recorded);
         }
 
         $value = $operation();
 
-        $this->persistence->save($this->runId, $memoStepId, new StepResult(
-            stepId: $memoStepId,
-            output: $value,
-        ));
+        $this->persistence->put($this->runId, $key, $this->serializer->serialize($value));
 
         return $value;
     }
@@ -49,9 +52,9 @@ final class StepMemoizer
     /**
      * Recall a previously memoized value WITHOUT running anything.
      *
-     * Returns the recorded output when a completed memo step exists for this
-     * name (typically a prior run's recovery), or null otherwise. Call it before
-     * the matching memo() so a fresh run sees nothing and executes the work.
+     * Returns the recorded value when a memo exists for this name (typically
+     * a prior run's recovery), or null otherwise. Call it before the matching
+     * memo() so a fresh run sees nothing and executes the work.
      *
      * This is the read-only counterpart to memo(): it lets a node skip
      * non-replayable work whose terminal value was already persisted — e.g. a
@@ -60,21 +63,8 @@ final class StepMemoizer
      */
     public function get(string $name): mixed
     {
-        return $this->loadCompleted($this->stepId . '::' . $name)?->getOutput();
-    }
+        $recorded = $this->persistence->get($this->runId, $this->stepId . '::' . $name);
 
-    /**
-     * A memo is recallable only when it completed: interrupted or failed
-     * markers never replay from cache.
-     */
-    protected function loadCompleted(string $stepId): ?StepResult
-    {
-        $cached = $this->persistence->load($this->runId, $stepId);
-
-        if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
-            return $cached;
-        }
-
-        return null;
+        return $recorded === null ? null : $this->serializer->unserialize($recorded);
     }
 }

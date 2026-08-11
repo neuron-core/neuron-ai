@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
@@ -34,9 +33,21 @@ interface AgentInterface
      */
     public function getTools(): array;
 
-    public function setChatHistory(AbstractChatHistory $chatHistory): AgentInterface;
+    /**
+     * A pre-bound history declares thread identity by adoption; an unbound
+     * one (constructed without its thread) receives the agent's resolved
+     * identity — the framework binds it before first use.
+     */
+    public function setChatHistory(ChatHistoryInterface $chatHistory): AgentInterface;
 
     public function getChatHistory(): ChatHistoryInterface;
+
+    /**
+     * The agent's thread identity — the conversation this run belongs to and
+     * the run's correlation key — or null when the run is not
+     * thread-addressable.
+     */
+    public function getThreadId(): ?string;
 
     /**
      * @param Message|Message[] $messages

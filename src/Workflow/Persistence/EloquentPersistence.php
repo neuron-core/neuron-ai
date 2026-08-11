@@ -5,53 +5,50 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use Illuminate\Database\Eloquent\Model;
-use NeuronAI\Workflow\Executor\StepResult;
 
+/**
+ * Eloquent-backed store: one model over the same single table as
+ * DatabasePersistence — `partition`, `key`, and `value` string columns (plus
+ * whatever furniture the application likes; the contract never reads it).
+ * A thin adapter by design: the same three verbs, no special features.
+ */
 class EloquentPersistence implements PersistenceInterface
 {
     public function __construct(
         protected string $modelClass,
-        protected Serializer $serializer = new PhpSerializer(),
     ) {
     }
 
-    public function save(string $runId, string $stepId, StepResult $result): void
+    public function put(string $partition, string $key, string $value): void
     {
-        /** @var Model $model */
-        $model = new $this->modelClass();
-
-        $model->newQuery()->updateOrCreate([
-            'run_id' => $runId,
-            'step_id' => $stepId,
-        ], [
-            'result' => $this->serializer->serialize($result),
-        ]);
+        $this->model()->newQuery()->updateOrCreate(
+            ['partition' => $partition, 'key' => $key],
+            ['value' => $value],
+        );
     }
 
-    public function load(string $runId, string $stepId): ?StepResult
+    public function get(string $partition, string $key): ?string
     {
-        /** @var Model&object{result: string} $model */
-        $model = new $this->modelClass();
+        $value = $this->model()->newQuery()
+            ->where('partition', $partition)
+            ->where('key', $key)
+            ->value('value');
 
-        $record = $model->newQuery()
-            ->where('run_id', $runId)
-            ->where('step_id', $stepId)
-            ->first();
-
-        if ($record === null) {
-            return null;
-        }
-
-        return $this->serializer->unserialize($record->result);
+        return $value === null ? null : (string) $value;
     }
 
-    public function delete(string $runId): void
+    public function delete(string $partition): void
     {
-        /** @var Model $model */
-        $model = new $this->modelClass();
-
-        $model->newQuery()
-            ->where('run_id', $runId)
+        $this->model()->newQuery()
+            ->where('partition', $partition)
             ->delete();
+    }
+
+    protected function model(): Model
+    {
+        /** @var Model $model */
+        $model = new $this->modelClass();
+
+        return $model;
     }
 }

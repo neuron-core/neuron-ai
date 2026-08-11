@@ -271,73 +271,110 @@ There is no agent-level guard: if a new turn slips through anyway, the chat hist
 message-alternation rule rejects the `UserMessage` appended after the pending
 `ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
 
-### The runId lives in chat history
+### Thread-first continuation: the correlation pointer
 
-Before suspending, `ToolNode` stamps the runId onto the annotated `ToolCallMessage`
-(`ToolCallMessage::getRunId()`), so history alone is sufficient to **resume**, not just
-to render. A `resume()` with no explicit runId **adopts** the id from
-the history tail — the approve/deny endpoint needs only the thread id:
+The Agent declares its **threadId as the run's correlation key**
+(`correlationKey()`), so the engine records `threadId → runId` in workflow
+persistence when the run ignites. The pointer records the *most recent* run for
+the thread and is never removed — a completed thread reads as free because the
+run's partition (with its ignition record) was deleted, and liveness is derived
+at lookup (see `src/Workflow/AGENTS.md`). A `resume()` with no explicit runId
+resolves the pointer — the approve/deny endpoint needs only the thread id, and
+nothing about execution identity ever touches chat history:
 
 ```php
-// New execution cycle: no runId stored anywhere by the application.
-$agent = Agent::make()
-    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+// New execution cycle: no runId stored anywhere by the application — the
+// thread IS the address. The history is constructed WITHOUT identity; the
+// framework binds the resolved threadId into it.
+$agent = Agent::make(threadId: $threadId)
+    ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
 $agent->resume(['call_123' => 'approve']);
+// (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
+// same identity by adoption and works identically)
 ```
 
-The stamp wins even over a `runId` passed to `make()` — history is the system of
-record. With no stamp on the tail the agent keeps its current runId, so explicit-id
-resumes of non-approval suspensions work unchanged. The id is stamped on every gated
-pass and never stripped: once the message is no longer the tail it is inert.
-Tail-adoption is skipped while a chat-history *resolver* is still pending (no thread
-identity yet, so no tail to read) — there the explicit runId governs and the threadId
-arrives from the ignition record.
+This works for **every** suspension type — approval, `awaitEvent()`, `sleepUntil()` —
+because it is an engine mechanism, not an approval one. An **explicit runId wins**
+over the pointer: a non-null id is authoritative, and the lookup fires only when none
+was given. A continuation that can address no run at all (no runId, no pointer bound)
+throws a `WorkflowException` rather than running against the wrong one.
+
+The correlation key is `null` while no thread identity has been declared — the run
+must then be addressed by an explicit runId (run-first resume), and the threadId
+arrives from the ignition record. See `src/Workflow/AGENTS.md` for the pointer's
+lifecycle and the identity truth table.
 
 ## Ignition & thread identity
 
-Thread identity lives on the **chat history** — `ChatHistoryInterface::getThreadId(): string`
-is its single source of truth. The Agent holds no parallel `$threadId` property; it reads
-identity back from the history wherever it needs it (the ignition record, channel wiring).
-`getThreadId()` is non-nullable: every history has an identity — durable backends carry
-theirs; `InMemoryChatHistory` generates one (`uniqid()`, or an explicit value passed to its
-constructor).
+The **Agent owns its thread identity**: `Agent::getThreadId(): ?string` is a
+nullable slot assigned exactly once through a single door (`adoptThreadId()`,
+mirroring the engine's runId phase). The framework **never generates** a
+thread identity — it is always a developer statement, and a run without one
+is simply not thread-addressable (`correlationKey()` null, no pointer, no
+`threadId` in the ignition record).
 
-Every durable run persists its **ignition record** at first execution: the start
-event (messages + intent) plus the Agent's context bag (`['threadId' => ...]`, read from
-the history). That is what makes a suspended run continuable from a **blank process** — a
-factory that knows only the runId.
-
-The history resolver is **resume-only**. On a fresh run the threadId is known (it is a web
-request), so you pass a **concrete** history — its identity is baked in. The resolver form
-(closure receiving `string $threadId`) exists for the resume path, where the threadId is
-unknown at factory time and is recovered from the ignition record:
+**Collaborators are bound, not identity-constructed.** Chat histories are
+thread-scoped by nature but constructible *without* their thread
+(`ChatHistoryInterface::setThreadId()` / `getThreadId(): ?string`; loading is
+lazy): the Agent binds the resolved identity into an unbound history before
+first use. Identity therefore never appears in wiring code — not in hooks,
+not in setters:
 
 ```php
-// Ignition (a web request): you have the threadId — concrete history.
-$agent = MyAgent::make()
-    ->setPersistence($persistence)
-    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
-    ->setChannel(new PusherChannel($threadId));   // concrete, or a resolver
+class SupportAgent extends Agent
+{
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new SQLChatHistory($this->pdo, contextWindow: 50000);   // identity: not your job
+    }
+}
 
-$agent->stream(new UserMessage($input));   // suspends on a gated tool
+// Fresh turn (a controller): identity enters through the ONE front door.
+SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
-// Resume (another process, later): runId only — threadId unknown, resolvers wired.
-$state = MyAgent::make(runId: $runId)
-    ->setPersistence($persistence)
-    ->setChatHistory(fn (string $threadId) => new SQLChatHistory($threadId, $pdo))
-    ->setChannel(fn (string $threadId) => new PusherChannel($threadId))
-    ->resume($payload);
-// The threadId is adopted from the ignition record before nodes are built;
-// both resolvers materialize with it; the run continues in its recorded mode.
+// Thread-first resume (approve endpoint): same statement.
+SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
+
+// Run-first resume (background wake): the record supplies the identity —
+// the developer writes nothing.
+SupportAgent::make(runId: $ticket->runId)->resume($ticket->payload);
 ```
 
-- `setChatHistory()` / `setChannel()` accept a **resolver form** (a closure receiving
-  `string $threadId`). The history resolver fires only on a resume (from the ignition
-  record); the channel resolver fires from the concrete history's `getThreadId()` on a
-  fresh run, and from the ignition-record threadId on a resume. A concrete instance clears
-  a pending resolver. Resolvers materialize exactly once.
+Identity sources, in precedence order — any two disagreeing non-null claims
+**throw** (`AgentException`):
+
+1. **Explicit**: `Agent::make(threadId: 'thread-42')`.
+2. **Adoption from a pre-bound history**: `setChatHistory(new SQLChatHistory($pdo, 'thread-42'))`
+   declares the history's key as the agent's identity.
+3. **The ignition record** (run-first resume): `applyIgnitionContext()`
+   adopts the recorded threadId — adoption validates, so a record
+   contradicting an explicitly claimed identity throws (a mis-addressed
+   continuation).
+
+**Addressability requires identity declared before the run starts** (the two
+sources above, or the record on a resume). A pre-bound *hook* history (the
+in-memory default self-keying, or a subclass hook choosing a fixed key) is
+adopted and validated when it materializes during bootstrap — but that is
+after the ignition record and pointer are written, so it does not make the
+run thread-addressable. `getThreadId()` is a pure read of the slot; hooks may
+consult it freely (null on anonymous runs).
+
+The moment identity resolves, the Agent binds it into an unbound history
+(`setThreadId()`, itself conflict-guarded: re-pointing a bound history at a
+different thread always throws). A durable history *used* while unbound
+fails loudly ("thread-scoped and no thread identity was given").
+
+Every durable run persists its **ignition record** at first execution: the
+start event (messages + intent) plus the Agent's context bag
+(`['threadId' => ...]`, read from the identity slot; omitted when anonymous).
+That is what makes a suspended run continuable from a **blank process** — a
+factory that knows only the runId.
+
+- `setChatHistory()` accepts a `ChatHistoryInterface` (pre-bound = identity
+  declaration; unbound = the framework binds). `setChannel()` accepts a
+  concrete channel or null.
 - **Adapted push delivery**: a `StreamingChannelInterface` has two ports —
   `send(object)` for native chunks and `sendLine(string)` for protocol lines. With no
   adapter attached, the channel receives native chunks via `send()`. Attach a stream
@@ -348,9 +385,6 @@ $state = MyAgent::make(runId: $runId)
   The adapter is stateful; never share one instance between `setStreamAdapter()` and a pull
   consumer (`stream($message, $adapter)`). This is the push path only; the pull path keeps
   its per-call `stream($message, $adapter)` argument.
-- **Fail-loud guard**: a history resolver pending on a fresh run (no threadId source)
-  makes `getChatHistory()` throw — it never silently falls back to the in-memory default,
-  which would read and write a wrong, empty thread.
 - **Persisted-wins**: on a resume the recorded start event and context win over
   the factory's defaults. Editing `instructions()` between suspend and resume
   does not affect the resumed run — the record is the run's contract; the

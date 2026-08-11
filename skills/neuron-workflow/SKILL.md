@@ -157,10 +157,7 @@ By default, workflows use `InMemoryPersistence` — results are kept in memory a
 
 ### How It Works
 
-Each completed node becomes a durable **step** persisted via `PersistenceInterface`. When the workflow runs, the `LocalStepEngine` uses a **generation** counter (a monotonically increasing version number) to implement memoization:
-
-- Steps from a **previous generation** (a prior run) are reused from persistence — they are **not re-executed**.
-- Steps from the **current generation** are always re-executed.
+Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store (string values under `(partition, key)`; a run's records live in a partition named by its runId). Completed steps are replayed from cache and never re-executed; interrupted steps resume; failed steps retry.
 
 This means: if your process crashes mid-workflow, simply re-run it with the same persistence and runId. The engine will replay all completed steps from cache and resume from the point of failure.
 
@@ -174,16 +171,16 @@ use NeuronAI\Workflow\Persistence\EloquentPersistence;
 // File system — directory is auto-created if it doesn't exist
 $persistence = new FilePersistence('/path/to/storage');
 
-// Database via PDO — requires a workflow_steps table
-$persistence = new DatabasePersistence($pdo, 'workflow_steps');
+// Database via PDO — requires a workflow_store table
+$persistence = new DatabasePersistence($pdo);
 
-// Eloquent model — requires a model with workflow_id, step_id, result columns
-$persistence = new EloquentPersistence(WorkflowStep::class);
+// Eloquent model — requires a model with partition, key, value columns
+$persistence = new EloquentPersistence(WorkflowStore::class);
 ```
 
 ### Enabling Persistence
 
-Use the `setPersistence()` shortcut — it automatically wires a `LocalStepEngine` with the chosen backend:
+Use the `setPersistence()` shortcut:
 
 ```php
 $workflow = Workflow::make()
@@ -193,33 +190,26 @@ $workflow = Workflow::make()
 $finalState = $workflow->run();
 ```
 
-For full control, construct the executor manually (it takes the persistence
-backend directly — `LocalStepEngine` is an internal detail it wires itself):
-
-```php
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
-
-$workflow = Workflow::make()
-    ->setExecutor(new WorkflowExecutor(new DatabasePersistence($pdo)))
-    ->addNodes([...]);
-```
+Executors carry no storage of their own — persistence, serializer, and
+scheduler are workflow-owned seams read by the executor at execute time. The
+record codec is configurable via `setSerializer()` (default `PhpSerializer`).
 
 ### Database Table Schema
 
-When using `DatabasePersistence`, create a table with these columns:
+When using `DatabasePersistence`, create the single store table (`partition`
+and `key` are reserved words in MySQL — quote them with backticks there):
 
 ```sql
-CREATE TABLE workflow_steps (
-    workflow_id VARCHAR(255) NOT NULL,
-    step_id VARCHAR(255) NOT NULL,
-    result TEXT NOT NULL,
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    PRIMARY KEY (workflow_id, step_id)
+CREATE TABLE workflow_store (
+    "partition" VARCHAR(255) NOT NULL,
+    "key"       VARCHAR(255) NOT NULL,
+    "value"     TEXT NOT NULL,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("partition", "key")
 );
 ```
 
-For `EloquentPersistence`, the model must have `workflow_id`, `step_id`, and `result` columns.
+For `EloquentPersistence`, the model must have `partition`, `key`, and `value` columns.
 
 ### Workflow Lifecycle
 
@@ -231,6 +221,10 @@ Workflows support interruption for human intervention at any point.
 
 ### Interrupting a Node
 
+The request is **outbound-only** — a pure description of the pause, rendered to
+the user. On resume the verb returns the **inbound payload** (the plain array
+delivered to `resume()`); the request object never comes back:
+
 ```php
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\Action;
@@ -239,8 +233,9 @@ class DangerousOperationNode extends Node
 {
     public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
     {
-        // Interrupt for approval. Signature: (string $message, array $actions = [], ?DateTimeImmutable $expiresAt = null)
-        $resumeRequest = $this->interrupt(new ApprovalRequest(
+        // First pass: suspends here. Resume pass: returns the delivered payload.
+        // ApprovalRequest signature: (string $message, Action[] $actions = [], ?DateTimeImmutable $expiresAt = null)
+        $payload = $this->interrupt(new ApprovalRequest(
             'These operations require approval',
             [
                 new Action(
@@ -256,9 +251,11 @@ class DangerousOperationNode extends Node
             ],
         ));
 
-        foreach ($resumeRequest->getActions() as $action) {
-            if ($action->isApproved()) {
-                $this->executeAction($action->id);
+        // The payload's shape is YOUR contract with the resuming caller, e.g.
+        // resume(['delete_files' => true, 'send_email' => false]):
+        foreach ($payload ?? [] as $actionId => $approved) {
+            if ($approved === true) {
+                $this->executeAction($actionId);
             }
         }
 
@@ -274,12 +271,13 @@ public function __invoke(ProcessEvent $event, WorkflowState $state): ResultEvent
 {
     $cost = $state->get('estimated_cost');
 
-    // Only interrupt if cost exceeds threshold
-    $resumeRequest = $this->interruptIf(
+    // Only interrupt if cost exceeds threshold; below it, returns null and
+    // execution continues straight through.
+    $payload = $this->interruptIf(
         $cost > 1000,
         new ApprovalRequest(
-            actions: [/* ... */],
-            message: "Operation costs $${cost}. Approval required."
+            "Operation costs \${$cost}. Approval required.",
+            [/* Action[] */],
         )
     );
 
@@ -304,22 +302,55 @@ $workflow = Workflow::make()
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    // Present the request to the user and collect a decision
+    // Present the request to the user and collect a decision (outbound).
     $request = $state->getInterruptRequest();
-    $runId = $workflow->getRunId();
+    $runId = $workflow->getRunId();   // assigned by the engine at ignition
 
-    // ... user approves/rejects, mutating $request ...
+    // ... user approves/rejects ...
 
-    // Resume — same persistence + runId. Completed nodes are skipped;
-    // only the interrupted node re-runs with $request.
+    // Resume — same persistence + runId, delivering the answer as an inbound
+    // PAYLOAD (a plain array). Completed nodes replay from cache; only the
+    // interrupted node re-runs and receives the payload.
     $state = Workflow::make(runId: $runId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->run($request);
+        ->resume(['approved' => true]);
 }
 
 $result = $state->get('result');
 ```
+
+### Resuming by business key — the correlation pointer
+
+A run has two identities: the engine-generated **runId** (keys everything in
+persistence) and an optional **correlation key** — the business identity your
+application naturally holds (a thread id, an order id). Declare it by
+overriding `correlationKey()`, and the engine records `key → runId` in the
+store when the run ignites; a `resume()` **without a runId** finds the pending
+run from that pointer:
+
+```php
+class OrderWorkflow extends Workflow
+{
+    public function correlationKey(): ?string
+    {
+        return 'order:' . $this->orderId;
+    }
+}
+
+// Later, in a blank process holding only the order id — no runId stored
+// anywhere by the application:
+$state = OrderWorkflow::make(orderId: $orderId)
+    ->setPersistence($persistence)
+    ->resume(['approved' => true]);
+```
+
+Rules: an **explicit runId always wins** over the pointer; the pointer records
+the *most recent* run for the key and is never deleted — whether that run is
+in flight is derived at lookup (a completed run's records were swept, so the
+resume throws "No run in flight"); a continuation with no runId and no
+correlation key throws. Plain workflows that declare no key are unaffected.
+The `Agent` uses exactly this mechanism with its threadId as the key.
 
 ## The Suspend Vocabulary (beyond approval)
 
@@ -355,17 +386,16 @@ class OrderNode extends Node
 }
 ```
 
-Resume delivers the event by passing a hydrated request to `run()`:
+Resume delivers the matched event's data as the inbound payload — the node's
+`awaitEvent()` call returns it:
 
 ```php
-// The caller (a webhook controller, a queue worker, a scheduler) hydrates the
-// matched event into the request and resumes:
-$request = new \NeuronAI\Workflow\Interrupt\WaitForEventRequest('payment.received', $paymentPayload);
-
+// The caller (a webhook controller, a queue worker, a scheduler) resumes the
+// run with the event payload:
 $state = Workflow::make(runId: $runId)
     ->setPersistence($persistence)
     ->addNodes([...])
-    ->run($request);
+    ->resume($paymentPayload);
 ```
 
 **Timeouts are scheduler-driven.** When the deadline elapses the scheduler resumes
@@ -431,12 +461,14 @@ class DataProcessingNode extends Node
 
         // Might interrupt here. On resume this node re-runs, but the memoized
         // $data above is returned without re-calling fetchExpensiveData().
-        $resumeRequest = $this->interruptIf(
+        $payload = $this->interruptIf(
             $needsApproval,
             new ApprovalRequest('Approve data processing', [/* Action[] */])
         );
 
-        if ($resumeRequest->getAction('check')?->isApproved()) {
+        // null = never interrupted (condition false); otherwise the payload
+        // delivered to resume() — its shape is your contract with the caller.
+        if ($payload === null || ($payload['approved'] ?? false)) {
             return new ResultEvent($data);
         }
 
@@ -864,15 +896,15 @@ No parallel-specific metadata is exposed.
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    $request = $state->getInterruptRequest();
+    $request = $state->getInterruptRequest();   // outbound: render it
     $runId = $workflow->getRunId();
 
-    // ... user responds, mutating $request ...
+    // ... user responds ...
 
     $state = Workflow::make(runId: $runId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->run($request);
+        ->resume(['answer' => $decision]);      // inbound payload
 }
 ```
 
@@ -886,7 +918,7 @@ class ExtractStructuredDataNode extends Node
     {
         $data = $this->memoize('fetch_image', fn() => $this->fetchExpensiveImageData());
 
-        $resumeRequest = $this->interruptIf(
+        $this->interruptIf(
             $this->needsApproval($data),
             new ApprovalRequest('Review extracted data', [/* Action[] */])
         );

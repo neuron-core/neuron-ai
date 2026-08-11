@@ -69,7 +69,7 @@ class EloquentChatHistoryTest extends TestCase
         });
 
         $this->threadId = uniqid('test-thread-');
-        $this->history = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $this->history = new EloquentChatHistory(ChatMessage::class, $this->threadId);
     }
 
     protected function tearDown(): void
@@ -110,7 +110,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new AssistantMessage('Second message'));
 
         // Create a new instance with the same thread_id
-        $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -164,7 +164,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
-        $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(3, $messages);
@@ -180,7 +180,7 @@ class EloquentChatHistoryTest extends TestCase
     public function test_truncates_history_when_context_window_exceeded(): void
     {
         // Create history with small context window
-        $smallHistory = new EloquentChatHistory($this->threadId, ChatMessage::class, contextWindow: 100);
+        $smallHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId, contextWindow: 100);
 
         // Add many messages to exceed context window
         // Start with UserMessage (i=1 is odd) to create valid sequence
@@ -210,8 +210,8 @@ class EloquentChatHistoryTest extends TestCase
         $thread1 = 'thread-1-' . uniqid();
         $thread2 = 'thread-2-' . uniqid();
 
-        $history1 = new EloquentChatHistory($thread1, ChatMessage::class);
-        $history2 = new EloquentChatHistory($thread2, ChatMessage::class);
+        $history1 = new EloquentChatHistory(ChatMessage::class, $thread1);
+        $history2 = new EloquentChatHistory(ChatMessage::class, $thread2);
 
         $history1->addMessage(new UserMessage('Message in thread 1'));
         $history2->addMessage(new UserMessage('Message in thread 2'));
@@ -220,8 +220,8 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertCount(1, $history2->getMessages());
 
         // Reload and verify isolation
-        $reloaded1 = new EloquentChatHistory($thread1, ChatMessage::class);
-        $reloaded2 = new EloquentChatHistory($thread2, ChatMessage::class);
+        $reloaded1 = new EloquentChatHistory(ChatMessage::class, $thread1);
+        $reloaded2 = new EloquentChatHistory(ChatMessage::class, $thread2);
 
         $this->assertEquals('Message in thread 1', $reloaded1->getMessages()[0]->getContent());
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());
@@ -249,7 +249,7 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_handles_empty_thread_id(): void
     {
-        $emptyThreadHistory = new EloquentChatHistory('', ChatMessage::class);
+        $emptyThreadHistory = new EloquentChatHistory(ChatMessage::class, '');
         $emptyThreadHistory->addMessage(new UserMessage('Test'));
 
         // Should still work with empty thread_id
@@ -264,7 +264,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage($message);
 
         // Load in new instance
-        $newHistory = new EloquentChatHistory($this->threadId, ChatMessage::class);
+        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
         $loadedMessage = $newHistory->getMessages()[0];
 
         $this->assertEquals('custom_value', $loadedMessage->getMetadata('custom_key'));

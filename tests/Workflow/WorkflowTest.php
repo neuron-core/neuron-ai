@@ -213,7 +213,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testRunIdAutoGenerates(): void
+    public function testRunIdIsAssignedByTheExecutor(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -222,8 +222,14 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
+        // Identity is assigned by the executor's identity phase, never
+        // defaulted at construction.
+        $this->assertNull($workflow->getRunId());
+
+        $this->execute($workflow, new InMemoryPersistence());
+
         $this->assertNotEmpty($workflow->getRunId());
-        $this->assertStringStartsWith('workflow_', $workflow->getRunId());
+        $this->assertStringStartsWith('workflow_', (string) $workflow->getRunId());
     }
 
     public function testInterruptStateIsResumableFromToken(): void
@@ -239,10 +245,11 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $token = $workflow->getRunId();
         $request = $this->execute($workflow, $persistence)->getInterruptRequest();
+        $token = $workflow->getRunId();
 
         $this->assertNotNull($request);
+        $this->assertNotNull($token);
 
         $resumed = Workflow::make(runId: $token)
             ->addNodes([

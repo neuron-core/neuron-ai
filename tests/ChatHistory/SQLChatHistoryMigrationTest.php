@@ -112,7 +112,7 @@ class SQLChatHistoryMigrationTest extends TestCase
         $this->assertEquals(4, $migrated);
 
         // The migrated thread must load transparently through the new SQLChatHistory
-        $history = new SQLChatHistory($this->threadId, $this->pdo);
+        $history = new SQLChatHistory($this->pdo, $this->threadId);
         $messages = $history->getMessages();
 
         $this->assertCount(4, $messages);

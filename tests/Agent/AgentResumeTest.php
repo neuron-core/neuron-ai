@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -22,8 +22,8 @@ use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use PDO;
 use PHPUnit\Framework\TestCase;
-use Closure;
 
 use function array_filter;
 use function iterator_to_array;
@@ -36,17 +36,15 @@ use function iterator_to_array;
  */
 class AgentResumeTest extends TestCase
 {
-    /**
-     * Chat histories shared across agent instances, keyed by threadId — what
-     * a real resolver does against a database.
-     *
-     * @var array<string, ChatHistoryInterface>
-     */
-    protected array $histories = [];
-
-    protected function historyResolver(): Closure
+    protected function sqlite(): PDO
     {
-        return fn (string $threadId): ChatHistoryInterface => $this->histories[$threadId] ??= new InMemoryChatHistory();
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
+
+        return $pdo;
     }
 
     public function test_streamed_approval_run_wakes_from_a_blank_factory(): void
@@ -70,11 +68,11 @@ class AgentResumeTest extends TestCase
             ->setInstructions('You are a search assistant.');
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
-        // Ignition carries a concrete history; pre-seed the shared cache so the
-        // wake's resolver (keyed by threadId) returns the SAME history instance.
-        $this->histories['thread-1'] = new InMemoryChatHistory('thread-1');
-        $agent1->setChatHistory($this->histories['thread-1']);
-        $agent1->setChannel(fn (string $threadId): FakeChannel => new FakeChannel());
+        // Ignition: durable per-thread storage; the pre-bound history
+        // declares the thread identity.
+        $pdo = $this->sqlite();
+        $agent1->setChatHistory(new SQLChatHistory($pdo, 'thread-1'));
+        $agent1->setChannel(new FakeChannel());
 
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
         iterator_to_array($handler1);
@@ -95,8 +93,10 @@ class AgentResumeTest extends TestCase
             ->setInstructions('You are a search assistant.');
         $agent2->addTool($wakeTool);
         $agent2->setPersistence($persistence);
-        $agent2->setChatHistory($this->historyResolver());
-        $agent2->setChannel(fn (string $threadId): FakeChannel => $channel);
+        // Unbound history: the threadId arrives from the ignition record and
+        // is bound by the framework before the history is touched.
+        $agent2->setChatHistory(new SQLChatHistory($pdo));
+        $agent2->setChannel($channel);
 
         // resume() runs eagerly → AgentState. The resumed inference's live
         // chunks are delivered to the channel (push), not pulled by the caller.
@@ -120,7 +120,7 @@ class AgentResumeTest extends TestCase
         );
         $this->assertSame(
             'Here is what I found.',
-            $this->histories['thread-1']->getLastMessage()->getContent()
+            $agent2->getChatHistory()->getLastMessage()->getContent()
         );
     }
 

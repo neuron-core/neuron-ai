@@ -4,37 +4,30 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
-use NeuronAI\Workflow\Executor\StepResult;
-
 class InMemoryPersistence implements PersistenceInterface
 {
     /**
-     * Serialized snapshots keyed by runId then stepId. Round-tripping through
-     * serialize() gives InMemory the same snapshot semantics as the durable
-     * backends: the stored value is a detached copy (mutations to the live
-     * StepResult after save are not visible on load), and PHP fires the state's
-     * __serialize/__unserialize pair — so transient accumulators such as
-     * AgentState::$__steps are stripped exactly as they are on File/Database.
+     * Values keyed by partition then key. The engine hands the backend
+     * already-serialized strings, so every stored value is inherently a
+     * detached snapshot — mutations to a live record after put() are never
+     * visible on get(), matching the durable backends.
+     *
+     * @var array<string, array<string, string>>
      */
-    /** @var array<string, array<string, string>> */
     protected array $storage = [];
 
-    public function save(string $runId, string $stepId, StepResult $result): void
+    public function put(string $partition, string $key, string $value): void
     {
-        $this->storage[$runId][$stepId] = serialize($result);
+        $this->storage[$partition][$key] = $value;
     }
 
-    public function load(string $runId, string $stepId): ?StepResult
+    public function get(string $partition, string $key): ?string
     {
-        if (!isset($this->storage[$runId][$stepId])) {
-            return null;
-        }
-
-        return unserialize($this->storage[$runId][$stepId]);
+        return $this->storage[$partition][$key] ?? null;
     }
 
-    public function delete(string $runId): void
+    public function delete(string $partition): void
     {
-        unset($this->storage[$runId]);
+        unset($this->storage[$partition]);
     }
 }

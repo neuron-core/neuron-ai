@@ -11,7 +11,7 @@ This skill helps you gate agent tool execution behind human approval and build t
 
 **Approval is owned by `ToolNode` and configured on the tools themselves** (ADR 0009). There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
-**Chat history is what the application reads.** Which tools await a decision, why each one is asking, and the runId the framework uses to resume — all live on the **last message of the thread**, written once at suspend time. You never inspect workflow state, never boot the agent just to render, and never store a runId on the side.
+**Chat history is what the application reads; the thread is the address.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Resuming needs no runId either: the engine records `threadId → runId` in workflow persistence when the run ignites (the correlation pointer), so the approve endpoint rebuilds the agent from the thread id alone. Nothing is stored on the side.
 
 Two facts shape the UI (ADR 0006):
 
@@ -26,8 +26,8 @@ Two requirements for cross-process flows: **workflow persistence** (the suspend/
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
-$agent = MyAgent::make()
-    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+$agent = MyAgent::make(threadId: $threadId)
+    ->setChatHistory(new SQLChatHistory($pdo))       // identity-free: the framework binds the thread
     ->setPersistence(new DatabasePersistence($pdo));
 ```
 
@@ -73,15 +73,14 @@ The last configured override wins (`suppressApproval()` clears an earlier callba
 When a gated tool is requested, the run pauses **functionally** — no exception reaches your code:
 
 ```php
-$handler = $agent->chat(new UserMessage('Delete the old logs file'));
-$handler->run();
+$state = $agent->chat(new UserMessage('Delete the old logs file'));
 
-$handler->interrupted();          // true — the run is suspended
-$handler->getMessage();           // the annotated ToolCallMessage (see JSON below)
-$handler->getInterruptRequest();  // ApprovalRequest — in-process render source
+$state->isInterrupted();        // true — the run is suspended
+$state->getMessage();           // the annotated ToolCallMessage (see JSON below)
+$state->getInterruptRequest();  // ApprovalRequest — in-process render source
 ```
 
-On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states, reasons, and the runId, all stamped. Serialize it straight to your client — it is the same message persisted in chat history.
+On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states and reasons, stamped once. Serialize it straight to your client — it is the same message persisted in chat history. (It carries no execution identity: the run is addressed by the thread, not by anything in the message.)
 
 ## The JSON the UI Deals With
 
@@ -89,7 +88,6 @@ A suspended thread's tail message, serialized (two gated tools awaiting decision
 
 ```json
 {
-    "run_id": "workflow_6650a1b2c3d4e",
     "role": "assistant",
     "content": [],
     "type": "tool_call",
@@ -124,7 +122,6 @@ A suspended thread's tail message, serialized (two gated tools awaiting decision
 | `tools[].name`, `tools[].inputs` | What the human is approving: which action, with which arguments. |
 | `tools[].approvalReason` | **Outbound** — why approval is being asked (declared by the tool or its attach-time policy). Show it on the approval card. |
 | `tools[].rejectReason` | **Inbound** — the approver's feedback, rejections only. The model receives it verbatim. |
-| `run_id` | Framework-internal; the framework reads it back from history on resume. Never used by the UI — just preserve it if you re-serialize. |
 
 The two reason fields are a matched pair with opposite authors: `approvalReason` is the *tool talking to the human*; `rejectReason` is the *human talking back to the model*.
 
@@ -179,7 +176,7 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ## One Endpoint for the Whole Conversation
 
-A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With a `payload`, the runId is adopted from the chat history tail automatically; with a message, a fresh turn starts.
+A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With `decisions`, `resume()` finds the thread's pending run through the correlation pointer; with a message, `chat()` starts a fresh run.
 
 ```php
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -194,14 +191,12 @@ use NeuronAI\Exceptions\ChatHistoryException;
  */
 function chatEndpoint(string $threadId, array $body): array
 {
-    $agent = makeAgentForThread($threadId);   // history + persistence + tools (with approval overrides)
-
-    $handler = isset($body['decisions'])
-        ? $agent->chat(payload: $body['decisions'])
-        : $agent->chat(new UserMessage($body['message']));
+    $agent = makeAgentForThread($threadId);   // MyAgent::make(threadId: $threadId) + persistence + tools
 
     try {
-        $handler->run();
+        $state = isset($body['decisions'])
+            ? $agent->resume($body['decisions'])                       // answer → resume the pending run
+            : $agent->chat(new UserMessage($body['message']));         // new turn → new run
     } catch (ChatHistoryException $e) {
         // A user message arrived while the thread has a pending tool call
         // (the UI failed to lock the input). Nothing was executed or persisted.
@@ -211,19 +206,19 @@ function chatEndpoint(string $threadId, array $body): array
     // Both branches converge: on a suspended run getMessage() IS the annotated
     // ToolCallMessage; otherwise it is the assistant's reply.
     return [
-        'status' => $handler->interrupted() ? 'awaiting_approval' : 'completed',
-        'message' => $handler->getMessage()->jsonSerialize(),
+        'status' => $state->isInterrupted() ? 'awaiting_approval' : 'completed',
+        'message' => $state->getMessage()->jsonSerialize(),
     ];
 }
 ```
 
 Why this works as one endpoint:
 
-1. **Same construction** — both paths build the identical agent from the thread id; the suspended run's token is in the history tail, so the decisions branch needs nothing extra.
+1. **Same construction** — both paths build the identical agent from the thread id; the correlation pointer maps the thread to its pending run, so the decisions branch needs nothing extra.
 2. **Same outcomes** — a fresh turn can end suspended (model called a gated tool) and a resume can end suspended (incomplete decision set, or the model called another gated tool). One response contract covers both: `awaiting_approval | completed`.
 3. **Same failure containment** — a user message on a suspended thread is rejected by the history's message-alternation rule before anything reaches the provider or the durable store; map it to HTTP 409.
 
-Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented. For streaming, swap `chat()` for `stream()`, emit `$handler->events()`, and check `interrupted()` after the stream drains.
+Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented. For streaming, swap `chat()` for `stream()` (a `Generator` — emit its chunks), and read the final `AgentState` from `$stream->getReturn()` after it drains (`isInterrupted()` tells you which status to return).
 
 ## A Complete Decision Round Trip
 

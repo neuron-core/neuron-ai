@@ -8,11 +8,11 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
-use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -65,10 +65,10 @@ class IgnitionTest extends TestCase
         $state = $workflow->run();
         $this->assertTrue($state->isInterrupted());
 
-        $record = $persistence->load('ign_write', '__ignition');
-        $this->assertInstanceOf(StepResult::class, $record);
+        $record = $persistence->get('ign_write', '__ignition');
+        $this->assertNotNull($record);
 
-        $ignition = $record->getOutput();
+        $ignition = (new PhpSerializer())->unserialize($record);
         $this->assertInstanceOf(Ignition::class, $ignition);
         $this->assertInstanceOf(IgnitionStartEvent::class, $ignition->startEvent);
         $this->assertSame('hello', $ignition->startEvent->message);
@@ -83,13 +83,13 @@ class IgnitionTest extends TestCase
         $workflow->setStartEvent(new IgnitionStartEvent());
 
         $workflow->run();
-        $this->assertNotNull($persistence->load('ign_sweep', '__ignition'));
+        $this->assertNotNull($persistence->get('ign_sweep', '__ignition'));
 
         $state = $workflow->resume(['answer' => 42]);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(42, $state->get('answer'));
-        $this->assertNull($persistence->load('ign_sweep', '__ignition'));
+        $this->assertNull($persistence->get('ign_sweep', '__ignition'));
     }
 
     public function test_blank_factory_wake_adopts_the_persisted_start_event(): void
@@ -158,8 +158,8 @@ class IgnitionTest extends TestCase
 
         $workflow->run();
 
-        $this->assertNotNull($store->load('ign_routing', '__ignition'));
-        $this->assertNotNull($store->load('ign_routing', IgnitionWaitNode::class . '-0'));
+        $this->assertNotNull($store->get('ign_routing', '__ignition'));
+        $this->assertNotNull($store->get('ign_routing', IgnitionWaitNode::class . '-0'));
     }
 
     protected function removeDirectory(string $dir): void

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
-use NeuronAI\Workflow\Executor\StepResult;
 use LogicException;
 
 use function base64_decode;
@@ -34,12 +33,12 @@ class IgbinarySerializer implements Serializer
         }
     }
 
-    public function serialize(StepResult $result): string
+    public function serialize(mixed $value): string
     {
-        return base64_encode((string) igbinary_serialize($result));
+        return base64_encode((string) igbinary_serialize($value));
     }
 
-    public function unserialize(string $data): StepResult
+    public function unserialize(string $data): mixed
     {
         $decoded = base64_decode($data, true);
 

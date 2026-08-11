@@ -23,7 +23,7 @@ class FileChatHistory extends AbstractChatHistory
 {
     public function __construct(
         protected string $directory,
-        protected string $key,
+        ?string $key = null,
         int $contextWindow = 50000,
         protected string $prefix = 'neuron_',
         protected string $ext = '.chat'
@@ -36,15 +36,12 @@ class FileChatHistory extends AbstractChatHistory
             );
         }
 
-        $this->load();
+        if ($key !== null) {
+            $this->setThreadId($key);
+        }
     }
 
-    public function getThreadId(): string
-    {
-        return $this->key;
-    }
-
-    protected function load(): void
+    protected function loadThread(): void
     {
         if (is_file($this->getFilePath())) {
             $messages = json_decode(file_get_contents($this->getFilePath()), true) ?? [];
@@ -54,7 +51,7 @@ class FileChatHistory extends AbstractChatHistory
 
     protected function getFilePath(): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $this->prefix.$this->key.$this->ext;
+        return $this->directory . DIRECTORY_SEPARATOR . $this->prefix.$this->requireThreadId().$this->ext;
     }
 
     /**

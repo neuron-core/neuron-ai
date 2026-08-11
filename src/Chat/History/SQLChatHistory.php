@@ -40,25 +40,23 @@ class SQLChatHistory extends AbstractChatHistory
     protected string $table;
 
     public function __construct(
-        protected string $thread_id,
         protected PDO $pdo,
+        ?string $threadId = null,
         string $table = 'chat_messages',
         int $contextWindow = 50000
     ) {
         parent::__construct($contextWindow);
         $this->table = $this->sanitizeTableName($table);
-        $this->load();
+
+        if ($threadId !== null) {
+            $this->setThreadId($threadId);
+        }
     }
 
-    public function getThreadId(): string
-    {
-        return $this->thread_id;
-    }
-
-    protected function load(): void
+    protected function loadThread(): void
     {
         $stmt = $this->pdo->prepare("SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id");
-        $stmt->execute(['thread_id' => $this->thread_id]);
+        $stmt->execute(['thread_id' => $this->requireThreadId()]);
         $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (!empty($records)) {
@@ -74,7 +72,7 @@ class SQLChatHistory extends AbstractChatHistory
             "INSERT INTO {$this->table} (thread_id, role, content, meta) VALUES (:thread_id, :role, :content, :meta)"
         );
         $stmt->execute(array_merge(
-            ['thread_id' => $this->thread_id],
+            ['thread_id' => $this->requireThreadId()],
             $this->serializeMessage($message)
         ));
     }
@@ -87,7 +85,7 @@ class SQLChatHistory extends AbstractChatHistory
 
         // Delete the first $index messages of the thread.
         $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id LIMIT {$index}");
-        $stmt->execute(['thread_id' => $this->thread_id]);
+        $stmt->execute(['thread_id' => $this->requireThreadId()]);
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         if (empty($ids)) {
@@ -102,7 +100,7 @@ class SQLChatHistory extends AbstractChatHistory
     protected function clear(): void
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE thread_id = :thread_id");
-        $stmt->execute(['thread_id' => $this->thread_id]);
+        $stmt->execute(['thread_id' => $this->requireThreadId()]);
     }
 
     /**

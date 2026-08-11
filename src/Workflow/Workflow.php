@@ -30,11 +30,12 @@ use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\Persistence\Serializer;
 use Throwable;
 
 use function array_merge;
 use function is_array;
-use function uniqid;
 
 /**
  * @method static static make(?string $runId = null, ?WorkflowState $state = null)
@@ -57,13 +58,15 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected ExporterInterface $exporter;
 
-    protected string $runId;
+    protected ?string $runId;
 
     protected Event $startEvent;
 
     protected ?WorkflowExecutorInterface $executor = null;
 
     protected ?PersistenceInterface $persistence = null;
+
+    protected ?Serializer $serializer = null;
 
     protected ?SchedulerInterface $scheduler = null;
 
@@ -91,7 +94,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         protected ?WorkflowState   $state = null,
     ) {
         $this->exporter = new ConsoleExporter();
-        $this->runId = $runId ?? uniqid('workflow_');
+        $this->runId = $runId;
 
         $this->addGlobalMiddleware($this->globalMiddleware());
         foreach ($this->middleware() as $node => $middleware) {
@@ -182,9 +185,24 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this->persistence ??= new InMemoryPersistence();
     }
 
-    protected function persistence(): PersistenceInterface
+    /**
+     * Choose the codec this run's durable records are encoded with. The
+     * serializer must be stable across suspend/resume: a run's records are
+     * read back with the codec the workflow is configured with.
+     */
+    public function setSerializer(Serializer $serializer): static
     {
-        return $this->getPersistence();
+        $this->serializer = $serializer;
+        return $this;
+    }
+
+    /**
+     * The codec this run's durable records are encoded with. The workflow
+     * owns the choice; the executor reads it through the runtime contract.
+     */
+    public function getSerializer(): Serializer
+    {
+        return $this->serializer ??= new PhpSerializer();
     }
 
     /**
@@ -206,11 +224,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     public function getScheduler(): SchedulerInterface
     {
         return $this->scheduler ??= new NullScheduler();
-    }
-
-    protected function scheduler(): SchedulerInterface
-    {
-        return $this->getScheduler();
     }
 
     /**
@@ -356,7 +369,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             }
         } catch (Throwable $e) {
             $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->runId));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->runId ?? 'unresolved'));
             throw $e;
         }
 
@@ -367,9 +380,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $request = $state->getInterruptRequest();
 
         if ($request instanceof InterruptRequest) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->runId));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->runId ?? 'unresolved'));
         } else {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->runId));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->runId ?? 'unresolved'));
         }
 
         return $state;
@@ -596,11 +609,34 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * The unique identifier of this workflow run — also the resume handle: pass
-     * it back to the constructor to reattach to a suspended run.
+     * it back to the constructor to reattach to a suspended run. Null before
+     * the first run segment: identity is assigned by the executor, never
+     * defaulted at construction.
      */
-    public function getRunId(): string
+    public function getRunId(): ?string
     {
         return $this->runId;
+    }
+
+    /**
+     * Adopt the run identity resolved by the executor's identity phase
+     * (fresh → generated; continuation → explicit or resolved from the
+     * correlation pointer). Identity is assigned exactly once per run;
+     * later segments of the same instance keep it ("local state wins").
+     */
+    public function adoptRunId(string $runId): void
+    {
+        $this->runId = $runId;
+    }
+
+    /**
+     * The business/correlation key by which this run wants to be addressable
+     * (e.g. the Agent's threadId). Null by default — a plain workflow declares
+     * none and is unaffected by the correlation pointer.
+     */
+    public function correlationKey(): ?string
+    {
+        return null;
     }
 
     /**

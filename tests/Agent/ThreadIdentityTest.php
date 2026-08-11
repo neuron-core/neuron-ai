@@ -7,14 +7,17 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Workflow\Executor\Ignition;
-use NeuronAI\Workflow\Executor\StepResult;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
+use PDO;
 use PHPUnit\Framework\TestCase;
 
 class ThreadIdentityTest extends TestCase
@@ -26,119 +29,82 @@ class ThreadIdentityTest extends TestCase
     protected function retainingPersistence(): PersistenceInterface
     {
         return new class () implements PersistenceInterface {
-            /** @var array<string, array<string, StepResult>> */
+            /** @var array<string, array<string, string>> */
             public array $storage = [];
 
-            public function save(string $runId, string $stepId, StepResult $result): void
+            public function put(string $partition, string $key, string $value): void
             {
-                $this->storage[$runId][$stepId] = $result;
+                $this->storage[$partition][$key] = $value;
             }
 
-            public function load(string $runId, string $stepId): ?StepResult
+            public function get(string $partition, string $key): ?string
             {
-                return $this->storage[$runId][$stepId] ?? null;
+                return $this->storage[$partition][$key] ?? null;
             }
 
-            public function delete(string $runId): void
+            public function delete(string $partition): void
             {
-                // Keep the steps: tests replay and inspect after completion.
+                // Keep the records: tests replay and inspect after completion.
             }
         };
     }
 
-    public function test_history_resolver_fires_once_on_wake_with_the_ignition_thread_id(): void
+    public function test_unbound_history_is_bound_on_wake_from_the_ignition_record(): void
     {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
         $persistence = $this->retainingPersistence();
 
-        // Ignition: concrete history carries the identity into the ignition record.
-        $first = Agent::make(runId: 'resolver_wake_test');
+        // Ignition: explicit identity, unbound history — the agent binds it.
+        $first = Agent::make(runId: 'binding_wake_test', threadId: 'thread-1');
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
-        $first->setChatHistory(new InMemoryChatHistory('thread-1'));
+        $first->setChatHistory(new SQLChatHistory($pdo));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Wake: a BLANK factory — runId only, history resolver wired. The
-        // threadId arrives via the adopted ignition context and fires the
-        // resolver exactly once.
-        $calls = [];
-        $second = Agent::make(runId: 'resolver_wake_test');
+        // Wake: a BLANK process — runId only, another unbound history. The
+        // threadId arrives via the adopted ignition context and is bound
+        // into the history before any message is touched.
+        $second = Agent::make(runId: 'binding_wake_test');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
-        $second->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
-            $calls[] = $threadId;
-            return new InMemoryChatHistory($threadId);
-        });
+        $second->setChatHistory(new SQLChatHistory($pdo));
 
         $second->run();
 
-        $this->assertSame(['thread-1'], $calls);
+        $this->assertSame('thread-1', $second->getThreadId());
         $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
+        $this->assertNotEmpty($second->getChatHistory()->getMessages());
     }
 
-    public function test_channel_resolver_materializes_from_the_history_identity(): void
+    public function test_explicit_identity_binds_an_unbound_history_at_the_setter(): void
     {
-        $calls = [];
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
 
-        $agent = Agent::make();
-        $agent->setChatHistory(new InMemoryChatHistory('thread-3'));
-        $agent->setChannel(function (string $threadId) use (&$calls): FakeChannel {
-            $calls[] = $threadId;
-            return new FakeChannel();
-        });
+        $agent = Agent::make(threadId: 'thread-4');
+        $agent->setChatHistory(new SQLChatHistory($pdo));
 
-        $this->assertSame(['thread-3'], $calls);
+        $this->assertSame('thread-4', $agent->getChatHistory()->getThreadId());
     }
 
-    public function test_history_resolver_pending_on_a_fresh_run_fails_loud(): void
+    public function test_pre_bound_history_still_declares_identity(): void
     {
-        $agent = Agent::make();
-        $agent->setChatHistory(fn (string $threadId): ChatHistoryInterface => new InMemoryChatHistory($threadId));
-
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('A chat history resolver can only be resolved on a resume');
-
-        $agent->getChatHistory();
-    }
-
-    public function test_concrete_history_clears_a_pending_resolver(): void
-    {
-        $calls = [];
         $concrete = new InMemoryChatHistory('thread-4');
 
         $agent = Agent::make();
-        $agent->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
-            $calls[] = $threadId;
-            return new InMemoryChatHistory();
-        });
         $agent->setChatHistory($concrete);
 
         $this->assertSame($concrete, $agent->getChatHistory());
-        $this->assertSame([], $calls);
-    }
-
-    public function test_resolver_returning_the_wrong_type_fails_loud(): void
-    {
-        $persistence = $this->retainingPersistence();
-
-        $first = Agent::make(runId: 'wrong_type_test');
-        $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
-            ->setInstructions('test');
-        $first->setPersistence($persistence);
-        $first->setChatHistory(new InMemoryChatHistory('thread-5'));
-        $first->chat(new UserMessage('hello'))->getMessage();
-
-        $second = Agent::make(runId: 'wrong_type_test');
-        $second->setAiProvider(new FakeAIProvider());
-        $second->setInstructions('test');
-        $second->setPersistence($persistence);
-        $second->setChatHistory(fn (string $threadId): string => $threadId);
-
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('The chat history resolver must return a');
-
-        $second->run();
+        $this->assertSame('thread-4', $agent->getThreadId());
     }
 
     public function test_thread_id_is_recorded_in_the_ignition_context(): void
@@ -153,10 +119,10 @@ class ThreadIdentityTest extends TestCase
 
         $agent->chat(new UserMessage('hello'))->getMessage();
 
-        $record = $persistence->load('thread_ignition_test', '__ignition');
-        $this->assertInstanceOf(StepResult::class, $record);
+        $record = $persistence->get('thread_ignition_test', '__ignition');
+        $this->assertNotNull($record);
 
-        $ignition = $record->getOutput();
+        $ignition = (new PhpSerializer())->unserialize($record);
         $this->assertInstanceOf(Ignition::class, $ignition);
         $this->assertSame(['threadId' => 'thread-42'], $ignition->context);
     }
@@ -172,22 +138,180 @@ class ThreadIdentityTest extends TestCase
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Blank instance: resolver wired, runId only — the threadId arrives
-        // via the adopted ignition context, never set by the caller.
-        $calls = [];
+        // Blank instance: unbound history, runId only — the threadId arrives
+        // via the adopted ignition context and is bound by the framework,
+        // never set by the caller.
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
         $second = Agent::make(runId: 'thread_adoption_test');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
-        $second->setChatHistory(function (string $threadId) use (&$calls): ChatHistoryInterface {
-            $calls[] = $threadId;
-            return new InMemoryChatHistory($threadId);
-        });
+        $second->setChatHistory(new SQLChatHistory($pdo));
 
         $state = $second->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-42', $second->getChatHistory()->getThreadId());
-        $this->assertSame(['thread-42'], $calls);
+    }
+
+    public function test_explicit_thread_id_with_an_unbound_history_on_a_fresh_run(): void
+    {
+        // The binding model's payoff: identity stated once at the front door,
+        // never in wiring code — and the run ignites thread-addressable.
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
+        $persistence = new InMemoryPersistence();
+
+        $agent = Agent::make(threadId: 'thread-x');
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+        $agent->setPersistence($persistence);
+        $agent->setChatHistory(new SQLChatHistory($pdo));
+
+        $agent->chat(new UserMessage('hello'))->getMessage();
+
+        $this->assertSame('thread-x', $agent->getThreadId());
+        $this->assertSame('thread-x', $agent->getChatHistory()->getThreadId());
+        // The run ignited addressable by its thread.
+        $this->assertSame($agent->getRunId(), $persistence->get('__correlation', 'thread-x'));
+    }
+
+    public function test_explicit_thread_id_keys_the_default_history(): void
+    {
+        $agent = Agent::make(threadId: 'thread-default');
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+
+        $agent->chat(new UserMessage('hello'))->getMessage();
+
+        $this->assertSame('thread-default', $agent->getThreadId());
+        $this->assertSame('thread-default', $agent->getChatHistory()->getThreadId());
+    }
+
+    public function test_conflicting_concrete_history_throws(): void
+    {
+        $agent = Agent::make(threadId: 'thread-a');
+
+        $this->expectException(AgentException::class);
+        $this->expectExceptionMessage('Conflicting thread identity');
+
+        $agent->setChatHistory(new InMemoryChatHistory('thread-b'));
+    }
+
+    public function test_matching_concrete_history_is_fine(): void
+    {
+        $agent = Agent::make(threadId: 'thread-a');
+        $agent->setChatHistory(new InMemoryChatHistory('thread-a'));
+
+        $this->assertSame('thread-a', $agent->getThreadId());
+    }
+
+    public function test_conflicting_ignition_identity_on_resume_throws(): void
+    {
+        $persistence = $this->retainingPersistence();
+
+        $first = Agent::make(runId: 'thread_conflict_test');
+        $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+        $first->setPersistence($persistence);
+        $first->setChatHistory(new InMemoryChatHistory('thread-42'));
+        $first->chat(new UserMessage('hello'))->getMessage();
+
+        // A mis-addressed continuation: the caller claims another thread's
+        // identity for this runId. The record contradicts it — throw.
+        $second = Agent::make(runId: 'thread_conflict_test', threadId: 'thread-other');
+        $second->setAiProvider(new FakeAIProvider());
+        $second->setInstructions('test');
+        $second->setPersistence($persistence);
+
+        $this->expectException(AgentException::class);
+        $this->expectExceptionMessage('Conflicting thread identity');
+
+        $second->run();
+    }
+
+    public function test_anonymous_run_adopts_the_default_history_self_key(): void
+    {
+        // No explicit identity anywhere: the in-memory default self-keys (its
+        // own storage detail) and that key is adopted at first need — the
+        // framework itself never fabricates an identity.
+        $agent = Agent::make();
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+
+        $agent->chat(new UserMessage('hello'))->getMessage();
+
+        $this->assertNotNull($agent->getThreadId());
+        $this->assertSame($agent->getChatHistory()->getThreadId(), $agent->getThreadId());
+    }
+
+    public function test_thread_id_is_null_while_nothing_declared_an_identity(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
+
+        $agent = Agent::make();
+        $agent->setChatHistory(new SQLChatHistory($pdo));
+
+        // No explicit id, an unbound history: identity is not resolvable —
+        // null, not an exception and not a fabricated id.
+        $this->assertNull($agent->getThreadId());
+    }
+
+    public function test_identity_reading_hook_is_harmless(): void
+    {
+        // getThreadId() is a pure read, so a hook may consult it freely: on
+        // an anonymous run it sees null (the in-memory default self-keys);
+        // with an explicit identity it sees the declared thread.
+        $anonymous = new class () extends Agent {
+            protected function chatHistory(): ChatHistoryInterface
+            {
+                return new InMemoryChatHistory($this->getThreadId());
+            }
+        };
+        $this->assertNotNull($anonymous->getChatHistory()->getThreadId());
+
+        $declared = new class (threadId: 'thread-read') extends Agent {
+            protected function chatHistory(): ChatHistoryInterface
+            {
+                return new InMemoryChatHistory($this->getThreadId());
+            }
+        };
+        $this->assertSame('thread-read', $declared->getChatHistory()->getThreadId());
+    }
+
+    public function test_identity_free_hook_history_is_bound_by_the_framework(): void
+    {
+        // The recommended pattern: the hook constructs the history WITHOUT
+        // identity; the framework binds the resolved thread into it.
+        $agent = new class (threadId: 'thread-hook') extends Agent {
+            protected function chatHistory(): ChatHistoryInterface
+            {
+                $pdo = new PDO('sqlite::memory:');
+                $pdo->exec('CREATE TABLE chat_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id TEXT, role TEXT, content TEXT, meta TEXT
+                )');
+
+                return new SQLChatHistory($pdo);
+            }
+        };
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
+            ->setInstructions('test');
+
+        $agent->chat(new UserMessage('hello'))->getMessage();
+
+        $this->assertSame('thread-hook', $agent->getChatHistory()->getThreadId());
+        $this->assertSame('thread-hook', $agent->getThreadId());
     }
 }

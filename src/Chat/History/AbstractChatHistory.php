@@ -49,16 +49,80 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected array $history = [];
 
     /**
-     * Declared abstract here: the base holds no identity. Each concrete backend
-     * returns its own (a constructor arg for the durable backends, a generated
-     * id for InMemoryChatHistory).
+     * The conversation this history is bound to. Null until bound: histories
+     * are constructible without their thread (the Agent binds the resolved
+     * identity itself), or pre-bound via a constructor argument.
      */
-    abstract public function getThreadId(): string;
+    protected ?string $threadId = null;
+
+    /**
+     * Loading is deferred to first use, so a history can exist before its
+     * thread is known. Flipped by ensureLoaded() exactly once.
+     */
+    protected bool $loaded = false;
 
     public function __construct(
         protected int $contextWindow = 50000,
         protected HistoryTrimmerInterface $trimmer = new HistoryTrimmer()
     ) {
+    }
+
+    /**
+     * @throws ChatHistoryException when re-binding to a different thread.
+     */
+    public function setThreadId(string $threadId): void
+    {
+        if ($this->threadId !== null && $this->threadId !== $threadId) {
+            throw new ChatHistoryException(
+                "This chat history is bound to thread '{$this->threadId}' and cannot be re-pointed to '{$threadId}'."
+            );
+        }
+
+        $this->threadId = $threadId;
+    }
+
+    public function getThreadId(): ?string
+    {
+        return $this->threadId;
+    }
+
+    /**
+     * The bound thread, demanded: backends call this wherever storage is
+     * touched, so using a thread-scoped history that was never bound fails
+     * loudly instead of reading or writing a wrong conversation.
+     *
+     * @throws ChatHistoryException
+     */
+    protected function requireThreadId(): string
+    {
+        return $this->threadId ?? throw new ChatHistoryException(
+            'This chat history is thread-scoped and no thread identity was given: '
+            . 'pass threadId: to Agent::make(), or bind it via setThreadId().'
+        );
+    }
+
+    /**
+     * Load the thread on first access. Deferring the load out of the
+     * constructor is what makes identity-free construction possible — the
+     * Agent binds the thread before any message is read or written.
+     */
+    protected function ensureLoaded(): void
+    {
+        if ($this->loaded) {
+            return;
+        }
+
+        $this->loaded = true;
+        $this->loadThread();
+    }
+
+    /**
+     * Backend hook: read the bound thread's messages into $this->history.
+     * No-op by default (in-memory); durable backends override it with their
+     * storage read, guarded by requireThreadId().
+     */
+    protected function loadThread(): void
+    {
     }
 
     /**
@@ -89,6 +153,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function addMessage(Message $message): ChatHistoryInterface
     {
+        $this->ensureLoaded();
+
         $this->history[] = $message;
 
         $this->trimHistory();
@@ -117,6 +183,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function getMessages(): array
     {
+        $this->ensureLoaded();
+
         return $this->history;
     }
 
@@ -125,6 +193,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     public function getLastMessage(): Message
     {
+        $this->ensureLoaded();
+
         $message = end($this->history);
 
         if ($message === false) {
@@ -136,6 +206,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
 
     public function flushAll(): ChatHistoryInterface
     {
+        $this->ensureLoaded();
+
         $this->clear();
         $this->history = [];
         return $this;

@@ -168,10 +168,9 @@ $agent->parallelToolCalls(true);
 
 ```php
 // Improve retrieval quality
-$rag->addPostProcessor(new RerankProcessor(
-    reranker: new CohereReranker($apiKey),
-    topK: 5
-));
+$rag->setPostProcessors([
+    new CohereRerankerPostProcessor(key: $apiKey, topN: 5),
+]);
 
 // Better system prompt
 protected function instructions(): string

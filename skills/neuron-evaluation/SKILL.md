@@ -161,11 +161,11 @@ Check string similarity using embeddings:
 
 ```php
 use NeuronAI\Evaluation\Assertions\StringSimilarity;
-use NeuronAI\RAG\Embeddings\OpenAI\OpenAIEmbeddings;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 
 $this->assert(new StringSimilarity(
     reference: 'The quick brown fox',
-    embeddingsProvider: new OpenAIEmbeddings(key: 'YOUR_KEY'),
+    embeddingsProvider: new OpenAIEmbeddingsProvider(key: 'YOUR_KEY', model: 'text-embedding-3-small'),
     threshold: 0.6
 ), $output);
 ```

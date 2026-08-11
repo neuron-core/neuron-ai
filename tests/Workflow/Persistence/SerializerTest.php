@@ -34,6 +34,7 @@ final class SerializerTest extends TestCase
 
         $restored = $serializer->unserialize($serializer->serialize($result));
 
+        Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
         Assert::assertSame(['summary' => 'memoized LLM output'], $restored->getOutput());
         Assert::assertTrue($restored->isFailed());
@@ -51,6 +52,7 @@ final class SerializerTest extends TestCase
 
         $restored = $serializer->unserialize($serializer->serialize($result));
 
+        Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
         Assert::assertSame(['summary' => 'memoized LLM output'], $restored->getOutput());
         Assert::assertTrue($restored->isFailed());

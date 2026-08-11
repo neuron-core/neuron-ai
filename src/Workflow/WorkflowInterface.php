@@ -65,9 +65,10 @@ interface WorkflowInterface
 
     /**
      * The unique identifier of this workflow run — also the resume handle: pass
-     * it back to the constructor to reattach to a suspended run.
+     * it back to the constructor to reattach to a suspended run. Null before
+     * the first run segment: identity is assigned by the executor.
      */
-    public function getRunId(): string;
+    public function getRunId(): ?string;
 
     /**
      * @deprecated Use subscribe() with a PSR-14 listener instead. Will be

@@ -16,6 +16,7 @@ use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 
 class StructuredOutputNodeTest extends TestCase
@@ -109,7 +110,7 @@ class StructuredOutputNodeTest extends TestCase
         $event->setMessages(new UserMessage('Generate a user'));
 
         $node1 = new StructuredOutputNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
 
         $firstReturn = $node1($event, $state);
 
@@ -124,7 +125,7 @@ class StructuredOutputNodeTest extends TestCase
         $state2->set('__runId', $runId);
 
         $node2 = new StructuredOutputNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
 
         $secondReturn = $node2($event, $state2);
 

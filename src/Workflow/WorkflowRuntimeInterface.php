@@ -8,6 +8,7 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\Serializer;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -60,9 +61,25 @@ interface WorkflowRuntimeInterface
 
     /**
      * The unique identifier of this workflow run — the persistence namespace
-     * the engine stores steps under.
+     * the engine stores steps under. Null until the executor's identity phase
+     * assigns it (an explicit id, a generated one, or one resolved from the
+     * correlation pointer).
      */
-    public function getRunId(): string;
+    public function getRunId(): ?string;
+
+    /**
+     * Adopt the run identity resolved by the executor's identity phase.
+     */
+    public function adoptRunId(string $runId): void;
+
+    /**
+     * The business/correlation key by which this run wants to be addressable
+     * (e.g. the Agent's threadId), or null when the workflow declares none —
+     * or when the key's source is not yet available (a pending resolver).
+     * Read at ignition (to bind the pointer), at continuation (to look the
+     * run up), and at completion (to release the pointer).
+     */
+    public function correlationKey(): ?string;
 
     /**
      * The PSR-14 dispatcher the engine emits observability events through.
@@ -91,6 +108,14 @@ interface WorkflowRuntimeInterface
      * completion.
      */
     public function getScheduler(): SchedulerInterface;
+
+    /**
+     * The codec this run's durable records are encoded with. The workflow
+     * owns the choice (like persistence and scheduler); the executor reads
+     * it here and performs all record serialization itself — backends store
+     * opaque strings.
+     */
+    public function getSerializer(): Serializer;
 
     /**
      * Prepare the definition for traversal (load the event-node map,

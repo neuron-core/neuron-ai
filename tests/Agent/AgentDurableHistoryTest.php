@@ -15,16 +15,15 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
-use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
 use function glob;
 use function is_dir;
 use function rmdir;
-use function serialize;
 use function strlen;
 use function sys_get_temp_dir;
 use function unlink;
@@ -59,7 +58,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent = Agent::make(runId: 'sql_history_test');
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
-        $agent->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
+        $agent->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent->setPersistence(new FilePersistence($dir));
 
         $message = $agent->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -87,23 +86,23 @@ class AgentDurableHistoryTest extends TestCase
         $recorder = new class () implements PersistenceInterface {
             /** @var array<string, int> */
             public array $blobSizes = [];
-            /** @var array<string, array<string, StepResult>> */
+            /** @var array<string, array<string, string>> */
             protected array $storage = [];
 
-            public function save(string $runId, string $stepId, StepResult $result): void
+            public function put(string $partition, string $key, string $value): void
             {
-                $this->blobSizes[$stepId] = strlen(serialize($result));
-                $this->storage[$runId][$stepId] = $result;
+                $this->blobSizes[$key] = strlen($value);
+                $this->storage[$partition][$key] = $value;
             }
 
-            public function load(string $runId, string $stepId): ?StepResult
+            public function get(string $partition, string $key): ?string
             {
-                return $this->storage[$runId][$stepId] ?? null;
+                return $this->storage[$partition][$key] ?? null;
             }
 
-            public function delete(string $runId): void
+            public function delete(string $partition): void
             {
-                unset($this->storage[$runId]);
+                unset($this->storage[$partition]);
             }
         };
 
@@ -186,14 +185,14 @@ class AgentDurableHistoryTest extends TestCase
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         $node1($event, $state1);
 
         $this->assertCount(2, $chatHistory->getMessages());
 
         $state2 = new \NeuronAI\Agent\AgentState();
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         $node2($event, $state2);
 
         $messages = $chatHistory->getMessages();
@@ -229,7 +228,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent1 = Agent::make(runId: $runId);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
+        $agent1->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent1->setPersistence(new FilePersistence($dir));
 
         $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -238,13 +237,13 @@ class AgentDurableHistoryTest extends TestCase
 
         $tail = $agent1->getChatHistory()->getLastMessage();
         $this->assertInstanceOf(ToolCallMessage::class, $tail);
-        $this->assertSame($runId, $tail->getRunId());
 
-        // Fresh agent on the same thread: the resume token is adopted from the history tail (ADR 0005).
+        // Fresh agent on the same thread: the run is addressed by the thread's
+        // correlation pointer — no runId is passed.
         $agent2 = Agent::make();
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setChatHistory(new SQLChatHistory('thread-1', $pdo, table: 'chat_messages'));
+        $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
         $message = $agent2->resume(['call_1' => 'approve'])->getMessage();

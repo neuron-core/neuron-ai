@@ -22,7 +22,6 @@ use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
@@ -125,29 +124,29 @@ class ToolResolutionTest extends TestCase
 
         // Step store that survives run completion and can forget single steps.
         $persistence = new class () implements PersistenceInterface {
-            /** @var array<string, array<string, StepResult>> */
+            /** @var array<string, array<string, string>> */
             public array $storage = [];
 
-            public function save(string $runId, string $stepId, StepResult $result): void
+            public function put(string $partition, string $key, string $value): void
             {
-                $this->storage[$runId][$stepId] = $result;
+                $this->storage[$partition][$key] = $value;
             }
 
-            public function load(string $runId, string $stepId): ?StepResult
+            public function get(string $partition, string $key): ?string
             {
-                return $this->storage[$runId][$stepId] ?? null;
+                return $this->storage[$partition][$key] ?? null;
             }
 
-            public function delete(string $runId): void
+            public function delete(string $partition): void
             {
-                // Keep the steps: this test replays a "crashed" run.
+                // Keep the records: this test replays a "crashed" run.
             }
 
-            public function forgetByPrefix(string $runId, string $prefix): void
+            public function forgetByPrefix(string $partition, string $prefix): void
             {
-                foreach ($this->storage[$runId] ?? [] as $stepId => $result) {
-                    if (str_starts_with($stepId, $prefix)) {
-                        unset($this->storage[$runId][$stepId]);
+                foreach ($this->storage[$partition] ?? [] as $key => $value) {
+                    if (str_starts_with($key, $prefix)) {
+                        unset($this->storage[$partition][$key]);
                     }
                 }
             }

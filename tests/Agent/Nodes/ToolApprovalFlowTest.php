@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -117,12 +118,6 @@ class ToolApprovalFlowTest extends TestCase
         ?array $payload = null,
         ?StepMemoizer $memoizer = null,
     ): AIInferenceEvent|WorkflowInterrupt {
-        // The executor injects the runId into state at boot; node-level tests
-        // seed it the same way (the gated flow stamps it fail-loud).
-        if ($state->get('__runId') === null) {
-            $state->set('__runId', 'approval_flow_test');
-        }
-
         $node->setWorkflowContext(new NodeContext($state, $event, $payload, false, $memoizer));
 
         $generator = $node($event, $state);
@@ -352,7 +347,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_cumulative_resume_partial_re_suspends_with_progress(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -389,7 +384,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_partial_decisions_are_not_remembered_across_resumes(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -428,7 +423,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_stale_approval_does_not_survive_on_reused_call_instances(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -464,7 +459,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_stale_rejection_does_not_survive_on_reused_call_instances(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -487,7 +482,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_complete_decision_set_executes_approved_and_stamps_rejected(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -519,7 +514,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_decision_overwrite_before_completeness(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -558,7 +553,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_unknown_call_id_in_payload_is_ignored(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')]);
         $state = new AgentState();
 
@@ -586,7 +581,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_non_gated_tools_are_untouched_by_the_settle(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $node = $this->node([$this->gatedTool('gated'), $this->plainTool('plain')]);
         $state = new AgentState();
 
@@ -606,21 +601,10 @@ class ToolApprovalFlowTest extends TestCase
         $this->assertSame('executed', $plainCall->getResult());
     }
 
-    public function test_run_id_is_stamped_from_state(): void
-    {
-        $node = $this->node([$this->gatedTool('a')]);
-        $state = new AgentState();
-        $state->set('__runId', 'workflow_current_1');
-
-        $this->assertSuspends($node, $this->createToolCallEvent([ToolCall::make('a', 'call_a')]), $state);
-
-        $this->assertSame('workflow_current_1', $this->lastToolCall($node)->getRunId());
-    }
-
     public function test_history_write_happens_once_across_suspend_and_resume(): void
     {
         $store = $this->stepStore();
-        $memoizer = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $memoizer = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $history = new InMemoryChatHistory();
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')], $history);
         $state = new AgentState();
@@ -667,7 +651,7 @@ class ToolApprovalFlowTest extends TestCase
         $node = $this->node([$this->gatedTool('first'), $this->gatedTool('second')], $history);
         $state = new AgentState();
 
-        $firstCycle = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-1');
+        $firstCycle = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-1');
         $this->assertSuspends(
             $node,
             $this->createToolCallEvent([ToolCall::make('first', 'call_1')]),
@@ -682,7 +666,7 @@ class ToolApprovalFlowTest extends TestCase
             memoizer: $firstCycle
         );
 
-        $secondCycle = new StepMemoizer($store, 'approval_flow_test', 'ToolNode-3');
+        $secondCycle = new StepMemoizer($store, new PhpSerializer(), 'approval_flow_test', 'ToolNode-3');
         $this->assertSuspends(
             $node,
             $this->createToolCallEvent([ToolCall::make('second', 'call_2')]),

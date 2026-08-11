@@ -196,8 +196,9 @@ public function handle(AgentState $state): void { /* ... */ }
   (`getMessage()`, `isInterrupted()`, `getInterruptRequest()`). Code that already chained
   off the result of `chat()` (e.g. `->getMessage()`) keeps working.
 - `structured()` is unchanged — it still returns the typed output directly.
-- The runId-adoption behavior on `resume()` (ADR 0005) is unchanged — a `resume()` with no
-  explicit runId still adopts it from the chat-history tail.
+- Thread-first `resume()` is unchanged by this step — a `resume()` with no explicit runId
+  still finds the run from the thread alone. (Guide 14 replaces the mechanism behind it:
+  the chat-history tail stamp becomes a correlation pointer in workflow persistence.)
 - The on-disk chat history format, persistence backends, and the approval flow are
   unaffected. This step only changes the Agent's public verb layer and its consumers.
 

@@ -26,12 +26,12 @@ class FileDeleteTool extends Tool
         ];
     }
 
-    // The tool declares its own risk (ADR 0004): with a bare ToolApproval()
-    // each tool decides for itself. Returning a string counts as "true" and
-    // doubles as the approval reason shown to the approver.
-    // Middleware config (e.g. new ToolApproval([FileDeleteTool::class]))
-    // overrides this declaration in both directions.
-    public function requiresApproval(array $inputs): bool|string
+    // The tool declares its own intrinsic risk via the protected hook.
+    // Returning a string counts as "true" and doubles as the approval reason
+    // shown to the approver. Attach-time config (requireApproval(),
+    // suppressApproval(), withApprovalPolicy()) overrides this declaration
+    // in both directions.
+    protected function approvalPolicy(array $inputs): bool|string
     {
         return 'Deleting a file is irreversible';
     }
@@ -47,9 +47,11 @@ echo "-------------------------------------------------------------------\n\n";
 
 /*
  * The agent is rebuilt on every execution cycle from the only identity the
- * application owns: the chat thread. The durable chat history is the system
- * of record for the suspension — pending tools, decisions, AND the runId
- * (ADR 0005) — so no runId needs to be stored anywhere by the application.
+ * application owns: the chat thread. The thread IS the address of the run —
+ * the engine binds threadId → runId in workflow persistence when the run
+ * ignites, so a blank agent holding only the thread finds the suspended run.
+ * No runId is stored anywhere by the application. The durable chat history
+ * carries the suspension's conversation side (pending tools, decisions).
  */
 $makeAgent = fn (): Agent => Agent::make()
     ->setPersistence(new FilePersistence(__DIR__))
@@ -82,11 +84,12 @@ while ($state->isInterrupted()) {
 
     $approvalRequest = $state->getInterruptRequest();
 
-    // The suspension is fully recorded in chat history: the annotated tool
-    // call message carries the approval states and the runId.
+    // The suspension is recorded in chat history as conversation: the annotated
+    // tool call message carries the pending approval states, which is what lets
+    // a cold process RENDER the pending approvals without booting a workflow.
     $tail = $agent->getChatHistory()->getLastMessage();
     if ($tail instanceof ToolCallMessage) {
-        echo "Run ID (stored in chat history): {$tail->getRunId()}\n";
+        echo "Pending tool calls on the thread: " . \count($tail->getToolCalls()) . "\n";
     }
 
     echo "Message: {$approvalRequest->getMessage()}\n\n";
@@ -115,9 +118,9 @@ while ($state->isInterrupted()) {
 
     /*
      * Imagine a new execution cycle starts here (e.g. the approve/deny HTTP
-     * endpoint): rebuild the agent from the thread alone and deliver the
-     * payload. The runId is adopted from the chat history tail —
-     * nothing else to store, nothing else to pass.
+     * endpoint): rebuild the agent from the thread alone — NO runId — and
+     * deliver the payload. The engine resolves the thread's correlation
+     * pointer to the suspended run. Nothing else to store, nothing else to pass.
      */
     echo "\nResuming workflow...\n\n";
 

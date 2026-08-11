@@ -52,7 +52,7 @@ class SQLChatHistoryTest extends TestCase
 
         $this->threadId = uniqid('test-thread-');
 
-        $this->history = new SQLChatHistory($this->threadId, $this->pdo);
+        $this->history = new SQLChatHistory($this->pdo, $this->threadId);
     }
 
     protected function tearDown(): void
@@ -100,7 +100,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new AssistantMessage('Second message'));
 
         // Create a new instance with the same thread_id
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -112,7 +112,7 @@ class SQLChatHistoryTest extends TestCase
     public function test_truncates_history_when_low_context_window_exceeded(): void
     {
         // Create history with small context window
-        $smallHistory = new SQLChatHistory(thread_id: $this->threadId, pdo: $this->pdo, contextWindow: 100);
+        $smallHistory = new SQLChatHistory(pdo: $this->pdo, threadId: $this->threadId, contextWindow: 100);
 
         // Add many messages to exceed context window
         for ($i = 1; $i <= 20; $i++) {
@@ -189,7 +189,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(3, $messages);
@@ -212,7 +212,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage($message);
 
         // Load from database
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(1, $messages);
@@ -229,7 +229,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new UserMessage('Hello'));
         $this->history->addMessage((new AssistantMessage('Hi!'))->setUsage(new Usage(100, 50)));
 
-        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(2, $messages);
@@ -244,7 +244,7 @@ class SQLChatHistoryTest extends TestCase
         $this->expectException(ChatHistoryException::class);
         $this->expectExceptionMessage('Table not allowed');
 
-        new SQLChatHistory('test-thread', $this->pdo, table: 'nonexistent_table');
+        new SQLChatHistory($this->pdo, 'test-thread', table: 'nonexistent_table');
     }
 
     public function test_multiple_threads_are_isolated(): void
@@ -252,8 +252,8 @@ class SQLChatHistoryTest extends TestCase
         $thread1 = 'thread-1-' . uniqid();
         $thread2 = 'thread-2-' . uniqid();
 
-        $history1 = new SQLChatHistory($thread1, $this->pdo);
-        $history2 = new SQLChatHistory($thread2, $this->pdo);
+        $history1 = new SQLChatHistory($this->pdo, $thread1);
+        $history2 = new SQLChatHistory($this->pdo, $thread2);
 
         $history1->addMessage(new UserMessage('Message in thread 1'));
         $history2->addMessage(new UserMessage('Message in thread 2'));
@@ -262,8 +262,8 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(1, $history2->getMessages());
 
         // Reload and verify isolation
-        $reloaded1 = new SQLChatHistory($thread1, $this->pdo);
-        $reloaded2 = new SQLChatHistory($thread2, $this->pdo);
+        $reloaded1 = new SQLChatHistory($this->pdo, $thread1);
+        $reloaded2 = new SQLChatHistory($this->pdo, $thread2);
 
         $this->assertEquals('Message in thread 1', $reloaded1->getMessages()[0]->getContent());
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());

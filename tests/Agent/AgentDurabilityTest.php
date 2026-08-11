@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -105,7 +106,7 @@ class AgentDurabilityTest extends TestCase
         $state1 = new AgentState();
         $state1->set('__runId', $runId);
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         $node1($event, $state1);
 
         $this->assertSame(1, $provider->getCallCount());
@@ -115,7 +116,7 @@ class AgentDurabilityTest extends TestCase
         $state2 = new AgentState();
         $state2->set('__runId', $runId);
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         $node2($event, $state2);
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
@@ -186,7 +187,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($persistence->load($runId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
+        $this->assertNull($persistence->get($runId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
     }
 
     public function testApprovalGateRejectsTool(): void
@@ -260,7 +261,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $provider->getCallCount());
 
         // Steps should be cleaned up after successful completion
-        $this->assertNull($persistence->load($runId, ChatNode::class . '-0'));
+        $this->assertNull($persistence->get($runId, ChatNode::class . '-0'));
     }
 
     public function testInterruptResumeWithFilePersistence(): void
@@ -282,7 +283,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame('Hello!', $message->getContent());
 
         // After successful completion, persistence file should be deleted
-        $this->assertFileDoesNotExist($dir . '/' . $runId . '.workflow');
+        $this->assertFileDoesNotExist($dir . '/' . $runId . '.store');
 
         $this->removeDirectory($dir);
     }

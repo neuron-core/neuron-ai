@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Executor\StepResult;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -19,6 +18,10 @@ use function mkdir;
 use const DIRECTORY_SEPARATOR;
 use const JSON_PRETTY_PRINT;
 
+/**
+ * One file per partition in the configured directory (`<partition>.store`),
+ * containing a JSON map of key => value strings.
+ */
 class FilePersistence implements PersistenceInterface
 {
     /** @var array<string, array<string, string>> */
@@ -26,38 +29,31 @@ class FilePersistence implements PersistenceInterface
 
     public function __construct(
         protected string $directory,
-        protected Serializer $serializer = new PhpSerializer(),
     ) {
         if (!is_dir($this->directory) && !mkdir($this->directory, 0o755, true)) {
             throw new WorkflowException("Unable to create directory '{$this->directory}'");
         }
     }
 
-    public function save(string $runId, string $stepId, StepResult $result): void
+    public function put(string $partition, string $key, string $value): void
     {
-        $data = $this->getData($runId);
-        $data[$stepId] = $this->serializer->serialize($result);
-        $this->cache[$runId] = $data;
+        $data = $this->getData($partition);
+        $data[$key] = $value;
+        $this->cache[$partition] = $data;
 
-        file_put_contents($this->filePath($runId), json_encode($data, JSON_PRETTY_PRINT));
+        file_put_contents($this->filePath($partition), json_encode($data, JSON_PRETTY_PRINT));
     }
 
-    public function load(string $runId, string $stepId): ?StepResult
+    public function get(string $partition, string $key): ?string
     {
-        $data = $this->getData($runId);
-
-        if (!isset($data[$stepId])) {
-            return null;
-        }
-
-        return $this->serializer->unserialize($data[$stepId]);
+        return $this->getData($partition)[$key] ?? null;
     }
 
-    public function delete(string $runId): void
+    public function delete(string $partition): void
     {
-        unset($this->cache[$runId]);
+        unset($this->cache[$partition]);
 
-        $path = $this->filePath($runId);
+        $path = $this->filePath($partition);
 
         if (is_file($path)) {
             unlink($path);
@@ -65,9 +61,9 @@ class FilePersistence implements PersistenceInterface
     }
 
     /** @return array<string, string> */
-    protected function getData(string $runId): array
+    protected function getData(string $partition): array
     {
-        return $this->cache[$runId] ?? $this->cache[$runId] = $this->readFile($this->filePath($runId));
+        return $this->cache[$partition] ?? $this->cache[$partition] = $this->readFile($this->filePath($partition));
     }
 
     /** @return array<string, string> */
@@ -80,8 +76,8 @@ class FilePersistence implements PersistenceInterface
         return json_decode(file_get_contents($path), true) ?? [];
     }
 
-    protected function filePath(string $runId): string
+    protected function filePath(string $partition): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $runId . '.workflow';
+        return $this->directory . DIRECTORY_SEPARATOR . $partition . '.store';
     }
 }

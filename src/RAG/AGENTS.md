@@ -7,7 +7,7 @@ Retrieval Augmented Generation. Extends Agent with document search.
 ## Architecture
 
 RAG extends Agent → inherits all Agent + Workflow capabilities (including
-`wake()`, thread identity, and the ignition record — see `src/Agent/AGENTS.md`).
+`resume()`, thread identity, and the ignition record — see `src/Agent/AGENTS.md`).
 
 RAG overrides `entryNodes()`: the retrieval chain replaces the Agent's
 `StartNode` as the entry chain, and RAG's inference event is born at its end,
@@ -44,7 +44,7 @@ Create a custom RAG class extending `RAG`:
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddings;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 use NeuronAI\RAG\RAG;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
@@ -61,7 +61,7 @@ class WorkoutTipsAgent extends RAG
 
     protected function embeddings(): EmbeddingsProviderInterface
     {
-        return new OpenAIEmbeddings(
+        return new OpenAIEmbeddingsProvider(
             key: env('OPENAI_API_KEY'),
             model: 'text-embedding-3-small',
         );
@@ -95,6 +95,8 @@ $response = WorkoutTipsAgent::make()->chat(
 | `TypesenseVectorStore` | Typesense |
 | `MeilisearchVectorStore` | Meilisearch |
 | `MongoDBVectorStore` | MongoDB Atlas Vector Search |
+| `MariaDBVectorStore` | MariaDB vectors |
+| `WeaviateVectorStore` | Weaviate |
 | `FileVectorStore` | Local file storage |
 | `MemoryVectorStore` | In-memory (testing) |
 
@@ -118,17 +120,21 @@ protected function vectorStore(): VectorStoreInterface
 
 | Provider | Service |
 |----------|---------|
-| `OpenAIEmbeddings` | OpenAI text-embedding |
-| `GeminiEmbeddings` | Google Gemini |
-| `OllamaEmbeddings` | Local Ollama |
-| `VoyageEmbeddings` | Voyage AI |
+| `OpenAIEmbeddingsProvider` | OpenAI text-embedding |
+| `GeminiEmbeddingsProvider` | Google Gemini |
+| `OllamaEmbeddingsProvider` | Local Ollama |
+| `VoyageEmbeddingsProvider` | Voyage AI |
+| `CohereEmbeddingsProvider` | Cohere |
+| `MistralEmbeddingsProvider` | Mistral |
+| `AwsBedrockEmbeddingsProvider` | AWS Bedrock |
+| `OpenAILikeEmbeddings` | Any OpenAI-compatible endpoint |
 
 ```php
-use NeuronAI\RAG\Embeddings\GeminiEmbeddings;
+use NeuronAI\RAG\Embeddings\GeminiEmbeddingsProvider;
 
 protected function embeddings(): EmbeddingsProviderInterface
 {
-    return new GeminiEmbeddings(
+    return new GeminiEmbeddingsProvider(
         key: env('GEMINI_API_KEY'),
         model: 'text-embedding-004',
     );
@@ -158,13 +164,13 @@ $documents = FileDataLoader::for('/path/to/documents')
 ## Retrieval Strategies (`Retrieval/`)
 
 ```php
-use NeuronAI\RAG\RAG\Retrieval\SimilarityRetrieval;
+use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
 
 protected function retrieval(): RetrievalInterface
 {
     return new SimilarityRetrieval(
-        vectorStore: $this->resolveVectorStore(),
-        embeddingsProvider: $this->resolveEmbeddingsProvider()
+        $this->resolveVectorStore(),
+        $this->resolveEmbeddingsProvider(),
     );
 }
 ```

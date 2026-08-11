@@ -19,6 +19,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 
 class MultimodalTool extends Tool
@@ -90,7 +91,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $inferenceEvent1 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event1 = new ToolCallEvent($toolCallMessage1, $inferenceEvent1);
         $node1 = new ToolNode(new InMemoryChatHistory());
-        $node1->setWorkflowContext(new NodeContext($state, $event1, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event1, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         foreach ($node1($event1, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
@@ -105,7 +106,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
         $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
         $node2 = new ToolNode(new InMemoryChatHistory());
-        $node2->setWorkflowContext(new NodeContext($state, $event2, null, false, new StepMemoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state, $event2, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
         foreach ($node2($event2, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }

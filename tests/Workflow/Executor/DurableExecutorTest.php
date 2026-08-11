@@ -13,7 +13,9 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -90,7 +92,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($state->get('step_a_executed'));
         $this->assertTrue($state->get('step_b_executed'));
         // Paused steps are retained for resume (cleanup only runs on completion)
-        $this->assertNotNull($persistence->load($runId, DurableNodeA::class . '-0'));
+        $this->assertNotNull($persistence->get($runId, DurableNodeA::class . '-0'));
 
         // Resume — deliver the payload (node B just checks isResuming()).
         CountableNode::resetExecutionCount();
@@ -129,9 +131,9 @@ class DurableExecutorTest extends TestCase
         $this->execute($workflow, $persistence);
 
         // Steps should be deleted after successful completion
-        $this->assertNull($persistence->load($runId, DurableNodeA::class . '-0'));
-        $this->assertNull($persistence->load($runId, DurableNodeB::class . '-1'));
-        $this->assertNull($persistence->load($runId, DurableNodeC::class . '-2'));
+        $this->assertNull($persistence->get($runId, DurableNodeA::class . '-0'));
+        $this->assertNull($persistence->get($runId, DurableNodeB::class . '-1'));
+        $this->assertNull($persistence->get($runId, DurableNodeC::class . '-2'));
     }
 
     public function testStepsNotCleanedUpAfterCrash(): void
@@ -151,7 +153,7 @@ class DurableExecutorTest extends TestCase
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException) {
             // After crash, completed steps should still be persisted
-            $this->assertNotNull($persistence->load($runId, DurableNodeA::class . '-0'));
+            $this->assertNotNull($persistence->get($runId, DurableNodeA::class . '-0'));
         }
     }
 
@@ -264,8 +266,10 @@ class DurableExecutorTest extends TestCase
         }
 
         // The crashed step leaves a failed marker, making the run observable.
-        $failed = $persistence->load($runId, MemoizingNode::class . '-0');
-        $this->assertNotNull($failed);
+        $raw = $persistence->get($runId, MemoizingNode::class . '-0');
+        $this->assertNotNull($raw);
+        $failed = (new PhpSerializer())->unserialize($raw);
+        $this->assertInstanceOf(StepResult::class, $failed);
         $this->assertTrue($failed->isFailed());
         $this->assertStringContainsString('Simulated crash', $failed->getError()['message']);
     }

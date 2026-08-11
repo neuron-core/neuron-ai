@@ -172,7 +172,8 @@ $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence($persistence);
 
-// The runId is adopted from the thread's suspended tail (ADR 0005), as before.
+// The run is addressed by the thread alone, as before. (The mechanism behind
+// that changes in guide 14: the tail stamp becomes a correlation pointer.)
 $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 

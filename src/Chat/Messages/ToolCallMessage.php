@@ -10,7 +10,6 @@ use Stringable;
 
 use function array_map;
 use function array_merge;
-use function is_string;
 use function json_encode;
 
 /**
@@ -37,42 +36,6 @@ class ToolCallMessage extends AssistantMessage implements Stringable
     public function getToolCalls(): array
     {
         return $this->tools;
-    }
-
-    /**
-     * The handle to reattach to the suspended run that produced this tool call
-     * (ADR 0005). Stamped by ToolNode's approval flow before suspending; an
-     * opaque string here — the Chat module knows nothing about workflows.
-     */
-    public function setRunId(string $runId): self
-    {
-        $this->addMetadata('run_id', $runId);
-
-        return $this;
-    }
-
-    public function getRunId(): ?string
-    {
-        // Histories stored before the runId rename carry the legacy key.
-        $runId = $this->getMetadata('run_id') ?? $this->getMetadata('resume_token');
-
-        return is_string($runId) ? $runId : null;
-    }
-
-    /**
-     * @deprecated Use setRunId() instead. Will be removed in the next major version.
-     */
-    public function setResumeToken(string $token): self
-    {
-        return $this->setRunId($token);
-    }
-
-    /**
-     * @deprecated Use getRunId() instead. Will be removed in the next major version.
-     */
-    public function getResumeToken(): ?string
-    {
-        return $this->getRunId();
     }
 
     public function jsonSerialize(): array

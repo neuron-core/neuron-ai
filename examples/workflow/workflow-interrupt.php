@@ -24,8 +24,9 @@ $workflow = Workflow::make()
 // returned state is marked interrupted — no exception is thrown to the caller.
 $state = $workflow->run();
 
-// The runId is auto-generated and available from the workflow instance — it is
-// also the handle to resume a suspended run.
+// The runId is assigned by the engine when the run starts, and readable from
+// the workflow instance afterwards — it is also the handle to resume a
+// suspended run.
 $runId = $workflow->getRunId();
 $approvalRequest = null;
 

@@ -55,12 +55,27 @@ protected no-op hook per primitive history mutation — append (`onNewMessage`),
 (`onTrimHistory`), clear (`clear`) — or ignore the granular hooks and rewrite the whole
 state via `setMessages()` (File, InMemory).
 
-**Identity**: `ChatHistoryInterface::getThreadId(): string` is the conversation's identity
-and the single source of truth the Agent reads back (ignition record, channel wiring)
-instead of holding its own copy. It is non-nullable — declared abstract in
-`AbstractChatHistory` (which holds no identity) and implemented by each backend: durable
-backends return their constructor arg (`thread_id` / `threadId` / `key`); `InMemoryChatHistory`
-accepts an optional `?string $threadId` and generates one via `uniqid()` when none is given.
+**Identity — histories are bound, not identity-constructed**:
+`ChatHistoryInterface::setThreadId(string)` / `getThreadId(): ?string` (null until
+bound). A history is thread-scoped by nature but constructible *without* its thread —
+loading is **lazy** (deferred to first read/write), so the Agent can bind the resolved
+identity into an unbound history before it is ever touched. The rules, implemented once
+in `AbstractChatHistory`:
+
+- `setThreadId()` is assign-once in effect: same id → no-op; a *different* id →
+  `ChatHistoryException` (re-pointing a conversation at another thread is never
+  legitimate).
+- A durable backend **used** while unbound throws loudly ("thread-scoped and no thread
+  identity was given") — never a silent read of a wrong, empty thread.
+- Constructor identity is optional and positioned after required dependencies
+  (`new SQLChatHistory($pdo, 'thread-1')`, `new EloquentChatHistory(Model::class, 't')`,
+  `new FileChatHistory($dir, 'key')`): passing it *pre-binds* the history, which the
+  Agent treats as an identity declaration (adoption). `InMemoryChatHistory` self-keys
+  via `uniqid()` when none is given (its own storage default, not framework identity
+  fabrication).
+
+The framework's thread identity lives on the **Agent** (`Agent::getThreadId()`, see
+`src/Agent/AGENTS.md`); the history's key is validated against it, never authoritative.
 
 ### Message alternation
 
@@ -76,8 +91,8 @@ storage. This is pure sequence validation, independent of tool approval; note th
 `addMessage()` always appends — the history has no update or replace operation, so a
 direct `ChatHistoryInterface` implementation that appends is fully conformant.
 Write-once convergence lives with the single writer, not the store: when approval-gated
-tools are present, `ToolNode` writes the annotated `ToolCallMessage` (pending states +
-runId) exactly once, through a durable memoized write, **before** any approval suspend —
+tools are present, `ToolNode` writes the annotated `ToolCallMessage` (pending states)
+exactly once, through a durable memoized write, **before** any approval suspend —
 a resume or crash-replay pass skips the write instead of duplicating the
 tail. With no gated tools nothing is written there at all: the call/result pair travels
 as the next inference's inbound messages and commits together only after that provider
@@ -109,13 +124,14 @@ rebuilds a plain `ToolOutput` through the shared content block deserializer, any
 else stays a string — so legacy stored histories deserialize unchanged (never carrying
 the marker, they come back as non-error).
 
-The suspended `ToolCallMessage` also carries a `run_id` metadata entry —
-the handle to reattach to the suspended run, exposed via
-`ToolCallMessage::getRunId(): ?string`. It is an opaque string here: the Chat module
-knows nothing about workflows. Stamped by `ToolNode` before an approval suspend, it makes
-chat history sufficient to *resume* an approval flow, not just render it. Histories stored
-before the rename carry the legacy `resume_token` key — `getRunId()` reads it as a fallback;
-histories with neither key deserialize it as `null`.
+Chat history carries **no execution identity**. A suspended `ToolCallMessage` records
+the pending approval snapshot — enough to *render* a pending approval from history
+alone — and nothing about the workflow run that produced it. Reattaching to that run is
+the engine's job: the Agent declares its threadId as the run's correlation key and
+workflow persistence holds the `threadId → runId` pointer (see
+`src/Workflow/AGENTS.md`). Old stored histories may still carry a `run_id` /
+`resume_token` metadata key; it deserializes into the generic metadata bag and is never
+read.
 
 ### History Trimming
 

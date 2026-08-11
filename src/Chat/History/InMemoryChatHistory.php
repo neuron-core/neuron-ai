@@ -9,14 +9,14 @@ use function uniqid;
 class InMemoryChatHistory extends AbstractChatHistory
 {
     public function __construct(
-        protected ?string $threadId = null,
+        ?string $threadId = null,
         int $contextWindow = 50000,
     ) {
         parent::__construct($contextWindow);
-    }
 
-    public function getThreadId(): string
-    {
-        return $this->threadId ??= uniqid('mem_', true);
+        // Always pre-bound: the self-generated key is this backend's own
+        // storage default (it is ephemeral and in-process), never a framework
+        // identity fabrication. The Agent adopts it like any pre-bound key.
+        $this->setThreadId($threadId ?? uniqid('mem_', true));
     }
 }

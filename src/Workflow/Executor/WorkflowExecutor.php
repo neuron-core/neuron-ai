@@ -26,6 +26,7 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\Serializer;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -56,14 +57,21 @@ use Throwable;
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
     /**
-     * Reserved id under which the ignition record rides the step store: the
-     * envelope reuses the same persistence backend and serializer pipe as
-     * every step, and is swept with them on clean completion. Node steps are
-     * `NodeClass-index` and memo steps `stepId::name`, so the id can never
-     * collide. A storage detail of this executor — the workflow sees only the
-     * typed Ignition.
+     * The executor's two reserved names in the store, one per identity
+     * direction. IGNITION_KEY is the key the run's trigger envelope rides
+     * under inside the run's own partition (self-description: runId → how it
+     * started), deleted with the partition on clean completion. Node steps
+     * are `NodeClass-index` and memo keys `stepId::name`, so it can never
+     * collide. CORRELATION_PARTITION holds the addressability index
+     * (business key → most recently ignited runId); its rows are historical
+     * facts, never deleted — liveness is derived by checking the named run's
+     * ignition record (see resolveIdentity). Storage details of this
+     * executor — the workflow sees only the typed Ignition and its
+     * correlationKey() vocabulary.
      */
-    protected const IGNITION_STEP_ID = '__ignition';
+    protected const IGNITION_KEY = '__ignition';
+
+    protected const CORRELATION_PARTITION = '__correlation';
 
     /**
      * The run context of the currently executing run, read off the workflow
@@ -73,6 +81,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected PersistenceInterface $persistence;
 
     protected SchedulerInterface $scheduler;
+
+    protected Serializer $serializer;
 
     protected string $runId;
 
@@ -97,7 +107,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     {
         $this->persistence = $workflow->getPersistence();
         $this->scheduler = $workflow->getScheduler();
-        $this->runId = $workflow->getRunId();
+        $this->serializer = $workflow->getSerializer();
+        $this->runId = $this->resolveIdentity($workflow, $payload);
+        $workflow->adoptRunId($this->runId);
         $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
 
@@ -135,6 +147,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // Completed: sweep the run's durable records (steps, memos, and the
                 // ignition record — a completed run cannot be woken) and clear any
                 // stale interrupt marker (the status describes this run only).
+                // The correlation pointer is deliberately NOT touched here: it
+                // is a historical fact ("most recent run for the key"), and
+                // liveness is derived at lookup from the ignition record this
+                // delete just removed.
                 $this->persistence->delete($this->runId);
                 $workflow->resolveState()->clearInterrupt();
                 // Drop all scheduler coordination state for this workflow.
@@ -148,6 +164,51 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         } finally {
             $this->workflowEnd($workflow);
         }
+    }
+
+    /**
+     * The identity-resolution phase: establish WHICH run this segment belongs
+     * to, before anything reads persistence. A non-null runId is authoritative
+     * (an explicit id, or a previous segment of this instance). A fresh start
+     * (no payload) generates a new id. A continuation without an id is
+     * resolved from the correlation pointer.
+     *
+     * @param array<string, mixed>|null $payload
+     * @throws WorkflowException
+     */
+    protected function resolveIdentity(WorkflowRuntimeInterface $workflow, ?array $payload): string
+    {
+        $runId = $workflow->getRunId();
+
+        if ($runId !== null) {
+            return $runId;
+        }
+
+        if ($payload === null) {
+            return uniqid('workflow_');
+        }
+
+        $correlationKey = $workflow->correlationKey();
+
+        if ($correlationKey === null) {
+            throw new WorkflowException(
+                'Cannot address the run to continue: no runId was provided and the '
+                . 'workflow declares no correlation key.'
+            );
+        }
+
+        $runId = $this->persistence->get(self::CORRELATION_PARTITION, $correlationKey);
+
+        // The pointer records the MOST RECENT run for the key, not a run in
+        // flight: a completed run's partition was deleted, so liveness is
+        // derived from its ignition record still existing.
+        if ($runId === null || $this->persistence->get($runId, self::IGNITION_KEY) === null) {
+            throw new WorkflowException(
+                "No run in flight for correlation key '{$correlationKey}' — nothing to continue."
+            );
+        }
+
+        return $runId;
     }
 
     /**
@@ -165,6 +226,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         // Fresh ignition: register the run's trigger envelope.
         if (!$ignition instanceof Ignition && $payload === null) {
             $this->saveIgnition($workflow->makeIgnition());
+
+            // Register the run's addressability alongside its self-description:
+            // the correlation pointer makes the run findable by its business key.
+            $correlationKey = $workflow->correlationKey();
+            if ($correlationKey !== null) {
+                $this->persistence->put(self::CORRELATION_PARTITION, $correlationKey, $this->runId);
+            }
+
             return;
         }
 
@@ -181,17 +250,32 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function saveIgnition(Ignition $ignition): void
     {
-        $this->persistence->save($this->runId, self::IGNITION_STEP_ID, new StepResult(
-            stepId: self::IGNITION_STEP_ID,
-            output: $ignition,
-        ));
+        $this->persistence->put($this->runId, self::IGNITION_KEY, $this->serializer->serialize($ignition));
     }
 
     protected function loadIgnition(): ?Ignition
     {
-        $output = $this->persistence->load($this->runId, self::IGNITION_STEP_ID)?->getOutput();
+        $raw = $this->persistence->get($this->runId, self::IGNITION_KEY);
+        $ignition = $raw === null ? null : $this->serializer->unserialize($raw);
 
-        return $output instanceof Ignition ? $output : null;
+        return $ignition instanceof Ignition ? $ignition : null;
+    }
+
+    /**
+     * Persist a step record: the engine owns the codec (read off the workflow
+     * at execute time), the store holds opaque strings.
+     */
+    protected function saveStep(string $stepId, StepResult $result): void
+    {
+        $this->persistence->put($this->runId, $stepId, $this->serializer->serialize($result));
+    }
+
+    protected function loadStep(string $stepId): ?StepResult
+    {
+        $raw = $this->persistence->get($this->runId, $stepId);
+        $result = $raw === null ? null : $this->serializer->unserialize($raw);
+
+        return $result instanceof StepResult ? $result : null;
     }
 
     /**
@@ -281,7 +365,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
-        $cached = $this->persistence->load($this->runId, $stepId);
+        $cached = $this->loadStep($stepId);
 
         // Memoized: return a previously completed result without re-executing.
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
@@ -299,7 +383,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     event: $event,
                     payload: $resuming ? $this->pendingPayload : null,
                     timedOut: $resuming && $this->pendingTimedOut,
-                    memoizer: new StepMemoizer($this->persistence, $this->runId, $stepId),
+                    memoizer: new StepMemoizer($this->persistence, $this->serializer, $this->runId, $stepId),
                     dispatcher: $workflow->getEventDispatcher(),
                 ),
                 $workflow->getMiddlewareForNode($node),
@@ -308,7 +392,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         } catch (Throwable $e) {
             // Record a failed-step marker for crash observability, then rethrow.
             // On recovery the marker makes this step retry (never replayed from cache).
-            $this->persistence->save($this->runId, $stepId, new StepResult(
+            $this->saveStep($stepId, new StepResult(
                 stepId: $stepId,
                 error: ['message' => $e->getMessage(), 'class' => $e::class],
             ));
@@ -321,13 +405,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         // is NOT persisted — it is rebuilt by re-running the node on resume, which keeps
         // developer objects stuffed into a request out of the serializer.
         if ($terminal instanceof InterruptEvent) {
-            $this->persistence->save($this->runId, $stepId, new StepResult(stepId: $stepId, interrupted: true));
+            $this->saveStep($stepId, new StepResult(stepId: $stepId, interrupted: true));
             return new StepResult(stepId: $stepId, event: $terminal, state: $state);
         }
 
         // Persist the completed result.
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
-        $this->persistence->save($this->runId, $stepId, $result);
+        $this->saveStep($stepId, $result);
 
         return $result;
     }

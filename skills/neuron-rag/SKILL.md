@@ -5,24 +5,32 @@ description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI inclu
 
 # Neuron AI RAG
 
-This skill helps you implement Retrieval-Augmented Generation (RAG) in Neuron AI. RAG extends the Agent class with document retrieval capabilities.
+This skill helps you implement Retrieval-Augmented Generation (RAG) in Neuron AI. `RAG` extends `Agent` — it inherits everything an agent can do (chat, stream, structured output, tools, persistence, thread identity) and replaces the entry chain with retrieval:
 
-## Core RAG Architecture
+```
+AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → inference
+```
 
-RAG systems in Neuron AI consist of three main components:
+1. Pre-process the user question (query rewriting/expansion)
+2. Retrieve relevant documents from the vector store
+3. Post-process (re-rank, filter by score)
+4. Build document-enriched instructions and run the normal inference
 
-1. **Vector Store** - Stores document embeddings for semantic search
-2. **Embeddings Provider** - Converts text to vector embeddings
-3. **Retrieval Strategy** - Determines how to search and rank documents
+## Core Components
+
+1. **Embeddings provider** — converts text to vectors (`EmbeddingsProviderInterface`)
+2. **Vector store** — stores and searches document embeddings (`VectorStoreInterface`)
+3. **Retrieval strategy** — how a query becomes a document list (`RetrievalInterface`)
+4. **Pre/post processors** — query transformation and result re-ranking/filtering
 
 ```php
-use NeuronAI\RAG\RAG;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingProvider;
-use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
+use NeuronAI\RAG\RAG;
 use NeuronAI\RAG\VectorStore\PineconeVectorStore;
+use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class MyChatBot extends RAG
 {
@@ -30,13 +38,13 @@ class MyChatBot extends RAG
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-sonnet-4-6',
         );
     }
 
     protected function embeddings(): EmbeddingsProviderInterface
     {
-        return new OpenAIEmbeddingProvider(
+        return new OpenAIEmbeddingsProvider(
             key: $_ENV['OPENAI_API_KEY'],
             model: 'text-embedding-3-small',
         );
@@ -46,15 +54,32 @@ class MyChatBot extends RAG
     {
         return new PineconeVectorStore(
             key: $_ENV['PINECONE_API_KEY'],
-            indexUrl: $_ENV['PINECONE_INDEX_URL']
+            indexUrl: $_ENV['PINECONE_INDEX_URL'],
         );
     }
 }
 ```
 
+Fluent alternatives exist for every hook: `setEmbeddingsProvider()`, `setVectorStore()`, `setRetrieval()`, `setPreProcessors()`, `setPostProcessors()`.
+
 ## Vector Stores
 
-### Pinecone
+All implement `VectorStoreInterface`. The `topK` constructor parameter controls how many documents a search returns.
+
+| Class | Backend |
+|-------|---------|
+| `PineconeVectorStore` | Pinecone |
+| `ChromaVectorStore` | ChromaDB |
+| `QdrantVectorStore` | Qdrant |
+| `ElasticsearchVectorStore` | Elasticsearch |
+| `OpenSearchVectorStore` | OpenSearch |
+| `TypesenseVectorStore` | Typesense |
+| `MeilisearchVectorStore` | Meilisearch |
+| `MongoDBVectorStore` | MongoDB Atlas Vector Search |
+| `MariaDBVectorStore` | MariaDB vectors |
+| `WeaviateVectorStore` | Weaviate |
+| `FileVectorStore` | Local file storage |
+| `MemoryVectorStore` | In-memory (testing) |
 
 ```php
 use NeuronAI\RAG\VectorStore\PineconeVectorStore;
@@ -62,282 +87,215 @@ use NeuronAI\RAG\VectorStore\PineconeVectorStore;
 new PineconeVectorStore(
     key: $_ENV['PINECONE_API_KEY'],
     indexUrl: $_ENV['PINECONE_INDEX_URL'],
-    environment: 'us-east-1-aws'
+    topK: 4,
+    namespace: '__default__',
 );
-```
 
-### Chroma
-
-```php
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 
 new ChromaVectorStore(
-    host: 'localhost',
-    port: 8000,
-    collection: 'my_collection'
+    collection: 'my_collection',
+    host: 'http://localhost:8000',
+    topK: 5,
 );
-```
 
-### Qdrant
-
-```php
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 
 new QdrantVectorStore(
-    apiKey: $_ENV['QDRANT_API_KEY'],
-    url: $_ENV['QDRANT_URL'],
-    collection: 'my_collection'
+    collectionUrl: 'http://localhost:6333/collections/neuron-ai/',
+    key: $_ENV['QDRANT_API_KEY'],
+    topK: 5,
+);
+
+use NeuronAI\RAG\VectorStore\FileVectorStore;
+
+new FileVectorStore(
+    directory: storage_path('embeddings'),
+    topK: 4,
 );
 ```
-
-### Elasticsearch
-
-```php
-use NeuronAI\RAG\VectorStore\ElasticsearchVectorStore;
-
-new ElasticsearchVectorStore(
-    hosts: ['http://localhost:9200'],
-    index: 'documents'
-);
-```
-
-### Typesense
-
-```php
-use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
-
-new TypesenseVectorStore(
-    apiKey: $_ENV['TYPESENSE_API_KEY'],
-    nodes: [['host' => 'localhost', 'port' => 8108]],
-    collection: 'documents'
-);
-```
-
-### Other Vector Stores
-- `MemoryVectorStore` - In-memory for testing
-- `MilvusVectorStore` - Milvus database
-- `RedisVectorStore` - Redis with RediSearch
-- `WeaviateVectorStore` - Weaviate database
-- `PgVectorStore` - PostgreSQL with pgvector extension
 
 ## Embeddings Providers
 
-### OpenAI
+All implement `EmbeddingsProviderInterface`: `OpenAIEmbeddingsProvider`, `GeminiEmbeddingsProvider`, `OllamaEmbeddingsProvider`, `VoyageEmbeddingsProvider`, `CohereEmbeddingsProvider`, `MistralEmbeddingsProvider`, `AwsBedrockEmbeddingsProvider`, `OpenAILikeEmbeddings`.
 
 ```php
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingProvider;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 
-new OpenAIEmbeddingProvider(
+new OpenAIEmbeddingsProvider(
     key: $_ENV['OPENAI_API_KEY'],
-    model: 'text-embedding-3-small'  // or 'text-embedding-3-large'
+    model: 'text-embedding-3-small',   // or 'text-embedding-3-large'
 );
-```
 
-### Ollama
+use NeuronAI\RAG\Embeddings\OllamaEmbeddingsProvider;
 
-```php
-use NeuronAI\RAG\Embeddings\OllamaEmbeddingProvider;
-
-new OllamaEmbeddingProvider(
-    baseUrl: 'http://localhost:11434',
-    model: 'nomic-embed-text'
+new OllamaEmbeddingsProvider(
+    model: 'nomic-embed-text',
+    url: 'http://localhost:11434/api',
 );
-```
 
-### Gemini
+use NeuronAI\RAG\Embeddings\GeminiEmbeddingsProvider;
 
-```php
-use NeuronAI\RAG\Embeddings\GeminiEmbeddingProvider;
-
-new GeminiEmbeddingProvider(
+new GeminiEmbeddingsProvider(
     key: $_ENV['GEMINI_API_KEY'],
-    model: 'text-embedding-004'
+    model: 'text-embedding-004',
 );
-```
 
-### Voyage
+use NeuronAI\RAG\Embeddings\VoyageEmbeddingsProvider;
 
-```php
-use NeuronAI\RAG\Embeddings\VoyageEmbeddingProvider;
-
-new VoyageEmbeddingProvider(
+new VoyageEmbeddingsProvider(
     key: $_ENV['VOYAGE_API_KEY'],
-    model: 'voyage-3-lite'
+    model: 'voyage-3-lite',
 );
 ```
 
-## Document Loading and Chunking
+**The embedding model is part of your index**: documents and queries must be embedded with the same model, so changing providers means re-ingesting.
 
-### Text Documents
+## Document Loading and Splitting
 
-```php
-use NeuronAI\RAG\DocumentLoader\TextLoader;
-use NeuronAI\RAG\Chunker\RecursiveCharacterTextSplitter;
-
-$loader = new TextLoader('/path/to/document.txt');
-$documents = $loader->load();
-
-// Chunk documents
-$chunker = new RecursiveCharacterTextSplitter(
-    chunkSize: 1000,
-    chunkOverlap: 200
-);
-$chunks = $chunker->chunk($documents);
-```
-
-### PDF Documents
+`FileDataLoader` handles a single file or a whole directory; readers are selected by file extension (`PdfReader`, `HtmlReader`, `TextFileReader` built in). `StringDataLoader` wraps raw text. Loaders split while loading — configure the splitter with `withSplitter()`:
 
 ```php
-use NeuronAI\RAG\DocumentLoader\PDFLoader;
+use NeuronAI\RAG\DataLoader\FileDataLoader;
+use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 
-$loader = new PDFLoader('/path/to/document.pdf');
-$documents = $loader->load();
+// A directory (recursive, readers matched by extension) or a single file:
+$documents = FileDataLoader::for('/path/to/documents')
+    ->withSplitter(new DelimiterTextSplitter(maxLength: 1000, separator: ' ', wordOverlap: 50))
+    ->getDocuments();
+
+// Raw text:
+use NeuronAI\RAG\DataLoader\StringDataLoader;
+
+$documents = StringDataLoader::for($text)->getDocuments();
+
+// Register a custom reader for an extension:
+$loader = FileDataLoader::for('/docs')->addReader('md', new MyMarkdownReader());
 ```
 
-### HTML Documents
+### Splitters (`Splitter/`)
 
-```php
-use NeuronAI\RAG\DocumentLoader\HtmlLoader;
+- `DelimiterTextSplitter(maxLength: 1000, separator: ' ', wordOverlap: 0, minLength: 0)` — character-budget chunks with word overlap
+- `SentenceTextSplitter(maxWords: 200, overlapWords: 0, minWords: 0)` — sentence-aware chunks
+- Custom: implement `SplitterInterface` (`splitDocument(Document): array`, `splitDocuments(array): array`)
 
-$loader = new HtmlLoader('https://example.com/page');
-$documents = $loader->load();
-```
-
-### Loading Multiple Files
-
-```php
-use NeuronAI\RAG\DocumentLoader\DirectoryLoader;
-
-$loader = new DirectoryLoader('/path/to/documents');
-$documents = $loader->load();
-```
+**Chunking guidance**: smaller chunks retrieve more precisely but carry less context; 10–20% overlap preserves continuity across boundaries.
 
 ## Ingesting Documents
+
+`RAG::addDocuments()` embeds and stores in one call (batched — `chunkSize` controls the embedding batch):
 
 ```php
 $rag = MyChatBot::make();
 
-// Load and chunk documents
-$loader = new DirectoryLoader('./docs');
-$documents = $loader->load();
-
-$chunker = new RecursiveCharacterTextSplitter(
-    chunkSize: 1000,
-    chunkOverlap: 200
+$rag->addDocuments(
+    FileDataLoader::for('/path/to/docs')->getDocuments()
 );
-$chunks = $chunker->chunk($documents);
-
-// Add to vector store
-$rag->vectorStore()->addDocuments($chunks);
 ```
 
 ## Retrieval Strategies
 
-### Basic Similarity Search
+The built-in strategy is `SimilarityRetrieval` — embed the query, ask the vector store:
 
 ```php
-use NeuronAI\RAG\Retrieval\SimilaritySearch;
+use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
 
-$rag->setRetrieval(new SimilaritySearch(
-    k: 5  // Return top 5 documents
-));
+protected function retrieval(): RetrievalInterface
+{
+    return new SimilarityRetrieval(
+        $this->resolveVectorStore(),
+        $this->resolveEmbeddingsProvider(),
+    );
+}
 ```
 
-### Hybrid Search (Keyword + Semantic)
+Custom strategies implement `RetrievalInterface` — the query arrives as a `Message`, the return is `Document[]`:
 
 ```php
-use NeuronAI\RAG\Retrieval\HybridSearch;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\RAG\Retrieval\RetrievalInterface;
 
-$rag->setRetrieval(new HybridSearch(
-    k: 5,
-    alpha: 0.5  // Balance between semantic (1.0) and keyword (0.0)
-));
-```
+class CustomRetrieval implements RetrievalInterface
+{
+    public function retrieve(Message $query): array
+    {
+        // e.g. combine vector search with a keyword index, filter by metadata, ...
+        return $documents;
+    }
+}
 
-### Max Marginal Relevance (MMR)
-
-```php
-use NeuronAI\RAG\Retrieval\MMRSearch;
-
-$rag->setRetrieval(new MMRSearch(
-    k: 5,
-    fetchK: 20,  // Fetch 20, return diverse 5
-    lambdaMult: 0.5  // Diversity parameter
-));
+$rag->setRetrieval(new CustomRetrieval());
 ```
 
 ## Pre and Post Processors
 
-### Pre-Processors (Query Transformation)
+### Pre-processors — transform the query before retrieval
+
+`QueryTransformationPreProcessor` uses an AI provider to rewrite the query; the transformation type is an enum:
 
 ```php
-use NeuronAI\RAG\Processor\QueryExpansionProcessor;
+use NeuronAI\RAG\PreProcessor\QueryTransformationPreProcessor;
+use NeuronAI\RAG\PreProcessor\QueryTransformationType;
 
-$rag->addPreProcessor(new QueryExpansionProcessor(
-    numQueries: 3  // Generate 3 query variations
-));
-
-use NeuronAI\RAG\Processor\HydeProcessor;
-
-$rag->addPreProcessor(new HydeProcessor(
-    model: $rag->provider()  // Generate hypothetical document
-));
-```
-
-### Post-Processors (Result Enhancement)
-
-```php
-use NeuronAI\RAG\Processor\RerankProcessor;
-use NeuronAI\RAG\Processor\JinaReranker;
-
-$rag->addPostProcessor(new RerankProcessor(
-    reranker: new JinaReranker(
-        apiKey: $_ENV['JINA_API_KEY']
-    ),
-    topK: 5
-));
-
-use NeuronAI\RAG\Processor\CompressorProcessor;
-
-$rag->addPostProcessor(new CompressorProcessor(
-    maxTokens: 2000
-));
-```
-
-## Using the RAG
-
-### Basic Query
-
-```php
-$rag = MyChatBot::make();
-
-$response = $rag->chat(
-    new UserMessage("What are the main features of our product?")
-)->getMessage();
-
-echo $response->getContent();
-// Response includes retrieved documents as context
-```
-
-### Streaming
-
-```php
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-
-foreach ($rag->stream(new UserMessage("Explain the architecture"))->events() as $event) {
-    if ($event instanceof TextChunk) {
-        echo $event->content;
-    }
+protected function preProcessors(): array
+{
+    return [
+        new QueryTransformationPreProcessor(
+            provider: $this->resolveProvider(),
+            transformation: QueryTransformationType::REWRITING,  // or DECOMPOSITION, HYDE
+        ),
+    ];
 }
 ```
 
-### Structured Output with RAG
+### Post-processors — re-rank or filter the retrieved set
 
 ```php
-$summary = $rag->structured(
-    new UserMessage("Summarize the pricing information"),
-    PricingSummary::class
-);
+use NeuronAI\RAG\PostProcessor\CohereRerankerPostProcessor;
+use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
+use NeuronAI\RAG\PostProcessor\FixedThresholdPostProcessor;
+use NeuronAI\RAG\PostProcessor\AdaptiveThresholdPostProcessor;
+
+protected function postProcessors(): array
+{
+    return [
+        new CohereRerankerPostProcessor(
+            key: $_ENV['COHERE_API_KEY'],
+            model: 'rerank-v3.5',
+            topN: 3,
+        ),
+        // or: new JinaRerankerPostProcessor(key: ..., topN: 3)
+        // or: new LocalAIRerankerPostProcessor(...)
+        new FixedThresholdPostProcessor(threshold: 0.5),        // drop low-score documents
+        // or: new AdaptiveThresholdPostProcessor(multiplier: 0.6)  // statistics-based cutoff
+    ];
+}
+```
+
+Fluent equivalents: `setPreProcessors([...])`, `setPostProcessors([...])`.
+
+## Using the RAG
+
+A `RAG` is an `Agent` — all verbs work, in every mode:
+
+```php
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\UserMessage;
+
+$rag = MyChatBot::make(threadId: $threadId);   // thread identity: same model as Agent
+
+// Chat (eager → AgentState)
+echo $rag->chat(new UserMessage('What are the main features?'))->getMessage()->getContent();
+
+// Streaming (Generator; getReturn() is the final AgentState)
+foreach ($rag->stream(new UserMessage('Explain the architecture')) as $chunk) {
+    if ($chunk instanceof TextChunk) {
+        echo $chunk->content;
+    }
+}
+
+// Structured output
+$summary = $rag->structured(new UserMessage('Summarize the pricing'), PricingSummary::class);
 ```
 
 ## CLI Generation
@@ -346,126 +304,18 @@ $summary = $rag->structured(
 vendor/bin/neuron make:rag MyKnowledgeBot
 ```
 
-## Advanced Configuration
-
-### Custom Retrieval
-
-```php
-use NeuronAI\RAG\Retrieval\RetrievalInterface;
-
-class CustomRetrieval implements RetrievalInterface
-{
-    public function retrieve(string $query, VectorStoreInterface $vectorStore): array
-    {
-        // Custom retrieval logic
-        return $vectorStore->similaritySearch($query, k: 3);
-    }
-}
-
-$rag->setRetrieval(new CustomRetrieval());
-```
-
-### Filtering Results
-
-```php
-$rag->chat(
-    new UserMessage("Find documents about pricing")
-)->withMetadataFilter([
-    'category' => 'pricing',
-    'year' => 2024
-]);
-```
-
-## Common Patterns
-
-### Company Knowledge Base
-
-```php
-class CompanyKnowledgeBot extends RAG
-{
-    protected function embeddings(): EmbeddingsProviderInterface
-    {
-        return new OpenAIEmbeddingProvider(
-            key: $_ENV['OPENAI_API_KEY'],
-            model: 'text-embedding-3-small'
-        );
-    }
-
-    protected function vectorStore(): VectorStoreInterface
-    {
-        return new PineconeVectorStore(
-            key: $_ENV['PINECONE_API_KEY'],
-            indexUrl: $_ENV['PINECONE_INDEX_URL']
-        );
-    }
-
-    protected function retrieval(): RetrievalInterface
-    {
-        return new HybridSearch(k: 5, alpha: 0.7);
-    }
-
-    protected function instructions(): string
-    {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a helpful assistant that answers questions",
-                "about our company using the provided context.",
-            ],
-            constraints: [
-                "Only use the provided context to answer.",
-                "If the answer is not in the context, say you don't know.",
-            ]
-        );
-    }
-}
-```
-
-### Document Q&A with Reranking
-
-```php
-$rag = MyChatBot::make();
-
-$rag->addPostProcessor(new CohereRerankerPostProcessor(
-    key: $_ENV['COHERE_API_KEY'],
-    model: $_ENV['COHERE_MODEL'],
-    topN: 5
-);
-
-$rag->chat(new UserMessage("Your question here"));
-```
-
-## Performance Considerations
-
-### Chunk Size Selection
-- **Smaller chunks** (500-1000 tokens): More precise retrieval, more documents to process
-- **Larger chunks** (1500-2000 tokens): More context per document, less precise
-- **Chunk overlap**: 10-20% helps maintain context across chunk boundaries
-
-### Top-K Selection
-- **3-5 documents**: Good for focused queries, faster responses
-- **10+ documents**: Better for comprehensive answers
-
 ## Testing RAG
 
+Use the in-memory store and the testing fakes — no external services:
+
 ```php
-use PHPUnit\Framework\TestCase;
+use NeuronAI\RAG\Document;
+use NeuronAI\Testing\FakeEmbeddingsProvider;
+use NeuronAI\Testing\FakeVectorStore;
 
-class MyChatBotTest extends TestCase
-{
-    public function testRAGRetrieval(): void
-    {
-        $rag = MyChatBot::make();
+$rag = MyChatBot::make()
+    ->setEmbeddingsProvider(new FakeEmbeddingsProvider())
+    ->setVectorStore(new FakeVectorStore([new Document('The product costs $99.')]));
 
-        // Add test document
-        $rag->vectorStore()->addDocument(
-            new Document('test', 'The product costs $99.')
-        );
-
-        $response = $rag->chat(
-            new UserMessage("How much does it cost?")
-        )->getMessage();
-
-        $this->assertStringContainsString('99', $response->getContent());
-    }
-}
+$response = $rag->chat(new UserMessage('How much does it cost?'))->getMessage();
 ```
