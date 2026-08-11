@@ -18,4 +18,5 @@ tests/** export-ignore
 **/CLAUDE.md export-ignore
 docker-compose.yml export-ignore
 Dockerfile export-ignore
+.dockerignore export-ignore
 .env.example export-ignore
