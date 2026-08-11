@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
 
 trait ResolveProvider
@@ -20,15 +21,23 @@ trait ResolveProvider
         return $this;
     }
 
+    /**
+     * Provide the default AI provider. Subclasses override this hook —
+     * never resolveProvider(), which memoizes the resolved instance.
+     *
+     * @throws AgentException
+     */
     protected function provider(): AIProviderInterface
     {
-        return $this->provider;
+        throw new AgentException(
+            'No AI provider configured: override the provider() method in your agent, or call setAiProvider().'
+        );
     }
 
     /**
      * Get the current provider instance.
      */
-    public function resolveProvider(): AIProviderInterface
+    final public function resolveProvider(): AIProviderInterface
     {
         return $this->provider ??= $this->provider();
     }

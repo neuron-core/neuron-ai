@@ -208,8 +208,12 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function entryNodes(): array
     {
+        // Bootstrap first: it rewrites the instructions (toolkit guidelines),
+        // so resolving them before it would hand the node the stale message.
+        $tools = $this->bootstrapTools();
+
         return [
-            new StartNode($this->resolveInstructions(), $this->bootstrapTools()),
+            new StartNode($this->resolveInstructions(), $tools),
         ];
     }
 

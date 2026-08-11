@@ -180,9 +180,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * The state store this run's durable records live in. The executor reads
      * it through the runtime contract.
      */
-    public function getPersistence(): PersistenceInterface
+    final public function getPersistence(): PersistenceInterface
     {
-        return $this->persistence ??= new InMemoryPersistence();
+        return $this->persistence ??= $this->persistence();
+    }
+
+    /**
+     * Provide the default persistence backend. Subclasses override this hook —
+     * never getPersistence(), which memoizes the resolved instance.
+     */
+    protected function persistence(): PersistenceInterface
+    {
+        return new InMemoryPersistence();
     }
 
     /**
@@ -200,9 +209,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * The codec this run's durable records are encoded with. The workflow
      * owns the choice; the executor reads it through the runtime contract.
      */
-    public function getSerializer(): Serializer
+    final public function getSerializer(): Serializer
     {
-        return $this->serializer ??= new PhpSerializer();
+        return $this->serializer ??= $this->serializer();
+    }
+
+    /**
+     * Provide the default record codec. Subclasses override this hook —
+     * never getSerializer(), which memoizes the resolved instance.
+     */
+    protected function serializer(): Serializer
+    {
+        return new PhpSerializer();
     }
 
     /**
@@ -221,9 +239,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * The coordinator for this workflow's suspends and wakeups. The executor
      * reads it through the runtime contract.
      */
-    public function getScheduler(): SchedulerInterface
+    final public function getScheduler(): SchedulerInterface
     {
-        return $this->scheduler ??= new NullScheduler();
+        return $this->scheduler ??= $this->scheduler();
+    }
+
+    /**
+     * Provide the default scheduler. Subclasses override this hook —
+     * never getScheduler(), which memoizes the resolved instance.
+     */
+    protected function scheduler(): SchedulerInterface
+    {
+        return new NullScheduler();
     }
 
     /**
@@ -237,14 +264,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this;
     }
 
-    protected function resolveChannel(): ?StreamingChannelInterface
+    final protected function resolveChannel(): ?StreamingChannelInterface
     {
         return $this->channel ??= $this->channel();
     }
 
+    /**
+     * Provide the default channel. Subclasses override this hook —
+     * never resolveChannel(), which memoizes the resolved instance.
+     */
     protected function channel(): ?StreamingChannelInterface
     {
-        return $this->channel;
+        return null;
     }
 
     /**
@@ -264,14 +295,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this;
     }
 
-    protected function resolveAdapter(): ?StreamAdapterInterface
+    final protected function resolveAdapter(): ?StreamAdapterInterface
     {
         return $this->streamAdapter ??= $this->streamAdapter();
     }
 
+    /**
+     * Provide the default stream adapter. Subclasses override this hook —
+     * never resolveAdapter(), which memoizes the resolved instance.
+     */
     protected function streamAdapter(): ?StreamAdapterInterface
     {
-        return $this->streamAdapter;
+        return null;
     }
 
     /**
@@ -306,9 +341,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * scheduler, and the definition from this workflow at execute() time — so
      * choosing an execution model never affects where state lives.
      */
-    protected function resolveExecutor(): WorkflowExecutorInterface
+    final protected function resolveExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= new WorkflowExecutor();
+        return $this->executor ??= $this->executor();
+    }
+
+    /**
+     * Provide the default execution model. Subclasses override this hook —
+     * never resolveExecutor(), which memoizes the resolved instance.
+     */
+    protected function executor(): WorkflowExecutorInterface
+    {
+        return new WorkflowExecutor();
     }
 
     /**
@@ -396,7 +440,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function deliver(object $item): void
     {
-        if ($this->streamAdapter() instanceof StreamAdapterInterface) {
+        if ($this->resolveAdapter() instanceof StreamAdapterInterface) {
             $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->transform($item));
         } else {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
@@ -515,7 +559,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * Resolve the start event for the workflow.
      */
-    protected function resolveStartEvent(): Event
+    final protected function resolveStartEvent(): Event
     {
         return $this->startEvent ??= $this->startEvent();
     }

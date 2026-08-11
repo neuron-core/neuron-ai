@@ -28,10 +28,13 @@ trait HandleInstructions
         return $this;
     }
 
-    public function resolveInstructions(): SystemMessage
+    final public function resolveInstructions(): SystemMessage
     {
-        $instructions = $this->instructions ?? $this->instructions();
+        if (!isset($this->instructions)) {
+            $instructions = $this->instructions();
+            $this->instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
+        }
 
-        return is_string($instructions) ? new SystemMessage($instructions) : $instructions;
+        return $this->instructions;
     }
 }

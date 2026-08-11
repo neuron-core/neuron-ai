@@ -21,6 +21,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -60,6 +61,22 @@ class GetWeatherTool extends Tool
     public function __invoke(string $location): string
     {
         return "Weather for {$location}: sunny";
+    }
+}
+
+class WeatherToolkit extends AbstractToolkit
+{
+    public function guidelines(): ?string
+    {
+        return 'Always report temperatures in Celsius.';
+    }
+
+    /**
+     * @return \NeuronAI\Tools\ToolInterface[]
+     */
+    public function provide(): array
+    {
+        return [new GetWeatherTool()];
     }
 }
 
@@ -291,6 +308,38 @@ class AgentInstructionsTest extends TestCase
 
         $this->assertSame('Done.', $message->getContent());
         $provider->assertCallCount(3);
+    }
+
+    // ---------------------------------------------------------------
+    // Integration: toolkit guidelines reach the provider system prompt
+    // ---------------------------------------------------------------
+
+    public function test_toolkit_guidelines_reach_the_provider_system_prompt(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done.'));
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->setInstructions('You are a helpful assistant.');
+        $agent->addTool(new WeatherToolkit());
+
+        $agent->chat(new UserMessage('What is the weather in Rome?'));
+
+        $record = $provider->getRecorded()[0];
+
+        $systemPrompt = $record->systemPrompt->getContent();
+        $this->assertStringContainsString('You are a helpful assistant.', $systemPrompt);
+        $this->assertStringContainsString('<TOOLS-GUIDELINES>', $systemPrompt);
+        $this->assertStringContainsString('# WeatherToolkit', $systemPrompt);
+        $this->assertStringContainsString('Always report temperatures in Celsius.', $systemPrompt);
+        $this->assertStringContainsString('get_weather', $systemPrompt);
+
+        // The toolkit's tools are expanded into the provider call.
+        $toolNames = array_map(
+            static fn (\NeuronAI\Tools\ToolInterface $t): string => $t->getName(),
+            $record->tools
+        );
+        $this->assertContains('get_weather', $toolNames);
     }
 
     // ---------------------------------------------------------------

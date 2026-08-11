@@ -22,7 +22,7 @@ trait ResolveVectorStore
         return new MemoryVectorStore();
     }
 
-    public function resolveVectorStore(): VectorStoreInterface
+    final public function resolveVectorStore(): VectorStoreInterface
     {
         return $this->store ??= $this->vectorStore();
     }

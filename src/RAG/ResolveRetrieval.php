@@ -28,7 +28,7 @@ trait ResolveRetrieval
         );
     }
 
-    public function resolveRetrieval(): RetrievalInterface
+    final public function resolveRetrieval(): RetrievalInterface
     {
         return $this->retrieval ??= $this->retrieval();
     }

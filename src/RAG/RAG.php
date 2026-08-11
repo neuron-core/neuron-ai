@@ -46,11 +46,15 @@ class RAG extends Agent
      */
     protected function entryNodes(): array
     {
+        // Bootstrap first: it rewrites the instructions (toolkit guidelines),
+        // so resolving them before it would hand the node the stale message.
+        $tools = $this->bootstrapTools();
+
         return [
             new PreProcessNode($this->getChatHistory(), $this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval()),
             new PostProcessNode($this->postProcessors()),
-            new InstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
+            new InstructionsNode($this->resolveInstructions(), $tools),
         ];
     }
 
