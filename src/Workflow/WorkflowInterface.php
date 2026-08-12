@@ -5,21 +5,22 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
-use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * The application-facing contract of a workflow: run it, resume it, stream its
- * events, and configure it (graph, middleware, listeners).
+ * The application-facing contract of a workflow: the operations a caller
+ * holding a built workflow performs on it — run it, resume it, stream its
+ * events, identify it, and wire observability.
  *
- * The engine-facing collaboration points — what an executor must call to
- * traverse a workflow — live on {@see WorkflowRuntimeInterface} instead.
- * `Workflow` implements both. `getRunId()` and `setState()` appear on both
- * contracts deliberately: applications hold the resume handle and seed the
- * initial state; the engine reads the same identity and follows persisted
- * state during replay.
+ * Construction-time configuration (graph, middleware, persistence, scheduler,
+ * ...) is concrete-class API on {@see Workflow}: it happens where the caller
+ * holds the concrete type, and subclasses configure through the protected
+ * hooks instead. The engine-facing collaboration points — what an executor
+ * must call to traverse a workflow — live on {@see WorkflowRuntimeInterface}.
+ * `Workflow` implements both. `getRunId()` appears on both contracts
+ * deliberately: applications hold the resume handle; the engine reads the
+ * same identity as its persistence namespace.
  */
 interface WorkflowInterface
 {
@@ -31,7 +32,8 @@ interface WorkflowInterface
 
     /**
      * Resume a suspended workflow by delivering the inbound payload to the
-     * interrupted step.
+     * interrupted step. Always resumes — an empty payload still targets the
+     * interrupted step (unlike {@see events()}, where null means start).
      *
      * @param array<string, mixed> $payload The delivered event payload (the answer).
      * @param bool                 $timedOut True when the resume was a deadline elapsing.
@@ -44,24 +46,11 @@ interface WorkflowInterface
      * the interrupted step (the streaming counterpart of {@see run()} / {@see resume()}).
      *
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
+     * @param bool $timedOut True when the resume was a deadline elapsing. Only
+     *                       meaningful when $payload is non-null; ignored on start.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator;
-
-    public function setStartEvent(Event $event): WorkflowInterface;
-
-    public function setState(WorkflowState $state): WorkflowInterface;
-
-    public function addNode(NodeInterface $node): Workflow;
-
-    /**
-     * @param NodeInterface[] $nodes
-     */
-    public function addNodes(array $nodes): Workflow;
-
-    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): WorkflowInterface;
-
-    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): WorkflowInterface;
 
     /**
      * The unique identifier of this workflow run — also the resume handle: pass
@@ -71,22 +60,15 @@ interface WorkflowInterface
     public function getRunId(): ?string;
 
     /**
-     * @deprecated Use subscribe() with a PSR-14 listener instead. Will be
-     *             removed in the next major version.
-     */
-    public function observe(ObserverInterface $observer): WorkflowInterface;
-
-    /**
      * Register a PSR-14 listener for a specific event class.
      *
      * @param class-string $eventClass
+     * @param callable(object): void $listener
      */
-    public function subscribe(string $eventClass, callable $listener): WorkflowInterface;
+    public function subscribe(string $eventClass, callable $listener): static;
 
     /**
      * Forward this workflow's events to an external PSR-14 dispatcher.
      */
-    public function setEventDispatcher(EventDispatcherInterface $dispatcher): WorkflowInterface;
-
-    public function export(): string;
+    public function setEventDispatcher(EventDispatcherInterface $dispatcher): static;
 }

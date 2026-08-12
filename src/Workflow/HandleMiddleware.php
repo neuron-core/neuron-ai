@@ -52,7 +52,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): WorkflowInterface
+    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): static
     {
         $middlewareArray = is_array($middleware) ? $middleware : [$middleware];
 
@@ -74,7 +74,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
      * @throws WorkflowException
      */
-    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): WorkflowInterface
+    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): static
     {
         $nodeClasses = is_array($node) ? $node : [$node];
         $middlewareList = is_array($middleware) ? $middleware : [$middleware];

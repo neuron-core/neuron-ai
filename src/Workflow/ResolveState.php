@@ -6,7 +6,7 @@ namespace NeuronAI\Workflow;
 
 trait ResolveState
 {
-    public function setState(WorkflowState $state): WorkflowInterface
+    public function setState(WorkflowState $state): static
     {
         $this->state = $state;
         return $this;

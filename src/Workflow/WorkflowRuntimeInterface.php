@@ -42,7 +42,7 @@ interface WorkflowRuntimeInterface
      * Follow a completed step's persisted state so a replayed (cached) step
      * restores exactly what it recorded.
      */
-    public function setState(WorkflowState $state): WorkflowInterface;
+    public function setState(WorkflowState $state): static;
 
     public function getNodeForEvent(string $eventClass): NodeInterface;
 
