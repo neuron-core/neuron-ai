@@ -67,11 +67,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected ?EventDispatcherInterface $externalDispatcher = null;
 
+    protected ?string $runId = null;
+
     /**
      * @throws WorkflowException
      */
-    protected ?string $runId = null;
-
     public function __construct(
         protected ?string $address = null,
         protected ?WorkflowState   $state = null,
