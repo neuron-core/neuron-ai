@@ -11,10 +11,8 @@ use function get_object_vars;
 use function is_string;
 
 /**
- * Event carrying configuration for AI inference.
- *
- * This event is emitted before calling the AI provider and can be modified
- * by middleware to dynamically adjust instructions, tools, and other inference settings.
+ * Carries the inference configuration; middleware can adjust instructions,
+ * tools, and intent before the provider call.
  */
 class AIInferenceEvent extends AgentStartEvent
 {
@@ -53,11 +51,9 @@ class AIInferenceEvent extends AgentStartEvent
     }
 
     /**
-     * Tools are execution capability — often holding DB connections, HTTP
-     * clients, or closures — and capability is never persisted: a
-     * durably stored step carries this event without its tool list, and
-     * Workflow::restoreEvent() re-seeds the live registry when the executor
-     * recalls the event from a persisted step.
+     * Tools are execution capability (connections, clients, closures) and
+     * capability is never persisted: a stored step carries this event without
+     * its tool list; Workflow::restoreEvent() re-seeds the live registry on recall.
      *
      * @return array<string, mixed>
      */

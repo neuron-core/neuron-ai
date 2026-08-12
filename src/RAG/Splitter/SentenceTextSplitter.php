@@ -59,9 +59,7 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Splits text into word-based chunks, preserving sentence boundaries.
-     *
-     * @return Document[] Array of Document chunks
+     * @return Document[]
      */
     public function splitDocument(Document $document): array
     {
@@ -79,7 +77,6 @@ class SentenceTextSplitter extends AbstractSplitter
                     continue;
                 }
 
-                // If the sentence alone exceeds the limit, split it
                 if (count($sentenceWords) > $this->maxWords) {
                     if ($currentWords !== []) {
                         $chunks[] = $currentWords;
@@ -137,9 +134,7 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Tokenizes text into words (simple whitespace split).
-     *
-     * @return string[] Array of words
+     * @return string[]
      */
     private function tokenizeWords(string $text): array
     {
@@ -148,8 +143,6 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Merges chunks that fall below minWords into the previous chunk.
-     *
      * @param  array<array<string>>  $chunks
      * @return array<array<string>>
      */
@@ -176,8 +169,6 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Applies overlap of words between consecutive chunks.
-     *
      * @param  array<array<string>>  $chunks
      * @return array<array<string>>
      */
@@ -208,9 +199,7 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Splits a long sentence into smaller chunks that respect the maxWords limit.
-     *
-     * @param  string[]  $words Array of words from the sentence
+     * @param  string[]  $words
      * @return array<array<string>>
      */
     private function splitLongSentence(array $words): array

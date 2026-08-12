@@ -9,54 +9,14 @@ use function array_is_list;
 /**
  * Event that triggers parallel branch execution.
  *
- * When a node's __invoke() returns a ParallelEvent subclass, the executor runs all
- * branches (sequentially by default, concurrently with AsyncExecutor). After all
- * branches complete, each branch's StopEvent::getResult() is stored in
- * {@see $branchResults}, and the ParallelEvent instance is routed through the
- * event→node map to a join node.
+ * Return a ParallelEvent subclass from a fork node and the executor runs all
+ * branches (sequentially by default, concurrently with AsyncExecutor). Each
+ * branch's StopEvent result is stored via setResult(), then the instance is
+ * routed through the event→node map to a join node, whose __invoke() accepts
+ * the subclass and reads the results back.
  *
- * Pattern:
- *  1. Extend ParallelEvent for your specific parallel operation.
- *  2. Return it from a fork node's __invoke(), passing the branch-starting events.
- *  3. Register a join node whose __invoke() accepts your ParallelEvent subclass.
- *     Read branch results from {@see $branchResults}.
- *
- * Branch IDs:
- *  - Associative array keys are used as-is as branch IDs.
- *  - Sequential (integer-indexed) arrays auto-derive IDs from the event class short name
- *    (e.g. new ExtractTextEvent() → branch ID "ExtractTextEvent").
- *
- * Example:
- *
- *   class DocumentParallelEvent extends ParallelEvent {}
- *
- *   class AnalyzeDocument extends Node {
- *       public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
- *       {
- *           return new DocumentParallelEvent([
- *               'text'   => new ExtractTextEvent(),
- *               'images' => new AnalyzeImagesEvent(),
- *           ]);
- *       }
- *   }
- *
- *   class ExtractText extends Node {
- *       public function __invoke(ExtractTextEvent $event, WorkflowState $state): StopEvent
- *       {
- *           return new StopEvent(result: $extractedText);
- *       }
- *   }
- *
- *   class CompileResults extends Node {
- *       public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
- *       {
- *           $state->set('result', [
- *               'text'   => $event->branchResults['text'],
- *               'images' => $event->branchResults['images'],
- *           ]);
- *           return new StopEvent();
- *       }
- *   }
+ * Associative array keys are used as-is as branch IDs; list entries derive
+ * their ID from the event class name.
  */
 class ParallelEvent implements Event
 {
@@ -64,19 +24,15 @@ class ParallelEvent implements Event
     public readonly array $branches;
 
     /**
-     * Branch results, keyed by branch ID.
-     *
-     * Populated by the executor after all branches complete. Each value is
-     * whatever the branch's terminal node returned via `StopEvent::getResult()`.
+     * Branch results keyed by branch ID, populated by the executor as
+     * branches complete.
      *
      * @var array<string, mixed>
      */
     protected array $results = [];
 
     /**
-     * @param array<string, Event>|array<int, Event> $branches
-     *   Named branches (string keys) or unnamed branches (integer keys, IDs are
-     *   auto-derived from the short class name of each event).
+     * @param array<string, Event>|array<int, Event> $branches Named branches, or a list whose IDs derive from each event's class.
      */
     public function __construct(array $branches)
     {

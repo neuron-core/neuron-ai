@@ -10,39 +10,26 @@ use Throwable;
 
 /**
  * Delivery seam: where in-flight output goes, decoupled from who holds the
- * generator. The channel has two delivery ports:
+ * generator. Two ports — send(object) for native chunks (no stream adapter
+ * attached) and sendLine(string) for adapted protocol lines (adapter
+ * attached); a channel never receives both shapes in the same segment.
  *
- *  - send(object):       a native framework chunk (TextChunk, ToolCallChunk,
- *                        custom node yields) — used when NO stream adapter is
- *                        attached to the workflow.
- *  - sendLine(string):   an adapted protocol line — used when a stream adapter
- *                        IS attached; this carries the adapter's transform()
- *                        output plus its start()/end() framing sequences.
- *
- * The framework picks one port per run based on whether an adapter is
- * attached (Workflow::setStreamAdapter()); a channel never receives both
- * shapes in the same segment.
- *
- * A channel instance is segment-scoped: constructed for one events()
- * consumption, so implementations may hold per-segment state without
- * cross-run leakage.
- *
- * Channels should not throw; the framework guards every call regardless — a
- * channel error never fails the run (see Workflow::fireChannel()).
+ * A channel instance is segment-scoped (one events() consumption), so it may
+ * hold per-segment state without cross-run leakage. Channels should not
+ * throw; the framework guards every call regardless — a channel error never
+ * fails the run (see Workflow::fireChannel()).
  */
 interface StreamingChannelInterface
 {
     /**
-     * A yielded stream item (TextChunk, ToolCallChunk, custom node yields).
-     * Called only when no stream adapter is attached. Never an InterruptEvent
-     * — terminals are explicit methods below.
+     * A yielded stream item. Never an InterruptEvent — terminals are the
+     * explicit methods below.
      */
     public function send(object $item): void;
 
     /**
-     * An adapted protocol line — the output of a stream adapter's transform(),
-     * or one of its start()/end() framing lines. Called only when a stream
-     * adapter is attached to the workflow.
+     * An adapted protocol line — a stream adapter's transform() output or
+     * one of its start()/end() framing lines.
      */
     public function sendLine(string $line): void;
 

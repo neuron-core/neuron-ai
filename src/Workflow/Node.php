@@ -25,15 +25,14 @@ abstract class Node implements NodeInterface
     protected Event $event;
 
     /**
-     * The inbound resume payload. Null when not resuming (fresh run or crash-replay);
-     * a non-null array (even empty) means this node is resuming and holds the
-     * delivered answer. Set by the executor via setWorkflowContext().
+     * The inbound resume payload. Null when not resuming; a non-null array
+     * (even empty) means this node is resuming and holds the delivered answer.
      */
     protected ?array $payload = null;
 
     /**
-     * True when this resume was produced by a wait's deadline elapsing rather than
-     * by a delivered event. awaitEvent() surfaces it as a null return.
+     * True when the resume was a deadline elapsing rather than a delivered
+     * event. awaitEvent() surfaces it as a null return.
      */
     protected bool $timedOut = false;
 
@@ -57,16 +56,12 @@ abstract class Node implements NodeInterface
         $this->dispatcher = $context->dispatcher;
     }
 
-    /**
-     * Consume the inbound resume payload (used internally by nodes).
-     * Returns null if not resuming or no payload staged.
-     */
     protected function consumePayload(): ?array
     {
         if ($this->payload !== null) {
             $payload = $this->payload;
-            // Clear after use so a subsequent interrupt() in the same node re-suspends
-            // instead of looping on the same resume.
+            // Clear after use so a subsequent interrupt() in the same node
+            // re-suspends instead of looping on the same resume.
             $this->payload = null;
             return $payload;
         }
@@ -75,21 +70,12 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Execute a closure as a durable, memoized sub-operation.
-     *
-     * On first execution the closure runs and its return value is persisted
-     * (mid-node, before the node returns). On replay — when the node re-executes
-     * because its step crashed before completing — the recorded value is returned
-     * WITHOUT running the closure again.
-     *
-     * Wrap expensive or non-deterministic work (LLM calls, HTTP, tool execution)
-     * in memoize() so it runs at most once even if the node crashes after it
-     * succeeds. The closure MUST be a pure function of the node's event and
-     * state for the given name.
-     *
-     * The executor wires a StepMemoizer bound to the current step, which is the
-     * default memoization strategy. When a node runs without an executor (e.g. in
-     * isolation), the operation simply runs inline with no caching.
+     * Execute a closure as a durable, memoized sub-operation: on crash-replay
+     * the recorded value is returned WITHOUT running the closure again. Wrap
+     * expensive or non-deterministic work (LLM calls, HTTP, tool execution)
+     * in it so the work runs at most once. The closure MUST be a pure
+     * function of the node's event and state for the given name. Without an
+     * executor wired, the operation runs inline with no caching.
      *
      * @template T
      * @param Closure(): T $operation
@@ -105,16 +91,10 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Recall a previously memoized value without running anything, or null.
-     *
-     * Read-only counterpart to memo(): returns the recorded value when a
-     * completed memo exists (typically a prior run's recovery), null otherwise —
-     * including when no executor is wired (a node running in isolation has
-     * cached nothing).
-     *
-     * Use this to skip non-replayable work whose terminal value was already
-     * persisted, e.g. a StreamingNode that recalled a completed provider response
-     * instead of re-opening a non-resumable stream. The write side stays memoize().
+     * The read-only counterpart to memoize(): the recorded value, or null.
+     * Use it to skip non-replayable work whose terminal value was already
+     * persisted (e.g. a completed provider response instead of re-opening a
+     * non-resumable stream). The write side stays memoize().
      */
     protected function recallMemo(string $name): mixed
     {
@@ -138,11 +118,8 @@ abstract class Node implements NodeInterface
 
     /**
      * Suspend the workflow, carrying $request OUTBOUND to the caller/scheduler.
-     *
-     * On first pass this throws the internal suspend signal (caught at the step
-     * boundary). On resume it returns the inbound payload (the raw delivered answer,
-     * which a custom caller interprets) — never throwing, so node code after the
-     * call runs only on resume.
+     * On first pass this throws the internal suspend signal; on resume it
+     * returns the inbound payload — node code after the call runs only on resume.
      *
      * @return array<string, mixed>|null The payload on resume; null only if a condition short-circuited.
      * @throws WorkflowException
@@ -170,23 +147,15 @@ abstract class Node implements NodeInterface
             throw new WorkflowInterrupt($request);
         }
 
-        // Condition didn't meet, continue execution
         return null;
     }
 
     /**
-     * Suspend the workflow until an external event named $eventName is delivered.
-     *
-     * Thin sugar over {@see interrupt()} with a WaitForEventRequest. On first pass
-     * the workflow pauses; on resume this returns the matched event payload (the
-     * inbound payload). Finer correlation (e.g. a specific entity id) is done in the
-     * node after resume.
-     *
-     * Returns null when the wait timed out: an optional $expiresAt bounds the
-     * wait, and when it elapses the scheduler resumes with $timedOut — this method
-     * surfaces that as null so the node branches on `if ($payload === null)`
-     * (the wait produced no event). Node code must NOT compare the clock itself;
-     * the null return is the timeout signal.
+     * Suspend the workflow until an external event named $eventName is
+     * delivered — sugar over {@see interrupt()} with a WaitForEventRequest.
+     * When the optional $expiresAt deadline elapses, the scheduler resumes
+     * with $timedOut and this returns null: the null return is the timeout
+     * signal — node code must NOT compare the clock itself.
      *
      * @return array<string, mixed>|null The event payload, or null on timeout.
      */
@@ -194,8 +163,7 @@ abstract class Node implements NodeInterface
     {
         $payload = $this->interrupt(new WaitForEventRequest($eventName, $expiresAt));
 
-        // Reached only on resume. A timeout (deadline elapsed, no event) is surfaced
-        // to the node as null.
+        // Reached only on resume.
         if ($this->timedOut) {
             return null;
         }
@@ -204,9 +172,9 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Suspend the workflow until a clock time. Thin sugar over {@see interrupt()}
-     * with a SleepUntilRequest. Whether and when to fire is the scheduler's job.
-     * A timer resume carries no value, so this returns null on resume.
+     * Suspend the workflow until a clock time — sugar over {@see interrupt()}
+     * with a SleepUntilRequest. Whether and when to fire is the scheduler's
+     * job; a timer resume carries no value, so this returns null on resume.
      */
     protected function sleepUntil(DateTimeImmutable $wakeAt): ?array
     {
@@ -216,21 +184,12 @@ abstract class Node implements NodeInterface
         return null;
     }
 
-    /**
-     * Check if the node is in resuming mode.
-     *
-     * This is useful for middleware to determine if the workflow is resuming
-     * from an interruption.
-     */
     public function isResuming(): bool
     {
         return $this->payload !== null;
     }
 
     /**
-     * The inbound resume payload, or null when not resuming. Read by middleware
-     * to access the delivered answer.
-     *
      * @return array<string, mixed>|null
      */
     public function getResumePayload(): ?array
@@ -239,10 +198,8 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Dispatch an event through the workflow's PSR-14 dispatcher. The event
-     * object is the payload; ObservabilityEvent instances are stamped with the
-     * emitting node and the current branch. A node running without an
-     * executor (e.g. in isolation) has no dispatcher and emits nothing.
+     * A node running without an executor (e.g. in isolation) has no
+     * dispatcher and emits nothing.
      */
     protected function emit(object $event): void
     {

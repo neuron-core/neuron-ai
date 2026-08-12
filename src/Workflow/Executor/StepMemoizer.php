@@ -9,17 +9,12 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
 
 /**
- * Durable memoizer bound to a single node-execution step.
- *
- * Each memo value is serialized directly into the run's partition under the
- * namespaced key "{stepId}::{name}": the first call runs the operation and
- * persists the value; on replay the recorded value is returned without
- * re-running the operation. A memo record is by construction a completed
- * value — interrupted/failed markers only ever live under plain step ids.
- *
- * An instance is constructed per step by the executor (which knows the
- * current stepId and the run's codec) and threaded into the node via
- * setWorkflowContext().
+ * Durable memoizer bound to a single node-execution step, constructed per
+ * step by the executor. Memo values live under "{stepId}::{name}" in the
+ * run's partition: the first call runs the operation and persists the value,
+ * a replay returns the record without re-running. A memo record is by
+ * construction a completed value — interrupted/failed markers only ever
+ * live under plain step ids.
  */
 final class StepMemoizer
 {
@@ -50,16 +45,10 @@ final class StepMemoizer
     }
 
     /**
-     * Recall a previously memoized value WITHOUT running anything.
-     *
-     * Returns the recorded value when a memo exists for this name (typically
-     * a prior run's recovery), or null otherwise. Call it before the matching
-     * memo() so a fresh run sees nothing and executes the work.
-     *
-     * This is the read-only counterpart to memo(): it lets a node skip
-     * non-replayable work whose terminal value was already persisted — e.g. a
-     * streaming node recalling a completed provider response instead of
-     * re-opening a non-resumable stream. memo() handles the write side.
+     * The read-only counterpart to memo(): the recorded value, or null. Lets
+     * a node skip non-replayable work whose terminal value was already
+     * persisted (e.g. a non-resumable provider stream); memo() stays the
+     * write side.
      */
     public function get(string $name): mixed
     {

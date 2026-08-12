@@ -76,26 +76,20 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             $messages = array_slice($messages, $trimPoint['index']);
             $this->totalTokens -= $trimmedTokens;
 
-            // Normalize remaining checkpoint values by subtracting trimmed tokens
             $this->normalizeCheckpoints($messages, $trimmedTokens);
         }
 
-        // Validate alternation after trimming
         $this->validateAlternation($messages);
 
         return $messages;
     }
 
     /**
-     * Normalize checkpoint values after trimming by subtracting trimmed tokens.
-     *
-     * When messages are trimmed from the beginning of the history, the remaining
-     * checkpoints still have their original cumulative token values from the AI
-     * provider. This method adjusts those values to reflect the actual tokens
-     * in the remaining messages.
+     * After a head-trim, the remaining checkpoints still carry the provider's
+     * original cumulative token values; subtract the trimmed tokens from
+     * inputTokens (cumulative context) — outputTokens is per-message and stays.
      *
      * @param Message[] $messages The remaining messages after trimming
-     * @param int $trimmedTokens The total tokens that were removed
      */
     protected function normalizeCheckpoints(array $messages, int $trimmedTokens): void
     {
@@ -106,8 +100,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         foreach ($messages as $message) {
             $usage = $message->getUsage();
             if ($usage !== null) {
-                // Subtract trimmed tokens from inputTokens (cumulative context)
-                // outputTokens stays the same as it represents this message's output
                 $normalizedInputTokens = max(0, $usage->inputTokens - $trimmedTokens);
                 $message->setUsage(new Usage(
                     $normalizedInputTokens,
@@ -116,14 +108,13 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
         }
 
-        // Invalidate cache since checkpoint values have changed
+        // Checkpoint values changed, so the cache is stale
         $this->cachedCount = null;
         $this->cachedLastHash = null;
         $this->cachedCheckpoints = [];
     }
 
     /**
-     * Build checkpoints from assistant messages (including tool calls) with usage data.
      * Each checkpoint stores the token count reported by the AI provider at that point.
      *
      * @param Message[] $messages
@@ -157,8 +148,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Calculate total tokens from checkpoints or estimation.
-     *
      * @param Message[] $messages
      * @param array<int, array{index: int, tokens: int}> $checkpoints
      */
@@ -171,7 +160,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         $lastCheckpoint = end($checkpoints);
         $total = $lastCheckpoint['tokens'];
 
-        // Add estimation for tail (messages after the last checkpoint)
+        // Estimate the tail after the last checkpoint
         for ($i = $lastCheckpoint['index'] + 1; $i < $count; $i++) {
             $total += $this->tokenCounter->count($messages[$i]);
         }
@@ -180,11 +169,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Find the trim point (index and tokens to subtract).
-     *
-     * Adjusts the trim index to ensure the history starts with a UserMessage,
-     * using the most accurate token count from checkpoints.
-     *
      * @param Message[] $messages
      * @param array<int, array{index: int, tokens: int}> $checkpoints
      * @return array{index: int, tokens: int}
@@ -218,11 +202,9 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Adjust the trim index to ensure the trimmed history starts with a UserMessage.
-     *
-     * A valid chat history must start with a user message. This method searches
-     * outward from the initial trim index in both directions simultaneously,
-     * preferring the closest UserMessage (backward on tie).
+     * A valid chat history must start with a user message: search outward from
+     * the initial trim index in both directions simultaneously, preferring the
+     * closest UserMessage (backward on tie).
      *
      * @param Message[] $messages
      * @return array{index: int, tokens: int}
@@ -235,18 +217,14 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return ['index' => 0, 'tokens' => 0];
         }
 
-        // Clamp trimIndex to valid bounds
         $trimIndex = max(0, min($trimIndex, $count - 1));
 
-        // Track tokens separately for each direction
         $backwardTokens = $tokens;
         $forwardTokens = $tokens;
 
-        // Search outward from trimIndex in both directions
         $maxOffset = max($trimIndex, $count - 1 - $trimIndex);
 
         for ($i = 0; $i <= $maxOffset; $i++) {
-            // Check backward direction
             $backwardIndex = $trimIndex - $i;
             if ($backwardIndex >= 0) {
                 $backwardTokens = $this->updateTokensFromMessage($messages[$backwardIndex], $backwardTokens);
@@ -256,7 +234,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 }
             }
 
-            // Check forward direction (skip starting position on first iteration)
             $forwardIndex = $trimIndex + $i;
             if ($i > 0 && $forwardIndex < $count) {
                 $forwardTokens = $this->updateTokensFromMessage($messages[$forwardIndex], $forwardTokens);
@@ -267,7 +244,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
         }
 
-        // No UserMessage found - return safe defaults
+        // No UserMessage found: trim nothing
         return ['index' => 0, 'tokens' => 0];
     }
 
@@ -317,8 +294,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * Validates that messages follow the proper user-assistant alternation.
-     *
      * @param Message[] $messages
      * @throws ChatHistoryException
      */
@@ -334,7 +309,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         foreach ($messages as $index => $message) {
             $role = $message->getRole();
 
-            // Tool result messages must follow a tool call message
             if ($message instanceof ToolResultMessage) {
                 if (!$previousMessage instanceof ToolCallMessage) {
                     throw new ChatHistoryException(
@@ -351,8 +325,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
 
             // A tool call must be answered before the conversation moves on: a pure
-            // UserMessage can never directly follow a ToolCallMessage (mirrors the
-            // addMessage() alternation rule; ToolResultMessage was handled above).
+            // UserMessage can never directly follow a ToolCallMessage (ToolResultMessage
+            // was handled above).
             if ($previousMessage instanceof ToolCallMessage && $message instanceof UserMessage) {
                 throw new ChatHistoryException(
                     sprintf(
@@ -362,7 +336,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 );
             }
 
-            // Tool call messages must come from an assistant role
             if ($message instanceof ToolCallMessage) {
                 if ($role !== MessageRole::ASSISTANT->value) {
                     throw new ChatHistoryException(
@@ -380,7 +353,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 continue;
             }
 
-            // Regular messages must follow the expected alternation
             $expectedRole = $expectingUser ? MessageRole::USER->value : MessageRole::ASSISTANT->value;
             if ($role !== $expectedRole) {
                 throw new ChatHistoryException(
@@ -393,7 +365,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 );
             }
 
-            // Toggle expected role for next iteration
             $expectingUser = !$expectingUser;
             $previousMessage = $message;
         }

@@ -9,18 +9,11 @@ use NeuronAI\Workflow\Events\Event;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * The application-facing contract of a workflow: the operations a caller
- * holding a built workflow performs on it — run it, resume it, stream its
- * events, identify it, and wire observability.
- *
- * Construction-time configuration (graph, middleware, persistence, scheduler,
- * ...) is concrete-class API on {@see Workflow}: it happens where the caller
- * holds the concrete type, and subclasses configure through the protected
- * hooks instead. The engine-facing collaboration points — what an executor
- * must call to traverse a workflow — live on {@see WorkflowRuntimeInterface}.
- * `Workflow` implements both. `getRunId()` appears on both contracts
- * deliberately: applications hold the resume handle; the engine reads the
- * same identity as its persistence namespace.
+ * The application-facing contract of a workflow. Configuration is
+ * concrete-class API on {@see Workflow}; the engine-facing collaboration
+ * points live on {@see WorkflowRuntimeInterface}. getRunId() appears on both
+ * contracts deliberately: applications hold the resume handle, the engine
+ * reads the same identity as its persistence namespace.
  */
 interface WorkflowInterface
 {
@@ -41,21 +34,19 @@ interface WorkflowInterface
     public function resume(array $payload = [], bool $timedOut = false): WorkflowState;
 
     /**
-     * The single streaming entry point. Yields events in real time and returns
-     * the final state. With no payload it starts/replays; with a payload it resumes
-     * the interrupted step (the streaming counterpart of {@see run()} / {@see resume()}).
+     * The streaming counterpart of {@see run()} / {@see resume()}: yields
+     * events in real time and returns the final state.
      *
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
-     * @param bool $timedOut True when the resume was a deadline elapsing. Only
-     *                       meaningful when $payload is non-null; ignored on start.
+     * @param bool $timedOut True when the resume was a deadline elapsing; ignored on start.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function events(?array $payload = null, bool $timedOut = false): Generator;
 
     /**
-     * The unique identifier of this workflow run — also the resume handle: pass
-     * it back to the constructor to reattach to a suspended run. Null before
-     * the first run segment: identity is assigned by the executor.
+     * The run identifier, also the resume handle: pass it back to the
+     * constructor to reattach to a suspended run. Null before the first run
+     * segment: identity is assigned by the executor.
      */
     public function getRunId(): ?string;
 

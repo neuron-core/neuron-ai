@@ -91,14 +91,11 @@ class McpConnector
     }
 
     /**
-     * Get the list of available Tools from the server.
-     *
      * @return ToolInterface[]
      * @throws Exception
      */
     public function tools(): array
     {
-        // Filter by the only and exclude preferences.
         $tools = array_filter(
             $this->client()->listTools(),
             fn (array $tool): bool =>
@@ -110,8 +107,6 @@ class McpConnector
     }
 
     /**
-     * Convert the list of tools from the MCP server to Neuron compatible entities.
-     *
      * @param array<string, mixed> $item
      * @throws ArrayPropertyException
      * @throws ReflectionException
@@ -127,7 +122,6 @@ class McpConnector
             item: $item,
         );
 
-        // If the tool has no properties, return early
         if (!isset($item['inputSchema']['properties']) || !is_array($item['inputSchema']['properties'])) {
             return $tool;
         }
@@ -201,7 +195,9 @@ class McpConnector
     }
 
     /**
-     * This might look counter-intuitive, but when dealing with interrupts and serialization PHP doesnt allow for MCP connectors serialization
+     * Tools delegate invocation back to the connector: interrupt
+     * serialization cannot serialize an MCP connection held by a tool.
+     *
      * @throws McpException
      */
     public function invokeTool(array $item, array $arguments): mixed

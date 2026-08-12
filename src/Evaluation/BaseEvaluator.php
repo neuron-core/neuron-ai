@@ -18,41 +18,31 @@ abstract class BaseEvaluator implements EvaluatorInterface
     }
 
     /**
-     * Set up the method called before evaluation starts.
-     * Override this to initialize judge agents and other resources
+     * Override to initialize judge agents and other resources before evaluation starts.
      */
     public function setUp(): void
     {
-        // Default empty implementation - developers override as needed
     }
 
-    /**
-     * Get the dataset for this evaluator
-     */
     abstract public function getDataset(): DatasetInterface;
 
     /**
-     * Run the agent logic being tested
+     * Run the agent logic being tested.
      *
-     * @param array<string, mixed> $datasetItem Current item from the dataset
-     * @return mixed Output from the application logic
+     * @param array<string, mixed> $datasetItem
      */
     abstract public function run(array $datasetItem): mixed;
 
     /**
-     * Evaluate the output against expected results, with assertions.
-     * Developers implement this method to define their assertions.
+     * Assert the run() output against the reference dataset item.
      *
-     * @param mixed $output Output from the run() method
-     * @param array<string, mixed> $datasetItem Reference dataset item for comparison
+     * @param array<string, mixed> $datasetItem
      */
     abstract public function evaluate(mixed $output, array $datasetItem): void;
 
     /**
-     * Sources that participate in the run() cache key, beyond the evaluator
-     * itself: the agent classes and prompt files that run() depends on.
-     * Return class-strings or file paths; when any of their content changes,
-     * cached runs are invalidated. Only consulted when caching is enabled.
+     * Sources beyond the evaluator itself (agent classes, prompt files) that
+     * participate in the run() cache key — content changes invalidate cached runs.
      *
      * @return array<string> Class-strings or file paths
      */
@@ -62,9 +52,6 @@ abstract class BaseEvaluator implements EvaluatorInterface
     }
 
     /**
-     * Perform evaluation and return assertion outcomes.
-     * This is the wrapper method called by the runner.
-     *
      * @internal Used by EvaluatorRunner
      */
     final public function performEvaluation(mixed $output, array $datasetItem): AssertionOutcomes
@@ -72,14 +59,12 @@ abstract class BaseEvaluator implements EvaluatorInterface
         // Reset state before each evaluation to prevent leakage between dataset items
         $this->ruleExecutor->reset();
 
-        // Call developer's evaluate() implementation
         $this->evaluate($output, $datasetItem);
 
         return $this->ruleExecutor->snapshot();
     }
 
     /**
-     * Execute an evaluation rule.
      * The optional label names the metric the score is recorded under
      * (defaults to the assertion's getName()).
      */

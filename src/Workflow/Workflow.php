@@ -72,10 +72,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     protected ?StreamingChannelInterface $channel = null;
 
     /**
-     * Optional push-side delivery transform. When attached, yielded items are
-     * run through it and delivered to the channel as protocol lines
-     * (sendLine()); otherwise native chunks are delivered via send(). Null
-     * means "deliver native chunks" (the default).
+     * Optional push-side delivery transform: yielded items become protocol
+     * lines (sendLine()) instead of native chunks (send()).
      */
     protected ?StreamAdapterInterface $streamAdapter = null;
 
@@ -102,10 +100,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Register an observer to receive every event of this workflow instance.
-     * Legacy entry point — the observer is adapted to a PSR-14 listener on
-     * the ObservabilityEvent base class.
-     *
      * @deprecated Use subscribe() with a PSR-14 listener instead. Will be
      *             removed in the next major version.
      */
@@ -115,8 +109,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Register a PSR-14 listener for a specific event class. Matching is
-     * instanceof-based, so subscribing to ObservabilityEvent receives every event.
+     * Matching is instanceof-based: subscribing to ObservabilityEvent
+     * receives every event.
      *
      * @param class-string $eventClass
      */
@@ -127,9 +121,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Forward this workflow's events to an external PSR-14 dispatcher (e.g. a
-     * host framework's event dispatcher). Listeners registered via observe()
-     * and subscribe() keep working; the event is forwarded after them.
+     * Forward this workflow's events to an external PSR-14 dispatcher.
+     * Listeners registered via observe()/subscribe() run first.
      */
     public function setEventDispatcher(EventDispatcherInterface $dispatcher): static
     {
@@ -139,10 +132,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $this;
     }
 
-    /**
-     * The PSR-14 dispatcher owned by this workflow instance. Internal
-     * components (executor, nodes) emit through it.
-     */
     public function getEventDispatcher(): EventDispatcherInterface
     {
         return $this->dispatcher ??= new WorkflowEventDispatcher(
@@ -157,13 +146,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Run one channel call under the catch-report-continue policy: a channel
-     * error never fails the run — every failure is dispatched as a ChannelError
-     * and delivery moves on. Skipped entirely when no channel is attached.
-     * Circuit-breaking (stop trying after N failures, retry, back off) is the
-     * channel implementation's own policy, not the engine's: the channel is the
-     * code that understands its transport's failure semantics, and it can
-     * short-circuit its own send().
+     * Catch-report-continue: a channel error never fails the run — it is
+     * dispatched as a ChannelError and delivery moves on. Circuit-breaking
+     * and retry are the channel implementation's own policy, not the engine's.
      *
      * @param Closure(StreamingChannelInterface): void $op Receives the attached channel (non-null).
      */
@@ -183,8 +168,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Start the workflow to completion, consuming the generator internally.
-     * Never resumes — use {@see resume()} to deliver a payload to a suspended step.
+     * Start the workflow to completion. Never resumes — use {@see resume()}
+     * to deliver a payload to a suspended step.
+     *
      * @throws WorkflowException
      * @throws Throwable
      */
@@ -195,7 +181,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Resume a suspended workflow by delivering the inbound payload to the
-     * interrupted step. Consumes the generator internally.
+     * interrupted step.
      *
      * @param array<string, mixed> $payload The delivered event payload (the answer).
      * @param bool $timedOut True when the resume was a deadline elapsing.
@@ -208,9 +194,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * The single streaming entry point. With no payload it starts/replays; with a
-     * payload it resumes the interrupted step. {@see run()} and {@see resume()} are
-     * thin wrappers that drive this generator to completion and return the state.
+     * The single streaming entry point behind run() and resume().
      *
      * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
      * @return Generator<int, Event, mixed, WorkflowState>
@@ -221,15 +205,13 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
         $generator = $this->getExecutor()->execute($this, $payload, $timedOut);
 
-        // Open the protocol stream eagerly (start() before any output) when an
-        // adapter is attached — no-op otherwise. Mirrors the pull path's eager
-        // start, so push and push-via-adapter emit the same framing timing.
+        // Open the protocol stream before any output, mirroring the pull
+        // path's eager start so both emit the same framing timing.
         $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->start());
 
         try {
             // The single delivery choke point: every yielded item feeds the
-            // channel (push) before it reaches the caller (pull), so a stalled
-            // pull consumer never delays push consumers within an item. The
+            // channel (push) before it reaches the caller (pull). The
             // InterruptEvent terminal is delivered via suspended() instead —
             // pull consumers still receive it unchanged.
             foreach ($generator as $item) {
@@ -260,10 +242,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Deliver one yielded item to the channel: through the stream adapter (as
-     * protocol lines via sendLine) when one is attached, or as the native chunk
-     * (via send) otherwise. Routed through fireChannel, so an adapter/channel
-     * throw costs one ChannelError and never fails the run.
+     * Deliver one yielded item to the channel: as protocol lines when an
+     * adapter is attached, as the native chunk otherwise.
      */
     protected function deliver(object $item): void
     {
@@ -275,11 +255,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Drain adapter-produced protocol frames to the channel. No-op when no
-     * adapter is attached; otherwise each frame goes out as a sendLine() line
-     * under fireChannel's catch-report-continue guard. `$frames` produces the
-     * iterable of lines — start(), transform($item), or end() depending on the
-     * call site.
+     * Drain adapter-produced protocol frames to the channel as sendLine()
+     * lines, under fireChannel's catch-report-continue guard.
      *
      * @param Closure(StreamAdapterInterface): iterable<string> $frames
      */
@@ -296,8 +273,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Drive a generator to completion and return its state. The traversal body is
-     * lazy — it does not execute until iterated.
+     * The traversal body is lazy — it does not execute until iterated.
      */
     protected function consume(Generator $generator): WorkflowState
     {
@@ -308,8 +284,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Bootstrap the workflow (load event-node map, validate). Called by the
-     * executor once per segment, after ignition is resolved.
+     * Called by the executor once per segment, after ignition is resolved.
      *
      * @throws WorkflowException
      */
@@ -337,9 +312,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Subclass hook: run context persisted into the ignition record alongside
-     * the start event. Empty by default — the engine never learns what a
-     * thread or a tenant is.
+     * Subclass hook: run context persisted into the ignition record. Empty by
+     * default — the engine never learns what a thread or a tenant is.
      *
      * @return array<string, mixed>
      */
@@ -349,8 +323,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Subclass hook: apply a persisted ignition context when a blank process
-     * adopts a run. Symmetric read side of ignitionContext().
+     * Subclass hook: the read side of ignitionContext(), applied when a blank
+     * process adopts a run.
      *
      * @param array<string, mixed> $context
      */
@@ -358,26 +332,17 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
     }
 
-    /**
-     * Get the resolved start event for the workflow.
-     */
     final public function getStartEvent(): Event
     {
         return $this->startEvent ??= $this->startEvent();
     }
 
-    /**
-     * Set a custom start event with initial data.
-     */
     public function setStartEvent(Event $event): static
     {
         $this->startEvent = $event;
         return $this;
     }
 
-    /**
-     * Create the default start event for the workflow.
-     */
     protected function startEvent(): Event
     {
         return new StartEvent();
@@ -445,8 +410,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Get the node that handles a specific event type.
-     *
      * @throws WorkflowException if no node is registered for the given event class
      */
     public function getNodeForEvent(string $eventClass): NodeInterface
@@ -461,9 +424,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Restore a recalled event's transient capability (see WorkflowRuntimeInterface).
-     * A plain workflow has none — subclasses whose events carry live objects
-     * (e.g. Agent re-seeding its tool registry) override this.
+     * A plain workflow has no transient capability to restore — subclasses
+     * whose events carry live objects (e.g. Agent's tools) override this.
      */
     public function restoreEvent(Event $event): Event
     {
@@ -471,10 +433,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * The unique identifier of this workflow run — also the resume handle: pass
-     * it back to the constructor to reattach to a suspended run. Null before
-     * the first run segment: identity is assigned by the executor, never
-     * defaulted at construction.
+     * The run identifier, also the resume handle. Null before the first run
+     * segment: identity is assigned by the executor, never at construction.
      */
     public function getRunId(): ?string
     {
@@ -482,10 +442,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Adopt the run identity resolved by the executor's identity phase
-     * (fresh → generated; continuation → explicit or resolved from the
-     * correlation pointer). Identity is assigned exactly once per run;
-     * later segments of the same instance keep it ("local state wins").
+     * Adopt the identity resolved by the executor. Assigned exactly once per
+     * run; later segments of the same instance keep it ("local state wins").
      */
     public function adoptRunId(string $runId): void
     {
@@ -493,9 +451,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * The business/correlation key by which this run wants to be addressable
-     * (e.g. the Agent's threadId). Null by default — a plain workflow declares
-     * none and is unaffected by the correlation pointer.
+     * The business key by which this run wants to be addressable (e.g. the
+     * Agent's threadId). Null opts out of the correlation pointer entirely.
      */
     public function correlationKey(): ?string
     {

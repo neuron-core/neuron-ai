@@ -13,16 +13,10 @@ use function is_array;
 use function json_encode;
 
 /**
- * A single tool invocation as conversation data.
- *
- * This is what travels — in messages, stream chunks, observability events,
- * persistence, and across fork boundaries: the call record (name, callId,
- * inputs) plus the call's outcome state (result, approval decision). It is
- * plain data and serializes natively.
- *
- * Execution capability stays on the live ToolInterface registry: ToolNode
- * resolves the call's name against it and stamps the result back here. A
- * ToolCall can never execute anything.
+ * A single tool invocation as conversation data: the call record plus its outcome
+ * state, travelling in messages, stream chunks, events, and persistence. Execution
+ * capability stays on the live ToolInterface registry — a ToolCall can never
+ * execute anything.
  *
  * @method static static make(string $name, ?string $callId = null, array $inputs = [], ?string $description = null)
  */
@@ -33,18 +27,17 @@ class ToolCall implements JsonSerializable
     protected string|ToolOutput|null $result = null;
 
     /**
-     * Approval state of this specific call. Null = not approval-gated.
+     * Null = not approval-gated.
      */
     protected ?ApprovalState $approvalState = null;
 
     /**
-     * Rejection reason. Only ever non-null when $approvalState is Rejected.
+     * Only ever non-null when $approvalState is Rejected.
      */
     protected ?string $rejectReason = null;
 
     /**
-     * Why this call is asking for approval — the tool author's (or attach-time
-     * policy's) outbound message to the approver.
+     * Why this call is asking for approval — the outbound message to the approver.
      */
     protected ?string $approvalReason = null;
 
@@ -103,8 +96,7 @@ class ToolCall implements JsonSerializable
     }
 
     /**
-     * Whether this call has settled with a result — false for a call that never
-     * executed (e.g. still pending approval).
+     * False for a call that never executed (e.g. still pending approval).
      */
     public function hasResult(): bool
     {
@@ -124,9 +116,8 @@ class ToolCall implements JsonSerializable
     }
 
     /**
-     * Record the call's result. Mirrors Tool::setResult() normalization:
-     * a ToolOutput is kept as-is, arrays are JSON-encoded, anything else is
-     * cast to string.
+     * Mirrors Tool::setResult() normalization: a ToolOutput is kept as-is,
+     * arrays are JSON-encoded, anything else is cast to string.
      */
     public function setResult(mixed $result): self
     {
@@ -145,8 +136,8 @@ class ToolCall implements JsonSerializable
     }
 
     /**
-     * Record the approval state. $reason is meaningful only for rejections
-     * (the approver's feedback); any other state clears it.
+     * $reason is meaningful only for rejections (the approver's feedback);
+     * any other state clears it.
      */
     public function setApprovalState(ApprovalState $state, ?string $reason = null): self
     {

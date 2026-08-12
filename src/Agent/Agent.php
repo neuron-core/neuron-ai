@@ -43,13 +43,10 @@ class Agent extends Workflow implements AgentInterface
     protected ChatHistoryInterface $chatHistory;
 
     /**
-     * The agent's thread identity — the conversation this run belongs to, and
-     * the run's correlation key. Nullable until resolved, assigned exactly
-     * once through adoptThreadId() (mirroring the engine's runId phase), and
-     * NEVER generated: identity is always a developer statement. Sources, in
-     * precedence order: the explicit make(threadId:) parameter, adoption from
-     * a pre-bound chat history, the ignition record on a run-first resume.
-     * Null means the run is not thread-addressable.
+     * The conversation this run belongs to, and the run's correlation key.
+     * Assigned exactly once through adoptThreadId() and NEVER generated —
+     * identity is always a developer statement. Null means the run is not
+     * thread-addressable.
      */
     protected ?string $threadId = null;
 
@@ -67,9 +64,6 @@ class Agent extends Workflow implements AgentInterface
         }
     }
 
-    /**
-     * Determines whether tools should be executed in parallel.
-     */
     public function parallelToolCalls(bool $enabled): AgentInterface
     {
         $this->parallelToolCalls = $enabled;
@@ -83,20 +77,15 @@ class Agent extends Workflow implements AgentInterface
 
     protected function chatHistory(): ChatHistoryInterface
     {
-        // Identity-aware default: an explicit threadId keys the in-memory
-        // store; with none, the history self-keys (its own storage default,
-        // adopted as the run's identity by the lazy fallback).
+        // With no explicit threadId the history self-keys, and its key is
+        // adopted as the run's identity by the lazy fallback.
         return new InMemoryChatHistory($this->threadId);
     }
 
     /**
-     * A pre-bound history (constructed with its thread) declares thread
-     * identity by adoption — its key becomes the agent's, conflicts throw.
-     * An unbound history (constructed without a thread, e.g.
-     * `new SQLChatHistory($pdo)`) is the recommended wiring: the agent binds
-     * the resolved identity into it before first use — from make(threadId:),
-     * or from the ignition record on a run-first resume. Identity never
-     * needs to appear in wiring code.
+     * A pre-bound history declares thread identity by adoption (conflicts
+     * throw); an unbound one receives the agent's resolved identity before
+     * first use — identity never needs to appear in wiring code.
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
@@ -105,9 +94,7 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Attach a history and reconcile identity between it and the agent:
-     * a bound history declares identity (adoption, conflicts throw); an
-     * unbound one receives the agent's resolved identity; when both are
+     * Reconcile identity between the history and the agent. When both are
      * unresolved the history is stored as-is and adoptThreadId() binds it
      * the moment identity arrives.
      */
@@ -125,13 +112,9 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The single assignment door for thread identity (mirrors the engine's
-     * adoptRunId): called by the constructor (explicit parameter),
-     * attachChatHistory (adoption from a pre-bound history), and
-     * applyIgnitionContext (run-first resume). Assigning a conflicting
-     * identity is always a wiring bug and throws — two disagreeing claims
-     * about the same conversation have no honest silent resolution. The
-     * tail binds an already-attached, still-unbound history.
+     * The single assignment door for thread identity. A conflicting identity
+     * is always a wiring bug and throws — two disagreeing claims about the
+     * same conversation have no honest silent resolution.
      *
      * @throws AgentException
      */
@@ -160,14 +143,11 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The agent's transient capability is its live tool registry: persisted
-     * events drop it (AIInferenceEvent::__serialize — tools hold connections,
-     * clients, closures), so a recalled inference or tool-call event comes back
-     * with an empty tool list. Re-seed the base registry here; middleware
-     * re-supply their own additions in before() (each contributor restores what
-     * it contributes). The engine calls this only on events recalled from
-     * persistence — a live event's effective set (middleware additions and
-     * removals included) is never touched.
+     * Persisted events drop the live tool registry (tools hold connections,
+     * clients, closures — see AIInferenceEvent::__serialize), so a recalled
+     * event comes back with an empty tool list. Re-seed the base registry
+     * here; middleware re-supply their own additions in before(). Called only
+     * on recalled events — a live event's effective set is never touched.
      */
     public function restoreEvent(Event $event): Event
     {
@@ -210,7 +190,7 @@ class Agent extends Workflow implements AgentInterface
     protected function entryNodes(): array
     {
         // Bootstrap first: it rewrites the instructions (toolkit guidelines),
-        // so resolving them before it would hand the node the stale message.
+        // so resolving them earlier would hand the node the stale message.
         $tools = $this->bootstrapTools();
 
         return [
@@ -228,9 +208,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The thread identity — read from the chat history (the single source of
-     * truth)
-     *
      * @return array<string, mixed>
      */
     protected function ignitionContext(): array
@@ -249,20 +226,17 @@ class Agent extends Workflow implements AgentInterface
         $threadId = $context['threadId'] ?? null;
 
         if (is_string($threadId)) {
-            // Adoption validates as it assigns: a record whose identity
-            // contradicts an explicitly given one is a mis-addressed
-            // continuation and throws.
+            // A record contradicting an explicitly given identity is a
+            // mis-addressed continuation — adoption throws.
             $this->adoptThreadId($threadId);
         }
     }
 
     /**
-     * The agent's thread identity, or null when none was declared. A pure
-     * read of the slot: addressability requires identity declared BEFORE
-     * the run starts (make(threadId:), or a pre-bound history passed to
-     * setChatHistory()) — identity discovered later (a pre-bound hook
-     * history materializing during bootstrap) is adopted and validated, but
-     * arrives after the ignition record and pointer are written.
+     * Addressability requires identity declared BEFORE the run starts —
+     * identity discovered later (a pre-bound hook history materializing
+     * during bootstrap) is adopted and validated, but arrives after the
+     * ignition record and pointer are written.
      */
     public function getThreadId(): ?string
     {
@@ -270,12 +244,9 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The Agent's business identity is the conversation: the run is
-     * addressable by its threadId, so the engine binds threadId → runId at
-     * ignition and a continuation holding only the thread finds the run.
-     * Null means no thread identity is resolvable here — a run-first resume
-     * before ignition adoption (the explicit runId addresses the run), or a
-     * deliberately anonymous run.
+     * The Agent's business identity is the conversation: the engine binds
+     * threadId → runId at ignition, so a continuation holding only the
+     * thread finds the run.
      */
     public function correlationKey(): ?string
     {
@@ -288,13 +259,9 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Pure ignition: a new turn starts a new run. To continue a suspended run
-     * use {@see resume()}.
-     *
-     * Chat mode is buffered, so this runs eagerly to completion and returns the
-     * final state — {@see AgentState::getMessage()} reads the assistant message
-     * off the stored provider response, and {@see WorkflowState::isInterrupted()}
-     * surfaces an approval pause.
+     * A new turn starts a new run — to continue a suspended run use
+     * {@see resume()}. Runs eagerly to completion; the returned state
+     * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
      *
      * @param Message|Message[] $messages
      * @throws AgentException
@@ -311,14 +278,11 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The pull-stream verb: a generator yielding Neuron chunks (TextChunk,
-     * ToolCallChunk, …) whose {@see Generator::getReturn()} is the final
-     * {@see AgentState}. Pass a {@see StreamAdapterInterface} to yield
-     * protocol-adapted lines instead (Vercel AI SDK, AG-UI, SSE) — the start/
-     * transform/end sequences are emitted lazily around the raw items. To push
-     * adapted output to a channel instead, attach the adapter via
-     * {@see setStreamAdapter()} — the workflow then runs each chunk through it
-     * and delivers the resulting lines to the channel's sendLine() port.
+     * The pull-stream verb: yields Neuron chunks, and
+     * {@see Generator::getReturn()} is the final {@see AgentState}. Pass a
+     * {@see StreamAdapterInterface} to yield protocol-adapted lines instead
+     * (Vercel AI SDK, AG-UI, SSE); for push delivery to a channel, attach the
+     * adapter via {@see setStreamAdapter()} instead.
      *
      * @param Message|Message[] $messages
      * @return Generator<int, object|string, mixed, AgentState>
@@ -384,11 +348,9 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The single continuation verb — delivers the inbound payload to a
-     * suspended run. It carries no identity logic of its own: the engine's
-     * identity-resolution phase addresses the run, either from an explicit
-     * runId (run-first) or from the thread's correlation pointer
-     * (thread-first, {@see correlationKey()}).
+     * The single continuation verb. It carries no identity logic of its own:
+     * the engine addresses the run from an explicit runId (run-first) or the
+     * thread's correlation pointer (thread-first).
      *
      * @param array<string, mixed> $payload
      * @throws Throwable
@@ -402,8 +364,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Get the class representing the structured output.
-     *
      * @throws AgentException
      */
     protected function getOutputClass(): string

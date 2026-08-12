@@ -44,8 +44,6 @@ class StdioTransport implements McpTransportInterface
     private ?array $pipes = null;
 
     /**
-     * Create a new StdioTransport with the given configuration
-     *
      * @param array<string, mixed> $config
      */
     public function __construct(protected array $config)
@@ -53,8 +51,6 @@ class StdioTransport implements McpTransportInterface
     }
 
     /**
-     * Connect to the MCP server by spawning the process
-     *
      * @throws McpException
      */
     public function connect(): void
@@ -69,16 +65,13 @@ class StdioTransport implements McpTransportInterface
         $args = $this->config['args'] ?? [];
         $env = $this->config['env'] ?? [];
 
-        // Merge current environment with provided environment variables
         $fullEnv = array_merge(getenv(), $env);
 
-        // Build command with arguments
         $commandLine = $command;
         foreach ($args as $arg) {
             $commandLine .= ' ' . escapeshellarg((string) $arg);
         }
 
-        // Start the process
         $this->process = proc_open(
             $commandLine,
             $descriptorSpec,
@@ -91,11 +84,9 @@ class StdioTransport implements McpTransportInterface
             throw new McpException("Failed to start the MCP server process");
         }
 
-        // Configure pipes for binary data
         stream_set_write_buffer($this->pipes[0], 0);
         stream_set_read_buffer($this->pipes[1], 0);
 
-        // Check that the process started successfully
         $status = proc_get_status($this->process);
         if (!$status['running']) {
             $error = stream_get_contents($this->pipes[2]);
@@ -104,8 +95,6 @@ class StdioTransport implements McpTransportInterface
     }
 
     /**
-     * Send a request to the MCP server
-     *
      * @param array<string, mixed> $data
      * @throws McpException
      */
@@ -134,8 +123,6 @@ class StdioTransport implements McpTransportInterface
     }
 
     /**
-     * Receive a response from the MCP server
-     *
      * @return array<string, mixed>
      * @throws McpException|JsonException
      */
@@ -145,14 +132,12 @@ class StdioTransport implements McpTransportInterface
             throw new McpException("Process is not running");
         }
 
-        // Set stream to non-blocking mode
         stream_set_blocking($this->pipes[1], false);
 
         $response = "";
         $startTime = microtime(true);
-        $timeout = 30.0; // 30-second timeout
+        $timeout = 30.0;
 
-        // Keep reading until we get a complete JSON response or timeout
         while (microtime(true) - $startTime < $timeout) {
             $status = proc_get_status($this->process);
 
@@ -164,45 +149,35 @@ class StdioTransport implements McpTransportInterface
             if ($chunk !== false && $chunk !== '') {
                 $response .= $chunk;
 
-                // Try to parse what we have so far
                 $decoded = json_decode($response, true, 64, JSON_THROW_ON_ERROR);
                 if ($decoded !== null) {
-                    // We've got a valid JSON response
                     return $decoded;
                 }
             }
 
-            // Small delay to prevent CPU spinning
-            usleep(10000); // 10ms
+            usleep(10000); // avoid busy waiting
         }
 
         throw new McpException("Timeout waiting for response from MCP server");
     }
 
-    /**
-     * Disconnect from the MCP server
-     */
     public function disconnect(): void
     {
         if (is_resource($this->process)) {
-            // Close all pipe handles
             foreach ($this->pipes as $pipe) {
                 if (is_resource($pipe)) {
                     fclose($pipe);
                 }
             }
 
-            // Try graceful termination first
             $status = proc_get_status($this->process);
-            // On Unix systems, try sending SIGTERM
+
+            // Graceful shutdown: SIGTERM, then give the process 500ms before closing the handle
             if ($status['running'] && function_exists('proc_terminate')) {
                 proc_terminate($this->process);
-                // Give the process a moment to shut down gracefully
                 usleep(500000);
-                // 500ms
             }
 
-            // Close the process handle
             proc_close($this->process);
             $this->process = null;
             $this->pipes = null;

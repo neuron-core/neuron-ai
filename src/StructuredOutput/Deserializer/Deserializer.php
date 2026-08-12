@@ -53,14 +53,10 @@ class Deserializer
     }
 
     /**
-     * Deserialize JSON data into a specified class instance
-     *
-     * @return object Instance of the specified class
      * @throws DeserializerException|ReflectionException
      */
     public function fromJson(string $jsonData, string $className): object
     {
-        // Decode JSON data
         $data = json_decode($jsonData, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
@@ -71,10 +67,6 @@ class Deserializer
     }
 
     /**
-     * Deserialize an array/object into a class instance
-     *
-     * @param  array  $data  The data to deserialize
-     * @param  string  $className  The target class name
      * @throws DeserializerException|ReflectionException
      */
     protected function deserializeObject(array $data, string $className): object
@@ -85,23 +77,18 @@ class Deserializer
 
         $reflection = new ReflectionClass($className);
 
-        // Create an instance without calling constructor
         $instance = $reflection->newInstanceWithoutConstructor();
 
-        // Get all properties including private/protected
         $properties = $reflection->getProperties();
 
-        // Track values set on promoted properties
         $promotedArgs = [];
 
         foreach ($properties as $property) {
             $propertyName = $property->getName();
 
-            // Check if data contains this property (case-sensitive and snake_case/camelCase variants)
             $value = $this->findPropertyValue($data, $propertyName);
 
             if ($value !== null) {
-                // Get property type information
                 $type = $property->getType();
 
                 if ($type) {
@@ -110,14 +97,13 @@ class Deserializer
 
                 $property->setValue($instance, $value);
 
-                // Track any promoted arguments that are being set
                 if ($property->isPromoted()) {
                     $promotedArgs[ $propertyName ] = $value;
                 }
             }
         }
 
-        // Call constructor if it exists and is public
+        // Run a public zero-required-arg constructor so its initialization logic still executes
         $constructor = $reflection->getConstructor();
         if ($constructor && $constructor->isPublic() && $constructor->getNumberOfRequiredParameters() === 0) {
             $constructor->invokeArgs($instance, $promotedArgs);
@@ -127,22 +113,19 @@ class Deserializer
     }
 
     /**
-     * Find property value in data, supporting different naming conventions
+     * Matches the exact key first, then snake_case and camelCase variants.
      */
     protected function findPropertyValue(array $data, string $propertyName): mixed
     {
-        // Direct match
         if (array_key_exists($propertyName, $data)) {
             return $data[$propertyName];
         }
 
-        // Convert camelCase to snake_case
         $snakeCase = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', $propertyName));
         if (array_key_exists($snakeCase, $data)) {
             return $data[$snakeCase];
         }
 
-        // Convert snake_case to camelCase
         $camelCase = lcfirst(str_replace('_', '', ucwords($propertyName, '_')));
         if (array_key_exists($camelCase, $data)) {
             return $data[$camelCase];
@@ -152,14 +135,11 @@ class Deserializer
     }
 
     /**
-     * Cast value to the appropriate type based on property type
-     *
      * @throws DeserializerException|ReflectionException
      */
     protected function castValue(mixed $value, ReflectionType $type, ReflectionProperty $property): mixed
     {
         if ($type instanceof ReflectionUnionType) {
-            // Handle union types
             foreach ($type->getTypes() as $unionType) {
                 try {
                     return $this->castToSingleType($value, $unionType, $property);
@@ -175,8 +155,6 @@ class Deserializer
     }
 
     /**
-     * Cast value to a single type
-     *
      * @throws DeserializerException|ReflectionException
      */
     protected function castToSingleType(
@@ -186,7 +164,6 @@ class Deserializer
     ): mixed {
         $typeName = $type->getName();
 
-        // Handle null values
         if ($value === null) {
             if ($type->allowsNull()) {
                 return null;
@@ -219,13 +196,10 @@ class Deserializer
             return $this->handleEnum($typeName, $value);
         }
 
-        // Fallback: return the value as-is
         return $value;
     }
 
     /**
-     * Handle collections
-     *
      * @throws DeserializerException|ReflectionException
      */
     protected function handleArray(mixed $value, ReflectionProperty $property): mixed
@@ -245,49 +219,42 @@ class Deserializer
             }
         }
 
-        // Fallback: return the value as-is
         return $value;
     }
 
     /**
-     * Deserialize an object using a discriminator field to determine the class
+     * Resolve the concrete class of a multi-type (anyOf) item through the
+     * discriminator field injected by JsonSchema.
      *
-     * @return object Deserialized object instance
      * @throws DeserializerException|ReflectionException
      */
     protected function deserializeObjectWithDiscriminator(array $data, array $possibleTypes): object
     {
-        // Check for the discriminator field
         if (!isset($data[$this->discriminator])) {
             throw new DeserializerException("Missing {$this->discriminator} discriminator field in data for multi-type array deserialization");
         }
 
         $discriminatorValue = strtolower((string) $data[$this->discriminator]);
 
-        // Build mapping: lowercase classname => fully qualified class name
         $mapping = [];
         foreach ($possibleTypes as $type) {
             $shortName = strtolower(basename(str_replace('\\', '/', $type)));
             $mapping[$shortName] = $type;
         }
 
-        // Find a matching class
         if (!isset($mapping[$discriminatorValue])) {
             throw new DeserializerException("Unknown discriminator value '{$discriminatorValue}'. Expected one of: " . implode(', ', array_keys($mapping)));
         }
 
         $className = $mapping[$discriminatorValue];
 
-        // Remove discriminator field from data before deserialization
+        // The discriminator is synthetic — it must not reach the target class
         unset($data[$this->discriminator]);
 
-        // Deserialize into the correct class
         return $this->deserializeObject($data, $className);
     }
 
     /**
-     * Create a DateTime object from various input formats
-     *
      * @throws DeserializerException
      */
     protected function createDateTime(mixed $value): DateTime
@@ -312,8 +279,6 @@ class Deserializer
     }
 
     /**
-     * Create a DateTimeImmutable object from various input formats
-     *
      * @throws DeserializerException
      */
     protected function createDateTimeImmutable(mixed $value): DateTimeImmutable

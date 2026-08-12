@@ -10,18 +10,13 @@ use Exception;
 
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
+ * The OUTBOUND pause description only: the matched event data arrives as the
+ * inbound payload on resume. Subclasses specialize the outbound context
+ * (ApprovalRequest is the shipped example).
  *
- * This is the OUTBOUND pause description only — the event name to wait for and an
- * optional deadline. The matched event data (the answer) is NOT carried here; it
- * arrives as the inbound payload on resume (see Workflow::resume()). Subclasses
- * specialize the outbound context — ApprovalRequest is the shipped example,
- * carrying Action[] the caller must render to a human.
- *
- * An optional $expiresAt turns the wait into a bounded one: if no event satisfies
- * it by the deadline, the scheduler resumes the workflow with $timedOut and the
- * node's awaitEvent() surfaces null. Expiration is coordination state — the
- * scheduler owns the deadline timer; persistence stores neither this request nor
- * the timeout flag (the request is fire-and-forget, rebuilt by re-running the node).
+ * An optional $expiresAt bounds the wait: the scheduler owns the deadline
+ * timer and resumes with $timedOut when it elapses — persistence stores
+ * neither this request nor the timeout flag.
  */
 class WaitForEventRequest extends InterruptRequest
 {

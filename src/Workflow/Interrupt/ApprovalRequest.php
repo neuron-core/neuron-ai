@@ -12,21 +12,16 @@ use function array_map;
 use function sprintf;
 
 /**
- * Outbound request carrying the tool calls (or other actions) that require a human decision
- * before the workflow may proceed.
- *
- * This is a pure OUTBOUND value: a convenience snapshot of what the caller must
- * render to a human. It describes the actions and their current decision state — it is never
- * handed back into the workflow and carries no round-trip machinery.
- *
- * The human's decisions travel inbound as a separate, INCREMENTAL resume payload keyed by
- * action id (the tool callId), not via this object:
+ * Outbound request carrying the actions that require a human decision before
+ * the workflow may proceed. A pure OUTBOUND snapshot for the caller to render
+ * — never handed back into the workflow. The decisions travel inbound as a
+ * cumulative resume payload keyed by action id:
  *
  *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
  *
- * Pending approval state itself is persisted in chat history — the system of
- * record the UI already reads. This request is rebuilt fresh by the middleware on every
- * pass (replay-by-rerun), so it is not persisted and may safely reference real objects.
+ * Rebuilt fresh by the node on every pass (replay-by-rerun), so it is not
+ * persisted and may safely reference real objects; pending approval state is
+ * persisted in chat history — the system of record the UI already reads.
  */
 class ApprovalRequest extends WaitForEventRequest
 {
@@ -40,16 +35,16 @@ class ApprovalRequest extends WaitForEventRequest
      * @param Action[]               $actions   Actions requiring approval
      * @param DateTimeImmutable|null $expiresAt Optional auto-resolve deadline (e.g. auto-reject)
      * @throws WorkflowException When two actions share an id — the decision payload is keyed
-     *                           by action id, so a duplicate would make one action invisible
-     *                           to the approver and forever undecidable (a silent deadlock).
+     *                           by action id, so a duplicate action would be forever
+     *                           undecidable (a silent deadlock).
      */
     public function __construct(
         protected string $message,
         array $actions = [],
         ?DateTimeImmutable $expiresAt = null,
     ) {
-        // A human decision is an external event delivered on the "approval" channel; type() is
-        // inherited as WaitForEvent. Action[] is the specialized OUTBOUND payload.
+        // A human decision is an external event on the "approval" channel;
+        // type() is inherited as WaitForEvent.
         parent::__construct('approval', $expiresAt);
 
         foreach ($actions as $action) {

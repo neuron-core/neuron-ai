@@ -90,8 +90,6 @@ class FakeMcpTransport implements McpTransportInterface
     }
 
     /**
-     * Add more responses to the queue.
-     *
      * @param  array<string, mixed>  ...$responses
      */
     public function addResponses(array ...$responses): self
@@ -104,8 +102,6 @@ class FakeMcpTransport implements McpTransportInterface
     }
 
     /**
-     * Get all sent data.
-     *
      * @return array<string, mixed>[]
      */
     public function getSent(): array
@@ -114,8 +110,6 @@ class FakeMcpTransport implements McpTransportInterface
     }
 
     /**
-     * Get all received data.
-     *
      * @return array<string, mixed>[]
      */
     public function getReceived(): array
@@ -187,7 +181,7 @@ class FakeMcpTransport implements McpTransportInterface
     }
 
     /**
-     * Assert that at least one sent request matches the given callback.
+     * Assert at least one sent request matches the callback.
      *
      * @param  callable(array<string, mixed>): bool  $callback
      */
@@ -205,9 +199,6 @@ class FakeMcpTransport implements McpTransportInterface
         Assert::assertTrue($matched, 'No sent data matched the given assertion callback.');
     }
 
-    /**
-     * Assert that a specific method was sent.
-     */
     public function assertMethodSent(string $method, int $expectedCount = 1): void
     {
         $count = 0;
@@ -225,9 +216,6 @@ class FakeMcpTransport implements McpTransportInterface
         );
     }
 
-    /**
-     * Assert that a specific method was received.
-     */
     public function assertMethodReceived(string $method, int $expectedCount = 1): void
     {
         $count = 0;
@@ -245,26 +233,17 @@ class FakeMcpTransport implements McpTransportInterface
         );
     }
 
-    /**
-     * Assert that the initialize sequence was called correctly.
-     */
     public function assertInitialized(): void
     {
         $this->assertMethodSent('initialize', 1);
         $this->assertMethodSent('notifications/initialized', 1);
     }
 
-    /**
-     * Assert that tools/list was called.
-     */
     public function assertToolsListCalled(int $expectedCount = 1): void
     {
         $this->assertMethodSent('tools/list', $expectedCount);
     }
 
-    /**
-     * Assert that a specific tool was called.
-     */
     public function assertToolCalled(string $toolName, int $expectedCount = 1): void
     {
         $count = 0;

@@ -25,8 +25,6 @@ use const PHP_EOL;
 trait HandleTools
 {
     /**
-     * Registered tools.
-     *
      * @var ToolInterface[]|ToolkitInterface[]|ProviderToolInterface[]
      */
     protected array $tools = [];
@@ -42,18 +40,14 @@ trait HandleTools
     protected int $toolMaxRuns = 10;
 
     /**
-     * Callback to handle exceptions that escape tool execution.
-     * If null, or the callback returns null, the exception is re-thrown.
-     *
      * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
     protected $toolErrorHandler;
 
     /**
-     * Set a callback to handle exceptions that escape tool execution.
-     * A returned string or ToolOutput (e.g. ToolOutput::error(...)) becomes the
-     * tool result visible to the LLM and the agent loop continues; returning
-     * null declines — the exception propagates and aborts the run.
+     * Handle exceptions that escape tool execution: a returned string or
+     * ToolOutput becomes the tool result visible to the LLM and the loop
+     * continues; returning null declines — the exception propagates.
      *
      * @param callable|null $handler fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
@@ -64,8 +58,7 @@ trait HandleTools
     }
 
     /**
-     * Resolve the tool error handler.
-     * Override this method to provide a default error handler in your agent.
+     * Override to provide a default error handler in your agent.
      *
      * @return callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
@@ -99,8 +92,8 @@ trait HandleTools
     }
 
     /**
-     * If toolkits have already bootstrapped, this function
-     * just traverses the array of tools without any action.
+     * Expand toolkits into their tools and inject toolkit guidelines into the
+     * instructions. Cached until the tool set changes.
      *
      * @return ToolInterface[]
      */
@@ -119,10 +112,9 @@ trait HandleTools
                     $name = (new ReflectionClass($tool))->getShortName();
                     $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
                 }
-                // Merge the tools
                 $innerTools = $tool->tools();
                 $this->toolsBootstrapCache = array_merge($this->toolsBootstrapCache, $innerTools);
-                // Add guidelines to the system prompt
+
                 if (!in_array($kitGuidelines, [null, '', '0'], true)) {
                     $kitGuidelines .= PHP_EOL.implode(
                         PHP_EOL.'- ',
@@ -135,7 +127,6 @@ trait HandleTools
                     $guidelines[] = $kitGuidelines;
                 }
             } elseif ($tool->isVisible()) {
-                // If the item is a simple tool, add to the list if it's authorized
                 $this->toolsBootstrapCache[] = $tool;
             }
         }
@@ -164,8 +155,6 @@ trait HandleTools
     }
 
     /**
-     * Add tools.
-     *
      * @param  ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface>  $tools
      * @throws AgentException
      */

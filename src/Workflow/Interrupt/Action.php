@@ -33,33 +33,22 @@ class Action implements JsonSerializable
     ) {
     }
 
-    /**
-     * Check if this action is pending.
-     */
     public function isPending(): bool
     {
         return $this->decision->isPending();
     }
 
-    /**
-     * Check if this action is approved.
-     */
     public function isApproved(): bool
     {
         return $this->decision->isApproved();
     }
 
-    /**
-     * Check if this action is rejected.
-     */
     public function isRejected(): bool
     {
         return $this->decision->isRejected();
     }
 
     /**
-     * Serialize to JSON.
-     *
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array

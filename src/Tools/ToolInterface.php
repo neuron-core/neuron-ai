@@ -8,49 +8,32 @@ use JsonSerializable;
 
 interface ToolInterface extends JsonSerializable
 {
-    /**
-     * Get the unique name of the tool.
-     */
     public function getName(): string;
 
     public function setName(string $name): ToolInterface;
 
-    /**
-     * Get a description of the tool's functionality.
-     */
     public function getDescription(): ?string;
 
     public function setDescription(?string $description): ToolInterface;
 
-    /**
-     * Add a Property with a name, type, description, and optional required constraint.
-     */
     public function addProperty(ToolPropertyInterface $property): ToolInterface;
 
     /**
-     * Get the Properties schema.
+     * @return ToolPropertyInterface[]
      */
     public function getProperties(): array;
 
     /**
-     * Names of the required properties.
-     *
      * @return array<string>
      */
     public function getRequiredProperties(): array;
 
     public function getParameters(): array;
 
-    /**
-     * Get the input arguments of the function call.
-     */
     public function getInputs(): array;
 
     public function getInput(string $key): mixed;
 
-    /**
-     * Get the input arguments of the function call.
-     */
     public function setInputs(array $inputs): ToolInterface;
 
     /**
@@ -58,27 +41,25 @@ interface ToolInterface extends JsonSerializable
      */
     public function getCallId(): ?string;
 
-
     public function setCallId(string $callId): ToolInterface;
 
-
     /**
-     * Whether the tool has executed and holds a result. False for a tool
-     * that never ran (e.g. a pending or rejected call), where getResult()
-     * must not be called.
+     * Whether the tool has executed and holds a result. False for a tool that
+     * never ran (e.g. a pending or rejected call), where getResult() must not
+     * be called.
      */
     public function hasResult(): bool;
 
     /**
-     * The result of the execution: a string, or a ToolOutput when the tool
-     * returned multimodal content blocks from __invoke().
+     * A string, or a ToolOutput when the tool returned multimodal content
+     * blocks from __invoke().
      */
     public function getResult(): string|ToolOutput;
 
     public function setResult(mixed $result): ToolInterface;
 
     /**
-     * Define the maximum number of calls for the tool in a single agent session.
+     * The maximum number of calls for the tool in a single agent session.
      */
     public function getMaxRuns(): ?int;
 
@@ -89,28 +70,18 @@ interface ToolInterface extends JsonSerializable
     public function isVisible(): bool;
 
     /**
-     * Get a unique key for tracking tool runs.
-     *
-     * Tools can return any string — the tool name itself, a hash of inputs,
-     * a combination of specific parameter values, or any custom strategy.
+     * The key run limits are tracked by: the tool name, a hash of inputs,
+     * or any custom strategy.
      */
     public function getRunKey(): string;
 
-    /**
-     * Execute the tool's logic with input parameters.
-     */
     public function execute(): void;
 
     /**
-     * The effective answer to "does this tool call require human approval before
-     * execution?", consulted by ToolNode on every tool call. On the
-     * Tool base class this resolves the attach-time overrides — requireApproval(),
-     * suppressApproval(), withApprovalPolicy() — falling back to the class's own
-     * protected approvalPolicy() declaration.
-     *
-     * Returning a string counts as true AND carries the reason the approval is
-     * being requested — surfaced to the approver via the ApprovalRequest actions
-     * and the tool entries persisted in chat history.
+     * Whether this call requires human approval before execution, consulted by
+     * ToolNode on every tool call. Returning a string counts as true AND carries
+     * the reason shown to the approver (surfaced on the ApprovalRequest actions
+     * and persisted in chat history).
      *
      * @param array<string, mixed> $inputs The arguments the model is calling the tool with.
      */

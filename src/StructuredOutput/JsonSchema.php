@@ -32,7 +32,7 @@ class JsonSchema
     use StaticConstructor;
 
     /**
-     * Track classes being processed to prevent infinite recursion
+     * Classes currently being processed, to break circular references.
      */
     protected array $processedClasses = [];
 
@@ -41,18 +41,14 @@ class JsonSchema
     }
 
     /**
-     * Generate JSON schema from a PHP class
+     * Generate the JSON schema for a fully qualified class name.
      *
-     * @param string $class Fully qualified class name
-     * @return array JSON schema definition
      * @throws ReflectionException
      */
     public function generate(string $class): array
     {
-        // Reset processed classes for a new generation
         $this->processedClasses = [];
 
-        // Generate the main schema
         return [
             ...$this->generateClassSchema($class),
             'additionalProperties' => false,
@@ -60,33 +56,25 @@ class JsonSchema
     }
 
     /**
-     * Generate schema for a class
-     *
-     * @param string $class Class name
-     * @return array The schema
      * @throws ReflectionException
      */
     protected function generateClassSchema(string $class): array
     {
         $reflection = new ReflectionClass($class);
 
-        // Check for circular reference
+        // Circular reference: return a bare object schema to break the cycle
         if (in_array($class, $this->processedClasses)) {
-            // For circular references, return a simple object schema to break the cycle
             return ['type' => 'object'];
         }
 
         $this->processedClasses[] = $class;
 
-        // Handle enum types differently
         if ($reflection->isEnum()) {
             $result = $this->processEnum(new ReflectionEnum($class));
-            // Remove the class from the processed list after processing
             array_pop($this->processedClasses);
             return $result;
         }
 
-        // Create a basic object schema
         $schema = [
             'type' => 'object',
             'properties' => [],
@@ -95,10 +83,8 @@ class JsonSchema
 
         $requiredProperties = [];
 
-        // Process all public properties
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
 
-        // Process each property
         foreach ($properties as $property) {
             $propertyName = $property->getName();
 
@@ -110,8 +96,7 @@ class JsonSchema
                     $requiredProperties[] = $propertyName;
                 }
             } else {
-                // If the attribute is not available,
-                // use the default logic for required properties
+                // No attribute: non-nullable properties without a default are required
                 $type = $property->getType();
 
                 $isNullable = $type ? $type->allowsNull() : true;
@@ -122,28 +107,22 @@ class JsonSchema
             }
         }
 
-        // Add required properties
         if ($requiredProperties !== []) {
             $schema['required'] = $requiredProperties;
         }
 
-        // Remove the class from the processed list after processing
         array_pop($this->processedClasses);
 
         return $schema;
     }
 
     /**
-     * Process a single property to generate its schema
-     *
-     * @return array Property schema
      * @throws ReflectionException
      */
     protected function processProperty(ReflectionProperty $property): array
     {
         $schema = [];
 
-        // Process Property attribute if present
         $attribute = $this->getPropertyAttribute($property);
         if ($attribute instanceof SchemaProperty) {
             if ($attribute->title !== null) {
@@ -159,16 +138,13 @@ class JsonSchema
         $type = $property->getType();
         $typeName = $type?->getName();
 
-        // Handle default values
         if ($property->hasDefaultValue()) {
             $schema['default'] = $property->getDefaultValue();
         }
 
-        // Process different types
         if ($typeName === 'array') {
             $schema['type'] = 'array';
 
-            // Use anyOf from SchemaProperty attribute
             if ($attribute instanceof SchemaProperty && $attribute->anyOf !== null && $attribute->anyOf !== []) {
                 if (count($attribute->anyOf) === 1) {
                     $schema['items'] = $this->generateClassSchema($attribute->anyOf[0]);
@@ -179,7 +155,6 @@ class JsonSchema
                 $schema['items'] = ['type' => 'string'];
             }
 
-            // Apply array constraints
             if ($attribute instanceof SchemaProperty) {
                 if ($attribute->min !== null) {
                     $schema['minItems'] = $attribute->min;
@@ -188,23 +163,16 @@ class JsonSchema
                     $schema['maxItems'] = $attribute->max;
                 }
             }
-        }
-        // Handle enum types
-        elseif ($typeName && enum_exists($typeName)) {
+        } elseif ($typeName && enum_exists($typeName)) {
             $enumReflection = new ReflectionEnum($typeName);
             $schema = array_merge($schema, $this->processEnum($enumReflection));
-        }
-        // Handle class types
-        elseif ($typeName && class_exists($typeName)) {
+        } elseif ($typeName && class_exists($typeName)) {
             $classSchema = $this->generateClassSchema($typeName);
             $schema = array_merge($schema, $classSchema);
-        }
-        // Handle basic types
-        elseif ($typeName) {
+        } elseif ($typeName) {
             $typeSchema = $this->getBasicTypeSchema($typeName);
             $schema = array_merge($schema, $typeSchema);
 
-            // Apply type-specific constraints
             if ($attribute instanceof SchemaProperty) {
                 if (in_array($typeName, ['int', 'integer', 'float', 'double'])) {
                     if ($attribute->min !== null) {
@@ -225,11 +193,10 @@ class JsonSchema
                 }
             }
         } else {
-            // Default to string if no type hint
             $schema['type'] = 'string';
         }
 
-        // Handle nullable types - for basic types only
+        // Nullability applies only to inline basic types, not $ref/allOf schemas
         if ($type && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf']) && $type->allowsNull()) {
             if (is_array($schema['type'])) {
                 if (!in_array('null', $schema['type'])) {
@@ -243,25 +210,18 @@ class JsonSchema
         return $schema;
     }
 
-    /**
-     * Process an enum to generate its schema
-     */
     protected function processEnum(ReflectionEnum $enum): array
     {
-        // Create enum schema
         $schema = [
             'type' => 'string',
             'enum' => [],
         ];
 
-        // Extract enum values
         foreach ($enum->getCases() as $case) {
             if ($enum->isBacked()) {
                 /** @var ReflectionEnumBackedCase $case */
-                // For backed enums, use the backing value
                 $schema['enum'][] = $case->getBackingValue();
             } else {
-                // For non-backed enums, use case name
                 $schema['enum'][] = $case->getName();
             }
         }
@@ -270,8 +230,7 @@ class JsonSchema
     }
 
     /**
-     * Get the SchemaProperty definition for a property, from the
-     * SchemaPropertiesInterface runtime map or the attribute.
+     * The SchemaPropertiesInterface runtime map wins over the attribute.
      */
     protected function getPropertyAttribute(ReflectionProperty $property): ?SchemaProperty
     {
@@ -279,10 +238,6 @@ class JsonSchema
     }
 
     /**
-     * Get schema for a basic PHP type
-     *
-     * @param string $type PHP type name
-     * @return array Schema for the type
      * @throws ReflectionException
      */
     protected function getBasicTypeSchema(string $type): array
@@ -310,25 +265,19 @@ class JsonSchema
                 ];
 
             default:
-                // Check if it's a class or enum
                 if (class_exists($type)) {
                     return $this->generateClassSchema($type);
                 }
-                // Check if it's a class or enum
                 if (enum_exists($type)) {
                     return $this->processEnum(new ReflectionEnum($type));
                 }
 
-                // Default to string for unknown types
                 return ['type' => 'string'];
         }
     }
 
     /**
-     * Generate anyOf schema for multiple class/enum types
-     *
-     * @param array $types Array of class/enum type strings
-     * @return array Schema with anyOf structure
+     * @param string[] $types Class/enum type strings
      * @throws ReflectionException
      */
     protected function generateAnyOfSchema(array $types): array
@@ -345,10 +294,7 @@ class JsonSchema
             }
 
             if ($schema !== null) {
-                // Extract the short class name (lowercase) for discriminator
                 $shortName = strtolower(basename(str_replace('\\', '/', $type)));
-
-                // Inject __classname__ discriminator into schema
                 $schema = $this->injectDiscriminator($schema, $shortName);
                 $schemas[] = $schema;
             }
@@ -358,17 +304,12 @@ class JsonSchema
     }
 
     /**
-     * Inject __classname__ discriminator field into schema
-     *
-     * @param array $schema The schema to inject into
-     * @param string $discriminatorValue The discriminator value (lowercase class name)
-     * @return array Modified schema
+     * Inject a required discriminator field (lowercase class name) into object
+     * schemas so the Deserializer can resolve the concrete anyOf type.
      */
     protected function injectDiscriminator(array $schema, string $discriminatorValue): array
     {
-        // Only inject for object schemas
         if (isset($schema['type']) && $schema['type'] === 'object') {
-            // Add __classname__ property at the beginning
             $schema['properties'] = [
                 $this->discriminator => [
                     'type' => 'string',
@@ -378,7 +319,6 @@ class JsonSchema
                 ...($schema['properties'] ?? []),
             ];
 
-            // Make __classname__ required
             $schema['required'] = array_unique([
                 $this->discriminator,
                 ...($schema['required'] ?? []),

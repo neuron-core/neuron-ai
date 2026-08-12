@@ -32,18 +32,12 @@ class FakeMiddleware implements WorkflowMiddleware
 
     protected ?Closure $afterHandler = null;
 
-    /**
-     * Configure an exception to throw when before() is called.
-     */
     public function setThrowOnBefore(Throwable $exception): self
     {
         $this->throwOnBefore = $exception;
         return $this;
     }
 
-    /**
-     * Configure an exception to throw when after() is called.
-     */
     public function setThrowOnAfter(Throwable $exception): self
     {
         $this->throwOnAfter = $exception;
@@ -51,8 +45,6 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * Set a custom handler for before().
-     *
      * @param Closure(NodeInterface, Event, WorkflowState): void $handler
      */
     public function setBeforeHandler(Closure $handler): self
@@ -62,8 +54,6 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * Set a custom handler for after().
-     *
      * @param Closure(NodeInterface, Event, WorkflowState): void $handler
      */
     public function setAfterHandler(Closure $handler): self
@@ -187,8 +177,6 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * Assert before() was called at least once for a specific node class.
-     *
      * @param class-string<NodeInterface> $nodeClass
      */
     public function assertBeforeCalledForNode(string $nodeClass): void
@@ -206,8 +194,6 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * Assert after() was called at least once for a specific node class.
-     *
      * @param class-string<NodeInterface> $nodeClass
      */
     public function assertAfterCalledForNode(string $nodeClass): void

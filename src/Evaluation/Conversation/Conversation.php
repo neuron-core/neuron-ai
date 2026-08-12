@@ -21,12 +21,9 @@ use function implode;
 use function is_string;
 
 /**
- * The live execution helper of the evaluation layer: drives an agent through a
- * multi-turn exchange and returns the recorded Trajectory. You run a
- * Conversation; you evaluate its Trajectory.
- *
- * Suspensions (e.g. tool approval) are answered by the approval policy — a
- * callable playing the human. No policy configured + a suspension = an error:
+ * Drives an agent through a multi-turn exchange and returns the recorded
+ * Trajectory. Suspensions are answered by the approval policy — a callable
+ * playing the human; a suspension with no policy is an error:
  * silence is never consent, in evals as in production.
  *
  * @method static static make(AgentInterface $agent)
@@ -51,10 +48,8 @@ class Conversation
     }
 
     /**
-     * The scripted configuration path: user turns delivered in order, each one
-     * sent only after the previous turn fully completed (including any
-     * suspend → decide → resume cycle — the thread stays locked while a
-     * decision set is open).
+     * The scripted path: turns delivered in order, each sent only after the
+     * previous one fully completed (including any suspend → decide → resume cycle).
      *
      * @param array<int, string|UserMessage> $turns
      */
@@ -65,12 +60,10 @@ class Conversation
     }
 
     /**
-     * The simulated configuration path: a UserSimulator generates each next
-     * user message until it declares its goal satisfied (or gives up), or the
-     * hard cap is reached. Hitting maxTurns ends the conversation *normally* —
-     * whether an unfinished conversation is a failure is the assertions'
-     * judgment, not the runner's. The simulator never answers suspensions;
-     * approvals stay with the approval policy.
+     * The simulated path: a UserSimulator generates each user message until it
+     * declares its stop or maxTurns is hit — which ends the conversation
+     * *normally*; whether unfinished is a failure is the assertions' judgment.
+     * The simulator never answers suspensions; approvals stay with the policy.
      *
      * @param int $maxTurns Hard cap on user turns — required, no infinite default.
      */
@@ -86,14 +79,10 @@ class Conversation
     }
 
     /**
-     * The approval policy — the callable that plays the approver whenever the
-     * agent suspends, at any point in the conversation:
-     *
-     *     fn (InterruptRequest $request, Trajectory $soFar): array
-     *
-     * It returns the complete resume payload (for an ApprovalRequest: keyed by
-     * callId, 'approve' or ['reject', $reason]). Argument-dependent decisions
-     * read the tool arguments from the Trajectory tail.
+     * The approval policy plays the approver whenever the agent suspends:
+     * fn (InterruptRequest $request, Trajectory $soFar): array — returning the
+     * complete resume payload (for an ApprovalRequest: keyed by callId,
+     * 'approve' or ['reject', $reason]).
      */
     public function withApprovals(callable $policy): self
     {
@@ -102,8 +91,6 @@ class Conversation
     }
 
     /**
-     * Drive the conversation to completion and return the recorded Trajectory.
-     *
      * @throws EvaluationException
      * @throws Throwable
      */
@@ -153,9 +140,6 @@ class Conversation
     }
 
     /**
-     * Send one user turn to the agent and drive it to completion, answering
-     * any suspensions along the way — identical in both configuration paths.
-     *
      * @throws EvaluationException
      * @throws Throwable
      */
@@ -167,9 +151,8 @@ class Conversation
     }
 
     /**
-     * Answer suspensions until the current turn completes. A resume may
-     * legitimately suspend again (a later gated tool call) and re-enters the
-     * loop; termination rides on the agent's own tool-run limits.
+     * A resume may legitimately suspend again (a later gated tool call);
+     * termination rides on the agent's own tool-run limits.
      *
      * @throws EvaluationException
      * @throws Throwable

@@ -32,12 +32,10 @@ use function json_encode;
 
 /**
  * The recorded evaluation subject: a read-only view over the original typed
- * chat messages. No parallel data schema — accessors answer
- * evaluation questions directly from the framework's own Message and Tool
- * objects, folding the append-only approval log (pending snapshot on the
- * tool_call message, final outcome on the following tool_call_result)
- * into one entry per call. You run a Conversation; you evaluate its
- * Trajectory.
+ * chat messages — no parallel data schema. Accessors fold the append-only
+ * approval log (pending snapshot on tool_call, final outcome on the following
+ * tool_call_result) into one entry per call.
+ * You run a Conversation; you evaluate its Trajectory.
  */
 class Trajectory
 {
@@ -50,8 +48,8 @@ class Trajectory
     }
 
     /**
-     * Public seam: any chat message list, however produced, can be wrapped and
-     * evaluated — the Conversation runner is sugar over this same method.
+     * Public seam: any chat message list can be wrapped and evaluated —
+     * the Conversation runner is sugar over this method.
      *
      * @param Message[] $messages
      */
@@ -66,8 +64,6 @@ class Trajectory
     }
 
     /**
-     * The original messages, full fidelity — content blocks, metadata, usage.
-     *
      * @return Message[]
      */
     public function messages(): array
@@ -76,13 +72,9 @@ class Trajectory
     }
 
     /**
-     * One entry per tool call, in execution order, optionally filtered by tool
-     * name. Where a call has both a pending snapshot (on the tool_call message)
-     * and a final outcome (on the tool_call_result message), the final outcome
-     * wins — results, approval state, and reject reason come from what actually
-     * happened. A suspended tail keeps its pending entries.
-     *
-     * Note: a call that never executed (pending or rejected) has no result —
+     * One entry per tool call, in execution order: where a call has both a
+     * pending snapshot and a final outcome, the final outcome wins; a suspended
+     * tail keeps its pending entries. A call that never executed has no result —
      * check ToolCall::hasResult() before calling getResult().
      *
      * @return ToolCall[]
@@ -92,9 +84,8 @@ class Trajectory
         /** @var ToolCall[] $calls */
         $calls = [];
 
-        // Index (into $calls) of each entry from the last tool_call message,
-        // keyed by callId (falling back to tool name for hand-rolled histories
-        // without callIds — providers always stamp a unique one).
+        // Index (into $calls) of the last tool_call message's entries, keyed by
+        // callId — falling back to tool name for hand-rolled histories without one.
         /** @var array<string, int> $open */
         $open = [];
 
@@ -135,7 +126,7 @@ class Trajectory
     }
 
     /**
-     * The user side of the conversation, in order (tool results excluded).
+     * User message contents in order, tool results excluded.
      *
      * @return string[]
      */
@@ -156,9 +147,8 @@ class Trajectory
     }
 
     /**
-     * The last non-empty assistant message content — the conversation's final
-     * answer. Empty string when the conversation produced none (e.g. a
-     * suspended tail with no accompanying text).
+     * The last non-empty assistant message content; empty string when the
+     * conversation produced none (e.g. a suspended tail).
      */
     public function finalAnswer(): string
     {
@@ -173,10 +163,6 @@ class Trajectory
         return $answer;
     }
 
-    /**
-     * Aggregate token usage across the conversation, summed from every message
-     * carrying provider-reported usage.
-     */
     public function usage(): Usage
     {
         $total = new Usage(0, 0);
@@ -195,10 +181,9 @@ class Trajectory
     }
 
     /**
-     * Canonical human-readable rendering — what transcript-aware judges and the
-     * UserSimulator read. Tool calls render with their final outcome (the fold),
-     * followed by their result; non-text content blocks render as attachment
-     * descriptors so judges know media was part of the exchange.
+     * Canonical rendering read by transcript-aware judges and the UserSimulator:
+     * tool calls render with their final outcome (the fold), non-text content
+     * blocks as attachment descriptors so judges know media was exchanged.
      */
     public function toTranscript(): string
     {
@@ -217,8 +202,7 @@ class Trajectory
                     $lines[] = "Assistant: {$content}";
                 }
 
-                // The folded list holds every call in message order — consume
-                // positionally so each renders with its final outcome.
+                // Consume the folded list positionally so each call renders with its final outcome
                 foreach ($message->getToolCalls() as $ignored) {
                     $lines = [...$lines, ...$this->renderToolCall($calls[$position])];
                     $position++;
@@ -302,17 +286,15 @@ class Trajectory
     }
 
     /**
-     * Serialization reuses the chat-history storage format (jsonSerialize per
-     * message, history-style rehydration) so a Trajectory survives the parallel
-     * runner's fork boundary. Messages carry ToolCall data — nothing
-     * here ever holds closures or connections.
+     * Serialization reuses the chat-history storage format so a Trajectory
+     * survives the parallel runner's fork boundary — messages carry ToolCall
+     * data, never closures or connections.
      *
      * @return array{messages: array<int, array<string, mixed>>}
      */
     public function __serialize(): array
     {
-        // The JSON round-trip flattens enums and nested objects to plain values,
-        // exactly like a history written to storage — the deserializer's format.
+        // The JSON round-trip flattens enums and nested objects into the deserializer's format
         return [
             'messages' => json_decode((string) json_encode($this->messages), true),
         ];

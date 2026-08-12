@@ -49,9 +49,6 @@ class EvaluatorSummary
         return $this->getTotalCount() - $this->getPassedCount();
     }
 
-    /**
-     * Number of results whose run() output was served from the evaluation cache
-     */
     public function getCachedRunCount(): int
     {
         return count(array_filter($this->results, fn (EvaluatorResult $result): bool => $result->isCachedRun()));
@@ -135,8 +132,6 @@ class EvaluatorSummary
     }
 
     /**
-     * Get assertion failures grouped by evaluator class
-     *
      * @return array<string, AssertionFailure[]>
      */
     public function getAssertionFailuresByClass(): array
@@ -153,9 +148,7 @@ class EvaluatorSummary
     }
 
     /**
-     * Get assertion failures grouped by evaluator class and line
-     *
-     * @return array<string, AssertionFailure[]>
+     * @return array<string, AssertionFailure[]> keyed by "EvaluatorClass:line"
      */
     public function getAssertionFailuresByLocation(): array
     {
@@ -171,8 +164,6 @@ class EvaluatorSummary
     }
 
     /**
-     * Get all labeled assertion scores across all results
-     *
      * @return array<Score>
      */
     public function getAllScoreRecords(): array
@@ -185,8 +176,6 @@ class EvaluatorSummary
     }
 
     /**
-     * Get all assertion scores grouped by label
-     *
      * @return array<string, array<Score>>
      */
     public function getScoresByLabel(): array
@@ -199,8 +188,6 @@ class EvaluatorSummary
     }
 
     /**
-     * Get per-metric score statistics across all results
-     *
      * @return array<string, array{average: float, min: float, max: float, count: int}>
      */
     public function getScoreStatisticsByLabel(): array
@@ -219,8 +206,6 @@ class EvaluatorSummary
     }
 
     /**
-     * Get all assertion scores across all results
-     *
      * @return array<float>
      */
     public function getAllAssertionScores(): array
@@ -228,9 +213,6 @@ class EvaluatorSummary
         return array_map(fn (Score $score): float => $score->value, $this->getAllScoreRecords());
     }
 
-    /**
-     * Get the average assertion score across all evaluations
-     */
     public function getAverageAssertionScore(): float
     {
         $scores = $this->getAllAssertionScores();
@@ -240,9 +222,6 @@ class EvaluatorSummary
         return array_sum($scores) / count($scores);
     }
 
-    /**
-     * Get the minimum assertion score across all evaluations
-     */
     public function getMinAssertionScore(): float
     {
         $scores = $this->getAllAssertionScores();
@@ -252,9 +231,6 @@ class EvaluatorSummary
         return min($scores);
     }
 
-    /**
-     * Get the maximum assertion score across all evaluations
-     */
     public function getMaxAssertionScore(): float
     {
         $scores = $this->getAllAssertionScores();

@@ -13,11 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use function json_encode;
 
 /**
- * Adapter for AG-UI Protocol.
- *
- * Implements the streaming event-based protocol defined by AG-UI protocol for real-time
- * agent-frontend interaction. Supports text messages, tool calls, reasoning,
- * and lifecycle events.
+ * Adapter for the AG-UI streaming protocol (agent-frontend interaction).
  *
  * @see https://docs.ag-ui.com/concepts/events
  */
@@ -27,13 +23,13 @@ class AGUIAdapter extends SSEAdapter
 
     protected bool $messageStarted = false;
 
-    /** @var array<string, string> Map of tool names to tool call IDs */
+    /** @var array<string, string> Tool name to tool call ID */
     protected array $toolCallIds = [];
 
-    /** @var array<string, bool> Track which tool calls have started */
+    /** @var array<string, bool> */
     protected array $toolCallStarted = [];
 
-    /** @var array<string, bool> Track which tool calls already streamed their arguments */
+    /** @var array<string, bool> */
     protected array $toolCallArgsStreamed = [];
 
     protected bool $reasoningStarted = false;
@@ -64,17 +60,14 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleText(TextChunk $chunk): iterable
     {
-        // Skip empty deltas, they carry no content
         if ($chunk->content === '') {
             return;
         }
 
-        // Close reasoning if it was started (transition from reasoning to text)
         foreach ($this->endReasoning() as $event) {
             yield $event;
         }
 
-        // Ensure the message has started
         if (! $this->messageStarted) {
             $this->currentMessageId = $this->generateId('msg');
             $this->messageStarted = true;
@@ -86,7 +79,6 @@ class AGUIAdapter extends SSEAdapter
             ]);
         }
 
-        // Stream content delta
         yield $this->sse([
             'type' => 'TEXT_MESSAGE_CONTENT',
             'messageId' => $this->currentMessageId,
@@ -96,12 +88,10 @@ class AGUIAdapter extends SSEAdapter
 
     protected function handleReasoning(ReasoningChunk $chunk): iterable
     {
-        // Skip empty deltas, they carry no content
         if ($chunk->content === '') {
             return;
         }
 
-        // Close text message if it was started (transition from text to reasoning)
         foreach ($this->endText() as $event) {
             yield $event;
         }
@@ -134,7 +124,6 @@ class AGUIAdapter extends SSEAdapter
         // Capture the parent message id before closing the text stream resets it
         $parentMessageId = $this->currentMessageId;
 
-        // Close any open streams before starting tool calls
         foreach ($this->endReasoning() as $event) {
             yield $event;
         }
@@ -147,7 +136,6 @@ class AGUIAdapter extends SSEAdapter
             ?? $this->generateId('call');
         $this->toolCallIds[$chunk->toolName] = $toolCallId;
 
-        // Emit ToolCallStart only once per tool call
         if (! isset($this->toolCallStarted[$toolCallId])) {
             $this->toolCallStarted[$toolCallId] = true;
 
@@ -164,7 +152,6 @@ class AGUIAdapter extends SSEAdapter
             yield $this->sse($event);
         }
 
-        // Stream the argument fragment
         $this->toolCallArgsStreamed[$toolCallId] = true;
 
         yield $this->sse([
@@ -179,7 +166,6 @@ class AGUIAdapter extends SSEAdapter
         // Capture the parent message id before closing the text stream resets it
         $parentMessageId = $this->currentMessageId;
 
-        // Close any open streams before starting tool calls
         foreach ($this->endReasoning() as $event) {
             yield $event;
         }
@@ -190,7 +176,6 @@ class AGUIAdapter extends SSEAdapter
         $toolName = $chunk->tool->getName();
         $toolCallId = $this->resolveToolCallId($chunk);
 
-        // Emit ToolCallStart only once per tool call
         if (! isset($this->toolCallStarted[$toolCallId])) {
             $this->toolCallStarted[$toolCallId] = true;
 
@@ -207,7 +192,7 @@ class AGUIAdapter extends SSEAdapter
             yield $this->sse($event);
         }
 
-        // Stream tool arguments as JSON, unless already streamed as ToolArgumentChunk deltas
+        // Skip the args when they were already streamed as ToolArgumentChunk deltas
         $args = $chunk->tool->getInputs();
         if ($args !== [] && ! isset($this->toolCallArgsStreamed[$toolCallId])) {
             yield $this->sse([
@@ -217,7 +202,6 @@ class AGUIAdapter extends SSEAdapter
             ]);
         }
 
-        // Mark tool call arguments as complete
         yield $this->sse([
             'type' => 'TOOL_CALL_END',
             'toolCallId' => $toolCallId,
@@ -228,7 +212,6 @@ class AGUIAdapter extends SSEAdapter
     {
         $toolCallId = $this->resolveToolCallId($chunk);
 
-        // Emit tool result
         yield $this->sse([
             'type' => 'TOOL_CALL_RESULT',
             'toolCallId' => $toolCallId,
@@ -261,8 +244,6 @@ class AGUIAdapter extends SSEAdapter
     }
 
     /**
-     * End the reasoning stream if it is active.
-     *
      * @return iterable<string>
      */
     protected function endReasoning(): iterable
@@ -286,8 +267,6 @@ class AGUIAdapter extends SSEAdapter
     }
 
     /**
-     * End the text message stream if it is active.
-     *
      * @return iterable<string>
      */
     protected function endText(): iterable
@@ -314,7 +293,6 @@ class AGUIAdapter extends SSEAdapter
             yield $event;
         }
 
-        // Emit RunFinished event
         if ($this->runId !== null) {
             yield $this->sse([
                 'type' => 'RUN_FINISHED',

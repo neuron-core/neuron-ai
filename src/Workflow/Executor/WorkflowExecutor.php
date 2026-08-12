@@ -35,51 +35,30 @@ use Throwable;
 use function uniqid;
 
 /**
- * The run lifecycle, whole and unsplit: ignition (register / adopt / refuse),
- * bootstrap, replay-based traversal, and terminal handling.
+ * The run lifecycle: ignition (register / adopt / refuse), bootstrap,
+ * replay-based traversal, terminal handling. Owns no configuration — it reads
+ * the run's context off the WorkflowRuntimeInterface at execute() time, so one
+ * execution model composes with any persistence backend or scheduler.
  *
- * The executor owns no configuration — it reads the run's context (state
- * store, scheduler, run id, definition) from the WorkflowRuntimeInterface it
- * is handed, so one executor strategy composes with any persistence backend
- * or scheduler. Every executed node is persisted as a StepResult: on re-run,
- * previously completed steps are returned from cache without re-executing the
- * node; interrupted steps resume from the inbound payload; failed steps
- * (marked after an unhandled throwable) retry.
+ * Replay is keyed by step id alone: ids are unique within a run, so a cached
+ * completed step is always prior work and safe to skip. Interrupted steps
+ * resume from the inbound payload; failed steps retry.
  *
- * Replay is keyed by step id alone: step ids are unique within a run
- * (monotonic traversal index, a branch prefix, a per-name memo suffix), so a
- * completed, non-interrupted, non-failed cached result is always a prior
- * run's work and is safe to skip. There is no generation counter and no scan
- * of stored steps.
- *
- * This is the in-process execution model. AsyncExecutor subclasses it to run
- * parallel branches concurrently; alternative execution models implement
- * WorkflowExecutorInterface directly.
+ * This is the in-process model; AsyncExecutor runs parallel branches concurrently.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
     /**
-     * The executor's two reserved names in the store, one per identity
-     * direction. IGNITION_KEY is the key the run's trigger envelope rides
-     * under inside the run's own partition (self-description: runId → how it
-     * started), deleted with the partition on clean completion. Node steps
-     * are `NodeClass-index` and memo keys `stepId::name`, so it can never
-     * collide. CORRELATION_PARTITION holds the addressability index
-     * (business key → most recently ignited runId); its rows are historical
-     * facts, never deleted — liveness is derived by checking the named run's
-     * ignition record (see resolveIdentity). Storage details of this
-     * executor — the workflow sees only the typed Ignition and its
-     * correlationKey() vocabulary.
+     * Reserved store names. IGNITION_KEY holds the run's trigger envelope in
+     * its own partition, deleted with it on clean completion.
+     * CORRELATION_PARTITION maps business key → most recently ignited runId;
+     * its rows are never deleted — liveness is derived from the named run's
+     * ignition record (see resolveIdentity).
      */
     protected const IGNITION_KEY = '__ignition';
 
     protected const CORRELATION_PARTITION = '__correlation';
 
-    /**
-     * The run context of the currently executing run, read off the workflow
-     * runtime at the single entry point (execute) and held for the traversal
-     * methods below.
-     */
     protected PersistenceInterface $persistence;
 
     protected SchedulerInterface $scheduler;
@@ -89,18 +68,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected string $runId;
 
     /**
-     * The inbound resume payload for this run. Null means a fresh start or a
-     * crash-recovery replay (no resume); a non-null array (even empty) means
-     * a deliberate resume — the interrupted step consumes it.
+     * Null means fresh start or crash-recovery replay; a non-null array (even
+     * empty) means a deliberate resume — the interrupted step consumes it.
      */
     protected ?array $pendingPayload = null;
 
     protected bool $pendingTimedOut = false;
 
     /**
-     * Execute the run: resolve ignition, bootstrap the definition, then
-     * traverse nodes as durable steps.
-     *
      * @param array<string, mixed>|null $payload Null for start/replay; the delivered event payload on resume.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
@@ -122,9 +97,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->getState()->set('__runId', $this->runId);
 
         try {
-            // A resume lets the scheduler cancel the wakeup it satisfies (inline or
-            // scheduler push), so a deliberate resume leaves no stale registration.
-            // A start/replay passes no payload and fires no onResume.
+            // A deliberate resume cancels the wakeup it satisfies, leaving no
+            // stale scheduler registration; start/replay fires no onResume.
             if ($payload !== null) {
                 $this->scheduler->onResume($this->runId);
             }
@@ -136,26 +110,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             );
 
             if ($terminal instanceof InterruptEvent) {
-                // Paused: mark the state so callers of run()/events() can detect
-                // the pause functionally. Steps are kept for resume.
+                // A pause is a scheduled wait, not a failure: it is surfaced
+                // functionally on the state and as a dedicated event, never an
+                // AgentError. Steps are kept for resume.
                 $workflow->getState()->markAsInterrupted($terminal->request);
-                // Surface the pause to listeners — a scheduled wait, not a failure,
-                // so it is a dedicated event rather than an AgentError.
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
-                // Let the scheduler register a wakeup for this suspend (inert by default).
                 $this->scheduler->onSuspend($this->runId, $terminal->request);
                 yield $terminal;
             } else {
-                // Completed: sweep the run's durable records (steps, memos, and the
-                // ignition record — a completed run cannot be woken) and clear any
-                // stale interrupt marker (the status describes this run only).
-                // The correlation pointer is deliberately NOT touched here: it
-                // is a historical fact ("most recent run for the key"), and
-                // liveness is derived at lookup from the ignition record this
-                // delete just removed.
+                // Sweep the run's durable records — a completed run cannot be
+                // woken. The correlation pointer is deliberately NOT touched:
+                // it is a historical fact, and liveness is derived at lookup
+                // from the ignition record this delete just removed.
                 $this->persistence->delete($this->runId);
                 $workflow->getState()->clearInterrupt();
-                // Drop all scheduler coordination state for this workflow.
                 $this->scheduler->onComplete($this->runId);
             }
 
@@ -169,11 +137,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * The identity-resolution phase: establish WHICH run this segment belongs
-     * to, before anything reads persistence. A non-null runId is authoritative
-     * (an explicit id, or a previous segment of this instance). A fresh start
-     * (no payload) generates a new id. A continuation without an id is
-     * resolved from the correlation pointer.
+     * Establish WHICH run this segment belongs to: an explicit runId is
+     * authoritative, a fresh start generates one, a continuation without an
+     * id is resolved from the correlation pointer.
      *
      * @param array<string, mixed>|null $payload
      * @throws WorkflowException
@@ -201,9 +167,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $runId = $this->persistence->get(self::CORRELATION_PARTITION, $correlationKey);
 
-        // The pointer records the MOST RECENT run for the key, not a run in
-        // flight: a completed run's partition was deleted, so liveness is
-        // derived from its ignition record still existing.
+        // The pointer records the most recent run, not a run in flight:
+        // liveness is derived from its ignition record still existing.
         if ($runId === null || $this->persistence->get($runId, self::IGNITION_KEY) === null) {
             throw new WorkflowException(
                 "No run in flight for correlation key '{$correlationKey}' — nothing to continue."
@@ -225,12 +190,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     {
         $ignition = $this->loadIgnition();
 
-        // Fresh ignition: register the run's trigger envelope.
         if (!$ignition instanceof Ignition && $payload === null) {
             $this->saveIgnition($workflow->makeIgnition());
 
-            // Register the run's addressability alongside its self-description:
-            // the correlation pointer makes the run findable by its business key.
+            // The correlation pointer makes the run findable by its business key.
             $correlationKey = $workflow->correlationKey();
             if ($correlationKey !== null) {
                 $this->persistence->put(self::CORRELATION_PARTITION, $correlationKey, $this->runId);
@@ -239,7 +202,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return;
         }
 
-        // A wake needs a run to wake.
         if (!$ignition instanceof Ignition) {
             throw new WorkflowException(
                 "Cannot wake run {$this->runId}: no ignition record — the run "
@@ -263,10 +225,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $ignition instanceof Ignition ? $ignition : null;
     }
 
-    /**
-     * Persist a step record: the engine owns the codec (read off the workflow
-     * at execute time), the store holds opaque strings.
-     */
     protected function saveStep(string $stepId, StepResult $result): void
     {
         $this->persistence->put($this->runId, $stepId, $this->serializer->serialize($result));
@@ -280,21 +238,15 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $result instanceof StepResult ? $result : null;
     }
 
-    /**
-     * Build a unique step identifier for memoization.
-     */
     protected function buildStepId(NodeInterface $node, ?string $branchId, int $index): string
     {
         return ($branchId !== null ? $branchId . '.' : '') . $node::class . '-' . $index;
     }
 
     /**
-     * Run a single node through its full lifecycle.
-     *
-     * Yields streamed events from the node in real time; returns the final Event.
-     * If the node or a pausing middleware throws WorkflowInterrupt, it is caught
-     * here and converted into an InterruptEvent terminal — so traversal never sees
-     * a thrown interrupt. Subclasses (e.g. AsyncExecutor) inherit this unchanged.
+     * Run a single node through its full lifecycle, yielding streamed events
+     * in real time. A thrown WorkflowInterrupt is converted here into an
+     * InterruptEvent terminal — traversal never sees a thrown interrupt.
      *
      * @param WorkflowMiddleware[] $middleware
      * @return Generator<int, Event, mixed, Event>
@@ -339,22 +291,15 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             return $result;
         } catch (WorkflowInterrupt $interrupt) {
-            // A pause request surfaced as a thrown signal from the node or a
-            // middleware. Convert it to an InterruptEvent terminal. Events
-            // already yielded before the throw are preserved.
+            // Events already yielded before the throw are preserved.
             return new InterruptEvent($interrupt->getRequest());
         }
     }
 
     /**
-     * Run one node as a durable step, memoized by step id, yielding its
-     * streamed events through in real time and returning the StepResult.
-     *
-     * Returns the cached StepResult when a prior generation completed this
-     * step (yielding nothing — streamed events are not replayed); resumes an
-     * interrupted step by injecting the run's inbound payload; otherwise runs
-     * the node and persists the outcome. Failed steps are never replayed from
-     * cache — they must retry.
+     * Run one node as a durable step: return the cached StepResult when a
+     * prior run completed it (streamed events are not replayed), resume an
+     * interrupted step by injecting the inbound payload, retry a failed one.
      *
      * @return Generator<int, Event, mixed, StepResult>
      * @throws Throwable
@@ -369,15 +314,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     ): Generator {
         $cached = $this->loadStep($stepId);
 
-        // Memoized: return a previously completed result without re-executing.
-        // The recalled event was stripped of its transient capability at
-        // persistence time; this is the deserialization site, so the workflow
-        // restores it here. Live results below never pass through restore.
+        // A recalled event was stripped of its transient capability at
+        // persistence time; this deserialization site is where the workflow
+        // restores it. Live results below never pass through restore.
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
         }
 
-        // Resuming an interrupted step injects the run's inbound payload.
         $resuming = $cached instanceof StepResult && $cached->isInterrupted() && $this->pendingPayload !== null;
 
         try {
@@ -395,8 +338,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $branchId,
             );
         } catch (Throwable $e) {
-            // Record a failed-step marker for crash observability, then rethrow.
-            // On recovery the marker makes this step retry (never replayed from cache).
+            // The failed marker makes this step retry on recovery,
+            // never replay from cache.
             $this->saveStep($stepId, new StepResult(
                 stepId: $stepId,
                 error: ['message' => $e->getMessage(), 'class' => $e::class],
@@ -404,17 +347,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             throw $e;
         }
 
-        // Interrupted: the step's terminal event is an InterruptEvent. Persist only an
-        // interrupted marker (no throw) so the step resumes on the next run. The
-        // InterruptRequest rides the event outbound (→ onSuspend / returned state) but
-        // is NOT persisted — it is rebuilt by re-running the node on resume, which keeps
-        // developer objects stuffed into a request out of the serializer.
+        // On interrupt, persist only a marker: the InterruptRequest rides the
+        // event outbound but is NOT persisted — it is rebuilt by re-running
+        // the node on resume, keeping developer objects out of the serializer.
         if ($terminal instanceof InterruptEvent) {
             $this->saveStep($stepId, new StepResult(stepId: $stepId, interrupted: true));
             return new StepResult(stepId: $stepId, event: $terminal, state: $state, interrupted: true);
         }
 
-        // Persist the completed result.
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
         $this->saveStep($stepId, $result);
 
@@ -422,11 +362,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Traverse nodes as durable steps from the given starting event, on the main
-     * path ($branchId null) or inside a parallel branch.
-     *
-     * Returns the terminal event: a StopEvent on completion, or an InterruptEvent
-     * when traversal paused for input.
+     * Traverse nodes as durable steps, on the main path ($branchId null) or
+     * inside a parallel branch. Returns the terminal event: StopEvent on
+     * completion, InterruptEvent when traversal paused for input.
      *
      * @return Generator<int, Event, mixed, Event>
      * @throws Throwable
@@ -448,9 +386,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $event = $result->getEvent();
 
             if ($branchId === null) {
-                // Main-path state follows the step result so a replayed (cached)
-                // step restores its persisted state; a branch keeps its cloned
-                // state for isolation.
+                // Main-path state follows the step result so a replayed step
+                // restores its persisted state; a branch keeps its clone.
                 $workflow->setState($result->getState());
                 $state = $workflow->getState();
             }
@@ -470,12 +407,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Execute parallel branches sequentially, streaming each branch's events
-     * through in real time.
-     *
-     * If a branch pauses, returns its InterruptEvent as the terminal value
-     * instead of the ParallelEvent. Subclasses override this to change branch
-     * execution strategy (e.g. AsyncExecutor).
+     * Execute parallel branches sequentially; a paused branch returns its
+     * InterruptEvent instead of the ParallelEvent. Subclasses override to
+     * change branch execution strategy.
      *
      * @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent>
      * @throws Throwable
@@ -504,13 +438,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Execute a single branch in isolation with a cloned state, yielding its
-     * events and returning its terminal event (StopEvent or InterruptEvent).
-     *
-     * Resume of an interrupted branch is driven by step replay: the interrupted
-     * step is cached and re-run with the pending resume request, so this method
-     * needs no explicit resume/branch routing — it always starts from the
-     * branch event and lets step replay skip or resume per step.
+     * Execute a single branch in isolation with a cloned state. Resume needs
+     * no branch routing: the branch always re-runs from its start event and
+     * step replay skips or resumes each step.
      *
      * @return Generator<int, Event, mixed, Event>
      * @throws Throwable
@@ -538,8 +468,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Stamp the emission context on the event and dispatch it. Null dispatcher
-     * is a no-op so runNode() stays runnable without a workflow (e.g. in tests).
+     * Null dispatcher is a no-op so runNode() stays runnable
+     * without a workflow (e.g. in tests).
      */
     protected function dispatchEvent(
         ?EventDispatcherInterface $dispatcher,

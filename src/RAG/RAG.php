@@ -59,8 +59,6 @@ class RAG extends Agent
     }
 
     /**
-     * Feed the vector store with documents.
-     *
      * @param Document[] $documents
      */
     public function addDocuments(array $documents, int $chunkSize = 50): void
@@ -73,7 +71,7 @@ class RAG extends Agent
     }
 
     /**
-     * Reindex documents by source (delete old, add new).
+     * Destructive per source: existing documents of each source are deleted first.
      *
      * @param Document[] $documents
      */
@@ -99,8 +97,6 @@ class RAG extends Agent
     }
 
     /**
-     * Set preprocessors for query transformation.
-     *
      * @param PreProcessorInterface[] $preProcessors
      * @throws AgentException
      */
@@ -118,8 +114,6 @@ class RAG extends Agent
     }
 
     /**
-     * Set post-processors for document transformation.
-     *
      * @param PostProcessorInterface[] $postProcessors
      * @throws AgentException
      */
@@ -137,8 +131,6 @@ class RAG extends Agent
     }
 
     /**
-     * Get configured preprocessors.
-     *
      * @return PreProcessorInterface[]
      */
     protected function preProcessors(): array
@@ -147,8 +139,6 @@ class RAG extends Agent
     }
 
     /**
-     * Get configured post-processors.
-     *
      * @return PostProcessorInterface[]
      */
     protected function postProcessors(): array

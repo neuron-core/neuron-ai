@@ -35,20 +35,13 @@ class Summarization extends AgentMiddleware
     ) {
     }
 
-    /**
-     * Execute before the node runs.
-     *
-     * Checks if summarization is needed based on token count and performs
-     * the summarization if the threshold is exceeded.
-     */
     protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
     {
-        // Only apply to inference nodes (ChatNode, StructuredOutputNode)
         if (!$event instanceof AIInferenceEvent) {
             return;
         }
 
-        // Summarization disabled
+        // A non-positive threshold disables summarization.
         if ($this->maxTokens <= 0) {
             return;
         }
@@ -56,49 +49,40 @@ class Summarization extends AgentMiddleware
         $chatHistory = $node->getChatHistory();
         $messages = $chatHistory->getMessages();
 
-        // Not enough messages to warrant summarization
         if (count($messages) <= $this->messagesToKeep) {
             return;
         }
 
-        // Threshold isn't exceeded
         if ($chatHistory->calculateTotalUsage() <= $this->maxTokens) {
             return;
         }
 
-        // Perform summarization
         $this->summarizeHistory($chatHistory, $messages);
     }
 
     /**
-     * Summarize chat history by replacing old messages with a summary.
+     * Replace the messages before the cutoff with a generated summary.
      *
      * @param Message[] $messages
      */
     protected function summarizeHistory(ChatHistoryInterface $chatHistory, array $messages): void
     {
-        // Find a safe cutoff point
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
 
-        // If no safe cutoff found or not enough messages to summarize, skip
         if ($cutoffIndex === null || $cutoffIndex <= 0) {
             return;
         }
 
-        // Split messages into old (to summarize) and recent (to keep)
         $oldMessages = array_slice($messages, 0, $cutoffIndex);
         $recentMessages = array_slice($messages, $cutoffIndex);
 
-        // Generate summary of old messages
         $summary = $this->generateSummary($oldMessages);
 
-        // Create the new message list: summary + recent messages
         $newMessages = [
             new UserMessage("## Previous conversation summary:\n\n{$summary}"),
             ...$recentMessages,
         ];
 
-        // Update chat history
         $chatHistory->flushAll();
         foreach ($newMessages as $message) {
             $chatHistory->addMessage($message);
@@ -106,10 +90,9 @@ class Summarization extends AgentMiddleware
     }
 
     /**
-     * Find a safe cutoff index that doesn't break tool call sequences.
-     *
-     * A safe cutoff point is one where we don't separate a tool call message
-     * from its corresponding tool result message.
+     * A safe cutoff never separates a tool call message from its
+     * corresponding tool result message; the search walks backward
+     * from the target.
      *
      * @param Message[] $messages
      * @return int|null Index to cut at (exclusive), or null if no safe cutoff found
@@ -119,62 +102,52 @@ class Summarization extends AgentMiddleware
         $totalMessages = count($messages);
         $targetCutoff = max(0, $totalMessages - $this->messagesToKeep);
 
-        // If the target cutoff is in the beginning, nothing to summarize
         if ($targetCutoff <= 0) {
             return null;
         }
 
-        // Search backward from the target to find a safe cutoff point
         for ($i = $targetCutoff; $i >= 0; $i--) {
             if ($this->isSafeCutoffPoint($messages, $i)) {
                 return $i;
             }
         }
 
-        // No safe cutoff found
         return null;
     }
 
     /**
-     * Check if a given index is a safe cutoff point.
-     *
-     * A cutoff is safe if:
-     * 1. The message at "index" is not a ToolCallMessage (would leave tool call without result)
-     * 2. The previous message is not a ToolCallMessage (would separate tool call from result)
+     * A cutoff is unsafe when the message at $index or the one before it is a
+     * ToolCallMessage — either would separate a tool call from its result.
      *
      * @param Message[] $messages
      */
     protected function isSafeCutoffPoint(array $messages, int $index): bool
     {
-        // Check if a message at cutoff index is a ToolCallMessage
         if (isset($messages[$index]) && $messages[$index] instanceof ToolCallMessage) {
             return false;
         }
-        // Check if a previous message is a ToolCallMessage (would be separated from its result)
+
         return !($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage);
     }
 
     /**
-     * Generate a summary of the provided messages using the AI provider.
-     *
      * @param Message[] $messages
      */
     protected function generateSummary(array $messages): string
     {
         $prompt = $this->summaryPrompt ?? $this->getDefaultSummaryPrompt();
 
-        // Format messages into a readable conversation format
         $conversation = $this->formatMessagesForSummarization($messages);
 
         try {
-            // Call AI provider to generate summary
             $response = $this->provider
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
                 ->chat(new UserMessage("{$prompt}\n\n{$conversation}"));
 
             return $response->message()->getContent();
         } catch (Exception) {
-            // If summarization fails, return a basic fallback summary
+            // A failed summarization degrades to a placeholder rather than
+            // failing the run.
             return sprintf(
                 'Previous conversation contained %d messages covering various topics.',
                 count($messages)
@@ -182,9 +155,6 @@ class Summarization extends AgentMiddleware
         }
     }
 
-    /**
-     * Get the default summarization prompt.
-     */
     protected function getDefaultSummaryPrompt(): string
     {
         return <<<'PROMPT'
@@ -202,8 +172,6 @@ class Summarization extends AgentMiddleware
     }
 
     /**
-     * Format messages into a readable conversation format for summarization.
-     *
      * @param Message[] $messages
      */
     protected function formatMessagesForSummarization(array $messages): string
@@ -229,7 +197,6 @@ class Summarization extends AgentMiddleware
                     strtoupper($role)
                 );
             } else {
-                // Regular message - extract text content from blocks
                 $contentStr = $message->getContent();
                 $formatted[] = sprintf(
                     '[%s]: %s',
@@ -242,27 +209,18 @@ class Summarization extends AgentMiddleware
         return implode("\n", $formatted);
     }
 
-    /**
-     * Set the maximum tokens before the summarization threshold.
-     */
     public function setMaxTokens(int $tokens): self
     {
         $this->maxTokens = $tokens;
         return $this;
     }
 
-    /**
-     * Set the number of messages to keep after summarization.
-     */
     public function setMessagesToKeep(int $count): self
     {
         $this->messagesToKeep = $count;
         return $this;
     }
 
-    /**
-     * Set a custom summarization prompt.
-     */
     public function setSummaryPrompt(string $prompt): self
     {
         $this->summaryPrompt = $prompt;

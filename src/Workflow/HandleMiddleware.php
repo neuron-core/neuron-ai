@@ -27,8 +27,6 @@ trait HandleMiddleware
     protected array $nodeMiddleware = [];
 
     /**
-     * Define the global middleware.
-     *
      * @return WorkflowMiddleware[]
      */
     protected function globalMiddleware(): array
@@ -37,8 +35,6 @@ trait HandleMiddleware
     }
 
     /**
-     * Define node middleware here.
-     *
      * @return array<class-string<NodeInterface>, WorkflowMiddleware|WorkflowMiddleware[]>
      */
     protected function middleware(): array
@@ -47,9 +43,7 @@ trait HandleMiddleware
     }
 
     /**
-     * Register global middleware that runs on all nodes.
-     *
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware
      * @throws WorkflowException
      */
     public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): static
@@ -68,10 +62,8 @@ trait HandleMiddleware
     }
 
     /**
-     * Register middleware for a specific node class or multiple node classes.
-     *
-     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $node Node class name or array of node class names
-     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware Middleware instance(s)
+     * @param class-string<NodeInterface>|array<class-string<NodeInterface>> $node
+     * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware
      * @throws WorkflowException
      */
     public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): static
@@ -97,20 +89,14 @@ trait HandleMiddleware
     }
 
     /**
-     * Get all registered middleware for the given node.
-     *
-     * Matching is subclass-aware: middleware registered for a class also
-     * applies to any of its subclasses (via instanceof). This lets callers
-     * target a shared base class (e.g. an InferenceNode) so a middleware fires
-     * for every node type that extends it, rather than being silently dropped
-     * when a sibling class is instantiated.
+     * Matching is subclass-aware (instanceof), so callers can target a shared
+     * base class (e.g. InferenceNode) and fire on every node extending it.
+     * Global middleware runs first, then node-specific in registration order.
      *
      * @return WorkflowMiddleware[]
      */
     public function getMiddlewareForNode(NodeInterface $node): array
     {
-        // Global middleware runs first, then node-specific middleware in
-        // registration order, for every registered class the node matches.
         $middlewares = $this->globalMiddleware;
 
         foreach ($this->nodeMiddleware as $class => $list) {

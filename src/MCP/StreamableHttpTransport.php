@@ -29,8 +29,6 @@ class StreamableHttpTransport implements McpTransportInterface
     protected ?ResponseInterface $lastResponse = null;
 
     /**
-     * Create a new StreamableHttpTransport with the given configuration
-     *
      * @param array<string, mixed> $config
      */
     public function __construct(protected array $config)
@@ -46,8 +44,6 @@ class StreamableHttpTransport implements McpTransportInterface
     }
 
     /**
-     * Connect to the MCP HTTP server
-     *
      * @throws McpException
      */
     public function connect(): void
@@ -56,18 +52,14 @@ class StreamableHttpTransport implements McpTransportInterface
             throw new McpException('URL is required for HTTP transport');
         }
 
-        // Validate URL format
         if (!filter_var($this->config['url'], FILTER_VALIDATE_URL)) {
             throw new McpException('Invalid URL format');
         }
 
-        // For HTTP transport, no explicit connection test is needed
-        // The connection will be validated during the first request
+        // No connection test: HTTP is stateless, the first request validates the endpoint
     }
 
     /**
-     * Send a JSON-RPC request to the MCP HTTP server
-     *
      * @param array<string, mixed> $data
      * @throws McpException
      */
@@ -82,7 +74,6 @@ class StreamableHttpTransport implements McpTransportInterface
                 'Content-Type' => 'application/json',
             ]);
 
-            // Add session ID if available
             if ($this->sessionId !== null) {
                 $headers['Mcp-Session-Id'] = $this->sessionId;
             }
@@ -100,12 +91,10 @@ class StreamableHttpTransport implements McpTransportInterface
                 throw new McpException('Authorization failed: Insufficient permissions');
             }
 
-            // Extract session ID from response headers if present
             if ($response->hasHeader('Mcp-Session-Id')) {
                 $this->sessionId = $response->getHeader('Mcp-Session-Id')[0];
             }
 
-            // Store the response for the receive() method
             $this->lastResponse = $response;
 
         } catch (GuzzleException $e) {
@@ -116,8 +105,6 @@ class StreamableHttpTransport implements McpTransportInterface
     }
 
     /**
-     * Receive a response from the MCP HTTP server
-     *
      * @return array<string, mixed>
      * @throws McpException
      */
@@ -129,7 +116,7 @@ class StreamableHttpTransport implements McpTransportInterface
 
         try {
             $response = (string) $this->lastResponse->getBody();
-            $this->lastResponse = null; // Clear the stored response
+            $this->lastResponse = null;
 
             if ($response === '') {
                 throw new McpException('Empty response body');
@@ -138,8 +125,7 @@ class StreamableHttpTransport implements McpTransportInterface
             try {
                 return json_decode($response, true, 64, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
-                // If the response from the server is not a valid JSON
-                // try to parse the SSE format to extract JSON data
+                // Streamable HTTP servers may answer with SSE framing instead of plain JSON
                 $json = $this->parseSSEResponse($response);
                 return json_decode($json, true, 64, JSON_THROW_ON_ERROR);
             }
@@ -149,26 +135,20 @@ class StreamableHttpTransport implements McpTransportInterface
         }
     }
 
-    /**
-     * Disconnect from the HTTP server
-     */
     public function disconnect(): void
     {
-        // HTTP connections are stateless, no explicit disconnect needed
+        // HTTP is stateless: nothing to close, just drop session state
         $this->sessionId = null;
         $this->lastResponse = null;
     }
 
     /**
-     * Get authentication headers based on configuration
-     *
      * @return array<string, string>
      */
     protected function getAuthHeaders(): array
     {
         $headers = $this->config['headers'] ?? [];
 
-        // Add Bearer token if provided
         if (isset($this->config['token'])) {
             $headers['Authorization'] = 'Bearer ' . $this->config['token'];
         }
@@ -177,7 +157,7 @@ class StreamableHttpTransport implements McpTransportInterface
     }
 
     /**
-     * Parse Server-Sent Events response to extract JSON data
+     * Extract the JSON payload from an SSE-framed response body.
      *
      * @throws McpException
      */
@@ -187,15 +167,14 @@ class StreamableHttpTransport implements McpTransportInterface
 
         foreach ($lines as $line) {
             $line = trim($line);
-            // Skip empty lines and comments
             if ($line === '') {
                 continue;
             }
+            // Lines starting with ':' are SSE comments
             if (str_starts_with($line, ':')) {
                 continue;
             }
 
-            // Extract data from SSE format
             if (str_starts_with($line, 'data: ')) {
                 return substr($line, 6);
             }

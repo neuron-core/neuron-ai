@@ -35,11 +35,9 @@ use function is_string;
 use function json_decode;
 
 /**
- * The history is append-only: addMessage() always appends. Subclasses
- * persist through one hook per primitive mutation — append (onNewMessage), head-trim
- * (onTrimHistory), clear (clear) — or ignore the granular hooks and rewrite the whole
- * state via setMessages(). All hooks default to no-ops; row-per-message backends
- * implement the granular set, whole-state backends implement setMessages() only.
+ * The history is append-only: addMessage() always appends. Backends persist via
+ * one no-op hook per primitive mutation — onNewMessage, onTrimHistory, clear —
+ * or rewrite the whole state via setMessages().
  */
 abstract class AbstractChatHistory implements ChatHistoryInterface
 {
@@ -49,16 +47,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     protected array $history = [];
 
     /**
-     * The conversation this history is bound to. Null until bound: histories
-     * are constructible without their thread (the Agent binds the resolved
-     * identity itself), or pre-bound via a constructor argument.
+     * Null until bound: histories are constructible without their thread —
+     * the Agent binds the resolved identity itself.
      */
     protected ?string $threadId = null;
 
-    /**
-     * Loading is deferred to first use, so a history can exist before its
-     * thread is known. Flipped by ensureLoaded() exactly once.
-     */
     protected bool $loaded = false;
 
     public function __construct(
@@ -87,9 +80,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * The bound thread, demanded: backends call this wherever storage is
-     * touched, so using a thread-scoped history that was never bound fails
-     * loudly instead of reading or writing a wrong conversation.
+     * Backends call this wherever storage is touched, so an unbound
+     * thread-scoped history fails loudly instead of touching a wrong conversation.
      *
      * @throws ChatHistoryException
      */
@@ -102,9 +94,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Load the thread on first access. Deferring the load out of the
-     * constructor is what makes identity-free construction possible — the
-     * Agent binds the thread before any message is read or written.
+     * Deferring the load out of the constructor makes identity-free construction
+     * possible — the Agent binds the thread before any message is read or written.
      */
     protected function ensureLoaded(): void
     {
@@ -117,9 +108,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Backend hook: read the bound thread's messages into $this->history.
-     * No-op by default (in-memory); durable backends override it with their
-     * storage read, guarded by requireThreadId().
+     * Backend hook: read the bound thread's messages into $this->history,
+     * guarded by requireThreadId().
      */
     protected function loadThread(): void
     {
@@ -130,22 +120,21 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function setMessages(array $messages): void
     {
-        // Handle saving the entire history at once.
     }
 
     protected function onNewMessage(Message $message): void
     {
-        // Handle single message addition.
     }
 
+    /**
+     * Backend hook: remove the persisted messages from position zero up to $index (exclusive).
+     */
     protected function onTrimHistory(int $index): void
     {
-        // When the trim is triggered, the messages in the position from zero to $index must be removed.
     }
 
     protected function clear(): void
     {
-        // Remove all messages.
     }
 
     /**
@@ -324,10 +313,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * A multimodal result is stored as an array of content blocks; an error
-     * result wraps the blocks under an 'is_error' marker (legacy histories
-     * never carry the marker and deserialize as non-error); a legacy (or
-     * plain text) result is stored as a string.
+     * A multimodal result is stored as content blocks, an error result wraps them
+     * under an 'is_error' marker, plain text stays a string. Legacy histories never
+     * carry the marker and deserialize as non-error.
      */
     protected function deserializeToolResult(mixed $result): string|ToolOutput
     {
@@ -353,10 +341,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Deserialize content from the storage format to the ContentBlock array.
-     *
-     * Handles both legacy string format and the new content block array format.
-     * Legacy formats are automatically converted to ContentBlocks for migration.
+     * Legacy string content is converted to TextContent for migration;
+     * the current format is an array of content blocks.
      *
      * @return string|ContentBlockInterface|ContentBlockInterface[]|null
      */
@@ -366,7 +352,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             return null;
         }
 
-        // Legacy format: simple string - convert to TextContent for migration
         if (is_string($content)) {
             if ($json = json_decode($content, true)) {
                 return $this->deserializeContent($json);
@@ -374,26 +359,20 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             return new TextContent($content);
         }
 
-        // New format: array of content blocks
         if (is_array($content)) {
-            // Check if it's an array of content blocks (has 'type' key in first element)
             if (isset($content[0]['type'])) {
                 return array_map($this->deserializeContentBlock(...), $content);
             }
 
-            // Empty array
             if ($content === []) {
                 return null;
             }
         }
 
-        // Fallback: treat as string and convert to TextContent
         return new TextContent((string) $content);
     }
 
     /**
-     * Deserialize a single content block from array format.
-     *
      * @param array<string, mixed> $block
      */
     protected function deserializeContentBlock(array $block): ContentBlockInterface
@@ -460,7 +439,6 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 continue;
             }
             if ($key === 'citations' && is_array($value)) {
-                // Deserialize citations from array back to Citation objects
                 $citations = array_map(
                     Citation::fromArray(...),
                     $value

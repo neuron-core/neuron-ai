@@ -56,13 +56,11 @@ class ChatNode extends InferenceNode
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
 
-        // If the response is a tool call, route to the tool node.
-        // It will be responsible to add the tool call message to the chat history.
+        // The tool node owns writing the tool call message to chat history.
         if ($message instanceof ToolCallMessage) {
             return new ToolCallEvent($message, $event);
         }
 
-        // Add the final response to chat history (after tool loop)
         $this->addToChatHistory($message, 'history.response');
 
         return new StopEvent();
@@ -85,12 +83,10 @@ class ChatNode extends InferenceNode
         try {
             $this->emit(new InferenceStart($lastMessage));
 
-            // A provider stream is a live, non-resumable cursor: it cannot be
-            // replayed, and there is no consumer across a crash to receive chunks
-            // anyway. So only the terminal response is durable. On recovery we
-            // recall it and skip the stream entirely (no re-inference); on the
-            // live path we stream chunks to the consumer, then record the response
-            // so a crash before the node step commits won't re-bill the provider.
+            // A provider stream is a live, non-resumable cursor, so only the
+            // terminal response is durable: on recovery it is recalled and the
+            // stream skipped entirely; on the live path it is recorded after
+            // streaming so a crash before the step commits won't re-bill.
             $providerResponse = $this->recallMemo('inference');
 
             if (!$providerResponse instanceof ProviderResponse) {
@@ -99,12 +95,10 @@ class ChatNode extends InferenceNode
                     ->setTools($event->tools)
                     ->stream(...$messages);
 
-                // Yield all chunks as-is (TextChunk, ReasoningChunk, etc.)
                 foreach ($stream as $chunk) {
                     yield $chunk;
                 }
 
-                // Get the final message from the generator return value
                 $providerResponse = $stream->getReturn();
 
                 $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
@@ -117,12 +111,10 @@ class ChatNode extends InferenceNode
             $state->setResponse($providerResponse);
             $message = $providerResponse->message();
 
-            // Route based on the message type
             if ($message instanceof ToolCallMessage) {
                 return new ToolCallEvent($message, $event);
             }
 
-            // Add the final message to the chat history (after tool loop)
             $this->addToChatHistory($message, 'history.response');
 
             return new StopEvent();
@@ -134,14 +126,8 @@ class ChatNode extends InferenceNode
     }
 
     /**
-     * Perform the actual inference call to the AI provider.
-     *
-     * This method is extracted to allow easy customization of the inference behavior.
-     * Subclasses can override this method to:
-     * - Use async operations (chatAsync with Amp, ReactPHP, etc.)
-     * - Add custom retry logic
-     * - Implement caching
-     * - Add custom error handling
+     * Extracted so subclasses can customize the provider call (async
+     * operations, retries, caching).
      *
      * @param Message[] $messages
      */

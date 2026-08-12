@@ -149,9 +149,6 @@ class FakeAIProvider implements AIProviderInterface
         return $this;
     }
 
-    /**
-     * Add more responses to the queue.
-     */
     public function addResponses(Message ...$responses): self
     {
         foreach ($responses as $response) {
@@ -160,9 +157,6 @@ class FakeAIProvider implements AIProviderInterface
         return $this;
     }
 
-    /**
-     * Set the chunk size for stream simulation.
-     */
     public function setStreamChunkSize(int $size): self
     {
         $this->streamChunkSize = $size;
@@ -196,7 +190,7 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * Assert that at least one recorded call matches the given callback.
+     * Assert at least one recorded call matches the callback.
      *
      * @param callable(RequestRecord): bool $callback
      */
@@ -222,9 +216,6 @@ class FakeAIProvider implements AIProviderInterface
         );
     }
 
-    /**
-     * Assert a specific method was called a given number of times.
-     */
     public function assertMethodCallCount(string $method, int $expected): void
     {
         $count = 0;
@@ -242,7 +233,7 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * Assert the system prompt was set to the expected value on at least one call.
+     * Assert the expected system prompt was set on at least one call.
      */
     public function assertSystemPrompt(string $expected): void
     {
@@ -259,7 +250,7 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * Assert that tools were configured by name on at least one call.
+     * Assert the exact tool name list was configured on at least one call.
      *
      * @param string[] $toolNames
      */

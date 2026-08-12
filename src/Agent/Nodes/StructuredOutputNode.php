@@ -58,14 +58,11 @@ class StructuredOutputNode extends InferenceNode
     {
         $outputClass = $event->outputClass
             ?? throw new AgentException('Structured inference requires an output class on the event.');
-        // Fewer than 1 retry has no meaning for a retry loop — normalize it.
         $maxTries = max(1, $event->maxTries);
         // User-side messages (inbound, then corrections) awaiting a successful
-        // provider call before being committed to the chat history — see
-        // InferenceNode::pendingConversation().
+        // provider call before being committed to the chat history.
         $pending = $event->getMessages();
 
-        // Generate JSON schema if not already generated
         if (!$state->has('structured_schema')) {
             $this->emit(new SchemaGeneration($outputClass));
             $schema = JsonSchema::make()->generate($outputClass);
@@ -79,7 +76,6 @@ class StructuredOutputNode extends InferenceNode
 
         do {
             try {
-                // If something goes wrong, retry informing the model about the error
                 if (trim($error) !== '') {
                     $pending[] = new UserMessage(
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
@@ -93,11 +89,10 @@ class StructuredOutputNode extends InferenceNode
 
                 $this->emit(new InferenceStart($last));
 
-                // Each retry attempt is a distinct non-deterministic inference call,
-                // so the memo key is attempt-indexed. On replay (the node step crashed
-                // before committing) a previously-succeeded attempt is recalled without
-                // re-calling the provider; the deterministic retry inputs (prior
-                // response + correction text) are reconstructed from recalled memos.
+                // Each retry attempt is a distinct non-deterministic inference
+                // call, so the memo key is attempt-indexed: on replay a
+                // previously-succeeded attempt is recalled without re-calling
+                // the provider.
                 $providerResponse = $this->memoize(
                     "inference.{$attempt}",
                     fn (): ProviderResponse => $this->provider
@@ -113,20 +108,16 @@ class StructuredOutputNode extends InferenceNode
 
                 $this->emit(new InferenceStop($last, $providerResponse));
 
-                // If the response is a tool call, route to tool execution
                 if ($message instanceof ToolCallMessage) {
                     return new ToolCallEvent($message, $event);
                 }
 
-                // The response memo is attempt-indexed too: a shared name would be
-                // recorded on the first attempt and silently skip the write of every
-                // retry's corrected response within the same step.
+                // The response memo is attempt-indexed too: a shared name would
+                // silently skip the write of every retry's corrected response.
                 $this->addToChatHistory($message, "history.response.{$attempt}");
 
-                // Process the response: extract, deserialize, and validate
                 $output = $this->processResponse($message, $schema, $outputClass);
 
-                // Store the structured output in state
                 $state->set('structured_output', $output);
                 $state->setResponse($providerResponse);
 
@@ -156,7 +147,6 @@ class StructuredOutputNode extends InferenceNode
         array $schema,
         string $class,
     ): object {
-        // Extract a valid JSON object from the LLM response
         $this->emit(new Extracting($response));
         $json = (new JsonExtractor())->getJson($response->getContent());
         $this->emit(new Extracted($response, $schema, $json));
@@ -164,12 +154,10 @@ class StructuredOutputNode extends InferenceNode
             throw new AgentException("The response does not contains a valid JSON Object.");
         }
 
-        // Deserialize the JSON response from the LLM into an instance of the response model
         $this->emit(new Deserializing($class));
         $obj = Deserializer::make()->fromJson($json, $class);
         $this->emit(new Deserialized($class));
 
-        // Validate if the object fields respect the validation attributes
         $this->emit(new Validating($class, $json));
         $violations = Validator::validate($obj);
         if (count($violations) > 0) {

@@ -50,8 +50,6 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * Recursively build properties from a class schema
-     *
      * @return ToolPropertyInterface[]
      * @throws ReflectionException
      * @throws ToolException
@@ -75,8 +73,6 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * Create a property from schema data recursively
-     *
      * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
@@ -107,8 +103,6 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * Create an object property recursively
-     *
      * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
@@ -118,10 +112,8 @@ class ObjectProperty implements ToolPropertyInterface
         $nestedProperties = [];
         $nestedRequired = $propertyData['required'] ?? [];
 
-        // If there's a class reference in the schema, use it
         $className = $propertyData['class'] ?? null;
 
-        // If no class is specified, but we have nested properties, build them recursively
         if (!$className && isset($propertyData['properties'])) {
             foreach ($propertyData['properties'] as $nestedPropertyName => $nestedPropertyData) {
                 $nestedIsRequired = in_array($nestedPropertyName, $nestedRequired);
@@ -144,8 +136,6 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * Create an array property with recursive item handling
-     *
      * @throws ReflectionException
      * @throws ToolException
      * @throws ArrayPropertyException
@@ -156,7 +146,6 @@ class ObjectProperty implements ToolPropertyInterface
         $minItems = $propertyData['minItems'] ?? null;
         $maxItems = $propertyData['maxItems'] ?? null;
 
-        // Handle array items recursively
         if (isset($propertyData['items'])) {
             $itemsData = $propertyData['items'];
             $items = $this->createPropertyFromSchema($name . '_item', $itemsData, false);
@@ -174,8 +163,6 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * Create a scalar property (string, integer, number, boolean)
-     *
      * @throws ToolException
      */
     protected function createScalarProperty(string $name, array $propertyData, bool $required, ?string $description, bool $nullable = false): ToolProperty
@@ -201,7 +188,6 @@ class ObjectProperty implements ToolPropertyInterface
         ];
     }
 
-    // The mapped class required properties and required properties are merged
     public function getRequiredProperties(): array
     {
         return array_values(array_filter(array_map(fn (
