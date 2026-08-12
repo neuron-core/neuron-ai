@@ -55,7 +55,7 @@ class AgentDurableHistoryTest extends TestCase
 
         $dir = sys_get_temp_dir() . '/neuron_sql_history_test';
 
-        $agent = Agent::make(runId: 'sql_history_test');
+        $agent = Agent::make();
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
         $agent->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
@@ -106,7 +106,7 @@ class AgentDurableHistoryTest extends TestCase
             }
         };
 
-        $agent = Agent::make(runId: 'snapshot_size_test');
+        $agent = Agent::make(address: 'snapshot_size_test');
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
         $agent->setPersistence($recorder);
@@ -127,7 +127,7 @@ class AgentDurableHistoryTest extends TestCase
     {
         $runId = 'steps_cycle_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
-        $history = new \NeuronAI\Chat\History\InMemoryChatHistory();
+        $history = new \NeuronAI\Chat\History\InMemoryChatHistory($runId);
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -141,7 +141,7 @@ class AgentDurableHistoryTest extends TestCase
             new AssistantMessage('Here are the results.'),
         );
 
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make(address: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -155,7 +155,7 @@ class AgentDurableHistoryTest extends TestCase
         $this->assertSame('Search for PHP frameworks', $steps1[0]->getContent());
         $this->assertInstanceOf(ToolCallMessage::class, $steps1[1]);
 
-        $agent2 = Agent::make(runId: $runId);
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -225,7 +225,7 @@ class AgentDurableHistoryTest extends TestCase
         $dir = sys_get_temp_dir() . '/neuron_sql_resume_test';
         $runId = 'sql_resume_test';
 
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make();
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
@@ -238,8 +238,8 @@ class AgentDurableHistoryTest extends TestCase
         $tail = $agent1->getChatHistory()->getLastMessage();
         $this->assertInstanceOf(ToolCallMessage::class, $tail);
 
-        // Fresh agent on the same thread: the run is addressed by the thread's
-        // correlation pointer — no runId is passed.
+        // Fresh agent on the same thread: the thread IS the address —
+        // no other handle is passed.
         $agent2 = Agent::make();
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);

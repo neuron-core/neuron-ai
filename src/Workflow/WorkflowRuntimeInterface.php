@@ -49,18 +49,29 @@ interface WorkflowRuntimeInterface
     public function getMiddlewareForNode(NodeInterface $node): array;
 
     /**
-     * The run identifier — the persistence namespace steps live under.
-     * Null until the executor's identity phase assigns it.
+     * The address — the persistence partition this workflow's durable
+     * records live under. Null until the executor's identity phase assigns
+     * it.
+     */
+    public function getAddress(): ?string;
+
+    /**
+     * The current run's generation stamp. Null until the executor's identity
+     * phase assigns it; a fresh ignition at a reused address stamps a new one.
      */
     public function getRunId(): ?string;
 
-    public function adoptRunId(string $runId): void;
+    /**
+     * Adopt the identity the executor resolved: the address the records live
+     * under and the generation stamp of the run holding it.
+     */
+    public function adoptIdentity(string $address, string $runId): void;
 
     /**
-     * The business key by which this run wants to be addressable (e.g. the
-     * Agent's threadId), or null when the workflow declares none.
+     * The business key this workflow wants as its address (e.g. the Agent's
+     * threadId), or null to let the engine generate one.
      */
-    public function correlationKey(): ?string;
+    public function address(): ?string;
 
     public function getEventDispatcher(): EventDispatcherInterface;
 
@@ -99,10 +110,11 @@ interface WorkflowRuntimeInterface
     public function bootstrap(): void;
 
     /**
-     * Build the run's trigger envelope. Called by the executor exactly once,
-     * on the first segment, to register the run.
+     * Build the run's trigger envelope, stamped with the generation the
+     * executor assigned. Called by the executor exactly once, on the first
+     * segment, to register the run.
      */
-    public function makeIgnition(): Ignition;
+    public function makeIgnition(string $runId): Ignition;
 
     /**
      * Offer a persisted trigger envelope for adoption on a continuation

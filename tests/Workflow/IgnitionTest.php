@@ -50,7 +50,7 @@ class IgnitionTest extends TestCase
 {
     protected function workflow(string $runId, InMemoryPersistence|FilePersistence $persistence): Workflow
     {
-        return Workflow::make(runId: $runId)
+        return Workflow::make(address: $runId)
             ->setPersistence($persistence)
             ->addNode(new IgnitionWaitNode());
     }
@@ -116,7 +116,7 @@ class IgnitionTest extends TestCase
         }
     }
 
-    public function test_crash_replay_in_a_fresh_process_works_via_bare_run(): void
+    public function test_crash_replay_in_a_fresh_process_works_via_bare_resume(): void
     {
         $persistence = new InMemoryPersistence();
 
@@ -124,21 +124,22 @@ class IgnitionTest extends TestCase
         $first->setStartEvent(new IgnitionStartEvent('recovered'));
         $this->assertTrue($first->run()->isInterrupted());
 
-        // A recovery worker knows only the runId: bare run() on a blank
-        // instance adopts the record and re-suspends at the same step.
+        // A recovery worker knows only the address: bare resume() on a blank
+        // instance adopts the record, delivers nothing, and re-suspends at
+        // the same step.
         $second = $this->workflow('ign_replay', $persistence);
-        $state = $second->run();
+        $state = $second->resume();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('recovered', $state->get('ignited_with'));
     }
 
-    public function test_wake_of_a_never_started_run_fails_loudly(): void
+    public function test_continuation_of_a_never_started_run_fails_loudly(): void
     {
         $workflow = $this->workflow('ign_unknown', new InMemoryPersistence());
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Cannot wake run ign_unknown: no ignition record');
+        $this->expectExceptionMessage("No run in flight at address 'ign_unknown'");
 
         $workflow->resume(['answer' => 1]);
     }
@@ -150,7 +151,7 @@ class IgnitionTest extends TestCase
         // custom executor can never strand the record where no wake reads.
         $store = new InMemoryPersistence();
 
-        $workflow = Workflow::make(runId: 'ign_routing')
+        $workflow = Workflow::make(address: 'ign_routing')
             ->setPersistence($store)
             ->setExecutor(new WorkflowExecutor())
             ->addNode(new IgnitionWaitNode());

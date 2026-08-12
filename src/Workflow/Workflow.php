@@ -38,7 +38,7 @@ use function array_merge;
 use function is_array;
 
 /**
- * @method static static make(?string $runId = null, ?WorkflowState $state = null)
+ * @method static static make(?string $address = null, ?WorkflowState $state = null)
  */
 class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 {
@@ -86,8 +86,10 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * @throws WorkflowException
      */
+    protected ?string $runId = null;
+
     public function __construct(
-        protected ?string $runId = null,
+        protected ?string $address = null,
         protected ?WorkflowState   $state = null,
     ) {
         $this->exporter = new ConsoleExporter();
@@ -168,8 +170,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Start the workflow to completion. Never resumes — use {@see resume()}
-     * to deliver a payload to a suspended step.
+     * Ignite a new run at the address. Never adopts a run already in flight
+     * there — that is refused loudly; continue it with {@see resume()}.
      *
      * @throws WorkflowException
      * @throws Throwable
@@ -180,30 +182,35 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Resume a suspended workflow by delivering the inbound payload to the
-     * interrupted step.
+     * Continue the run in flight at the address, delivering the payload only
+     * if one is given: null revives without delivering anything (a
+     * still-suspended run re-emits its request, a crashed step retries),
+     * while an empty array delivers an explicitly empty answer.
      *
-     * @param array<string, mixed> $payload The delivered event payload (the answer).
+     * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
      * @param bool $timedOut True when the resume was a deadline elapsing.
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function resume(array $payload = [], bool $timedOut = false): WorkflowState
+    public function resume(?array $payload = null, bool $timedOut = false): WorkflowState
     {
-        return $this->consume($this->events($payload, $timedOut));
+        return $this->consume($this->events($payload, $timedOut, true));
     }
 
     /**
-     * The single streaming entry point behind run() and resume().
+     * The single streaming entry point behind run() and resume(). A non-null
+     * payload implies a continuation even when $resuming is not set.
      *
-     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
+     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
+     * @param bool $resuming True to continue without delivering a payload (revive).
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function events(?array $payload = null, bool $timedOut = false): Generator
+    public function events(?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator
     {
-        $generator = $this->getExecutor()->execute($this, $payload, $timedOut);
+        $resuming = $resuming || $payload !== null;
+        $generator = $this->getExecutor()->execute($this, $payload, $timedOut, $resuming);
 
         // Open the protocol stream before any output, mirroring the pull
         // path's eager start so both emit the same framing timing.
@@ -222,7 +229,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             }
         } catch (Throwable $e) {
             $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->runId ?? 'unresolved'));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->address ?? 'unresolved'));
             throw $e;
         }
 
@@ -233,9 +240,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $request = $state->getInterruptRequest();
 
         if ($request instanceof InterruptRequest) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->runId ?? 'unresolved'));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->address ?? 'unresolved'));
         } else {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->runId ?? 'unresolved'));
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->address ?? 'unresolved'));
         }
 
         return $state;
@@ -294,9 +301,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $this->validate();
     }
 
-    public function makeIgnition(): Ignition
+    public function makeIgnition(string $runId): Ignition
     {
-        return new Ignition($this->getStartEvent(), $this->ignitionContext());
+        return new Ignition($runId, $this->getStartEvent(), $this->ignitionContext());
     }
 
     public function adoptIgnition(Ignition $ignition): void
@@ -433,8 +440,18 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * The run identifier, also the resume handle. Null before the first run
+     * The address, also the continuation handle. Null before the first run
      * segment: identity is assigned by the executor, never at construction.
+     */
+    public function getAddress(): ?string
+    {
+        return $this->address;
+    }
+
+    /**
+     * The current run's generation stamp — observability identity, never the
+     * continuation handle. A fresh ignition at a reused address stamps a new
+     * one; the address stays.
      */
     public function getRunId(): ?string
     {
@@ -442,19 +459,21 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Adopt the identity resolved by the executor. Assigned exactly once per
-     * run; later segments of the same instance keep it ("local state wins").
+     * Adopt the identity resolved by the executor: the address is stable
+     * across every run of this instance, the runId is re-stamped per run.
      */
-    public function adoptRunId(string $runId): void
+    public function adoptIdentity(string $address, string $runId): void
     {
+        $this->address = $address;
         $this->runId = $runId;
     }
 
     /**
-     * The business key by which this run wants to be addressable (e.g. the
-     * Agent's threadId). Null opts out of the correlation pointer entirely.
+     * The business key this workflow wants as its address (e.g. the Agent's
+     * threadId). Null lets the engine generate one — the run stays
+     * continuable through {@see getAddress()}, just not business-addressable.
      */
-    public function correlationKey(): ?string
+    public function address(): ?string
     {
         return null;
     }

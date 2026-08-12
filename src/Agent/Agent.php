@@ -29,7 +29,7 @@ use function is_array;
 use function is_string;
 
 /**
- * @method static static make(?string $runId = null, ?WorkflowState $state = null, ?string $threadId = null)
+ * @method static static make(?string $address = null, ?WorkflowState $state = null, ?string $threadId = null)
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent getStartEvent()
  * @method AgentState getState()
@@ -43,7 +43,7 @@ class Agent extends Workflow implements AgentInterface
     protected ChatHistoryInterface $chatHistory;
 
     /**
-     * The conversation this run belongs to, and the run's correlation key.
+     * The conversation this run belongs to, and the run's declared address.
      * Assigned exactly once through adoptThreadId() and NEVER generated —
      * identity is always a developer statement. Null means the run is not
      * thread-addressable.
@@ -53,11 +53,11 @@ class Agent extends Workflow implements AgentInterface
     protected bool $parallelToolCalls = false;
 
     public function __construct(
-        ?string $runId = null,
+        ?string $address = null,
         ?WorkflowState $state = null,
         ?string $threadId = null,
     ) {
-        parent::__construct($runId, $state);
+        parent::__construct($address, $state);
 
         if ($threadId !== null) {
             $this->adoptThreadId($threadId);
@@ -244,11 +244,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The Agent's business identity is the conversation: the engine binds
-     * threadId → runId at ignition, so a continuation holding only the
-     * thread finds the run.
+     * The Agent's business identity is the conversation: the threadId IS the
+     * address, so a continuation holding only the thread finds the run.
      */
-    public function correlationKey(): ?string
+    public function address(): ?string
     {
         return $this->getThreadId();
     }
@@ -349,14 +348,15 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The single continuation verb. It carries no identity logic of its own:
-     * the engine addresses the run from an explicit runId (run-first) or the
-     * thread's correlation pointer (thread-first).
+     * the engine addresses the run from the threadId (the Agent's declared
+     * address) or an explicit address. A null payload revives without
+     * delivering anything; an empty array delivers an empty decision set.
      *
-     * @param array<string, mixed> $payload
+     * @param array<string, mixed>|null $payload
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function resume(array $payload = [], bool $timedOut = false): AgentState
+    public function resume(?array $payload = null, bool $timedOut = false): AgentState
     {
         /** @var AgentState $state */
         $state = parent::resume($payload, $timedOut);

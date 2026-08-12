@@ -23,7 +23,7 @@ class SchedulerTest extends TestCase
     public function testSchedulerHookFiresOnPause(): void
     {
         $spy = new SpyScheduler();
-        $workflow = Workflow::make(runId: 'sched-pause')
+        $workflow = Workflow::make(address: 'sched-pause')
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         $this->execute($workflow, null, $spy);
@@ -38,7 +38,7 @@ class SchedulerTest extends TestCase
     {
         $spy = new SpyScheduler();
         // A workflow that runs straight to completion (no interrupt).
-        $workflow = Workflow::make(runId: 'sched-complete')
+        $workflow = Workflow::make(address: 'sched-complete')
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
 
         $this->execute($workflow, null, $spy);
@@ -50,7 +50,7 @@ class SchedulerTest extends TestCase
     {
         // NullScheduler is the default and must not affect pause/resume behavior.
         $nullScheduler = new NullScheduler();
-        $workflow = Workflow::make(runId: 'sched-null')
+        $workflow = Workflow::make(address: 'sched-null')
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
         // No exception, no side effects — just records the pause on the state.
@@ -68,7 +68,7 @@ class SchedulerTest extends TestCase
     {
         // setScheduler() must reach the executor via getExecutor().
         $spy = new SpyScheduler();
-        $workflow = Workflow::make(runId: 'sched-inject')
+        $workflow = Workflow::make(address: 'sched-inject')
             ->setScheduler($spy)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
 
@@ -80,7 +80,7 @@ class SchedulerTest extends TestCase
 
     public function testOnResumeFiresOnInlineResume(): void
     {
-        // The core contract: an inline resume (Workflow::make(runId:)->resume($payload))
+        // The core contract: an inline resume (Workflow::make(address:)->resume($payload))
         // must notify the scheduler so it can cancel the wakeup. Without this, attaching
         // a scheduler would leak registrations on every inline resume.
         $spy = new SpyScheduler();
@@ -88,7 +88,7 @@ class SchedulerTest extends TestCase
         $token = 'sched-resume';
 
         // Run 1: suspends on the wait-for-event. Only onSuspend fires.
-        $workflow = Workflow::make(runId: $token)
+        $workflow = Workflow::make(address: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
         $state = $this->execute($workflow, $persistence, $spy);
 
@@ -99,7 +99,7 @@ class SchedulerTest extends TestCase
 
         // Resume inline: same token + persistence, delivering the payload. The executor
         // fires onResume with the workflow id (it cancels by id, not by request).
-        $resumed = Workflow::make(runId: $token)
+        $resumed = Workflow::make(address: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
         $state = $this->resume($resumed, $persistence, ['id' => 7], scheduler: $spy);
 
@@ -115,7 +115,7 @@ class SchedulerTest extends TestCase
         // A workflow that runs straight to completion: no suspend, no resume, but
         // onComplete fires so the scheduler can drop all coordination state.
         $spy = new SpyScheduler();
-        $workflow = Workflow::make(runId: 'sched-complete-2')
+        $workflow = Workflow::make(address: 'sched-complete-2')
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
 
         $this->execute($workflow, null, $spy);
@@ -127,24 +127,24 @@ class SchedulerTest extends TestCase
 
     public function testOnResumeNotFiredWithoutInterrupt(): void
     {
-        // onResume must fire ONLY on a deliberate resume (resume()), not on a run()
-        // that replays cached steps — e.g. a crash-recovery retry where the caller
-        // passes no payload.
+        // onResume must fire ONLY when a payload is delivered, not on a bare
+        // revive that replays cached steps — e.g. a crash-recovery retry
+        // where the caller delivers nothing.
         $spy = new SpyScheduler();
         $persistence = new InMemoryPersistence();
         $token = 'sched-no-resume';
 
-        $workflow = Workflow::make(runId: $token)
+        $workflow = Workflow::make(address: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
         $state = $this->execute($workflow, $persistence, $spy);
         $this->assertTrue($state->isInterrupted());
         $this->assertSame([], $spy->onResumeCalls);
 
-        // Re-run with NO interrupt: the workflow is still suspended, so it
+        // Revive with NO payload: the workflow is still suspended, so it
         // re-suspends (onSuspend fires again). onResume must stay empty.
-        $rerun = Workflow::make(runId: $token)
+        $rerun = Workflow::make(address: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
-        $state = $this->execute($rerun, $persistence, $spy);
+        $state = $this->resume($rerun, $persistence, null, false, $spy);
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame([], $spy->onResumeCalls, 'onResume must fire only on a deliberate resume');

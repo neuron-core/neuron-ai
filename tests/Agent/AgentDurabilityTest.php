@@ -41,7 +41,7 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory();
+        $history = new InMemoryChatHistory($runId);
 
         $searchTool = new CrashSearchTool();
 
@@ -53,7 +53,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, tool crashes
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make(address: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -69,14 +69,14 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(1, $searchTool->getCallCount());
 
-        // Recovery: same runId, same step engine → ChatNode:0 memoized
-        $agent2 = Agent::make(runId: $runId);
+        // Revive at the same address: ChatNode:0 memoized, the tool retries.
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
+        $message = $agent2->resume()->getMessage();
 
         $this->assertSame('Based on my search, here are the top PHP frameworks...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -126,7 +126,7 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory();
+        $history = new InMemoryChatHistory($runId);
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -141,7 +141,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes, the approval gate pauses ToolNode before the tool executes.
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make(address: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -156,7 +156,7 @@ class AgentDurabilityTest extends TestCase
 
         // Resume: deliver the approval payload (call_1 approved). Same runId →
         // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
-        $agent2 = Agent::make(runId: $runId);
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -177,7 +177,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Hello!'),
         );
 
-        $agent = Agent::make(runId: $runId);
+        $agent = Agent::make(address: $runId);
         $agent->setAiProvider($provider);
         $agent->setPersistence($persistence);
 
@@ -194,7 +194,7 @@ class AgentDurabilityTest extends TestCase
     {
         $runId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory();
+        $history = new InMemoryChatHistory($runId);
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -208,7 +208,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('I see the search was rejected. Is there anything else I can help with?'),
         );
 
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make(address: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -222,7 +222,7 @@ class AgentDurabilityTest extends TestCase
 
         // Resume with rejection: the tool is NOT executed; its rejection message
         // is fed back as the tool result and reaches the next inference.
-        $agent2 = Agent::make(runId: $runId);
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -250,7 +250,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('Based on the search results, here are the top PHP frameworks...'),
         );
 
-        $agent = Agent::make(runId: $runId);
+        $agent = Agent::make(address: $runId);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
         $agent->setPersistence($persistence);
@@ -275,7 +275,7 @@ class AgentDurabilityTest extends TestCase
 
         $persistence = new FilePersistence($dir);
 
-        $agent = Agent::make(runId: $runId);
+        $agent = Agent::make(address: $runId);
         $agent->setAiProvider($provider);
         $agent->setPersistence($persistence);
 
@@ -306,7 +306,7 @@ class AgentDurabilityTest extends TestCase
             new AssistantMessage('There are 42 users in the database.'),
         );
 
-        $agent = Agent::make(runId: $runId);
+        $agent = Agent::make(address: $runId);
         $agent->setAiProvider($provider);
         $agent->addTool($tool);
         $agent->setPersistence(new FilePersistence($dir));
@@ -324,7 +324,7 @@ class AgentDurabilityTest extends TestCase
         $runId = 'agent_file_tool_recovery_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $runId;
         $persistence = new FilePersistence($dir);
-        $history = new InMemoryChatHistory();
+        $history = new InMemoryChatHistory($runId);
 
         $calls = 0;
         $tool = new ClosureDependencyTool(function () use (&$calls): string {
@@ -345,7 +345,7 @@ class AgentDurabilityTest extends TestCase
 
         // Run 1: ChatNode completes (its step is serialized to disk — carrying only
         // ToolCall data, never the tool's closure), then the tool crashes.
-        $agent1 = Agent::make(runId: $runId);
+        $agent1 = Agent::make(address: $runId);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($tool);
@@ -358,16 +358,16 @@ class AgentDurabilityTest extends TestCase
             $this->assertStringContainsString('Simulated crash', $e->getMessage());
         }
 
-        // Recovery in a new process: fresh engine, same file persistence. The recalled
+        // Revive in a new process: fresh engine, same file persistence. The recalled
         // ChatNode step carries ToolCall data only — ToolNode resolves the
         // calls against the live registry to execute with a working dependency.
-        $agent2 = Agent::make(runId: $runId);
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($tool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(new UserMessage('How many users in the database?'))->getMessage();
+        $message = $agent2->resume()->getMessage();
 
         $this->assertSame('There are 42 users in the database.', $message->getContent());
         $this->assertSame(2, $calls);

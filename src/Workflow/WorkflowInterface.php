@@ -11,42 +11,53 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 /**
  * The application-facing contract of a workflow. Configuration is
  * concrete-class API on {@see Workflow}; the engine-facing collaboration
- * points live on {@see WorkflowRuntimeInterface}. getRunId() appears on both
- * contracts deliberately: applications hold the resume handle, the engine
- * reads the same identity as its persistence namespace.
+ * points live on {@see WorkflowRuntimeInterface}. getAddress() appears on
+ * both contracts deliberately: applications hold the continuation handle,
+ * the engine reads the same identity as its persistence partition.
  */
 interface WorkflowInterface
 {
     /**
-     * Start the workflow to completion (or replay cached steps after a crash).
-     * Delivers no resume payload — use {@see resume()} for that.
+     * Ignite a new run at the address. Never adopts a run already in flight
+     * there — that is refused loudly; continue it with {@see resume()}.
      */
     public function run(): WorkflowState;
 
     /**
-     * Resume a suspended workflow by delivering the inbound payload to the
-     * interrupted step. Always resumes — an empty payload still targets the
-     * interrupted step (unlike {@see events()}, where null means start).
+     * Continue the run in flight at the address: replay to its next boundary,
+     * delivering the payload only if one is given. A null payload revives
+     * without delivering anything — a still-suspended run re-emits its
+     * request, a crashed step retries. An empty array is NOT null: it
+     * delivers an explicitly empty answer to the waiting step.
      *
-     * @param array<string, mixed> $payload The delivered event payload (the answer).
-     * @param bool                 $timedOut True when the resume was a deadline elapsing.
+     * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
+     * @param bool                      $timedOut True when the resume was a deadline elapsing.
      */
-    public function resume(array $payload = [], bool $timedOut = false): WorkflowState;
+    public function resume(?array $payload = null, bool $timedOut = false): WorkflowState;
 
     /**
      * The streaming counterpart of {@see run()} / {@see resume()}: yields
-     * events in real time and returns the final state.
+     * events in real time and returns the final state. A non-null payload or
+     * an explicit $resuming flag makes it a continuation; otherwise it
+     * ignites.
      *
-     * @param array<string, mixed>|null $payload Null to start/replay; the delivered payload to resume.
-     * @param bool $timedOut True when the resume was a deadline elapsing; ignored on start.
+     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
+     * @param bool $timedOut True when the resume was a deadline elapsing; ignored on ignition.
+     * @param bool $resuming True to continue without delivering a payload (revive).
      * @return Generator<int, Event, mixed, WorkflowState>
      */
-    public function events(?array $payload = null, bool $timedOut = false): Generator;
+    public function events(?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator;
 
     /**
-     * The run identifier, also the resume handle: pass it back to the
-     * constructor to reattach to a suspended run. Null before the first run
+     * The address, also the continuation handle: pass it back to the
+     * constructor to reattach to a run in flight. Null before the first run
      * segment: identity is assigned by the executor.
+     */
+    public function getAddress(): ?string;
+
+    /**
+     * The current run's generation stamp — observability identity, never the
+     * continuation handle. Null before the first run segment.
      */
     public function getRunId(): ?string;
 

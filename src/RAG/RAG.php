@@ -20,7 +20,7 @@ use function array_keys;
 use function explode;
 
 /**
- * @method static static make(?string $runId = null, ?WorkflowState $state = null)
+ * @method static static make(?string $address = null, ?WorkflowState $state = null)
  */
 class RAG extends Agent
 {

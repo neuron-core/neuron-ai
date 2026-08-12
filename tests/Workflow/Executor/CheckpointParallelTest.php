@@ -20,7 +20,7 @@ class CheckpointParallelTest extends TestCase
     public function testCheckpointValueSavedBeforeInterruptInBranch(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(runId: 'test-checkpoint-token')
+        $workflow = Workflow::make(address: 'test-checkpoint-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 $checkpointNode,
@@ -38,7 +38,7 @@ class CheckpointParallelTest extends TestCase
     public function testCheckpointNotReExecutedOnParallelResume(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(runId: 'test-checkpoint-resume')
+        $workflow = Workflow::make(address: 'test-checkpoint-resume')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 $checkpointNode,
@@ -64,7 +64,7 @@ class CheckpointParallelTest extends TestCase
     public function testCheckpointWithCompletedBranchRetainedAcrossInterrupt(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
-        $workflow = Workflow::make(runId: 'test-checkpoint-order')
+        $workflow = Workflow::make(address: 'test-checkpoint-order')
             ->addNodes([
                 new ImageFirstForkNode(),
                 $checkpointNode,
@@ -87,7 +87,7 @@ class CheckpointParallelTest extends TestCase
 
     public function testMultipleCheckpointsInParallelBranch(): void
     {
-        $workflow = Workflow::make(runId: 'test-multi-checkpoint')
+        $workflow = Workflow::make(address: 'test-multi-checkpoint')
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new MultiCheckpointTextProcessNode(),

@@ -51,14 +51,15 @@ trait ExecutorTestHelpers
     }
 
     /**
-     * Resume a suspended workflow by delivering the payload through resume().
+     * Continue a run through resume(): [] delivers an empty answer (the
+     * helper default), null revives without delivering anything.
      *
-     * @param array<string, mixed> $payload
+     * @param array<string, mixed>|null $payload
      */
     protected function resume(
         Workflow $workflow,
         ?PersistenceInterface $persistence = null,
-        array $payload = [],
+        ?array $payload = [],
         bool $timedOut = false,
         ?SchedulerInterface $scheduler = null,
     ): WorkflowState {

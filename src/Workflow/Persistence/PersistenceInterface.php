@@ -10,9 +10,8 @@ namespace NeuronAI\Workflow\Persistence;
  * array — holding every engine record.
  *
  * The engine owns all record semantics and serialization: a run's records
- * (ignition, steps, memos) live in a partition named by its runId, and
- * engine-level indexes live in reserved partitions (names starting with
- * "__", e.g. the correlation index). Backends never interpret partition
+ * (ignition, steps, memos) live in the partition named by its address —
+ * a business key or a generated handle. Backends never interpret partition
  * names and never parse values — both are opaque strings.
  */
 interface PersistenceInterface

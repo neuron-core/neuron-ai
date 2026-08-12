@@ -138,13 +138,13 @@ class PersistenceContractTest extends TestCase
      */
     public function testKeysWithHostileCharactersRoundTrip(callable $make): void
     {
-        // Correlation keys are app-supplied (a threadId); they are stored as
-        // keys inside the partition, so no backend may choke on them.
+        // Keys are app-influenced strings; they are stored as keys inside
+        // the partition, so no backend may choke on them.
         $store = $make($this->directory);
 
-        $store->put('__correlation', 'user/42:thread #1', 'run_a');
+        $store->put('some_partition', 'user/42:thread #1', 'run_a');
 
-        $this->assertSame('run_a', $store->get('__correlation', 'user/42:thread #1'));
+        $this->assertSame('run_a', $store->get('some_partition', 'user/42:thread #1'));
     }
 
     /**

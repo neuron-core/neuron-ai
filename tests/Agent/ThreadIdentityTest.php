@@ -11,6 +11,7 @@ use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -58,23 +59,23 @@ class ThreadIdentityTest extends TestCase
         $persistence = $this->retainingPersistence();
 
         // Ignition: explicit identity, unbound history — the agent binds it.
-        $first = Agent::make(runId: 'binding_wake_test', threadId: 'thread-1');
+        $first = Agent::make(threadId: 'thread-1');
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
         $first->setChatHistory(new SQLChatHistory($pdo));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Wake: a BLANK process — runId only, another unbound history. The
-        // threadId arrives via the adopted ignition context and is bound
+        // Wake: a BLANK process — the address only, another unbound history.
+        // The threadId arrives via the adopted ignition context and is bound
         // into the history before any message is touched.
-        $second = Agent::make(runId: 'binding_wake_test');
+        $second = Agent::make(address: 'thread-1');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $second->run();
+        $second->resume();
 
         $this->assertSame('thread-1', $second->getThreadId());
         $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
@@ -110,7 +111,7 @@ class ThreadIdentityTest extends TestCase
     {
         $persistence = $this->retainingPersistence();
 
-        $agent = Agent::make(runId: 'thread_ignition_test');
+        $agent = Agent::make();
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $agent->setPersistence($persistence);
@@ -118,7 +119,7 @@ class ThreadIdentityTest extends TestCase
 
         $agent->chat(new UserMessage('hello'))->getMessage();
 
-        $record = $persistence->get('thread_ignition_test', '__ignition');
+        $record = $persistence->get('thread-42', '__ignition');
         $this->assertNotNull($record);
 
         $ignition = (new PhpSerializer())->unserialize($record);
@@ -130,28 +131,28 @@ class ThreadIdentityTest extends TestCase
     {
         $persistence = $this->retainingPersistence();
 
-        $first = Agent::make(runId: 'thread_adoption_test');
+        $first = Agent::make();
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Blank instance: unbound history, runId only — the threadId arrives
-        // via the adopted ignition context and is bound by the framework,
-        // never set by the caller.
+        // Blank instance: unbound history, the address only — the threadId
+        // arrives via the adopted ignition context and is bound by the
+        // framework, never set by the caller.
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             thread_id TEXT, role TEXT, content TEXT, meta TEXT
         )');
-        $second = Agent::make(runId: 'thread_adoption_test');
+        $second = Agent::make(address: 'thread-42');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $state = $second->run();
+        $state = $second->resume();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-42', $second->getChatHistory()->getThreadId());
@@ -178,8 +179,10 @@ class ThreadIdentityTest extends TestCase
 
         $this->assertSame('thread-x', $agent->getThreadId());
         $this->assertSame('thread-x', $agent->getChatHistory()->getThreadId());
-        // The run ignited addressable by its thread.
-        $this->assertSame($agent->getRunId(), $persistence->get('__correlation', 'thread-x'));
+        // The run ignited addressable by its thread: the thread IS the
+        // address — and clean completion swept its partition entirely.
+        $this->assertSame('thread-x', $agent->getAddress());
+        $this->assertNull($persistence->get('thread-x', '__ignition'));
     }
 
     public function test_explicit_thread_id_keys_the_default_history(): void
@@ -216,7 +219,7 @@ class ThreadIdentityTest extends TestCase
     {
         $persistence = $this->retainingPersistence();
 
-        $first = Agent::make(runId: 'thread_conflict_test');
+        $first = Agent::make();
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
@@ -224,16 +227,17 @@ class ThreadIdentityTest extends TestCase
         $first->chat(new UserMessage('hello'))->getMessage();
 
         // A mis-addressed continuation: the caller claims another thread's
-        // identity for this runId. The record contradicts it — throw.
-        $second = Agent::make(runId: 'thread_conflict_test', threadId: 'thread-other');
+        // identity for this address. The engine refuses the contradiction
+        // before any record is touched.
+        $second = Agent::make(address: 'thread-42', threadId: 'thread-other');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
 
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('Conflicting thread identity');
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Mis-addressed run');
 
-        $second->run();
+        $second->resume();
     }
 
     public function test_anonymous_run_adopts_the_default_history_self_key(): void

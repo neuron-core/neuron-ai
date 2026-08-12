@@ -122,7 +122,7 @@ class ChannelForwardingTest extends TestCase
 
         $this->assertSame(['chunk-1', 'chunk-2', 'chunk-3'], $payloads);
         $this->assertCount(1, $channel->completions);
-        $this->assertSame($workflow->getRunId(), $channel->completions[0]['runId']);
+        $this->assertSame($workflow->getAddress(), $channel->completions[0]['address']);
         $this->assertSame([], $channel->suspensions);
         $this->assertSame([], $channel->failures);
     }
@@ -195,7 +195,7 @@ class ChannelForwardingTest extends TestCase
         // The channel receives the SAME live request object the node created…
         $this->assertCount(1, $channel->suspensions);
         $this->assertSame($request, $channel->suspensions[0]['request']);
-        $this->assertSame($workflow->getRunId(), $channel->suspensions[0]['runId']);
+        $this->assertSame($workflow->getAddress(), $channel->suspensions[0]['address']);
 
         // …and never the InterruptEvent — nor does a suspended segment complete.
         $this->assertSame([], $channel->sent);
@@ -221,7 +221,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertInstanceOf(ApprovalRequest::class, $channel->suspensions[1]['request']);
         $this->assertSame('stage one', $channel->suspensions[0]['request']->getMessage());
         $this->assertSame('stage two', $channel->suspensions[1]['request']->getMessage());
-        $this->assertSame($channel->suspensions[0]['runId'], $channel->suspensions[1]['runId']);
+        $this->assertSame($channel->suspensions[0]['address'], $channel->suspensions[1]['address']);
         $this->assertCount(0, $channel->completions);
 
         $state = $workflow->resume(['complete' => true]);
@@ -229,7 +229,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(2, $channel->suspensions);
         $this->assertCount(1, $channel->completions);
-        $this->assertSame($workflow->getRunId(), $channel->completions[0]['runId']);
+        $this->assertSame($workflow->getAddress(), $channel->completions[0]['address']);
         $this->assertSame($state, $channel->completions[0]['state']);
     }
 
@@ -253,7 +253,7 @@ class ChannelForwardingTest extends TestCase
         // failed() is notification only — the same exception reached the caller.
         $this->assertCount(1, $channel->failures);
         $this->assertSame($caught, $channel->failures[0]['exception']);
-        $this->assertSame($workflow->getRunId(), $channel->failures[0]['runId']);
+        $this->assertSame($workflow->getAddress(), $channel->failures[0]['address']);
         $this->assertSame([], $channel->completions);
         $this->assertSame([], $channel->suspensions);
     }

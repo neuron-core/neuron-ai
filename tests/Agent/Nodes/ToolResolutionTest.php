@@ -160,8 +160,8 @@ class ToolResolutionTest extends TestCase
             new AssistantMessage('First answer.'),
         );
 
-        $agent1 = Agent::make(runId: $runId);
-        $agent1->setChatHistory(new InMemoryChatHistory());
+        $agent1 = Agent::make(address: $runId);
+        $agent1->setChatHistory(new InMemoryChatHistory($runId));
         $agent1->setAiProvider($provider1);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -177,19 +177,19 @@ class ToolResolutionTest extends TestCase
         // wrote: the user turn and the tool call message.
         $provider2 = new FakeAIProvider(new AssistantMessage('Recovered answer.'));
 
-        $history2 = new InMemoryChatHistory();
+        $history2 = new InMemoryChatHistory($runId);
         $history2->addMessage(new UserMessage('Search for PHP frameworks'));
         $history2->addMessage(new ToolCallMessage(null, [
             ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
         ]));
 
-        $agent2 = Agent::make(runId: $runId);
+        $agent2 = Agent::make(address: $runId);
         $agent2->setChatHistory($history2);
         $agent2->setAiProvider($provider2);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
+        $message = $agent2->resume()->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());
 

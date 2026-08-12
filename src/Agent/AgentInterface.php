@@ -44,7 +44,7 @@ interface AgentInterface
 
     /**
      * The agent's thread identity — the conversation this run belongs to and
-     * the run's correlation key — or null when the run is not
+     * the run's declared address — or null when the run is not
      * thread-addressable.
      */
     public function getThreadId(): ?string;
