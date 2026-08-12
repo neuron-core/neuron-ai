@@ -33,6 +33,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
 use function str_starts_with;
+use function time;
 use function uniqid;
 
 /**
@@ -56,11 +57,21 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected const IGNITION_KEY = '__ignition';
 
+    /**
+     * The execution lease (opt-in): a unix-time heartbeat, or RELEASED on a
+     * deliberate stop.
+     */
+    protected const LEASE_KEY = '__lease';
+
+    protected const LEASE_RELEASED = 'released';
+
     protected PersistenceInterface $persistence;
 
     protected SchedulerInterface $scheduler;
 
     protected Serializer $serializer;
+
+    protected ?int $leaseTimeout = null;
 
     protected string $address;
 
@@ -85,11 +96,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->persistence = $workflow->getPersistence();
         $this->scheduler = $workflow->getScheduler();
         $this->serializer = $workflow->getSerializer();
+        $this->leaseTimeout = $workflow->getLeaseTimeout();
         $this->address = $this->resolveAddress($workflow, $resuming);
         $this->runId = $this->resolveIgnition($workflow, $resuming);
         $workflow->adoptIdentity($this->address, $this->runId);
         $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
+        $this->renewLease();
 
         $workflow->bootstrap();
 
@@ -116,6 +129,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // AgentError. Steps are kept for resume.
                 $workflow->getState()->markAsInterrupted($terminal->request);
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
+                $this->releaseLease();
                 $this->scheduler->onSuspend($this->address, $this->runId, $terminal->request);
                 yield $terminal;
             } else {
@@ -135,6 +149,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             return $workflow->getState();
         } catch (Throwable $e) {
+            try {
+                $this->releaseLease();
+            } catch (Throwable) {
+                // The original failure is the story; an unreleased lease ages out.
+            }
+
             $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
             throw $e;
         } finally {
@@ -212,6 +232,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 );
             }
 
+            $this->guardLease();
             $workflow->adoptIgnition($ignition);
 
             return $ignition->runId;
@@ -246,6 +267,64 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function saveStep(string $stepId, StepResult $result): void
     {
         $this->persistence->put($this->address, $this->recordKey($stepId), $this->serializer->serialize($result));
+    }
+
+    /**
+     * Heartbeat the lease: "this run is still executing, as of now". A no-op
+     * unless the workflow opted in via setLeaseTimeout().
+     */
+    protected function renewLease(): void
+    {
+        if ($this->leaseTimeout === null) {
+            return;
+        }
+
+        $this->persistence->put($this->address, self::LEASE_KEY, (string) time());
+    }
+
+    /**
+     * Mark the stop as deliberate: a released lease never blocks a resume,
+     * distinguishing "paused/failed and said so" from the silence of a
+     * violent crash.
+     */
+    protected function releaseLease(): void
+    {
+        if ($this->leaseTimeout === null) {
+            return;
+        }
+
+        $this->persistence->put($this->address, self::LEASE_KEY, self::LEASE_RELEASED);
+    }
+
+    /**
+     * Refuse to continue a run whose lease is held and fresher than the
+     * timeout: a process is probably executing it right now, and adopting
+     * it would duplicate live work, not revive dead work. The check is a
+     * heartbeat-based guess, not mutual exclusion — a crashed run's lease
+     * simply ages past the timeout and recovery proceeds.
+     *
+     * @throws WorkflowException
+     */
+    protected function guardLease(): void
+    {
+        if ($this->leaseTimeout === null) {
+            return;
+        }
+
+        $lease = $this->persistence->get($this->address, self::LEASE_KEY);
+
+        if ($lease === null || $lease === self::LEASE_RELEASED) {
+            return;
+        }
+
+        $heartbeatAge = time() - (int) $lease;
+
+        if ($heartbeatAge < $this->leaseTimeout) {
+            throw new WorkflowException(
+                "The run at address '{$this->address}' appears to be executing "
+                . "(last heartbeat {$heartbeatAge}s ago, lease timeout {$this->leaseTimeout}s) — not resuming."
+            );
+        }
     }
 
     protected function loadStep(string $stepId): ?StepResult
@@ -340,6 +419,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
+        // Liveness is signalled per step visit — replayed steps included: a
+        // reviving process racing through its cached tail is executing too.
+        $this->renewLease();
+
         $cached = $this->loadStep($stepId);
 
         // A recalled event was stripped of its transient capability at

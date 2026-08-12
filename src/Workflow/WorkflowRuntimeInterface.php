@@ -103,6 +103,12 @@ interface WorkflowRuntimeInterface
     public function getSerializer(): Serializer;
 
     /**
+     * The execution-lease timeout in seconds; null disables the lease.
+     * See {@see \NeuronAI\Workflow\HandleComponents::setLeaseTimeout()}.
+     */
+    public function getLeaseTimeout(): ?int;
+
+    /**
      * Prepare the definition for traversal. Called once per segment, AFTER
      * ignition is resolved — subclasses construct collaborators from
      * ignition context (e.g. thread identity) here.

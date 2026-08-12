@@ -232,6 +232,31 @@ Addresses must be non-empty and must not start with `__`. The declared
 `address()` wins over an explicit `make($address)`; when both are present and
 disagree the run is mis-addressed and the engine throws rather than pick one.
 
+### The execution lease (opt-in)
+
+A bare `resume()` revives a run on the caller's judgment that it is dead —
+but a silent process may just be slow, and reviving a live run duplicates
+work. Opt into the **lease** to make that judgment informed:
+
+```php
+$workflow->setLeaseTimeout(300);   // seconds; null (default) = disabled
+```
+
+While executing, the engine heartbeats a lease record (`__lease` in the
+address partition) at every step boundary; a `resume()` that finds it held
+and fresher than the timeout throws "appears to be executing" instead of
+adopting the run. Every **deliberate** stop releases the lease — suspension
+(waiting is not executing, so answering an approval seconds later is never
+blocked), a caught failure (the failed marker already says "revive me"),
+and completion (swept with the partition). Only a violent crash leaves a
+held lease, and it simply ages past the timeout — recovery is delayed, not
+prevented, and nobody ever has to break anything by hand.
+
+It is a heartbeat-based guess, not mutual exclusion: pick the timeout well
+above the run's longest silent stretch between step boundaries (a slow
+provider call), or the lease will revive runs that are merely slow — the
+exact overlap it exists to prevent.
+
 ### The identity-resolution phase
 
 The executor's first act, before anything reads persistence, is to establish

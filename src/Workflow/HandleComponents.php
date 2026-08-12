@@ -31,6 +31,8 @@ trait HandleComponents
 
     protected ?SchedulerInterface $scheduler = null;
 
+    protected ?int $leaseTimeout = null;
+
     protected ?StreamingChannelInterface $channel = null;
 
     /**

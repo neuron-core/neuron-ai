@@ -463,6 +463,33 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * Opt into the execution lease: while a run is executing, the engine
+     * heartbeats a lease record at its address, and a resume() arriving
+     * while the lease is fresher than $seconds is refused — it would
+     * probably duplicate a live process, not revive a dead one. Suspension,
+     * failure, and completion all release the lease, so only a violent
+     * crash (no chance to write anything) leaves it held. Pick $seconds
+     * well above the longest silent stretch between step boundaries (a
+     * slow provider call): a too-short lease revives runs that are merely
+     * slow. Null (the default) disables the lease entirely.
+     */
+    public function setLeaseTimeout(?int $seconds): static
+    {
+        $this->leaseTimeout = $seconds;
+        return $this;
+    }
+
+    final public function getLeaseTimeout(): ?int
+    {
+        return $this->leaseTimeout ??= $this->leaseTimeout();
+    }
+
+    protected function leaseTimeout(): ?int
+    {
+        return null;
+    }
+
+    /**
      * @throws WorkflowException
      */
     public function export(): string
