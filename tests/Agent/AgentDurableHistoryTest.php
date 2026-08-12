@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -36,6 +37,8 @@ use const DIRECTORY_SEPARATOR;
  */
 class AgentDurableHistoryTest extends TestCase
 {
+    use ExecutorTestHelpers;
+
     public function test_sql_chat_history_works_with_durable_workflow_persistence(): void
     {
         $pdo = new PDO('sqlite::memory:');
@@ -113,8 +116,8 @@ class AgentDurableHistoryTest extends TestCase
 
         $agent->chat(new UserMessage('Loop'))->getMessage();
 
-        $first = $recorder->blobSizes[$agent->getRunId() . '/' . ChatNode::class . '-1'];
-        $last = $recorder->blobSizes[$agent->getRunId() . '/' . ToolNode::class . '-' . (2 * $rounds)];
+        $first = $recorder->blobSizes[$this->stepKey($agent, ChatNode::class . '-1')];
+        $last = $recorder->blobSizes[$this->stepKey($agent, ToolNode::class . '-' . (2 * $rounds))];
 
         $this->assertLessThan(
             $first * 2,
@@ -125,9 +128,9 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_final_state_carries_the_current_cycle_steps_across_interrupt(): void
     {
-        $runId = 'steps_cycle_test';
+        $address = 'steps_cycle_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
-        $history = new \NeuronAI\Chat\History\InMemoryChatHistory($runId);
+        $history = new \NeuronAI\Chat\History\InMemoryChatHistory($address);
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -141,7 +144,7 @@ class AgentDurableHistoryTest extends TestCase
             new AssistantMessage('Here are the results.'),
         );
 
-        $agent1 = Agent::make(address: $runId);
+        $agent1 = Agent::make(address: $address);
         $agent1->setChatHistory($history);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -155,7 +158,7 @@ class AgentDurableHistoryTest extends TestCase
         $this->assertSame('Search for PHP frameworks', $steps1[0]->getContent());
         $this->assertInstanceOf(ToolCallMessage::class, $steps1[1]);
 
-        $agent2 = Agent::make(address: $runId);
+        $agent2 = Agent::make(address: $address);
         $agent2->setChatHistory($history);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -171,7 +174,7 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_crash_replay_does_not_duplicate_history_writes(): void
     {
-        $runId = 'history_memo_replay_test';
+        $address = 'history_memo_replay_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
         $stepId = ChatNode::class . '-0';
 
@@ -185,14 +188,14 @@ class AgentDurableHistoryTest extends TestCase
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $address, $stepId)));
         $node1($event, $state1);
 
         $this->assertCount(2, $chatHistory->getMessages());
 
         $state2 = new \NeuronAI\Agent\AgentState();
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $address, $stepId)));
         $node2($event, $state2);
 
         $messages = $chatHistory->getMessages();
@@ -223,7 +226,7 @@ class AgentDurableHistoryTest extends TestCase
         );
 
         $dir = sys_get_temp_dir() . '/neuron_sql_resume_test';
-        $runId = 'sql_resume_test';
+        $address = 'sql_resume_test';
 
         $agent1 = Agent::make();
         $agent1->setAiProvider($provider);

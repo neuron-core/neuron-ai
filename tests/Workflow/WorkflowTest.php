@@ -167,9 +167,9 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowInterrupt(): void
     {
-        $runId = 'test-workflow';
+        $address = 'test-workflow';
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -187,9 +187,9 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowResume(): void
     {
-        $runId = 'test-workflow';
+        $address = 'test-workflow';
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),

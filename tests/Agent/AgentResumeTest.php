@@ -50,7 +50,7 @@ class AgentResumeTest extends TestCase
     public function test_streamed_approval_run_wakes_from_a_blank_factory(): void
     {
         $persistence = new InMemoryPersistence();
-        $runId = 'wake_stream_e2e';
+        $address = 'wake_stream_e2e';
 
         // ── Ignition: streamed turn, approval-gated tool, thread identity set.
         $searchTool = new SearchTool();
@@ -127,13 +127,13 @@ class AgentResumeTest extends TestCase
     public function test_structured_run_wakes_and_returns_the_output_via_state(): void
     {
         $persistence = new InMemoryPersistence();
-        $runId = 'wake_structured_e2e';
-        $history = new InMemoryChatHistory($runId);
+        $address = 'wake_structured_e2e';
+        $history = new InMemoryChatHistory($address);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $agent1 = Agent::make(address: $runId);
+        $agent1 = Agent::make(address: $address);
         $agent1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'Alice']),
@@ -150,7 +150,7 @@ class AgentResumeTest extends TestCase
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
-        $agent2 = Agent::make(address: $runId);
+        $agent2 = Agent::make(address: $address);
         $agent2->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name": "Alice"}')))
             ->setInstructions('Extract the user.');
         $agent2->addTool($wakeTool);
@@ -168,13 +168,13 @@ class AgentResumeTest extends TestCase
     public function test_incomplete_decision_set_re_suspends_the_resume(): void
     {
         $persistence = new InMemoryPersistence();
-        $runId = 'wake_incomplete_e2e';
-        $history = new InMemoryChatHistory($runId);
+        $address = 'wake_incomplete_e2e';
+        $history = new InMemoryChatHistory($address);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $agent1 = Agent::make(address: $runId);
+        $agent1 = Agent::make(address: $address);
         $agent1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_a', ['query' => 'one']),
@@ -202,13 +202,13 @@ class AgentResumeTest extends TestCase
     public function test_structured_rag_run_wakes_with_intent_intact(): void
     {
         $persistence = new InMemoryPersistence();
-        $runId = 'wake_rag_structured_e2e';
-        $history = new InMemoryChatHistory($runId);
+        $address = 'wake_rag_structured_e2e';
+        $history = new InMemoryChatHistory($address);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $rag1 = RAG::make(address: $runId);
+        $rag1 = RAG::make(address: $address);
         $rag1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'Alice']),
@@ -229,7 +229,7 @@ class AgentResumeTest extends TestCase
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
-        $rag2 = RAG::make(address: $runId);
+        $rag2 = RAG::make(address: $address);
         $rag2->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name": "Alice"}')))
             ->setInstructions('Extract the user from the context.');
         $rag2->addTool($wakeTool);

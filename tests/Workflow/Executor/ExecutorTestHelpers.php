@@ -8,10 +8,20 @@ use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
 
 trait ExecutorTestHelpers
 {
+    /**
+     * The storage key of a node step — the engine's runId-prefixed record
+     * layout, stated once for every test that reads the store directly.
+     */
+    protected function stepKey(WorkflowInterface $workflow, string $stepId): string
+    {
+        return $workflow->getRunId() . '/' . $stepId;
+    }
+
     /**
      * Executor for runs driven through these helpers; null keeps the
      * workflow's default. Async test classes override this.

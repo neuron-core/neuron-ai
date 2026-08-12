@@ -192,11 +192,10 @@ class PersistenceContractTest extends TestCase
 
         $store->put('../escape-attempt', 'step-1', 'payload');
 
-        // The record landed as a file INSIDE the configured directory — a
-        // traversal-shaped address must never write outside it.
+        // The record landed as the ONLY file, INSIDE the configured directory
+        // — a traversal-shaped address must never write outside it.
         $entries = array_diff(scandir($this->directory) ?: [], ['.', '..']);
         $this->assertCount(1, $entries);
-        $this->assertFileDoesNotExist(sys_get_temp_dir() . '/escape-attempt.store');
 
         // A fresh instance reading from disk (no warm cache) finds it back.
         $fresh = new FilePersistence($this->directory);

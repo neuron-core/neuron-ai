@@ -182,7 +182,9 @@ and every backend is exactly one artifact (one array / one directory of
 Partition names are **arbitrary business strings** (an address may contain
 slashes or colons): storing any name safely is the backend's obligation —
 `FilePersistence` encodes names into safe filenames and fails loudly on a
-dropped write. There are no reserved partitions.
+dropped write. There are no reserved partitions at the store level; the
+engine keeps the `__` name prefix reclaimable by refusing such addresses
+at its own layer.
 
 **The engine owns all record semantics and serialization.** The codec is a
 workflow-owned seam beside persistence and scheduler —

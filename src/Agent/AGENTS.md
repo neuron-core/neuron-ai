@@ -267,10 +267,9 @@ them itself before resuming). The latest payload wins, so decisions are revisabl
 the set completes. The UI re-renders pending approvals by reading chat history (last
 message, tools with `getApprovalState()`) — no workflow boot; final outcomes are read
 from the `ToolResultMessage` that follows. The thread stays effectively
-**locked** until the full decision set is delivered: a new `chat()` turn on a
-thread with a run in flight is refused by the engine ("run in flight at
-address"), so the pending approvals must be settled — resumed with approvals
-or declines — before the conversation moves on.
+**locked** until the full decision set is delivered — the engine's
+one-live-run-per-address refusal (see *Thread-first continuation* below)
+blocks any new turn until the pending approvals are settled.
 
 ### Thread-first continuation: the thread IS the address
 

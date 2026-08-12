@@ -18,9 +18,10 @@ namespace NeuronAI\Workflow\Persistence;
  * business-owned (a threadId, 'order:123'), so safe storage of any name is
  * the backend's obligation — encode names that are unsafe for the medium
  * (e.g. as filenames) at the backend's own boundary. There are no reserved
- * partitions. Capacity limits (name length, value size) are backend-specific
- * and must surface as loud failures, never silent truncation or a dropped
- * write.
+ * partitions — backends treat every name uniformly; the engine keeps the
+ * "__" name prefix reclaimable by refusing such addresses at its own layer.
+ * Capacity limits (name length, value size) are backend-specific and must
+ * surface as loud failures, never silent truncation or a dropped write.
  */
 interface PersistenceInterface
 {

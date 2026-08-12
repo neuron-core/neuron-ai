@@ -10,11 +10,11 @@ use NeuronAI\Workflow\Persistence\Serializer;
 
 /**
  * Durable memoizer bound to a single node-execution step, constructed per
- * step by the executor. Memo values live under "{stepId}::{name}" in the
+ * step by the executor. Memo values live under "{recordKey}::{name}" in the
  * address partition: the first call runs the operation and persists the value,
  * a replay returns the record without re-running. A memo record is by
  * construction a completed value — interrupted/failed markers only ever
- * live under plain step ids.
+ * live under plain record keys.
  */
 final class StepMemoizer
 {
@@ -22,13 +22,13 @@ final class StepMemoizer
         protected PersistenceInterface $persistence,
         protected Serializer $serializer,
         protected string $address,
-        protected string $stepId,
+        protected string $recordKey,
     ) {
     }
 
     public function memo(string $name, Closure $operation): mixed
     {
-        $key = $this->stepId . '::' . $name;
+        $key = $this->recordKey . '::' . $name;
 
         // Record existence (not the decoded value) is the hit signal, so a
         // memoized null replays as null instead of re-running the operation.
@@ -52,7 +52,7 @@ final class StepMemoizer
      */
     public function get(string $name): mixed
     {
-        $recorded = $this->persistence->get($this->address, $this->stepId . '::' . $name);
+        $recorded = $this->persistence->get($this->address, $this->recordKey . '::' . $name);
 
         return $recorded === null ? null : $this->serializer->unserialize($recorded);
     }

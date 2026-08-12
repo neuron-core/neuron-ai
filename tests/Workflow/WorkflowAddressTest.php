@@ -271,10 +271,10 @@ class WorkflowAddressTest extends TestCase
         // The fenced sweep held: the successor's head record survives, the
         // zombie's own step record is left as inert garbage, and the
         // successor's coordination state was not dropped.
-        $head = (new PhpSerializer())->unserialize((string) $persistence->get('thread_1', '__ignition'));
+        $head = $serializer->unserialize((string) $persistence->get('thread_1', '__ignition'));
         $this->assertInstanceOf(Ignition::class, $head);
         $this->assertSame('run_successor', $head->runId);
-        $this->assertNotNull($persistence->get('thread_1', $workflow->getRunId() . '/' . $hijacked::class . '-0'));
+        $this->assertNotNull($persistence->get('thread_1', $this->stepKey($workflow, $hijacked::class . '-0')));
         $this->assertSame([], $scheduler->onCompleteCalls);
     }
 

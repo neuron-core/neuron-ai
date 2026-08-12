@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
@@ -48,9 +49,11 @@ class IgnitionWaitNode extends Node
 
 class IgnitionTest extends TestCase
 {
-    protected function workflow(string $runId, InMemoryPersistence|FilePersistence $persistence): Workflow
+    use ExecutorTestHelpers;
+
+    protected function workflow(string $address, InMemoryPersistence|FilePersistence $persistence): Workflow
     {
-        return Workflow::make(address: $runId)
+        return Workflow::make(address: $address)
             ->setPersistence($persistence)
             ->addNode(new IgnitionWaitNode());
     }
@@ -102,7 +105,7 @@ class IgnitionTest extends TestCase
             $first->setStartEvent(new IgnitionStartEvent('from-ignition'));
             $this->assertTrue($first->run()->isInterrupted());
 
-            // A blank instance: same factory shape, runId only — no start event set.
+            // A blank instance: same factory shape, address only — no start event set.
             $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
             $state = $second->resume(['answer' => 42]);
 
@@ -160,7 +163,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
 
         $this->assertNotNull($store->get('ign_routing', '__ignition'));
-        $this->assertNotNull($store->get('ign_routing', $workflow->getRunId() . '/' . IgnitionWaitNode::class . '-0'));
+        $this->assertNotNull($store->get('ign_routing', $this->stepKey($workflow, IgnitionWaitNode::class . '-0')));
     }
 
     protected function removeDirectory(string $dir): void

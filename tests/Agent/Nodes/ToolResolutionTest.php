@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\StopEvent;
@@ -39,6 +40,8 @@ use function str_starts_with;
  */
 class ToolResolutionTest extends TestCase
 {
+    use ExecutorTestHelpers;
+
     private function executableTool(string $name, ?string $description = null): Tool
     {
         $tool = new class () extends Tool {
@@ -118,7 +121,7 @@ class ToolResolutionTest extends TestCase
         // no node-level repair could ever run — and the recalled AIInferenceEvent
         // reaches the LIVE ChatNode #2 with its tool list stripped. Without the
         // restoreEvent() seam, the provider would be called with NO tools.
-        $runId = 'stripped_inference_recovery_test';
+        $address = 'stripped_inference_recovery_test';
 
         // Step store that survives run completion and can forget single steps.
         $persistence = new class () implements PersistenceInterface {
@@ -160,8 +163,8 @@ class ToolResolutionTest extends TestCase
             new AssistantMessage('First answer.'),
         );
 
-        $agent1 = Agent::make(address: $runId);
-        $agent1->setChatHistory(new InMemoryChatHistory($runId));
+        $agent1 = Agent::make(address: $address);
+        $agent1->setChatHistory(new InMemoryChatHistory($address));
         $agent1->setAiProvider($provider1);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -169,7 +172,7 @@ class ToolResolutionTest extends TestCase
         $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
         // Simulate the crash window: ChatNode #2 (step index 3) never committed.
-        $persistence->forgetByPrefix($runId, $agent1->getRunId() . '/' . ChatNode::class . '-3');
+        $persistence->forgetByPrefix($address, $this->stepKey($agent1, ChatNode::class . '-3'));
 
         // Recovery: ChatNode #1 and ToolNode #1 replay from cache; ChatNode #2
         // runs live and must see the agent's tools on its inference request.
@@ -177,13 +180,13 @@ class ToolResolutionTest extends TestCase
         // wrote: the user turn and the tool call message.
         $provider2 = new FakeAIProvider(new AssistantMessage('Recovered answer.'));
 
-        $history2 = new InMemoryChatHistory($runId);
+        $history2 = new InMemoryChatHistory($address);
         $history2->addMessage(new UserMessage('Search for PHP frameworks'));
         $history2->addMessage(new ToolCallMessage(null, [
             ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
         ]));
 
-        $agent2 = Agent::make(address: $runId);
+        $agent2 = Agent::make(address: $address);
         $agent2->setChatHistory($history2);
         $agent2->setAiProvider($provider2);
         $agent2->addTool($searchTool);

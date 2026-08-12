@@ -42,13 +42,13 @@ class FilePersistence implements PersistenceInterface
         $data[$key] = $value;
         $this->cache[$partition] = $data;
 
+        $path = $this->filePath($partition);
+
         // A dropped write would silently un-persist a durable record: an
         // over-long filename, a full disk, or missing permissions must
         // surface here, not at the next (impossible) resume.
-        if (@file_put_contents($this->filePath($partition), json_encode($data, JSON_PRETTY_PRINT)) === false) {
-            throw new WorkflowException(
-                "Unable to write partition '{$partition}' to '{$this->filePath($partition)}'."
-            );
+        if (@file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT)) === false) {
+            throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
         }
     }
 
@@ -63,8 +63,10 @@ class FilePersistence implements PersistenceInterface
 
         $path = $this->filePath($partition);
 
-        if (is_file($path)) {
-            unlink($path);
+        // A silently failed delete would leave the address reading as
+        // "run in flight" forever — the sweep must fail as loudly as a write.
+        if (is_file($path) && !@unlink($path)) {
+            throw new WorkflowException("Unable to delete partition '{$partition}' at '{$path}'.");
         }
     }
 

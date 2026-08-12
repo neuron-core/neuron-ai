@@ -34,10 +34,10 @@ class DurableExecutorTest extends TestCase
 
     public function testMemoizationOnCrashRecovery(): void
     {
-        $runId = 'durable_crash_test';
+        $address = 'durable_crash_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(true), // crush when run
@@ -56,7 +56,7 @@ class DurableExecutorTest extends TestCase
 
         // Revive at the same address — node B won't crash this time
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make(address: $runId)
+        $workflow2 = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(),
@@ -74,10 +74,10 @@ class DurableExecutorTest extends TestCase
 
     public function testInterruptThenResumeMemoizesCompletedSteps(): void
     {
-        $runId = 'durable_interrupt_test';
+        $address = 'durable_interrupt_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -95,11 +95,11 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($state->get('step_a_executed'));
         $this->assertTrue($state->get('step_b_executed'));
         // Paused steps are retained for resume (cleanup only runs on completion)
-        $this->assertNotNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
+        $this->assertNotNull($persistence->get($address, $this->stepKey($workflow, DurableNodeA::class . '-0')));
 
         // Resume — deliver the payload (node B just checks isResuming()).
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make(address: $runId)
+        $workflow2 = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -121,10 +121,10 @@ class DurableExecutorTest extends TestCase
 
     public function testStepCleanupAfterCompletion(): void
     {
-        $runId = 'durable_cleanup_test';
+        $address = 'durable_cleanup_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(),
@@ -134,17 +134,17 @@ class DurableExecutorTest extends TestCase
         $this->execute($workflow, $persistence);
 
         // Steps should be deleted after successful completion
-        $this->assertNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
-        $this->assertNull($persistence->get($runId, DurableNodeB::class . '-1'));
-        $this->assertNull($persistence->get($runId, DurableNodeC::class . '-2'));
+        $this->assertNull($persistence->get($address, $this->stepKey($workflow, DurableNodeA::class . '-0')));
+        $this->assertNull($persistence->get($address, $this->stepKey($workflow, DurableNodeB::class . '-1')));
+        $this->assertNull($persistence->get($address, $this->stepKey($workflow, DurableNodeC::class . '-2')));
     }
 
     public function testStepsNotCleanedUpAfterCrash(): void
     {
-        $runId = 'durable_crash_cleanup_test';
+        $address = 'durable_crash_cleanup_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(true), // crush when run
@@ -156,7 +156,7 @@ class DurableExecutorTest extends TestCase
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException) {
             // After crash, completed steps should still be persisted
-            $this->assertNotNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
+            $this->assertNotNull($persistence->get($address, $this->stepKey($workflow, DurableNodeA::class . '-0')));
         }
     }
 
@@ -178,10 +178,10 @@ class DurableExecutorTest extends TestCase
 
     public function testMemoizationWithFreshExecutor(): void
     {
-        $runId = 'durable_fresh_engine_test';
+        $address = 'durable_fresh_engine_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(true), // crash
@@ -200,7 +200,7 @@ class DurableExecutorTest extends TestCase
 
         // Revive with a fresh executor + same persistence (simulates process restart)
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make(address: $runId)
+        $workflow2 = Workflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableNodeB(),
@@ -221,12 +221,12 @@ class DurableExecutorTest extends TestCase
         MemoizingNode::resetOperationCount();
         CountableNode::resetExecutionCount();
 
-        $runId = 'durable_memoize_test';
+        $address = 'durable_memoize_test';
         $persistence = new InMemoryPersistence();
 
         // Run 1: the memoized operation runs, its value is persisted mid-node,
         // then the node crashes before returning.
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([new MemoizingNode(shouldCrash: true)]);
 
         try {
@@ -241,7 +241,7 @@ class DurableExecutorTest extends TestCase
 
         // Revive with a fresh executor + same persistence (simulates process restart).
         CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make(address: $runId)
+        $workflow2 = Workflow::make(address: $address)
             ->addNodes([new MemoizingNode(shouldCrash: false)]);
 
         $result = $this->resume($workflow2, $persistence, null);
@@ -255,13 +255,13 @@ class DurableExecutorTest extends TestCase
 
     public function testRestoreEventFiresOnlyOnRecalledEvents(): void
     {
-        $runId = 'durable_restore_seam_test';
+        $address = 'durable_restore_seam_test';
         $persistence = new InMemoryPersistence();
 
         // Run 1: every node executes live — restore must never fire, so a live
         // result's transient capability (e.g. a middleware-shaped tool set) is
         // never touched by the seam.
-        $workflow = RestoreSpyWorkflow::make(address: $runId)
+        $workflow = RestoreSpyWorkflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -276,7 +276,7 @@ class DurableExecutorTest extends TestCase
         // Resume in a fresh instance: exactly the deserialized events are
         // restored — the adopted ignition start event and node A's recalled
         // result. Nodes B and C run live and never pass through the seam.
-        $workflow2 = RestoreSpyWorkflow::make(address: $runId)
+        $workflow2 = RestoreSpyWorkflow::make(address: $address)
             ->addNodes([
                 new DurableNodeA(),
                 new DurableInterruptNodeB(),
@@ -291,10 +291,10 @@ class DurableExecutorTest extends TestCase
 
     public function testCrashRecordsFailedStepMarker(): void
     {
-        $runId = 'durable_failed_marker_test';
+        $address = 'durable_failed_marker_test';
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: $runId)
+        $workflow = Workflow::make(address: $address)
             ->addNodes([new MemoizingNode(shouldCrash: true)]);
 
         try {
@@ -305,7 +305,7 @@ class DurableExecutorTest extends TestCase
         }
 
         // The crashed step leaves a failed marker, making the run observable.
-        $raw = $persistence->get($runId, $workflow->getRunId() . '/' . MemoizingNode::class . '-0');
+        $raw = $persistence->get($address, $this->stepKey($workflow, MemoizingNode::class . '-0'));
         $this->assertNotNull($raw);
         $failed = (new PhpSerializer())->unserialize($raw);
         $this->assertInstanceOf(StepResult::class, $failed);
