@@ -8,12 +8,11 @@ use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 /**
- * Test double that records every scheduler lifecycle call so tests can assert what
- * the executor handed to the scheduler (or that a hook was never called).
+ * Records every hook invocation for assertions.
  */
 class SpyScheduler implements SchedulerInterface
 {
-    /** @var array<int, array{runId: string, request: InterruptRequest}> */
+    /** @var array<int, array{address: string, runId: string, request: InterruptRequest}> */
     public array $onSuspendCalls = [];
 
     /** @var array<int, string> */
@@ -22,18 +21,18 @@ class SpyScheduler implements SchedulerInterface
     /** @var array<int, string> */
     public array $onCompleteCalls = [];
 
-    public function onSuspend(string $runId, InterruptRequest $request): void
+    public function onSuspend(string $address, string $runId, InterruptRequest $request): void
     {
-        $this->onSuspendCalls[] = ['runId' => $runId, 'request' => $request];
+        $this->onSuspendCalls[] = ['address' => $address, 'runId' => $runId, 'request' => $request];
     }
 
-    public function onResume(string $runId): void
+    public function onResume(string $address): void
     {
-        $this->onResumeCalls[] = $runId;
+        $this->onResumeCalls[] = $address;
     }
 
-    public function onComplete(string $runId): void
+    public function onComplete(string $address): void
     {
-        $this->onCompleteCalls[] = $runId;
+        $this->onCompleteCalls[] = $address;
     }
 }

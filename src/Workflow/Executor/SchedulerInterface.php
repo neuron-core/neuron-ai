@@ -11,34 +11,47 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * scheduler owns COORDINATION — deciding when a suspended workflow runs
  * again, branching on the request's type() to pick the wakeup strategy.
  * The default {@see NullScheduler} is inert: resume stays caller-driven.
+ *
+ * Hooks speak the address — the stable identity a continuation targets. An
+ * address hosts at most one live run, so cancel/drop operations are safely
+ * address-scoped.
  */
 interface SchedulerInterface
 {
     /**
      * Called by the executor immediately after a suspend has been persisted.
      *
-     * @param string           $runId The suspended workflow (also its resume token).
-     * @param InterruptRequest $request    The suspend request; its type() selects the wakeup strategy.
+     * The runId is the suspended run's generation stamp: record it on the
+     * wakeup. When a wakeup later fires, the waking side must discard it if
+     * the ignition record at the address no longer names this runId — the
+     * address was completed and re-ignited in the meantime, and delivering
+     * the stale wakeup would fabricate an answer for the wrong run.
+     *
+     * @param string           $address The suspended run's address (the resume target).
+     * @param string           $runId   The generation stamp to record on the wakeup.
+     * @param InterruptRequest $request The suspend request; its type() selects the wakeup strategy.
      */
-    public function onSuspend(string $runId, InterruptRequest $request): void;
+    public function onSuspend(string $address, string $runId, InterruptRequest $request): void;
 
     /**
-     * Called on a deliberate resume (inline or scheduler push) — never on
-     * crash-recovery re-runs. The scheduler should cancel the wakeup this
-     * resume satisfies, so an inline resume leaves no stale registration.
-     * Cancellation must be transactional: don't hard-drop a wakeup if the
-     * step ultimately fails — the executor re-notifies via onSuspend() if
-     * the workflow suspends again.
+     * Called on a deliberate resume (a payload was delivered, inline or
+     * scheduler push) — never on a payload-less revive. The scheduler should
+     * cancel the wakeup this resume satisfies, so an inline resume leaves no
+     * stale registration. Cancellation must be transactional: don't
+     * hard-drop a wakeup if the step ultimately fails — the executor
+     * re-notifies via onSuspend() if the workflow suspends again.
      *
-     * @param string $runId The resumed workflow.
+     * @param string $address The resumed run's address.
      */
-    public function onResume(string $runId): void;
+    public function onResume(string $address): void;
 
     /**
-     * Called only on a clean terminal (StopEvent) — not on a suspend or a
-     * thrown error. Drop ALL coordination state for the workflow.
+     * Called only on a clean, fenced terminal (StopEvent while the run still
+     * holds its address) — not on a suspend, a thrown error, or a stale
+     * replica completing after the address moved on. Drop ALL coordination
+     * state for the address.
      *
-     * @param string $runId The completed workflow.
+     * @param string $address The completed run's address.
      */
-    public function onComplete(string $runId): void;
+    public function onComplete(string $address): void;
 }

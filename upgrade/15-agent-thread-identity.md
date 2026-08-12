@@ -13,7 +13,7 @@ What changed:
 1. **New constructor parameter**: `Agent::make(threadId: 'thread-42')` — the
    one front door for declaring which conversation a run belongs to.
 2. **New reader**: `Agent::getThreadId(): ?string` (null = the run is not
-   thread-addressable). `correlationKey()` delegates to it.
+   thread-addressable). `address()` delegates to it — the threadId IS the run's address.
 3. **`ChatHistoryInterface` gains binding**:
 
    ```php
@@ -69,8 +69,8 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 // Thread-first resume (approve endpoint)
 SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
 
-// Run-first resume (background wake): the ignition record supplies it
-SupportAgent::make(runId: $runId)->resume($payload);
+// Address-first resume (background wake): the ignition record supplies it
+SupportAgent::make(address: $address)->resume($payload);
 ```
 
 Subclass hooks construct identity-free:
@@ -94,12 +94,12 @@ unbound:
 
 ```php
 // Before
-Agent::make(runId: $runId)
+Agent::make(address: $address)
     ->setChatHistory(fn (string $id) => new SQLChatHistory($id, $pdo))
     ->resume($payload);
 
 // After
-Agent::make(runId: $runId)
+Agent::make(address: $address)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->resume($payload);
 ```

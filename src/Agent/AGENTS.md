@@ -266,25 +266,22 @@ accumulation lives with the caller (an app collecting decisions one at a time ga
 them itself before resuming). The latest payload wins, so decisions are revisable until
 the set completes. The UI re-renders pending approvals by reading chat history (last
 message, tools with `getApprovalState()`) — no workflow boot; final outcomes are read
-from the `ToolResultMessage` that follows. The thread must stay **locked** until the
-full decision set is delivered — thread integrity is the application's responsibility.
-There is no agent-level guard: if a new turn slips through anyway, the chat history's
-message-alternation rule rejects the `UserMessage` appended after the pending
-`ToolCallMessage` with a `ChatHistoryException` (see `src/Chat/AGENTS.md`).
+from the `ToolResultMessage` that follows. The thread stays effectively
+**locked** until the full decision set is delivered: a new `chat()` turn on a
+thread with a run in flight is refused by the engine ("run in flight at
+address"), so the pending approvals must be settled — resumed with approvals
+or declines — before the conversation moves on.
 
-### Thread-first continuation: the correlation pointer
+### Thread-first continuation: the thread IS the address
 
-The Agent declares its **threadId as the run's correlation key**
-(`correlationKey()`), so the engine records `threadId → runId` in workflow
-persistence when the run ignites. The pointer records the *most recent* run for
-the thread and is never removed — a completed thread reads as free because the
-run's partition (with its ignition record) was deleted, and liveness is derived
-at lookup (see `src/Workflow/AGENTS.md`). A `resume()` with no explicit runId
-resolves the pointer — the approve/deny endpoint needs only the thread id, and
-nothing about execution identity ever touches chat history:
+The Agent declares its **threadId as the run's address** (`address()`), so the
+run's durable records live in the partition named by the thread itself. There
+is no pointer and no index: the approve/deny endpoint needs only the thread
+id, one read answers "is a run in flight here", and nothing about execution
+identity ever touches chat history:
 
 ```php
-// New execution cycle: no runId stored anywhere by the application — the
+// New execution cycle: nothing stored anywhere by the application — the
 // thread IS the address. The history is constructed WITHOUT identity; the
 // framework binds the resolved threadId into it.
 $agent = Agent::make(threadId: $threadId)
@@ -296,24 +293,28 @@ $agent->resume(['call_123' => 'approve']);
 // same identity by adoption and works identically)
 ```
 
-This works for **every** suspension type — approval, `awaitEvent()`, `sleepUntil()` —
-because it is an engine mechanism, not an approval one. An **explicit runId wins**
-over the pointer: a non-null id is authoritative, and the lookup fires only when none
-was given. A continuation that can address no run at all (no runId, no pointer bound)
-throws a `WorkflowException` rather than running against the wrong one.
+This works for **every** suspension type — approval, `awaitEvent()`,
+`sleepUntil()` — because it is an engine mechanism, not an approval one. One
+live run per thread, enforced by the engine: a new `chat()` while a run is
+suspended on the thread is **refused** loudly ("run in flight at address");
+settle the pending run first — typically `resume()` with decline decisions.
+A continuation that can address no run at all (no address, nothing in
+flight) throws a `WorkflowException` rather than running against the wrong
+one.
 
-The correlation key is `null` while no thread identity has been declared — the run
-must then be addressed by an explicit runId (run-first resume), and the threadId
-arrives from the ignition record. See `src/Workflow/AGENTS.md` for the pointer's
-lifecycle and the identity truth table.
+The declared address is `null` while no thread identity has been declared —
+the run then lives at an engine-generated address (`getAddress()` after the
+first segment) and the threadId, if any, arrives from the ignition record.
+See `src/Workflow/AGENTS.md` for the address model and the identity truth
+table.
 
 ## Ignition & thread identity
 
 The **Agent owns its thread identity**: `Agent::getThreadId(): ?string` is a
 nullable slot assigned exactly once through a single door (`adoptThreadId()`,
-mirroring the engine's runId phase). The framework **never generates** a
+mirroring the engine's identity phase). The framework **never generates** a
 thread identity — it is always a developer statement, and a run without one
-is simply not thread-addressable (`correlationKey()` null, no pointer, no
+is simply not thread-addressable (`address()` null, generated address, no
 `threadId` in the ignition record).
 
 **Collaborators are bound, not identity-constructed.** Chat histories are
@@ -338,9 +339,9 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 // Thread-first resume (approve endpoint): same statement.
 SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
 
-// Run-first resume (background wake): the record supplies the identity —
-// the developer writes nothing.
-SupportAgent::make(runId: $ticket->runId)->resume($ticket->payload);
+// Address-first resume (background wake): the record supplies the thread
+// identity — the developer writes nothing.
+SupportAgent::make(address: $ticket->address)->resume($ticket->payload);
 ```
 
 Identity sources, in precedence order — any two disagreeing non-null claims
@@ -349,18 +350,20 @@ Identity sources, in precedence order — any two disagreeing non-null claims
 1. **Explicit**: `Agent::make(threadId: 'thread-42')`.
 2. **Adoption from a pre-bound history**: `setChatHistory(new SQLChatHistory($pdo, 'thread-42'))`
    declares the history's key as the agent's identity.
-3. **The ignition record** (run-first resume): `applyIgnitionContext()`
+3. **The ignition record** (address-first resume): `applyIgnitionContext()`
    adopts the recorded threadId — adoption validates, so a record
    contradicting an explicitly claimed identity throws (a mis-addressed
-   continuation).
+   continuation). The engine's own check fires even earlier: a declared
+   threadId disagreeing with an explicit `make(address:)` is refused at
+   identity resolution.
 
 **Addressability requires identity declared before the run starts** (the two
 sources above, or the record on a resume). A pre-bound *hook* history (the
 in-memory default self-keying, or a subclass hook choosing a fixed key) is
 adopted and validated when it materializes during bootstrap — but that is
-after the ignition record and pointer are written, so it does not make the
-run thread-addressable. `getThreadId()` is a pure read of the slot; hooks may
-consult it freely (null on anonymous runs).
+after the address is resolved and the ignition record written, so it does
+not make the run thread-addressable. `getThreadId()` is a pure read of the
+slot; hooks may consult it freely (null on anonymous runs).
 
 The moment identity resolves, the Agent binds it into an unbound history
 (`setThreadId()`, itself conflict-guarded: re-pointing a bound history at a
@@ -368,10 +371,10 @@ different thread always throws). A durable history *used* while unbound
 fails loudly ("thread-scoped and no thread identity was given").
 
 Every durable run persists its **ignition record** at first execution: the
-start event (messages + intent) plus the Agent's context bag
-(`['threadId' => ...]`, read from the identity slot; omitted when anonymous).
-That is what makes a suspended run continuable from a **blank process** — a
-factory that knows only the runId.
+runId (generation stamp), the start event (messages + intent), plus the
+Agent's context bag (`['threadId' => ...]`, read from the identity slot;
+omitted when anonymous). That is what makes a suspended run continuable from
+a **blank process** — a factory that knows only the address.
 
 - `setChatHistory()` accepts a `ChatHistoryInterface` (pre-bound = identity
   declaration; unbound = the framework binds). `setChannel()` accepts a

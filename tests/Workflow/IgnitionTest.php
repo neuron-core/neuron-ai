@@ -160,7 +160,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
 
         $this->assertNotNull($store->get('ign_routing', '__ignition'));
-        $this->assertNotNull($store->get('ign_routing', IgnitionWaitNode::class . '-0'));
+        $this->assertNotNull($store->get('ign_routing', $workflow->getRunId() . '/' . IgnitionWaitNode::class . '-0'));
     }
 
     protected function removeDirectory(string $dir): void

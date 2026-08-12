@@ -12,6 +12,7 @@ use function is_dir;
 use function is_file;
 use function json_decode;
 use function json_encode;
+use function rawurlencode;
 use function unlink;
 use function mkdir;
 
@@ -41,7 +42,14 @@ class FilePersistence implements PersistenceInterface
         $data[$key] = $value;
         $this->cache[$partition] = $data;
 
-        file_put_contents($this->filePath($partition), json_encode($data, JSON_PRETTY_PRINT));
+        // A dropped write would silently un-persist a durable record: an
+        // over-long filename, a full disk, or missing permissions must
+        // surface here, not at the next (impossible) resume.
+        if (@file_put_contents($this->filePath($partition), json_encode($data, JSON_PRETTY_PRINT)) === false) {
+            throw new WorkflowException(
+                "Unable to write partition '{$partition}' to '{$this->filePath($partition)}'."
+            );
+        }
     }
 
     public function get(string $partition, string $key): ?string
@@ -76,8 +84,13 @@ class FilePersistence implements PersistenceInterface
         return json_decode(file_get_contents($path), true) ?? [];
     }
 
+    /**
+     * Partition names are arbitrary business strings (an address may be
+     * 'order:123' or contain slashes); encoding keeps every name a safe,
+     * traversal-free filename while staying reversible and mostly readable.
+     */
     protected function filePath(string $partition): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $partition . '.store';
+        return $this->directory . DIRECTORY_SEPARATOR . rawurlencode($partition) . '.store';
     }
 }

@@ -24,16 +24,16 @@ $workflow = Workflow::make()
 // returned state is marked interrupted — no exception is thrown to the caller.
 $state = $workflow->run();
 
-// The runId is assigned by the engine when the run starts, and readable from
+// The address is assigned by the engine when the run starts, and readable from
 // the workflow instance afterwards — it is also the handle to resume a
 // suspended run.
-$runId = $workflow->getRunId();
+$address = $workflow->getAddress();
 $approvalRequest = null;
 
 if ($state->isInterrupted()) {
     $approvalRequest = $state->getInterruptRequest();
     echo "Paused: {$approvalRequest->getMessage()}\n";
-    echo "Run ID: {$runId}\n";
+    echo "Address: {$address}\n";
 }
 
 /*
@@ -41,7 +41,7 @@ if ($state->isInterrupted()) {
  * Imagine a new execution cycle starts here
  * ---------------------------------------
  *
- * Rebuild the workflow with the runId and the same persistence, then
+ * Rebuild the workflow with the address and the same persistence, then
  * resume by delivering an inbound PAYLOAD — a plain array carrying the answer
  * to the pause (a human decision, an event body, etc.). The outbound
  * InterruptRequest is never passed back in: it described the pause, the payload
@@ -52,7 +52,7 @@ if ($state->isInterrupted()) {
  * It carries only NEW decisions; the cumulative state lives in chat history,
  * not in the payload.
  */
-$workflow = Workflow::make(runId: $runId)
+$workflow = Workflow::make(address: $address)
     ->setPersistence($persistence)
     ->addNodes([
         new NodeOne(),

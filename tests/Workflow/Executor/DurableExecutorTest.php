@@ -95,7 +95,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($state->get('step_a_executed'));
         $this->assertTrue($state->get('step_b_executed'));
         // Paused steps are retained for resume (cleanup only runs on completion)
-        $this->assertNotNull($persistence->get($runId, DurableNodeA::class . '-0'));
+        $this->assertNotNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
 
         // Resume — deliver the payload (node B just checks isResuming()).
         CountableNode::resetExecutionCount();
@@ -134,7 +134,7 @@ class DurableExecutorTest extends TestCase
         $this->execute($workflow, $persistence);
 
         // Steps should be deleted after successful completion
-        $this->assertNull($persistence->get($runId, DurableNodeA::class . '-0'));
+        $this->assertNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
         $this->assertNull($persistence->get($runId, DurableNodeB::class . '-1'));
         $this->assertNull($persistence->get($runId, DurableNodeC::class . '-2'));
     }
@@ -156,7 +156,7 @@ class DurableExecutorTest extends TestCase
             $this->fail('Expected RuntimeException was not thrown');
         } catch (RuntimeException) {
             // After crash, completed steps should still be persisted
-            $this->assertNotNull($persistence->get($runId, DurableNodeA::class . '-0'));
+            $this->assertNotNull($persistence->get($runId, $workflow->getRunId() . '/' . DurableNodeA::class . '-0'));
         }
     }
 
@@ -305,7 +305,7 @@ class DurableExecutorTest extends TestCase
         }
 
         // The crashed step leaves a failed marker, making the run observable.
-        $raw = $persistence->get($runId, MemoizingNode::class . '-0');
+        $raw = $persistence->get($runId, $workflow->getRunId() . '/' . MemoizingNode::class . '-0');
         $this->assertNotNull($raw);
         $failed = (new PhpSerializer())->unserialize($raw);
         $this->assertInstanceOf(StepResult::class, $failed);

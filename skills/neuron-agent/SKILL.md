@@ -394,9 +394,9 @@ $response = MyAgent::make()
 
 When the agent suspends (e.g., waiting for tool approval), no exception is thrown —
 `chat()` returns an `AgentState` marked interrupted. The **thread is the address**:
-the engine records `threadId → runId` in workflow persistence at ignition (the
-correlation pointer), so a later `resume()` built from the threadId alone finds the
-pending run — no runId stored anywhere by the application:
+the run's durable records live in the partition named by the threadId itself, so a
+later `resume()` built from the threadId alone finds the pending run — nothing
+stored anywhere by the application:
 
 ```php
 $state = MyAgent::make(threadId: $threadId)
@@ -420,9 +420,9 @@ $response = $state->getMessage();
 ```
 
 This works for every suspension type (approval, `awaitEvent()`, `sleepUntil()`).
-Background (run-first) resumes pass `make(runId:)` instead — the threadId then
-arrives from the run's ignition record and is bound into the history by the
-framework.
+Background (address-first) resumes pass `make(address:)` instead — the threadId
+then arrives from the run's ignition record and is bound into the history by
+the framework.
 
 Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements — and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
 

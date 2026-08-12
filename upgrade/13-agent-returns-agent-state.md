@@ -198,7 +198,7 @@ public function handle(AgentState $state): void { /* ... */ }
 - `structured()` is unchanged — it still returns the typed output directly.
 - Thread-first `resume()` is unchanged by this step — a `resume()` with no explicit runId
   still finds the run from the thread alone. (Guide 14 replaces the mechanism behind it:
-  the chat-history tail stamp becomes a correlation pointer in workflow persistence.)
+  the thread itself becomes the run's address in workflow persistence.)
 - The on-disk chat history format, persistence backends, and the approval flow are
   unaffected. This step only changes the Agent's public verb layer and its consumers.
 

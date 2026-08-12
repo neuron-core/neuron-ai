@@ -173,7 +173,7 @@ $agent = Agent::make()
     ->setPersistence($persistence);
 
 // The run is addressed by the thread alone, as before. (The mechanism behind
-// that changes in guide 14: the tail stamp becomes a correlation pointer.)
+// that changes in guide 14: the thread itself becomes the run's address.)
 $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 

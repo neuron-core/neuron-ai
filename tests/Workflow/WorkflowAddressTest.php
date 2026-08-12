@@ -6,13 +6,20 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Scheduler\Stubs\SpyScheduler;
 use NeuronAI\Tests\Workflow\Stubs\AddressedWorkflow;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -201,6 +208,74 @@ class WorkflowAddressTest extends TestCase
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($address, $resumed->getAddress());
+    }
+
+    public function testReplayIgnoresRecordsOfAForeignGeneration(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $suspended = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $this->execute($suspended, $persistence);
+
+        // Another generation takes the address: the head now names a run
+        // that owns none of the stale records left in the partition.
+        $persistence->put(
+            'thread_1',
+            '__ignition',
+            (new PhpSerializer())->serialize(new Ignition('run_foreign', new StartEvent())),
+        );
+
+        // The continuation runs as the foreign generation: the stale steps
+        // (completed AND interrupted markers) are invisible under its prefix,
+        // so the delivered answer finds no step waiting for it and the
+        // traversal re-runs from the start — re-suspending at the interrupt.
+        $resumed = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $state = $this->resume($resumed, $persistence, []);
+
+        $this->assertSame('run_foreign', $resumed->getRunId());
+        $this->assertTrue($state->isInterrupted());
+        $this->assertNull($state->get('received_feedback'));
+    }
+
+    public function testZombieCompletionNeitherSweepsNorFiresOnComplete(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $scheduler = new SpyScheduler();
+        $serializer = new PhpSerializer();
+
+        // The node simulates a takeover happening mid-run: by the time this
+        // run completes, the generation head names someone else.
+        $hijacked = new class ($persistence, $serializer) extends Node {
+            public function __construct(
+                protected InMemoryPersistence $persistence,
+                protected PhpSerializer $serializer,
+            ) {
+            }
+
+            public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+            {
+                $this->persistence->put(
+                    'thread_1',
+                    '__ignition',
+                    $this->serializer->serialize(new Ignition('run_successor', new StartEvent())),
+                );
+
+                return new StopEvent();
+            }
+        };
+
+        $workflow = Workflow::make('thread_1')->addNode($hijacked);
+        $state = $this->execute($workflow, $persistence, $scheduler);
+
+        $this->assertFalse($state->isInterrupted());
+
+        // The fenced sweep held: the successor's head record survives, the
+        // zombie's own step record is left as inert garbage, and the
+        // successor's coordination state was not dropped.
+        $head = (new PhpSerializer())->unserialize((string) $persistence->get('thread_1', '__ignition'));
+        $this->assertInstanceOf(Ignition::class, $head);
+        $this->assertSame('run_successor', $head->runId);
+        $this->assertNotNull($persistence->get('thread_1', $workflow->getRunId() . '/' . $hijacked::class . '-0'));
+        $this->assertSame([], $scheduler->onCompleteCalls);
     }
 
     public function testStateCarriesBothIdentities(): void

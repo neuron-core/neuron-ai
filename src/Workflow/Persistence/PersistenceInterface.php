@@ -13,6 +13,14 @@ namespace NeuronAI\Workflow\Persistence;
  * (ignition, steps, memos) live in the partition named by its address —
  * a business key or a generated handle. Backends never interpret partition
  * names and never parse values — both are opaque strings.
+ *
+ * A partition name is an ARBITRARY non-empty string: addresses are
+ * business-owned (a threadId, 'order:123'), so safe storage of any name is
+ * the backend's obligation — encode names that are unsafe for the medium
+ * (e.g. as filenames) at the backend's own boundary. There are no reserved
+ * partitions. Capacity limits (name length, value size) are backend-specific
+ * and must surface as loud failures, never silent truncation or a dropped
+ * write.
  */
 interface PersistenceInterface
 {

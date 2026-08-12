@@ -4,16 +4,15 @@
 
 Workflow persistence is redesigned around one idea: **the store is a single
 partitioned key-value space** — string values filed under `(partition, key)`.
-A run's records (ignition, steps, memos) live in a partition named by its
-runId; engine indexes live in reserved partitions. One artifact per backend —
+A run's records (ignition, steps, memos) live in the partition named by its
+**address** — the business key the workflow declares (the Agent declares its
+threadId; an order workflow might declare `'order:123'`), or an
+engine-generated handle when it declares none. One artifact per backend —
 one table, one directory, one array — forever, for every current and future
-record type.
-
-On top of it, thread → run resolution moves out of the chat-history tail:
-a workflow may declare a **correlation key** (the Agent declares its
-threadId), and the engine records `key → runId` in the reserved
-`__correlation` partition at ignition. A `resume()` without a runId resolves
-the run from that pointer.
+record type. There are no engine indexes and no reserved partitions: the
+business key IS the storage location, so a `resume()` built from the key
+alone finds the pending run with a single read, and thread → run resolution
+moves out of the chat-history tail.
 
 What changed:
 
@@ -35,22 +34,30 @@ What changed:
 3. **One table replaces two.** `workflow_steps` becomes `workflow_store`
    (DDL below); the `workflow_correlations` table from the 4.x development
    branch is gone (it never shipped in a release).
-4. **The correlation pointer is a historical fact, not a live flag.** The
-   row in `__correlation` records the *most recent* run ignited for the key
-   and is never deleted; whether that run is in flight is derived at lookup
-   (its ignition record still exists → in flight; partition deleted on
-   completion → "no run in flight"). An explicit runId always wins over the
-   pointer.
+4. **The address is the identity; one live run per address.** A workflow
+   declares its business key by overriding `address(): ?string`; records live
+   under it, and `run()` while a run is already in flight at the address
+   throws ("run in flight") — settle the pending run by resuming it. Clean
+   completion sweeps the whole partition, so nothing ever leaks. A per-run
+   **runId** (generation stamp) lives inside the ignition record for
+   observability and write-fencing (step keys are runId-prefixed) — it is
+   never the continuation handle.
 5. **The runId is gone from chat history.**
    `ToolCallMessage::setRunId()/getRunId()/setResumeToken()/getResumeToken()`
    are removed. Chat history is conversation only.
-6. **`Workflow::getRunId()` returns `?string`** — null before the first run
-   segment; identity is assigned by the executor (explicit id → fresh
-   generation → pointer resolution), never defaulted at construction.
-7. **A continuation must address a run.** `resume()` with no runId on a
-   workflow that declares no correlation key throws a `WorkflowException`.
+6. **`Workflow::make(?string $address)` and `getAddress(): ?string`** — the
+   constructor parameter and continuation handle are the address.
+   `getRunId(): ?string` still exists but now returns the generation stamp.
+   Both are null before the first run segment; identity is assigned by the
+   executor, never defaulted at construction.
+7. **A continuation must address a run.** `resume()` on a workflow with no
+   explicit and no declared address throws a `WorkflowException`. `resume()`
+   also gains revive semantics: a **null** payload (the new default) replays
+   without delivering anything (crash recovery), while `[]` delivers an
+   explicitly empty answer.
 8. **`FilePersistence`** now writes one file per partition
-   (`<partition>.store`) instead of `<runId>.workflow`.
+   (`<partition>.store`, name URL-encoded for filesystem safety) instead of
+   `<runId>.workflow`, and throws on a failed write.
 
 ## Update your code
 
@@ -111,12 +118,12 @@ class RedisPersistence implements PersistenceInterface
 }
 ```
 
-Your own workflows opt into thread-first continuation by declaring a key:
+Your own workflows opt into key-first continuation by declaring their address:
 
 ```php
 class OrderWorkflow extends Workflow
 {
-    public function correlationKey(): ?string
+    public function address(): ?string
     {
         return 'order:' . $this->orderId;
     }
@@ -166,12 +173,13 @@ upgrading:
 
 - their ignition/memo records were stored wrapped in `StepResult`; the new
   engine reads them serialized directly, and
-- thread-first resume needs a pointer in `__correlation`, which the old
-  version never wrote.
+- their records live in a runId-named partition with unprefixed step keys;
+  the new engine reads address-named partitions with generation-prefixed
+  keys.
 
 Drain pending approvals/suspensions before deploying, or complete them on the
 old version. (This is a development-branch-to-development-branch note; no
-released version wrote the old correlation table.)
+released version wrote the old layout.)
 
 ## API removals
 
@@ -187,5 +195,6 @@ grep -rn "->save(\|->load(\|new DatabasePersistence\|new EloquentPersistence\|ne
 ```
 
 Check each hit: persistence calls get the new verbs; backend constructions
-lose serializer arguments; `Workflow::getRunId()` still exists (now
-`?string`); the `ToolCallMessage` variants are gone.
+lose serializer arguments; a `getRunId()` used as a resume handle becomes
+`getAddress()` (`getRunId()` still exists but returns the generation stamp);
+the `ToolCallMessage` variants are gone.

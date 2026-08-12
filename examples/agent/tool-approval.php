@@ -119,8 +119,8 @@ while ($state->isInterrupted()) {
     /*
      * Imagine a new execution cycle starts here (e.g. the approve/deny HTTP
      * endpoint): rebuild the agent from the thread alone — NO runId — and
-     * deliver the payload. The engine resolves the thread's correlation
-     * pointer to the suspended run. Nothing else to store, nothing else to pass.
+     * deliver the payload. The thread IS the run's address, so the engine
+     * finds the suspended run there. Nothing else to store, nothing else to pass.
      */
     echo "\nResuming workflow...\n\n";
 

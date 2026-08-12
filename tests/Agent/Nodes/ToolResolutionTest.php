@@ -169,7 +169,7 @@ class ToolResolutionTest extends TestCase
         $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
         // Simulate the crash window: ChatNode #2 (step index 3) never committed.
-        $persistence->forgetByPrefix($runId, ChatNode::class . '-3');
+        $persistence->forgetByPrefix($runId, $agent1->getRunId() . '/' . ChatNode::class . '-3');
 
         // Recovery: ChatNode #1 and ToolNode #1 replay from cache; ChatNode #2
         // runs live and must see the agent's tools on its inference request.

@@ -160,6 +160,61 @@ class PersistenceContractTest extends TestCase
         $this->assertSame($value, $store->get('run_a', 'blob'));
     }
 
+    /**
+     * Partition names are business-owned addresses (a threadId, 'order:123');
+     * the contract makes their safe storage the backend's obligation.
+     *
+     * @dataProvider backendProvider
+     */
+    public function testHostilePartitionNamesRoundTripAndDeleteCleanly(callable $make): void
+    {
+        $store = $make($this->directory);
+
+        $names = ['user/42:thread #1', '../../etc/passwd', 'ordine:è-123 ✓'];
+
+        foreach ($names as $name) {
+            $store->put($name, 'step-1', 'payload:' . $name);
+        }
+
+        foreach ($names as $name) {
+            $this->assertSame('payload:' . $name, $store->get($name, 'step-1'));
+        }
+
+        $store->delete($names[0]);
+
+        $this->assertNull($store->get($names[0], 'step-1'));
+        $this->assertSame('payload:' . $names[1], $store->get($names[1], 'step-1'));
+    }
+
+    public function testFileBackendKeepsHostileNamesInsideItsDirectory(): void
+    {
+        $store = new FilePersistence($this->directory);
+
+        $store->put('../escape-attempt', 'step-1', 'payload');
+
+        // The record landed as a file INSIDE the configured directory — a
+        // traversal-shaped address must never write outside it.
+        $entries = array_diff(scandir($this->directory) ?: [], ['.', '..']);
+        $this->assertCount(1, $entries);
+        $this->assertFileDoesNotExist(sys_get_temp_dir() . '/escape-attempt.store');
+
+        // A fresh instance reading from disk (no warm cache) finds it back.
+        $fresh = new FilePersistence($this->directory);
+        $this->assertSame('payload', $fresh->get('../escape-attempt', 'step-1'));
+    }
+
+    public function testFileBackendThrowsOnAFailedWrite(): void
+    {
+        $store = new FilePersistence($this->directory);
+
+        // A filename far beyond NAME_MAX makes the write fail loudly instead
+        // of silently dropping a durable record.
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage('Unable to write partition');
+
+        $store->put(str_repeat('x', 300), 'step-1', 'payload');
+    }
+
     protected function removeDirectory(string $directory): void
     {
         if (!is_dir($directory)) {

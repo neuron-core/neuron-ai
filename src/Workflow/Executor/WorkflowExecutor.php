@@ -116,7 +116,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 // AgentError. Steps are kept for resume.
                 $workflow->getState()->markAsInterrupted($terminal->request);
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
-                $this->scheduler->onSuspend($this->address, $terminal->request);
+                $this->scheduler->onSuspend($this->address, $this->runId, $terminal->request);
                 yield $terminal;
             } else {
                 // Fenced sweep: delete only while the generation head still

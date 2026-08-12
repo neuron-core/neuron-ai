@@ -304,14 +304,14 @@ $state = $workflow->run();
 if ($state->isInterrupted()) {
     // Present the request to the user and collect a decision (outbound).
     $request = $state->getInterruptRequest();
-    $runId = $workflow->getRunId();   // assigned by the engine at ignition
+    $address = $workflow->getAddress();   // assigned by the engine at ignition
 
     // ... user approves/rejects ...
 
-    // Resume — same persistence + runId, delivering the answer as an inbound
+    // Resume — same persistence + address, delivering the answer as an inbound
     // PAYLOAD (a plain array). Completed nodes replay from cache; only the
     // interrupted node re-runs and receives the payload.
-    $state = Workflow::make(runId: $runId)
+    $state = Workflow::make(address: $address)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume(['approved' => true]);
@@ -320,37 +320,39 @@ if ($state->isInterrupted()) {
 $result = $state->get('result');
 ```
 
-### Resuming by business key — the correlation pointer
+### Resuming by business key — the address
 
-A run has two identities: the engine-generated **runId** (keys everything in
-persistence) and an optional **correlation key** — the business identity your
-application naturally holds (a thread id, an order id). Declare it by
-overriding `correlationKey()`, and the engine records `key → runId` in the
-store when the run ignites; a `resume()` **without a runId** finds the pending
-run from that pointer:
+A run has two identities: its **address** — the partition its durable records
+live under — and a per-run **runId** (a generation stamp for observability
+and fencing, never the continuation handle). Declare the business identity
+your application naturally holds (a thread id, an order id) by overriding
+`address()`, and the run's records live under that key itself; a `resume()`
+built from the business key alone finds the pending run:
 
 ```php
 class OrderWorkflow extends Workflow
 {
-    public function correlationKey(): ?string
+    public function address(): ?string
     {
         return 'order:' . $this->orderId;
     }
 }
 
-// Later, in a blank process holding only the order id — no runId stored
+// Later, in a blank process holding only the order id — nothing stored
 // anywhere by the application:
 $state = OrderWorkflow::make(orderId: $orderId)
     ->setPersistence($persistence)
     ->resume(['approved' => true]);
 ```
 
-Rules: an **explicit runId always wins** over the pointer; the pointer records
-the *most recent* run for the key and is never deleted — whether that run is
-in flight is derived at lookup (a completed run's records were swept, so the
-resume throws "No run in flight"); a continuation with no runId and no
-correlation key throws. Plain workflows that declare no key are unaffected.
-The `Agent` uses exactly this mechanism with its threadId as the key.
+Rules: **one live run per address** — `run()` while a run is in flight at the
+address throws ("run in flight"); settle the pending run by resuming it. A
+completed run's records are swept, so a later resume throws "No run in
+flight". A continuation with no address at all throws. A declared `address()`
+wins over an explicit `make($address)`; a disagreement throws (mis-addressed
+run). Plain workflows that declare no key get a generated address
+(`getAddress()` after the first segment) and are otherwise unaffected. The
+`Agent` uses exactly this mechanism with its threadId as the address.
 
 ## The Suspend Vocabulary (beyond approval)
 
@@ -392,7 +394,7 @@ Resume delivers the matched event's data as the inbound payload — the node's
 ```php
 // The caller (a webhook controller, a queue worker, a scheduler) resumes the
 // run with the event payload:
-$state = Workflow::make(runId: $runId)
+$state = Workflow::make(address: $address)
     ->setPersistence($persistence)
     ->addNodes([...])
     ->resume($paymentPayload);
@@ -897,11 +899,11 @@ $state = $workflow->run();
 
 if ($state->isInterrupted()) {
     $request = $state->getInterruptRequest();   // outbound: render it
-    $runId = $workflow->getRunId();
+    $address = $workflow->getAddress();
 
     // ... user responds ...
 
-    $state = Workflow::make(runId: $runId)
+    $state = Workflow::make(address: $address)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume(['answer' => $decision]);      // inbound payload

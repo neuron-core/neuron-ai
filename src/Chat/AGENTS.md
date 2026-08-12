@@ -127,8 +127,8 @@ the marker, they come back as non-error).
 Chat history carries **no execution identity**. A suspended `ToolCallMessage` records
 the pending approval snapshot — enough to *render* a pending approval from history
 alone — and nothing about the workflow run that produced it. Reattaching to that run is
-the engine's job: the Agent declares its threadId as the run's correlation key and
-workflow persistence holds the `threadId → runId` pointer (see
+the engine's job: the Agent declares its threadId as the run's address, so the
+run's durable records live under the thread itself (see
 `src/Workflow/AGENTS.md`). Old stored histories may still carry a `run_id` /
 `resume_token` metadata key; it deserializes into the generic metadata bag and is never
 read.
