@@ -29,7 +29,7 @@ class EventBus
      */
     private static array $initialized = [];
 
-    private static ?InspectorObserver $defaultObserver = null;
+    private static ?ObserverInterface $defaultObserver = null;
 
     /**
      * Register an observer, optionally scoped to a workflow.
@@ -48,7 +48,7 @@ class EventBus
         }
     }
 
-    public static function setDefaultObserver(?InspectorObserver $observer): void
+    public static function setDefaultObserver(?ObserverInterface $observer): void
     {
         self::$defaultObserver = $observer;
     }
