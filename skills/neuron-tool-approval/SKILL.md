@@ -9,11 +9,11 @@ This skill helps you gate agent tool execution behind human approval and build t
 
 ## The Mental Model
 
-**Approval is owned by `ToolNode` and configured on the tools themselves** (ADR 0009). There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
+**Approval is owned by `ToolNode` and configured on the tools themselves**. There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
 **Chat history is what the application reads; the thread is the address.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Resuming needs no runId either: the engine records `threadId → runId` in workflow persistence when the run ignites (the correlation pointer), so the approve endpoint rebuilds the agent from the thread id alone. Nothing is stored on the side.
 
-Two facts shape the UI (ADR 0006):
+Two facts shape the UI:
 
 - **History is append-only.** The suspended `tool_call` message keeps its *pending snapshot* forever; the final outcomes (approved/rejected + feedback + results) are recorded on the `tool_call_result` message that follows it. "Is approval pending?" = the thread tail is a `tool_call` with pending tools.
 - **Partial decisions are not persisted anywhere.** The resume payload is **cumulative** — every resume restates the entire decision set, and accumulation lives with your application (client- or server-side) until the set is complete.
@@ -153,7 +153,7 @@ The rejection template delivered as the tool result:
 
 A good reject reason ("too expensive, find a cheaper option") steers the model's next step; a bare reject only stops this one.
 
-### The contract (ADR 0002/0006)
+### The contract
 
 1. **Cumulative** — the payload is the *entire decision set*, restated on every resume. A decision that is not restated is not remembered: an omitted `callId` reverts to pending.
 2. **Accumulation lives with your app** — collect decisions client- or server-side; the framework deliberately persists no partial progress (a process death loses undelivered partials; the caller re-sends).

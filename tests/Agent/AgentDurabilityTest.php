@@ -129,7 +129,7 @@ class AgentDurabilityTest extends TestCase
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
-        // Attach-time approval config (ADR 0009): the flag rides on the
+        // Attach-time approval config: the flag rides on the
         // instance, so the clone in the tool call message carries it too.
         $searchTool->requireApproval();
 
@@ -197,7 +197,7 @@ class AgentDurabilityTest extends TestCase
         $history = new InMemoryChatHistory();
 
         $searchTool = new SearchTool();
-        // Attach-time approval config (ADR 0009): the flag rides on the
+        // Attach-time approval config: the flag rides on the
         // instance, so the clone in the tool call message carries it too.
         $searchTool->requireApproval();
 
@@ -359,7 +359,7 @@ class AgentDurabilityTest extends TestCase
         }
 
         // Recovery in a new process: fresh engine, same file persistence. The recalled
-        // ChatNode step carries ToolCall data only (ADR 0010) — ToolNode resolves the
+        // ChatNode step carries ToolCall data only — ToolNode resolves the
         // calls against the live registry to execute with a working dependency.
         $agent2 = Agent::make(runId: $runId);
         $agent2->setChatHistory($history);

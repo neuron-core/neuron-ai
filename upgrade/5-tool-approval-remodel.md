@@ -9,14 +9,14 @@
 ## Summary
 
 Tool approval was reworked so that **chat history is the system of record** for approval
-state (ADR 0003) and **tools declare their own approval default** (ADR 0004). This is a
+state and **tools declare their own approval default**. This is a
 breaking change to four areas:
 
 1. **`ToolInterface` gained six approval methods** — direct implementors must add them.
 2. **`ToolApproval` empty-config semantics changed** — `new ToolApproval()` now means
    "each tool decides" (was: "all tools require approval").
 3. **Resume payloads are cumulative** — every resume restates the entire decision set
-   (ADR 0006; an earlier incremental contract from ADR 0003 never shipped).
+   (an earlier incremental contract never shipped).
 4. **`ApprovalRequest`/`Action` lost their round-trip mutators** — `fromArray()`,
    `generatePayload()`, and the `Action` mutators are removed.
 5. **A new user turn on a thread with a pending tool call is rejected** at the chat history
@@ -80,7 +80,7 @@ listing the tools explicitly, or have each tool declare `requiresApproval() => t
 ## 3. Resume payloads are cumulative
 
 The payload is the **entire decision set**, keyed by the tool callId, restated on every
-resume (ADR 0006). Accumulation lives with the caller: gather decisions app-side and resume
+resume. Accumulation lives with the caller: gather decisions app-side and resume
 with the full set. An incomplete set re-suspends; undelivered partial decisions are
 deliberately persisted nowhere.
 

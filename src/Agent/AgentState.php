@@ -86,7 +86,7 @@ class AgentState extends WorkflowState
     /**
      * The ordered list of tool callIds on a ToolCallMessage, used to detect a re-write
      * of an already-recorded step (an approval-state update on replay). Mirrors the
-     * replace-last rule in AbstractChatHistory (ADR 0003).
+     * replace-last rule in AbstractChatHistory.
      *
      * @return array<int, string|null>
      */

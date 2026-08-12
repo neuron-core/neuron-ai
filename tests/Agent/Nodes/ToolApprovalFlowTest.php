@@ -30,8 +30,8 @@ use RuntimeException;
 use function iterator_to_array;
 
 /**
- * The tool approval flow owned by ToolNode (ADR 0009): the node gates by asking
- * the LIVE registry tool (ADR 0010), writes the annotated ToolCallMessage once
+ * The tool approval flow owned by ToolNode: the node gates by asking
+ * the LIVE registry tool, writes the annotated ToolCallMessage once
  * (memoized), and settles the cumulative decision set through interrupt().
  */
 class ToolApprovalFlowTest extends TestCase
@@ -77,7 +77,7 @@ class ToolApprovalFlowTest extends TestCase
 
     /**
      * @var ToolInterface[] The registry the next created event will offer —
-     *      resolution reads the inference event's tool list (ADR 0010).
+     *      resolution reads the inference event's tool list.
      */
     private array $registry = [];
 
@@ -337,7 +337,7 @@ class ToolApprovalFlowTest extends TestCase
     {
         // A call naming a tool missing from the registry must not suspend the run
         // waiting for an approval nobody can execute — it fails loudly instead
-        // (ADR 0010: resolve-or-throw replaces the silent dehydrated shell).
+        // (resolve-or-throw replaces the silent dehydrated shell).
         $node = $this->node([]);
 
         $this->expectExceptionMessageMatches('/not registered/');
@@ -373,7 +373,7 @@ class ToolApprovalFlowTest extends TestCase
         $this->assertEquals(ActionDecision::Approved, $byId['call_a']->decision, 'call_a decision reflected on the outbound request');
         $this->assertEquals(ActionDecision::Pending, $byId['call_b']->decision);
 
-        // The history keeps the suspend-time pending snapshot (ADR 0006): the
+        // The history keeps the suspend-time pending snapshot: the
         // memoized write ran once, and final outcomes travel on the ToolResultMessage.
         $last = $this->lastToolCall($node);
         foreach ($last->getToolCalls() as $call) {

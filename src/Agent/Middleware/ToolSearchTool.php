@@ -82,7 +82,7 @@ class ToolSearchTool extends Tool
     /**
      * The matches for a query — deterministic for a given pool, so the
      * middleware can re-derive a past call's discoveries from its recorded
-     * inputs (ADR 0010: no side-channel data travels on message entries).
+     * inputs (no side-channel data travels on message entries).
      *
      * @return ToolInterface[]
      */

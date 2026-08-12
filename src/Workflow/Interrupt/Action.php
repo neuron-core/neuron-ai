@@ -7,7 +7,7 @@ namespace NeuronAI\Workflow\Interrupt;
 use JsonSerializable;
 
 /**
- * A single action awaiting a human decision. A pure outbound value object (ADR 0001):
+ * A single action awaiting a human decision. A pure outbound value object:
  * it is part of an {@see ApprovalRequest} that the caller renders, and is immutable once
  * constructed. The human's decision travels inbound as a resume payload — never by
  * mutating this object.

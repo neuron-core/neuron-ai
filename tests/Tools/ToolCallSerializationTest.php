@@ -17,7 +17,7 @@ use function serialize;
 use function unserialize;
 
 /**
- * ADR 0010: a ToolCall is plain data — it serializes natively, with no
+ * A ToolCall is plain data — it serializes natively, with no
  * dehydration/rehydration machinery, because execution capability (the Tool
  * and its dependencies) never travels with it.
  */

@@ -57,14 +57,14 @@ abstract class Tool implements ToolInterface
     protected string|ToolOutput|null $result = null;
 
     /**
-     * Attach-time approval override (ADR 0009): forces the gate's answer in either
+     * Attach-time approval override: forces the gate's answer in either
      * direction, beating the class's own approvalPolicy(). Set via requireApproval()
      * / suppressApproval(); null = no flat override.
      */
     protected ?bool $approvalRequired = null;
 
     /**
-     * Attach-time conditional policy override (ADR 0009): replaces the class's own
+     * Attach-time conditional policy override: replaces the class's own
      * approvalPolicy(). Set via withApprovalPolicy().
      *
      * @var (Closure(ToolInterface): (bool|string))|null
@@ -231,7 +231,7 @@ abstract class Tool implements ToolInterface
     }
 
     /**
-     * The effective answer to "does this call require human approval?" (ADR 0009).
+     * The effective answer to "does this call require human approval?".
      * Resolution order: attach-time policy callback → attach-time flat override →
      * the class's own approvalPolicy(). A string counts as true and doubles as the
      * approval reason shown to the approver.
@@ -250,7 +250,7 @@ abstract class Tool implements ToolInterface
     }
 
     /**
-     * The tool author's intrinsic approval declaration (ADR 0004/0009): override in
+     * The tool author's intrinsic approval declaration: override in
      * a subclass to declare the tool's own risk. Returning a string counts as true
      * AND carries the reason shown to the approver. The agent developer can override
      * the declaration at attach time in both directions — requireApproval(),

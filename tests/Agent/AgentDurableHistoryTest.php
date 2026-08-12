@@ -130,7 +130,7 @@ class AgentDurableHistoryTest extends TestCase
         $history = new \NeuronAI\Chat\History\InMemoryChatHistory();
 
         $searchTool = new SearchTool();
-        // Attach-time approval config (ADR 0009): the flag rides on the
+        // Attach-time approval config: the flag rides on the
         // instance, so the clone in the tool call message carries it too.
         $searchTool->requireApproval();
 
@@ -211,7 +211,7 @@ class AgentDurableHistoryTest extends TestCase
         )');
 
         $searchTool = new SearchTool();
-        // Attach-time approval config (ADR 0009): the flag rides on the
+        // Attach-time approval config: the flag rides on the
         // instance, so the clone in the tool call message carries it too.
         $searchTool->requireApproval();
 

@@ -27,7 +27,7 @@ use function is_string;
  *
  * Suspensions (e.g. tool approval) are answered by the approval policy — a
  * callable playing the human. No policy configured + a suspension = an error:
- * silence is never consent, in evals as in production (ADR 0002).
+ * silence is never consent, in evals as in production.
  *
  * @method static static make(AgentInterface $agent)
  */
@@ -201,7 +201,7 @@ class Conversation
     }
 
     /**
-     * An incomplete decision set would re-suspend the workflow (ADR 0002) and
+     * An incomplete decision set would re-suspend the workflow and
      * loop the runner forever — validate before resuming.
      *
      * @param array<string, mixed> $payload
@@ -219,7 +219,7 @@ class Conversation
         if ($missing !== []) {
             throw new EvaluationException(
                 'The approval policy returned an incomplete decision set — missing decisions for: '
-                . implode(', ', $missing) . '. An incomplete set would re-suspend the workflow (ADR 0002).'
+                . implode(', ', $missing) . '. An incomplete set would re-suspend the workflow.'
             );
         }
     }

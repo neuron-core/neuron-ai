@@ -32,11 +32,11 @@ use function json_encode;
 
 /**
  * The recorded evaluation subject: a read-only view over the original typed
- * chat messages (ADR 0007). No parallel data schema — accessors answer
+ * chat messages. No parallel data schema — accessors answer
  * evaluation questions directly from the framework's own Message and Tool
  * objects, folding the append-only approval log (pending snapshot on the
- * tool_call message, final outcome on the following tool_call_result — ADR
- * 0006) into one entry per call. You run a Conversation; you evaluate its
+ * tool_call message, final outcome on the following tool_call_result)
+ * into one entry per call. You run a Conversation; you evaluate its
  * Trajectory.
  */
 class Trajectory
@@ -304,7 +304,7 @@ class Trajectory
     /**
      * Serialization reuses the chat-history storage format (jsonSerialize per
      * message, history-style rehydration) so a Trajectory survives the parallel
-     * runner's fork boundary. Messages carry ToolCall data (ADR 0010) — nothing
+     * runner's fork boundary. Messages carry ToolCall data — nothing
      * here ever holds closures or connections.
      *
      * @return array{messages: array<int, array<string, mixed>>}

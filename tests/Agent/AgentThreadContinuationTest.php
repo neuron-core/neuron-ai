@@ -48,7 +48,7 @@ class AgentThreadContinuationTest extends TestCase
 
     protected function makeProvider(SearchTool $searchTool): FakeAIProvider
     {
-        // Attach-time approval config (ADR 0009): the flag rides on the
+        // Attach-time approval config: the flag rides on the
         // instance, so the clone in the tool call message carries it too.
         $searchTool->requireApproval();
 

@@ -13,7 +13,7 @@ use function is_array;
 use function json_encode;
 
 /**
- * A single tool invocation as conversation data (ADR 0010).
+ * A single tool invocation as conversation data.
  *
  * This is what travels — in messages, stream chunks, observability events,
  * persistence, and across fork boundaries: the call record (name, callId,
@@ -33,7 +33,7 @@ class ToolCall implements JsonSerializable
     protected string|ToolOutput|null $result = null;
 
     /**
-     * Approval state of this specific call (ADR 0003/0009). Null = not approval-gated.
+     * Approval state of this specific call. Null = not approval-gated.
      */
     protected ?ApprovalState $approvalState = null;
 
@@ -173,7 +173,7 @@ class ToolCall implements JsonSerializable
 
     /**
      * The wire shape is identical to the serialized tool entries of earlier
-     * versions, so stored histories and approval UIs are unaffected (ADR 0010).
+     * versions, so stored histories and approval UIs are unaffected.
      *
      * @return array<string, mixed>
      */

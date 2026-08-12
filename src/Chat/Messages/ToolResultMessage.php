@@ -26,7 +26,7 @@ class ToolResultMessage extends UserMessage implements Stringable
 
     /**
      * The settled calls this message answers — each carries its result (or its
-     * rejection outcome) as conversation data (ADR 0010).
+     * rejection outcome) as conversation data.
      *
      * @return ToolCall[]
      */

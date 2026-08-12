@@ -143,7 +143,6 @@ Relies on clean design, descriptive naming conventions, and logical structure.
 
 - Meaningful names: Use precise, human-readable names for variables, functions, and classes that describe what they represent (e.g., retries instead of n).
 - Small functions: Break large, complex blocks of code into small, single-purpose functions that read like a story.
-- Type annotations: Use modern type systems or hints so that inputs and outputs are immediately clear to the reader.
 - Meaningful errors: Replace generic error codes with expressive, descriptive exceptions or named constants
 
 Add comments only if you need to explain critical why (the business logic or design constraint) rather than the what or how,

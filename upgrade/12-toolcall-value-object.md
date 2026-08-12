@@ -2,7 +2,7 @@
 
 ## What Changed
 
-Messages no longer carry executable `Tool` objects (ADR 0010). A new value object,
+Messages no longer carry executable `Tool` objects. A new value object,
 `NeuronAI\Tools\ToolCall`, is the conversation-side record of a tool invocation — name,
 callId, inputs, description, result, and approval state. The `Tool` you register on the
 agent is pure capability and never travels; `ToolNode` resolves each call against the
@@ -39,7 +39,7 @@ live registry at execution time.
    silently executing a dependency-free shell after a failed rehydration. Resolution reads
    the inference event's tool list only — `ToolNode` no longer takes a tool registry in
    its constructor.
-8. **The workflow contract split in two (ADR 0011).** `WorkflowInterface` is now the
+8. **The workflow contract split in two.** `WorkflowInterface` is now the
    application contract only; the engine-facing methods (`getStartEvent`, `getState`,
    `getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode`, `getEventDispatcher`, and
    the new `restoreEventNode` — the seam where a workflow restores transient capability on

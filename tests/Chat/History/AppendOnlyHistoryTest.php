@@ -35,8 +35,8 @@ class AppendOnlyHistoryTest extends TestCase
         ]);
         $history->addMessage($first);
 
-        // ADR 0006: the history is append-only — write-once convergence lives with
-        // the writer (ToolNode's memoized single write, ADR 0009), not the store.
+        // The history is append-only — write-once convergence lives with
+        // the writer (ToolNode's memoized single write), not the store.
         $duplicate = new ToolCallMessage(tools: [
             $this->toolWithState('a', 'c1', ApprovalState::Approved),
             $this->toolWithState('b', 'c2', ApprovalState::Rejected),

@@ -33,7 +33,7 @@ class ConversationTest extends TestCase
         $agent->setAiProvider($provider);
 
         if ($withApproval) {
-            // Attach-time approval config (ADR 0009).
+            // Attach-time approval config.
             $agent->addTool((new SearchTool())->requireApproval());
             $agent->setExecutor(new WorkflowExecutor());
         }

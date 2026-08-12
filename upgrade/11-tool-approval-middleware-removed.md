@@ -2,7 +2,7 @@
 
 ## What Changed
 
-The `NeuronAI\Agent\Middleware\ToolApproval` middleware no longer exists (ADR 0009). Tool
+The `NeuronAI\Agent\Middleware\ToolApproval` middleware no longer exists. Tool
 approval is now owned by `ToolNode` itself, and its configuration is **Tool-centric**: the
 policy and its overrides live on the tool instance, not in a middleware config map.
 

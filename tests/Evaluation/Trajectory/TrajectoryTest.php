@@ -92,7 +92,7 @@ class TrajectoryTest extends TestCase
 
     public function testFinalOutcomeOverridesPendingSnapshot(): void
     {
-        // The tool_call message keeps its pending snapshot forever (ADR 0006);
+        // The tool_call message keeps its pending snapshot forever;
         // the final outcome lives on the ToolResultMessage and must win.
         $pending = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
         $pending->setApprovalState(ApprovalState::Pending);

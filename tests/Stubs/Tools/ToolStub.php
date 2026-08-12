@@ -9,7 +9,7 @@ use NeuronAI\Tools\Tool;
 /**
  * Concrete no-op Tool for tests that need a registry/schema-side tool
  * (setTools payloads, property mapping) without declaring a dedicated class.
- * Conversation-side entries use ToolCall instead (ADR 0010).
+ * Conversation-side entries use ToolCall instead.
  */
 class ToolStub extends Tool
 {

@@ -68,7 +68,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
     /**
      * Re-establish this middleware's contribution on the execution event's tool
      * list. The inference event's tools are the SINGLE source ToolNode resolves
-     * calls against, and they are transient in persistence (ADR 0010): on a
+     * calls against, and they are transient in persistence: on a
      * replayed event the node re-seeds the agent base at context time, and each
      * middleware re-supplies what it added — here, the search tool itself plus
      * every tool discovered earlier in the conversation, re-derived from chat
@@ -129,7 +129,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
     /**
      * Re-derive discovered tools from recorded tool_search calls: the search is
      * deterministic for a given pool, and message entries carry no side-channel
-     * objects (ADR 0010).
+     * objects.
      *
      * @param iterable<mixed> $messages
      * @return ToolInterface[]

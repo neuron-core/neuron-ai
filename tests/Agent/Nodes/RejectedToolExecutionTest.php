@@ -42,7 +42,7 @@ class RejectedToolExecutionTest extends TestCase
         $executed = false;
         $tool = $this->sideEffectTool('side_effect_tool', $executed);
 
-        // The approval flow stamps this on the call before execution (ADR 0009/0010).
+        // The approval flow stamps this on the call before execution.
         $call = ToolCall::make('side_effect_tool', 'call_1', []);
         $call->setApprovalState(ApprovalState::Rejected);
         $call->setResult('TOOL NOT EXECUTED. The user rejected this action.');

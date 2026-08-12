@@ -15,7 +15,7 @@ use function sprintf;
  * Outbound request carrying the tool calls (or other actions) that require a human decision
  * before the workflow may proceed.
  *
- * This is a pure OUTBOUND value (ADR 0001): a convenience snapshot of what the caller must
+ * This is a pure OUTBOUND value: a convenience snapshot of what the caller must
  * render to a human. It describes the actions and their current decision state — it is never
  * handed back into the workflow and carries no round-trip machinery.
  *
@@ -24,7 +24,7 @@ use function sprintf;
  *
  *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
  *
- * Pending approval state itself is persisted in chat history (ADR 0003) — the system of
+ * Pending approval state itself is persisted in chat history — the system of
  * record the UI already reads. This request is rebuilt fresh by the middleware on every
  * pass (replay-by-rerun), so it is not persisted and may safely reference real objects.
  */

@@ -99,7 +99,7 @@ while ($state->isInterrupted()) {
      * Decisions travel inbound as a PAYLOAD — a plain array keyed by the action
      * id (the tool callId). The outbound ApprovalRequest is never passed back in.
      * The payload is INCREMENTAL: it carries only NEW decisions — chat history
-     * is the system of record (ADR 0003).
+     * is the system of record.
      */
     $payload = [];
     foreach ($approvalRequest->getActions() as $action) {

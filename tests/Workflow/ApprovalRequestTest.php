@@ -84,7 +84,7 @@ class ApprovalRequestTest extends TestCase
     public function testActionsAreReadOnlyValueObjects(): void
     {
         // Action is a pure outbound value object: its decision/feedback are set at
-        // construction and not mutated afterwards (ADR 0001).
+        // construction and not mutated afterwards.
         $approved = new Action('a', 'A', null, ActionDecision::Approved, 'Great!');
         $rejected = new Action('r', 'R', null, ActionDecision::Rejected, 'Nope');
 

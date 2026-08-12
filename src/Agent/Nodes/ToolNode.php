@@ -43,14 +43,14 @@ use const JSON_PRETTY_PRINT;
 
 /**
  * Node responsible for executing tool calls, including the human-in-the-loop
- * approval flow (ADR 0009).
+ * approval flow.
  *
  * The gate is Tool-centric and stateless: on every pass the node asks each tool
  * whether it requires approval (the tool's own declaration, overridable at attach
  * time — see Tool::requireApproval()/suppressApproval()/withApprovalPolicy()),
  * marks the gated ones pending, and applies the CUMULATIVE resume payload — the
- * full decision set, restated on every resume; accumulation lives with the caller
- * (ADR 0002/0006). A tool runs iff explicitly approved; an incomplete decision set
+ * full decision set, restated on every resume; accumulation lives with the
+ * caller. A tool runs iff explicitly approved; an incomplete decision set
  * re-suspends, and undelivered partial decisions are deliberately not persisted.
  *
  * Chat history stays append-only with a single writer: when a suspend is possible
@@ -96,7 +96,7 @@ class ToolNode extends Node implements AgentNodeInterface
     public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
     {
         // Every gated tool starts out pending on every pass — the cumulative resume
-        // payload is the sole source of truth for decisions (ADR 0006): a decision
+        // payload is the sole source of truth for decisions: a decision
         // that is not restated is not remembered, even on tool instances that
         // survive in memory between passes (InMemoryPersistence aliases stored
         // steps by reference).
@@ -107,7 +107,7 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         if ($gated !== []) {
-            // The single memoized write of the tool call message (ADR 0009): annotated
+            // The single memoized write of the tool call message: annotated
             // with pending states BEFORE any suspend, so a cold process renders pending
             // approvals from history alone. On a resume or crash-replay pass the memo
             // skips the write instead of duplicating the tail.
@@ -156,7 +156,7 @@ class ToolNode extends Node implements AgentNodeInterface
      * The single source for resolution is the inference event's tool list — the
      * cycle's effective set (base registry plus middleware additions, minus
      * middleware removals). A recalled event arrives here already re-seeded by
-     * Workflow::restoreEvent() (ADR 0010) — the node holds no registry of
+     * Workflow::restoreEvent() — the node holds no registry of
      * its own, so a tool removed from the offering is removed from execution.
      */
     protected function findLiveTool(string $name): ToolInterface
@@ -174,7 +174,7 @@ class ToolNode extends Node implements AgentNodeInterface
 
     /**
      * Resolve a call against the live tool registry and bind the call data onto a
-     * fresh clone (ADR 0010): execution capability never travels with the message,
+     * fresh clone: execution capability never travels with the message,
      * it is re-supplied here. A tool missing from the registry is a loud error —
      * never a silently skipped or dependency-free execution.
      *
@@ -194,8 +194,8 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * Filter calls that require approval by asking the LIVE registry tool (ADR
-     * 0009/0010: the policy and its attach-time overrides live on the tool; the
+     * Filter calls that require approval by asking the LIVE registry tool
+     * (the policy and its attach-time overrides live on the tool; the
      * question is always answered by live capability, so the answer cannot drift
      * across a suspend/resume boundary). A string decision counts as true and is
      * stamped on the call as its approval reason — the outbound "why am I asking"
@@ -293,7 +293,7 @@ class ToolNode extends Node implements AgentNodeInterface
 
     /**
      * Build the outbound ApprovalRequest snapshot from the current tool states. The
-     * request is outbound-only (ADR 0001); the inbound decisions travel as a payload.
+     * request is outbound-only; the inbound decisions travel as a payload.
      *
      * @param ToolCall[] $gated
      * @throws WorkflowException
@@ -386,7 +386,7 @@ class ToolNode extends Node implements AgentNodeInterface
     {
         if ($call->getApprovalState() === ApprovalState::Rejected) {
             // The rejection result was stamped by the approval flow; the tool
-            // must not run (ADR 0002/0009: a tool runs iff explicitly approved).
+            // must not run (a tool runs iff explicitly approved).
             return;
         }
 

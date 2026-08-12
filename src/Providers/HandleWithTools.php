@@ -27,8 +27,8 @@ trait HandleWithTools
     }
 
     /**
-     * Build the ToolCall record for a tool invocation requested by the model
-     * (ADR 0010): validates the name against the registered tools (unknown names
+     * Build the ToolCall record for a tool invocation requested by the model:
+     * validates the name against the registered tools (unknown names
      * throw, exactly like findTool()) and copies the live tool's description onto
      * the call for rendering. The call is pure conversation data — execution
      * resolves against the live registry later, in ToolNode.

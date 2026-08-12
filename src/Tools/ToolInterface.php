@@ -103,7 +103,7 @@ interface ToolInterface extends JsonSerializable
 
     /**
      * The effective answer to "does this tool call require human approval before
-     * execution?" (ADR 0004/0009), consulted by ToolNode on every tool call. On the
+     * execution?", consulted by ToolNode on every tool call. On the
      * Tool base class this resolves the attach-time overrides — requireApproval(),
      * suppressApproval(), withApprovalPolicy() — falling back to the class's own
      * protected approvalPolicy() declaration.

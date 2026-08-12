@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 /**
- * Per-tool-call approval state (ADR 0003). A tool with no approval involvement
+ * Per-tool-call approval state. A tool with no approval involvement
  * carries null instead of a case — absence means "not gated", not "pending".
  */
 enum ApprovalState: string

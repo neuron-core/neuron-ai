@@ -28,7 +28,7 @@ class ToolCallMessage extends AssistantMessage implements Stringable
     }
 
     /**
-     * The calls carried by this message — pure conversation data (ADR 0010).
+     * The calls carried by this message — pure conversation data.
      * Execution capability lives on the agent's live tool registry, never here.
      *
      * @return ToolCall[]

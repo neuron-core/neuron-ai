@@ -35,7 +35,7 @@ use function is_string;
 use function json_decode;
 
 /**
- * The history is append-only (ADR 0006): addMessage() always appends. Subclasses
+ * The history is append-only: addMessage() always appends. Subclasses
  * persist through one hook per primitive mutation — append (onNewMessage), head-trim
  * (onTrimHistory), clear (clear) — or ignore the granular hooks and rewrite the whole
  * state via setMessages(). All hooks default to no-ops; row-per-message backends
@@ -265,7 +265,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $tools = array_map(function (array $tool): ToolCall {
             // Legacy histories may carry schema-side keys (e.g. 'parameters');
-            // they are ignored — a call record needs no schema (ADR 0010).
+            // they are ignored — a call record needs no schema.
             $call = new ToolCall(
                 $tool['name'],
                 $tool['callId'] ?? null,

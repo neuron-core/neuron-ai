@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 use function str_starts_with;
 
 /**
- * ADR 0010: the inference event's tool list is the SINGLE source calls resolve
+ * The inference event's tool list is the SINGLE source calls resolve
  * against — the cycle's effective set (agent base + middleware additions, minus
  * middleware removals). Capability is transient in persistence, and the
  * restoration seam is Workflow::restoreEvent(), called by the executor on every

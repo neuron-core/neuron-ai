@@ -59,7 +59,7 @@ class ParallelToolNode extends ToolNode
         }
 
         // Partition: rejected calls are skipped — their rejection result was set by the
-        // approval flow (ADR 0002/0009: a tool runs iff explicitly approved).
+        // approval flow (a tool runs iff explicitly approved).
         // Only runnable calls enter the concurrent batch; rejected calls keep their
         // original positions in the result message.
         $rejectedCalls = [];
@@ -113,7 +113,7 @@ class ParallelToolNode extends ToolNode
                     $resolved[$pos] = $tool;
                 }
 
-                // Fork children return the serialized RESULT only (ADR 0010) — the
+                // Fork children return the serialized RESULT only — the
                 // tool object and its dependencies never cross the process boundary.
                 return Fork::new()->run(
                     ...array_map(

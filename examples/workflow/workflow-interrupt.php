@@ -49,8 +49,8 @@ if ($state->isInterrupted()) {
  *
  * For tool approval, the payload is INCREMENTAL and keyed by the tool callId —
  * e.g. ['call_123' => 'approve'] or ['call_456' => ['reject', 'too expensive']].
- * It carries only NEW decisions; the cumulative state lives in chat history
- * (ADR 0003), not in the payload.
+ * It carries only NEW decisions; the cumulative state lives in chat history,
+ * not in the payload.
  */
 $workflow = Workflow::make(runId: $runId)
     ->setPersistence($persistence)
