@@ -70,7 +70,6 @@ class WaitForEventRequest extends InterruptRequest
     /**
      * @param array<string, mixed> $data
      *
-     * @return WaitForEventRequest
      * @throws Exception
      */
     public static function fromArray(array $data): self

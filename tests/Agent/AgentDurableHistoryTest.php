@@ -226,7 +226,6 @@ class AgentDurableHistoryTest extends TestCase
         );
 
         $dir = sys_get_temp_dir() . '/neuron_sql_resume_test';
-        $address = 'sql_resume_test';
 
         $agent1 = Agent::make();
         $agent1->setAiProvider($provider);

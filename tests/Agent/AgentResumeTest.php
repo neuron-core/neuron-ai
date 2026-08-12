@@ -50,7 +50,6 @@ class AgentResumeTest extends TestCase
     public function test_streamed_approval_run_wakes_from_a_blank_factory(): void
     {
         $persistence = new InMemoryPersistence();
-        $address = 'wake_stream_e2e';
 
         // ── Ignition: streamed turn, approval-gated tool, thread identity set.
         $searchTool = new SearchTool();

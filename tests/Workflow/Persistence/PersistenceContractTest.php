@@ -17,6 +17,8 @@ use function scandir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function array_diff;
+use function str_repeat;
 
 /**
  * The three-method store contract — put/get/delete over (partition, key) —

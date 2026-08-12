@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use Exception;
 
 /**
  * Suspends the workflow until a clock time. The wakeup is produced by the
@@ -54,7 +55,7 @@ class SleepUntilRequest extends InterruptRequest
     /**
      * @param array<string, mixed> $data
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public static function fromArray(array $data): self
     {
