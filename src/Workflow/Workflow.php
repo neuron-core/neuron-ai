@@ -61,22 +61,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected Event $startEvent;
 
-    protected ?WorkflowExecutorInterface $executor = null;
-
-    protected ?PersistenceInterface $persistence = null;
-
-    protected ?Serializer $serializer = null;
-
-    protected ?SchedulerInterface $scheduler = null;
-
-    protected ?StreamingChannelInterface $channel = null;
-
-    /**
-     * Optional push-side delivery transform: yielded items become protocol
-     * lines (sendLine()) instead of native chunks (send()).
-     */
-    protected ?StreamAdapterInterface $streamAdapter = null;
-
     protected ?ListenerRegistry $listeners = null;
 
     protected ?EventDispatcherInterface $dispatcher = null;

@@ -23,6 +23,22 @@ use NeuronAI\Workflow\Persistence\Serializer;
  */
 trait HandleComponents
 {
+    protected ?WorkflowExecutorInterface $executor = null;
+
+    protected ?PersistenceInterface $persistence = null;
+
+    protected ?Serializer $serializer = null;
+
+    protected ?SchedulerInterface $scheduler = null;
+
+    protected ?StreamingChannelInterface $channel = null;
+
+    /**
+     * Optional push-side delivery transform: yielded items become protocol
+     * lines (sendLine()) instead of native chunks (send()).
+     */
+    protected ?StreamAdapterInterface $streamAdapter = null;
+
     final protected function getExecutor(): WorkflowExecutorInterface
     {
         return $this->executor ??= $this->executor();
