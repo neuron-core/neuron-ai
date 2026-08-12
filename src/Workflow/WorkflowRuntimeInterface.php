@@ -87,14 +87,16 @@ interface WorkflowRuntimeInterface
     public function getEventDispatcher(): EventDispatcherInterface;
 
     /**
-     * Restore an event recalled from a persisted step before it re-enters
+     * Restore an event recalled from persistence before it re-enters
      * traversal. Persistence strips transient capability from events (objects
      * that cannot or must not serialize — e.g. the agent's live tools); this is
      * the symmetric seam where the workflow puts it back. The engine calls it
-     * on every step-result event, live or recalled — implementations must be
-     * idempotent (restore only what is missing). The default restores nothing.
+     * exactly at its deserialization sites — a cached step's result event, the
+     * adopted ignition start event — never on a live result, so implementations
+     * restore unconditionally: an event arriving here always crossed the
+     * serializer. The default restores nothing.
      */
-    public function restoreEventNode(Event $event): Event;
+    public function restoreEvent(Event $event): Event;
 
     /**
      * The state store this run's durable records live in (steps, memos, the

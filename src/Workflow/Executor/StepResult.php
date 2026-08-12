@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -21,11 +22,6 @@ class StepResult
          */
         protected bool $interrupted = false,
         /**
-         * Memoized value carried by a durable memo step (see Node::memoize() / StepMemoizer).
-         * Null for regular node-execution steps.
-         */
-        protected mixed $output = null,
-        /**
          * Failure marker for crash observability: ['message' => string, 'class' => string].
          * Null unless this step recorded an unhandled throwable.
          */
@@ -38,27 +34,53 @@ class StepResult
         return $this->stepId;
     }
 
-    public function getEvent(): ?Event
+    /**
+     * The completed step's terminal event. Only marker records (interrupted,
+     * failed) carry none — consuming one as a completed result is an executor
+     * bug, so this throws instead of null-propagating.
+     *
+     * @throws WorkflowException
+     */
+    public function getEvent(): Event
     {
+        if (!$this->event instanceof Event) {
+            throw new WorkflowException("Step {$this->stepId} is a marker record and carries no event.");
+        }
+
         return $this->event;
     }
 
-    public function getState(): ?WorkflowState
+    /**
+     * A copy of this result carrying the given event — used at the
+     * deserialization boundary, where the workflow restores a recalled
+     * event's transient capability before it re-enters traversal.
+     */
+    public function withEvent(Event $event): static
     {
+        $clone = clone $this;
+        $clone->event = $event;
+
+        return $clone;
+    }
+
+    /**
+     * The completed step's resulting state. Marker records carry none — see
+     * getEvent().
+     *
+     * @throws WorkflowException
+     */
+    public function getState(): WorkflowState
+    {
+        if (!$this->state instanceof WorkflowState) {
+            throw new WorkflowException("Step {$this->stepId} is a marker record and carries no state.");
+        }
+
         return $this->state;
     }
 
     public function isInterrupted(): bool
     {
         return $this->interrupted;
-    }
-
-    /**
-     * The memoized value carried by a durable memo step.
-     */
-    public function getOutput(): mixed
-    {
-        return $this->output;
     }
 
     /**
@@ -79,12 +101,11 @@ class StepResult
     public function __serialize(): array
     {
         return [
-            'version' => 3,
+            'version' => 4,
             'stepId' => $this->stepId,
             'event' => $this->event,
             'state' => $this->state,
             'interrupted' => $this->interrupted,
-            'output' => $this->output,
             'error' => $this->error,
         ];
     }
@@ -95,7 +116,6 @@ class StepResult
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
         $this->interrupted = $data['interrupted'] ?? false;
-        $this->output = $data['output'] ?? null;
         $this->error = $data['error'] ?? null;
     }
 }

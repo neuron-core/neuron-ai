@@ -213,10 +213,11 @@ the result back onto the call. A call naming a tool outside that set throws a
 string|ToolOutput|null)` is the cross-cutting override — a returned string or
 `ToolOutput` settles as the call's result, `null` declines and the exception
 propagates. Event capability is transient in persistence: the executor passes every
-step-result event through `Workflow::restoreEventNode()` before it re-enters traversal,
-and the Agent's override re-seeds `bootstrapTools()` on stripped inference/tool-call
-events (idempotent — a live effective set is never touched); tool-contributing middleware
-re-supply their own additions in `before()`. The node itself holds no tool registry. **Each tool declares** its
+event recalled from persistence through `Workflow::restoreEvent()` before it re-enters
+traversal, and the Agent's override re-seeds `bootstrapTools()` on recalled
+inference/tool-call events (live results never pass through restore, so a live
+effective set — middleware additions and removals included — is never touched);
+tool-contributing middleware re-supply their own additions in `before()`. The node itself holds no tool registry. **Each tool declares** its
 intrinsic risk via the protected `approvalPolicy(array $inputs)` hook, and the agent
 developer overrides the declaration per tool at
 attach time, in both directions:

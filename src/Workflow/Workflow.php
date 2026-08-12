@@ -332,7 +332,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             return;
         }
 
-        $this->setStartEvent($this->restoreEventNode($ignition->startEvent));
+        $this->setStartEvent($this->restoreEvent($ignition->startEvent));
         $this->applyIgnitionContext($ignition->context);
     }
 
@@ -465,7 +465,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * A plain workflow has none — subclasses whose events carry live objects
      * (e.g. Agent re-seeding its tool registry) override this.
      */
-    public function restoreEventNode(Event $event): Event
+    public function restoreEvent(Event $event): Event
     {
         return $event;
     }

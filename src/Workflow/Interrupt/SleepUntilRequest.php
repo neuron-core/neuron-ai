@@ -53,6 +53,8 @@ class SleepUntilRequest extends InterruptRequest
 
     /**
      * @param array<string, mixed> $data
+     *
+     * @throws \Exception
      */
     public static function fromArray(array $data): self
     {

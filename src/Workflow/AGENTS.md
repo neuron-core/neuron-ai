@@ -344,7 +344,7 @@ The executor controls **how** the workflow graph is traversed. `Workflow` delega
 `WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
 the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
 `getMiddlewareForNode`), the run (`getRunId`/`adoptRunId`, `correlationKey`,
-`getState`/`setState`, `restoreEventNode`, `getEventDispatcher`), the seams
+`getState`/`setState`, `restoreEvent`, `getEventDispatcher`), the seams
 (`getPersistence`, `getScheduler`, `getSerializer`), and the segment lifecycle (`makeIgnition`,
 `adoptIgnition`, `bootstrap`). `Workflow` implements both; anything the engine must call for
 correctness belongs on the runtime contract, never on the one users hold. (The
@@ -372,11 +372,12 @@ Workflow (definition + configuration; owns the seams)
 **Recalled events and transient capability.** A cached step returns its persisted output
 event, and events may declare parts of themselves transient (objects that must not
 serialize — e.g. the Agent's live tools, dropped in `AIInferenceEvent::__serialize()`).
-The symmetric restore seam is `WorkflowRuntimeInterface::restoreEventNode(Event $event): Event`:
-the executor calls it on **every** step-result event before dispatching it to the next
-node (so implementations must be idempotent — restore only what is missing). `Workflow`
-ships an identity default; subclasses whose events carry live objects override it
-(`Agent` re-seeds its tool registry there).
+The symmetric restore seam is `WorkflowRuntimeInterface::restoreEvent(Event $event): Event`:
+the engine calls it exactly at its deserialization sites — a cached step's result
+event, the adopted ignition start event — never on a live result, so implementations
+restore unconditionally (an event arriving there always crossed the serializer).
+`Workflow` ships an identity default; subclasses whose events carry live objects
+override it (`Agent` re-seeds its tool registry there).
 
 The executor owns the whole run lifecycle in one place: it resolves ignition (register / adopt / refuse), calls the workflow's `bootstrap()`, and traverses nodes as durable steps — persist each step, skip completed steps on replay, resume interrupted steps, retry failed ones. It carries no configuration: constructors are zero-arg, and it reads persistence, scheduler, run id, and the definition off `WorkflowRuntimeInterface` at `execute()` time. Consequence: `setPersistence()`/`setScheduler()` compose freely with any executor — choosing an execution model never affects where state lives.
 

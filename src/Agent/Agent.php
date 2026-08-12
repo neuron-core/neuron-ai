@@ -164,11 +164,12 @@ class Agent extends Workflow implements AgentInterface
      * events drop it (AIInferenceEvent::__serialize — tools hold connections,
      * clients, closures), so a recalled inference or tool-call event comes back
      * with an empty tool list. Re-seed the base registry here; middleware
-     * re-supply their own additions (each contributor restores what
-     * it contributes). Idempotent: a live tool-calling event never has an empty
-     * list, so this only ever touches stripped events.
+     * re-supply their own additions in before() (each contributor restores what
+     * it contributes). The engine calls this only on events recalled from
+     * persistence — a live event's effective set (middleware additions and
+     * removals included) is never touched.
      */
-    public function restoreEventNode(Event $event): Event
+    public function restoreEvent(Event $event): Event
     {
         $inference = match (true) {
             $event instanceof AIInferenceEvent => $event,
@@ -176,7 +177,7 @@ class Agent extends Workflow implements AgentInterface
             default => null,
         };
 
-        if ($inference instanceof AIInferenceEvent && $inference->tools === []) {
+        if ($inference instanceof AIInferenceEvent) {
             $inference->tools = $this->bootstrapTools();
         }
 

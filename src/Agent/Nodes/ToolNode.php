@@ -156,7 +156,7 @@ class ToolNode extends Node implements AgentNodeInterface
      * The single source for resolution is the inference event's tool list — the
      * cycle's effective set (base registry plus middleware additions, minus
      * middleware removals). A recalled event arrives here already re-seeded by
-     * Workflow::restoreEventNode() (ADR 0010) — the node holds no registry of
+     * Workflow::restoreEvent() (ADR 0010) — the node holds no registry of
      * its own, so a tool removed from the offering is removed from execution.
      */
     protected function findLiveTool(string $name): ToolInterface

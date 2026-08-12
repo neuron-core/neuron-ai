@@ -18,12 +18,8 @@ final class SerializerTest extends TestCase
     private function sampleResult(): StepResult
     {
         return new StepResult(
-            'step-1',
-            null,
-            null,
-            false,
-            ['summary' => 'memoized LLM output'],
-            ['message' => 'boom', 'class' => 'RuntimeException'],
+            stepId: 'step-1',
+            error: ['message' => 'boom', 'class' => 'RuntimeException'],
         );
     }
 
@@ -36,7 +32,6 @@ final class SerializerTest extends TestCase
 
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
-        Assert::assertSame(['summary' => 'memoized LLM output'], $restored->getOutput());
         Assert::assertTrue($restored->isFailed());
         Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
     }
@@ -54,7 +49,6 @@ final class SerializerTest extends TestCase
 
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
-        Assert::assertSame(['summary' => 'memoized LLM output'], $restored->getOutput());
         Assert::assertTrue($restored->isFailed());
         Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
     }

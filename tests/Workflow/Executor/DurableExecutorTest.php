@@ -9,10 +9,13 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\DurableInterruptNodeB;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeA;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeB;
 use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeC;
+use NeuronAI\Tests\Workflow\Executor\Stubs\DurableEventA;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
+use NeuronAI\Tests\Workflow\Executor\Stubs\RestoreSpyWorkflow;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -248,6 +251,42 @@ class DurableExecutorTest extends TestCase
         $this->assertSame(1, CountableNode::getExecutionCount());
         $this->assertSame(1, MemoizingNode::getOperationCount());
         $this->assertSame('computed_1', $result->get('memo_result'));
+    }
+
+    public function testRestoreEventFiresOnlyOnRecalledEvents(): void
+    {
+        $runId = 'durable_restore_seam_test';
+        $persistence = new InMemoryPersistence();
+
+        // Run 1: every node executes live — restore must never fire, so a live
+        // result's transient capability (e.g. a middleware-shaped tool set) is
+        // never touched by the seam.
+        $workflow = RestoreSpyWorkflow::make(runId: $runId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableInterruptNodeB(),
+                new DurableNodeC(),
+            ]);
+
+        $state = $this->execute($workflow, $persistence);
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame([], $workflow->restored);
+
+        // Resume in a fresh instance: exactly the deserialized events are
+        // restored — the adopted ignition start event and node A's recalled
+        // result. Nodes B and C run live and never pass through the seam.
+        $workflow2 = RestoreSpyWorkflow::make(runId: $runId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableInterruptNodeB(),
+                new DurableNodeC(),
+            ]);
+
+        $result = $this->resume($workflow2, $persistence, ['approve_b' => 'approve']);
+
+        $this->assertFalse($result->isInterrupted());
+        $this->assertSame([StartEvent::class, DurableEventA::class], $workflow2->restored);
     }
 
     public function testCrashRecordsFailedStepMarker(): void

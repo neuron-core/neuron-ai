@@ -370,8 +370,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $cached = $this->loadStep($stepId);
 
         // Memoized: return a previously completed result without re-executing.
+        // The recalled event was stripped of its transient capability at
+        // persistence time; this is the deserialization site, so the workflow
+        // restores it here. Live results below never pass through restore.
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
-            return $cached;
+            return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
         }
 
         // Resuming an interrupted step injects the run's inbound payload.
@@ -408,7 +411,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         // developer objects stuffed into a request out of the serializer.
         if ($terminal instanceof InterruptEvent) {
             $this->saveStep($stepId, new StepResult(stepId: $stepId, interrupted: true));
-            return new StepResult(stepId: $stepId, event: $terminal, state: $state);
+            return new StepResult(stepId: $stepId, event: $terminal, state: $state, interrupted: true);
         }
 
         // Persist the completed result.
@@ -442,11 +445,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             $result = yield from $this->runNodeStep($workflow, $node, $event, $state, $branchId, $stepId);
 
-            // A recalled (cached) step returns a deserialized event whose
-            // transient capability was stripped at persistence time; the
-            // workflow restores it before the event re-enters traversal.
-            // Idempotent — a no-op for live results.
-            $event = $workflow->restoreEventNode($result->getEvent());
+            $event = $result->getEvent();
 
             if ($branchId === null) {
                 // Main-path state follows the step result so a replayed (cached)

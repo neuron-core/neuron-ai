@@ -56,7 +56,7 @@ class AIInferenceEvent extends AgentStartEvent
      * Tools are execution capability — often holding DB connections, HTTP
      * clients, or closures — and capability is never persisted (ADR 0010): a
      * durably stored step carries this event without its tool list, and
-     * Workflow::restoreEventNode() re-seeds the live registry when the executor
+     * Workflow::restoreEvent() re-seeds the live registry when the executor
      * recalls the event from a persisted step.
      *
      * @return array<string, mixed>

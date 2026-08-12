@@ -32,9 +32,10 @@ use function str_starts_with;
  * ADR 0010: the inference event's tool list is the SINGLE source calls resolve
  * against — the cycle's effective set (agent base + middleware additions, minus
  * middleware removals). Capability is transient in persistence, and the
- * restoration seam is Workflow::restoreEventNode(), called by the executor on
- * every step-result event: the Agent re-seeds its base registry there, and each
- * middleware re-supplies its own additions in before().
+ * restoration seam is Workflow::restoreEvent(), called by the executor on every
+ * event recalled from persistence (never on a live result): the Agent re-seeds
+ * its base registry there, and each middleware re-supplies its own additions
+ * in before().
  */
 class ToolResolutionTest extends TestCase
 {
@@ -81,35 +82,32 @@ class ToolResolutionTest extends TestCase
         $this->drain($node, $event, $state);
     }
 
-    public function test_restore_event_node_reseeds_the_base_registry_on_stripped_events(): void
+    public function test_restore_event_reseeds_the_base_registry_on_recalled_events(): void
     {
         // Persistence strips the inference event's tools (they are capability).
-        // Agent::restoreEventNode() is the symmetric seam: it re-seeds the base
-        // registry on recalled events — and only on stripped ones (idempotent).
+        // Agent::restoreEvent() is the symmetric seam: the executor calls it
+        // only on events recalled from persistence — always stripped — so the
+        // base registry is re-seeded unconditionally. Live events never pass
+        // through restore (that invariant lives in the executor), so a
+        // middleware removal on a live effective set is never undone.
         $agent = Agent::make();
         $agent->addTool(new SearchTool());
 
-        $strippedInference = new AIInferenceEvent('instructions', []);
-        $agent->restoreEventNode($strippedInference);
-        $this->assertCount(1, $strippedInference->tools);
-        $this->assertSame('search', $strippedInference->tools[0]->getName());
+        $recalledInference = new AIInferenceEvent('instructions', []);
+        $agent->restoreEvent($recalledInference);
+        $this->assertCount(1, $recalledInference->tools);
+        $this->assertSame('search', $recalledInference->tools[0]->getName());
 
-        $strippedToolCall = new ToolCallEvent(
+        $recalledToolCall = new ToolCallEvent(
             new ToolCallMessage(null, [ToolCall::make('search', 'call_1')]),
             new AIInferenceEvent('instructions', [])
         );
-        $agent->restoreEventNode($strippedToolCall);
-        $this->assertSame('search', $strippedToolCall->inferenceEvent->tools[0]->getName());
+        $agent->restoreEvent($recalledToolCall);
+        $this->assertSame('search', $recalledToolCall->inferenceEvent->tools[0]->getName());
 
-        // A live event keeps its effective set untouched (a middleware removal
-        // must not be undone), and unrelated events pass through unchanged.
-        $offered = $this->executableTool('offered_tool');
-        $live = new AIInferenceEvent('instructions', [$offered]);
-        $agent->restoreEventNode($live);
-        $this->assertSame([$offered], $live->tools);
-
+        // Unrelated events pass through unchanged.
         $stop = new StopEvent();
-        $this->assertSame($stop, $agent->restoreEventNode($stop));
+        $this->assertSame($stop, $agent->restoreEvent($stop));
     }
 
     public function test_live_inference_after_a_cached_tool_node_gets_the_agent_tools_back(): void
@@ -119,7 +117,7 @@ class ToolResolutionTest extends TestCase
         // ChatNode #1 and ToolNode #1 replay from cache — nothing executes, so
         // no node-level repair could ever run — and the recalled AIInferenceEvent
         // reaches the LIVE ChatNode #2 with its tool list stripped. Without the
-        // restoreEventNode() seam, the provider would be called with NO tools.
+        // restoreEvent() seam, the provider would be called with NO tools.
         $runId = 'stripped_inference_recovery_test';
 
         // Step store that survives run completion and can forget single steps.

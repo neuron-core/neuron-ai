@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use Exception;
 
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
@@ -73,6 +74,9 @@ class WaitForEventRequest extends InterruptRequest
 
     /**
      * @param array<string, mixed> $data
+     *
+     * @return WaitForEventRequest
+     * @throws Exception
      */
     public static function fromArray(array $data): self
     {
