@@ -26,6 +26,8 @@ use function rtrim;
 use function sys_get_temp_dir;
 use function unlink;
 use function usleep;
+use function str_repeat;
+use function trim;
 
 /**
  * Exercises the real curl stack against PHP's built-in server, including
@@ -55,7 +57,7 @@ class CurlHttpClientTest extends TestCase
         );
 
         if (!is_resource($process)) {
-            static::fail('Failed to start the built-in PHP server fixture');
+            self::fail('Failed to start the built-in PHP server fixture');
         }
 
         static::$serverProcess = $process;
@@ -80,7 +82,7 @@ class CurlHttpClientTest extends TestCase
             usleep(50_000);
         }
 
-        static::fail('The built-in PHP server fixture never became reachable');
+        self::fail('The built-in PHP server fixture never became reachable');
     }
 
     public function test_get_request(): void

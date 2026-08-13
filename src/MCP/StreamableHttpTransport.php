@@ -98,11 +98,11 @@ class StreamableHttpTransport implements McpTransportInterface
 
         } catch (HttpException $e) {
             if ($e->response?->statusCode === 401) {
-                throw new McpException('Authentication failed: Invalid or expired token');
+                throw new McpException('Authentication failed: Invalid or expired token', $e->getCode(), $e);
             }
 
             if ($e->response?->statusCode === 403) {
-                throw new McpException('Authorization failed: Insufficient permissions');
+                throw new McpException('Authorization failed: Insufficient permissions', $e->getCode(), $e);
             }
 
             throw new McpException('HTTP request failed: ' . $e->getMessage(), $e->getCode(), $e);
