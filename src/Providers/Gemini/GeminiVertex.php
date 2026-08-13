@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use Google\Auth\Credentials\ServiceAccountCredentials;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
 class GeminiVertex extends Gemini
@@ -36,7 +36,7 @@ class GeminiVertex extends Gemini
         $token = $credentials->fetchAuthToken();
 
         // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',

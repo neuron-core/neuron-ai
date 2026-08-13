@@ -154,4 +154,4 @@ protected function provider(): AIProviderInterface
 
 ## HTTP Client
 
-Providers use `HttpClientInterface` via `HasHttpClient` trait. Default is `GuzzleHttpClient`.
+Providers use `HttpClientInterface` via `HasHttpClient` trait. Default is `CurlHttpClient` (ext-curl, dependency-free); inject `GuzzleHttpClient` for Guzzle middleware support.

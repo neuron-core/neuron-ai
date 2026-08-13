@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\MCP;
 
-use GuzzleHttp\Psr7\Response;
+use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\McpException;
 use NeuronAI\MCP\StreamableHttpTransport;
 use PHPUnit\Framework\TestCase;
@@ -86,7 +86,7 @@ class StreamableHttpTransportTest extends TestCase
         $sessionProperty->setValue($transport, 'test-session');
 
         $responseProperty = $reflection->getProperty('lastResponse');
-        $responseProperty->setValue($transport, new Response(200));
+        $responseProperty->setValue($transport, new HttpResponse(200, ''));
 
         // Disconnect should clear state
         $transport->disconnect();

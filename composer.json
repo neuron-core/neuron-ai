@@ -11,9 +11,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "guzzlehttp/guzzle": "^7.0 || ^8.0",
-        "psr/event-dispatcher": "^1.0",
-        "psr/http-message": "^1.0|^2.0"
+        "ext-curl": "*",
+        "psr/event-dispatcher": "^1.0"
     },
     "require-dev": {
         "ext-pdo": "*",
@@ -23,6 +22,7 @@
         "elasticsearch/elasticsearch": "^8.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "google/auth": "^1.49",
+        "guzzlehttp/guzzle": "^7.0 || ^8.0",
         "html2text/html2text": "^4.3",
         "illuminate/database": "^10.0|^11.0|^12.0",
         "laudis/neo4j-php-client": "^3.4",
@@ -30,6 +30,7 @@
         "opensearch-project/opensearch-php": "^2.5",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^10.0",
+        "psr/http-message": "^1.0|^2.0",
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
         "tomasvotruba/type-coverage": "^2.0",
@@ -76,6 +77,7 @@
     },
     "suggest": {
         "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer.",
+        "guzzlehttp/guzzle": "Use GuzzleHttpClient as the HTTP client, e.g. for HandlerStack middleware.",
         "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl)."
     },
     "config": {

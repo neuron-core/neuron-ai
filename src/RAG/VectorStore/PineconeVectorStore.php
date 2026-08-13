@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -35,7 +35,7 @@ class PineconeVectorStore implements VectorStoreInterface
         protected string $namespace = '__default__', // Default namespace
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri(trim($this->indexUrl, '/').'/')
             ->withHeaders([
                 'Accept' => 'application/json',

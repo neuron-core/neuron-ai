@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use JsonException;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpMethod;
+use NeuronAI\HttpClient\HttpRequest;
 
 use function array_merge;
 use function explode;
@@ -37,6 +40,8 @@ use function usleep;
 use function strlen;
 use function strpbrk;
 
+use const CURLOPT_SSL_VERIFYHOST;
+use const CURLOPT_SSL_VERIFYPEER;
 use const FILTER_VALIDATE_URL;
 use const JSON_THROW_ON_ERROR;
 
@@ -47,7 +52,7 @@ use const JSON_THROW_ON_ERROR;
 class SseHttpTransport implements McpTransportInterface
 {
     protected const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
-    protected readonly Client $httpClient;
+    protected readonly HttpClientInterface $httpClient;
     protected ?string $sessionId = null;
     protected ?string $postEndpointUrl = null;
 
@@ -64,10 +69,13 @@ class SseHttpTransport implements McpTransportInterface
      */
     public function __construct(protected array $config)
     {
-        $this->httpClient = new Client([
-            'timeout' => $config['timeout'] ?? 30,
-            'verify' => $config['verify'] ?? true,
-        ]);
+        $this->httpClient = new CurlHttpClient(
+            timeout: (float) ($config['timeout'] ?? 30),
+            curlOptions: ($config['verify'] ?? true) ? [] : [
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+            ],
+        );
     }
 
     /**
@@ -87,58 +95,52 @@ class SseHttpTransport implements McpTransportInterface
             throw new McpException('Invalid URL format');
         }
 
-        try {
-            $headers = $this->getAuthHeaders();
+        $headers = $this->getAuthHeaders();
 
-            if ($this->sessionId !== null) {
-                $headers['Mcp-Session-Id'] = $this->sessionId;
-            }
+        if ($this->sessionId !== null) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
 
-            $headers['Accept'] = 'text/event-stream';
+        $headers['Accept'] = 'text/event-stream';
 
-            $headerString = $this->buildHeaderString($headers);
+        $headerString = $this->buildHeaderString($headers);
 
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'GET',
-                    'header' => $headerString,
-                    'timeout' => $this->config['timeout'] ?? 30,
-                ],
-                'ssl' => [
-                    'verify_peer' => $this->config['verify'] ?? true,
-                    'verify_peer_name' => $this->config['verify'] ?? true,
-                ],
-            ]);
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => $headerString,
+                'timeout' => $this->config['timeout'] ?? 30,
+            ],
+            'ssl' => [
+                'verify_peer' => $this->config['verify'] ?? true,
+                'verify_peer_name' => $this->config['verify'] ?? true,
+            ],
+        ]);
 
-            $this->sseStream = @fopen($this->config['url'], 'r', false, $context);
+        $this->sseStream = @fopen($this->config['url'], 'r', false, $context);
 
-            if ($this->sseStream === false) {
-                throw new McpException('Failed to open SSE connection to: ' . $this->config['url']);
-            }
+        if ($this->sseStream === false) {
+            throw new McpException('Failed to open SSE connection to: ' . $this->config['url']);
+        }
 
-            stream_set_blocking($this->sseStream, false);
+        stream_set_blocking($this->sseStream, false);
 
-            $meta = stream_get_meta_data($this->sseStream);
-            if (isset($meta['wrapper_data']) && is_array($meta['wrapper_data'])) {
-                foreach ($meta['wrapper_data'] as $header) {
-                    if (stripos((string) $header, 'HTTP/') === 0 && in_array(preg_match('/HTTP\/\d\.\d\s+200/', (string) $header), [0, false], true)) {
-                        $this->cleanup();
-                        throw new McpException('SSE connection failed: ' . $header);
-                    }
-                    if (stripos((string) $header, 'Mcp-Session-Id:') === 0) {
-                        $this->sessionId = trim(substr((string) $header, 15));
-                    }
+        $meta = stream_get_meta_data($this->sseStream);
+        if (isset($meta['wrapper_data']) && is_array($meta['wrapper_data'])) {
+            foreach ($meta['wrapper_data'] as $header) {
+                if (stripos((string) $header, 'HTTP/') === 0 && in_array(preg_match('/HTTP\/\d\.\d\s+200/', (string) $header), [0, false], true)) {
+                    $this->cleanup();
+                    throw new McpException('SSE connection failed: ' . $header);
+                }
+                if (stripos((string) $header, 'Mcp-Session-Id:') === 0) {
+                    $this->sessionId = trim(substr((string) $header, 15));
                 }
             }
-
-            $this->waitForEndpoint();
-
-            $this->connected = true;
-
-        } catch (GuzzleException $e) {
-            $this->cleanup();
-            throw new McpException('HTTP connection failed: ' . $e->getMessage(), $e->getCode(), $e);
         }
+
+        $this->waitForEndpoint();
+
+        $this->connected = true;
     }
 
     /**
@@ -246,20 +248,22 @@ class SseHttpTransport implements McpTransportInterface
 
             $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
 
-            $response = $this->httpClient->post($this->postEndpointUrl, [
-                'headers' => $headers,
-                'body' => $jsonData,
-            ]);
+            $response = $this->httpClient->request(new HttpRequest(
+                method: HttpMethod::POST,
+                uri: $this->postEndpointUrl,
+                headers: $headers,
+                body: $jsonData,
+            ));
 
-            $statusCode = $response->getStatusCode();
-
-            // SSE-based MCP: POST typically returns 202 Accepted, the actual response arrives on the SSE stream
-            if ($statusCode !== 202 && $statusCode !== 200) {
-                $body = (string) $response->getBody();
-                throw new McpException("POST request failed with status {$statusCode}: " . ($body !== '' && $body !== '0' ? $body : '(no body)'));
+            // SSE-based MCP: POST typically returns 202 Accepted, the actual response arrives
+            // on the SSE stream. Statuses >= 400 already throw HttpException from the client;
+            // this guards only stray success codes (201, 204, ...).
+            if ($response->statusCode !== 202 && $response->statusCode !== 200) {
+                $body = $response->body;
+                throw new McpException("POST request failed with status {$response->statusCode}: " . ($body !== '' && $body !== '0' ? $body : '(no body)'));
             }
 
-        } catch (GuzzleException $e) {
+        } catch (HttpException $e) {
             throw new McpException('HTTP POST failed: ' . $e->getMessage(), $e->getCode(), $e);
         } catch (JsonException $e) {
             throw new McpException('Failed to encode JSON: ' . $e->getMessage(), $e->getCode(), $e);

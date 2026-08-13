@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use GuzzleHttp\RequestOptions;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 
 use function array_map;
-use function json_decode;
 
 /**
  * https://help.getzep.com/sdk-reference/graph/search
@@ -54,16 +53,14 @@ class ZepSearchGraphTool extends Tool
 
     public function __invoke(string $query, string $search_scope = 'facts', int $limit = 5): array
     {
-        $response = $this->getClient()->post('graph/search', [
-            RequestOptions::JSON => [
-                'user_id' => $this->user_id,
-                'query' => $query,
-                'scope' => $search_scope === 'facts' ? 'edges' : 'nodes',
-                'limit' => $limit,
-            ],
-        ]);
+        $response = $this->getClient()->request(HttpRequest::post('graph/search', [
+            'user_id' => $this->user_id,
+            'query' => $query,
+            'scope' => $search_scope === 'facts' ? 'edges' : 'nodes',
+            'limit' => $limit,
+        ]));
 
-        $response = json_decode((string) $response->getBody(), true);
+        $response = $response->json();
 
         return match ($search_scope) {
             'nodes' => $this->mapNodes($response['nodes'] ?? []),

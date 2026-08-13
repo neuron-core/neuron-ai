@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Jina;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\ToolException;
+use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
@@ -20,7 +21,7 @@ use const FILTER_VALIDATE_URL;
  */
 class JinaUrlReader extends Tool
 {
-    protected Client $client;
+    protected HttpClientInterface $client;
 
     protected string $name = 'url_reader';
     protected ?string $description = 'Get the content of a URL in markdown format.';
@@ -41,16 +42,16 @@ class JinaUrlReader extends Tool
         ];
     }
 
-    protected function getClient(): Client
+    protected function getClient(): HttpClientInterface
     {
-        return $this->client ?? $this->client = new Client([
-            'headers' => [
+        return $this->client ??= new CurlHttpClient(
+            customHeaders: [
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'X-Return-Format' => 'Markdown',
             ],
-        ]);
+        );
     }
 
     public function __invoke(string $url): string
@@ -59,12 +60,10 @@ class JinaUrlReader extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        $response = $this->getClient()->post('https://r.jina.ai/', [
-            RequestOptions::JSON => [
-                'url' => $url,
-            ],
-        ]);
+        $response = $this->getClient()->request(HttpRequest::post('https://r.jina.ai/', [
+            'url' => $url,
+        ]));
 
-        return (string) $response->getBody();
+        return $response->body;
     }
 }

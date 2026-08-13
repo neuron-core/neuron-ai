@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Anthropic;
 
 use Google\Auth\Credentials\ServiceAccountCredentials;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
 /**
@@ -49,11 +48,9 @@ class AnthropicVertex extends Anthropic
             version: 'vertex-2023-10-16',
         );
 
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient(
-            options: [
-                RequestOptions::EXPECT => false,
-            ]
-        ))->withBaseUri($this->baseUri)
+        // CurlHttpClient always suppresses "Expect: 100-continue", which Vertex rejects.
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
+            ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',

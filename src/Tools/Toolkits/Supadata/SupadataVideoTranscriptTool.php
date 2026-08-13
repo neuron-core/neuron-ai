@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Supadata;
 
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
-
-use function json_decode;
 
 /**
  * @method static static make(string $key)
@@ -40,9 +39,9 @@ class SupadataVideoTranscriptTool extends Tool
     public function __invoke(string $video_url): string
     {
         $response = $this->getClient($this->key)
-            ->get('youtube/transcript?url=' . $video_url.'&text=true');
+            ->request(HttpRequest::get('youtube/transcript?url=' . $video_url.'&text=true'));
 
-        $response = json_decode((string) $response->getBody(), true);
+        $response = $response->json();
 
         return $response['content'];
     }

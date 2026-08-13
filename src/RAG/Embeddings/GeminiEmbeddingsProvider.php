@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Embeddings;
 
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -22,7 +22,7 @@ class GeminiEmbeddingsProvider extends AbstractEmbeddingsProvider
         protected array $config = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',

@@ -6,6 +6,8 @@ namespace NeuronAI\HttpClient;
 
 use InvalidArgumentException;
 
+use function is_array;
+use function is_resource;
 use function strpbrk;
 
 class HttpRequest
@@ -74,6 +76,30 @@ class HttpRequest
     public static function delete(string $uri, array $body = [], array $headers = []): self
     {
         return new self(HttpMethod::DELETE, $uri, $headers, $body);
+    }
+
+    /**
+     * Whether the body must be sent as multipart form data: an array body
+     * containing resources or `['contents' => ...]` file parts. Anything
+     * else is JSON-encoded (array) or sent raw (string).
+     */
+    public function isMultipart(): bool
+    {
+        if (!is_array($this->body)) {
+            return false;
+        }
+
+        foreach ($this->body as $value) {
+            if (is_resource($value)) {
+                return true;
+            }
+
+            if (is_array($value) && isset($value['contents'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

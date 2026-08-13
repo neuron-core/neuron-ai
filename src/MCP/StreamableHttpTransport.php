@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Psr7\Request;
-use Psr\Http\Message\ResponseInterface;
 use JsonException;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpMethod;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
 
 use function array_merge;
 use function explode;
@@ -24,23 +26,23 @@ use const JSON_THROW_ON_ERROR;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
-    protected readonly Client $httpClient;
+    protected readonly HttpClientInterface $httpClient;
     protected ?string $sessionId = null;
-    protected ?ResponseInterface $lastResponse = null;
+    protected ?HttpResponse $lastResponse = null;
 
     /**
      * @param array<string, mixed> $config
      */
     public function __construct(protected array $config)
     {
-        $this->httpClient = new Client([
-            'timeout' => $config['timeout'] ?? 30,
-            'headers' => [
+        $this->httpClient = new CurlHttpClient(
+            customHeaders: [
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
                 'User-Agent' => 'neuron-ai/1.0.0',
             ],
-        ]);
+            timeout: (float) ($config['timeout'] ?? 30),
+        );
     }
 
     /**
@@ -80,24 +82,29 @@ class StreamableHttpTransport implements McpTransportInterface
 
             $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
 
-            $request = new Request('POST', $this->config['url'], $headers, $jsonData);
-            $response = $this->httpClient->send($request);
+            $response = $this->httpClient->request(new HttpRequest(
+                method: HttpMethod::POST,
+                uri: $this->config['url'],
+                headers: $headers,
+                body: $jsonData,
+            ));
 
-            if ($response->getStatusCode() === 401) {
-                throw new McpException('Authentication failed: Invalid or expired token');
-            }
-
-            if ($response->getStatusCode() === 403) {
-                throw new McpException('Authorization failed: Insufficient permissions');
-            }
-
-            if ($response->hasHeader('Mcp-Session-Id')) {
-                $this->sessionId = $response->getHeader('Mcp-Session-Id')[0];
+            $mcpSessionId = $response->header('Mcp-Session-Id');
+            if ($mcpSessionId !== null) {
+                $this->sessionId = $mcpSessionId;
             }
 
             $this->lastResponse = $response;
 
-        } catch (GuzzleException $e) {
+        } catch (HttpException $e) {
+            if ($e->response?->statusCode === 401) {
+                throw new McpException('Authentication failed: Invalid or expired token');
+            }
+
+            if ($e->response?->statusCode === 403) {
+                throw new McpException('Authorization failed: Insufficient permissions');
+            }
+
             throw new McpException('HTTP request failed: ' . $e->getMessage(), $e->getCode(), $e);
         } catch (JsonException $e) {
             throw new McpException('Failed to encode JSON: ' . $e->getMessage(), $e->getCode(), $e);
@@ -110,12 +117,12 @@ class StreamableHttpTransport implements McpTransportInterface
      */
     public function receive(): array
     {
-        if (!$this->lastResponse instanceof ResponseInterface) {
+        if (!$this->lastResponse instanceof HttpResponse) {
             throw new McpException('No response available. Call send() first.');
         }
 
         try {
-            $response = (string) $this->lastResponse->getBody();
+            $response = $this->lastResponse->body;
             $this->lastResponse = null;
 
             if ($response === '') {

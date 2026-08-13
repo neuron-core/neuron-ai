@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Supadata;
 
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
-
-use function json_decode;
 
 /**
  * @method static static make(string $key)
@@ -40,8 +39,8 @@ class SupadataYoutubeChannelTool extends Tool
     public function __invoke(string $channel): array
     {
         $response = $this->getClient($this->key)
-            ->get('youtube/channel?id='.$channel);
+            ->request(HttpRequest::get('youtube/channel?id='.$channel));
 
-        return json_decode((string) $response->getBody(), true);
+        return $response->json();
     }
 }

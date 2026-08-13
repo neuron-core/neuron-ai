@@ -6,7 +6,7 @@ namespace NeuronAI\RAG\Embeddings;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -27,7 +27,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         protected ?int $dimensions = 1024,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',

@@ -6,7 +6,7 @@ namespace NeuronAI\RAG\PostProcessor;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -26,7 +26,7 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
         protected int $topN = 3,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->host)
             ->withHeaders([
                 'Accept' => 'application/json',

@@ -4,39 +4,37 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
 use Exception;
+use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 
 use function trim;
 
 trait HandleZepClient
 {
-    protected Client $client;
+    protected HttpClientInterface $client;
 
     protected string $url = 'https://api.getzep.com/api/v2';
 
-    protected function getClient(): Client
+    protected function getClient(): HttpClientInterface
     {
-        return $this->client ?? $this->client = new Client([
-            'base_uri' => trim($this->url, '/').'/',
-            'headers' => [
+        return $this->client ??= (new CurlHttpClient(
+            customHeaders: [
                 'Authorization' => "Api-Key {$this->key}",
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
             ],
-        ]);
+        ))->withBaseUri(trim($this->url, '/').'/');
     }
 
     protected function createUser(): self
     {
         // Create the user if it doesn't exist
         try {
-            $this->getClient()->get('users/'.$this->user_id);
+            $this->getClient()->request(HttpRequest::get('users/'.$this->user_id));
         } catch (Exception) {
-            $this->getClient()->post('users', [
-                RequestOptions::JSON => ['user_id' => $this->user_id],
-            ]);
+            $this->getClient()->request(HttpRequest::post('users', ['user_id' => $this->user_id]));
         }
 
         return $this;

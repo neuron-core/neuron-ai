@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
@@ -13,17 +12,13 @@ use NeuronAI\Tools\Tool;
 use function array_map;
 use function array_merge;
 use function implode;
-use function json_decode;
-use function trim;
 
 /**
  * @method static static make(string $key, array $topics = [])
  */
 class TavilySearchTool extends Tool
 {
-    protected Client $client;
-
-    protected string $url = 'https://api.tavily.com/';
+    use HandleTavilyClient;
 
     protected string $name = 'web_search';
 
@@ -80,21 +75,9 @@ class TavilySearchTool extends Tool
         ];
     }
 
-    protected function getClient(): Client
-    {
-        return $this->client ??= new Client([
-            'base_uri' => trim($this->url, '/').'/',
-            'headers' => [
-                'Authorization' => 'Bearer '.$this->key,
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ],
-        ]);
-    }
-
     /**
      * @return array<string, mixed>
-     * @throws \GuzzleHttp\Exception\GuzzleException
+     * @throws \NeuronAI\Exceptions\HttpException
      */
     public function __invoke(
         string $search_query,
@@ -106,15 +89,13 @@ class TavilySearchTool extends Tool
         $time_range ??= 'day';
         $days ??= 7;
 
-        $result = $this->getClient()->post('search', [
-            RequestOptions::JSON => array_merge(
-                ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
-                $this->options,
-                ['query' => $search_query]
-            ),
-        ]);
+        $result = $this->getClient()->request(HttpRequest::post('search', array_merge(
+            ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
+            $this->options,
+            ['query' => $search_query]
+        )));
 
-        $result = json_decode((string) $result->getBody(), true);
+        $result = $result->json();
 
         return [
             'answer' => $result['answer'],

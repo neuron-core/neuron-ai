@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Jina;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
+use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
@@ -17,7 +18,7 @@ use function implode;
  */
 class JinaWebSearch extends Tool
 {
-    protected Client $client;
+    protected HttpClientInterface $client;
 
     protected string $name = 'web_search';
     protected ?string $description = 'Use this tool to search the web for additional information if the question is outside the scope of the context you have.';
@@ -45,25 +46,23 @@ class JinaWebSearch extends Tool
         ];
     }
 
-    protected function getClient(): Client
+    protected function getClient(): HttpClientInterface
     {
-        return $this->client ?? $this->client = new Client([
-            'headers' => [
+        return $this->client ??= new CurlHttpClient(
+            customHeaders: [
                 'Authorization' => 'Bearer '.$this->key,
                 'Content-Type' => 'application/json',
                 'X-Respond-With' => 'no-content',
             ],
-        ]);
+        );
     }
 
     public function __invoke(string $search_query): string
     {
-        $response = $this->getClient()->post('https://s.jina.ai/', [
-            RequestOptions::JSON => [
-                'q' => $search_query,
-            ],
-        ]);
+        $response = $this->getClient()->request(HttpRequest::post('https://s.jina.ai/', [
+            'q' => $search_query,
+        ]));
 
-        return (string) $response->getBody();
+        return $response->body;
     }
 }

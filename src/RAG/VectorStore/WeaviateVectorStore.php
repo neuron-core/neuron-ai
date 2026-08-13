@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -38,7 +38,7 @@ class WeaviateVectorStore implements VectorStoreInterface
         protected int $topK = 5,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($host)
             ->withHeaders([
                 'Content-Type' => 'application/json',

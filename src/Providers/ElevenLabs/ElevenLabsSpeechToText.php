@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -39,7 +39,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Accept' => 'application/json',

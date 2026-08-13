@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpRequest;
@@ -37,7 +37,7 @@ class ChromaVectorStore implements VectorStoreInterface
         protected int $topK = 5,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/")
             ->withHeaders([
                 'Content-Type' => 'application/json',

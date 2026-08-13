@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\ToolException;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
 use function array_merge;
 use function filter_var;
-use function json_decode;
-use function trim;
 
 use const FILTER_VALIDATE_URL;
 
@@ -23,9 +20,7 @@ use const FILTER_VALIDATE_URL;
  */
 class TavilyCrawlTool extends Tool
 {
-    protected Client $client;
-
-    protected string $url = 'https://api.tavily.com/';
+    use HandleTavilyClient;
 
     protected string $name = 'url_crawl';
 
@@ -62,27 +57,12 @@ class TavilyCrawlTool extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        $result = $this->getClient()->post('crawl', [
-            RequestOptions::JSON => array_merge(
-                $this->options,
-                ['url' => $url]
-            ),
-        ]);
+        $result = $this->getClient()->request(HttpRequest::post('crawl', array_merge(
+            $this->options,
+            ['url' => $url]
+        )));
 
-        return json_decode((string) $result->getBody(), true);
-    }
-
-
-    protected function getClient(): Client
-    {
-        return $this->client ?? $this->client = new Client([
-            'base_uri' => trim($this->url, '/').'/',
-            'headers' => [
-                'Authorization' => 'Bearer '.$this->key,
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ],
-        ]);
+        return $result->json();
     }
 
     public function withOptions(array $options): self

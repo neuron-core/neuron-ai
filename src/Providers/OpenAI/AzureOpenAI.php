@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
 use function preg_replace;
@@ -26,7 +26,7 @@ class AzureOpenAI extends OpenAI
     ) {
         $this->setBaseUrl();
 
-        $this->httpClient = ($httpClient ?? new GuzzleHttpClient())
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->baseUri)
             ->withHeaders([
                 'Authorization' => 'Bearer ' . $this->key,

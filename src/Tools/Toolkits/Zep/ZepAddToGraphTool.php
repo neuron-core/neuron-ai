@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use GuzzleHttp\RequestOptions;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
-
-use function json_decode;
 
 /**
  * @method static static make(string $key, string $user_id)
@@ -51,15 +49,13 @@ class ZepAddToGraphTool extends Tool
 
     public function __invoke(string $data, string $type): string
     {
-        $response = $this->getClient()->post('graph', [
-            RequestOptions::JSON => [
-                'user_id' => $this->user_id,
-                'data' => $data,
-                'type' => $type,
-            ],
-        ]);
+        $response = $this->getClient()->request(HttpRequest::post('graph', [
+            'user_id' => $this->user_id,
+            'data' => $data,
+            'type' => $type,
+        ]));
 
-        $response = json_decode((string) $response->getBody(), true);
+        $response = $response->json();
 
         return $response['content'];
     }
