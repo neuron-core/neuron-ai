@@ -304,7 +304,7 @@ $state = MyAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 A history constructed *with* a key (`new SQLChatHistory($pdo, $threadId)`)
 declares that identity — the agent adopts it, and a disagreement with an
 explicit `threadId:` throws. `Agent::getThreadId(): ?string` reads the
-resolved identity back; null means the run is not thread-addressable.
+resolved identity back; null means the run is not findable by its thread.
 
 ### Memory Types
 - `InMemoryChatHistory` - Default, session-based
@@ -393,7 +393,7 @@ $response = MyAgent::make()
 ```
 
 When the agent suspends (e.g., waiting for tool approval), no exception is thrown —
-`chat()` returns an `AgentState` marked interrupted. The **thread is the address**:
+`chat()` returns an `AgentState` marked interrupted. The **thread is the workflow ID**:
 the run's durable records live in the partition named by the threadId itself, so a
 later `resume()` built from the threadId alone finds the pending run — nothing
 stored anywhere by the application:
@@ -409,7 +409,7 @@ if ($state->isInterrupted()) {
     // ... user approves/rejects ...
 
     // A new execution cycle (e.g. the approve endpoint): the thread alone
-    // addresses the run; decisions are keyed by tool callId.
+    // identifies the run; decisions are keyed by tool callId.
     $state = MyAgent::make(threadId: $threadId)
         ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
@@ -420,7 +420,7 @@ $response = $state->getMessage();
 ```
 
 This works for every suspension type (approval, `awaitEvent()`, `sleepUntil()`).
-Background (address-first) resumes pass `make(address:)` instead — the threadId
+Background (workflowId-first) resumes pass `make(workflowId:)` instead — the threadId
 then arrives from the run's ignition record and is bound into the history by
 the framework.
 

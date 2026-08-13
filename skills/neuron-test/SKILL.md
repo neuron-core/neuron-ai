@@ -424,7 +424,7 @@ class MyInterruptTest extends TestCase
 {
     public function test_workflow_interrupts_and_resumes(): void
     {
-        $workflow = Workflow::make(address: 'test-workflow')
+        $workflow = Workflow::make(workflowId: 'test-workflow')
             ->setPersistence(new InMemoryPersistence())
             ->addNodes([
             new NodeOne(),

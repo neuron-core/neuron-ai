@@ -24,15 +24,16 @@ interface WorkflowExecutorInterface
     /**
      * Execute the run, yielding every event in real time and returning the
      * final state. Intent is explicit: an ignition ($resuming false) refuses
-     * a run already in flight at the address; a continuation ($resuming
-     * true) adopts it, delivering the payload only when one is given.
+     * a run already in flight under the workflow ID; a continuation
+     * ($resuming true) adopts it, delivering the payload only when one is
+     * given.
      *
      * The executor drives the full segment lifecycle: it resolves the
-     * address, resolves ignition (register / adopt / refuse) and calls the
-     * workflow's bootstrap() before traversal begins.
+     * workflow ID, resolves ignition (register / adopt / refuse) and calls
+     * the workflow's bootstrap() before traversal begins.
      *
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
-     * @param bool $resuming True to continue the run at the address; false to ignite a new one.
+     * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function execute(

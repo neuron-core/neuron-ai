@@ -49,29 +49,30 @@ interface WorkflowRuntimeInterface
     public function getMiddlewareForNode(NodeInterface $node): array;
 
     /**
-     * The address — the persistence partition this workflow's durable
+     * The workflow ID — the persistence partition this workflow's durable
      * records live under. Null until the executor's identity phase assigns
      * it.
      */
-    public function getAddress(): ?string;
+    public function getWorkflowId(): ?string;
 
     /**
      * The current run's generation stamp. Null until the executor's identity
-     * phase assigns it; a fresh ignition at a reused address stamps a new one.
+     * phase assigns it; a fresh ignition under a reused workflow ID stamps a
+     * new one.
      */
     public function getRunId(): ?string;
 
     /**
-     * Adopt the identity the executor resolved: the address the records live
-     * under and the generation stamp of the run holding it.
+     * Adopt the identity the executor resolved: the workflow ID the records
+     * live under and the generation stamp of the run holding it.
      */
-    public function adoptIdentity(string $address, string $runId): void;
+    public function adoptIdentity(string $workflowId, string $runId): void;
 
     /**
-     * The business key this workflow wants as its address (e.g. the Agent's
-     * threadId), or null to let the engine generate one.
+     * The business key this workflow wants as its workflow ID (e.g. the
+     * Agent's threadId), or null to let the engine generate one.
      */
-    public function address(): ?string;
+    public function workflowId(): ?string;
 
     public function getEventDispatcher(): EventDispatcherInterface;
 

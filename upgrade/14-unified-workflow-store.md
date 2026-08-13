@@ -5,7 +5,7 @@
 Workflow persistence is redesigned around one idea: **the store is a single
 partitioned key-value space** — string values filed under `(partition, key)`.
 A run's records (ignition, steps, memos) live in the partition named by its
-**address** — the business key the workflow declares (the Agent declares its
+**workflow ID** — the business key the workflow declares (the Agent declares its
 threadId; an order workflow might declare `'order:123'`), or an
 engine-generated handle when it declares none. One artifact per backend —
 one table, one directory, one array — forever, for every current and future
@@ -34,10 +34,10 @@ What changed:
 3. **One table replaces two.** `workflow_steps` becomes `workflow_store`
    (DDL below); the `workflow_correlations` table from the 4.x development
    branch is gone (it never shipped in a release).
-4. **The address is the identity; one live run per address.** A workflow
-   declares its business key by overriding `address(): ?string`; records live
-   under it, and `run()` while a run is already in flight at the address
-   throws ("run in flight") — settle the pending run by resuming it. Clean
+4. **The workflow ID is the identity; one live run per workflow ID.** A workflow
+   declares its business key by overriding `workflowId(): ?string`; records live
+   under it, and `run()` while a run is already in flight for the workflow ID
+   throws ("run is already in flight") — settle the pending run by resuming it. Clean
    completion sweeps the whole partition, so nothing ever leaks. A per-run
    **runId** (generation stamp) lives inside the ignition record for
    observability and write-fencing (step keys are runId-prefixed) — it is
@@ -45,13 +45,13 @@ What changed:
 5. **The runId is gone from chat history.**
    `ToolCallMessage::setRunId()/getRunId()/setResumeToken()/getResumeToken()`
    are removed. Chat history is conversation only.
-6. **`Workflow::make(?string $address)` and `getAddress(): ?string`** — the
-   constructor parameter and continuation handle are the address.
+6. **`Workflow::make(?string $workflowId)` and `getWorkflowId(): ?string`** — the
+   constructor parameter and continuation handle are the workflow ID.
    `getRunId(): ?string` still exists but now returns the generation stamp.
    Both are null before the first run segment; identity is assigned by the
    executor, never defaulted at construction.
-7. **A continuation must address a run.** `resume()` on a workflow with no
-   explicit and no declared address throws a `WorkflowException`. `resume()`
+7. **A continuation must identify a run.** `resume()` on a workflow with no
+   explicit and no declared workflow ID throws a `WorkflowException`. `resume()`
    also gains revive semantics: a **null** payload (the new default) replays
    without delivering anything (crash recovery), while `[]` delivers an
    explicitly empty answer.
@@ -118,12 +118,12 @@ class RedisPersistence implements PersistenceInterface
 }
 ```
 
-Your own workflows opt into key-first continuation by declaring their address:
+Your own workflows opt into key-first continuation by declaring their workflow ID:
 
 ```php
 class OrderWorkflow extends Workflow
 {
-    public function address(): ?string
+    public function workflowId(): ?string
     {
         return 'order:' . $this->orderId;
     }
@@ -174,8 +174,8 @@ upgrading:
 - their ignition/memo records were stored wrapped in `StepResult`; the new
   engine reads them serialized directly, and
 - their records live in a runId-named partition with unprefixed step keys;
-  the new engine reads address-named partitions with generation-prefixed
-  keys.
+  the new engine reads partitions named by the workflow ID with
+  generation-prefixed keys.
 
 Drain pending approvals/suspensions before deploying, or complete them on the
 old version. (This is a development-branch-to-development-branch note; no
@@ -196,5 +196,5 @@ grep -rn "->save(\|->load(\|new DatabasePersistence\|new EloquentPersistence\|ne
 
 Check each hit: persistence calls get the new verbs; backend constructions
 lose serializer arguments; a `getRunId()` used as a resume handle becomes
-`getAddress()` (`getRunId()` still exists but returns the generation stamp);
+`getWorkflowId()` (`getRunId()` still exists but returns the generation stamp);
 the `ToolCallMessage` variants are gone.

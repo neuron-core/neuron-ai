@@ -29,7 +29,7 @@ use function is_array;
 use function is_string;
 
 /**
- * @method static static make(?string $address = null, ?WorkflowState $state = null, ?string $threadId = null)
+ * @method static static make(?string $workflowId = null, ?WorkflowState $state = null, ?string $threadId = null)
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent getStartEvent()
  * @method AgentState getState()
@@ -43,21 +43,21 @@ class Agent extends Workflow implements AgentInterface
     protected ChatHistoryInterface $chatHistory;
 
     /**
-     * The conversation this run belongs to, and the run's declared address.
-     * Assigned exactly once through adoptThreadId() and NEVER generated —
+     * The conversation this run belongs to, and the run's declared workflow
+     * ID. Assigned exactly once through adoptThreadId() and NEVER generated —
      * identity is always a developer statement. Null means the run is not
-     * thread-addressable.
+     * findable by its thread.
      */
     protected ?string $threadId = null;
 
     protected bool $parallelToolCalls = false;
 
     public function __construct(
-        ?string $address = null,
+        ?string $workflowId = null,
         ?WorkflowState $state = null,
         ?string $threadId = null,
     ) {
-        parent::__construct($address, $state);
+        parent::__construct($workflowId, $state);
 
         if ($threadId !== null) {
             $this->adoptThreadId($threadId);
@@ -227,13 +227,13 @@ class Agent extends Workflow implements AgentInterface
 
         if (is_string($threadId)) {
             // A record contradicting an explicitly given identity is a
-            // mis-addressed continuation — adoption throws.
+            // misidentified continuation — adoption throws.
             $this->adoptThreadId($threadId);
         }
     }
 
     /**
-     * Addressability requires identity declared BEFORE the run starts —
+     * Thread-findability requires identity declared BEFORE the run starts —
      * identity discovered later (a pre-bound hook history materializing
      * during bootstrap) is adopted and validated, but arrives after the
      * ignition record and pointer are written.
@@ -245,9 +245,9 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The Agent's business identity is the conversation: the threadId IS the
-     * address, so a continuation holding only the thread finds the run.
+     * workflow ID, so a continuation holding only the thread finds the run.
      */
-    public function address(): ?string
+    public function workflowId(): ?string
     {
         return $this->getThreadId();
     }
@@ -348,8 +348,8 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The single continuation verb. It carries no identity logic of its own:
-     * the engine addresses the run from the threadId (the Agent's declared
-     * address) or an explicit address. A null payload revives without
+     * the engine identifies the run from the threadId (the Agent's declared
+     * workflow ID) or an explicit workflow ID. A null payload revives without
      * delivering anything; an empty array delivers an empty decision set.
      *
      * @param array<string, mixed>|null $payload

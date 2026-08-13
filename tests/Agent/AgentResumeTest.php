@@ -78,7 +78,7 @@ class AgentResumeTest extends TestCase
 
         $this->assertTrue($agent1->getState()->isInterrupted());
 
-        // ── Resume: a BLANK factory — the thread address only, no threadId set.
+        // ── Resume: a BLANK factory — the thread's workflow ID only, no threadId set.
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
@@ -87,7 +87,7 @@ class AgentResumeTest extends TestCase
 
         $channel = new FakeChannel();
 
-        $agent2 = Agent::make(address: 'thread-1');
+        $agent2 = Agent::make(workflowId: 'thread-1');
         $agent2->setAiProvider($provider2)
             ->setInstructions('You are a search assistant.');
         $agent2->addTool($wakeTool);
@@ -126,13 +126,13 @@ class AgentResumeTest extends TestCase
     public function test_structured_run_wakes_and_returns_the_output_via_state(): void
     {
         $persistence = new InMemoryPersistence();
-        $address = 'wake_structured_e2e';
-        $history = new InMemoryChatHistory($address);
+        $workflowId = 'wake_structured_e2e';
+        $history = new InMemoryChatHistory($workflowId);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $agent1 = Agent::make(address: $address);
+        $agent1 = Agent::make(workflowId: $workflowId);
         $agent1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'Alice']),
@@ -149,7 +149,7 @@ class AgentResumeTest extends TestCase
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
-        $agent2 = Agent::make(address: $address);
+        $agent2 = Agent::make(workflowId: $workflowId);
         $agent2->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name": "Alice"}')))
             ->setInstructions('Extract the user.');
         $agent2->addTool($wakeTool);
@@ -167,13 +167,13 @@ class AgentResumeTest extends TestCase
     public function test_incomplete_decision_set_re_suspends_the_resume(): void
     {
         $persistence = new InMemoryPersistence();
-        $address = 'wake_incomplete_e2e';
-        $history = new InMemoryChatHistory($address);
+        $workflowId = 'wake_incomplete_e2e';
+        $history = new InMemoryChatHistory($workflowId);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $agent1 = Agent::make(address: $address);
+        $agent1 = Agent::make(workflowId: $workflowId);
         $agent1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_a', ['query' => 'one']),
@@ -201,13 +201,13 @@ class AgentResumeTest extends TestCase
     public function test_structured_rag_run_wakes_with_intent_intact(): void
     {
         $persistence = new InMemoryPersistence();
-        $address = 'wake_rag_structured_e2e';
-        $history = new InMemoryChatHistory($address);
+        $workflowId = 'wake_rag_structured_e2e';
+        $history = new InMemoryChatHistory($workflowId);
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
-        $rag1 = RAG::make(address: $address);
+        $rag1 = RAG::make(workflowId: $workflowId);
         $rag1->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'Alice']),
@@ -228,7 +228,7 @@ class AgentResumeTest extends TestCase
         $wakeTool = new SearchTool();
         $wakeTool->requireApproval();
 
-        $rag2 = RAG::make(address: $address);
+        $rag2 = RAG::make(workflowId: $workflowId);
         $rag2->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name": "Alice"}')))
             ->setInstructions('Extract the user from the context.');
         $rag2->addTool($wakeTool);

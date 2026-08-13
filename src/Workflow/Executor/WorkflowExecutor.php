@@ -51,9 +51,9 @@ use function uniqid;
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
     /**
-     * The generation head of the address partition: its presence is what "a
-     * run in flight" means, and its record names the runId currently holding
-     * the address. Deleted with the partition on clean completion.
+     * The generation head of the workflow's partition: its presence is what
+     * "a run in flight" means, and its record names the runId currently
+     * holding the workflow ID. Deleted with the partition on clean completion.
      */
     protected const IGNITION_KEY = '__ignition';
 
@@ -73,7 +73,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected ?int $leaseTimeout = null;
 
-    protected string $address;
+    protected string $workflowId;
 
     protected string $runId;
 
@@ -87,7 +87,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     /**
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
-     * @param bool $resuming True to continue the run at the address; false to ignite a new one.
+     * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
@@ -97,9 +97,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->scheduler = $workflow->getScheduler();
         $this->serializer = $workflow->getSerializer();
         $this->leaseTimeout = $workflow->getLeaseTimeout();
-        $this->address = $this->resolveAddress($workflow, $resuming);
+        $this->workflowId = $this->resolveWorkflowId($workflow, $resuming);
         $this->runId = $this->resolveIgnition($workflow, $resuming);
-        $workflow->adoptIdentity($this->address, $this->runId);
+        $workflow->adoptIdentity($this->workflowId, $this->runId);
         $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
         $this->renewLease();
@@ -107,14 +107,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->bootstrap();
 
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
-        $workflow->getState()->set('__address', $this->address);
+        $workflow->getState()->set('__workflowId', $this->workflowId);
         $workflow->getState()->set('__runId', $this->runId);
 
         try {
             // A deliberate resume cancels the wakeup it satisfies, leaving no
             // stale scheduler registration; start/replay fires no onResume.
             if ($payload !== null) {
-                $this->scheduler->onResume($this->address);
+                $this->scheduler->onResume($this->workflowId);
             }
 
             $terminal = yield from $this->traverse(
@@ -130,19 +130,19 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $workflow->getState()->markAsInterrupted($terminal->request);
                 $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
                 $this->releaseLease();
-                $this->scheduler->onSuspend($this->address, $this->runId, $terminal->request);
+                $this->scheduler->onSuspend($this->workflowId, $this->runId, $terminal->request);
                 yield $terminal;
             } else {
                 // Fenced sweep: delete only while the generation head still
                 // names this run. A stale replica completing after another
-                // run took the address must not destroy the live run's
+                // run took the workflow ID must not destroy the live run's
                 // records or drop its coordination state. Check-then-delete
                 // is not atomic — the residual window is accepted to keep
                 // the store contract at three methods.
                 $head = $this->loadIgnition();
                 if ($head instanceof Ignition && $head->runId === $this->runId) {
-                    $this->persistence->delete($this->address);
-                    $this->scheduler->onComplete($this->address);
+                    $this->persistence->delete($this->workflowId);
+                    $this->scheduler->onComplete($this->workflowId);
                 }
                 $workflow->getState()->clearInterrupt();
             }
@@ -164,37 +164,37 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     /**
      * Establish WHERE this workflow's durable records live. The declared
-     * business key wins; an explicit address must agree with it — two
-     * identities silently disagreeing is a mis-addressed run. A fresh
-     * ignition without any address generates one.
+     * business key wins; an explicit workflow ID must agree with it — two
+     * identities silently disagreeing is a misidentified run. A fresh
+     * ignition without any workflow ID generates one.
      *
      * @throws WorkflowException
      */
-    protected function resolveAddress(WorkflowRuntimeInterface $workflow, bool $resuming): string
+    protected function resolveWorkflowId(WorkflowRuntimeInterface $workflow, bool $resuming): string
     {
         // A later segment of an instance that already resolved identity keeps
         // it — local state wins. The declared/explicit conflict check below
         // guards caller statements, not identity adopted mid-run.
-        if ($workflow->getRunId() !== null && $workflow->getAddress() !== null) {
-            return $workflow->getAddress();
+        if ($workflow->getRunId() !== null && $workflow->getWorkflowId() !== null) {
+            return $workflow->getWorkflowId();
         }
 
-        $declared = $workflow->address();
-        $explicit = $workflow->getAddress();
+        $declared = $workflow->workflowId();
+        $explicit = $workflow->getWorkflowId();
 
         if ($declared !== null && $explicit !== null && $declared !== $explicit) {
             throw new WorkflowException(
-                "Mis-addressed run: the workflow declares address '{$declared}' "
+                "Misidentified run: the workflow declares workflow ID '{$declared}' "
                 . "but was given '{$explicit}'."
             );
         }
 
-        $address = $declared ?? $explicit;
+        $workflowId = $declared ?? $explicit;
 
-        if ($address === null) {
+        if ($workflowId === null) {
             if ($resuming) {
                 throw new WorkflowException(
-                    'Cannot address the run to continue: no address was provided '
+                    'Cannot identify the run to continue: no workflow ID was provided '
                     . 'and the workflow declares none.'
                 );
             }
@@ -202,22 +202,23 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return uniqid('workflow_');
         }
 
-        if ($address === '' || str_starts_with($address, '__')) {
+        if ($workflowId === '' || str_starts_with($workflowId, '__')) {
             throw new WorkflowException(
-                "Invalid address '{$address}': an address must be a non-empty "
+                "Invalid workflow ID '{$workflowId}': a workflow ID must be a non-empty "
                 . "string and must not start with '__'."
             );
         }
 
-        return $address;
+        return $workflowId;
     }
 
     /**
-     * Resolve which run holds the address, returning its generation stamp.
-     * An ignition refuses an address with a run in flight — a pending run is
-     * settled by resuming it, never silently replaced. A continuation adopts
-     * the record (a no-op for the workflow when its local state is already
-     * set) and fails loudly when there is nothing to continue.
+     * Resolve which run holds the workflow ID, returning its generation
+     * stamp. An ignition refuses a workflow ID with a run in flight — a
+     * pending run is settled by resuming it, never silently replaced. A
+     * continuation adopts the record (a no-op for the workflow when its
+     * local state is already set) and fails loudly when there is nothing to
+     * continue.
      *
      * @throws WorkflowException
      */
@@ -228,7 +229,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         if ($resuming) {
             if (!$ignition instanceof Ignition) {
                 throw new WorkflowException(
-                    "No run in flight at address '{$this->address}' — nothing to continue."
+                    "No run in flight for workflow ID '{$this->workflowId}' — nothing to continue."
                 );
             }
 
@@ -240,7 +241,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         if ($ignition instanceof Ignition) {
             throw new WorkflowException(
-                "A run is already in flight at address '{$this->address}' — "
+                "A run is already in flight for workflow ID '{$this->workflowId}' — "
                 . "resume or settle it before igniting a new one."
             );
         }
@@ -253,12 +254,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function saveIgnition(Ignition $ignition): void
     {
-        $this->persistence->put($this->address, self::IGNITION_KEY, $this->serializer->serialize($ignition));
+        $this->persistence->put($this->workflowId, self::IGNITION_KEY, $this->serializer->serialize($ignition));
     }
 
     protected function loadIgnition(): ?Ignition
     {
-        $raw = $this->persistence->get($this->address, self::IGNITION_KEY);
+        $raw = $this->persistence->get($this->workflowId, self::IGNITION_KEY);
         $ignition = $raw === null ? null : $this->serializer->unserialize($raw);
 
         return $ignition instanceof Ignition ? $ignition : null;
@@ -266,7 +267,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function saveStep(string $stepId, StepResult $result): void
     {
-        $this->persistence->put($this->address, $this->recordKey($stepId), $this->serializer->serialize($result));
+        $this->persistence->put($this->workflowId, $this->recordKey($stepId), $this->serializer->serialize($result));
     }
 
     /**
@@ -279,7 +280,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return;
         }
 
-        $this->persistence->put($this->address, self::LEASE_KEY, (string) time());
+        $this->persistence->put($this->workflowId, self::LEASE_KEY, (string) time());
     }
 
     /**
@@ -293,7 +294,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return;
         }
 
-        $this->persistence->put($this->address, self::LEASE_KEY, self::LEASE_RELEASED);
+        $this->persistence->put($this->workflowId, self::LEASE_KEY, self::LEASE_RELEASED);
     }
 
     /**
@@ -311,7 +312,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return;
         }
 
-        $lease = $this->persistence->get($this->address, self::LEASE_KEY);
+        $lease = $this->persistence->get($this->workflowId, self::LEASE_KEY);
 
         if ($lease === null || $lease === self::LEASE_RELEASED) {
             return;
@@ -321,7 +322,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         if ($heartbeatAge < $this->leaseTimeout) {
             throw new WorkflowException(
-                "The run at address '{$this->address}' appears to be executing "
+                "The run for workflow ID '{$this->workflowId}' appears to be executing "
                 . "(last heartbeat {$heartbeatAge}s ago, lease timeout {$this->leaseTimeout}s) — not resuming."
             );
         }
@@ -329,14 +330,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function loadStep(string $stepId): ?StepResult
     {
-        $raw = $this->persistence->get($this->address, $this->recordKey($stepId));
+        $raw = $this->persistence->get($this->workflowId, $this->recordKey($stepId));
         $result = $raw === null ? null : $this->serializer->unserialize($raw);
 
         return $result instanceof StepResult ? $result : null;
     }
 
     /**
-     * Step and memo records are runId-prefixed: an address is reused across
+     * Step and memo records are runId-prefixed: a workflow ID is reused across
      * runs, and a leftover record from a prior generation must never be
      * replayed as this run's work — step ids alone would collide.
      */
@@ -442,7 +443,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     event: $event,
                     payload: $resuming ? $this->pendingPayload : null,
                     timedOut: $resuming && $this->pendingTimedOut,
-                    memoizer: new StepMemoizer($this->persistence, $this->serializer, $this->address, $this->recordKey($stepId)),
+                    memoizer: new StepMemoizer($this->persistence, $this->serializer, $this->workflowId, $this->recordKey($stepId)),
                     dispatcher: $workflow->getEventDispatcher(),
                 ),
                 $workflow->getMiddlewareForNode($node),

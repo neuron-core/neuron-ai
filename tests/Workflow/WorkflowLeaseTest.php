@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
-use NeuronAI\Tests\Workflow\Stubs\AddressedWorkflow;
+use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -30,10 +30,10 @@ class WorkflowLeaseTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    protected function leasedWorkflow(int $timeout): AddressedWorkflow
+    protected function leasedWorkflow(int $timeout): KeyedWorkflow
     {
-        return AddressedWorkflow::make()
-            ->withDeclaredAddress('thread_1')
+        return KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('thread_1')
             ->setLeaseTimeout($timeout);
     }
 
@@ -51,7 +51,7 @@ class WorkflowLeaseTest extends TestCase
     public function testDisabledByDefaultWritesNoLease(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
 
         $this->assertNull($persistence->get('thread_1', '__lease'));
     }
@@ -84,7 +84,7 @@ class WorkflowLeaseTest extends TestCase
         $persistence->put('thread_1', '__lease', (string) time());
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("The run at address 'thread_1' appears to be executing");
+        $this->expectExceptionMessage("The run for workflow ID 'thread_1' appears to be executing");
 
         $this->resume($this->leasedWorkflow(300), $persistence, []);
     }
@@ -106,7 +106,7 @@ class WorkflowLeaseTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make(address: 'thread_failing')
+        $workflow = Workflow::make(workflowId: 'thread_failing')
             ->addNodes([new MemoizingNode(shouldCrash: true)])
             ->setLeaseTimeout(300);
 

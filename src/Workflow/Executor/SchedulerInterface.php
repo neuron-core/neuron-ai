@@ -12,9 +12,9 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * again, branching on the request's type() to pick the wakeup strategy.
  * The default {@see NullScheduler} is inert: resume stays caller-driven.
  *
- * Hooks speak the address — the stable identity a continuation targets. An
- * address hosts at most one live run, so cancel/drop operations are safely
- * address-scoped.
+ * Hooks speak the workflow ID — the stable identity a continuation targets.
+ * A workflow ID hosts at most one live run, so cancel/drop operations are
+ * safely scoped to it.
  */
 interface SchedulerInterface
 {
@@ -23,15 +23,15 @@ interface SchedulerInterface
      *
      * The runId is the suspended run's generation stamp: record it on the
      * wakeup. When a wakeup later fires, the waking side must discard it if
-     * the ignition record at the address no longer names this runId — the
-     * address was completed and re-ignited in the meantime, and delivering
-     * the stale wakeup would fabricate an answer for the wrong run.
+     * the ignition record under the workflow ID no longer names this runId —
+     * the workflow ID was completed and re-ignited in the meantime, and
+     * delivering the stale wakeup would fabricate an answer for the wrong run.
      *
-     * @param string           $address The suspended run's address (the resume target).
-     * @param string           $runId   The generation stamp to record on the wakeup.
-     * @param InterruptRequest $request The suspend request; its type() selects the wakeup strategy.
+     * @param string           $workflowId The suspended run's workflow ID (the resume target).
+     * @param string           $runId      The generation stamp to record on the wakeup.
+     * @param InterruptRequest $request    The suspend request; its type() selects the wakeup strategy.
      */
-    public function onSuspend(string $address, string $runId, InterruptRequest $request): void;
+    public function onSuspend(string $workflowId, string $runId, InterruptRequest $request): void;
 
     /**
      * Called on a deliberate resume (a payload was delivered, inline or
@@ -41,17 +41,17 @@ interface SchedulerInterface
      * hard-drop a wakeup if the step ultimately fails — the executor
      * re-notifies via onSuspend() if the workflow suspends again.
      *
-     * @param string $address The resumed run's address.
+     * @param string $workflowId The resumed run's workflow ID.
      */
-    public function onResume(string $address): void;
+    public function onResume(string $workflowId): void;
 
     /**
      * Called only on a clean, fenced terminal (StopEvent while the run still
-     * holds its address) — not on a suspend, a thrown error, or a stale
-     * replica completing after the address moved on. Drop ALL coordination
-     * state for the address.
+     * holds its workflow ID) — not on a suspend, a thrown error, or a stale
+     * replica completing after the workflow ID moved on. Drop ALL
+     * coordination state for the workflow ID.
      *
-     * @param string $address The completed run's address.
+     * @param string $workflowId The completed run's workflow ID.
      */
-    public function onComplete(string $address): void;
+    public function onComplete(string $workflowId): void;
 }

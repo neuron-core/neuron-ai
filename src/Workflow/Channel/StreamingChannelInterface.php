@@ -35,18 +35,18 @@ interface StreamingChannelInterface
 
     /**
      * Run segment ended in a suspension. The request is the live, in-process
-     * object — never serialized. Contract for consumers: UPSERT by address
-     * ("current pending request"), never append — replay-by-rerun re-emits
+     * object — never serialized. Contract for consumers: UPSERT by workflow
+     * ID ("current pending request"), never append — replay-by-rerun re-emits
      * this on every re-suspension of the same run.
      */
-    public function suspended(InterruptRequest $request, string $address): void;
+    public function suspended(InterruptRequest $request, string $workflowId): void;
 
     /** Run segment ended cleanly. */
-    public function completed(WorkflowState $state, string $address): void;
+    public function completed(WorkflowState $state, string $workflowId): void;
 
     /**
      * Run segment died on an unhandled throwable. Notification only — the
      * exception propagates to the caller regardless.
      */
-    public function failed(Throwable $exception, string $address): void;
+    public function failed(Throwable $exception, string $workflowId): void;
 }

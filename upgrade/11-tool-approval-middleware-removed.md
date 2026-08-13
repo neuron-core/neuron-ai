@@ -172,8 +172,8 @@ $agent = Agent::make()
     ->setChatHistory(new SQLChatHistory($threadId, $pdo))
     ->setPersistence($persistence);
 
-// The run is addressed by the thread alone, as before. (The mechanism behind
-// that changes in guide 14: the thread itself becomes the run's address.)
+// The run is identified by the thread alone, as before. (The mechanism behind
+// that changes in guide 14: the thread itself becomes the run's workflow ID.)
 $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
 ```
 

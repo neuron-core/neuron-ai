@@ -163,7 +163,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /**
-     * Partition names are business-owned addresses (a threadId, 'order:123');
+     * Partition names are business-owned workflow IDs (a threadId, 'order:123');
      * the contract makes their safe storage the backend's obligation.
      *
      * @dataProvider backendProvider
@@ -195,7 +195,7 @@ class PersistenceContractTest extends TestCase
         $store->put('../escape-attempt', 'step-1', 'payload');
 
         // The record landed as the ONLY file, INSIDE the configured directory
-        // — a traversal-shaped address must never write outside it.
+        // — a traversal-shaped workflow ID must never write outside it.
         $entries = array_diff(scandir($this->directory) ?: [], ['.', '..']);
         $this->assertCount(1, $entries);
 

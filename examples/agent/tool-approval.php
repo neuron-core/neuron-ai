@@ -47,7 +47,7 @@ echo "-------------------------------------------------------------------\n\n";
 
 /*
  * The agent is rebuilt on every execution cycle from the only identity the
- * application owns: the chat thread. The thread IS the address of the run —
+ * application owns: the chat thread. The thread IS the workflow ID of the run —
  * the engine binds threadId → runId in workflow persistence when the run
  * ignites, so a blank agent holding only the thread finds the suspended run.
  * No runId is stored anywhere by the application. The durable chat history
@@ -119,7 +119,7 @@ while ($state->isInterrupted()) {
     /*
      * Imagine a new execution cycle starts here (e.g. the approve/deny HTTP
      * endpoint): rebuild the agent from the thread alone — NO runId — and
-     * deliver the payload. The thread IS the run's address, so the engine
+     * deliver the payload. The thread IS the run's workflow ID, so the engine
      * finds the suspended run there. Nothing else to store, nothing else to pass.
      */
     echo "\nResuming workflow...\n\n";

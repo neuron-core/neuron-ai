@@ -13,7 +13,7 @@ What changed:
 1. **New constructor parameter**: `Agent::make(threadId: 'thread-42')` — the
    one front door for declaring which conversation a run belongs to.
 2. **New reader**: `Agent::getThreadId(): ?string` (null = the run is not
-   thread-addressable). `address()` delegates to it — the threadId IS the run's address.
+   findable by its thread). `workflowId()` delegates to it — the threadId IS the run's workflow ID.
 3. **`ChatHistoryInterface` gains binding**:
 
    ```php
@@ -46,15 +46,15 @@ What changed:
 7. **No generation**: the framework never fabricates a thread identity.
    Anonymous quick-start runs (`Agent::make()->chat(...)`) still work —
    `InMemoryChatHistory` self-keys as its own storage default — but they are
-   **not thread-addressable** (no pointer, no `threadId` in the ignition
-   record): an identity nobody declared is not an address.
+   **not findable by their thread** (no pointer, no `threadId` in the ignition
+   record): an identity nobody declared is not a workflow ID.
 8. `Agent::getThreadId()` is a **pure read** of the identity slot. Hooks may
    consult it (null on anonymous runs), but the recommended pattern remains
    constructing the history without identity — the framework binds it.
-   Addressability requires identity declared before the run starts
-   (`make(threadId:)` or a pre-bound history at the setter); identity
+   Being findable by its thread requires identity declared before the run
+   starts (`make(threadId:)` or a pre-bound history at the setter); identity
    arriving later (a self-keyed hook default) is adopted but does not make
-   the run thread-addressable.
+   the run findable by its thread.
 
 ## Update your code
 
@@ -69,8 +69,8 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 // Thread-first resume (approve endpoint)
 SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
 
-// Address-first resume (background wake): the ignition record supplies it
-SupportAgent::make(address: $address)->resume($payload);
+// workflowId-first resume (background wake): the ignition record supplies it
+SupportAgent::make(workflowId: $workflowId)->resume($payload);
 ```
 
 Subclass hooks construct identity-free:
@@ -94,12 +94,12 @@ unbound:
 
 ```php
 // Before
-Agent::make(address: $address)
+Agent::make(workflowId: $workflowId)
     ->setChatHistory(fn (string $id) => new SQLChatHistory($id, $pdo))
     ->resume($payload);
 
 // After
-Agent::make(address: $address)
+Agent::make(workflowId: $workflowId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->resume($payload);
 ```

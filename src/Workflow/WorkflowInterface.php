@@ -11,20 +11,20 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 /**
  * The application-facing contract of a workflow. Configuration is
  * concrete-class API on {@see Workflow}; the engine-facing collaboration
- * points live on {@see WorkflowRuntimeInterface}. getAddress() appears on
+ * points live on {@see WorkflowRuntimeInterface}. getWorkflowId() appears on
  * both contracts deliberately: applications hold the continuation handle,
  * the engine reads the same identity as its persistence partition.
  */
 interface WorkflowInterface
 {
     /**
-     * Ignite a new run at the address. Never adopts a run already in flight
-     * there — that is refused loudly; continue it with {@see resume()}.
+     * Ignite a new run under the workflow ID. Never adopts a run already in
+     * flight there — that is refused loudly; continue it with {@see resume()}.
      */
     public function run(): WorkflowState;
 
     /**
-     * Continue the run in flight at the address: replay to its next boundary,
+     * Continue the run in flight under the workflow ID: replay to its next boundary,
      * delivering the payload only if one is given. A null payload revives
      * without delivering anything — a still-suspended run re-emits its
      * request, a crashed step retries. An empty array is NOT null: it
@@ -49,11 +49,11 @@ interface WorkflowInterface
     public function events(?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator;
 
     /**
-     * The address, also the continuation handle: pass it back to the
+     * The workflow ID, also the continuation handle: pass it back to the
      * constructor to reattach to a run in flight. Null before the first run
      * segment: identity is assigned by the executor.
      */
-    public function getAddress(): ?string;
+    public function getWorkflowId(): ?string;
 
     /**
      * The current run's generation stamp — observability identity, never the

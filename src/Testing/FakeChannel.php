@@ -21,13 +21,13 @@ final class FakeChannel implements StreamingChannelInterface
     /** @var string[] */
     public array $lines = [];
 
-    /** @var array{request: InterruptRequest, address: string}[] */
+    /** @var array{request: InterruptRequest, workflowId: string}[] */
     public array $suspensions = [];
 
-    /** @var array{state: WorkflowState, address: string}[] */
+    /** @var array{state: WorkflowState, workflowId: string}[] */
     public array $completions = [];
 
-    /** @var array{exception: Throwable, address: string}[] */
+    /** @var array{exception: Throwable, workflowId: string}[] */
     public array $failures = [];
 
     public ?Throwable $throwOnSend = null;
@@ -46,18 +46,18 @@ final class FakeChannel implements StreamingChannelInterface
         $this->lines[] = $line;
     }
 
-    public function suspended(InterruptRequest $request, string $address): void
+    public function suspended(InterruptRequest $request, string $workflowId): void
     {
-        $this->suspensions[] = ['request' => $request, 'address' => $address];
+        $this->suspensions[] = ['request' => $request, 'workflowId' => $workflowId];
     }
 
-    public function completed(WorkflowState $state, string $address): void
+    public function completed(WorkflowState $state, string $workflowId): void
     {
-        $this->completions[] = ['state' => $state, 'address' => $address];
+        $this->completions[] = ['state' => $state, 'workflowId' => $workflowId];
     }
 
-    public function failed(Throwable $exception, string $address): void
+    public function failed(Throwable $exception, string $workflowId): void
     {
-        $this->failures[] = ['exception' => $exception, 'address' => $address];
+        $this->failures[] = ['exception' => $exception, 'workflowId' => $workflowId];
     }
 }

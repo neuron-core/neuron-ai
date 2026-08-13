@@ -167,9 +167,9 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowInterrupt(): void
     {
-        $address = 'test-workflow';
+        $workflowId = 'test-workflow';
 
-        $workflow = Workflow::make(address: $address)
+        $workflow = Workflow::make(workflowId: $workflowId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -187,9 +187,9 @@ class WorkflowTest extends TestCase
 
     public function testWorkflowResume(): void
     {
-        $address = 'test-workflow';
+        $workflowId = 'test-workflow';
 
-        $workflow = Workflow::make(address: $address)
+        $workflow = Workflow::make(workflowId: $workflowId)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -224,13 +224,13 @@ class WorkflowTest extends TestCase
 
         // Identity is assigned by the executor's identity phase, never
         // defaulted at construction.
-        $this->assertNull($workflow->getAddress());
+        $this->assertNull($workflow->getWorkflowId());
         $this->assertNull($workflow->getRunId());
 
         $this->execute($workflow, new InMemoryPersistence());
 
-        $this->assertNotEmpty($workflow->getAddress());
-        $this->assertStringStartsWith('workflow_', (string) $workflow->getAddress());
+        $this->assertNotEmpty($workflow->getWorkflowId());
+        $this->assertStringStartsWith('workflow_', (string) $workflow->getWorkflowId());
         $this->assertNotEmpty($workflow->getRunId());
         $this->assertStringStartsWith('run_', (string) $workflow->getRunId());
     }
@@ -249,12 +249,12 @@ class WorkflowTest extends TestCase
             ]);
 
         $request = $this->execute($workflow, $persistence)->getInterruptRequest();
-        $token = $workflow->getAddress();
+        $token = $workflow->getWorkflowId();
 
         $this->assertNotNull($request);
         $this->assertNotNull($token);
 
-        $resumed = Workflow::make(address: $token)
+        $resumed = Workflow::make(workflowId: $token)
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),

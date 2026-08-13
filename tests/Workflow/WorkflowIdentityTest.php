@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Scheduler\Stubs\SpyScheduler;
-use NeuronAI\Tests\Workflow\Stubs\AddressedWorkflow;
+use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
@@ -23,36 +23,36 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Key-addressed identity: a run's durable records live in the partition named
- * by its address (the declared business key, or a generated handle), with the
- * ignition record as the generation head. One live run per address, enforced
+ * Key-based identity: a run's durable records live in the partition named
+ * by its workflow ID (the declared business key, or a generated handle), with the
+ * ignition record as the generation head. One live run per workflow ID, enforced
  * by refusal; completion sweeps the whole partition, leaving nothing behind.
  */
-class WorkflowAddressTest extends TestCase
+class WorkflowIdentityTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testRecordsLiveUnderTheDeclaredAddress(): void
+    public function testRecordsLiveUnderTheDeclaredWorkflowId(): void
     {
         $persistence = new InMemoryPersistence();
-        $workflow = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
 
         $state = $this->execute($workflow, $persistence);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('thread_1', $workflow->getAddress());
+        $this->assertSame('thread_1', $workflow->getWorkflowId());
         $this->assertNotNull($persistence->get('thread_1', '__ignition'));
         $this->assertNotNull($workflow->getRunId());
     }
 
-    public function testBlankInstanceContinuesByAddress(): void
+    public function testBlankInstanceContinuesByWorkflowId(): void
     {
         $persistence = new InMemoryPersistence();
-        $suspended = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $this->execute($suspended, $persistence);
 
         // The continuation holds the business key only — no other handle.
-        $resumed = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $resumed = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $state = $this->resume($resumed, $persistence, []);
 
         $this->assertFalse($state->isInterrupted());
@@ -61,61 +61,61 @@ class WorkflowAddressTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
-    public function testIgnitionRefusesALiveAddress(): void
+    public function testIgnitionRefusesALiveWorkflowId(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("A run is already in flight at address 'thread_1'");
+        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
 
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
     }
 
-    public function testCompletionSweepsThePartitionAndFreesTheAddress(): void
+    public function testCompletionSweepsThePartitionAndFreesTheWorkflowId(): void
     {
         $persistence = new InMemoryPersistence();
-        $first = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $first = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $this->execute($first, $persistence);
-        $this->resume(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence, []);
+        $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
 
         // Nothing survives completion — no ignition, no orphan of any kind.
         $this->assertNull($persistence->get('thread_1', '__ignition'));
 
-        // The address is free: a new run ignites with a fresh generation.
-        $second = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        // The workflow ID is free: a new run ignites with a fresh generation.
+        $second = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $state = $this->execute($second, $persistence);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame('thread_1', $second->getAddress());
+        $this->assertSame('thread_1', $second->getWorkflowId());
         $this->assertNotSame($first->getRunId(), $second->getRunId());
     }
 
-    public function testResumeOnACompletedAddressThrows(): void
+    public function testResumeOnACompletedWorkflowIdThrows(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
-        $this->resume(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence, []);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+        $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("No run in flight at address 'thread_1'");
+        $this->expectExceptionMessage("No run in flight for workflow ID 'thread_1'");
 
-        $this->resume(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence, []);
+        $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
     }
 
-    public function testResumeOnAnUnknownAddressThrows(): void
+    public function testResumeOnAnUnknownWorkflowIdThrows(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("No run in flight at address 'thread_unknown'");
+        $this->expectExceptionMessage("No run in flight for workflow ID 'thread_unknown'");
 
         $this->resume(
-            AddressedWorkflow::make()->withDeclaredAddress('thread_unknown'),
+            KeyedWorkflow::make()->withDeclaredWorkflowId('thread_unknown'),
             new InMemoryPersistence(),
             [],
         );
     }
 
-    public function testContinuationWithoutAnyAddressThrows(): void
+    public function testContinuationWithoutAnyWorkflowIdThrows(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('the workflow declares none');
@@ -127,28 +127,28 @@ class WorkflowAddressTest extends TestCase
         );
     }
 
-    public function testDeclaredAndExplicitAddressConflictThrows(): void
+    public function testDeclaredAndExplicitWorkflowIdConflictThrows(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("Mis-addressed run: the workflow declares address 'thread_1' but was given 'thread_2'");
+        $this->expectExceptionMessage("Misidentified run: the workflow declares workflow ID 'thread_1' but was given 'thread_2'");
 
         $this->execute(
-            AddressedWorkflow::make(address: 'thread_2')->withDeclaredAddress('thread_1'),
+            KeyedWorkflow::make(workflowId: 'thread_2')->withDeclaredWorkflowId('thread_1'),
             new InMemoryPersistence(),
         );
     }
 
-    public function testReservedAndEmptyAddressesThrow(): void
+    public function testReservedAndEmptyWorkflowIdsThrow(): void
     {
         foreach (['__reserved', ''] as $invalid) {
             try {
                 $this->execute(
-                    AddressedWorkflow::make()->withDeclaredAddress($invalid),
+                    KeyedWorkflow::make()->withDeclaredWorkflowId($invalid),
                     new InMemoryPersistence(),
                 );
-                $this->fail("Address '{$invalid}' should have been rejected.");
+                $this->fail("Workflow ID '{$invalid}' should have been rejected.");
             } catch (WorkflowException $e) {
-                $this->assertStringContainsString('Invalid address', $e->getMessage());
+                $this->assertStringContainsString('Invalid workflow ID', $e->getMessage());
             }
         }
     }
@@ -156,11 +156,11 @@ class WorkflowAddressTest extends TestCase
     public function testBareResumeRevivesWithoutDeliveringAnAnswer(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
 
         // Null payload: the suspended step re-runs, receives nothing, and
         // re-emits its request — the run is still waiting, which is the truth.
-        $revived = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $revived = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $state = $this->resume($revived, $persistence, null);
 
         $this->assertTrue($state->isInterrupted());
@@ -169,7 +169,7 @@ class WorkflowAddressTest extends TestCase
 
         // The run stays continuable: an actual answer completes it.
         $state = $this->resume(
-            AddressedWorkflow::make()->withDeclaredAddress('thread_1'),
+            KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'),
             $persistence,
             [],
         );
@@ -180,11 +180,11 @@ class WorkflowAddressTest extends TestCase
     public function testEmptyArrayDeliversAnEmptyAnswer(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(AddressedWorkflow::make()->withDeclaredAddress('thread_1'), $persistence);
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
 
         // [] is not null: it reaches the waiting step as a delivered answer.
         $state = $this->resume(
-            AddressedWorkflow::make()->withDeclaredAddress('thread_1'),
+            KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'),
             $persistence,
             [],
         );
@@ -193,30 +193,30 @@ class WorkflowAddressTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function testGeneratedAddressIsTheContinuationHandle(): void
+    public function testGeneratedWorkflowIdIsTheContinuationHandle(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
         $this->execute($workflow, $persistence);
 
-        $address = $workflow->getAddress();
-        $this->assertNotNull($address);
+        $workflowId = $workflow->getWorkflowId();
+        $this->assertNotNull($workflowId);
 
-        $resumed = Workflow::make($address)
+        $resumed = Workflow::make($workflowId)
             ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
         $state = $this->resume($resumed, $persistence, []);
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame($address, $resumed->getAddress());
+        $this->assertSame($workflowId, $resumed->getWorkflowId());
     }
 
     public function testReplayIgnoresRecordsOfAForeignGeneration(): void
     {
         $persistence = new InMemoryPersistence();
-        $suspended = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $this->execute($suspended, $persistence);
 
-        // Another generation takes the address: the head now names a run
+        // Another generation takes the workflow ID: the head now names a run
         // that owns none of the stale records left in the partition.
         $persistence->put(
             'thread_1',
@@ -228,7 +228,7 @@ class WorkflowAddressTest extends TestCase
         // (completed AND interrupted markers) are invisible under its prefix,
         // so the delivered answer finds no step waiting for it and the
         // traversal re-runs from the start — re-suspending at the interrupt.
-        $resumed = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $resumed = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $state = $this->resume($resumed, $persistence, []);
 
         $this->assertSame('run_foreign', $resumed->getRunId());
@@ -281,11 +281,11 @@ class WorkflowAddressTest extends TestCase
     public function testStateCarriesBothIdentities(): void
     {
         $persistence = new InMemoryPersistence();
-        $workflow = AddressedWorkflow::make()->withDeclaredAddress('thread_1');
+        $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
 
         $state = $this->execute($workflow, $persistence);
 
-        $this->assertSame('thread_1', $state->get('__address'));
+        $this->assertSame('thread_1', $state->get('__workflowId'));
         $this->assertSame($workflow->getRunId(), $state->get('__runId'));
     }
 }

@@ -63,7 +63,7 @@ class FilePersistence implements PersistenceInterface
 
         $path = $this->filePath($partition);
 
-        // A silently failed delete would leave the address reading as
+        // A silently failed delete would leave the workflow ID reading as
         // "run in flight" forever — the sweep must fail as loudly as a write.
         if (is_file($path) && !@unlink($path)) {
             throw new WorkflowException("Unable to delete partition '{$partition}' at '{$path}'.");
@@ -87,7 +87,7 @@ class FilePersistence implements PersistenceInterface
     }
 
     /**
-     * Partition names are arbitrary business strings (an address may be
+     * Partition names are arbitrary business strings (a workflow ID may be
      * 'order:123' or contain slashes); encoding keeps every name a safe,
      * traversal-free filename while staying reversible and mostly readable.
      */

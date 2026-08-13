@@ -44,8 +44,8 @@ interface AgentInterface
 
     /**
      * The agent's thread identity — the conversation this run belongs to and
-     * the run's declared address — or null when the run is not
-     * thread-addressable.
+     * the run's declared workflow ID — or null when the run is not
+     * findable by its thread.
      */
     public function getThreadId(): ?string;
 

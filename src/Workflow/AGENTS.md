@@ -90,7 +90,7 @@ if ($state->isInterrupted()) {
 
     // ... collect the decision / event data ...
 
-    $state = MyWorkflow::make($workflow->getAddress())
+    $state = MyWorkflow::make($workflow->getWorkflowId())
         ->resume(['id' => 42]);                 // deliver the inbound payload (no stepId)
 }
 ```
@@ -124,13 +124,14 @@ $workflow = Workflow::make()
 
 The default `NullScheduler` is inert: it never wakes anything, preserving the
 caller-driven model where a caller re-invokes `resume()` to resume. The executor fires
-`onSuspend($address, $runId, $request)` after a suspend — the address is the
-resume target, the runId is a **generation stamp** the wakeup must record: a
-firing wakeup whose runId no longer matches the address's ignition record is
-stale and must be discarded, never delivered. `onResume($address)` fires on a
-deliberate resume (a payload was delivered — cancels the satisfied wakeup;
-a payload-less revive fires nothing), and `onComplete($address)` on a clean,
-fenced terminal `StopEvent` (drop all coordination state for the address). The
+`onSuspend($workflowId, $runId, $request)` after a suspend — the workflow ID
+is the resume target, the runId is a **generation stamp** the wakeup must
+record: a firing wakeup whose runId no longer matches the workflow ID's
+ignition record is stale and must be discarded, never delivered.
+`onResume($workflowId)` fires on a deliberate resume (a payload was delivered
+— cancels the satisfied wakeup; a payload-less revive fires nothing), and
+`onComplete($workflowId)` on a clean, fenced terminal `StopEvent` (drop all
+coordination state for the workflow ID). The
 deadline (`expiresAt`) lives on the outbound request and the scheduler's timer wheel;
 the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure
 partitioned KV store (no scan, no `findExpired()`) and stores no request — only the
@@ -142,17 +143,17 @@ Every durable run registers its **trigger envelope** on the first segment: an
 `Ignition` value object carrying the run's **runId** (its generation stamp),
 the start event (the run's cause, and the entry key replay walks from), plus
 an engine-opaque **context bag**. This is what makes a suspended run
-continuable from a **blank process** that knows only the address — the analog
+continuable from a **blank process** that knows only the workflow ID — the analog
 of Inngest storing and re-delivering the trigger event, or Temporal's
 `WorkflowExecutionStarted` history entry with its `memo`.
 
 The executor resolves ignition before anything else. Intent is explicit —
 `run()` ignites, `resume()` continues — so the table is flat:
 
-| verb | record at the address? | action |
+| verb | record under the workflow ID? | action |
 |---|---|---|
 | `run()` | no | fresh ignition: stamp a runId, register the envelope |
-| `run()` | yes | **refusal** — throw "run in flight at address" (never adopt) |
+| `run()` | yes | **refusal** — throw "run in flight for workflow ID" (never adopt) |
 | `resume()` | yes | adopt (runId + start event + context; a no-op for a same-instance segment — local state wins) |
 | `resume()` | no | throw "no run in flight" (loud — covers never-started AND completed) |
 
@@ -163,11 +164,11 @@ workflow contributes only vocabulary via two runtime-contract methods —
 `ignitionContext(): array` (write side) and `applyIgnitionContext(array)`
 (read side), both empty by default. The engine never interprets the bag.
 
-The record is the address partition's **generation head**: it lives under the
-unprefixed `__ignition` key and names the run currently holding the address.
+The record is the partition's **generation head**: it lives under the
+unprefixed `__ignition` key and names the run currently holding the workflow ID.
 It is swept with the steps on clean completion: a completed run cannot be
 continued. Consequence for plain workflows: a workflow suspended on
-`awaitEvent()` can be resumed by a bare `Workflow::make($address)` factory —
+`awaitEvent()` can be resumed by a bare `Workflow::make($workflowId)` factory —
 including crash-replay via bare `resume()` (no payload) by a recovery worker
 that knows nothing about how the run was ignited.
 
@@ -179,11 +180,11 @@ overwrite), `get(partition, key): ?string`, `delete(partition)` (drop a whole
 partition). Backends interpret nothing: partition names and values are opaque,
 and every backend is exactly one artifact (one array / one directory of
 `<partition>.store` files / one `workflow_store` table / one Eloquent model).
-Partition names are **arbitrary business strings** (an address may contain
+Partition names are **arbitrary business strings** (a workflow ID may contain
 slashes or colons): storing any name safely is the backend's obligation —
 `FilePersistence` encodes names into safe filenames and fails loudly on a
 dropped write. There are no reserved partitions at the store level; the
-engine keeps the `__` name prefix reclaimable by refusing such addresses
+engine keeps the `__` name prefix reclaimable by refusing such workflow IDs
 at its own layer.
 
 **The engine owns all record semantics and serialization.** The codec is a
@@ -193,7 +194,7 @@ workflow-owned seam beside persistence and scheduler —
 every record. The serializer must be stable across suspend/resume: records
 are read back with the codec the workflow is configured with.
 
-What lives where — one partition per **address**, step and memo keys prefixed
+What lives where — one partition per **workflow ID**, step and memo keys prefixed
 by the owning run's **runId** (generation), the ignition record unprefixed as
 the generation head:
 
@@ -203,34 +204,35 @@ the generation head:
 | `thread-42` | `run_abc123/ChatNode-0` | serialized `StepResult` | a step result |
 | `thread-42` | `run_abc123/ChatNode-0::inference` | serialized value | a durable memo |
 
-Clean completion is one **fenced** `delete(address)`: delete and
+Clean completion is one **fenced** `delete(workflowId)`: delete and
 `onComplete()` fire only while `__ignition` still names the completing run,
 so a stale replica finishing late can never destroy a successor's records.
 Nothing outside the partition references it — there is no cross-partition
 record anywhere, so nothing can orphan.
 
-## The address — runs are addressable
+## The workflow ID — runs are findable by a business key
 
-A run's durable records live in the partition named by its **address**: the
-business key the workflow declares by overriding **`address(): ?string`**
+A run's durable records live in the partition named by its **workflow ID**:
+the business key the workflow declares by overriding **`workflowId(): ?string`**
 (`Agent` returns its `threadId`; an order workflow would return
 `'order:123'`), or an engine-generated handle (`workflow_<uniqid>`) when it
 declares none. The stateless approve/deny endpoint's question — *"given my
 business key, which run is pending?"* — needs no index and no scan: the key
-**is** the storage location, and one `get(address, '__ignition')` answers it.
+**is** the storage location, and one `get(workflowId, '__ignition')` answers it.
 
-**One live run per address, enforced by refusal.** `run()` at an address
-holding a live ignition record throws — a pending run is settled by resuming
-it (e.g. with decline decisions), never silently replaced. **runId** is the
-per-run generation stamp inside the ignition record, re-stamped at every
-fresh ignition; it fences writes (step keys are runId-prefixed, so a prior
-generation's leftovers at a reused address are invisible to replay) and
-stamps scheduler wakeups — it is observability identity, never the
-continuation handle.
+**One live run per workflow ID, enforced by refusal.** `run()` under a
+workflow ID holding a live ignition record throws — a pending run is settled
+by resuming it (e.g. with decline decisions), never silently replaced.
+**runId** is the per-run generation stamp inside the ignition record,
+re-stamped at every fresh ignition; it fences writes (step keys are
+runId-prefixed, so a prior generation's leftovers under a reused workflow ID
+are invisible to replay) and stamps scheduler wakeups — it is observability
+identity, never the continuation handle.
 
-Addresses must be non-empty and must not start with `__`. The declared
-`address()` wins over an explicit `make($address)`; when both are present and
-disagree the run is mis-addressed and the engine throws rather than pick one.
+Workflow IDs must be non-empty and must not start with `__`. The declared
+`workflowId()` wins over an explicit `make($workflowId)`; when both are
+present and disagree the run is misidentified and the engine throws rather
+than pick one.
 
 ### The execution lease (opt-in)
 
@@ -243,7 +245,7 @@ $workflow->setLeaseTimeout(300);   // seconds; null (default) = disabled
 ```
 
 While executing, the engine heartbeats a lease record (`__lease` in the
-address partition) at every step boundary; a `resume()` that finds it held
+workflow's partition) at every step boundary; a `resume()` that finds it held
 and fresher than the timeout throws "appears to be executing" instead of
 adopting the run. Every **deliberate** stop releases the lease — suspension
 (waiting is not executing, so answering an approval seconds later is never
@@ -262,19 +264,19 @@ exact overlap it exists to prevent.
 The executor's first act, before anything reads persistence, is to establish
 *where this run lives* and *which generation holds it*:
 
-| instance state | verb | declared/explicit address | action |
+| instance state | verb | declared/explicit workflow ID | action |
 |---|---|---|---|
 | already resolved (runId set) | — | — | keep it — local state wins, no re-check |
-| blank | — | both, disagreeing | throw — mis-addressed run |
+| blank | — | both, disagreeing | throw — misidentified run |
 | blank | `run()` | none | generate `uniqid('workflow_')` |
 | blank | `run()` | present | use it; then refuse if a run is in flight there |
 | blank | `resume()` | present | use it; adopt the generation from the ignition record |
-| blank | `resume()` | none | throw — the run cannot be addressed |
+| blank | `resume()` | none | throw — the run cannot be identified |
 
-Consequently `Workflow::getAddress()` and `getRunId()` return `?string`:
+Consequently `Workflow::getWorkflowId()` and `getRunId()` return `?string`:
 identity is **assigned** by this phase, never defaulted at construction, so
 "the caller provided one" and "the caller got a default" are no longer
-indistinguishable. The state carries both as `__address` and `__runId`.
+indistinguishable. The state carries both as `__workflowId` and `__runId`.
 
 ## Durable memoization (`memoize`)
 
@@ -382,7 +384,7 @@ The executor controls **how** the workflow graph is traversed. `Workflow` delega
 `WorkflowInterface` (run/resume/events + configuration). Executors type against
 `WorkflowRuntimeInterface` — now the **single** engine-facing collaboration contract:
 the definition (`getStartEvent`, `getNodeForEvent`, `getEventNodeMap`,
-`getMiddlewareForNode`), the run (`getAddress`/`getRunId`/`adoptIdentity`, `address`,
+`getMiddlewareForNode`), the run (`getWorkflowId`/`getRunId`/`adoptIdentity`, `workflowId`,
 `getState`/`setState`, `restoreEvent`, `getEventDispatcher`), the seams
 (`getPersistence`, `getScheduler`, `getSerializer`), and the segment lifecycle (`makeIgnition`,
 `adoptIgnition`, `bootstrap`). `Workflow` implements both; anything the engine must call for

@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Thread-first continuation: the Agent declares its threadId as the run's
- * address, so the run's durable records live under the thread itself. The
+ * workflow ID, so the run's durable records live under the thread itself. The
  * approve/deny endpoint needs only the thread — no other handle is stored
  * anywhere by the application.
  */
@@ -60,7 +60,7 @@ class AgentThreadContinuationTest extends TestCase
         );
     }
 
-    public function testSuspendedRunLivesAtTheThreadAddress(): void
+    public function testSuspendedRunLivesUnderTheThreadWorkflowId(): void
     {
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
@@ -68,8 +68,8 @@ class AgentThreadContinuationTest extends TestCase
 
         $agent = $this->makeSuspendedRun($history, $persistence, $this->makeProvider($searchTool), $searchTool);
 
-        // The thread IS the address: its partition holds the generation head.
-        $this->assertSame($history->getThreadId(), $agent->getAddress());
+        // The thread IS the workflow ID: its partition holds the generation head.
+        $this->assertSame($history->getThreadId(), $agent->getWorkflowId());
         $this->assertNotNull($persistence->get((string) $history->getThreadId(), '__ignition'));
     }
 
@@ -94,7 +94,7 @@ class AgentThreadContinuationTest extends TestCase
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
-        // ChatNode:0 was memoized under the resolved address — the first inference is not re-billed.
+        // ChatNode:0 was memoized under the resolved workflow ID — the first inference is not re-billed.
         $this->assertSame(2, $provider->getCallCount());
     }
 
@@ -119,7 +119,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent1->setPersistence($persistence);
 
         $this->assertTrue($agent1->chat(new UserMessage('Search for PHP frameworks'))->isInterrupted());
-        $this->assertSame('thread-cont', $agent1->getAddress());
+        $this->assertSame('thread-cont', $agent1->getWorkflowId());
         $this->assertNotNull($persistence->get('thread-cont', '__ignition'));
 
         $agent2 = Agent::make(threadId: 'thread-cont');
@@ -161,37 +161,37 @@ class AgentThreadContinuationTest extends TestCase
         $agent3->setPersistence($persistence);
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No run in flight at address');
+        $this->expectExceptionMessage('No run in flight for workflow ID');
 
         $agent3->resume(['call_1' => 'approve']);
     }
 
-    public function testConflictingExplicitAddressThrows(): void
+    public function testConflictingExplicitWorkflowIdThrows(): void
     {
-        // The thread is the declared address; an explicit address that
-        // disagrees is a mis-addressed run and must fail loudly, never
+        // The thread is the declared workflow ID; an explicit workflow ID that
+        // disagrees is a misidentified run and must fail loudly, never
         // silently pick one of the two identities.
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent = Agent::make(address: 'someplace_else');
+        $agent = Agent::make(workflowId: 'someplace_else');
         $agent->setChatHistory($history);
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
         $agent->setPersistence($persistence);
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Mis-addressed run');
+        $this->expectExceptionMessage('Misidentified run');
 
         $agent->chat(new UserMessage('Search for PHP frameworks'));
     }
 
     public function testResumeWithNothingInFlightFailsLoudly(): void
     {
-        // A thread-addressed continuation of a thread with nothing in flight is
-        // an unaddressable request: it fails loudly rather than silently
+        // A thread-keyed continuation of a thread with nothing in flight is
+        // an unidentifiable request: it fails loudly rather than silently
         // running against a wrong or absent run.
         $agent = Agent::make();
         $agent->setChatHistory(new InMemoryChatHistory());
@@ -199,21 +199,21 @@ class AgentThreadContinuationTest extends TestCase
         $agent->setPersistence(new InMemoryPersistence());
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No run in flight at address');
+        $this->expectExceptionMessage('No run in flight for workflow ID');
 
         $agent->resume(['call_1' => 'approve']);
     }
 
-    public function testExplicitAddressResumeFailsOnMissingIgnition(): void
+    public function testExplicitWorkflowIdResumeFailsOnMissingIgnition(): void
     {
-        // An explicit address agreeing with the thread resolves fine — and
-        // then fails on the missing generation head, not on addressing.
-        $agent = Agent::make(address: 'my_explicit_run');
+        // An explicit workflow ID agreeing with the thread resolves fine — and
+        // then fails on the missing generation head, not on identity.
+        $agent = Agent::make(workflowId: 'my_explicit_run');
         $agent->setChatHistory(new InMemoryChatHistory('my_explicit_run'));
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("No run in flight at address 'my_explicit_run'");
+        $this->expectExceptionMessage("No run in flight for workflow ID 'my_explicit_run'");
 
         $agent->resume(['call_1' => 'approve']);
     }

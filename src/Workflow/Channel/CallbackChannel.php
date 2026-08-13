@@ -47,24 +47,24 @@ final class CallbackChannel implements StreamingChannelInterface
         }
     }
 
-    public function suspended(InterruptRequest $request, string $address): void
+    public function suspended(InterruptRequest $request, string $workflowId): void
     {
         if ($this->onSuspended instanceof Closure) {
-            ($this->onSuspended)($request, $address);
+            ($this->onSuspended)($request, $workflowId);
         }
     }
 
-    public function completed(WorkflowState $state, string $address): void
+    public function completed(WorkflowState $state, string $workflowId): void
     {
         if ($this->onCompleted instanceof Closure) {
-            ($this->onCompleted)($state, $address);
+            ($this->onCompleted)($state, $workflowId);
         }
     }
 
-    public function failed(Throwable $exception, string $address): void
+    public function failed(Throwable $exception, string $workflowId): void
     {
         if ($this->onFailed instanceof Closure) {
-            ($this->onFailed)($exception, $address);
+            ($this->onFailed)($exception, $workflowId);
         }
     }
 }

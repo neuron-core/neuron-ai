@@ -11,7 +11,7 @@ This skill helps you gate agent tool execution behind human approval and build t
 
 **Approval is owned by `ToolNode` and configured on the tools themselves**. There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
-**Chat history is what the application reads; the thread is the address.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Resuming needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread id alone. Nothing is stored on the side.
+**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Resuming needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread id alone. Nothing is stored on the side.
 
 Two facts shape the UI:
 
@@ -80,7 +80,7 @@ $state->getMessage();           // the annotated ToolCallMessage (see JSON below
 $state->getInterruptRequest();  // ApprovalRequest — in-process render source
 ```
 
-On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states and reasons, stamped once. Serialize it straight to your client — it is the same message persisted in chat history. (It carries no execution identity: the run is addressed by the thread, not by anything in the message.)
+On a suspended run, `getMessage()` returns the **annotated `ToolCallMessage`**: approval states and reasons, stamped once. Serialize it straight to your client — it is the same message persisted in chat history. (It carries no execution identity: the run is identified by the thread, not by anything in the message.)
 
 ## The JSON the UI Deals With
 
@@ -176,7 +176,7 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ## One Endpoint for the Whole Conversation
 
-A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With `decisions`, `resume()` finds the thread's pending run at the thread's own address; with a message, `chat()` starts a fresh run.
+A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With `decisions`, `resume()` finds the thread's pending run under the thread's own workflow ID; with a message, `chat()` starts a fresh run.
 
 ```php
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -214,9 +214,9 @@ function chatEndpoint(string $threadId, array $body): array
 
 Why this works as one endpoint:
 
-1. **Same construction** — both paths build the identical agent from the thread id; the thread IS the run's address, so the decisions branch needs nothing extra.
+1. **Same construction** — both paths build the identical agent from the thread id; the thread IS the run's workflow ID, so the decisions branch needs nothing extra.
 2. **Same outcomes** — a fresh turn can end suspended (model called a gated tool) and a resume can end suspended (incomplete decision set, or the model called another gated tool). One response contract covers both: `awaiting_approval | completed`.
-3. **Same failure containment** — a user message on a suspended thread is refused by the engine ("run in flight at address") before anything reaches the provider or the durable store; map it to HTTP 409.
+3. **Same failure containment** — a user message on a suspended thread is refused by the engine ("run is already in flight") before anything reaches the provider or the durable store; map it to HTTP 409.
 
 Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented. For streaming, swap `chat()` for `stream()` (a `Generator` — emit its chunks), and read the final `AgentState` from `$stream->getReturn()` after it drains (`isInterrupted()` tells you which status to return).
 

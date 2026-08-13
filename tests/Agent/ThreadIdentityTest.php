@@ -66,10 +66,10 @@ class ThreadIdentityTest extends TestCase
         $first->setChatHistory(new SQLChatHistory($pdo));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Wake: a BLANK process — the address only, another unbound history.
+        // Wake: a BLANK process — the workflow ID only, another unbound history.
         // The threadId arrives via the adopted ignition context and is bound
         // into the history before any message is touched.
-        $second = Agent::make(address: 'thread-1');
+        $second = Agent::make(workflowId: 'thread-1');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
@@ -138,7 +138,7 @@ class ThreadIdentityTest extends TestCase
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // Blank instance: unbound history, the address only — the threadId
+        // Blank instance: unbound history, the workflow ID only — the threadId
         // arrives via the adopted ignition context and is bound by the
         // framework, never set by the caller.
         $pdo = new PDO('sqlite::memory:');
@@ -146,7 +146,7 @@ class ThreadIdentityTest extends TestCase
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             thread_id TEXT, role TEXT, content TEXT, meta TEXT
         )');
-        $second = Agent::make(address: 'thread-42');
+        $second = Agent::make(workflowId: 'thread-42');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
@@ -161,7 +161,7 @@ class ThreadIdentityTest extends TestCase
     public function test_explicit_thread_id_with_an_unbound_history_on_a_fresh_run(): void
     {
         // The binding model's payoff: identity stated once at the front door,
-        // never in wiring code — and the run ignites thread-addressable.
+        // never in wiring code — and the run ignites findable by its thread.
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,9 +179,9 @@ class ThreadIdentityTest extends TestCase
 
         $this->assertSame('thread-x', $agent->getThreadId());
         $this->assertSame('thread-x', $agent->getChatHistory()->getThreadId());
-        // The run ignited addressable by its thread: the thread IS the
-        // address — and clean completion swept its partition entirely.
-        $this->assertSame('thread-x', $agent->getAddress());
+        // The run ignited findable by its thread: the thread IS the
+        // workflow ID — and clean completion swept its partition entirely.
+        $this->assertSame('thread-x', $agent->getWorkflowId());
         $this->assertNull($persistence->get('thread-x', '__ignition'));
     }
 
@@ -226,16 +226,16 @@ class ThreadIdentityTest extends TestCase
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
-        // A mis-addressed continuation: the caller claims another thread's
-        // identity for this address. The engine refuses the contradiction
+        // A misidentified continuation: the caller claims another thread's
+        // identity for this workflow ID. The engine refuses the contradiction
         // before any record is touched.
-        $second = Agent::make(address: 'thread-42', threadId: 'thread-other');
+        $second = Agent::make(workflowId: 'thread-42', threadId: 'thread-other');
         $second->setAiProvider(new FakeAIProvider());
         $second->setInstructions('test');
         $second->setPersistence($persistence);
 
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Mis-addressed run');
+        $this->expectExceptionMessage('Misidentified run');
 
         $second->resume();
     }

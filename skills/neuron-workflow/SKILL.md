@@ -304,14 +304,14 @@ $state = $workflow->run();
 if ($state->isInterrupted()) {
     // Present the request to the user and collect a decision (outbound).
     $request = $state->getInterruptRequest();
-    $address = $workflow->getAddress();   // assigned by the engine at ignition
+    $workflowId = $workflow->getWorkflowId();   // assigned by the engine at ignition
 
     // ... user approves/rejects ...
 
-    // Resume — same persistence + address, delivering the answer as an inbound
+    // Resume — same persistence + workflow ID, delivering the answer as an inbound
     // PAYLOAD (a plain array). Completed nodes replay from cache; only the
     // interrupted node re-runs and receives the payload.
-    $state = Workflow::make(address: $address)
+    $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume(['approved' => true]);
@@ -320,19 +320,19 @@ if ($state->isInterrupted()) {
 $result = $state->get('result');
 ```
 
-### Resuming by business key — the address
+### Resuming by business key — the workflow ID
 
-A run has two identities: its **address** — the partition its durable records
+A run has two identities: its **workflow ID** — the partition its durable records
 live under — and a per-run **runId** (a generation stamp for observability
 and fencing, never the continuation handle). Declare the business identity
 your application naturally holds (a thread id, an order id) by overriding
-`address()`, and the run's records live under that key itself; a `resume()`
+`workflowId()`, and the run's records live under that key itself; a `resume()`
 built from the business key alone finds the pending run:
 
 ```php
 class OrderWorkflow extends Workflow
 {
-    public function address(): ?string
+    public function workflowId(): ?string
     {
         return 'order:' . $this->orderId;
     }
@@ -345,14 +345,15 @@ $state = OrderWorkflow::make(orderId: $orderId)
     ->resume(['approved' => true]);
 ```
 
-Rules: **one live run per address** — `run()` while a run is in flight at the
-address throws ("run in flight"); settle the pending run by resuming it. A
-completed run's records are swept, so a later resume throws "No run in
-flight". A continuation with no address at all throws. A declared `address()`
-wins over an explicit `make($address)`; a disagreement throws (mis-addressed
-run). Plain workflows that declare no key get a generated address
-(`getAddress()` after the first segment) and are otherwise unaffected. The
-`Agent` uses exactly this mechanism with its threadId as the address.
+Rules: **one live run per workflow ID** — `run()` while a run is in flight for
+the workflow ID throws ("run is already in flight"); settle the pending run by
+resuming it. A completed run's records are swept, so a later resume throws "No
+run in flight". A continuation with no workflow ID at all throws. A declared
+`workflowId()` wins over an explicit `make($workflowId)`; a disagreement throws
+(misidentified run). Plain workflows that declare no key get a generated
+workflow ID (`getWorkflowId()` after the first segment) and are otherwise
+unaffected. The `Agent` uses exactly this mechanism with its threadId as the
+workflow ID.
 
 ## The Suspend Vocabulary (beyond approval)
 
@@ -394,7 +395,7 @@ Resume delivers the matched event's data as the inbound payload — the node's
 ```php
 // The caller (a webhook controller, a queue worker, a scheduler) resumes the
 // run with the event payload:
-$state = Workflow::make(address: $address)
+$state = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([...])
     ->resume($paymentPayload);
@@ -899,11 +900,11 @@ $state = $workflow->run();
 
 if ($state->isInterrupted()) {
     $request = $state->getInterruptRequest();   // outbound: render it
-    $address = $workflow->getAddress();
+    $workflowId = $workflow->getWorkflowId();
 
     // ... user responds ...
 
-    $state = Workflow::make(address: $address)
+    $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume(['answer' => $decision]);      // inbound payload

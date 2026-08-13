@@ -10,16 +10,16 @@ namespace NeuronAI\Workflow\Persistence;
  * array — holding every engine record.
  *
  * The engine owns all record semantics and serialization: a run's records
- * (ignition, steps, memos) live in the partition named by its address —
+ * (ignition, steps, memos) live in the partition named by its workflow ID —
  * a business key or a generated handle. Backends never interpret partition
  * names and never parse values — both are opaque strings.
  *
- * A partition name is an ARBITRARY non-empty string: addresses are
+ * A partition name is an ARBITRARY non-empty string: workflow IDs are
  * business-owned (a threadId, 'order:123'), so safe storage of any name is
  * the backend's obligation — encode names that are unsafe for the medium
  * (e.g. as filenames) at the backend's own boundary. There are no reserved
  * partitions — backends treat every name uniformly; the engine keeps the
- * "__" name prefix reclaimable by refusing such addresses at its own layer.
+ * "__" name prefix reclaimable by refusing such workflow IDs at its own layer.
  * Capacity limits (name length, value size) are backend-specific and must
  * surface as loud failures, never silent truncation or a dropped write.
  */
