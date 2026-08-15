@@ -409,36 +409,6 @@ class MyChatBot extends RAG
 
 Learn more about RAG in the [documentation](https://docs.neuron-ai.dev/rag/rag).
 
-### ParadeDB hybrid retrieval
-
-ParadeDB can combine its BM25 full-text search with pgvector cosine similarity.
-Configure both the vector store and the hybrid retrieval strategy explicitly:
-
-```php
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
-use NeuronAI\RAG\Retrieval\HybridRetrieval;
-use NeuronAI\RAG\VectorStore\ParadeDBVectorStore;
-use PDO;
-
-$embeddings = new OpenAIEmbeddingsProvider(
-    key: 'OPENAI_API_KEY',
-    model: 'text-embedding-3-small',
-    dimensions: 1536,
-);
-$store = new ParadeDBVectorStore(
-    new PDO('pgsql:host=localhost;dbname=app', 'app', 'password')
-);
-$store->setupTable(dimensions: 1536);
-
-$rag->setEmbeddingsProvider($embeddings);
-$rag->setVectorStore($store);
-$rag->setRetrieval(new HybridRetrieval($store, $embeddings));
-```
-
-`setupTable()` enables the `vector` and `pg_search` extensions and creates the
-table, BM25 index, and HNSW cosine index. The connected database user therefore
-needs permission to create extensions and database objects during setup.
-
 <a name="workflow">
 
 ## Workflow
