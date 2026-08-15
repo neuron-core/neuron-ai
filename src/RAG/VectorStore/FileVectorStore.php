@@ -7,6 +7,8 @@ namespace NeuronAI\RAG\VectorStore;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Generator;
 use RuntimeException;
 
@@ -62,8 +64,10 @@ class FileVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $evaluator = new FilterEvaluator();
+
         // Temporary file
         $tmpFile = $this->directory . DIRECTORY_SEPARATOR . $this->name.'_tmp'.$this->ext;
 
@@ -77,10 +81,7 @@ class FileVectorStore implements VectorStoreInterface
             foreach ($this->getLine($this->getFilePath()) as $line) {
                 $document = json_decode((string) $line, true);
 
-                $matchesType = $document['sourceType'] === $sourceType;
-                $matchesName = $sourceName === null || $document['sourceName'] === $sourceName;
-
-                if (!$matchesType || !$matchesName) {
+                if (!$evaluator->matches($filters, $this->filterFields($document))) {
                     fwrite($tempHandle, (string) $line);
                 }
             }
@@ -97,24 +98,31 @@ class FileVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function similaritySearch(array $embedding): array
+    public function search(SearchRequest $request): array
     {
         $topItems = [];
+        $topK = $request->topK ?? $this->topK;
+        $filters = $request->filters;
+        $evaluator = new FilterEvaluator();
 
         foreach ($this->getLine($this->getFilePath()) as $document) {
             $document = json_decode((string) $document, true);
 
+            if ($filters instanceof FilterGroup && !$evaluator->matches($filters, $this->filterFields($document))) {
+                continue;
+            }
+
             if (empty($document['embedding'])) {
                 throw new VectorStoreException("Document with the following content has no embedding: {$document['content']}");
             }
-            $dist = VectorSimilarity::cosineDistance($embedding, $document['embedding']);
+            $dist = VectorSimilarity::cosineDistance($request->embedding, $document['embedding']);
 
             $topItems[] = ['dist' => $dist, 'document' => $document];
 
             usort($topItems, fn (array $a, array $b): int => $a['dist'] <=> $b['dist']);
 
-            if (count($topItems) > $this->topK) {
-                $topItems = array_slice($topItems, 0, $this->topK, true);
+            if (count($topItems) > $topK) {
+                $topItems = array_slice($topItems, 0, $topK, true);
             }
         }
 
@@ -130,6 +138,20 @@ class FileVectorStore implements VectorStoreInterface
 
             return $document;
         }, $topItems);
+    }
+
+    /**
+     * @param array<string, mixed> $document A decoded storage row.
+     * @return array<string, mixed>
+     */
+    protected function filterFields(array $document): array
+    {
+        return [
+            'content' => $document['content'] ?? null,
+            'sourceType' => $document['sourceType'] ?? null,
+            'sourceName' => $document['sourceName'] ?? null,
+            ...($document['metadata'] ?? []),
+        ];
     }
 
     protected function appendToFile(array $documents): void

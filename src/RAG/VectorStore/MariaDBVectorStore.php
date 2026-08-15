@@ -6,6 +6,8 @@ namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\MariaDBFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Exception;
 use PDO;
 
@@ -99,40 +101,46 @@ class MariaDBVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        if ($sourceName !== null) {
-            $stmt = $this->pdo->prepare(sprintf(
-                'DELETE FROM %s WHERE sourceType = :sourceType AND sourceName = :sourceName',
-                $this->tableName,
-            ));
-            $stmt->execute([':sourceType' => $sourceType, ':sourceName' => $sourceName]);
-        } else {
-            $stmt = $this->pdo->prepare(sprintf(
-                'DELETE FROM %s WHERE sourceType = :sourceType',
-                $this->tableName,
-            ));
-            $stmt->execute([':sourceType' => $sourceType]);
-        }
+        $compiled = (new MariaDBFilterCompiler())->compile($filters);
+
+        $stmt = $this->pdo->prepare(sprintf(
+            'DELETE FROM %s WHERE %s',
+            $this->tableName,
+            $compiled['sql'],
+        ));
+        $stmt->execute($compiled['bindings']);
 
         return $this;
     }
 
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
+        $where = '';
+        $bindings = [':embedding' => json_encode($request->embedding)];
+
+        if ($request->filters instanceof FilterGroup) {
+            $compiled = (new MariaDBFilterCompiler())->compile($request->filters);
+            $where = 'WHERE ' . $compiled['sql'];
+            $bindings = [...$bindings, ...$compiled['bindings']];
+        }
+
         $stmt = $this->pdo->prepare(sprintf(
             <<<'SQL'
                 SELECT id, content, sourceType, sourceName, metadata,
                        VEC_DISTANCE_EUCLIDEAN(embedding, VEC_FromText(:embedding)) AS distance
                 FROM %s
+                %s
                 ORDER BY distance ASC
                 LIMIT %d
                 SQL,
             $this->tableName,
-            $this->topK,
+            $where,
+            $request->topK ?? $this->topK,
         ));
 
-        $stmt->execute([':embedding' => json_encode($embedding)]);
+        $stmt->execute($bindings);
 
         $documents = [];
 

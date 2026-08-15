@@ -6,6 +6,9 @@ namespace NeuronAI\Tests\VectorStore;
 
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 use function unlink;
@@ -33,7 +36,7 @@ class FileVectorStoreTest extends TestCase
         $store = new FileVectorStore(__DIR__, 1);
         $store->addDocuments([$document, $document2]);
 
-        $results = $store->similaritySearch([1, 2, 3]);
+        $results = $store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->id, $results[0]->getId());
@@ -58,9 +61,9 @@ class FileVectorStoreTest extends TestCase
         $store = new FileVectorStore(__DIR__);
 
         $store->addDocuments([$document, $document2]);
-        $store->deleteBy('manual', 'manual');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $store->similaritySearch([1, 2, 3]);
+        $results = $store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(0, $results);
 
         unlink(__DIR__.'/neuron.store');
@@ -88,9 +91,9 @@ class FileVectorStoreTest extends TestCase
         $store = new FileVectorStore(__DIR__, 3);
         $store->addDocuments([$document1, $document2, $document3]);
 
-        $store->deleteBy('web');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $store->similaritySearch([1, 2, 3]);
+        $results = $store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
 

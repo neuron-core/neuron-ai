@@ -8,6 +8,9 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 use function uniqid;
@@ -57,7 +60,7 @@ class WeaviateTest extends TestCase
 
         $this->store->addDocument($document);
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -75,7 +78,7 @@ class WeaviateTest extends TestCase
 
         $this->store->addDocuments([$document1, $document2]);
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
 
         $this->assertCount(2, $results);
         $this->assertEquals($document1->getContent(), $results[0]->getContent());
@@ -95,7 +98,7 @@ class WeaviateTest extends TestCase
 
         $this->store->addDocuments([$doc1, $doc2, $doc3]);
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
 
         $this->assertCount(3, $results);
         $this->assertGreaterThanOrEqual($results[1]->getScore(), $results[0]->getScore());
@@ -115,9 +118,9 @@ class WeaviateTest extends TestCase
         $document2->embedding = [0, 1, 0];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBy('manual', 'manual');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
         $this->assertCount(0, $results);
     }
 
@@ -139,9 +142,9 @@ class WeaviateTest extends TestCase
         $document3->embedding = [0, 0, 1];
 
         $this->store->addDocuments([$document1, $document2, $document3]);
-        $this->store->deleteBy('web');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $this->store->similaritySearch([0, 0, 1]);
+        $results = $this->store->search(new SearchRequest([0, 0, 1]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }
@@ -163,7 +166,7 @@ class WeaviateTest extends TestCase
 
         $store->addDocuments($docs);
 
-        $results = $store->similaritySearch([0, 0, 0]);
+        $results = $store->search(new SearchRequest([0, 0, 0]));
         $this->assertCount(2, $results);
 
         $store->destroy();

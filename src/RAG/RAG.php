@@ -13,6 +13,8 @@ use NeuronAI\RAG\Nodes\PreProcessNode;
 use NeuronAI\RAG\Nodes\RetrievalNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\Workflow\Node;
 
 use function array_chunk;
@@ -91,7 +93,10 @@ class RAG extends Agent
 
         foreach (array_keys($grouped) as $key) {
             [$sourceType, $sourceName] = explode(':', $key);
-            $this->resolveVectorStore()->deleteBy($sourceType, $sourceName);
+            $this->resolveVectorStore()->delete(FilterGroup::and(
+                Filter::eq('sourceType', $sourceType),
+                Filter::eq('sourceName', $sourceName),
+            ));
             $this->addDocuments($grouped[$key], $chunkSize);
         }
     }

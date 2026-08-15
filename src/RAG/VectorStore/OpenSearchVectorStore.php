@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\OpenSearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use OpenSearch\Client;
 use Exception;
 
@@ -18,8 +20,6 @@ use function max;
 class OpenSearchVectorStore implements VectorStoreInterface
 {
     protected bool $vectorDimSet = false;
-
-    protected array $filters = [];
 
     public function __construct(
         protected Client $client,
@@ -152,16 +152,13 @@ class OpenSearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $query = $sourceName !== null
-            ? "sourceType:{$sourceType} AND sourceName:{$sourceName}"
-            : "sourceType:{$sourceType}";
-
         $this->client->deleteByQuery([
             'index' => $this->index,
-            'q' => $query,
-            'body' => [],
+            'body' => [
+                'query' => (new OpenSearchFilterCompiler())->compile($filters),
+            ],
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);
         return $this;
@@ -170,16 +167,18 @@ class OpenSearchVectorStore implements VectorStoreInterface
     /**
      * @return Document[]
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
+        $topK = $request->topK ?? $this->topK;
+
         $searchParams = [
             'index' => $this->index,
             'body' => [
                 'query' => [
                     'knn' => [
                         'embedding' => [
-                            'vector' => $embedding,
-                            'k' => max(50, $this->topK * 4),
+                            'vector' => $request->embedding,
+                            'k' => max(50, $topK * 4),
                         ],
                     ],
                 ],
@@ -191,9 +190,8 @@ class OpenSearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        // Hybrid search
-        if ($this->filters !== []) {
-            $searchParams['body']['query']['knn']['filter'] = $this->filters;
+        if ($request->filters instanceof FilterGroup) {
+            $searchParams['body']['query']['knn']['embedding']['filter'] = (new OpenSearchFilterCompiler())->compile($request->filters);
         }
 
         $response = $this->client->search($searchParams);
@@ -266,11 +264,5 @@ class OpenSearchVectorStore implements VectorStoreInterface
         ]);
 
         $this->vectorDimSet = true;
-    }
-
-    public function withFilters(array $filters): self
-    {
-        $this->filters = $filters;
-        return $this;
     }
 }

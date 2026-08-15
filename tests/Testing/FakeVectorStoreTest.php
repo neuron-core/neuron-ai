@@ -7,6 +7,9 @@ namespace NeuronAI\Tests\Testing;
 use NeuronAI\RAG\Document;
 use NeuronAI\Testing\FakeVectorStore;
 use PHPUnit\Framework\AssertionFailedError;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 class FakeVectorStoreTest extends TestCase
@@ -47,7 +50,7 @@ class FakeVectorStoreTest extends TestCase
         $doc2->sourceName = 'delete.txt';
 
         $store->addDocuments([$doc1, $doc2]);
-        $store->deleteBy('file', 'delete.txt');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'file'), Filter::eq('sourceName', 'delete.txt')));
 
         $this->assertCount(1, $store->getDocuments());
         $this->assertSame('Keep', $store->getDocuments()[0]->content);
@@ -66,7 +69,7 @@ class FakeVectorStoreTest extends TestCase
         $doc2->sourceName = 'foo-1';
 
         $store->addDocuments([$doc1, $doc2]);
-        $store->deleteBy('db');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'db')));
 
         $this->assertCount(1, $store->getDocuments());
         $this->assertSame('Keep', $store->getDocuments()[0]->content);
@@ -78,7 +81,7 @@ class FakeVectorStoreTest extends TestCase
 
         $store = new FakeVectorStore([$doc]);
 
-        $results = $store->similaritySearch([0.1, 0.2, 0.3]);
+        $results = $store->search(new SearchRequest([0.1, 0.2, 0.3]));
 
         $this->assertCount(1, $results);
         $this->assertSame($doc, $results[0]);
@@ -90,20 +93,20 @@ class FakeVectorStoreTest extends TestCase
 
         $store = new FakeVectorStore([$doc]);
 
-        $this->assertSame([$doc], $store->similaritySearch([0.0]));
-        $this->assertSame([$doc], $store->similaritySearch([1.0, 2.0, 3.0]));
+        $this->assertSame([$doc], $store->search(new SearchRequest([0.0])));
+        $this->assertSame([$doc], $store->search(new SearchRequest([1.0, 2.0, 3.0])));
     }
 
     public function test_set_search_results(): void
     {
         $store = new FakeVectorStore();
 
-        $this->assertEmpty($store->similaritySearch([0.1]));
+        $this->assertEmpty($store->search(new SearchRequest([0.1])));
 
         $doc = new Document('New result');
         $store->setSearchResults([$doc]);
 
-        $this->assertSame([$doc], $store->similaritySearch([0.1]));
+        $this->assertSame([$doc], $store->search(new SearchRequest([0.1])));
     }
 
     public function test_records_operations(): void
@@ -112,24 +115,24 @@ class FakeVectorStoreTest extends TestCase
 
         $store->addDocument(new Document('A'));
         $store->addDocuments([new Document('B')]);
-        $store->deleteBy('file', 'test.txt');
-        $store->similaritySearch([0.1]);
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'file'), Filter::eq('sourceName', 'test.txt')));
+        $store->search(new SearchRequest([0.1]));
 
         $recorded = $store->getRecorded();
 
         $this->assertCount(4, $recorded);
         $this->assertSame('addDocument', $recorded[0]['method']);
         $this->assertSame('addDocuments', $recorded[1]['method']);
-        $this->assertSame('deleteBy', $recorded[2]['method']);
-        $this->assertSame('similaritySearch', $recorded[3]['method']);
+        $this->assertSame('delete', $recorded[2]['method']);
+        $this->assertSame('search', $recorded[3]['method']);
     }
 
     public function test_assert_search_count(): void
     {
         $store = new FakeVectorStore();
 
-        $store->similaritySearch([0.1]);
-        $store->similaritySearch([0.2]);
+        $store->search(new SearchRequest([0.1]));
+        $store->search(new SearchRequest([0.2]));
 
         $store->assertSearchCount(2);
         $this->addToAssertionCount(1);
@@ -199,6 +202,6 @@ class FakeVectorStoreTest extends TestCase
         $doc = new Document('Result');
         $store = FakeVectorStore::make([$doc]);
 
-        $this->assertSame([$doc], $store->similaritySearch([0.1]));
+        $this->assertSame([$doc], $store->search(new SearchRequest([0.1])));
     }
 }

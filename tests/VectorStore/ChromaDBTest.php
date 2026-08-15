@@ -8,6 +8,9 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -46,7 +49,7 @@ class ChromaDBTest extends TestCase
 
         $this->store->addDocument($document);
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -67,7 +70,7 @@ class ChromaDBTest extends TestCase
 
         $this->store->addDocuments([$document, $document2]);
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertGreaterThanOrEqual(1, count($results));
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -86,9 +89,9 @@ class ChromaDBTest extends TestCase
         $document2->embedding = [3, 4, 5];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBy('manual', 'manual');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(0, $results);
     }
 
@@ -113,9 +116,9 @@ class ChromaDBTest extends TestCase
         $document3->sourceName = 'doc.txt';
 
         $this->store->addDocuments([$document1, $document2, $document3]);
-        $this->store->deleteBy('web');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }

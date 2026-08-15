@@ -18,7 +18,12 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
 ```
 
 1. Extract and pre-process the user question (query expansion, rewriting)
-2. Retrieve relevant documents from the VectorStore
+2. Retrieve relevant documents from the VectorStore. `QueryPreProcessedEvent`
+   is the injection channel for retrieval filters: middleware (in `before()`
+   on `RetrievalNode`) and preceding nodes call `addFilters(FilterGroup)`;
+   the node forwards them to the retrieval strategy, which ANDs them with its
+   own static filters — injected filters can narrow a search, never widen it.
+   The event is born fresh every run, so a filter never leaks into the next run.
 3. Post-process (re-rank, filter)
 4. `InstructionsNode` births the inference event: document-enriched
    instructions + the run's intent, carried through the chain on each event's
@@ -82,6 +87,46 @@ $response = WorkoutTipsAgent::make()->chat(
 ```
 
 ## Vector Stores (`VectorStore/`)
+
+`VectorStoreInterface` is filter-aware and stateless per call:
+
+```php
+$store->search(new SearchRequest(embedding: $vector, filters: $group, topK: 8));
+$store->delete(FilterGroup::and(Filter::eq('sourceType', 'file')));
+```
+
+`SearchRequest` is an immutable per-call value (embedding, `?FilterGroup`,
+`?int topK` — null falls back to the store's constructor default). There is
+no mutable search state on a store: a filter set for one call cannot leak
+into the next.
+
+### The filter model (`VectorStore/Filter/`)
+
+A portable, backend-neutral vocabulary compiled to each store's native syntax:
+
+- `Filter::eq/neq/in/gt/gte/lt/lte(field, value)` — the full operator set.
+  Values are scalars only (`null` throws: no portable missing-vs-null
+  semantics); range operators are `int|float` only (string ranges are not
+  portable — index dates as epoch timestamps).
+- `FilterGroup::and(...)` — AND-only conjunction; nested groups flatten, so
+  merging scopes is appending and composed filters can only narrow.
+- `Filter::raw(StoreClass::class, $fragment)` — backend-native escape hatch,
+  tagged with its target store. The tagged store passes the fragment through
+  verbatim; every other store's compiler throws (fail-loud on store swap,
+  never silent misfiltering).
+
+Each backend has a compiler class in `VectorStore/Filter/Compilers/`
+(`QdrantFilterCompiler`, `MeilisearchFilterCompiler`, ...;
+`OpenSearchFilterCompiler` extends the Elasticsearch one). Compilers are
+internal wiring — no shared interface, not injectable. `FileVectorStore` and
+`MemoryVectorStore` share the PHP-side `FilterEvaluator` instead (raw filters
+throw there — nothing can execute them).
+
+Backend caveats: Meilisearch metadata fields must be declared filterable in
+the index settings; MongoDB Atlas filter fields must be declared in the
+vector index; Weaviate stores custom metadata as a JSON string, so only
+`content`/`sourceType`/`sourceName` are filterable (anything else throws);
+Pinecone filter-based deletion works on pod-based indexes only.
 
 `VectorStoreInterface` implementations:
 
@@ -163,14 +208,23 @@ $documents = FileDataLoader::for('/path/to/documents')
 
 ## Retrieval Strategies (`Retrieval/`)
 
+`RetrievalInterface::retrieve(Message $query, ?FilterGroup $filters = null)`.
+The second parameter carries per-run filters injected via
+`QueryPreProcessedEvent::addFilters()`; a strategy must AND them with its
+own — never drop them. `SimilarityRetrieval` takes an optional static filter
+scope applied to every search:
+
 ```php
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 protected function retrieval(): RetrievalInterface
 {
     return new SimilarityRetrieval(
         $this->resolveVectorStore(),
         $this->resolveEmbeddingsProvider(),
+        filters: FilterGroup::and(Filter::eq('tenant', $tenantId)),  // optional
     );
 }
 ```

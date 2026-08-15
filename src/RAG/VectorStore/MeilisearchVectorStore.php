@@ -10,6 +10,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\MeilisearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Exception;
 
 use function array_map;
@@ -24,15 +26,6 @@ use function array_chunk;
 class MeilisearchVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
-
-    /**
-     * Native Meilisearch filter expressions applied to similaritySearch().
-     *
-     * https://www.meilisearch.com/docs/reference/api/search#filter
-     *
-     * @var array<int, mixed>
-     */
-    protected array $filters = [];
 
     /**
      * @throws HttpException
@@ -100,27 +93,14 @@ class MeilisearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @deprecated Use deleteBy() instead.
      * @throws HttpException
      */
-    public function deleteBySource(string $sourceType, string $sourceName): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        return $this->deleteBy($sourceType, $sourceName);
-    }
-
-    /**
-     * @throws HttpException
-     */
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
-    {
-        $filter = $sourceName !== null
-            ? "sourceType = '{$sourceType}' AND sourceName = '{$sourceName}'"
-            : "sourceType = '{$sourceType}'";
-
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "/indexes/{$this->indexUid}/documents/delete",
-                body: ['filter' => $filter]
+                body: ['filter' => (new MeilisearchFilterCompiler())->compile($filters)]
             )
         );
 
@@ -128,22 +108,13 @@ class MeilisearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @param  array<int, mixed>  $filters  Native Meilisearch filter expressions.
-     */
-    public function withFilters(array $filters): self
-    {
-        $this->filters = $filters;
-        return $this;
-    }
-
-    /**
      * @throws HttpException
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
         $body = [
-            'vector' => $embedding,
-            'limit' => min($this->topK, 20),
+            'vector' => $request->embedding,
+            'limit' => min($request->topK ?? $this->topK, 20),
             'retrieveVectors' => true,
             'showRankingScore' => true,
             'hybrid' => [
@@ -152,8 +123,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        if ($this->filters !== []) {
-            $body['filter'] = $this->filters;
+        if ($request->filters instanceof FilterGroup) {
+            $body['filter'] = (new MeilisearchFilterCompiler())->compile($request->filters);
         }
 
         $response = $this->httpClient->request(

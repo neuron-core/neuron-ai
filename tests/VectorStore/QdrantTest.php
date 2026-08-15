@@ -8,6 +8,9 @@ use GuzzleHttp\Exception\GuzzleException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 use function sprintf;
@@ -55,7 +58,7 @@ class QdrantTest extends TestCase
 
         $this->store->addDocument($document);
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
@@ -75,7 +78,7 @@ class QdrantTest extends TestCase
 
         $this->store->addDocuments([$document, $document2]);
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
@@ -97,9 +100,9 @@ class QdrantTest extends TestCase
         $document2->embedding = [3, 4, 5];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBy(self::SOURCE_TYPE, self::SOURCE_NAME);
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', self::SOURCE_TYPE), Filter::eq('sourceName', self::SOURCE_NAME)));
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(0, $results);
     }
 
@@ -124,9 +127,9 @@ class QdrantTest extends TestCase
         $document3->embedding = [2, 2, 2];
 
         $this->store->addDocuments([$document1, $document2, $document3]);
-        $this->store->deleteBy('web');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $this->store->similaritySearch([1, 2, 3]);
+        $results = $this->store->search(new SearchRequest([1, 2, 3]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }

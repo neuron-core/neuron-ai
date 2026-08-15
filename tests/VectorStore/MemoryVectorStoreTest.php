@@ -7,6 +7,9 @@ namespace NeuronAI\Tests\VectorStore;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 
 use function file_get_contents;
@@ -37,7 +40,7 @@ class MemoryVectorStoreTest extends TestCase
         $store = new MemoryVectorStore();
         $store->addDocument($document);
 
-        $store->similaritySearch($this->embedding);
+        $store->search(new SearchRequest($this->embedding));
     }
 
     public function test_similarity_search_with_scores(): void
@@ -53,7 +56,7 @@ class MemoryVectorStoreTest extends TestCase
 
         $store->addDocuments([$doc1, $doc2, $doc3]);
 
-        $results = $store->similaritySearch([1, 0]);
+        $results = $store->search(new SearchRequest([1, 0]));
 
         $this->assertCount(3, $results);
         $this->assertGreaterThanOrEqual($results[1]->getScore(), $results[0]->getScore());
@@ -69,7 +72,7 @@ class MemoryVectorStoreTest extends TestCase
         $store = new MemoryVectorStore();
         $store->addDocuments([$document]);
 
-        $results = $store->similaritySearch([1, 0]);
+        $results = $store->search(new SearchRequest([1, 0]));
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
@@ -83,9 +86,9 @@ class MemoryVectorStoreTest extends TestCase
         $store = new MemoryVectorStore();
         $store->addDocuments([$document]);
 
-        $store->deleteBy('manual', 'manual');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $store->similaritySearch([1, 0]);
+        $results = $store->search(new SearchRequest([1, 0]));
         $this->assertCount(0, $results);
     }
 
@@ -109,9 +112,9 @@ class MemoryVectorStoreTest extends TestCase
         $store = new MemoryVectorStore();
         $store->addDocuments([$document1, $document2, $document3]);
 
-        $store->deleteBy('web');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $store->similaritySearch([1, 0]);
+        $results = $store->search(new SearchRequest([1, 0]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }

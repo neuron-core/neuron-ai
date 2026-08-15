@@ -10,6 +10,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\QdrantFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_map;
 use function in_array;
@@ -19,15 +21,6 @@ use function array_chunk;
 class QdrantVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
-
-    /**
-     * Qdrant "must" filter conditions applied to similaritySearch().
-     *
-     * https://qdrant.tech/documentation/concepts/filtering/
-     *
-     * @var array<int, array<string, mixed>>
-     */
-    protected array $filters = [];
 
     /**
      * @throws HttpException
@@ -114,27 +107,13 @@ class QdrantVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $must = [
-            [
-                'key' => 'sourceType',
-                'match' => ['value' => $sourceType],
-            ],
-        ];
-
-        if ($sourceName !== null) {
-            $must[] = [
-                'key' => 'sourceName',
-                'match' => ['value' => $sourceName],
-            ];
-        }
-
         $this->httpClient->request(
             HttpRequest::post(
                 uri: 'points/delete?wait=true',
                 body: [
-                    'filter' => ['must' => $must],
+                    'filter' => ['must' => (new QdrantFilterCompiler())->compile($filters)],
                 ]
             )
         );
@@ -143,30 +122,21 @@ class QdrantVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $filters  Qdrant "must" filter conditions.
-     */
-    public function withFilters(array $filters): self
-    {
-        $this->filters = $filters;
-        return $this;
-    }
-
-    /**
      * @throws HttpException
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
         $body = [
             'query' => [
-                'recommend' => ['positive' => [$embedding]],
+                'recommend' => ['positive' => [$request->embedding]],
             ],
-            'limit' => $this->topK,
+            'limit' => $request->topK ?? $this->topK,
             'with_payload' => true,
             'with_vector' => true,
         ];
 
-        if ($this->filters !== []) {
-            $body['filter'] = ['must' => $this->filters];
+        if ($request->filters instanceof FilterGroup) {
+            $body['filter'] = ['must' => (new QdrantFilterCompiler())->compile($request->filters)];
         }
 
         $response = $this->httpClient->request(

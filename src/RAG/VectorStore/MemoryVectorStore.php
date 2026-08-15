@@ -7,6 +7,8 @@ namespace NeuronAI\RAG\VectorStore;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_filter;
 use function array_keys;
@@ -38,12 +40,13 @@ class MemoryVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $evaluator = new FilterEvaluator();
+
         $this->documents = array_filter(
             $this->documents,
-            fn (Document $document): bool => $document->getSourceType() !== $sourceType
-                || ($sourceName !== null && $document->getSourceName() !== $sourceName)
+            fn (Document $document): bool => !$evaluator->matchesDocument($filters, $document)
         );
         return $this;
     }
@@ -51,21 +54,27 @@ class MemoryVectorStore implements VectorStoreInterface
     /**
      * @throws VectorStoreException
      */
-    public function similaritySearch(array $embedding): array
+    public function search(SearchRequest $request): array
     {
         $distances = [];
+        $filters = $request->filters;
+        $evaluator = new FilterEvaluator();
 
         foreach ($this->documents as $index => $document) {
+            if ($filters instanceof FilterGroup && !$evaluator->matchesDocument($filters, $document)) {
+                continue;
+            }
+
             if ($document->embedding === []) {
                 throw new VectorStoreException("Document with the following content has no embedding: {$document->getContent()}");
             }
-            $dist = VectorSimilarity::cosineDistance($embedding, $document->getEmbedding());
+            $dist = VectorSimilarity::cosineDistance($request->embedding, $document->getEmbedding());
             $distances[$index] = $dist;
         }
 
         asort($distances); // Sort by distance (ascending).
 
-        $topKIndices = array_slice(array_keys($distances), 0, $this->topK, true);
+        $topKIndices = array_slice(array_keys($distances), 0, $request->topK ?? $this->topK, true);
 
         return array_reduce($topKIndices, function (array $carry, int $index) use ($distances): array {
             $document = $this->documents[$index];

@@ -8,6 +8,9 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 use GuzzleHttp\Client;
 
@@ -70,7 +73,7 @@ class MeiliSearchTest extends TestCase
         // Wait for Meilisearch to index the document
         sleep(5);
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertNotEmpty($results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -88,12 +91,15 @@ class MeiliSearchTest extends TestCase
         // Wait for Meilisearch to index the document
         sleep(5);
 
-        $store->deleteBySource('manual', 'manual');
+        $store->delete(FilterGroup::and(
+            Filter::eq('sourceType', 'manual'),
+            Filter::eq('sourceName', 'manual'),
+        ));
 
         // Wait for Meilisearch to delete documents
         sleep(5);
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
         $this->assertCount(0, $results);
     }
 
@@ -116,12 +122,12 @@ class MeiliSearchTest extends TestCase
         // Wait for Meilisearch to index the documents
         sleep(5);
 
-        $store->deleteBy('web');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
         // Wait for Meilisearch to delete documents
         sleep(5);
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
         $this->assertEquals('Hello type B!', $results[0]->getContent());
@@ -146,8 +152,10 @@ class MeiliSearchTest extends TestCase
         // Wait for Meilisearch to index the documents
         sleep(5);
 
-        $store->withFilters(["sourceType = 'file'"]);
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest(
+            $this->embedding,
+            filters: FilterGroup::and(Filter::eq('sourceType', 'file')),
+        ));
 
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());

@@ -7,6 +7,8 @@ namespace NeuronAI\RAG\VectorStore;
 use Elastic\Elasticsearch\Exception\ClientResponseException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\ElasticsearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\Response\Elasticsearch;
 use Exception;
@@ -22,8 +24,6 @@ use function array_chunk;
 class ElasticsearchVectorStore implements VectorStoreInterface
 {
     protected bool $vectorDimSet = false;
-
-    protected array $filters = [];
 
     public function __construct(
         protected Client $client,
@@ -145,16 +145,13 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $query = $sourceName !== null
-            ? "sourceType:{$sourceType} AND sourceName:{$sourceName}"
-            : "sourceType:{$sourceType}";
-
         $this->client->deleteByQuery([
             'index' => $this->index,
-            'q' => $query,
-            'body' => [],
+            'body' => [
+                'query' => (new ElasticsearchFilterCompiler())->compile($filters),
+            ],
         ]);
         $this->client->indices()->refresh(['index' => $this->index]);
         return $this;
@@ -168,16 +165,18 @@ class ElasticsearchVectorStore implements VectorStoreInterface
      * @throws ClientResponseException
      * @throws ServerResponseException
      */
-    public function similaritySearch(array $embedding): array
+    public function search(SearchRequest $request): array
     {
+        $topK = $request->topK ?? $this->topK;
+
         $searchParams = [
             'index' => $this->index,
             'body' => [
                 'knn' => [
                     'field' => 'embedding',
-                    'query_vector' => $embedding,
-                    'k' => $this->topK,
-                    'num_candidates' => max(50, $this->topK * 4),
+                    'query_vector' => $request->embedding,
+                    'k' => $topK,
+                    'num_candidates' => max(50, $topK * 4),
                 ],
                 'sort' => [
                     '_score' => [
@@ -187,9 +186,8 @@ class ElasticsearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        // Hybrid search
-        if ($this->filters !== []) {
-            $searchParams['body']['knn']['filter'] = $this->filters;
+        if ($request->filters instanceof FilterGroup) {
+            $searchParams['body']['knn']['filter'] = (new ElasticsearchFilterCompiler())->compile($request->filters);
         }
 
         $response = $this->client->search($searchParams);
@@ -249,11 +247,5 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         ]);
 
         $this->vectorDimSet = true;
-    }
-
-    public function withFilters(array $filters): self
-    {
-        $this->filters = $filters;
-        return $this;
     }
 }

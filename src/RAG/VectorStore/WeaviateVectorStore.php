@@ -10,6 +10,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\WeaviateFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_chunk;
 use function array_map;
@@ -18,7 +20,6 @@ use function in_array;
 use function is_null;
 use function sprintf;
 use function ucfirst;
-use function count;
 use function is_array;
 use function json_decode;
 use function json_encode;
@@ -113,35 +114,15 @@ class WeaviateVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $conditions = [
-            [
-                'path' => ['sourceType'],
-                'operator' => 'Equal',
-                'valueText' => $sourceType,
-            ],
-        ];
-
-        if ($sourceName !== null) {
-            $conditions[] = [
-                'path' => ['sourceName'],
-                'operator' => 'Equal',
-                'valueText' => $sourceName,
-            ];
-        }
-
-        $where = 1 === count($conditions)
-            ? $conditions[0]
-            : ['operator' => 'And', 'operands' => $conditions];
-
         $this->httpClient->request(
             HttpRequest::delete(
                 uri: 'v1/batch/objects',
                 body: [
                     'match' => [
                         'class' => ucfirst($this->collection),
-                        'where' => $where,
+                        'where' => (new WeaviateFilterCompiler())->compile($filters),
                     ],
                 ]
             )
@@ -153,9 +134,13 @@ class WeaviateVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
-        $vectorString = implode(', ', $embedding);
+        $vectorString = implode(', ', $request->embedding);
+
+        $where = $request->filters instanceof FilterGroup
+            ? 'where: ' . (new WeaviateFilterCompiler())->compileGraphQL($request->filters)
+            : '';
 
         $query = sprintf(
             <<<'GQL'
@@ -164,6 +149,7 @@ class WeaviateVectorStore implements VectorStoreInterface
                     %s (
                       nearVector: { vector: [%s] }
                       limit: %d
+                      %s
                     ) {
                       _additional { id vector distance }
                       content
@@ -176,7 +162,8 @@ class WeaviateVectorStore implements VectorStoreInterface
                 GQL,
             ucfirst($this->collection),
             $vectorString,
-            $this->topK,
+            $request->topK ?? $this->topK,
+            $where,
         );
 
         $response = $this->httpClient->request(

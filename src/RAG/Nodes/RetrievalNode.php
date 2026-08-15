@@ -37,7 +37,7 @@ class RetrievalNode extends Node
 
         $this->emit(new Retrieving($query));
 
-        $documents = $this->retrieval->retrieve($query);
+        $documents = $this->retrieval->retrieve($query, $event->getFilters());
 
         // Remove duplicates by content hash
         $docs = [];

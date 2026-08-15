@@ -7,6 +7,8 @@ namespace NeuronAI\RAG\VectorStore;
 use Http\Client\Exception;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\TypesenseFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Typesense\Client;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
@@ -105,14 +107,10 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $filter = $sourceName !== null
-            ? "sourceType:={$sourceType} && sourceName:={$sourceName}"
-            : "sourceType:={$sourceType}";
-
         $this->client->collections[$this->collection]->documents->delete([
-            "filter_by" => $filter,
+            "filter_by" => (new TypesenseFilterCompiler())->compile($filters),
         ]);
 
         return $this;
@@ -156,16 +154,22 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function similaritySearch(array $embedding): array
+    public function search(SearchRequest $request): array
     {
+        $topK = $request->topK ?? (int) $this->topK;
+
         $params = [
             'collection' => $this->collection,
             'q' => '*',
-            'vector_query' => 'embedding:(' . json_encode($embedding) . ')',
+            'vector_query' => 'embedding:(' . json_encode($request->embedding) . ')',
             'exclude_fields' => 'embedding',
-            'per_page' => $this->topK,
-            'num_candidates' => max(50, (int)$this->topK * 4),
+            'per_page' => $topK,
+            'num_candidates' => max(50, $topK * 4),
         ];
+
+        if ($request->filters instanceof FilterGroup) {
+            $params['filter_by'] = (new TypesenseFilterCompiler())->compile($request->filters);
+        }
 
         $searchRequests = ['searches' => [$params]];
 

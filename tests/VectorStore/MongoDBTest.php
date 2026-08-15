@@ -9,6 +9,9 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 use Exception;
 
@@ -41,7 +44,7 @@ class MongoDBTest extends TestCase
         $this->store->setupVectorIndex(dimensions: 3);
 
         try {
-            $this->store->similaritySearch([0, 0, 0]);
+            $this->store->search(new SearchRequest([0, 0, 0]));
         } catch (Exception $e) {
             $this->markTestSkipped($e->getMessage());
         }
@@ -67,7 +70,7 @@ class MongoDBTest extends TestCase
 
         $this->store->addDocument($document);
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -85,7 +88,7 @@ class MongoDBTest extends TestCase
 
         $this->store->addDocuments([$document1, $document2]);
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
 
         $this->assertCount(2, $results);
         $this->assertEquals($document1->getContent(), $results[0]->getContent());
@@ -105,9 +108,9 @@ class MongoDBTest extends TestCase
         $document2->embedding = [0, 1, 0];
 
         $this->store->addDocuments([$document, $document2]);
-        $this->store->deleteBy('manual', 'manual');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
         $this->assertCount(0, $results);
     }
 
@@ -129,9 +132,9 @@ class MongoDBTest extends TestCase
         $document3->embedding = [0, 0, 1];
 
         $this->store->addDocuments([$document1, $document2, $document3]);
-        $this->store->deleteBy('web');
+        $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $this->store->similaritySearch([1, 0, 0]);
+        $results = $this->store->search(new SearchRequest([1, 0, 0]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }

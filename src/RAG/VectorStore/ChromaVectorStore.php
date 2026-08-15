@@ -11,6 +11,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorSimilarity;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\ChromaFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function count;
 use function in_array;
@@ -78,21 +80,12 @@ class ChromaVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $where = $sourceName !== null
-            ? [
-                '$and' => [
-                    ['sourceType' => ['$eq' => $sourceType]],
-                    ['sourceName' => ['$eq' => $sourceName]],
-                ],
-            ]
-            : ['sourceType' => ['$eq' => $sourceType]];
-
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "{$this->collectionId}/delete",
-                body: ['where' => $where]
+                body: ['where' => (new ChromaFilterCompiler())->compile($filters)]
             )
         );
 
@@ -135,16 +128,22 @@ class ChromaVectorStore implements VectorStoreInterface
      * @return iterable<Document>
      * @throws HttpException
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
+        $body = [
+            'query_embeddings' => [$request->embedding],
+            'n_results' => $request->topK ?? $this->topK,
+            'include' => ['documents', 'metadatas', 'distances'],
+        ];
+
+        if ($request->filters instanceof FilterGroup) {
+            $body['where'] = (new ChromaFilterCompiler())->compile($request->filters);
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: "{$this->collectionId}/query",
-                body: [
-                    'query_embeddings' => [$embedding],
-                    'n_results' => $this->topK,
-                    'include' => ['documents', 'metadatas', 'distances'],
-                ]
+                body: $body
             )
         )->json();
 

@@ -1,6 +1,6 @@
 ---
 name: neuron-rag
-description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI including vector stores, embeddings providers, document loaders, and retrieval strategies. Use this skill whenever the user mentions RAG, retrieval, vector search, document retrieval, semantic search, knowledge bases, chat with documents, or wants to build AI systems that can query and understand external documents. Also trigger for tasks involving vector databases, embeddings, document chunking, or retrieval strategies.
+description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI including vector stores, embeddings providers, document loaders, retrieval strategies, and metadata filtering. Use this skill whenever the user mentions RAG, retrieval, vector search, document retrieval, semantic search, knowledge bases, chat with documents, or wants to build AI systems that can query and understand external documents. Also trigger for tasks involving vector databases, embeddings, document chunking, retrieval strategies, or filtering retrieval by metadata (tenant scoping, source scoping, date ranges).
 ---
 
 # Neuron AI RAG
@@ -195,37 +195,137 @@ $rag->addDocuments(
 
 ## Retrieval Strategies
 
-The built-in strategy is `SimilarityRetrieval` — embed the query, ask the vector store:
+The built-in strategy is `SimilarityRetrieval` — embed the query, ask the vector store. It optionally takes a static filter scope applied to every search it performs:
 
 ```php
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 protected function retrieval(): RetrievalInterface
 {
     return new SimilarityRetrieval(
         $this->resolveVectorStore(),
         $this->resolveEmbeddingsProvider(),
+        filters: FilterGroup::and(Filter::eq('tenant', $this->tenantId)),
     );
 }
 ```
 
-Custom strategies implement `RetrievalInterface` — the query arrives as a `Message`, the return is `Document[]`:
+Custom strategies implement `RetrievalInterface` — the query arrives as a `Message`, the return is `Document[]`. The second parameter carries filters injected for this run (by middleware or preceding nodes): a strategy must honor them by AND-ing them with its own — they can narrow the search, never be dropped:
 
 ```php
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 class CustomRetrieval implements RetrievalInterface
 {
-    public function retrieve(Message $query): array
+    public function retrieve(Message $query, ?FilterGroup $filters = null): array
     {
-        // e.g. combine vector search with a keyword index, filter by metadata, ...
+        // e.g. combine vector search with a keyword index — but always
+        // apply $filters when present. FilterGroup::merge($own, $filters)
+        // is the null-tolerant AND for combining them with your own scope.
         return $documents;
     }
 }
 
 $rag->setRetrieval(new CustomRetrieval());
 ```
+
+## Filtering
+
+Retrieval can be constrained by document metadata with a portable filter model that compiles to each backend's native syntax — the same `FilterGroup` works on Pinecone, Qdrant, Meilisearch, and every other store.
+
+### The filter vocabulary
+
+```php
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+
+FilterGroup::and(                                // conjunction: every condition must match
+    Filter::eq('tenant', 'acme'),
+    Filter::neq('status', 'draft'),
+    Filter::in('sourceType', ['pdf', 'html']),
+    Filter::gte('published_at', 1767225600),     // ranges are numeric-only
+    Filter::lt('price', 100),
+);
+```
+
+Rules the model enforces at construction (so a filter that builds is a filter every backend can run):
+
+- **Scalars only** — `null` has no portable missing-vs-null semantics across backends and throws.
+- **Ranges are `int|float` only** — not every backend can range-compare strings; index dates as epoch timestamps.
+- **Groups are AND-only** — `in()` covers OR-over-one-field, which is most real OR usage.
+- **Groups flatten** — `FilterGroup::and($scope, $userFilters)` merges by appending, so composed filters can only narrow, never widen.
+
+### The raw escape hatch
+
+Backend capabilities outside the vocabulary go through `Filter::raw()`, tagged with the store class the fragment is written for. The tagged store passes it through verbatim; every other store throws — a store swap fails loudly instead of silently matching wrong documents:
+
+```php
+FilterGroup::and(
+    Filter::eq('tenant', 'acme'),
+    Filter::raw(MeilisearchVectorStore::class, "_geoRadius(45.4, 9.1, 2000)"),
+);
+```
+
+### Static filters vs per-run filters
+
+Two delivery paths, always combined by AND (an injected filter can never relax a configured scope):
+
+1. **Static scope** — the `filters:` constructor argument on `SimilarityRetrieval` (shown above). Since agents are typically built per request, capture per-request context (tenant, user) there.
+2. **Per-run injection** — filters ride the `QueryPreProcessedEvent` on its way to `RetrievalNode`. Workflow middleware adds constraints in `before()`; the event is born fresh every run, so an injected filter can never leak into the next run:
+
+```php
+use NeuronAI\RAG\Events\QueryPreProcessedEvent;
+use NeuronAI\RAG\Nodes\RetrievalNode;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+
+class TenantScope implements WorkflowMiddleware
+{
+    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    {
+        if ($event instanceof QueryPreProcessedEvent) {
+            $event->addFilters(FilterGroup::and(
+                Filter::eq('tenant', $state->get('tenant')),
+            ));
+        }
+    }
+
+    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    {
+    }
+}
+
+$rag->addMiddleware(RetrievalNode::class, new TenantScope());
+```
+
+### Searching and deleting on the store directly
+
+`VectorStoreInterface` itself is filter-aware — searches take an immutable per-call `SearchRequest` (nothing outlives the call), and deletion is filter-based:
+
+```php
+use NeuronAI\RAG\VectorStore\SearchRequest;
+
+$documents = $store->search(new SearchRequest(
+    embedding: $embedding,
+    filters: FilterGroup::and(Filter::eq('sourceType', 'pdf')),
+    topK: 8,                       // per-call override; null = store default
+));
+
+$store->delete(FilterGroup::and(
+    Filter::eq('sourceType', 'pdf'),
+    Filter::eq('sourceName', 'manual.pdf'),
+));
+```
+
+### Backend caveats
+
+- **Meilisearch**: filtered attributes must be declared filterable in the index settings (the store registers `sourceType`/`sourceName` at index creation; add your own metadata fields yourself).
+- **MongoDB Atlas**: filtered fields must be declared as filter fields in the vector search index.
+- **Weaviate**: custom metadata is stored as a JSON string, so only `content`, `sourceType`, and `sourceName` are filterable — anything else throws.
+- **Pinecone**: filter-based deletion works on pod-based indexes only.
 
 ## Pre and Post Processors
 

@@ -10,6 +10,8 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\PineconeFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_map;
 use function in_array;
@@ -19,13 +21,6 @@ use function array_chunk;
 class PineconeVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
-
-    /**
-     * Metadata filters.
-     *
-     * https://docs.pinecone.io/reference/api/2025-04/data-plane/query#body-filter
-     */
-    protected array $filters = [];
 
     public function __construct(
         string $key,
@@ -87,21 +82,14 @@ class PineconeVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $filter = $sourceName !== null
-            ? [
-                'sourceType' => ['$eq' => $sourceType],
-                'sourceName' => ['$eq' => $sourceName],
-            ]
-            : ['sourceType' => ['$eq' => $sourceType]];
-
         $this->httpClient->request(
             HttpRequest::post(
                 uri: 'vectors/delete',
                 body: [
                     'namespace' => $this->namespace,
-                    'filter' => $filter,
+                    'filter' => (new PineconeFilterCompiler())->compile($filters),
                 ]
             )
         );
@@ -112,19 +100,18 @@ class PineconeVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
         $queryParams = [
             'namespace' => $this->namespace,
             'includeMetadata' => true,
             'includeValues' => true,
-            'vector' => $embedding,
-            'topK' => $this->topK,
+            'vector' => $request->embedding,
+            'topK' => $request->topK ?? $this->topK,
         ];
 
-        // Only include filter parameter if filters are not empty
-        if ($this->filters !== []) {
-            $queryParams['filter'] = $this->filters;
+        if ($request->filters instanceof FilterGroup) {
+            $queryParams['filter'] = (new PineconeFilterCompiler())->compile($request->filters);
         }
 
         $result = $this->httpClient->request(
@@ -151,11 +138,5 @@ class PineconeVectorStore implements VectorStoreInterface
 
             return $document;
         }, $result['matches']);
-    }
-
-    public function withFilters(array $filters): self
-    {
-        $this->filters = $filters;
-        return $this;
     }
 }

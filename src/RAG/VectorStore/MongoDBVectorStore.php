@@ -9,6 +9,8 @@ use MongoDB\Client;
 use MongoDB\Collection;
 use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\Compilers\MongoDBFilterCompiler;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_chunk;
 use function array_map;
@@ -92,37 +94,39 @@ class MongoDBVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $filter = ['sourceType' => $sourceType];
-
-        if ($sourceName !== null) {
-            $filter['sourceName'] = $sourceName;
-        }
-
-        $this->collection->deleteMany($filter);
+        $this->collection->deleteMany((new MongoDBFilterCompiler())->compile($filters));
 
         return $this;
     }
 
     /**
      * Requires a MongoDB Atlas Vector Search index on the "embedding" field.
-     * Create the index via Atlas UI or programmatically before calling this method.
+     * Create the index via Atlas UI or programmatically before calling this
+     * method. Filtered fields must be declared in the index as filter fields.
      *
-     * @param float[] $embedding
      * @return Document[]
      */
-    public function similaritySearch(array $embedding): iterable
+    public function search(SearchRequest $request): iterable
     {
+        $topK = $request->topK ?? $this->topK;
+
+        $vectorSearch = [
+            'index' => $this->vectorIndexName,
+            'path' => 'embedding',
+            'queryVector' => $request->embedding,
+            'numCandidates' => max(100, $topK * 10),
+            'limit' => $topK,
+        ];
+
+        if ($request->filters instanceof FilterGroup) {
+            $vectorSearch['filter'] = (new MongoDBFilterCompiler())->compile($request->filters);
+        }
+
         $pipeline = [
             [
-                '$vectorSearch' => [
-                    'index' => $this->vectorIndexName,
-                    'path' => 'embedding',
-                    'queryVector' => $embedding,
-                    'numCandidates' => max(100, $this->topK * 10),
-                    'limit' => $this->topK,
-                ],
+                '$vectorSearch' => $vectorSearch,
             ],
             [
                 '$project' => [

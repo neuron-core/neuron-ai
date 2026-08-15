@@ -8,6 +8,9 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Traits\CheckOpenPort;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\TestCase;
 use Typesense\Client;
 
@@ -66,7 +69,7 @@ class TypesenseTest extends TestCase
 
         $store->addDocument($document);
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
@@ -82,7 +85,7 @@ class TypesenseTest extends TestCase
 
         $store->addDocuments([$document]);
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
@@ -92,9 +95,9 @@ class TypesenseTest extends TestCase
     {
         $store = new TypesenseVectorStore($this->client, 'test', $this->vectorDimension);
 
-        $store->deleteBy('manual', 'manual');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
         $this->assertCount(0, $results);
     }
 
@@ -113,9 +116,9 @@ class TypesenseTest extends TestCase
         $document2->sourceName = 'doc.txt';
 
         $store->addDocuments([$document1, $document2]);
-        $store->deleteBy('web');
+        $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $store->similaritySearch($this->embedding);
+        $results = $store->search(new SearchRequest($this->embedding));
         $this->assertCount(1, $results);
         $this->assertSame('file', $results[0]->getSourceType());
     }

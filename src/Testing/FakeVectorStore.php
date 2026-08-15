@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Testing;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\StaticConstructor;
 use PHPUnit\Framework\Assert;
@@ -29,7 +32,7 @@ class FakeVectorStore implements VectorStoreInterface
     protected array $recorded = [];
 
     /**
-     * @param Document[] $searchResults Documents to return from similaritySearch()
+     * @param Document[] $searchResults Documents to return from search()
      */
     public function __construct(protected array $searchResults = [])
     {
@@ -56,34 +59,34 @@ class FakeVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function deleteBy(string $sourceType, ?string $sourceName = null): VectorStoreInterface
+    public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $evaluator = new FilterEvaluator();
+
         $this->documents = array_values(array_filter(
             $this->documents,
-            fn (Document $doc): bool => $doc->sourceType !== $sourceType
-                || ($sourceName !== null && $doc->sourceName !== $sourceName)
+            fn (Document $doc): bool => !$evaluator->matchesDocument($filters, $doc)
         ));
 
-        $this->recorded[] = ['method' => 'deleteBy', 'args' => array_filter([$sourceType, $sourceName])];
+        $this->recorded[] = ['method' => 'delete', 'args' => [$filters]];
 
         return $this;
     }
 
     /**
-     * @param float[] $embedding
      * @return Document[]
      */
-    public function similaritySearch(array $embedding): array
+    public function search(SearchRequest $request): array
     {
         $this->searchCount++;
 
-        $this->recorded[] = ['method' => 'similaritySearch', 'args' => [$embedding]];
+        $this->recorded[] = ['method' => 'search', 'args' => [$request]];
 
         return $this->searchResults;
     }
 
     /**
-     * Set or replace the documents that similaritySearch() will return.
+     * Set or replace the documents that search() will return.
      *
      * @param Document[] $documents
      */
