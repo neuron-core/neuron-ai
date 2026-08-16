@@ -12,6 +12,19 @@ use function json_encode;
 
 class DocumentTest extends TestCase
 {
+    public function test_runtime_fields_are_absent_until_produced(): void
+    {
+        $document = new Document('Hello!');
+
+        $this->assertNull($document->getEmbedding());
+        $this->assertNull($document->getScore());
+
+        $document->setEmbedding([1, 2.5])->setScore(0.0);
+
+        $this->assertSame([1.0, 2.5], $document->getEmbedding());
+        $this->assertSame(0.0, $document->getScore());
+    }
+
     public function test_add_metadata_accepts_json_safe_types(): void
     {
         $metadata = [
@@ -28,7 +41,7 @@ class DocumentTest extends TestCase
             $document->addMetadata($key, $value);
         }
 
-        $this->assertSame($metadata, $document->metadata);
+        $this->assertSame($metadata, $document->getMetadata());
     }
 
     public function test_metadata_survives_json_round_trip(): void
@@ -50,6 +63,6 @@ class DocumentTest extends TestCase
             $hydrated->addMetadata($key, $value);
         }
 
-        $this->assertSame($document->metadata, $hydrated->metadata);
+        $this->assertSame($document->getMetadata(), $hydrated->getMetadata());
     }
 }

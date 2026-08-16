@@ -10,17 +10,18 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\QdrantFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_map;
-use function in_array;
 use function is_null;
 use function array_chunk;
 
 class QdrantVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
+    use HasDocumentSchema;
 
     /**
      * @throws HttpException
@@ -31,7 +32,9 @@ class QdrantVectorStore implements VectorStoreInterface
         protected int $topK = 5,
         protected int $dimension = 1024,
         ?HttpClientInterface $httpClient = null,
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($this->collectionUrl)
             ->withHeaders([
@@ -82,13 +85,14 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents);
         $points = array_map(fn (Document $document): array => [
             'id' => (string) $document->getId(),
             'payload' => [
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),
                 'sourceName' => $document->getSourceName(),
-                ...$document->metadata,
+                ...MetadataMapper::toStorage($document, $this->schema),
             ],
             'vector' => $document->getEmbedding(),
         ], $documents);
@@ -109,6 +113,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
                 uri: 'points/delete?wait=true',
@@ -126,6 +131,10 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): iterable
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $body = [
             'query' => [
                 'recommend' => ['positive' => [$request->embedding]],
@@ -148,17 +157,13 @@ class QdrantVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['payload']['content']);
-            $document->id = $item['id'];
-            $document->embedding = $item['vector'];
-            $document->sourceType = $item['payload']['sourceType'];
-            $document->sourceName = $item['payload']['sourceName'];
-            $document->score = $item['score'];
+            $document->setId($item['id'])
+                ->setEmbedding($item['vector'])
+                ->setSourceType($item['payload']['sourceType'])
+                ->setSourceName($item['payload']['sourceName'])
+                ->setScore($item['score']);
 
-            foreach ($item['payload'] as $name => $value) {
-                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
-                    $document->addMetadata($name, $value);
-                }
-            }
+            MetadataMapper::hydrate($document, $item['payload']);
 
             return $document;
         }, $response['result']['points']);

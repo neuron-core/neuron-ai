@@ -4,23 +4,27 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\PineconeFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function array_map;
-use function in_array;
 use function trim;
 use function array_chunk;
 
 class PineconeVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
+    use HasDocumentSchema;
 
     public function __construct(
         string $key,
@@ -29,7 +33,9 @@ class PineconeVectorStore implements VectorStoreInterface
         string $version = '2025-04',
         protected string $namespace = '__default__', // Default namespace
         ?HttpClientInterface $httpClient = null,
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri(trim($this->indexUrl, '/').'/')
             ->withHeaders([
@@ -50,9 +56,11 @@ class PineconeVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException|JsonException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents);
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
@@ -68,7 +76,7 @@ class PineconeVectorStore implements VectorStoreInterface
                                 'content' => $document->getContent(),
                                 'sourceType' => $document->getSourceType(),
                                 'sourceName' => $document->getSourceName(),
-                                ...$document->metadata,
+                                ...MetadataMapper::toStorage($document, $this->schema),
                             ],
                         ], $chunk),
                     ]
@@ -81,9 +89,11 @@ class PineconeVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
                 uri: 'vectors/delete',
@@ -99,9 +109,15 @@ class PineconeVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $queryParams = [
             'namespace' => $this->namespace,
             'includeMetadata' => true,
@@ -122,19 +138,14 @@ class PineconeVectorStore implements VectorStoreInterface
         )->json();
 
         return array_map(function (array $item): Document {
-            $document = new Document();
-            $document->id = $item['id'];
-            $document->embedding = $item['values'];
-            $document->content = $item['metadata']['content'];
-            $document->sourceType = $item['metadata']['sourceType'];
-            $document->sourceName = $item['metadata']['sourceName'];
-            $document->score = $item['score'];
+            $document = (new Document($item['metadata']['content']))
+                ->setId($item['id'])
+                ->setEmbedding($item['values'])
+                ->setSourceType($item['metadata']['sourceType'])
+                ->setSourceName($item['metadata']['sourceName'])
+                ->setScore($item['score']);
 
-            foreach ($item['metadata'] as $name => $value) {
-                if (!in_array($name, ['content', 'sourceType', 'sourceName'])) {
-                    $document->addMetadata($name, $value);
-                }
-            }
+            MetadataMapper::hydrate($document, $item['metadata']);
 
             return $document;
         }, $result['matches']);

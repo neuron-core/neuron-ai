@@ -52,7 +52,7 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]))->json();
 
             foreach ($response['data'] as $index => $item) {
-                $chunk[$index]->embedding = $item['embedding'];
+                $chunk[$index]->setEmbedding($item['embedding']);
             }
         }
 

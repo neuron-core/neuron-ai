@@ -35,6 +35,7 @@ class ElasticsearchFilterCompiler extends FilterCompiler
             }
 
             if ($condition->operator === FilterOperator::Neq) {
+                $must[] = ['exists' => ['field' => $condition->field]];
                 $mustNot[] = ['term' => [$condition->field => $condition->value]];
                 continue;
             }

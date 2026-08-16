@@ -122,11 +122,11 @@ internal wiring — no shared interface, not injectable. `FileVectorStore` and
 `MemoryVectorStore` share the PHP-side `FilterEvaluator` instead (raw filters
 throw there — nothing can execute them).
 
-Backend caveats: Meilisearch metadata fields must be declared filterable in
-the index settings; MongoDB Atlas filter fields must be declared in the
-vector index; Weaviate stores custom metadata as a JSON string, so only
-`content`/`sourceType`/`sourceName` are filterable (anything else throws);
-Pinecone filter-based deletion works on pod-based indexes only.
+Backend caveats: Meilisearch filterable attributes and new MongoDB Atlas
+indexes are derived from `DocumentSchema`; existing indexes may require
+recreation. Weaviate keeps an opaque metadata copy and projects declared
+filter fields to native properties. Pinecone filter-based deletion works on
+pod-based indexes only.
 
 `VectorStoreInterface` implementations:
 
@@ -158,6 +158,32 @@ protected function vectorStore(): VectorStoreInterface
     );
 }
 ```
+
+### Document schemas
+
+`Document` is the unified processing object across loading, splitting,
+embedding, storage, retrieval, middleware, and reranking. Its fields are
+accessed through methods. Embedding and score are nullable runtime values;
+strict `null` checks express whether a stage produced them (`0.0` remains a
+valid score).
+
+Custom metadata stays schema-less for storage and round-tripping. Portable
+filtering requires a collection-level schema passed to the vector store:
+
+```php
+$schema = DocumentSchema::of(
+    DocumentField::string('tenant')->required()->filterable(),
+    DocumentField::integer('year')->filterable(),
+);
+
+$store = new MemoryVectorStore(schema: $schema);
+```
+
+Stores validate declared values and filters locally. Only `sourceType`,
+`sourceName`, and declared filterable metadata fields are portable filter
+targets. Array fields are supported for validation/storage but need raw
+backend filters. `neq` requires a required field so missing-field behavior
+cannot diverge between databases. RAG validates documents before embedding.
 
 ## Embeddings (`Embeddings/`)
 

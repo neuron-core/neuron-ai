@@ -22,7 +22,7 @@ class FilterEvaluator
             'content' => $document->getContent(),
             'sourceType' => $document->getSourceType(),
             'sourceName' => $document->getSourceName(),
-            ...$document->metadata,
+            ...$document->getMetadata(),
         ]);
     }
 

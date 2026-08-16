@@ -6,6 +6,7 @@ namespace NeuronAI\RAG;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use NeuronAI\RAG\Nodes\PostProcessNode;
@@ -18,8 +19,6 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\Workflow\Node;
 
 use function array_chunk;
-use function array_keys;
-use function explode;
 
 /**
  * @method static static make(?string $workflowId = null, ?WorkflowState $state = null)
@@ -65,8 +64,18 @@ class RAG extends Agent
      */
     public function addDocuments(array $documents, int $chunkSize = 50): void
     {
+        if ($chunkSize < 1) {
+            throw new AgentException('RAG document chunk size must be greater than zero.');
+        }
+
+        $vectorStore = $this->resolveVectorStore();
+
         foreach (array_chunk($documents, $chunkSize) as $chunk) {
-            $this->resolveVectorStore()->addDocuments(
+            foreach ($chunk as $document) {
+                $vectorStore->getSchema()->validate($document);
+            }
+
+            $vectorStore->addDocuments(
                 $this->resolveEmbeddingsProvider()->embedDocuments($chunk)
             );
         }
@@ -76,28 +85,31 @@ class RAG extends Agent
      * Destructive per source: existing documents of each source are deleted first.
      *
      * @param Document[] $documents
+     * @throws AgentException|VectorStoreException
      */
     public function reindexBySource(array $documents, int $chunkSize = 50): void
     {
         $grouped = [];
 
         foreach ($documents as $document) {
-            $key = $document->sourceType . ':' . $document->sourceName;
+            $sourceType = $document->getSourceType();
+            $sourceName = $document->getSourceName();
 
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = [];
+            if (!isset($grouped[$sourceType][$sourceName])) {
+                $grouped[$sourceType][$sourceName] = [];
             }
 
-            $grouped[$key][] = $document;
+            $grouped[$sourceType][$sourceName][] = $document;
         }
 
-        foreach (array_keys($grouped) as $key) {
-            [$sourceType, $sourceName] = explode(':', $key);
-            $this->resolveVectorStore()->delete(FilterGroup::and(
-                Filter::eq('sourceType', $sourceType),
-                Filter::eq('sourceName', $sourceName),
-            ));
-            $this->addDocuments($grouped[$key], $chunkSize);
+        foreach ($grouped as $sourceType => $sources) {
+            foreach ($sources as $sourceName => $sourceDocuments) {
+                $this->resolveVectorStore()->delete(FilterGroup::and(
+                    Filter::eq('sourceType', $sourceType),
+                    Filter::eq('sourceName', $sourceName),
+                ));
+                $this->addDocuments($sourceDocuments, $chunkSize);
+            }
         }
     }
 

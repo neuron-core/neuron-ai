@@ -112,9 +112,9 @@ class SentenceTextSplitter extends AbstractSplitter
         $split = [];
         foreach ($chunks as $wordArray) {
             $newDocument = new Document(implode(' ', $wordArray));
-            $newDocument->sourceType = $document->getSourceType();
-            $newDocument->sourceName = $document->getSourceName();
-            $newDocument->metadata = $document->metadata;
+            $newDocument->setSourceType($document->getSourceType());
+            $newDocument->setSourceName($document->getSourceName());
+            $newDocument->setMetadata($document->getMetadata());
             $split[] = $newDocument;
         }
 

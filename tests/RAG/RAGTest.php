@@ -8,6 +8,9 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\RAG;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
@@ -81,6 +84,28 @@ class RAGTest extends TestCase
         $vectorStore->assertDocumentCount(2);
         $vectorStore->assertHasDocumentWithContent('First document');
         $vectorStore->assertHasDocumentWithContent('Second document');
+    }
+
+    public function test_add_documents_validates_schema_before_embedding(): void
+    {
+        $embeddings = new FakeEmbeddingsProvider();
+        $vectorStore = new FakeVectorStore(schema: DocumentSchema::of(
+            DocumentField::string('tenant')->required(),
+        ));
+
+        $rag = RAG::make()
+            ->setEmbeddingsProvider($embeddings)
+            ->setVectorStore($vectorStore);
+
+        try {
+            $rag->addDocuments([new Document('Invalid document')]);
+            $this->fail('A document missing required metadata should not be embedded.');
+        } catch (DocumentSchemaException $exception) {
+            $this->assertStringContainsString('tenant', $exception->getMessage());
+        }
+
+        $embeddings->assertNothingEmbedded();
+        $vectorStore->assertNothingStored();
     }
 
     public function test_no_documents_retrieved(): void

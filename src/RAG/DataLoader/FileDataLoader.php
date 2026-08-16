@@ -123,8 +123,8 @@ class FileDataLoader extends AbstractDataLoader
     protected function getDocument(string $content, string $entry): Document
     {
         $document = new Document($content);
-        $document->sourceType = 'files';
-        $document->sourceName = $entry;
+        $document->setSourceType('files');
+        $document->setSourceName($entry);
 
         return $document;
     }

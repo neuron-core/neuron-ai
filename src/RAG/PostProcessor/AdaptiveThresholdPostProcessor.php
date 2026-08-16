@@ -44,7 +44,7 @@ class AdaptiveThresholdPostProcessor implements PostProcessorInterface
             return $documents;
         }
 
-        $scores = array_map(fn (Document $document): float => $document->getScore(), $documents);
+        $scores = array_map(fn (Document $document): float => (float) $document->getScore(), $documents);
         $median = $this->calculateMedian($scores);
         $mad = $this->calculateMAD($scores, $median);
 

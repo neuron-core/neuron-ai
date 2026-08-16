@@ -15,6 +15,8 @@ use function unlink;
 use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
+use function file_get_contents;
+use function json_decode;
 
 class FileVectorStoreTest extends TestCase
 {
@@ -22,16 +24,16 @@ class FileVectorStoreTest extends TestCase
     {
         $document = new Document('Hello!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = [1, 2, 3];
-        $document->id = 1;
-        $document->sourceName = 'test';
-        $document->sourceType = 'string';
+        $document->setEmbedding([1, 2, 3]);
+        $document->setId(1);
+        $document->setSourceName('test');
+        $document->setSourceType('string');
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
-        $document2->id = 2;
-        $document2->sourceName = 'test';
-        $document2->sourceType = 'string';
+        $document2->setEmbedding([3, 4, 5]);
+        $document2->setId(2);
+        $document2->setSourceName('test');
+        $document2->setSourceType('string');
 
         $store = new FileVectorStore(__DIR__, 1);
         $store->addDocuments([$document, $document2]);
@@ -39,24 +41,39 @@ class FileVectorStoreTest extends TestCase
         $results = $store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertCount(1, $results);
-        $this->assertEquals($document->id, $results[0]->getId());
-        $this->assertEquals($document->content, $results[0]->getContent());
-        $this->assertEquals($document->embedding, $results[0]->getEmbedding());
-        $this->assertEquals($document->sourceType, $results[0]->getSourceType());
-        $this->assertEquals($document->sourceName, $results[0]->getSourceName());
-        $this->assertEquals($document->metadata, $results[0]->metadata);
+        $this->assertEquals($document->getId(), $results[0]->getId());
+        $this->assertEquals($document->getContent(), $results[0]->getContent());
+        $this->assertEquals($document->getEmbedding(), $results[0]->getEmbedding());
+        $this->assertEquals($document->getSourceType(), $results[0]->getSourceType());
+        $this->assertEquals($document->getSourceName(), $results[0]->getSourceName());
+        $this->assertEquals($document->getMetadata(), $results[0]->getMetadata());
 
         unlink(__DIR__.'/neuron.store');
         $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
     }
 
+    public function test_does_not_persist_runtime_score(): void
+    {
+        $document = (new Document('Hello!'))
+            ->setEmbedding([1, 2, 3])
+            ->setScore(0.9);
+        $store = new FileVectorStore(__DIR__);
+
+        $store->addDocument($document);
+
+        $stored = json_decode((string) file_get_contents(__DIR__.'/neuron.store'), true);
+        $this->assertArrayNotHasKey('score', $stored);
+
+        unlink(__DIR__.'/neuron.store');
+    }
+
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
+        $document2->setEmbedding([3, 4, 5]);
 
         $store = new FileVectorStore(__DIR__);
 
@@ -74,19 +91,19 @@ class FileVectorStoreTest extends TestCase
     public function test_delete_by_type(): void
     {
         $document1 = new Document('Hello!');
-        $document1->embedding = [1, 2, 3];
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding([1, 2, 3]);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
-        $document2->sourceType = 'web';
-        $document2->sourceName = 'page-b';
+        $document2->setEmbedding([3, 4, 5]);
+        $document2->setSourceType('web');
+        $document2->setSourceName('page-b');
 
         $document3 = new Document('Hello 3!');
-        $document3->embedding = [2, 2, 2];
-        $document3->sourceType = 'file';
-        $document3->sourceName = 'doc.txt';
+        $document3->setEmbedding([2, 2, 2]);
+        $document3->setSourceType('file');
+        $document3->setSourceName('doc.txt');
 
         $store = new FileVectorStore(__DIR__, 3);
         $store->addDocuments([$document1, $document2, $document3]);

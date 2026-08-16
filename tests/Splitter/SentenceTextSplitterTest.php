@@ -30,8 +30,8 @@ class SentenceTextSplitterTest extends TestCase
                 "This is the third sentence that completes the text.";
 
         $document = new Document($text);
-        $document->sourceType = 'test';
-        $document->sourceName = 'test.txt';
+        $document->setSourceType('test');
+        $document->setSourceName('test.txt');
 
         $result = $splitter->splitDocument($document);
 
@@ -53,8 +53,8 @@ class SentenceTextSplitterTest extends TestCase
 
         $text = "Test document.";
         $document = new Document($text);
-        $document->sourceType = 'test';
-        $document->sourceName = 'test.txt';
+        $document->setSourceType('test');
+        $document->setSourceName('test.txt');
 
         $result = $splitter->splitDocument($document);
 
@@ -75,8 +75,8 @@ class SentenceTextSplitterTest extends TestCase
 
         $text = "This is the first sentence. This is the second sentence. This is the third sentence.";
         $document = new Document($text);
-        $document->sourceType = 'test';
-        $document->sourceName = 'test.txt';
+        $document->setSourceType('test');
+        $document->setSourceName('test.txt');
 
         $result = $splitter->splitDocument($document);
 
@@ -297,8 +297,8 @@ class SentenceTextSplitterTest extends TestCase
     {
         $text = "First sentence here. Second sentence here. Third sentence here.";
         $doc = new Document($text);
-        $doc->sourceType = 'file';
-        $doc->sourceName = 'test.txt';
+        $doc->setSourceType('file');
+        $doc->setSourceName('test.txt');
         $doc->addMetadata('key', 'value');
 
         $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 0);
@@ -307,7 +307,7 @@ class SentenceTextSplitterTest extends TestCase
         foreach ($result as $chunk) {
             $this->assertEquals('file', $chunk->getSourceType());
             $this->assertEquals('test.txt', $chunk->getSourceName());
-            $this->assertEquals(['key' => 'value'], $chunk->metadata);
+            $this->assertEquals(['key' => 'value'], $chunk->getMetadata());
         }
     }
 }

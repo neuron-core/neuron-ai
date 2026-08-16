@@ -54,7 +54,7 @@ class OpenSearchTest extends TestCase
         $store = new OpenSearchVectorStore($this->client, 'test');
 
         $document = new Document('Hello World!');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
         $document->addMetadata('customProperty', 'customValue');
 
         $store->addDocument($document);
@@ -62,7 +62,7 @@ class OpenSearchTest extends TestCase
         $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     public function test_elasticsearch_delete_documents(): void
@@ -70,7 +70,7 @@ class OpenSearchTest extends TestCase
         $store = new OpenSearchVectorStore($this->client, 'test');
 
         $document = new Document('Hello World!');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
         $store->addDocument($document);
 
         $store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
@@ -84,14 +84,14 @@ class OpenSearchTest extends TestCase
         $store = new OpenSearchVectorStore($this->client, 'test');
 
         $document1 = new Document('Hello type A!');
-        $document1->embedding = $this->embedding;
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding($this->embedding);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello type B!');
-        $document2->embedding = $this->embedding;
-        $document2->sourceType = 'file';
-        $document2->sourceName = 'doc.txt';
+        $document2->setEmbedding($this->embedding);
+        $document2->setSourceType('file');
+        $document2->setSourceName('doc.txt');
 
         $store->addDocuments([$document1, $document2]);
         $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));

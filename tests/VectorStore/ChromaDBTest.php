@@ -45,7 +45,7 @@ class ChromaDBTest extends TestCase
     {
         $document = new Document('Hello World!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $this->store->addDocument($document);
 
@@ -53,7 +53,7 @@ class ChromaDBTest extends TestCase
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     /**
@@ -63,10 +63,10 @@ class ChromaDBTest extends TestCase
     {
         $document = new Document('Hello!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
+        $document2->setEmbedding([3, 4, 5]);
 
         $this->store->addDocuments([$document, $document2]);
 
@@ -74,7 +74,7 @@ class ChromaDBTest extends TestCase
 
         $this->assertGreaterThanOrEqual(1, count($results));
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     /**
@@ -83,10 +83,10 @@ class ChromaDBTest extends TestCase
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
+        $document2->setEmbedding([3, 4, 5]);
 
         $this->store->addDocuments([$document, $document2]);
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
@@ -101,19 +101,19 @@ class ChromaDBTest extends TestCase
     public function test_delete_by_type(): void
     {
         $document1 = new Document('Hello!');
-        $document1->embedding = [1, 2, 3];
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding([1, 2, 3]);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
-        $document2->sourceType = 'web';
-        $document2->sourceName = 'page-b';
+        $document2->setEmbedding([3, 4, 5]);
+        $document2->setSourceType('web');
+        $document2->setSourceName('page-b');
 
         $document3 = new Document('Hello 3!');
-        $document3->embedding = [2, 2, 2];
-        $document3->sourceType = 'file';
-        $document3->sourceName = 'doc.txt';
+        $document3->setEmbedding([2, 2, 2]);
+        $document3->setSourceType('file');
+        $document3->setSourceName('doc.txt');
 
         $this->store->addDocuments([$document1, $document2, $document3]);
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));

@@ -89,7 +89,9 @@ FilterGroup::and(
 );
 ```
 
-The model only promises what every backend keeps, enforced at construction:
+The filter value object enforces the backend-neutral vocabulary. After the
+next upgrade step, the vector store also validates field names, types, and
+filterability against its `DocumentSchema` before database I/O:
 
 - Values are scalars — `null` throws (missing-vs-null semantics differ per
   backend and cannot be promised portably).
@@ -126,14 +128,11 @@ vocabulary in most cases; anything genuinely backend-specific becomes a
 
 ## Backend caveats
 
-- **Meilisearch**: filtered attributes must be declared filterable in the
-  index settings (`sourceType`/`sourceName` are registered at index
-  creation; declare your own metadata fields yourself).
-- **MongoDB Atlas**: filtered fields must be declared as filter fields in
-  the vector search index.
-- **Weaviate**: custom metadata is stored as a single JSON string property,
-  so only `content`, `sourceType`, and `sourceName` are filterable —
-  anything else throws.
+- **Custom metadata fields**: starting with the next upgrade step, portable
+  filters require a `DocumentSchema`; continue with
+  `17-document-schema.md` before declaring custom fields.
+- **Existing indexes**: typed mappings may require recreation and reindexing
+  after applying the document schema upgrade.
 - **Pinecone**: filter-based deletion works on pod-based indexes only
   (a pre-existing Pinecone limitation, unchanged by this redesign).
 

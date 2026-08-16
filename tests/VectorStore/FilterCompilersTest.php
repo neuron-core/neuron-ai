@@ -116,6 +116,7 @@ class FilterCompilersTest extends TestCase
             'bool' => [
                 'must' => [
                     ['term' => ['sourceType' => 'file']],
+                    ['exists' => ['field' => 'lang']],
                     ['range' => ['year' => ['gte' => 2020]]],
                 ],
                 'must_not' => [
@@ -222,11 +223,11 @@ class FilterCompilersTest extends TestCase
         );
     }
 
-    public function test_weaviate_refuses_custom_metadata_fields(): void
+    public function test_weaviate_compiles_custom_metadata_fields(): void
     {
-        $this->expectException(VectorStoreException::class);
-        $this->expectExceptionMessageMatches('/not filterable/');
-
-        (new WeaviateFilterCompiler())->compile(FilterGroup::and(Filter::eq('tenant', 'acme')));
+        $this->assertSame(
+            ['path' => ['tenant'], 'operator' => 'Equal', 'valueText' => 'acme'],
+            (new WeaviateFilterCompiler())->compile(FilterGroup::and(Filter::eq('tenant', 'acme'))),
+        );
     }
 }

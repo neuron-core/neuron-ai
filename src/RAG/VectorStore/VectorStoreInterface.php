@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 interface VectorStoreInterface
 {
+    public function getSchema(): DocumentSchema;
+
     public function addDocument(Document $document): VectorStoreInterface;
 
     /**
@@ -24,7 +27,7 @@ interface VectorStoreInterface
     /**
      * Return the documents most similar to the request's embedding.
      *
-     * @return Document[]
+     * @return iterable<Document>
      */
     public function search(SearchRequest $request): iterable;
 }

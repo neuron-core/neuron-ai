@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
-use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
@@ -15,7 +14,6 @@ use function array_is_list;
 use function array_map;
 use function count;
 use function implode;
-use function in_array;
 use function is_array;
 use function is_bool;
 use function is_int;
@@ -65,15 +63,6 @@ class WeaviateFilterCompiler extends FilterCompiler
      */
     protected function compileCondition(Filter $condition): array
     {
-        // The store serializes custom metadata into a single JSON text
-        // property, which no Weaviate operator can reach into.
-        if (!in_array($condition->field, ['content', 'sourceType', 'sourceName'])) {
-            throw new VectorStoreException(
-                "Weaviate stores custom metadata as a JSON string: field \"{$condition->field}\" is not filterable. " .
-                'Only content, sourceType and sourceName can be filtered.'
-            );
-        }
-
         $operator = match ($condition->operator) {
             FilterOperator::Eq => 'Equal',
             FilterOperator::Neq => 'NotEqual',
@@ -93,23 +82,25 @@ class WeaviateFilterCompiler extends FilterCompiler
 
     protected function valueKey(mixed $value): string
     {
+        $array = is_array($value);
+
         if (is_array($value)) {
             $value = $value[0];
         }
 
         if (is_string($value)) {
-            return 'valueText';
+            return $array ? 'valueTextArray' : 'valueText';
         }
 
         if (is_int($value)) {
-            return 'valueInt';
+            return $array ? 'valueIntArray' : 'valueInt';
         }
 
         if (is_bool($value)) {
-            return 'valueBoolean';
+            return $array ? 'valueBooleanArray' : 'valueBoolean';
         }
 
-        return 'valueNumber';
+        return $array ? 'valueNumberArray' : 'valueNumber';
     }
 
     /**

@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
 use function count;
-use function in_array;
 use function is_null;
 use function trim;
 use function uniqid;
@@ -24,6 +27,7 @@ use function array_chunk;
 class ChromaVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
+    use HasDocumentSchema;
 
     protected string $collectionId;
 
@@ -38,7 +42,9 @@ class ChromaVectorStore implements VectorStoreInterface
         protected ?string $key = null,
         protected int $topK = 5,
         ?HttpClientInterface $httpClient = null,
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/")
             ->withHeaders([
@@ -82,6 +88,7 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "{$this->collectionId}/delete",
@@ -106,10 +113,11 @@ class ChromaVectorStore implements VectorStoreInterface
 
     /**
      * @param Document[] $documents
-     * @throws HttpException
+     * @throws HttpException|VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents);
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
@@ -127,9 +135,14 @@ class ChromaVectorStore implements VectorStoreInterface
     /**
      * @return iterable<Document>
      * @throws HttpException
+     * @throws DocumentSchemaException|VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $body = [
             'query_embeddings' => [$request->embedding],
             'n_results' => $request->topK ?? $this->topK,
@@ -151,19 +164,13 @@ class ChromaVectorStore implements VectorStoreInterface
         $size = count($response['ids'][0] ?? []);
         $result = [];
         for ($i = 0; $i < $size; $i++) {
-            $document = new Document();
-            $document->id = $response['ids'][0][$i] ?? uniqid();
-            //$document->embedding = $response['embeddings'][0][$i] ?? null;
-            $document->content = $response['documents'][0][$i];
-            $document->sourceType = $response['metadatas'][0][$i]['sourceType'] ?? null;
-            $document->sourceName = $response['metadatas'][0][$i]['sourceName'] ?? null;
-            $document->score = VectorSimilarity::similarityFromDistance($response['distances'][0][$i] ?? 0.0);
+            $document = (new Document($response['documents'][0][$i]))
+                ->setId($response['ids'][0][$i] ?? uniqid())
+                ->setSourceType($response['metadatas'][0][$i]['sourceType'] ?? 'manual')
+                ->setSourceName($response['metadatas'][0][$i]['sourceName'] ?? 'manual')
+                ->setScore(VectorSimilarity::similarityFromDistance($response['distances'][0][$i] ?? 0.0));
 
-            foreach (($response['metadatas'][0][$i] ?? []) as $name => $value) {
-                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
-                    $document->addMetadata($name, $value);
-                }
-            }
+            MetadataMapper::hydrate($document, $response['metadatas'][0][$i] ?? []);
 
             $result[] = $document;
         }
@@ -174,6 +181,7 @@ class ChromaVectorStore implements VectorStoreInterface
     /**
      * @param Document[] $documents
      * @return array<string, array>
+     * @throws JsonException
      */
     protected function mapDocuments(array $documents): array
     {
@@ -191,7 +199,7 @@ class ChromaVectorStore implements VectorStoreInterface
             $payload['metadatas'][] = [
                 'sourceType' => $document->getSourceType(),
                 'sourceName' => $document->getSourceName(),
-                ...$document->metadata,
+                ...MetadataMapper::toStorage($document, $this->schema),
             ];
         }
 

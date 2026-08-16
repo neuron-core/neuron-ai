@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
-use Exception;
 use MongoDB\Client;
 use MongoDB\Collection;
 use MongoDB\Exception\SearchNotSupportedException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MongoDBFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
@@ -19,6 +19,8 @@ use function max;
 
 class MongoDBVectorStore implements VectorStoreInterface
 {
+    use HasDocumentSchema;
+
     protected Collection $collection;
 
     public function __construct(
@@ -27,21 +29,37 @@ class MongoDBVectorStore implements VectorStoreInterface
         protected string $collectionName = 'neuron_documents',
         protected int $topK = 4,
         protected string $vectorIndexName = 'vector_index',
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         $this->collection = $client->selectCollection($this->database, $this->collectionName);
     }
 
     public function setupVectorIndex(int $dimensions, string $similarity = 'cosine'): void
     {
+        $fields = [[
+            'type' => 'vector',
+            'path' => 'embedding',
+            'numDimensions' => $dimensions,
+            'similarity' => $similarity,
+        ]];
+
+        foreach ($this->schema->fields() as $field) {
+            if ($field->isFilterable()) {
+                $fields[] = [
+                    'type' => 'filter',
+                    'path' => 'metadata.'.$field->getName(),
+                ];
+            }
+        }
+
+        $fields[] = ['type' => 'filter', 'path' => 'sourceType'];
+        $fields[] = ['type' => 'filter', 'path' => 'sourceName'];
+
         try {
             $this->collection->createSearchIndex(
                 [
-                    'fields' => [[
-                        'type' => 'vector',
-                        'path' => 'embedding',
-                        'numDimensions' => $dimensions,
-                        'similarity' => $similarity,
-                    ]],
+                    'fields' => $fields,
                 ],
                 [
                     'name' => $this->vectorIndexName,
@@ -72,9 +90,7 @@ class MongoDBVectorStore implements VectorStoreInterface
             return $this;
         }
 
-        if ($documents[0]->embedding === []) {
-            throw new Exception('Document embedding must be set before adding a document');
-        }
+        $this->validateDocuments($documents);
 
         $chunks = array_chunk($documents, 100);
 
@@ -86,7 +102,7 @@ class MongoDBVectorStore implements VectorStoreInterface
                     'content' => $document->getContent(),
                     'sourceType' => $document->getSourceType(),
                     'sourceName' => $document->getSourceName(),
-                    'metadata' => (object) $document->metadata,
+                    'metadata' => (object) $document->getMetadata(),
                 ], $chunk)
             );
         }
@@ -96,6 +112,7 @@ class MongoDBVectorStore implements VectorStoreInterface
 
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->collection->deleteMany((new MongoDBFilterCompiler())->compile($filters));
 
         return $this;
@@ -110,6 +127,10 @@ class MongoDBVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): iterable
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $topK = $request->topK ?? $this->topK;
 
         $vectorSearch = [
@@ -147,9 +168,9 @@ class MongoDBVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['content']);
-            $document->sourceType = $item['sourceType'];
-            $document->sourceName = $item['sourceName'];
-            $document->score = (float) $item['score'];
+            $document->setSourceType($item['sourceType'])
+                ->setSourceName($item['sourceName'])
+                ->setScore((float) $item['score']);
 
             $metadata = (array) ($item['metadata'] ?? []);
             foreach ($metadata as $key => $value) {

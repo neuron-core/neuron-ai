@@ -42,18 +42,18 @@ class FakeVectorStoreTest extends TestCase
         $store = new FakeVectorStore();
 
         $doc1 = new Document('Keep');
-        $doc1->sourceType = 'file';
-        $doc1->sourceName = 'keep.txt';
+        $doc1->setSourceType('file');
+        $doc1->setSourceName('keep.txt');
 
         $doc2 = new Document('Delete');
-        $doc2->sourceType = 'file';
-        $doc2->sourceName = 'delete.txt';
+        $doc2->setSourceType('file');
+        $doc2->setSourceName('delete.txt');
 
         $store->addDocuments([$doc1, $doc2]);
         $store->delete(FilterGroup::and(Filter::eq('sourceType', 'file'), Filter::eq('sourceName', 'delete.txt')));
 
         $this->assertCount(1, $store->getDocuments());
-        $this->assertSame('Keep', $store->getDocuments()[0]->content);
+        $this->assertSame('Keep', $store->getDocuments()[0]->getContent());
     }
 
     public function test_delete_by(): void
@@ -61,18 +61,18 @@ class FakeVectorStoreTest extends TestCase
         $store = new FakeVectorStore();
 
         $doc1 = new Document('Keep');
-        $doc1->sourceType = 'file';
-        $doc1->sourceName = 'keep.txt';
+        $doc1->setSourceType('file');
+        $doc1->setSourceName('keep.txt');
 
         $doc2 = new Document('Delete');
-        $doc2->sourceType = 'db';
-        $doc2->sourceName = 'foo-1';
+        $doc2->setSourceType('db');
+        $doc2->setSourceName('foo-1');
 
         $store->addDocuments([$doc1, $doc2]);
         $store->delete(FilterGroup::and(Filter::eq('sourceType', 'db')));
 
         $this->assertCount(1, $store->getDocuments());
-        $this->assertSame('Keep', $store->getDocuments()[0]->content);
+        $this->assertSame('Keep', $store->getDocuments()[0]->getContent());
     }
 
     public function test_similarity_search_returns_preset_results(): void

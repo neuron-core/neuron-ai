@@ -63,7 +63,7 @@ class FakeEmbeddingsProviderTest extends TestCase
         $result = $provider->embedDocument($document);
 
         $this->assertSame($document, $result);
-        $this->assertCount(8, $document->embedding);
+        $this->assertCount(8, $document->getEmbedding());
     }
 
     public function test_embed_documents(): void
@@ -78,8 +78,8 @@ class FakeEmbeddingsProviderTest extends TestCase
         $result = $provider->embedDocuments($docs);
 
         $this->assertCount(2, $result);
-        $this->assertNotEmpty($result[0]->embedding);
-        $this->assertNotEmpty($result[1]->embedding);
+        $this->assertNotEmpty($result[0]->getEmbedding());
+        $this->assertNotEmpty($result[1]->getEmbedding());
     }
 
     public function test_records_embedded_texts(): void

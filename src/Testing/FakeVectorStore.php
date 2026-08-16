@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Testing;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
+use NeuronAI\RAG\VectorStore\HasDocumentSchema;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\StaticConstructor;
 use PHPUnit\Framework\Assert;
@@ -23,6 +25,7 @@ use function count;
 class FakeVectorStore implements VectorStoreInterface
 {
     use StaticConstructor;
+    use HasDocumentSchema;
     /** @var Document[] */
     protected array $documents = [];
 
@@ -34,12 +37,14 @@ class FakeVectorStore implements VectorStoreInterface
     /**
      * @param Document[] $searchResults Documents to return from search()
      */
-    public function __construct(protected array $searchResults = [])
+    public function __construct(protected array $searchResults = [], ?DocumentSchema $schema = null)
     {
+        $this->initializeSchema($schema);
     }
 
     public function addDocument(Document $document): VectorStoreInterface
     {
+        $this->validateDocument($document, false);
         $this->documents[] = $document;
 
         $this->recorded[] = ['method' => 'addDocument', 'args' => [$document]];
@@ -52,6 +57,7 @@ class FakeVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents, false);
         $this->documents = array_merge($this->documents, $documents);
 
         $this->recorded[] = ['method' => 'addDocuments', 'args' => $documents];
@@ -61,6 +67,7 @@ class FakeVectorStore implements VectorStoreInterface
 
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
 
         $this->documents = array_values(array_filter(
@@ -78,6 +85,9 @@ class FakeVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): array
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
         $this->searchCount++;
 
         $this->recorded[] = ['method' => 'search', 'args' => [$request]];
@@ -139,7 +149,7 @@ class FakeVectorStore implements VectorStoreInterface
         $matched = false;
 
         foreach ($this->documents as $document) {
-            if ($document->content === $content) {
+            if ($document->getContent() === $content) {
                 $matched = true;
                 break;
             }

@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
@@ -35,12 +36,16 @@ use const PHP_EOL;
 
 class FileVectorStore implements VectorStoreInterface
 {
+    use HasDocumentSchema;
+
     public function __construct(
         protected string $directory,
         protected int $topK = 4,
         protected string $name = 'neuron',
-        protected string $ext = '.store'
+        protected string $ext = '.store',
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true)) {
             throw new VectorStoreException("Directory '{$this->directory}' does not exist and could not be created.");
         }
@@ -58,14 +63,16 @@ class FileVectorStore implements VectorStoreInterface
 
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents);
         $this->appendToFile(
-            array_map(fn (Document $document): array => $document->jsonSerialize(), $documents)
+            array_map(fn (Document $document): array => $this->storedDocument($document), $documents)
         );
         return $this;
     }
 
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
 
         // Temporary file
@@ -105,6 +112,10 @@ class FileVectorStore implements VectorStoreInterface
         $filters = $request->filters;
         $evaluator = new FilterEvaluator();
 
+        if ($filters instanceof FilterGroup) {
+            $this->validateFilters($filters);
+        }
+
         foreach ($this->getLine($this->getFilePath()) as $document) {
             $document = json_decode((string) $document, true);
 
@@ -129,12 +140,12 @@ class FileVectorStore implements VectorStoreInterface
         return array_map(function (array $item): Document {
             $itemDoc = $item['document'];
             $document = new Document($itemDoc['content']);
-            $document->embedding = $itemDoc['embedding'];
-            $document->sourceType = $itemDoc['sourceType'];
-            $document->sourceName = $itemDoc['sourceName'];
-            $document->id = $itemDoc['id'];
-            $document->score = VectorSimilarity::similarityFromDistance($item['dist']);
-            $document->metadata = $itemDoc['metadata'] ?? [];
+            $document->setEmbedding($itemDoc['embedding'])
+                ->setSourceType($itemDoc['sourceType'])
+                ->setSourceName($itemDoc['sourceName'])
+                ->setId($itemDoc['id'])
+                ->setScore(VectorSimilarity::similarityFromDistance($item['dist']))
+                ->setMetadata($itemDoc['metadata'] ?? []);
 
             return $document;
         }, $topItems);
@@ -151,6 +162,24 @@ class FileVectorStore implements VectorStoreInterface
             'sourceType' => $document['sourceType'] ?? null,
             'sourceName' => $document['sourceName'] ?? null,
             ...($document['metadata'] ?? []),
+        ];
+    }
+
+    /**
+     * Score is deliberately excluded: it belongs to a retrieval operation,
+     * not to the stored document.
+     *
+     * @return array<string, mixed>
+     */
+    protected function storedDocument(Document $document): array
+    {
+        return [
+            'id' => $document->getId(),
+            'content' => $document->getContent(),
+            'embedding' => $document->getEmbedding(),
+            'sourceType' => $document->getSourceType(),
+            'sourceName' => $document->getSourceName(),
+            'metadata' => $document->getMetadata(),
         ];
     }
 

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+
+use function is_float;
+use function is_int;
 
 /**
  * Immutable, per-call search input. Nothing here outlives the call, so a
@@ -22,5 +26,18 @@ class SearchRequest
         public readonly ?FilterGroup $filters = null,
         public readonly ?int $topK = null,
     ) {
+        if ($this->embedding === []) {
+            throw new VectorStoreException('Search embedding cannot be empty.');
+        }
+
+        foreach ($this->embedding as $value) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new VectorStoreException('Search embedding accepts numeric values only.');
+            }
+        }
+
+        if ($this->topK !== null && $this->topK < 1) {
+            throw new VectorStoreException('Search topK must be greater than zero.');
+        }
     }
 }

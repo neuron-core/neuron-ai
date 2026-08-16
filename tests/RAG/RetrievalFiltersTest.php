@@ -8,6 +8,8 @@ use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
@@ -21,7 +23,7 @@ class RetrievalFiltersTest extends TestCase
 {
     public function test_similarity_retrieval_searches_without_filters_by_default(): void
     {
-        $store = new FakeVectorStore();
+        $store = new FakeVectorStore(schema: $this->filterSchema());
         $retrieval = new SimilarityRetrieval($store, new FakeEmbeddingsProvider());
 
         $retrieval->retrieve(new UserMessage('question'));
@@ -32,7 +34,7 @@ class RetrievalFiltersTest extends TestCase
 
     public function test_similarity_retrieval_ands_static_and_incoming_filters(): void
     {
-        $store = new FakeVectorStore();
+        $store = new FakeVectorStore(schema: $this->filterSchema());
         $retrieval = new SimilarityRetrieval(
             $store,
             new FakeEmbeddingsProvider(),
@@ -55,7 +57,7 @@ class RetrievalFiltersTest extends TestCase
 
     public function test_incoming_filters_alone_reach_the_store(): void
     {
-        $store = new FakeVectorStore();
+        $store = new FakeVectorStore(schema: $this->filterSchema());
         $retrieval = new SimilarityRetrieval($store, new FakeEmbeddingsProvider());
 
         $retrieval->retrieve(
@@ -91,5 +93,13 @@ class RetrievalFiltersTest extends TestCase
         $this->assertInstanceOf(SearchRequest::class, $last['args'][0]);
 
         return $last['args'][0];
+    }
+
+    protected function filterSchema(): DocumentSchema
+    {
+        return DocumentSchema::of(
+            DocumentField::string('tenant')->filterable(),
+            DocumentField::string('lang')->filterable(),
+        );
     }
 }

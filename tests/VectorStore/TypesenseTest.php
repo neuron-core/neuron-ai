@@ -65,14 +65,14 @@ class TypesenseTest extends TestCase
 
         $document = new Document('Hello World!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
 
         $store->addDocument($document);
 
         $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     public function test_add_documents(): void
@@ -81,14 +81,14 @@ class TypesenseTest extends TestCase
 
         $document = new Document('Hello World!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
 
         $store->addDocuments([$document]);
 
         $results = $store->search(new SearchRequest($this->embedding));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     public function test_delete_documents(): void
@@ -106,14 +106,14 @@ class TypesenseTest extends TestCase
         $store = new TypesenseVectorStore($this->client, 'test-'.bin2hex(random_bytes(5)), $this->vectorDimension);
 
         $document1 = new Document('Hello type A!');
-        $document1->embedding = $this->embedding;
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding($this->embedding);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello type B!');
-        $document2->embedding = $this->embedding;
-        $document2->sourceType = 'file';
-        $document2->sourceName = 'doc.txt';
+        $document2->setEmbedding($this->embedding);
+        $document2->setSourceType('file');
+        $document2->setSourceName('doc.txt');
 
         $store->addDocuments([$document1, $document2]);
         $store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));

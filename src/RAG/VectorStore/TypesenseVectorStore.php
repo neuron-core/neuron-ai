@@ -6,6 +6,8 @@ namespace NeuronAI\RAG\VectorStore;
 
 use Http\Client\Exception;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentFieldType;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\TypesenseFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
@@ -17,21 +19,23 @@ use JsonException;
 use function array_key_exists;
 use function array_map;
 use function count;
-use function gettype;
 use function implode;
-use function in_array;
 use function json_encode;
 use function max;
 use function array_chunk;
 
 class TypesenseVectorStore implements VectorStoreInterface
 {
+    use HasDocumentSchema;
+
     public function __construct(
         protected Client $client,
         protected string $collection,
         protected int $vectorDimension,
         protected string $topK = '4',
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
     }
 
     /**
@@ -65,14 +69,29 @@ class TypesenseVectorStore implements VectorStoreInterface
                     'type' => 'float[]',
                     'num_dim' => $this->vectorDimension,
                 ],
+                [
+                    'name' => MetadataMapper::PAYLOAD_FIELD,
+                    'type' => 'string',
+                    'optional' => true,
+                    'index' => false,
+                ],
             ];
 
-            // Map custom fields
-            foreach ($document->metadata as $name => $value) {
+            foreach ($this->schema->fields() as $field) {
                 $fields[] = [
-                    'name' => $name,
-                    'type' => gettype($value),
-                    'facet' => true,
+                    'name' => $field->getName(),
+                    'type' => match ($field->getType()) {
+                        DocumentFieldType::String => 'string',
+                        DocumentFieldType::Integer => 'int64',
+                        DocumentFieldType::Float => 'float',
+                        DocumentFieldType::Boolean => 'bool',
+                        DocumentFieldType::StringArray => 'string[]',
+                        DocumentFieldType::IntegerArray => 'int64[]',
+                        DocumentFieldType::FloatArray => 'float[]',
+                        DocumentFieldType::BooleanArray => 'bool[]',
+                    },
+                    'optional' => !$field->isRequired(),
+                    'facet' => $field->isFilterable(),
                 ];
             }
 
@@ -89,9 +108,7 @@ class TypesenseVectorStore implements VectorStoreInterface
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
-        if ($document->getEmbedding() === []) {
-            throw new \Exception('document embedding must be set before adding a document');
-        }
+        $this->validateDocument($document);
 
         $this->checkIndexStatus($document);
 
@@ -101,7 +118,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             'embedding' => $document->getEmbedding(),
             'sourceType' => $document->getSourceType(),
             'sourceName' => $document->getSourceName(),
-            ...$document->metadata,
+            ...MetadataMapper::toStorage($document, $this->schema),
         ]);
 
         return $this;
@@ -109,6 +126,7 @@ class TypesenseVectorStore implements VectorStoreInterface
 
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->client->collections[$this->collection]->documents->delete([
             "filter_by" => (new TypesenseFilterCompiler())->compile($filters),
         ]);
@@ -130,6 +148,8 @@ class TypesenseVectorStore implements VectorStoreInterface
             return $this;
         }
 
+        $this->validateDocuments($documents);
+
         $this->checkIndexStatus($documents[0]);
 
         $lines = [];
@@ -140,7 +160,7 @@ class TypesenseVectorStore implements VectorStoreInterface
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),
                 'sourceName' => $document->getSourceName(),
-                ...$document->metadata,
+                ...MetadataMapper::toStorage($document, $this->schema),
             ]);
         }
 
@@ -156,6 +176,10 @@ class TypesenseVectorStore implements VectorStoreInterface
 
     public function search(SearchRequest $request): array
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $topK = $request->topK ?? (int) $this->topK;
 
         $params = [
@@ -177,16 +201,11 @@ class TypesenseVectorStore implements VectorStoreInterface
         return array_map(function (array $hit): Document {
             $item = $hit['document'];
             $document = new Document($item['content']);
-            //$document->embedding = $item['embedding']; // avoid carrying large data
-            $document->sourceType = $item['sourceType'];
-            $document->sourceName = $item['sourceName'];
-            $document->score = VectorSimilarity::similarityFromDistance($hit['vector_distance']);
+            $document->setSourceType($item['sourceType'])
+                ->setSourceName($item['sourceName'])
+                ->setScore(VectorSimilarity::similarityFromDistance($hit['vector_distance']));
 
-            foreach ($item as $name => $value) {
-                if (!in_array($name, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id', 'vector_distance'])) {
-                    $document->addMetadata($name, $value);
-                }
-            }
+            MetadataMapper::hydrate($document, $item);
 
             return $document;
         }, $response['results'][0]['hits']);

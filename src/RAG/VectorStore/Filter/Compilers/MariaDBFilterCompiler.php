@@ -10,6 +10,8 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
+use NeuronAI\RAG\Schema\DocumentFieldType;
+use NeuronAI\RAG\Schema\DocumentSchema;
 
 use function implode;
 use function in_array;
@@ -19,6 +21,13 @@ use function preg_match;
 class MariaDBFilterCompiler extends FilterCompiler
 {
     protected const STORE = MariaDBVectorStore::class;
+
+    protected DocumentSchema $schema;
+
+    public function __construct(?DocumentSchema $schema = null)
+    {
+        $this->schema = $schema ?? DocumentSchema::default();
+    }
 
     /**
      * Compile to a SQL WHERE clause with named bindings (":f0", ":f1", ...),
@@ -91,7 +100,15 @@ class MariaDBFilterCompiler extends FilterCompiler
             throw new VectorStoreException("Metadata field \"{$field}\" is not a valid identifier for a SQL filter.");
         }
 
-        return "JSON_VALUE(metadata, '$.{$field}')";
+        $expression = "JSON_VALUE(metadata, '$.{$field}')";
+        $type = $this->schema->getField($field)?->getType();
+
+        return match ($type) {
+            DocumentFieldType::Integer => "CAST({$expression} AS SIGNED)",
+            DocumentFieldType::Float => "CAST({$expression} AS DECIMAL(65, 30))",
+            DocumentFieldType::Boolean => "CAST({$expression} AS UNSIGNED)",
+            default => $expression,
+        };
     }
 
     protected function bindable(mixed $value): string|int|float

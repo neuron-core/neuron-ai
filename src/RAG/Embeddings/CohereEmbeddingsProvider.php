@@ -71,7 +71,7 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
             ]))->json();
 
             foreach ($response['embeddings']['float'] as $index => $item) {
-                $chunk[$index]->embedding = $item;
+                $chunk[$index]->setEmbedding($item);
             }
         }
 

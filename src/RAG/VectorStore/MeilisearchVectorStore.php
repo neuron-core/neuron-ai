@@ -10,12 +10,12 @@ use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MeilisearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Exception;
 
 use function array_map;
-use function in_array;
 use function is_null;
 use function min;
 use function range;
@@ -26,6 +26,7 @@ use function array_chunk;
 class MeilisearchVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
+    use HasDocumentSchema;
 
     /**
      * @throws HttpException
@@ -38,7 +39,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
         protected int $topK = 5,
         protected int $dimension = 1024,
         ?HttpClientInterface $httpClient = null,
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
         $this->httpClient = ($httpClient ?? new CurlHttpClient())
             ->withBaseUri($host)
             ->withHeaders([
@@ -51,6 +54,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
         } catch (Exception) {
             $this->createIndex();
         }
+
+        $this->configureIndex();
     }
 
     /**
@@ -66,6 +71,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
+        $this->validateDocuments($documents);
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
@@ -77,7 +83,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
                         'content' => $document->getContent(),
                         'sourceType' => $document->getSourceType(),
                         'sourceName' => $document->getSourceName(),
-                        ...$document->metadata,
+                        ...MetadataMapper::toStorage($document, $this->schema),
                         '_vectors' => [
                             'default' => [
                                 'embeddings' => $document->getEmbedding(),
@@ -97,6 +103,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
      */
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
+        $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
                 uri: "/indexes/{$this->indexUid}/documents/delete",
@@ -112,6 +119,10 @@ class MeilisearchVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): iterable
     {
+        if ($request->filters instanceof FilterGroup) {
+            $this->validateFilters($request->filters);
+        }
+
         $body = [
             'vector' => $request->embedding,
             'limit' => min($request->topK ?? $this->topK, 20),
@@ -136,17 +147,13 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['content']);
-            $document->id = $item['id'] ?? uniqid();
-            $document->sourceType = $item['sourceType'] ?? null;
-            $document->sourceName = $item['sourceName'] ?? null;
-            $document->embedding = $item['_vectors']['default']['embeddings'];
-            $document->score = $item['_rankingScore'];
+            $document->setId($item['id'] ?? uniqid())
+                ->setSourceType($item['sourceType'] ?? 'manual')
+                ->setSourceName($item['sourceName'] ?? 'manual')
+                ->setEmbedding($item['_vectors']['default']['embeddings'])
+                ->setScore($item['_rankingScore']);
 
-            foreach ($item as $name => $value) {
-                if (!in_array($name, ['_vectors', '_rankingScore', 'content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
-                    $document->addMetadata($name, $value);
-                }
-            }
+            MetadataMapper::hydrate($document, $item);
 
             return $document;
         }, $response['hits']);
@@ -169,6 +176,10 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $this->waitForTask($response['taskUid']);
 
+    }
+
+    protected function configureIndex(): void
+    {
         $response = $this->httpClient->request(
             HttpRequest::patch(
                 uri: "indexes/{$this->indexUid}/settings/embedders",
@@ -184,12 +195,21 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $this->waitForTask($response['taskUid']);
 
-        $this->httpClient->request(
+        $filterableAttributes = ['sourceType', 'sourceName'];
+        foreach ($this->schema->fields() as $field) {
+            if ($field->isFilterable()) {
+                $filterableAttributes[] = $field->getName();
+            }
+        }
+
+        $response = $this->httpClient->request(
             HttpRequest::put(
                 uri: "indexes/{$this->indexUid}/settings/filterable-attributes",
-                body: ['sourceType', 'sourceName']
+                body: $filterableAttributes,
             )
-        );
+        )->json();
+
+        $this->waitForTask($response['taskUid']);
     }
 
     protected function waitForTask(int $taskUid): void

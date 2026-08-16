@@ -65,7 +65,7 @@ class MeiliSearchTest extends TestCase
         $store = new MeilisearchVectorStore('neuron');
 
         $document = new Document('Hello World!');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
         $document->addMetadata('customProperty', 'customValue');
 
         $store->addDocument($document);
@@ -77,7 +77,7 @@ class MeiliSearchTest extends TestCase
 
         $this->assertNotEmpty($results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     public function test_meilisearch_delete_documents(): void
@@ -85,7 +85,7 @@ class MeiliSearchTest extends TestCase
         $store = new MeilisearchVectorStore('neuron');
 
         $document = new Document('Hello World!');
-        $document->embedding = $this->embedding;
+        $document->setEmbedding($this->embedding);
         $store->addDocument($document);
 
         // Wait for Meilisearch to index the document
@@ -108,14 +108,14 @@ class MeiliSearchTest extends TestCase
         $store = new MeilisearchVectorStore('neuron');
 
         $document1 = new Document('Hello type A!');
-        $document1->embedding = $this->embedding;
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding($this->embedding);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello type B!');
-        $document2->embedding = $this->embedding;
-        $document2->sourceType = 'file';
-        $document2->sourceName = 'doc.txt';
+        $document2->setEmbedding($this->embedding);
+        $document2->setSourceType('file');
+        $document2->setSourceName('doc.txt');
 
         $store->addDocuments([$document1, $document2]);
 
@@ -138,14 +138,14 @@ class MeiliSearchTest extends TestCase
         $store = new MeilisearchVectorStore('neuron');
 
         $document1 = new Document('Hello type A!');
-        $document1->embedding = $this->embedding;
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
+        $document1->setEmbedding($this->embedding);
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
 
         $document2 = new Document('Hello type B!');
-        $document2->embedding = $this->embedding;
-        $document2->sourceType = 'file';
-        $document2->sourceName = 'doc.txt';
+        $document2->setEmbedding($this->embedding);
+        $document2->setSourceType('file');
+        $document2->setSourceName('doc.txt');
 
         $store->addDocuments([$document1, $document2]);
 

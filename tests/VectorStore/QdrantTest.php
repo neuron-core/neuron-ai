@@ -54,14 +54,14 @@ class QdrantTest extends TestCase
     {
         $document = new Document('Hello World!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $this->store->addDocument($document);
 
         $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     /**
@@ -71,17 +71,17 @@ class QdrantTest extends TestCase
     {
         $document = new Document('Hello!');
         $document->addMetadata('customProperty', 'customValue');
-        $document->embedding = [1, 2, 3];
+        $document->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello 2!');
-        $document2->embedding = [3, 4, 5];
+        $document2->setEmbedding([3, 4, 5]);
 
         $this->store->addDocuments([$document, $document2]);
 
         $results = $this->store->search(new SearchRequest([1, 2, 3]));
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
-        $this->assertEquals($document->metadata['customProperty'], $results[0]->metadata['customProperty']);
+        $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
     /**
@@ -90,14 +90,14 @@ class QdrantTest extends TestCase
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');
-        $document->sourceType = self::SOURCE_TYPE;
-        $document->sourceName = self::SOURCE_NAME;
-        $document->embedding = [1, 2, 3];
+        $document->setSourceType(self::SOURCE_TYPE);
+        $document->setSourceName(self::SOURCE_NAME);
+        $document->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello 2!');
-        $document2->sourceType = self::SOURCE_TYPE;
-        $document2->sourceName = self::SOURCE_NAME;
-        $document2->embedding = [3, 4, 5];
+        $document2->setSourceType(self::SOURCE_TYPE);
+        $document2->setSourceName(self::SOURCE_NAME);
+        $document2->setEmbedding([3, 4, 5]);
 
         $this->store->addDocuments([$document, $document2]);
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', self::SOURCE_TYPE), Filter::eq('sourceName', self::SOURCE_NAME)));
@@ -112,19 +112,19 @@ class QdrantTest extends TestCase
     public function test_delete_by_type(): void
     {
         $document1 = new Document('Hello type A!');
-        $document1->sourceType = 'web';
-        $document1->sourceName = 'page-a';
-        $document1->embedding = [1, 2, 3];
+        $document1->setSourceType('web');
+        $document1->setSourceName('page-a');
+        $document1->setEmbedding([1, 2, 3]);
 
         $document2 = new Document('Hello type B!');
-        $document2->sourceType = 'web';
-        $document2->sourceName = 'page-b';
-        $document2->embedding = [3, 4, 5];
+        $document2->setSourceType('web');
+        $document2->setSourceName('page-b');
+        $document2->setEmbedding([3, 4, 5]);
 
         $document3 = new Document('Hello type C!');
-        $document3->sourceType = 'file';
-        $document3->sourceName = 'doc.txt';
-        $document3->embedding = [2, 2, 2];
+        $document3->setSourceType('file');
+        $document3->setSourceName('doc.txt');
+        $document3->setEmbedding([2, 2, 2]);
 
         $this->store->addDocuments([$document1, $document2, $document3]);
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));

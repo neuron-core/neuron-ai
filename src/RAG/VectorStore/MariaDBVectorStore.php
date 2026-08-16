@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MariaDBFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
-use Exception;
 use PDO;
 
 use function array_chunk;
@@ -20,11 +20,15 @@ use function is_array;
 
 class MariaDBVectorStore implements VectorStoreInterface
 {
+    use HasDocumentSchema;
+
     public function __construct(
         protected PDO $pdo,
         protected string $tableName = 'rag_documents',
         protected int $topK = 4,
+        ?DocumentSchema $schema = null,
     ) {
+        $this->initializeSchema($schema);
     }
 
     /**
@@ -65,6 +69,8 @@ class MariaDBVectorStore implements VectorStoreInterface
             return $this;
         }
 
+        $this->validateDocuments($documents);
+
         $stmt = $this->pdo->prepare(sprintf(
             <<<'SQL'
                 INSERT INTO %s (id, content, sourceType, sourceName, metadata, embedding)
@@ -83,16 +89,12 @@ class MariaDBVectorStore implements VectorStoreInterface
 
         foreach ($chunks as $chunk) {
             foreach ($chunk as $document) {
-                if ($document->embedding === []) {
-                    throw new Exception('Document embedding must be set before adding a document');
-                }
-
                 $stmt->execute([
                     ':id' => $document->getId(),
                     ':content' => $document->getContent(),
                     ':sourceType' => $document->getSourceType(),
                     ':sourceName' => $document->getSourceName(),
-                    ':metadata' => json_encode($document->metadata),
+                    ':metadata' => json_encode($document->getMetadata()),
                     ':embedding' => json_encode($document->getEmbedding()),
                 ]);
             }
@@ -103,7 +105,8 @@ class MariaDBVectorStore implements VectorStoreInterface
 
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
-        $compiled = (new MariaDBFilterCompiler())->compile($filters);
+        $this->validateFilters($filters);
+        $compiled = (new MariaDBFilterCompiler($this->schema))->compile($filters);
 
         $stmt = $this->pdo->prepare(sprintf(
             'DELETE FROM %s WHERE %s',
@@ -121,7 +124,8 @@ class MariaDBVectorStore implements VectorStoreInterface
         $bindings = [':embedding' => json_encode($request->embedding)];
 
         if ($request->filters instanceof FilterGroup) {
-            $compiled = (new MariaDBFilterCompiler())->compile($request->filters);
+            $this->validateFilters($request->filters);
+            $compiled = (new MariaDBFilterCompiler($this->schema))->compile($request->filters);
             $where = 'WHERE ' . $compiled['sql'];
             $bindings = [...$bindings, ...$compiled['bindings']];
         }
@@ -146,10 +150,10 @@ class MariaDBVectorStore implements VectorStoreInterface
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $document = new Document($row['content']);
-            $document->id = $row['id'];
-            $document->sourceType = $row['sourceType'];
-            $document->sourceName = $row['sourceName'];
-            $document->score = VectorSimilarity::similarityFromDistance((float) $row['distance']);
+            $document->setId($row['id'])
+                ->setSourceType($row['sourceType'])
+                ->setSourceName($row['sourceName'])
+                ->setScore(VectorSimilarity::similarityFromDistance((float) $row['distance']));
 
             $metadata = json_decode($row['metadata'] ?? '{}', true);
             if (is_array($metadata)) {

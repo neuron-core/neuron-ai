@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 
@@ -31,7 +32,14 @@ class MongoDBFilterCompiler extends MongoStyleFilterCompiler
                 continue;
             }
 
-            $conditions[] = [$this->path($condition->field) => [$this->operator($condition->operator) => $condition->value]];
+            $path = $this->path($condition->field);
+            $comparison = [$this->operator($condition->operator) => $condition->value];
+
+            if ($condition->operator === FilterOperator::Neq) {
+                $comparison['$exists'] = true;
+            }
+
+            $conditions[] = [$path => $comparison];
         }
 
         return ['$and' => $conditions];

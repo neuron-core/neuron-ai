@@ -237,6 +237,29 @@ $rag->setRetrieval(new CustomRetrieval());
 
 Retrieval can be constrained by document metadata with a portable filter model that compiles to each backend's native syntax — the same `FilterGroup` works on Pinecone, Qdrant, Meilisearch, and every other store.
 
+Custom filter fields must be declared once on the vector store. Undeclared
+metadata still round-trips, so schemas are only required when a database must
+index and compare a field:
+
+```php
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
+
+$schema = DocumentSchema::of(
+    DocumentField::string('tenant')->required()->filterable(),
+    DocumentField::string('status')->required()->filterable(),
+    DocumentField::integer('published_at')->filterable(),
+    DocumentField::float('price')->filterable(),
+);
+
+$store = new MemoryVectorStore(schema: $schema);
+```
+
+The portable field types are string, integer, float, boolean, and homogeneous
+arrays of those types. Arrays are validated and stored but require raw backend
+filters. `neq` is available only for required fields, preventing absent fields
+from widening a scope on databases with different missing-field behavior.
+
 ### The filter vocabulary
 
 ```php
@@ -252,10 +275,12 @@ FilterGroup::and(                                // conjunction: every condition
 );
 ```
 
-Rules the model enforces at construction (so a filter that builds is a filter every backend can run):
+Rules the filter and store schema validate before database I/O:
 
 - **Scalars only** — `null` has no portable missing-vs-null semantics across backends and throws.
 - **Ranges are `int|float` only** — not every backend can range-compare strings; index dates as epoch timestamps.
+- **Custom fields are declared and filterable** — values and operators must match the schema type.
+- **`neq` fields are required** — missing records can never widen the result on a different database.
 - **Groups are AND-only** — `in()` covers OR-over-one-field, which is most real OR usage.
 - **Groups flatten** — `FilterGroup::and($scope, $userFilters)` merges by appending, so composed filters can only narrow, never widen.
 
@@ -322,9 +347,9 @@ $store->delete(FilterGroup::and(
 
 ### Backend caveats
 
-- **Meilisearch**: filtered attributes must be declared filterable in the index settings (the store registers `sourceType`/`sourceName` at index creation; add your own metadata fields yourself).
-- **MongoDB Atlas**: filtered fields must be declared as filter fields in the vector search index.
-- **Weaviate**: custom metadata is stored as a JSON string, so only `content`, `sourceType`, and `sourceName` are filterable — anything else throws.
+- **Meilisearch**: schema filter fields are registered as filterable index attributes automatically.
+- **MongoDB Atlas**: `setupVectorIndex()` includes schema filter fields; an existing Atlas index may need recreation.
+- **Weaviate**: complete metadata is retained as JSON while declared filter fields are projected to native typed properties.
 - **Pinecone**: filter-based deletion works on pod-based indexes only.
 
 ## Pre and Post Processors

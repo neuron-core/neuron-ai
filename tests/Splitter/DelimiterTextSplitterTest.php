@@ -94,8 +94,8 @@ class DelimiterTextSplitterTest extends TestCase
     public function test_metadata_is_propagated(): void
     {
         $doc = new Document('Test content that is long enough to not be returned as-is when splitting with a small max length');
-        $doc->sourceType = 'file';
-        $doc->sourceName = 'test.txt';
+        $doc->setSourceType('file');
+        $doc->setSourceName('test.txt');
         $doc->addMetadata('key', 'value');
 
         $splitter = new DelimiterTextSplitter(maxLength: 30);
@@ -104,7 +104,7 @@ class DelimiterTextSplitterTest extends TestCase
         foreach ($result as $chunk) {
             $this->assertEquals('file', $chunk->getSourceType());
             $this->assertEquals('test.txt', $chunk->getSourceName());
-            $this->assertEquals(['key' => 'value'], $chunk->metadata);
+            $this->assertEquals(['key' => 'value'], $chunk->getMetadata());
         }
     }
 
