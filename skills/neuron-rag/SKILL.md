@@ -1,6 +1,6 @@
 ---
 name: neuron-rag
-description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI including vector stores, embeddings providers, document loaders, retrieval strategies, and metadata filtering. Use this skill whenever the user mentions RAG, retrieval, vector search, document retrieval, semantic search, knowledge bases, chat with documents, or wants to build AI systems that can query and understand external documents. Also trigger for tasks involving vector databases, embeddings, document chunking, retrieval strategies, or filtering retrieval by metadata (tenant scoping, source scoping, date ranges).
+description: Implement RAG (Retrieval-Augmented Generation) with Neuron AI including vector stores, embeddings providers, document loaders, retrieval strategies, and metadata filtering. Use this skill whenever the user mentions RAG, retrieval, vector search, document retrieval, semantic search, knowledge bases, chat with documents, or wants to build AI systems that can query and understand external documents. Also trigger for tasks involving vector databases, embeddings, document chunking, document schemas and metadata validation (DocumentSchema), ingestion and reindexing, retrieval strategies, or filtering retrieval by metadata (tenant scoping, source scoping, date ranges).
 ---
 
 # Neuron AI RAG
@@ -153,14 +153,18 @@ new VoyageEmbeddingsProvider(
 
 ## Document Loading and Splitting
 
-`FileDataLoader` handles a single file or a whole directory; readers are selected by file extension (`PdfReader`, `HtmlReader`, `TextFileReader` built in). `StringDataLoader` wraps raw text. Loaders split while loading — configure the splitter with `withSplitter()`:
+`FileDataLoader` handles a single file or a whole directory (recursive) and fills each document's built-in `sourceType`/`sourceName` fields. Plain text is the default; register readers for other formats with `addReader()` (one extension or an array). `StringDataLoader` wraps raw text. Loaders split while loading — configure the splitter with `withSplitter()`:
 
 ```php
 use NeuronAI\RAG\DataLoader\FileDataLoader;
+use NeuronAI\RAG\DataLoader\HtmlReader;
+use NeuronAI\RAG\DataLoader\PdfReader;
 use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 
-// A directory (recursive, readers matched by extension) or a single file:
+// A directory (recursive) or a single file:
 $documents = FileDataLoader::for('/path/to/documents')
+    ->addReader('pdf', new PdfReader())
+    ->addReader(['html', 'htm'], new HtmlReader())
     ->withSplitter(new DelimiterTextSplitter(maxLength: 1000, separator: ' ', wordOverlap: 50))
     ->getDocuments();
 
@@ -181,9 +185,39 @@ $loader = FileDataLoader::for('/docs')->addReader('md', new MyMarkdownReader());
 
 **Chunking guidance**: smaller chunks retrieve more precisely but carry less context; 10–20% overlap preserves continuity across boundaries.
 
+### Document metadata
+
+Add schema-required and filterable metadata after loading, before ingestion. Values must match the declared type (an integer field requires `2026`, not `'2026'`). Undeclared metadata is also allowed — any JSON-safe value (strings, numbers, booleans, null, arrays of those) is stored and returned, but cannot be used in a portable filter:
+
+```php
+foreach ($documents as $document) {
+    $document
+        ->addMetadata('tenant', 'acme')
+        ->addMetadata('status', 'published')
+        ->addMetadata('published_at', 1767225600)
+        ->addMetadata('ui_hint', ['color' => 'blue']);   // undeclared, stored as-is
+}
+```
+
+Create a `Document` directly when a loader is unnecessary — setting the source makes later replacement/deletion predictable. Built-in splitters copy source and metadata to every chunk, so metadata can be set before splitting:
+
+```php
+use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Splitter\SentenceTextSplitter;
+
+$document = (new Document($content))
+    ->setSourceType('cms')
+    ->setSourceName('article-42')
+    ->setMetadata(['tenant' => 'acme', 'status' => 'published']);
+
+$documents = (new SentenceTextSplitter(maxWords: 200, overlapWords: 20))->splitDocument($document);
+```
+
+The same `Document` type flows through loading and retrieval: `getContent()`, `getSourceType()`, `getSourceName()`, `getMetadata()`, plus nullable `getEmbedding()` (null before embedding) and `getScore()` (null before retrieval; `0.0` is a valid score — use strict null checks).
+
 ## Ingesting Documents
 
-`RAG::addDocuments()` embeds and stores in one call (batched — `chunkSize` controls the embedding batch):
+`RAG::addDocuments()` validates each document against the store schema, embeds, and stores in one call (batched, default 50 — `chunkSize` controls the embedding batch). Validation runs before the embedding request, so missing required metadata or a wrong type fails before consuming embedding tokens or writing partial data:
 
 ```php
 $rag = MyChatBot::make();
@@ -191,6 +225,14 @@ $rag = MyChatBot::make();
 $rag->addDocuments(
     FileDataLoader::for('/path/to/docs')->getDocuments()
 );
+
+$rag->addDocuments($documents, chunkSize: 100);   // when the embeddings provider needs a different batch
+```
+
+Repeated ingestion creates duplicate chunks. `reindexBySource()` groups the new documents by `sourceType`/`sourceName`, deletes the old documents for each source, then adds the new chunks (destructive for those sources):
+
+```php
+$rag->reindexBySource($documents);
 ```
 
 ## Retrieval Strategies
@@ -237,9 +279,9 @@ $rag->setRetrieval(new CustomRetrieval());
 
 Retrieval can be constrained by document metadata with a portable filter model that compiles to each backend's native syntax — the same `FilterGroup` works on Pinecone, Qdrant, Meilisearch, and every other store.
 
-Custom filter fields must be declared once on the vector store. Undeclared
-metadata still round-trips, so schemas are only required when a database must
-index and compare a field:
+### Document schema (`DocumentSchema`)
+
+A vector database needs to know a metadata field's type before it can index and compare it. A `DocumentSchema` gives every backend the same understanding of your documents; it belongs to the vector store (every built-in store accepts the optional `schema:` constructor argument) because every document in one index must follow the same contract:
 
 ```php
 use NeuronAI\RAG\Schema\DocumentField;
@@ -250,15 +292,20 @@ $schema = DocumentSchema::of(
     DocumentField::string('status')->required()->filterable(),
     DocumentField::integer('published_at')->filterable(),
     DocumentField::float('price')->filterable(),
+    DocumentField::boolean('published')->filterable(),
+    DocumentField::strings('tags'),
 );
 
 $store = new MemoryVectorStore(schema: $schema);
 ```
 
-The portable field types are string, integer, float, boolean, and homogeneous
-arrays of those types. Arrays are validated and stored but require raw backend
-filters. `neq` is available only for required fields, preventing absent fields
-from widening a scope on databases with different missing-field behavior.
+Field constructors: `string`, `integer`, `float`, `boolean`, and homogeneous arrays `strings`, `integers`, `floats`, `booleans`. Integers are valid values for float fields. `required()` means every document must carry a non-null value; `filterable()` means the field can appear in a portable filter.
+
+Declare only what the database needs — a field that must exist on every document, needs a known type, or appears in portable filters. Undeclared JSON-safe metadata still round-trips (stored and returned), but cannot be filtered portably because its database type is unknown. Arrays are validated and stored but require raw backend filters. `neq` is available only for required fields, preventing absent fields from widening a scope on databases with different missing-field behavior.
+
+`sourceType` and `sourceName` are built-in string fields — always filterable, and must **not** be declared in the schema.
+
+Create the schema before creating a new database index or collection; if an existing index has incompatible field mappings, recreate it and reindex.
 
 ### The filter vocabulary
 
