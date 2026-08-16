@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\Workflow\WorkflowState;
@@ -21,7 +22,7 @@ use NeuronAI\Workflow\Node;
 use function array_chunk;
 
 /**
- * @method static static make(?string $workflowId = null, ?WorkflowState $state = null)
+ * @method static static make(?string $workflowId = null, ?WorkflowState $state = null, ?string $threadId = null)
  */
 class RAG extends Agent
 {
@@ -55,7 +56,11 @@ class RAG extends Agent
             new PreProcessNode($this->getChatHistory(), $this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval()),
             new PostProcessNode($this->postProcessors()),
-            new InstructionsNode($this->getInstructions(), $tools),
+            new InstructionsNode(
+                $this->getInstructions(),
+                $tools,
+                $this->getMemory() instanceof MemoryInterface,
+            ),
         ];
     }
 

@@ -84,10 +84,13 @@ The Agent composes the SAME node set on every run — the graph is a pure
 function of the agent definition, never of which sugar method was called:
 
 ```
-AgentStartEvent ──► StartNode ──► AIInferenceEvent ────────► ChatNode ──┐
- (messages+intent)  (births the   or StructuredInferenceEvent           ├─► ToolNode ⟲
-                    inference     ────► StructuredOutputNode ───────────┘
-                    event)
+AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─┐
+ (messages+intent)                when configured     or StructuredInferenceEvent     ├► ToolNode ⟲
+                                                       ─► StructuredOutputNode ───────┘
+                                                                     │ final response
+                                                                     ▼
+                                                       [StoreMemoryNode] ─► Stop
+                                                          when configured
 ```
 
 - The start event is **pure run data**: messages plus the inference intent
@@ -96,7 +99,8 @@ AgentStartEvent ──► StartNode ──► AIInferenceEvent ─────�
   graph or hard-constructs event classes.
 - **`StartNode`** (the default `entryNodes()` chain) births the
   `AIInferenceEvent` from the definition (instructions cloned, tools
-  injected) plus the start event's data, then derives the routed class via
+  injected) plus the start event's data, then sends it through
+  `RecallMemoryNode`. That node derives the routed class via
   `AIInferenceEvent::routed()` — recorded structured intent yields a
   `StructuredInferenceEvent`, which exact-class routing sends to
   `StructuredOutputNode`. RAG overrides `entryNodes()` with its retrieval
@@ -151,7 +155,7 @@ like a plain `WorkflowState`.
 
 ## Middleware (`Middleware/`)
 
-Register via `$workflow->middleware(NodeClass::class, $middleware)`:
+Register via `$workflow->addMiddleware(NodeClass::class, $middleware)`:
 
 | Middleware | Purpose |
 |------------|---------|
@@ -201,21 +205,56 @@ O(1) instead of embedding the conversation. Consequences:
 
 ### Memory-aware history wiring
 
-Long-term memory is configured on the Agent, not on individual nodes or
-middleware:
+`SemanticMemory` is the ready-to-use vector-backed implementation. It reuses
+the RAG vector-store and embeddings interfaces. Give it a dedicated collection
+or index using the default `DocumentSchema`: the built-in `sourceType` and
+`sourceName` fields isolate memory documents by type and thread, so no custom
+schema is needed. A shared store whose schema declares other required metadata
+fields will reject memory documents that do not contain them.
 
 ```php
+use NeuronAI\Agent\Memory\SemanticMemory;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
+use NeuronAI\RAG\VectorStore\FileVectorStore;
+
+$memory = new SemanticMemory(
+    vectorStore: new FileVectorStore(storage_path('app/agent-memory')),
+    embeddings: new OpenAIEmbeddingsProvider(
+        key: env('OPENAI_API_KEY'),
+        model: 'text-embedding-3-small',
+    ),
+    topK: 5,
+);
+
 $agent = SupportAgent::make(threadId: $threadId)
     ->setChatHistory($history)
-    ->setMemory($memory);
+    ->setMemory($memory)
+    ->setMemoryRecallThreadIds(
+        $conversationRepository->threadIdsOwnedBy($customerId),
+    );
 ```
 
-`setMemory(MemoryInterface $memory)` makes the Agent wrap its chat history in
-the internal `MemoryAwareChatHistory` decorator. Developers must not construct
-or attach this decorator themselves. The Agent creates it once and injects the
-same effective history into every node, so middleware reading
-`$node->getChatHistory()` participates automatically. Calling `setMemory()`
-before or after `setChatHistory()` produces the same result.
+Without `setMemoryRecallThreadIds()`, recall uses the current thread. When the
+method is called, its non-empty list is the exact recall allowlist; the current
+thread is not added implicitly. Resolve the list from trusted application data,
+such as conversations owned by the authenticated user, and never accept thread
+IDs from a client without an ownership check. Duplicate IDs are removed.
+
+Recall searches the allowed threads together and applies `topK` globally.
+`remember()` and `forget()` remain scoped to one explicit thread, so completed
+exchanges are always stored in the current conversation and
+`resetConversation()` deletes only that conversation.
+
+`MemoryInterface` is the customization boundary: `recall()` receives a
+non-empty thread-ID list and returns relevant conversation excerpts,
+`remember()` stores a completed exchange in one thread, and `forget()` removes
+one thread. Implement it directly for a non-vector backend.
+
+`setMemory(MemoryInterface $memory)` attaches memory independently from chat
+history, like every other Agent component. `getChatHistory()` always returns
+the exact developer-provided history instance; memory does not wrap, replace,
+or proxy it. Calling `setMemory()` before or after `setChatHistory()` produces
+the same result.
 
 Subclasses may provide the dependency through the lazy hook instead:
 
@@ -226,21 +265,48 @@ protected function memory(): ?MemoryInterface
 }
 ```
 
-An explicit `setMemory()` call wins over the hook. Configure memory before the
-Agent graph is composed or execution begins; changing it afterwards throws an
-`AgentException`, because already-composed nodes would otherwise keep a stale
-history dependency.
+An explicit `setMemory()` call wins over the hook. As with providers, tools,
+and other graph dependencies, configure memory before execution so composition
+can inject it into the memory nodes.
 
-`ChatHistoryInterface::flushAll()` is the shared destructive boundary. On a
-memory-aware Agent it first calls `MemoryInterface::forget($threadId)` and only
-then clears chat history. This covers calls made by built-in middleware such as
-`Summarization` and by developer middleware without adding a separate callback
-or event. If forgetting fails, the chat history remains untouched and the
-exception propagates. Consequently, custom code must call `flushAll()` only
-when both stores should be reset for that thread.
+`RecallMemoryNode` runs after instructions are complete and before the first
+provider call. Recall is durably memoized there. Recalled strings are appended to a trailing
+`<CONVERSATION-MEMORIES>` system block; they never enter chat history. This
+works for chat, stream, structured output, and RAG without route-specific
+configuration. Tool iterations return directly to inference, so recall runs
+once per turn rather than once per tool call.
 
-Without configured memory, `getChatHistory()` returns the original history and
-Agent behavior is unchanged.
+After the final inference writes its response to chat history, a
+`StoreMemoryEvent` routes the completed message slice through
+`StoreMemoryNode`. The node extracts the plain user-assistant exchange and
+memoizes `remember()` as its own durable side effect. Tool-assisted turns are
+stored only after their final assistant response; `ToolCallMessage` and
+`ToolResultMessage` remain protocol traffic and are excluded. Failed
+inference, incomplete streams, and interrupted tool loops produce no memory.
+
+Inference nodes do not depend on `MemoryInterface` and perform no recall,
+prompt injection, pair extraction, or storage. They only route final responses
+to the store phase when memory is enabled. The Agent adds the recall and store
+nodes only when memory is configured, so a memory-free Agent keeps its original
+graph and execution cost. Implement `MemoryInterface` to customize recall,
+redaction, or persistence.
+
+Chat history and long-term memory share thread identity, but they have separate
+lifecycles. `ChatHistoryInterface::flushAll()` clears only working history.
+This allows `Summarization` and custom middleware to compact or rewrite the
+context window without deleting durable semantic memories.
+
+Use the explicit aggregate operation when the user intends to permanently
+delete the entire conversation:
+
+```php
+$agent->resetConversation();
+```
+
+`resetConversation()` calls `MemoryInterface::forget($threadId)` first, when
+memory is configured, and then clears chat history. If forgetting fails, chat
+history remains untouched and the exception propagates. Without configured
+memory, it simply clears chat history.
 
 ## Persistence & Tool Approval
 

@@ -34,6 +34,7 @@ abstract class InferenceNode extends Node implements AgentNodeInterface
     public function __construct(
         protected AIProviderInterface $provider,
         ChatHistoryInterface $chatHistory,
+        protected bool $routeThroughMemory = false,
     ) {
         $this->chatHistory = $chatHistory;
     }

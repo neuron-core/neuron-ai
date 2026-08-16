@@ -312,48 +312,112 @@ Why configure memory on the Agent: chat history and long-term memory belong to
 the same conversation. Wiring them once prevents nodes and middleware from
 clearing one store while leaving stale information in the other.
 
-Pass the application's memory implementation with `setMemory()` before the
-Agent starts:
+Use `SemanticMemory` for ready-to-use vector-backed memory. It uses the same
+vector-store and embeddings interfaces as RAG. Give it a dedicated collection
+or index with the default schema; the framework identifies memories with the
+built-in filterable source fields, so no custom `DocumentSchema` is needed.
+A shared RAG store with other required metadata fields is not compatible unless
+its memory documents provide those fields.
 
 ```php
+use NeuronAI\Agent\Memory\SemanticMemory;
 use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
+use NeuronAI\RAG\VectorStore\FileVectorStore;
+
+$memory = new SemanticMemory(
+    vectorStore: new FileVectorStore(
+        directory: storage_path('app/agent-memory'),
+    ),
+    embeddings: new OpenAIEmbeddingsProvider(
+        key: env('OPENAI_API_KEY'),
+        model: 'text-embedding-3-small',
+    ),
+    topK: 5,
+);
 
 $agent = MyAgent::make(threadId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
-    ->setMemory($memory);
+    ->setMemory($memory)
+    ->setMemoryRecallThreadIds([...]);
 
 $state = $agent->chat(new UserMessage($input));
 ```
 
-The order of `setChatHistory()` and `setMemory()` does not matter. Do not create
-`MemoryAwareChatHistory` yourself: the framework wraps the configured history
-internally and gives that same instance to all Agent nodes and middleware.
+Why define recall threads explicitly: the application owns conversation
+authorization, while memory only performs the search. Without
+`setMemoryRecallThreadIds()`, recall uses the current thread. When configured,
+the non-empty list is the exact recall allowlist; the current thread is not
+added implicitly. Load it from trusted application data, such as conversations
+owned by the authenticated user. Never accept client-provided thread IDs
+without verifying ownership.
 
-For class-based configuration, use the lazy hook:
+Recall searches all allowed threads together and applies `topK` globally.
+Completed exchanges are still stored in the current thread, and
+`resetConversation()` still deletes only the current thread.
+
+Use a durable vector store in production; `MemoryVectorStore` is intended for
+tests and process-local usage.
+
+Before the first inference of each turn, `RecallMemoryNode` adds relevant past exchanges to a separate
+`<CONVERSATION-MEMORIES>` system block. They help the model immediately, even
+when the original messages have not reached the chat-history trimming limit.
+Tool-loop iterations bypass recall, so a turn recalls only once. After the
+final successful response, `StoreMemoryNode` stores the completed plain
+user-assistant exchange. Chat, streaming, structured output, RAG, and
+tool-assisted turns all use the same behavior. Tool calls and tool results are
+protocol traffic and are excluded from the stored exchange.
+
+The inference nodes do not call memory or build memory prompts. The dedicated
+nodes own those operations, so inference middleware stays focused on provider
+behavior. Implement `MemoryInterface` when recall, redaction, or persistence
+needs custom behavior.
+
+The order of `setChatHistory()` and `setMemory()` does not matter. They remain
+independent components, and `getChatHistory()` always returns the exact history
+instance the developer attached.
+
+For class-based configuration or a custom backend, use `MemoryInterface` and
+the lazy hook:
 
 ```php
 use NeuronAI\Agent\Memory\MemoryInterface;
+use NeuronAI\Agent\Memory\SemanticMemory;
+use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
+use NeuronAI\RAG\VectorStore\FileVectorStore;
 
 class MyAgent extends Agent
 {
     protected function memory(): ?MemoryInterface
     {
-        return new ProjectMemory(/* ... */);
+        return new SemanticMemory(
+            vectorStore: new FileVectorStore(
+                directory: storage_path('app/agent-memory'),
+            ),
+            embeddings: new OpenAIEmbeddingsProvider(
+                key: env('OPENAI_API_KEY'),
+                model: 'text-embedding-3-small',
+            ),
+        );
     }
 }
 ```
 
-An explicit `setMemory()` call takes precedence over `memory()`. Memory must be
-configured before the Agent graph is composed or execution starts; late
-configuration throws an `AgentException` instead of leaving already-created
-nodes with a stale history instance.
+An explicit `setMemory()` call takes precedence over `memory()`. Configure it
+before execution, like providers, tools, and other graph dependencies. Configure
+cross-conversation recall on the Agent instance with
+`setMemoryRecallThreadIds()`.
 
-When any node or middleware calls `flushAll()` on chat history, the framework
-first calls `$memory->forget($threadId)` and then clears the chat history. This
-also applies to `Summarization` and custom middleware. If forgetting memory
-fails, chat history is not cleared and the exception is propagated. Use
-`flushAll()` only when both the conversation history and its long-term memory
-should be reset.
+`flushAll()` on chat history clears only the working conversation. This is
+important for `Summarization`, which rewrites history while long-term memory
+must survive. To permanently clear both stores, call:
+
+```php
+$agent->resetConversation();
+```
+
+The Agent forgets semantic memory first and then clears chat history. If the
+memory operation fails, history is preserved and the exception propagates.
 
 Without `setMemory()` or the `memory()` hook, chat history works exactly as
 before.

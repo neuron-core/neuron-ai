@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
@@ -30,13 +31,11 @@ use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Workflow\Events\StopEvent;
 use ReflectionException;
-
 use function count;
 use function end;
 use function implode;
-use function trim;
 use function max;
-
+use function trim;
 use const PHP_EOL;
 
 /**
@@ -54,7 +53,7 @@ class StructuredOutputNode extends InferenceNode
      * @throws ReflectionException
      * @throws ChatHistoryException
      */
-    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
+    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent|StoreMemoryEvent
     {
         $outputClass = $event->outputClass
             ?? throw new AgentException('Structured inference requires an output class on the event.');
@@ -121,7 +120,9 @@ class StructuredOutputNode extends InferenceNode
                 $state->set('structured_output', $output);
                 $state->setResponse($providerResponse);
 
-                return new StopEvent();
+                return $this->routeThroughMemory
+                    ? new StoreMemoryEvent([...$event->getMessages(), $message])
+                    : new StopEvent();
 
             } catch (AgentException|DeserializerException $ex) {
                 $lastException = $ex;

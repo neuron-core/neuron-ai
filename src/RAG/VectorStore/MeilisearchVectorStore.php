@@ -150,7 +150,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
             $document->setId($item['id'] ?? uniqid())
                 ->setSourceType($item['sourceType'] ?? 'manual')
                 ->setSourceName($item['sourceName'] ?? 'manual')
-                ->setEmbedding($item['_vectors']['default']['embeddings'])
+                // Meilisearch returns the embedder's vectors as a list of embeddings.
+                ->setEmbedding($item['_vectors']['default']['embeddings'][0])
                 ->setScore($item['_rankingScore']);
 
             MetadataMapper::hydrate($document, $item);

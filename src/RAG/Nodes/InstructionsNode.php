@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
@@ -21,16 +22,18 @@ class InstructionsNode extends Node
 {
     public function __construct(
         private readonly SystemMessage $baseInstructions,
-        private readonly array $tools
+        private readonly array $tools,
+        protected bool $routeThroughMemory = false,
     ) {
     }
 
     /**
      * Inject documents into instructions. The emitted event is where RAG's
      * inference event is born, so the start event's inference intent is honored
-     * here: the intent fields carry over and the routed class is derived.
+     * here. With memory enabled, recall runs before the routed inference class
+     * is derived.
      */
-    public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent
+    public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
     {
         $instructions = new SystemMessage($this->baseInstructions->getContentBlocks());
         $instructions->addContent(new SystemContent($this->buildContextBlock($event->documents)));
@@ -43,7 +46,9 @@ class InstructionsNode extends Node
         $inference->outputClass = $event->startEvent->outputClass;
         $inference->maxTries = $event->startEvent->maxTries;
 
-        return $inference->routed();
+        return $this->routeThroughMemory
+            ? new RecallMemoryEvent($inference)
+            : $inference->routed();
     }
 
     private function buildContextBlock(array $documents): string

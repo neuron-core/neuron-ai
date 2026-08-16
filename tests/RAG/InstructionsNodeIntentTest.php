@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\RAG;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -16,14 +17,13 @@ use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use PHPUnit\Framework\TestCase;
 use stdClass;
-
 use function str_contains;
 
 class InstructionsNodeIntentTest extends TestCase
 {
-    protected function node(): InstructionsNode
+    protected function node(bool $routeThroughMemory = false): InstructionsNode
     {
-        return new InstructionsNode(new SystemMessage('Base instructions'), []);
+        return new InstructionsNode(new SystemMessage('Base instructions'), [], $routeThroughMemory);
     }
 
     protected function event(AgentStartEvent $startEvent): DocumentsProcessedEvent
@@ -72,5 +72,13 @@ class InstructionsNodeIntentTest extends TestCase
             }
         }
         $this->assertTrue($matched, 'Enriched context block not found on the converted event.');
+    }
+
+    public function testMemoryEnabledRoutesTheInferenceThroughRecall(): void
+    {
+        $recall = ($this->node(true))($this->event(new AgentStartEvent()), new AgentState());
+
+        $this->assertInstanceOf(RecallMemoryEvent::class, $recall);
+        $this->assertSame(AIInferenceEvent::class, $recall->inferenceEvent::class);
     }
 }

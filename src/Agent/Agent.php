@@ -7,12 +7,14 @@ namespace NeuronAI\Agent;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Agent\Memory\MemoryAwareChatHistory;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
+use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StartNode;
+use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -20,13 +22,15 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
-
+use function array_unique;
+use function array_values;
 use function is_array;
 use function is_string;
 
@@ -44,15 +48,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected ChatHistoryInterface $chatHistory;
 
-    /**
-     * The history instance shared by the composed nodes. When memory is
-     * configured this is a decorator around the developer-supplied history.
-     */
-    protected ?ChatHistoryInterface $effectiveChatHistory = null;
-
     protected ?MemoryInterface $memory = null;
 
-    protected bool $memoryResolved = false;
+    /** @var non-empty-list<string>|null */
+    protected ?array $memoryRecallThreadIds = null;
 
     /**
      * The conversation this run belongs to, and the run's declared workflow
@@ -121,7 +120,6 @@ class Agent extends Workflow implements AgentInterface
         }
 
         $this->chatHistory = $chatHistory;
-        $this->effectiveChatHistory = null;
     }
 
     /**
@@ -133,30 +131,37 @@ class Agent extends Workflow implements AgentInterface
         return null;
     }
 
-    /**
-     * Configure long-term memory before the Agent graph is composed.
-     */
     public function setMemory(MemoryInterface $memory): self
     {
-        if ($this->eventNodeMap !== []) {
-            throw new AgentException('Memory must be configured before the Agent starts executing.');
-        }
-
         $this->memory = $memory;
-        $this->memoryResolved = true;
-        $this->effectiveChatHistory = null;
 
         return $this;
     }
 
-    public function getMemory(): ?MemoryInterface
+    final public function getMemory(): ?MemoryInterface
     {
-        if (!$this->memoryResolved) {
-            $this->memory = $this->memory();
-            $this->memoryResolved = true;
+        return $this->memory ??= $this->memory();
+    }
+
+    /**
+     * @param string[] $threadIds
+     * @throws AgentException
+     */
+    public function setMemoryRecallThreadIds(array $threadIds): self
+    {
+        if ($threadIds === []) {
+            throw new AgentException('Memory recall requires at least one thread ID.');
         }
 
-        return $this->memory;
+        foreach ($threadIds as $threadId) {
+            if (!is_string($threadId) || $threadId === '') {
+                throw new AgentException('Memory recall thread IDs must be non-empty strings.');
+            }
+        }
+
+        $this->memoryRecallThreadIds = array_values(array_unique($threadIds));
+
+        return $this;
     }
 
     /**
@@ -187,14 +192,27 @@ class Agent extends Workflow implements AgentInterface
             $this->attachChatHistory($this->chatHistory());
         }
 
-        if ($this->effectiveChatHistory === null) {
-            $memory = $this->getMemory();
-            $this->effectiveChatHistory = $memory instanceof MemoryInterface
-                ? new MemoryAwareChatHistory($this->chatHistory, $memory)
-                : $this->chatHistory;
+        return $this->chatHistory;
+    }
+
+    /**
+     * Permanently clear both long-term memory and chat history for this conversation.
+     */
+    public function resetConversation(): self
+    {
+        $chatHistory = $this->getChatHistory();
+        $memory = $this->getMemory();
+
+        if ($memory instanceof MemoryInterface) {
+            $threadId = $chatHistory->getThreadId() ?? throw new ChatHistoryException(
+                'Cannot reset memory for an unbound chat history.'
+            );
+            $memory->forget($threadId);
         }
 
-        return $this->effectiveChatHistory;
+        $chatHistory->flushAll();
+
+        return $this;
     }
 
     /**
@@ -208,6 +226,7 @@ class Agent extends Workflow implements AgentInterface
     {
         $inference = match (true) {
             $event instanceof AIInferenceEvent => $event,
+            $event instanceof RecallMemoryEvent => $event->inferenceEvent,
             $event instanceof ToolCallEvent => $event->inferenceEvent,
             default => null,
         };
@@ -225,16 +244,27 @@ class Agent extends Workflow implements AgentInterface
             return;
         }
 
-        $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler())
-            : new ToolNode($this->getChatHistory(), $this->toolMaxRuns, $this->resolveToolErrorHandler());
+        $chatHistory = $this->getChatHistory();
+        $memory = $this->getMemory();
+        $routeThroughMemory = $memory instanceof MemoryInterface;
 
-        $this->addNodes([
+        $toolNode = $this->parallelToolCalls
+            ? new ParallelToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler())
+            : new ToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler());
+
+        $nodes = [
             ...$this->entryNodes(),
-            new ChatNode($this->getProvider(), $this->getChatHistory()),
-            new StructuredOutputNode($this->getProvider(), $this->getChatHistory()),
+            new ChatNode($this->getProvider(), $chatHistory, $routeThroughMemory),
+            new StructuredOutputNode($this->getProvider(), $chatHistory, $routeThroughMemory),
             $toolNode,
-        ]);
+        ];
+
+        if ($memory instanceof MemoryInterface) {
+            $nodes[] = new RecallMemoryNode($memory, $chatHistory, $this->memoryRecallThreadIds);
+            $nodes[] = new StoreMemoryNode($memory, $chatHistory);
+        }
+
+        $this->addNodes($nodes);
     }
 
     /**
@@ -249,7 +279,11 @@ class Agent extends Workflow implements AgentInterface
         $tools = $this->bootstrapTools();
 
         return [
-            new StartNode($this->getInstructions(), $tools),
+            new StartNode(
+                $this->getInstructions(),
+                $tools,
+                $this->getMemory() instanceof MemoryInterface,
+            ),
         ];
     }
 
