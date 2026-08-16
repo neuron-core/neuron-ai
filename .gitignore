@@ -10,4 +10,4 @@ composer.lock
 .env
 scripts
 phpunit.xml.local
-DOC_*
+DOCS_*
