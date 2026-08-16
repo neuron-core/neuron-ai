@@ -8,6 +8,8 @@ use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Memory\MemoryAwareChatHistory;
+use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\StartNode;
@@ -41,6 +43,16 @@ class Agent extends Workflow implements AgentInterface
     use HandleInstructions;
 
     protected ChatHistoryInterface $chatHistory;
+
+    /**
+     * The history instance shared by the composed nodes. When memory is
+     * configured this is a decorator around the developer-supplied history.
+     */
+    protected ?ChatHistoryInterface $effectiveChatHistory = null;
+
+    protected ?MemoryInterface $memory = null;
+
+    protected bool $memoryResolved = false;
 
     /**
      * The conversation this run belongs to, and the run's declared workflow
@@ -109,6 +121,42 @@ class Agent extends Workflow implements AgentInterface
         }
 
         $this->chatHistory = $chatHistory;
+        $this->effectiveChatHistory = null;
+    }
+
+    /**
+     * Provide the default long-term memory implementation. Subclasses may
+     * override this hook; null keeps the Agent memory-free.
+     */
+    protected function memory(): ?MemoryInterface
+    {
+        return null;
+    }
+
+    /**
+     * Configure long-term memory before the Agent graph is composed.
+     */
+    public function setMemory(MemoryInterface $memory): self
+    {
+        if ($this->eventNodeMap !== []) {
+            throw new AgentException('Memory must be configured before the Agent starts executing.');
+        }
+
+        $this->memory = $memory;
+        $this->memoryResolved = true;
+        $this->effectiveChatHistory = null;
+
+        return $this;
+    }
+
+    public function getMemory(): ?MemoryInterface
+    {
+        if (!$this->memoryResolved) {
+            $this->memory = $this->memory();
+            $this->memoryResolved = true;
+        }
+
+        return $this->memory;
     }
 
     /**
@@ -139,7 +187,14 @@ class Agent extends Workflow implements AgentInterface
             $this->attachChatHistory($this->chatHistory());
         }
 
-        return $this->chatHistory;
+        if ($this->effectiveChatHistory === null) {
+            $memory = $this->getMemory();
+            $this->effectiveChatHistory = $memory instanceof MemoryInterface
+                ? new MemoryAwareChatHistory($this->chatHistory, $memory)
+                : $this->chatHistory;
+        }
+
+        return $this->effectiveChatHistory;
     }
 
     /**

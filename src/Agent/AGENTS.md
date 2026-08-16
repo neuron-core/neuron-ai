@@ -199,6 +199,49 @@ O(1) instead of embedding the conversation. Consequences:
   response; `AgentState::getSteps()` reports the current execution cycle's
   messages only (transient, available even on an interrupted final state).
 
+### Memory-aware history wiring
+
+Long-term memory is configured on the Agent, not on individual nodes or
+middleware:
+
+```php
+$agent = SupportAgent::make(threadId: $threadId)
+    ->setChatHistory($history)
+    ->setMemory($memory);
+```
+
+`setMemory(MemoryInterface $memory)` makes the Agent wrap its chat history in
+the internal `MemoryAwareChatHistory` decorator. Developers must not construct
+or attach this decorator themselves. The Agent creates it once and injects the
+same effective history into every node, so middleware reading
+`$node->getChatHistory()` participates automatically. Calling `setMemory()`
+before or after `setChatHistory()` produces the same result.
+
+Subclasses may provide the dependency through the lazy hook instead:
+
+```php
+protected function memory(): ?MemoryInterface
+{
+    return new ProjectMemory(/* ... */);
+}
+```
+
+An explicit `setMemory()` call wins over the hook. Configure memory before the
+Agent graph is composed or execution begins; changing it afterwards throws an
+`AgentException`, because already-composed nodes would otherwise keep a stale
+history dependency.
+
+`ChatHistoryInterface::flushAll()` is the shared destructive boundary. On a
+memory-aware Agent it first calls `MemoryInterface::forget($threadId)` and only
+then clears chat history. This covers calls made by built-in middleware such as
+`Summarization` and by developer middleware without adding a separate callback
+or event. If forgetting fails, the chat history remains untouched and the
+exception propagates. Consequently, custom code must call `flushAll()` only
+when both stores should be reset for that thread.
+
+Without configured memory, `getChatHistory()` returns the original history and
+Agent behavior is unchanged.
+
 ## Persistence & Tool Approval
 
 `ToolNode` gates tool execution behind human approval — there is no middleware

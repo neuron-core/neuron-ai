@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Generator;
+use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
@@ -11,7 +13,6 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use Generator;
 
 interface AgentInterface
 {
@@ -41,6 +42,10 @@ interface AgentInterface
     public function setChatHistory(ChatHistoryInterface $chatHistory): AgentInterface;
 
     public function getChatHistory(): ChatHistoryInterface;
+
+    public function setMemory(MemoryInterface $memory): AgentInterface;
+
+    public function getMemory(): ?MemoryInterface;
 
     /**
      * The agent's thread identity — the conversation this run belongs to and

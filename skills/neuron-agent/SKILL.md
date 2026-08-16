@@ -306,7 +306,59 @@ declares that identity — the agent adopts it, and a disagreement with an
 explicit `threadId:` throws. `Agent::getThreadId(): ?string` reads the
 resolved identity back; null means the run is not findable by its thread.
 
-### Memory Types
+### Long-term Memory
+
+Why configure memory on the Agent: chat history and long-term memory belong to
+the same conversation. Wiring them once prevents nodes and middleware from
+clearing one store while leaving stale information in the other.
+
+Pass the application's memory implementation with `setMemory()` before the
+Agent starts:
+
+```php
+use NeuronAI\Chat\History\SQLChatHistory;
+
+$agent = MyAgent::make(threadId: $threadId)
+    ->setChatHistory(new SQLChatHistory($pdo))
+    ->setMemory($memory);
+
+$state = $agent->chat(new UserMessage($input));
+```
+
+The order of `setChatHistory()` and `setMemory()` does not matter. Do not create
+`MemoryAwareChatHistory` yourself: the framework wraps the configured history
+internally and gives that same instance to all Agent nodes and middleware.
+
+For class-based configuration, use the lazy hook:
+
+```php
+use NeuronAI\Agent\Memory\MemoryInterface;
+
+class MyAgent extends Agent
+{
+    protected function memory(): ?MemoryInterface
+    {
+        return new ProjectMemory(/* ... */);
+    }
+}
+```
+
+An explicit `setMemory()` call takes precedence over `memory()`. Memory must be
+configured before the Agent graph is composed or execution starts; late
+configuration throws an `AgentException` instead of leaving already-created
+nodes with a stale history instance.
+
+When any node or middleware calls `flushAll()` on chat history, the framework
+first calls `$memory->forget($threadId)` and then clears the chat history. This
+also applies to `Summarization` and custom middleware. If forgetting memory
+fails, chat history is not cleared and the exception is propagated. Use
+`flushAll()` only when both the conversation history and its long-term memory
+should be reset.
+
+Without `setMemory()` or the `memory()` hook, chat history works exactly as
+before.
+
+### Chat History Backends
 - `InMemoryChatHistory` - Default, session-based
 - `FileChatHistory` - Persist to file
 - `SQLChatHistory` - Database-backed
