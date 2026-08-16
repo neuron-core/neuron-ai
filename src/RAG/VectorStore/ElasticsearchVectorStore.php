@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use Elastic\Elasticsearch\Exception\ClientResponseException;
+use Elastic\Elasticsearch\Exception\MissingParameterException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
+use JsonException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\ElasticsearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use Elastic\Elasticsearch\Client;
@@ -86,7 +90,12 @@ class ElasticsearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @throws Exception
+     * @throws ClientResponseException
+     * @throws VectorStoreException
+     * @throws ServerResponseException
+     * @throws DocumentSchemaException
+     * @throws JsonException
+     * @throws MissingParameterException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -111,9 +120,11 @@ class ElasticsearchVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @param  Document[]  $documents
-     *
-     * @throws Exception
+     * @param Document[] $documents
+     * @throws ClientResponseException
+     * @throws JsonException
+     * @throws ServerResponseException
+     * @throws VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -153,6 +164,12 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws ClientResponseException
+     * @throws ServerResponseException
+     * @throws MissingParameterException
+     * @throws DocumentSchemaException
+     */
     public function delete(FilterGroup $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
@@ -173,6 +190,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
      * @return Document[]
      * @throws ClientResponseException
      * @throws ServerResponseException
+     * @throws DocumentSchemaException|VectorStoreException
      */
     public function search(SearchRequest $request): array
     {
