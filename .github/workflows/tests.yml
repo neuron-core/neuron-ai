@@ -73,12 +73,12 @@ jobs:
             matrix:
                 os: [ubuntu-latest]
                 php: ['8.1', '8.2', '8.3', '8.4', '8.5']
-                dependency-version: [prefer-lowest, prefer-stable]
+                dependency-version: [lowest, highest]
                 opensearch-version: ['latest']
                 include:
                     - os: ubuntu-latest
                       php: '8.5'
-                      dependency-version: prefer-stable
+                      dependency-version: highest
                       opensearch-version: '3.5.0'
 
         name: PHP ${{ matrix.php }} - ${{ matrix.os }} - ${{ matrix.dependency-version }}
@@ -163,7 +163,9 @@ jobs:
                   echo "Typesense healthcheck elapsed: ${elapsed}s"
 
             - name: Install PHP dependencies
-              run: composer update --${{ matrix.dependency-version }} --no-interaction --no-progress --ansi
+              uses: ramsey/composer-install@v4
+              with:
+                  dependency-versions: ${{ matrix.dependency-version }}
 
             - name: Unit Tests
               run: vendor/bin/phpunit --colors=always
