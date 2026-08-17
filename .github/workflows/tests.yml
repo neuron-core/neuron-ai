@@ -124,7 +124,7 @@ jobs:
             - name: Runs Elasticsearch
               uses: elastic/elastic-github-actions/elasticsearch@98431b45a60cbb6ace481778827bc8e11f12fd65
               with:
-                  stack-version: 8.17.0
+                  stack-version: 9.5.0
                   security-enabled: false
 
             - name: Install Typesense Database

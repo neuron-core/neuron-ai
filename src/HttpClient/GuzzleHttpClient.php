@@ -7,12 +7,14 @@ namespace NeuronAI\HttpClient;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
 use Psr\Http\Message\ResponseInterface;
 
 use function is_array;
+use function method_exists;
 use function is_resource;
 use function trim;
 
@@ -204,7 +206,7 @@ class GuzzleHttpClient implements HttpClientInterface
      */
     protected function handleException(HttpRequest $request, GuzzleException $e): never
     {
-        if ($e instanceof RequestException && $e->hasResponse()) {
+        if ($e instanceof ResponseException || ($e instanceof RequestException && method_exists($e, 'hasResponse') && $e->hasResponse())) {
             $psrResponse = $e->getResponse();
             $response = new HttpResponse(
                 statusCode: $psrResponse->getStatusCode(),
