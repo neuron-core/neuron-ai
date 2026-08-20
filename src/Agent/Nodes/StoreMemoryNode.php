@@ -24,9 +24,6 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use function array_reverse;
 
-/**
- * Stores a completed exchange as its own durable, memoized side effect.
- */
 class StoreMemoryNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
