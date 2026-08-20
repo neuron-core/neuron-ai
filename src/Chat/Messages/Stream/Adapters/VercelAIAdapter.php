@@ -35,6 +35,9 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
     /** @var array<string, bool> Track which tool calls emitted tool-input-start */
     protected array $toolInputStarted = [];
 
+    /**
+     * @throws StreamAdapterException
+     */
     public function transform(object $chunk): iterable
     {
         [$resolved, $streamEvent] = $this->resolveStreamEvent($chunk);
@@ -64,6 +67,9 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
         };
     }
 
+    /**
+     * @throws StreamAdapterException
+     */
     protected function handleStreamEvent(StreamEventInterface $event): iterable
     {
         yield from match (true) {

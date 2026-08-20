@@ -79,6 +79,9 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         };
     }
 
+    /**
+     * @throws StreamAdapterException
+     */
     protected function handleStreamEvent(StreamEventInterface $event): iterable
     {
         yield from match (true) {
