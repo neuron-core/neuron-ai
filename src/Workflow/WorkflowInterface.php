@@ -32,8 +32,13 @@ interface WorkflowInterface
      *
      * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
      * @param bool                      $timedOut True when the resume was a deadline elapsing.
+     * @param string|null               $expectedRunId Optional generation fence supplied by a coordinator.
      */
-    public function resume(?array $payload = null, bool $timedOut = false): WorkflowState;
+    public function resume(
+        ?array $payload = null,
+        bool $timedOut = false,
+        ?string $expectedRunId = null,
+    ): WorkflowState;
 
     /**
      * The streaming counterpart of {@see run()} / {@see resume()}: yields
@@ -44,9 +49,15 @@ interface WorkflowInterface
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
      * @param bool $timedOut True when the resume was a deadline elapsing; ignored on ignition.
      * @param bool $resuming True to continue without delivering a payload (revive).
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
-    public function events(?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator;
+    public function events(
+        ?array $payload = null,
+        bool $timedOut = false,
+        bool $resuming = false,
+        ?string $expectedRunId = null,
+    ): Generator;
 
     /**
      * The workflow ID, also the continuation handle: pass it back to the

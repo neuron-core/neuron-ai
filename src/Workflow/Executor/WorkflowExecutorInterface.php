@@ -34,6 +34,7 @@ interface WorkflowExecutorInterface
      *
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
      * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function execute(
@@ -41,5 +42,6 @@ interface WorkflowExecutorInterface
         ?array $payload = null,
         bool $timedOut = false,
         bool $resuming = false,
+        ?string $expectedRunId = null,
     ): Generator;
 }

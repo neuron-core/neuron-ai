@@ -88,6 +88,11 @@ interface AgentInterface
      * continuation verb (a new turn is a new run; an answer is a resume).
      *
      * @param array<string, mixed> $payload
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      */
-    public function resume(array $payload = [], bool $timedOut = false): AgentState;
+    public function resume(
+        array $payload = [],
+        bool $timedOut = false,
+        ?string $expectedRunId = null,
+    ): AgentState;
 }

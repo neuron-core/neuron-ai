@@ -12,9 +12,10 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * again, branching on the request's type() to pick the wakeup strategy.
  * The default {@see NullScheduler} is inert: resume stays caller-driven.
  *
- * Hooks speak the workflow ID — the stable identity a continuation targets.
- * A workflow ID hosts at most one live run, so cancel/drop operations are
- * safely scoped to it.
+ * Hooks speak the workflow ID — the stable identity a continuation targets —
+ * and the run ID generation. Coordinators must scope every mutation to both,
+ * so a delayed callback from an older generation cannot affect the current
+ * run under the same workflow ID.
  */
 interface SchedulerInterface
 {
@@ -42,16 +43,18 @@ interface SchedulerInterface
      * re-notifies via onSuspend() if the workflow suspends again.
      *
      * @param string $workflowId The resumed run's workflow ID.
+     * @param string $runId The resumed run's generation stamp.
      */
-    public function onResume(string $workflowId): void;
+    public function onResume(string $workflowId, string $runId): void;
 
     /**
      * Called only on a clean, fenced terminal (StopEvent while the run still
      * holds its workflow ID) — not on a suspend, a thrown error, or a stale
-     * replica completing after the workflow ID moved on. Drop ALL
-     * coordination state for the workflow ID.
+     * replica completing after the workflow ID moved on. Drop coordination
+     * state only for this workflow ID and run ID generation.
      *
      * @param string $workflowId The completed run's workflow ID.
+     * @param string $runId The completed run's generation stamp.
      */
-    public function onComplete(string $workflowId): void;
+    public function onComplete(string $workflowId, string $runId): void;
 }

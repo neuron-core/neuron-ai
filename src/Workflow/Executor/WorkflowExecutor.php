@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
+use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\BranchEnd;
@@ -88,17 +89,23 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
      * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
-    public function execute(WorkflowRuntimeInterface $workflow, ?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator
-    {
+    public function execute(
+        WorkflowRuntimeInterface $workflow,
+        ?array $payload = null,
+        bool $timedOut = false,
+        bool $resuming = false,
+        ?string $expectedRunId = null,
+    ): Generator {
         $this->persistence = $workflow->getPersistence();
         $this->scheduler = $workflow->getScheduler();
         $this->serializer = $workflow->getSerializer();
         $this->leaseTimeout = $workflow->getLeaseTimeout();
         $this->workflowId = $this->resolveWorkflowId($workflow, $resuming);
-        $this->runId = $this->resolveIgnition($workflow, $resuming);
+        $this->runId = $this->resolveIgnition($workflow, $resuming, $expectedRunId);
         $workflow->adoptIdentity($this->workflowId, $this->runId);
         $this->pendingPayload = $payload;
         $this->pendingTimedOut = $timedOut;
@@ -114,7 +121,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             // A deliberate resume cancels the wakeup it satisfies, leaving no
             // stale scheduler registration; start/replay fires no onResume.
             if ($payload !== null) {
-                $this->scheduler->onResume($this->workflowId);
+                $this->scheduler->onResume($this->workflowId, $this->runId);
             }
 
             $terminal = yield from $this->traverse(
@@ -142,7 +149,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $head = $this->loadIgnition();
                 if ($head instanceof Ignition && $head->runId === $this->runId) {
                     $this->persistence->delete($this->workflowId);
-                    $this->scheduler->onComplete($this->workflowId);
+                    $this->scheduler->onComplete($this->workflowId, $this->runId);
                 }
                 $workflow->getState()->clearInterrupt();
             }
@@ -222,11 +229,22 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      *
      * @throws WorkflowException
      */
-    protected function resolveIgnition(WorkflowRuntimeInterface $workflow, bool $resuming): string
-    {
+    protected function resolveIgnition(
+        WorkflowRuntimeInterface $workflow,
+        bool $resuming,
+        ?string $expectedRunId = null,
+    ): string {
         $ignition = $this->loadIgnition();
 
         if ($resuming) {
+            if ($expectedRunId !== null && $ignition?->runId !== $expectedRunId) {
+                throw new StaleWorkflowRunException(
+                    $this->workflowId,
+                    $expectedRunId,
+                    $ignition?->runId,
+                );
+            }
+
             if (!$ignition instanceof Ignition) {
                 throw new WorkflowException(
                     "No run in flight for workflow ID '{$this->workflowId}' — nothing to continue."

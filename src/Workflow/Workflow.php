@@ -165,12 +165,16 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      *
      * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
      * @param bool $timedOut True when the resume was a deadline elapsing.
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function resume(?array $payload = null, bool $timedOut = false): WorkflowState
-    {
-        return $this->consume($this->events($payload, $timedOut, true));
+    public function resume(
+        ?array $payload = null,
+        bool $timedOut = false,
+        ?string $expectedRunId = null,
+    ): WorkflowState {
+        return $this->consume($this->events($payload, $timedOut, true, $expectedRunId));
     }
 
     /**
@@ -179,14 +183,19 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      *
      * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
      * @param bool $resuming True to continue without delivering a payload (revive).
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function events(?array $payload = null, bool $timedOut = false, bool $resuming = false): Generator
-    {
+    public function events(
+        ?array $payload = null,
+        bool $timedOut = false,
+        bool $resuming = false,
+        ?string $expectedRunId = null,
+    ): Generator {
         $resuming = $resuming || $payload !== null;
-        $generator = $this->getExecutor()->execute($this, $payload, $timedOut, $resuming);
+        $generator = $this->getExecutor()->execute($this, $payload, $timedOut, $resuming, $expectedRunId);
 
         // Open the protocol stream before any output, mirroring the pull
         // path's eager start so both emit the same framing timing.

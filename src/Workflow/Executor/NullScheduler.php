@@ -21,12 +21,12 @@ class NullScheduler implements SchedulerInterface
         // Intentionally inert.
     }
 
-    public function onResume(string $workflowId): void
+    public function onResume(string $workflowId, string $runId): void
     {
         // Intentionally inert.
     }
 
-    public function onComplete(string $workflowId): void
+    public function onComplete(string $workflowId, string $runId): void
     {
         // Intentionally inert.
     }

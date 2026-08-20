@@ -62,8 +62,8 @@ class SchedulerTest extends TestCase
         $this->assertTrue($state->isInterrupted());
 
         $nullScheduler->onSuspend('sched-null', (string) $workflow->getRunId(), $state->getInterruptRequest());
-        $nullScheduler->onResume('sched-null');
-        $nullScheduler->onComplete('sched-null');
+        $nullScheduler->onResume('sched-null', 'run_1');
+        $nullScheduler->onComplete('sched-null', 'run_1');
         $this->addToAssertionCount(3); // all three hooks accept their input without error
     }
 
@@ -94,6 +94,7 @@ class SchedulerTest extends TestCase
         $workflow = Workflow::make(workflowId: $token)
             ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
         $state = $this->execute($workflow, $persistence, $spy);
+        $runId = (string) $workflow->getRunId();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertCount(1, $spy->onSuspendCalls);
@@ -109,8 +110,8 @@ class SchedulerTest extends TestCase
         // onResume fired (inline resume satisfied the wait), then onComplete fired
         // because the workflow ran to terminal.
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame([$token], $spy->onResumeCalls);
-        $this->assertSame([$token], $spy->onCompleteCalls);
+        $this->assertSame([['workflowId' => $token, 'runId' => $runId]], $spy->onResumeCalls);
+        $this->assertSame([['workflowId' => $token, 'runId' => $runId]], $spy->onCompleteCalls);
     }
 
     public function testOnCompleteFiresOnCleanTerminal(): void
@@ -125,7 +126,9 @@ class SchedulerTest extends TestCase
 
         $this->assertSame([], $spy->onSuspendCalls);
         $this->assertSame([], $spy->onResumeCalls);
-        $this->assertSame(['sched-complete-2'], $spy->onCompleteCalls);
+        $this->assertSame([
+            ['workflowId' => 'sched-complete-2', 'runId' => $workflow->getRunId()],
+        ], $spy->onCompleteCalls);
     }
 
     public function testOnResumeNotFiredWithoutInterrupt(): void

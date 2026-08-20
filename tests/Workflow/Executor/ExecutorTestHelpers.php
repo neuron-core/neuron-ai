@@ -72,8 +72,10 @@ trait ExecutorTestHelpers
         ?array $payload = [],
         bool $timedOut = false,
         ?SchedulerInterface $scheduler = null,
+        ?string $expectedRunId = null,
     ): WorkflowState {
-        return $this->configure($workflow, $persistence, $scheduler)->resume($payload, $timedOut);
+        return $this->configure($workflow, $persistence, $scheduler)
+            ->resume($payload, $timedOut, $expectedRunId);
     }
 
     /**

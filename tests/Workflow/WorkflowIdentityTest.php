@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Scheduler\Stubs\SpyScheduler;
@@ -59,6 +60,69 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
         $this->assertTrue($state->get('node_three_executed'));
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
+    }
+
+    public function testMatchingRunFenceContinuesTheExpectedGeneration(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $this->execute($suspended, $persistence);
+
+        $resumed = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $state = $this->resume(
+            $resumed,
+            $persistence,
+            [],
+            expectedRunId: $suspended->getRunId(),
+        );
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame($suspended->getRunId(), $resumed->getRunId());
+    }
+
+    public function testForeignRunFenceIsRejectedWithoutSchedulerSideEffects(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $scheduler = new SpyScheduler();
+        $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $this->execute($suspended, $persistence, $scheduler);
+        $ignition = $persistence->get('thread_1', '__ignition');
+
+        try {
+            $this->resume(
+                KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'),
+                $persistence,
+                [],
+                scheduler: $scheduler,
+                expectedRunId: 'run_foreign',
+            );
+            $this->fail('A stale generation should not be resumed.');
+        } catch (StaleWorkflowRunException $e) {
+            $this->assertSame('thread_1', $e->workflowId);
+            $this->assertSame('run_foreign', $e->expectedRunId);
+            $this->assertSame($suspended->getRunId(), $e->actualRunId);
+        }
+
+        $this->assertSame($ignition, $persistence->get('thread_1', '__ignition'));
+        $this->assertSame([], $scheduler->onResumeCalls);
+        $this->assertSame([], $scheduler->onCompleteCalls);
+    }
+
+    public function testMissingExpectedGenerationIsReportedAsStale(): void
+    {
+        try {
+            $this->resume(
+                KeyedWorkflow::make()->withDeclaredWorkflowId('thread_missing'),
+                new InMemoryPersistence(),
+                [],
+                expectedRunId: 'run_missing',
+            );
+            $this->fail('A missing expected generation should be stale.');
+        } catch (StaleWorkflowRunException $e) {
+            $this->assertSame('thread_missing', $e->workflowId);
+            $this->assertSame('run_missing', $e->expectedRunId);
+            $this->assertNull($e->actualRunId);
+        }
     }
 
     public function testIgnitionRefusesALiveWorkflowId(): void

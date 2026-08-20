@@ -15,10 +15,10 @@ class SpyScheduler implements SchedulerInterface
     /** @var array<int, array{workflowId: string, runId: string, request: InterruptRequest}> */
     public array $onSuspendCalls = [];
 
-    /** @var array<int, string> */
+    /** @var array<int, array{workflowId: string, runId: string}> */
     public array $onResumeCalls = [];
 
-    /** @var array<int, string> */
+    /** @var array<int, array{workflowId: string, runId: string}> */
     public array $onCompleteCalls = [];
 
     public function onSuspend(string $workflowId, string $runId, InterruptRequest $request): void
@@ -26,13 +26,13 @@ class SpyScheduler implements SchedulerInterface
         $this->onSuspendCalls[] = ['workflowId' => $workflowId, 'runId' => $runId, 'request' => $request];
     }
 
-    public function onResume(string $workflowId): void
+    public function onResume(string $workflowId, string $runId): void
     {
-        $this->onResumeCalls[] = $workflowId;
+        $this->onResumeCalls[] = ['workflowId' => $workflowId, 'runId' => $runId];
     }
 
-    public function onComplete(string $workflowId): void
+    public function onComplete(string $workflowId, string $runId): void
     {
-        $this->onCompleteCalls[] = $workflowId;
+        $this->onCompleteCalls[] = ['workflowId' => $workflowId, 'runId' => $runId];
     }
 }

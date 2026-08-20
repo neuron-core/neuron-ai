@@ -442,13 +442,17 @@ class Agent extends Workflow implements AgentInterface
      * delivering anything; an empty array delivers an empty decision set.
      *
      * @param array<string, mixed>|null $payload
+     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function resume(?array $payload = null, bool $timedOut = false): AgentState
-    {
+    public function resume(
+        ?array $payload = null,
+        bool $timedOut = false,
+        ?string $expectedRunId = null,
+    ): AgentState {
         /** @var AgentState $state */
-        $state = parent::resume($payload, $timedOut);
+        $state = parent::resume($payload, $timedOut, $expectedRunId);
         return $state;
     }
 

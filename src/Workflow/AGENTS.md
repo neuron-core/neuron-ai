@@ -128,9 +128,9 @@ caller-driven model where a caller re-invokes `resume()` to resume. The executor
 is the resume target, the runId is a **generation stamp** the wakeup must
 record: a firing wakeup whose runId no longer matches the workflow ID's
 ignition record is stale and must be discarded, never delivered.
-`onResume($workflowId)` fires on a deliberate resume (a payload was delivered
+`onResume($workflowId, $runId)` fires on a deliberate resume (a payload was delivered
 — cancels the satisfied wakeup; a payload-less revive fires nothing), and
-`onComplete($workflowId)` on a clean, fenced terminal `StopEvent` (drop all
+`onComplete($workflowId, $runId)` on a clean, fenced terminal `StopEvent` (drop all
 coordination state for the workflow ID). The
 deadline (`expiresAt`) lives on the outbound request and the scheduler's timer wheel;
 the timeout *fact* arrives inbound via `$timedOut`. Persistence stays a pure
