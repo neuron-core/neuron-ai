@@ -54,6 +54,9 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     {
     }
 
+    /**
+     * @throws StreamAdapterException
+     */
     public function transform(object $chunk): iterable
     {
         [$resolved, $streamEvent] = $this->resolveStreamEvent($chunk);

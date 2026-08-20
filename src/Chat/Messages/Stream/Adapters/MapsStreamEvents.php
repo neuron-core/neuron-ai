@@ -31,6 +31,7 @@ trait MapsStreamEvents
      * suppressed mapping that returned null.
      *
      * @return array{bool, StreamEventInterface|null}
+     * @throws StreamAdapterException
      */
     protected function resolveStreamEvent(object $event): array
     {
