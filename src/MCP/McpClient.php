@@ -21,9 +21,10 @@ class McpClient
     /**
      * Create a new MCP client with the given transport
      *
-     * @param  array<string, mixed>  $config
+     * @param array<string, mixed> $config
      *
      * @throws McpException
+     * @throws JsonException
      */
     public function __construct(array $config)
     {
