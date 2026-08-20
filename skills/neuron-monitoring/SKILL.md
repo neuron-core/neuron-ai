@@ -35,6 +35,7 @@ All components emit event objects automatically. Every event class lives in
 // Domain (emitted by nodes):
 // InferenceStart, InferenceStop, ToolCalling, ToolCalled,
 // MessageSaving, MessageSaved, Retrieving, Retrieved,
+// MemoryRecalling, MemoryRecalled, MemoryStoring, MemoryStored,
 // PreProcessing, PreProcessed, PostProcessing, PostProcessed,
 // SchemaGeneration, SchemaGenerated, Extracting, Extracted, ...
 ```
@@ -147,6 +148,37 @@ protected function instructions(): string
 // Enable parallel tool execution
 $agent->parallelToolCalls(true);
 ```
+
+### Slow or Failing Semantic Memory
+
+**Symptoms**: delayed first token, slow completion after the final response, or
+memory-store errors.
+
+Memory operations emit domain pairs around the actual backend boundary:
+
+- `MemoryRecalling` / `MemoryRecalled`
+- `MemoryStoring` / `MemoryStored`
+
+Use each pair to measure latency. A start event followed by `AgentError` without
+its completion event identifies a failed memory operation.
+
+```php
+use NeuronAI\Observability\Events\MemoryRecalled;
+use NeuronAI\Observability\Events\MemoryStored;
+
+$agent->subscribe(MemoryRecalled::class, function (MemoryRecalled $event): void {
+    $this->metrics->gauge('agent.memory.threads', $event->threadCount);
+    $this->metrics->count('agent.memory.results', $event->memoryCount);
+});
+
+$agent->subscribe(MemoryStored::class, function (MemoryStored $event): void {
+    $this->metrics->increment('agent.memory.stored');
+});
+```
+
+The recall events expose only thread count and result count. Queries, recalled
+content, messages, and thread IDs are intentionally excluded. `LogListener`
+serializes these counts as `thread-count` and `memory-count`.
 
 ### Poor Response Quality
 

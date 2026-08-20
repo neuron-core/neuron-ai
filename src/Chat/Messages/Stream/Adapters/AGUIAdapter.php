@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StreamEventInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use NeuronAI\Exceptions\StreamAdapterException;
 
 use function json_encode;
 
@@ -17,8 +23,10 @@ use function json_encode;
  *
  * @see https://docs.ag-ui.com/concepts/events
  */
-class AGUIAdapter extends SSEAdapter
+class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterface
 {
+    use MapsStreamEvents;
+
     protected ?string $currentMessageId = null;
 
     protected bool $messageStarted = false;
@@ -48,6 +56,16 @@ class AGUIAdapter extends SSEAdapter
 
     public function transform(object $chunk): iterable
     {
+        [$resolved, $streamEvent] = $this->resolveStreamEvent($chunk);
+
+        if ($resolved) {
+            if ($streamEvent instanceof StreamEventInterface) {
+                yield from $this->handleStreamEvent($streamEvent);
+            }
+
+            return;
+        }
+
         yield from match (true) {
             $chunk instanceof TextChunk => $this->handleText($chunk),
             $chunk instanceof ReasoningChunk => $this->handleReasoning($chunk),
@@ -56,6 +74,54 @@ class AGUIAdapter extends SSEAdapter
             $chunk instanceof ToolResultChunk => $this->handleToolResult($chunk),
             default => []
         };
+    }
+
+    protected function handleStreamEvent(StreamEventInterface $event): iterable
+    {
+        yield from match (true) {
+            $event instanceof StepStartedStreamEvent => $this->handleStepEvent(
+                'STEP_STARTED',
+                $event->name,
+                $event->metadata,
+            ),
+            $event instanceof StepFinishedStreamEvent => $this->handleStepEvent(
+                'STEP_FINISHED',
+                $event->name,
+                $event->metadata,
+            ),
+            $event instanceof ActivityStreamEvent => [$this->sse([
+                'type' => 'ACTIVITY_SNAPSHOT',
+                'messageId' => $event->id,
+                'activityType' => $event->type,
+                'content' => (object) $event->data,
+                'replace' => true,
+            ])],
+            $event instanceof CustomStreamEvent => [$this->sse([
+                'type' => 'CUSTOM',
+                'name' => $event->name,
+                'value' => $event->value,
+            ])],
+            default => throw new StreamAdapterException(
+                'AG-UI cannot encode stream event ' . $event::class . '.'
+            ),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    protected function handleStepEvent(string $type, string $name, array $metadata): iterable
+    {
+        $payload = [
+            'type' => $type,
+            'stepName' => $name,
+        ];
+
+        if ($metadata !== []) {
+            $payload['metadata'] = $metadata;
+        }
+
+        yield $this->sse($payload);
     }
 
     protected function handleText(TextChunk $chunk): iterable

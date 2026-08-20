@@ -593,6 +593,74 @@ class ProcessingNode extends Node
 }
 ```
 
+### Portable UI events
+
+A workflow node should not need to know whether its output is consumed by AG-UI,
+the Vercel AI SDK, or a future protocol. `StreamEventInterface`
+provides that portable boundary:
+
+```php
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
+
+public function __invoke(ProcessEvent $event, WorkflowState $state): \Generator
+{
+    yield new ActivityStreamEvent(
+        id: $event->jobId,
+        type: 'indexing',
+        data: ['processed' => 10, 'total' => 100],
+    );
+
+    $result = $this->memoize(
+        'indexing',
+        fn () => $this->finishIndexing($event),
+    );
+
+    return new ResultEvent($result);
+}
+```
+
+The portable vocabulary includes step started, step
+finished, replaceable activity/progress, and named custom events. These are
+intermediate stream values only: the generator must still **return** a normal
+workflow `Event` to route to the next node.
+
+For applications that already have domain-specific progress objects, the
+built-in adapters expose exact-class mappings:
+
+```php
+$adapter->mapEvent(
+    IndexingProgress::class,
+    static fn (IndexingProgress $event): ActivityStreamEvent =>
+        new ActivityStreamEvent(
+            id: $event->jobId,
+            type: 'indexing',
+            data: ['processed' => $event->processed, 'total' => $event->total],
+        ),
+);
+```
+
+The mapper returns a portable event, never JSON, SSE, or a protocol payload. It
+may return `null` to suppress that explicitly mapped event. Resolution is
+predictable: direct portable event, exact-class developer mapping, built-in chat
+chunk, then ignore an unknown unmapped object.
+
+The protocol translation is:
+
+| Portable meaning | AG-UI | Vercel AI SDK |
+|---|---|---|
+| step started / finished | `STEP_STARTED` / `STEP_FINISHED` | transient `data-workflow-step` |
+| activity or progress | `ACTIVITY_SNAPSHOT` | transient `data-workflow-activity` |
+| named custom data | `CUSTOM` | transient `data-{name}` |
+
+Yielded UI events are live and ephemeral. Durable replay restores the node's
+returned event; it does not replay earlier progress. Never make workflow
+correctness depend on a client receiving these events.
+
+The adapter API remains in the existing Chat namespace for compatibility even
+though Workflow consumes it. Do not move the namespace as part of implementing
+portable events. See `src/Chat/Messages/Stream/Adapters/AGENTS.md` for the full
+adapter design and lifecycle rules.
+
 ### Consuming Streams
 
 ```php

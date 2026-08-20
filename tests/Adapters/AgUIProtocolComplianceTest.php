@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Adapters;
 
 use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
@@ -42,6 +46,8 @@ class AgUIProtocolComplianceTest extends TestCase
     private const REQUIRED_FIELDS = [
         'RUN_STARTED' => ['runId', 'threadId'],
         'RUN_FINISHED' => ['runId', 'threadId'],
+        'STEP_STARTED' => ['stepName'],
+        'STEP_FINISHED' => ['stepName'],
         'TEXT_MESSAGE_START' => ['messageId', 'role'],
         'TEXT_MESSAGE_CONTENT' => ['messageId', 'delta'],
         'TEXT_MESSAGE_END' => ['messageId'],
@@ -54,6 +60,8 @@ class AgUIProtocolComplianceTest extends TestCase
         'TOOL_CALL_ARGS' => ['toolCallId', 'delta'],
         'TOOL_CALL_END' => ['toolCallId'],
         'TOOL_CALL_RESULT' => ['toolCallId', 'messageId', 'content'],
+        'ACTIVITY_SNAPSHOT' => ['messageId', 'activityType', 'content'],
+        'CUSTOM' => ['name', 'value'],
     ];
 
     public function test_get_headers_returns_correct_headers(): void
@@ -171,6 +179,34 @@ class AgUIProtocolComplianceTest extends TestCase
         $last = $events[array_key_last($events)];
         $this->assertSame('thread_custom', $last['threadId']);
         $this->assertSame('run_custom', $last['runId']);
+    }
+
+    public function test_portable_events_are_compliant_run_level_events(): void
+    {
+        $adapter = new AGUIAdapter('thread_test');
+
+        $events = $this->collect(
+            $adapter->start(),
+            $adapter->transform(new StepStartedStreamEvent('indexing')),
+            $adapter->transform(new ActivityStreamEvent(
+                id: 'job-1',
+                type: 'indexing',
+                data: ['processed' => 5],
+            )),
+            $adapter->transform(new CustomStreamEvent('notice', ['message' => 'Working'])),
+            $adapter->transform(new StepFinishedStreamEvent('indexing')),
+            $adapter->end(),
+        );
+
+        $this->assertCompliant($events);
+        $this->assertSame([
+            'RUN_STARTED',
+            'STEP_STARTED',
+            'ACTIVITY_SNAPSHOT',
+            'CUSTOM',
+            'STEP_FINISHED',
+            'RUN_FINISHED',
+        ], array_column($events, 'type'));
     }
 
     /**

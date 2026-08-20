@@ -7,6 +7,10 @@ namespace NeuronAI\Tests\Observability;
 use NeuronAI\Observability\LogListener;
 use NeuronAI\Observability\LogObserver;
 use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Observability\Events\MemoryRecalled;
+use NeuronAI\Observability\Events\MemoryRecalling;
+use NeuronAI\Observability\Events\MemoryStored;
+use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
@@ -71,5 +75,39 @@ class LogListenerTest extends TestCase
         $messages = array_column($logger->records, 'message');
         $this->assertContains('workflow-start', $messages);
         $this->assertContains('workflow-end', $messages);
+    }
+
+    public function testMemoryEventsLogOnlySafeMonitoringContext(): void
+    {
+        $logger = $this->recordingLogger();
+        $listener = new LogListener($logger);
+
+        $listener(new MemoryRecalling(3));
+        $listener(new MemoryRecalled(3, 5));
+        $listener(new MemoryStoring());
+        $listener(new MemoryStored());
+
+        $this->assertSame([
+            [
+                'level' => 'info',
+                'message' => 'memory-recalling',
+                'context' => ['thread-count' => 3],
+            ],
+            [
+                'level' => 'info',
+                'message' => 'memory-recalled',
+                'context' => ['thread-count' => 3, 'memory-count' => 5],
+            ],
+            [
+                'level' => 'info',
+                'message' => 'memory-storing',
+                'context' => [],
+            ],
+            [
+                'level' => 'info',
+                'message' => 'memory-stored',
+                'context' => [],
+            ],
+        ], $logger->records);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -11,10 +12,16 @@ use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Exceptions\StreamAdapterException;
+use NeuronAI\Observability\Events\MemoryRecalled;
+use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Workflow\Node;
+use function count;
 use function end;
 use function implode;
 
@@ -34,7 +41,11 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
         $this->chatHistory = $chatHistory;
     }
 
-    public function __invoke(RecallMemoryEvent $event, AgentState $state): AIInferenceEvent
+    /**
+     * @throws ChatHistoryException
+     * @throws StreamAdapterException
+     */
+    public function __invoke(RecallMemoryEvent $event, AgentState $state): Generator
     {
         $query = $this->query($event->inferenceEvent, $state);
 
@@ -52,6 +63,11 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
             ];
         }
 
+        $threadCount = count($threadIds);
+
+        $this->emit(new MemoryRecalling($threadCount));
+        yield new StepStartedStreamEvent('memory.recall');
+
         $memories = $this->memoize(
             'memory.recall',
             fn (): array => $this->memory->recall($threadIds, $query),
@@ -65,6 +81,11 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
                 . "\n</CONVERSATION-MEMORIES>"
             ));
         }
+
+        $memoryCount = count($memories);
+
+        $this->emit(new MemoryRecalled($threadCount, $memoryCount));
+        yield new StepFinishedStreamEvent('memory.recall', ['memories' => $memoryCount]);
 
         return $event->inferenceEvent->routed();
     }

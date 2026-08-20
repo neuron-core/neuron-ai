@@ -53,6 +53,13 @@ it to something other than error alerting. The terminal vocabulary:
 $this->emit(new ToolCalling($tool));
 ```
 
+Agent memory nodes complement the generic node lifecycle with domain pairs:
+`MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` / `MemoryStored`.
+Their start/completion timestamps delimit the actual memory boundary, while
+`MemoryRecalled` reports thread count and result count. They intentionally carry
+no queries, messages, memory content, or thread IDs. A failure emits the start
+event and the existing `AgentError`, but no successful completion event.
+
 `emit()` accepts any object (PSR-14 semantics). `ObservabilityEvent` instances are
 stamped with the emitting node as `source` and the current `branchId`. A node
 running without an executor has no dispatcher and emits nothing.

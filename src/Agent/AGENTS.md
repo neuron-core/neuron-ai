@@ -276,6 +276,10 @@ works for chat, stream, structured output, and RAG without route-specific
 configuration. Tool iterations return directly to inference, so recall runs
 once per turn rather than once per tool call.
 
+The node yields `StepStartedStreamEvent('memory.recall')` and a matching
+`StepFinishedStreamEvent` around that work. The finished event reports only the
+number of recalled memories, never their content or thread IDs.
+
 After the final inference writes its response to chat history, a
 `StoreMemoryEvent` routes the completed message slice through
 `StoreMemoryNode`. The node extracts the plain user-assistant exchange and
@@ -283,6 +287,17 @@ memoizes `remember()` as its own durable side effect. Tool-assisted turns are
 stored only after their final assistant response; `ToolCallMessage` and
 `ToolResultMessage` remain protocol traffic and are excluded. Failed
 inference, incomplete streams, and interrupted tool loops produce no memory.
+The store node similarly yields `memory.store` step started/finished events.
+These portable events are visible in a native stream and are translated by
+AG-UI or Vercel adapters without either adapter depending on memory classes.
+
+Memory operations also emit PSR-14 observability pairs around the actual memory
+boundary: `MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` /
+`MemoryStored`. The recall events expose only thread count and recalled-memory
+count; they never expose queries, recalled content, or thread IDs. The existing
+`WorkflowNodeStart` / `WorkflowNodeEnd` events still describe generic node
+execution. If a memory operation throws, its starting event is followed by the
+existing `AgentError` and no successful completion event.
 
 Inference nodes do not depend on `MemoryInterface` and perform no recall,
 prompt injection, pair extraction, or storage. They only route final responses

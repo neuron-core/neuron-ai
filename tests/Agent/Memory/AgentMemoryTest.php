@@ -16,9 +16,18 @@ use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
+use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Observability\Events\AgentError;
+use NeuronAI\Observability\Events\MemoryRecalled;
+use NeuronAI\Observability\Events\MemoryRecalling;
+use NeuronAI\Observability\Events\MemoryStored;
+use NeuronAI\Observability\Events\MemoryStoring;
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Tools\Tool;
@@ -29,7 +38,15 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use function array_column;
+use function array_filter;
+use function array_map;
+use function array_values;
 use function iterator_to_array;
+use function json_decode;
+use function str_starts_with;
+use function substr;
 
 class AgentMemoryTest extends TestCase
 {
@@ -89,6 +106,85 @@ class AgentMemoryTest extends TestCase
         ], $memory->remembered);
     }
 
+    public function test_memory_nodes_emit_safe_observability_events(): void
+    {
+        $memory = new InspectableMemory(['Remembered context']);
+        $events = [];
+        $agent = new Agent(threadId: 'thread-1');
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Response.')));
+        $agent->setMemory($memory);
+        $agent->setMemoryRecallThreadIds(['thread-1', 'thread-2']);
+
+        foreach ([
+            MemoryRecalling::class,
+            MemoryRecalled::class,
+            MemoryStoring::class,
+            MemoryStored::class,
+        ] as $eventClass) {
+            $agent->subscribe($eventClass, static function (ObservabilityEvent $event) use (&$events): void {
+                $events[] = $event;
+            });
+        }
+
+        $agent->chat(new UserMessage('Question.'));
+
+        $this->assertSame([
+            MemoryRecalling::class,
+            MemoryRecalled::class,
+            MemoryStoring::class,
+            MemoryStored::class,
+        ], array_map(static fn (object $event): string => $event::class, $events));
+        $this->assertInstanceOf(MemoryRecalling::class, $events[0]);
+        $this->assertInstanceOf(MemoryRecalled::class, $events[1]);
+        $this->assertSame(2, $events[0]->threadCount);
+        $this->assertSame(2, $events[1]->threadCount);
+        $this->assertSame(1, $events[1]->memoryCount);
+        $this->assertInstanceOf(RecallMemoryNode::class, $events[0]->source);
+        $this->assertInstanceOf(RecallMemoryNode::class, $events[1]->source);
+        $this->assertInstanceOf(StoreMemoryNode::class, $events[2]->source);
+        $this->assertInstanceOf(StoreMemoryNode::class, $events[3]->source);
+    }
+
+    public function test_failed_memory_recall_has_no_completion_observability_event(): void
+    {
+        $memory = new class () implements MemoryInterface {
+            public function recall(array $threadIds, string $query): array
+            {
+                throw new RuntimeException('Memory unavailable.');
+            }
+
+            public function remember(string $threadId, string $user, string $assistant): void
+            {
+            }
+
+            public function forget(string $threadId): void
+            {
+            }
+        };
+        $events = [];
+        $agent = new Agent(threadId: 'thread-1');
+        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Response.')));
+        $agent->setMemory($memory);
+
+        foreach ([MemoryRecalling::class, MemoryRecalled::class, AgentError::class] as $eventClass) {
+            $agent->subscribe($eventClass, static function (ObservabilityEvent $event) use (&$events): void {
+                $events[] = $event;
+            });
+        }
+
+        try {
+            $agent->chat(new UserMessage('Question.'));
+            $this->fail('The memory failure should propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Memory unavailable.', $exception->getMessage());
+        }
+
+        $this->assertSame([
+            MemoryRecalling::class,
+            AgentError::class,
+        ], array_map(static fn (object $event): string => $event::class, $events));
+    }
+
     public function test_tool_loop_recalls_once_and_stores_the_completed_exchange(): void
     {
         $memory = new InspectableMemory();
@@ -127,6 +223,46 @@ class AgentMemoryTest extends TestCase
         $this->assertSame([
             ['thread-1', 'Stream this.', 'Streamed answer.'],
         ], $memory->remembered);
+    }
+
+    public function test_streaming_exposes_memory_steps_through_the_adapter(): void
+    {
+        $memory = new InspectableMemory(['Remembered context']);
+        $agent = Agent::make(threadId: 'thread-1')
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer.')))
+            ->setMemory($memory);
+
+        $lines = iterator_to_array($agent->stream(
+            new UserMessage('Question.'),
+            new VercelAIAdapter(),
+        ));
+        $events = [];
+
+        foreach ($lines as $line) {
+            if (!str_starts_with($line, 'data: {')) {
+                continue;
+            }
+
+            $event = json_decode(substr($line, 6, -2), true);
+            $this->assertIsArray($event);
+            $events[] = $event;
+        }
+
+        $stepEvents = array_values(array_filter(
+            $events,
+            static fn (array $event): bool => $event['type'] === 'data-workflow-step',
+        ));
+
+        $this->assertSame([
+            ['name' => 'memory.recall', 'status' => 'started'],
+            ['name' => 'memory.recall', 'status' => 'finished', 'metadata' => ['memories' => 1]],
+            ['name' => 'memory.store', 'status' => 'started'],
+            ['name' => 'memory.store', 'status' => 'finished'],
+        ], array_column($stepEvents, 'data'));
+        $this->assertSame('data-workflow-step', $events[0]['type']);
+        $this->assertContains('start', array_column($events, 'type'));
+        $this->assertContains('text-delta', array_column($events, 'type'));
+        $this->assertSame('finish', $events[array_key_last($events)]['type']);
     }
 
     public function test_structured_output_stores_the_completed_exchange(): void
@@ -247,7 +383,7 @@ class AgentMemoryTest extends TestCase
                 'memory-step',
             ),
         ));
-        $first($event, new AgentState());
+        iterator_to_array($first($event, new AgentState()));
 
         $replayed = new StoreMemoryNode($memory, $history);
         $replayed->setWorkflowContext(new NodeContext(
@@ -260,7 +396,7 @@ class AgentMemoryTest extends TestCase
                 'memory-step',
             ),
         ));
-        $replayed($event, new AgentState());
+        iterator_to_array($replayed($event, new AgentState()));
 
         $this->assertSame([
             ['thread-1', 'Question', 'Answer'],
@@ -285,7 +421,9 @@ class AgentMemoryTest extends TestCase
                 'memory-recall-step',
             ),
         ));
-        $firstResult = $first($firstEvent, new AgentState());
+        $firstStream = $first($firstEvent, new AgentState());
+        $firstEvents = iterator_to_array($firstStream);
+        $firstResult = $firstStream->getReturn();
 
         $replayedEvent = new RecallMemoryEvent($this->inference('Question'));
         $replayed = new RecallMemoryNode($memory, $history);
@@ -299,11 +437,15 @@ class AgentMemoryTest extends TestCase
                 'memory-recall-step',
             ),
         ));
-        $replayedResult = $replayed($replayedEvent, new AgentState());
+        $replayedStream = $replayed($replayedEvent, new AgentState());
+        $replayedEvents = iterator_to_array($replayedStream);
+        $replayedResult = $replayedStream->getReturn();
 
         $this->assertSame([
             [['thread-1'], 'Question'],
         ], $memory->recalls);
+        $this->assertContainsOnlyInstancesOf(StepStartedStreamEvent::class, [$firstEvents[0], $replayedEvents[0]]);
+        $this->assertContainsOnlyInstancesOf(StepFinishedStreamEvent::class, [$firstEvents[1], $replayedEvents[1]]);
         $this->assertTrue($firstResult->instructions->contains('Remembered context'));
         $this->assertTrue($replayedResult->instructions->contains('Remembered context'));
     }
