@@ -14,27 +14,51 @@ class SemanticMemoryTest extends TestCase
 {
     public function test_remember_recall_and_forget_are_scoped_by_thread_without_a_custom_schema(): void
     {
-        $memory = new SemanticMemory(
-            new MemoryVectorStore(),
-            new FakeEmbeddingsProvider(),
-        );
+        $store = new MemoryVectorStore();
+        $embeddings = new FakeEmbeddingsProvider();
+        $threadOneMemory = new SemanticMemory($store, $embeddings, ['thread-1']);
+        $threadTwoMemory = new SemanticMemory($store, $embeddings, ['thread-2']);
 
-        $memory->remember('thread-1', 'My favorite food is pizza.', 'I will remember that.');
-        $memory->remember('thread-2', 'My favorite food is sushi.', 'I will remember that.');
+        $threadOneMemory->remember('thread-1', 'My favorite food is pizza.', 'I will remember that.');
+        $threadOneMemory->remember('thread-2', 'My favorite food is sushi.', 'I will remember that.');
 
         $this->assertSame(
             ["User: My favorite food is pizza.\nAssistant: I will remember that."],
-            $memory->recall(['thread-1'], 'What food do I like?'),
+            $threadOneMemory->recall('What food do I like?'),
         );
         $this->assertSame(
             ["User: My favorite food is sushi.\nAssistant: I will remember that."],
-            $memory->recall(['thread-2'], 'What food do I like?'),
+            $threadTwoMemory->recall('What food do I like?'),
         );
 
-        $memory->forget('thread-1');
+        $threadOneMemory->forget('thread-1');
 
-        $this->assertSame([], $memory->recall(['thread-1'], 'What food do I like?'));
-        $this->assertCount(1, $memory->recall(['thread-2'], 'What food do I like?'));
+        $this->assertSame([], $threadOneMemory->recall('What food do I like?'));
+        $this->assertCount(1, $threadTwoMemory->recall('What food do I like?'));
+    }
+
+    public function test_recall_thread_ids_cannot_be_empty(): void
+    {
+        $this->expectException(AgentException::class);
+        $this->expectExceptionMessage('at least one thread ID');
+
+        new SemanticMemory(
+            new MemoryVectorStore(),
+            new FakeEmbeddingsProvider(),
+            [],
+        );
+    }
+
+    public function test_recall_thread_ids_must_be_non_empty_strings(): void
+    {
+        $this->expectException(AgentException::class);
+        $this->expectExceptionMessage('non-empty strings');
+
+        new SemanticMemory(
+            new MemoryVectorStore(),
+            new FakeEmbeddingsProvider(),
+            ['thread-1', ''],
+        );
     }
 
     public function test_top_k_must_be_positive(): void
@@ -45,6 +69,7 @@ class SemanticMemoryTest extends TestCase
         new SemanticMemory(
             new MemoryVectorStore(),
             new FakeEmbeddingsProvider(),
+            ['thread-1'],
             topK: 0,
         );
     }
@@ -53,13 +78,13 @@ class SemanticMemoryTest extends TestCase
     {
         $store = new MemoryVectorStore();
         $embeddings = new FakeEmbeddingsProvider();
-        $memory = new SemanticMemory($store, $embeddings);
+        $memory = new SemanticMemory($store, $embeddings, ['thread-1', 'thread-2', 'thread-1']);
 
         $memory->remember('thread-1', 'My project is called Neuron.', 'I will remember that.');
         $memory->remember('thread-2', 'I use PHP.', 'I will remember that.');
         $memory->remember('thread-3', 'I use another framework.', 'I will remember that.');
 
-        $memories = $memory->recall(['thread-1', 'thread-2'], 'What do you know about me?');
+        $memories = $memory->recall('What do you know about me?');
 
         $this->assertCount(2, $memories);
         $this->assertStringContainsString('Neuron', $memories[0]);
@@ -69,7 +94,7 @@ class SemanticMemoryTest extends TestCase
 
         $this->assertSame(
             ["User: I use PHP.\nAssistant: I will remember that."],
-            $memory->recall(['thread-1', 'thread-2'], 'What do you know about me?'),
+            $memory->recall('What do you know about me?'),
         );
     }
 }

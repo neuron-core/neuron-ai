@@ -48,14 +48,6 @@ interface AgentInterface
     public function getMemory(): ?MemoryInterface;
 
     /**
-     * Define the exact, non-empty set of conversation threads memory may
-     * recall from. Without this configuration, recall uses the current thread.
-     *
-     * @param string[] $threadIds
-     */
-    public function setMemoryRecallThreadIds(array $threadIds): AgentInterface;
-
-    /**
      * Permanently clear both long-term memory and chat history for this conversation.
      */
     public function resetConversation(): AgentInterface;

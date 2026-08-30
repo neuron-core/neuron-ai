@@ -159,6 +159,7 @@ class RAGTest extends TestCase
         $memory = new SemanticMemory(
             new MemoryVectorStore(),
             new FakeEmbeddingsProvider(),
+            ['thread-1'],
         );
         $memory->remember('thread-1', 'I prefer Paris.', 'I will remember that.');
 
@@ -173,6 +174,6 @@ class RAGTest extends TestCase
         $provider->assertSent(
             fn (RequestRecord $record): bool => $record->systemPrompt?->contains('I prefer Paris.') ?? false
         );
-        $this->assertCount(2, $memory->recall(['thread-1'], 'Which city do I prefer?'));
+        $this->assertCount(2, $memory->recall('Which city do I prefer?'));
     }
 }

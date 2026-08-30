@@ -167,7 +167,6 @@ use NeuronAI\Observability\Events\MemoryRecalled;
 use NeuronAI\Observability\Events\MemoryStored;
 
 $agent->subscribe(MemoryRecalled::class, function (MemoryRecalled $event): void {
-    $this->metrics->gauge('agent.memory.threads', $event->threadCount);
     $this->metrics->count('agent.memory.results', $event->memoryCount);
 });
 
@@ -176,9 +175,9 @@ $agent->subscribe(MemoryStored::class, function (MemoryStored $event): void {
 });
 ```
 
-The recall events expose only thread count and result count. Queries, recalled
-content, messages, and thread IDs are intentionally excluded. `LogListener`
-serializes these counts as `thread-count` and `memory-count`.
+The recall completion event exposes only the result count. Queries, recalled
+content, messages, retrieval scope, and thread IDs are intentionally excluded.
+`LogListener` serializes it as `memory-count`.
 
 ### Poor Response Quality
 

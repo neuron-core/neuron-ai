@@ -13,6 +13,10 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
+use function array_unique;
+use function array_values;
+use function is_string;
+
 /**
  * Vector-backed conversation memory using portable source filters.
  */
@@ -20,28 +24,44 @@ class SemanticMemory implements MemoryInterface
 {
     public const SOURCE_TYPE = 'agent-memory';
 
+    /** @var non-empty-list<string> */
+    protected array $recallThreadIds;
+
     /**
+     * @param string[] $recallThreadIds
      * @throws AgentException
      */
     public function __construct(
         protected VectorStoreInterface $vectorStore,
         protected EmbeddingsProviderInterface $embeddings,
+        array $recallThreadIds,
         protected int $topK = 5,
     ) {
+        if ($recallThreadIds === []) {
+            throw new AgentException('Semantic memory recall requires at least one thread ID.');
+        }
+
+        foreach ($recallThreadIds as $threadId) {
+            if (!is_string($threadId) || $threadId === '') {
+                throw new AgentException('Semantic memory recall thread IDs must be non-empty strings.');
+            }
+        }
+
+        $this->recallThreadIds = array_values(array_unique($recallThreadIds));
+
         if ($this->topK < 1) {
             throw new AgentException('Semantic memory topK must be greater than zero.');
         }
     }
 
     /**
-     * @param non-empty-list<string> $threadIds
      * @throws VectorStoreException
      */
-    public function recall(array $threadIds, string $query): array
+    public function recall(string $query): array
     {
         $documents = $this->vectorStore->search(new SearchRequest(
             embedding: $this->embeddings->embedText($query),
-            filters: $this->recallFilters($threadIds),
+            filters: $this->recallFilters(),
             topK: $this->topK,
         ));
 
@@ -85,14 +105,13 @@ class SemanticMemory implements MemoryInterface
     }
 
     /**
-     * @param non-empty-list<string> $threadIds
      * @throws VectorStoreException
      */
-    protected function recallFilters(array $threadIds): FilterGroup
+    protected function recallFilters(): FilterGroup
     {
         return FilterGroup::and(
             Filter::eq('sourceType', static::SOURCE_TYPE),
-            Filter::in('sourceName', $threadIds),
+            Filter::in('sourceName', $this->recallThreadIds),
         );
     }
 

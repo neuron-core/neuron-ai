@@ -7,13 +7,11 @@ namespace NeuronAI\Agent\Memory;
 interface MemoryInterface
 {
     /**
-     * Recall conversation excerpts from the allowed threads that are relevant
-     * to the current query.
+     * Recall conversation excerpts that are relevant to the current query.
      *
-     * @param non-empty-list<string> $threadIds
      * @return string[]
      */
-    public function recall(array $threadIds, string $query): array;
+    public function recall(string $query): array;
 
     /**
      * Store one completed user-assistant exchange.

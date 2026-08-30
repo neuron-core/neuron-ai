@@ -30,8 +30,6 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-use function array_unique;
-use function array_values;
 use function is_array;
 use function is_string;
 
@@ -50,9 +48,6 @@ class Agent extends Workflow implements AgentInterface
     protected ChatHistoryInterface $chatHistory;
 
     protected ?MemoryInterface $memory = null;
-
-    /** @var non-empty-list<string>|null */
-    protected ?array $memoryRecallThreadIds = null;
 
     /**
      * The conversation this run belongs to, and the run's declared workflow
@@ -142,27 +137,6 @@ class Agent extends Workflow implements AgentInterface
     final public function getMemory(): ?MemoryInterface
     {
         return $this->memory ??= $this->memory();
-    }
-
-    /**
-     * @param string[] $threadIds
-     * @throws AgentException
-     */
-    public function setMemoryRecallThreadIds(array $threadIds): self
-    {
-        if ($threadIds === []) {
-            throw new AgentException('Memory recall requires at least one thread ID.');
-        }
-
-        foreach ($threadIds as $threadId) {
-            if (!is_string($threadId) || $threadId === '') {
-                throw new AgentException('Memory recall thread IDs must be non-empty strings.');
-            }
-        }
-
-        $this->memoryRecallThreadIds = array_values(array_unique($threadIds));
-
-        return $this;
     }
 
     /**
@@ -261,7 +235,7 @@ class Agent extends Workflow implements AgentInterface
         ];
 
         if ($memory instanceof MemoryInterface) {
-            $nodes[] = new RecallMemoryNode($memory, $chatHistory, $this->memoryRecallThreadIds);
+            $nodes[] = new RecallMemoryNode($memory, $chatHistory);
             $nodes[] = new StoreMemoryNode($memory, $chatHistory);
         }
 

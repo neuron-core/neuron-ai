@@ -9,7 +9,6 @@ use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\AgentException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -84,22 +83,6 @@ class MemoryWiringTest extends TestCase
         $this->assertNull($agent->getMemory());
     }
 
-    public function test_memory_recall_thread_ids_cannot_be_empty(): void
-    {
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('at least one thread ID');
-
-        Agent::make()->setMemoryRecallThreadIds([]);
-    }
-
-    public function test_memory_recall_thread_ids_must_be_non_empty_strings(): void
-    {
-        $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('non-empty strings');
-
-        Agent::make()->setMemoryRecallThreadIds(['thread-1', '']);
-    }
-
     public function test_flushing_chat_history_does_not_forget_long_term_memory(): void
     {
         $memory = new RecordingMemory();
@@ -130,7 +113,7 @@ class MemoryWiringTest extends TestCase
     public function test_memory_failure_during_reset_preserves_chat_history(): void
     {
         $memory = new class () implements MemoryInterface {
-            public function recall(array $threadIds, string $query): array
+            public function recall(string $query): array
             {
                 return [];
             }
@@ -184,7 +167,7 @@ class RecordingMemory implements MemoryInterface
     /** @var string[] */
     public array $forgottenThreadIds = [];
 
-    public function recall(array $threadIds, string $query): array
+    public function recall(string $query): array
     {
         return [];
     }

@@ -87,8 +87,8 @@ class LogListenerTest extends TestCase
         $logger = $this->recordingLogger();
         $listener = new LogListener($logger);
 
-        $listener(new MemoryRecalling(3));
-        $listener(new MemoryRecalled(3, 5));
+        $listener(new MemoryRecalling());
+        $listener(new MemoryRecalled(5));
         $listener(new MemoryStoring());
         $listener(new MemoryStored());
 
@@ -96,12 +96,12 @@ class LogListenerTest extends TestCase
             [
                 'level' => 'info',
                 'message' => 'memory-recalling',
-                'context' => ['thread-count' => 3],
+                'context' => [],
             ],
             [
                 'level' => 'info',
                 'message' => 'memory-recalled',
-                'context' => ['thread-count' => 3, 'memory-count' => 5],
+                'context' => ['memory-count' => 5],
             ],
             [
                 'level' => 'info',

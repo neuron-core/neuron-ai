@@ -8,9 +8,7 @@ use NeuronAI\Observability\ObservabilityEvent;
 
 class MemoryRecalled extends ObservabilityEvent
 {
-    public function __construct(
-        public int $threadCount,
-        public int $memoryCount,
-    ) {
+    public function __construct(public int $memoryCount)
+    {
     }
 }

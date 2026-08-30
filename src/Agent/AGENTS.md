@@ -214,41 +214,54 @@ fields will reject memory documents that do not contain them.
 
 ```php
 use NeuronAI\Agent\Memory\SemanticMemory;
+use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 
-$memory = new SemanticMemory(
-    vectorStore: new FileVectorStore(storage_path('app/agent-memory')),
-    embeddings: new OpenAIEmbeddingsProvider(
-        key: env('OPENAI_API_KEY'),
-        model: 'text-embedding-3-small',
-    ),
-    topK: 5,
-);
+class MyAgent extends Agent
+{
+    protected function provider(): AIProviderInterface {...}
 
-$agent = SupportAgent::make(threadId: $threadId)
-    ->setChatHistory($history)
-    ->setMemory($memory)
-    ->setMemoryRecallThreadIds(
-        $conversationRepository->threadIdsOwnedBy($customerId),
-    );
+    protected function memory(): ?MemoryInterface
+    {
+        return new SemanticMemory(
+            vectorStore: new FileVectorStore(
+                directory: storage_path('app/agent-memory'),
+            ),
+            embeddings: new OpenAIEmbeddingsProvider(
+                key: env('OPENAI_API_KEY'),
+                model: 'text-embedding-3-small',
+            ),
+            topK: 5,
+            recallThreadIds: [...]
+        );
+    }
+
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new FileChatHistory('path/directory');
+    }
+}
+
+$state = SupportAgent::make(threadId: $threadId)->chat(...);
 ```
 
-Without `setMemoryRecallThreadIds()`, recall uses the current thread. When the
-method is called, its non-empty list is the exact recall allowlist; the current
-thread is not added implicitly. Resolve the list from trusted application data,
-such as conversations owned by the authenticated user, and never accept thread
-IDs from a client without an ownership check. Duplicate IDs are removed.
+`recallThreadIds` is the exact, non-empty recall allowlist owned by that
+`SemanticMemory` instance; the current thread is not added implicitly. Resolve
+the list from trusted application data, such as conversations owned by the
+authenticated user, and never accept thread IDs from a client without an
+ownership check. Duplicate IDs are removed.
 
 Recall searches the allowed threads together and applies `topK` globally.
 `remember()` and `forget()` remain scoped to one explicit thread, so completed
 exchanges are always stored in the current conversation and
 `resetConversation()` deletes only that conversation.
 
-`MemoryInterface` is the customization boundary: `recall()` receives a
-non-empty thread-ID list and returns relevant conversation excerpts,
-`remember()` stores a completed exchange in one thread, and `forget()` removes
-one thread. Implement it directly for a non-vector backend.
+`MemoryInterface` is the customization boundary: `recall()` receives only the
+query and returns relevant conversation excerpts, so each implementation owns
+its retrieval scope. `remember()` stores a completed exchange in one thread,
+and `forget()` removes one thread. Implement it directly for a non-vector
+backend.
 
 `setMemory(MemoryInterface $memory)` attaches memory independently from chat
 history, like every other Agent component. `getChatHistory()` always returns
@@ -293,11 +306,11 @@ AG-UI or Vercel adapters without either adapter depending on memory classes.
 
 Memory operations also emit PSR-14 observability pairs around the actual memory
 boundary: `MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` /
-`MemoryStored`. The recall events expose only thread count and recalled-memory
-count; they never expose queries, recalled content, or thread IDs. The existing
-`WorkflowNodeStart` / `WorkflowNodeEnd` events still describe generic node
-execution. If a memory operation throws, its starting event is followed by the
-existing `AgentError` and no successful completion event.
+`MemoryStored`. The recall completion event exposes only the recalled-memory
+count; it never exposes queries, recalled content, retrieval scope, or thread
+IDs. The existing `WorkflowNodeStart` / `WorkflowNodeEnd` events still describe
+generic node execution. If a memory operation throws, its starting event is
+followed by the existing `AgentError` and no successful completion event.
 
 Inference nodes do not depend on `MemoryInterface` and perform no recall,
 prompt injection, pair extraction, or storage. They only route final responses

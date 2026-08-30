@@ -179,17 +179,16 @@ class LogListener
         ];
     }
 
-    /** @return array<string, int> */
+    /** @return array<string, mixed> */
     protected function serializeMemoryRecalling(MemoryRecalling $data): array
     {
-        return ['thread-count' => $data->threadCount];
+        return [];
     }
 
     /** @return array<string, int> */
     protected function serializeMemoryRecalled(MemoryRecalled $data): array
     {
         return [
-            'thread-count' => $data->threadCount,
             'memory-count' => $data->memoryCount,
         ];
     }

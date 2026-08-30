@@ -36,8 +36,6 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
     public function __construct(
         protected MemoryInterface $memory,
         ChatHistoryInterface $chatHistory,
-        /** @var non-empty-list<string>|null */
-        protected ?array $threadIds = null,
     ) {
         $this->chatHistory = $chatHistory;
     }
@@ -54,24 +52,12 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
             return $event->inferenceEvent->routed();
         }
 
-        $threadIds = $this->threadIds;
-
-        if ($threadIds === null) {
-            $threadIds = [
-                $this->chatHistory->getThreadId() ?? throw new ChatHistoryException(
-                    'Cannot use Agent memory without a thread identity.'
-                ),
-            ];
-        }
-
-        $threadCount = count($threadIds);
-
-        $this->emit(new MemoryRecalling($threadCount));
+        $this->emit(new MemoryRecalling());
         yield new StepStartedStreamEvent('memory.recall');
 
         $memories = $this->memoize(
             'memory.recall',
-            fn (): array => $this->memory->recall($threadIds, $query),
+            fn (): array => $this->memory->recall($query),
         );
 
         if ($memories !== []) {
@@ -85,7 +71,7 @@ class RecallMemoryNode extends Node implements AgentNodeInterface
 
         $memoryCount = count($memories);
 
-        $this->emit(new MemoryRecalled($threadCount, $memoryCount));
+        $this->emit(new MemoryRecalled($memoryCount));
         yield new StepFinishedStreamEvent('memory.recall', ['memories' => $memoryCount]);
 
         return $event->inferenceEvent->routed();

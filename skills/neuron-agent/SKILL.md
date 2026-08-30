@@ -360,36 +360,44 @@ its memory documents provide those fields.
 
 ```php
 use NeuronAI\Agent\Memory\SemanticMemory;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 use NeuronAI\RAG\VectorStore\FileVectorStore;
 
-$memory = new SemanticMemory(
-    vectorStore: new FileVectorStore(
-        directory: storage_path('app/agent-memory'),
-    ),
-    embeddings: new OpenAIEmbeddingsProvider(
-        key: env('OPENAI_API_KEY'),
-        model: 'text-embedding-3-small',
-    ),
-    topK: 5,
-);
+class MyAgent extends Agent
+{
+    protected function provider(): AIProviderInterface {...}
 
-$agent = MyAgent::make(threadId: $threadId)
-    ->setChatHistory(new SQLChatHistory($pdo))
-    ->setMemory($memory)
-    ->setMemoryRecallThreadIds([...]);
+    protected function memory(): ?MemoryInterface
+    {
+        return new SemanticMemory(
+            vectorStore: new FileVectorStore(
+                directory: storage_path('app/agent-memory'),
+            ),
+            embeddings: new OpenAIEmbeddingsProvider(
+                key: env('OPENAI_API_KEY'),
+                model: 'text-embedding-3-small',
+            ),
+            topK: 5,
+            recallThreadIds: [...]
+        );
+    }
 
-$state = $agent->chat(new UserMessage($input));
+    protected function chatHistory(): ChatHistoryInterface
+    {
+        return new FileChatHistory('path/directory');
+    }
+}
+
+$state = SupportAgent::make(threadId: $threadId)->chat(...);
 ```
 
 Why define recall threads explicitly: the application owns conversation
-authorization, while memory only performs the search. Without
-`setMemoryRecallThreadIds()`, recall uses the current thread. When configured,
-the non-empty list is the exact recall allowlist; the current thread is not
-added implicitly. Load it from trusted application data, such as conversations
-owned by the authenticated user. Never accept client-provided thread IDs
-without verifying ownership.
+authorization, while `SemanticMemory` owns the immutable search scope supplied
+at construction. The non-empty list is the exact recall allowlist; the current
+thread is not added implicitly. Load it from trusted application data, such as
+conversations owned by the authenticated user. Never accept client-provided
+thread IDs without verifying ownership.
 
 Recall searches all allowed threads together and applies `topK` globally.
 Completed exchanges are still stored in the current thread, and
@@ -474,15 +482,17 @@ class MyAgent extends Agent
                 key: env('OPENAI_API_KEY'),
                 model: 'text-embedding-3-small',
             ),
+            recallThreadIds: $this->conversationRepository
+                ->threadIdsOwnedBy($this->customerId),
         );
     }
 }
 ```
 
 An explicit `setMemory()` call takes precedence over `memory()`. Configure it
-before execution, like providers, tools, and other graph dependencies. Configure
-cross-conversation recall on the Agent instance with
-`setMemoryRecallThreadIds()`.
+before execution, like providers, tools, and other graph dependencies. Each
+memory implementation owns its retrieval scope; `SemanticMemory` receives its
+recall thread allowlist in the constructor.
 
 `flushAll()` on chat history clears only the working conversation. This is
 important for `Summarization`, which rewrites history while long-term memory

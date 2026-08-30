@@ -68,8 +68,8 @@ class AgentMemoryTest extends TestCase
         $agent->chat(new UserMessage('What is my name?'));
 
         $this->assertSame([
-            [['thread-1'], 'Hello'],
-            [['thread-1'], 'What is my name?'],
+            'Hello',
+            'What is my name?',
         ], $memory->recalls);
         $this->assertSame([
             ['thread-1', 'Hello', 'Welcome back.'],
@@ -90,19 +90,16 @@ class AgentMemoryTest extends TestCase
         );
     }
 
-    public function test_agent_recalls_from_the_exact_configured_thread_ids(): void
+    public function test_agent_delegates_recall_scope_to_memory(): void
     {
         $memory = new InspectableMemory();
         $agent = Agent::make(threadId: 'current-thread')
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Response.')))
-            ->setMemory($memory)
-            ->setMemoryRecallThreadIds(['thread-1', 'thread-2', 'thread-1']);
+            ->setMemory($memory);
 
         $agent->chat(new UserMessage('Question'));
 
-        $this->assertSame([
-            [['thread-1', 'thread-2'], 'Question'],
-        ], $memory->recalls);
+        $this->assertSame(['Question'], $memory->recalls);
         $this->assertSame([
             ['current-thread', 'Question', 'Response.'],
         ], $memory->remembered);
@@ -115,7 +112,6 @@ class AgentMemoryTest extends TestCase
         $agent = new Agent(threadId: 'thread-1');
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Response.')));
         $agent->setMemory($memory);
-        $agent->setMemoryRecallThreadIds(['thread-1', 'thread-2']);
 
         foreach ([
             MemoryRecalling::class,
@@ -138,8 +134,6 @@ class AgentMemoryTest extends TestCase
         ], array_map(static fn (object $event): string => $event::class, $events));
         $this->assertInstanceOf(MemoryRecalling::class, $events[0]);
         $this->assertInstanceOf(MemoryRecalled::class, $events[1]);
-        $this->assertSame(2, $events[0]->threadCount);
-        $this->assertSame(2, $events[1]->threadCount);
         $this->assertSame(1, $events[1]->memoryCount);
         $this->assertInstanceOf(RecallMemoryNode::class, $events[0]->source);
         $this->assertInstanceOf(RecallMemoryNode::class, $events[1]->source);
@@ -150,7 +144,7 @@ class AgentMemoryTest extends TestCase
     public function test_failed_memory_recall_has_no_completion_observability_event(): void
     {
         $memory = new class () implements MemoryInterface {
-            public function recall(array $threadIds, string $query): array
+            public function recall(string $query): array
             {
                 throw new RuntimeException('Memory unavailable.');
             }
@@ -204,9 +198,7 @@ class AgentMemoryTest extends TestCase
 
         $agent->chat(new UserMessage('Run the lookup.'));
 
-        $this->assertSame([
-            [['thread-1'], 'Run the lookup.'],
-        ], $memory->recalls);
+        $this->assertSame(['Run the lookup.'], $memory->recalls);
         $this->assertSame([
             ['thread-1', 'Run the lookup.', 'The lookup is complete.'],
         ], $memory->remembered);
@@ -326,9 +318,7 @@ class AgentMemoryTest extends TestCase
         $resumed = $resumingAgent->resume(['call-1' => 'approve']);
 
         $this->assertFalse($resumed->isInterrupted());
-        $this->assertSame([
-            [['thread-1'], 'Run the approved lookup.'],
-        ], $memory->recalls);
+        $this->assertSame(['Run the approved lookup.'], $memory->recalls);
         $this->assertSame([
             ['thread-1', 'Run the approved lookup.', 'Approved lookup complete.'],
         ], $memory->remembered);
@@ -443,9 +433,7 @@ class AgentMemoryTest extends TestCase
         $replayedEvents = iterator_to_array($replayedStream);
         $replayedResult = $replayedStream->getReturn();
 
-        $this->assertSame([
-            [['thread-1'], 'Question'],
-        ], $memory->recalls);
+        $this->assertSame(['Question'], $memory->recalls);
         $this->assertContainsOnlyInstancesOf(StepStartedStreamEvent::class, [$firstEvents[0], $replayedEvents[0]]);
         $this->assertContainsOnlyInstancesOf(StepFinishedStreamEvent::class, [$firstEvents[1], $replayedEvents[1]]);
         $this->assertTrue($firstResult->instructions->contains('Remembered context'));
@@ -463,7 +451,7 @@ class AgentMemoryTest extends TestCase
 
 class InspectableMemory implements MemoryInterface
 {
-    /** @var array<int, array{string[], string}> */
+    /** @var string[] */
     public array $recalls = [];
 
     /** @var array<int, array{string, string, string}> */
@@ -474,9 +462,9 @@ class InspectableMemory implements MemoryInterface
     {
     }
 
-    public function recall(array $threadIds, string $query): array
+    public function recall(string $query): array
     {
-        $this->recalls[] = [$threadIds, $query];
+        $this->recalls[] = $query;
 
         return $this->recalled;
     }
