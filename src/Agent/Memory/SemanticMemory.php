@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Memory;
 
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
@@ -19,6 +20,9 @@ class SemanticMemory implements MemoryInterface
 {
     public const SOURCE_TYPE = 'agent-memory';
 
+    /**
+     * @throws AgentException
+     */
     public function __construct(
         protected VectorStoreInterface $vectorStore,
         protected EmbeddingsProviderInterface $embeddings,
@@ -31,6 +35,7 @@ class SemanticMemory implements MemoryInterface
 
     /**
      * @param non-empty-list<string> $threadIds
+     * @throws VectorStoreException
      */
     public function recall(array $threadIds, string $query): array
     {
@@ -60,11 +65,17 @@ class SemanticMemory implements MemoryInterface
         );
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function forget(string $threadId): void
     {
         $this->vectorStore->delete($this->threadFilters($threadId));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     protected function threadFilters(string $threadId): FilterGroup
     {
         return FilterGroup::and(
@@ -75,6 +86,7 @@ class SemanticMemory implements MemoryInterface
 
     /**
      * @param non-empty-list<string> $threadIds
+     * @throws VectorStoreException
      */
     protected function recallFilters(array $threadIds): FilterGroup
     {
