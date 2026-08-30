@@ -24,6 +24,7 @@ interface AIProviderInterface {
 | `Ollama/` | Local models |
 | `Mistral/` | Mistral AI |
 | `Deepseek/` | Deepseek |
+| `OrcaRouter/` | OrcaRouter |
 | `Cohere/` | Cohere |
 | `HuggingFace/` | Hugging Face |
 | `XAI/` | xAI Grok |

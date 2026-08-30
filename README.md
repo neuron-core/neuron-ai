@@ -196,6 +196,7 @@ Supported providers:
 - [Mistral](https://docs.neuron-ai.dev/providers/ai-provider#mistral)
 - [HuggingFace](https://docs.neuron-ai.dev/providers/ai-provider#huggingface)
 - [Deepseek](https://docs.neuron-ai.dev/providers/ai-provider#deepseek)
+- [OrcaRouter](https://www.orcarouter.ai) (OpenAI compatible AI gateway)
 - [Grok](https://docs.neuron-ai.dev/providers/ai-provider#grok-x-ai)
 - [AWS Bedrock Runtime](https://docs.neuron-ai.dev/providers/ai-provider#aws-bedrock-runtime)
 - [Cohere](https://docs.neuron-ai.dev/providers/ai-provider#cohere)
