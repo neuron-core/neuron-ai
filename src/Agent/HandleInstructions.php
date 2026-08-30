@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 
 use function is_string;
@@ -16,9 +15,7 @@ trait HandleInstructions
     protected function instructions(): SystemMessage|string
     {
         return new SystemMessage(
-            (new SystemContent(
-                'Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.'
-            ))->cache()
+            'Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.'
         );
     }
 

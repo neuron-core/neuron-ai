@@ -28,21 +28,7 @@ trait HandleChat
      */
     public function chat(Message ...$messages): ProviderResponse
     {
-        $body = [
-            'model' => $this->model,
-            'input' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
-        ];
-
-        // Attach the system prompt
-        if (isset($this->system)) {
-            $body['instructions'] = $this->system;
-        }
-
-        // Attach tools
-        if (!empty($this->tools)) {
-            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
-        }
+        $body = $this->requestBody($messages);
 
         $response = $this->httpClient->request(
             HttpRequest::post(

@@ -72,9 +72,9 @@ class DelimiterTextSplitter extends AbstractSplitter
         $split = [];
         foreach ($chunks as $chunk) {
             $newDocument = new Document($chunk);
-            $newDocument->sourceType = $document->getSourceType();
-            $newDocument->sourceName = $document->getSourceName();
-            $newDocument->metadata = $document->metadata;
+            $newDocument->setSourceType($document->getSourceType());
+            $newDocument->setSourceName($document->getSourceName());
+            $newDocument->setMetadata($document->getMetadata());
             $split[] = $newDocument;
         }
 

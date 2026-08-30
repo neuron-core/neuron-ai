@@ -8,8 +8,10 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\CurlHttpClient;
@@ -23,9 +25,12 @@ use NeuronAI\Tools\ToolCall;
 
 use function array_map;
 use function array_merge;
+use function array_unshift;
+use function array_values;
+use function is_array;
+use function is_string;
 use function json_decode;
 use function uniqid;
-use function array_values;
 
 class OpenAIResponses implements AIProviderInterface
 {
@@ -43,7 +48,7 @@ class OpenAIResponses implements AIProviderInterface
     /**
      * System instructions.
      */
-    protected ?string $system = null;
+    protected ?SystemMessage $system = null;
 
     protected MessageMapperInterface $messageMapper;
     protected ToolMapperInterface $toolPayloadMapper;
@@ -76,8 +81,84 @@ class OpenAIResponses implements AIProviderInterface
 
     public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
-        $this->system = $prompt instanceof SystemMessage ? $prompt->getContent() : $prompt;
+        $this->system = is_string($prompt) ? new SystemMessage($prompt) : $prompt;
         return $this;
+    }
+
+    /**
+     * @param Message[] $messages
+     * @return array<string, mixed>
+     */
+    protected function requestBody(array $messages, bool $stream = false): array
+    {
+        $body = $stream ? ['stream' => true] : [];
+        $body = [
+            ...$body,
+            'model' => $this->model,
+            'input' => $this->messageMapper()->map($messages),
+            ...$this->parameters,
+        ];
+
+        if ($this->system instanceof SystemMessage) {
+            $this->attachSystemPrompt($body, $this->system);
+        }
+
+        if ($this->tools !== []) {
+            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
+        }
+
+        return $body;
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    protected function attachSystemPrompt(array &$body, SystemMessage $system): void
+    {
+        $blocks = $system->getTextBlocks();
+        $hasCacheBreakpoint = false;
+
+        foreach ($blocks as $block) {
+            if ($block instanceof SystemContent && $block->isCached()) {
+                $hasCacheBreakpoint = true;
+                break;
+            }
+        }
+
+        if (!$hasCacheBreakpoint) {
+            $body['instructions'] = $system->getContent();
+            return;
+        }
+
+        unset($body['instructions']);
+
+        $content = array_map(function (TextContent $block): array {
+            $mapped = [
+                'type' => 'input_text',
+                'text' => $block->content,
+            ];
+
+            if ($block instanceof SystemContent && $block->isCached()) {
+                $mapped['prompt_cache_breakpoint'] = ['mode' => 'explicit'];
+            }
+
+            return $mapped;
+        }, array_values($blocks));
+
+        $input = is_array($body['input'] ?? null) ? $body['input'] : [];
+        array_unshift($input, [
+            'role' => 'developer',
+            'content' => $content,
+        ]);
+        $body['input'] = $input;
+
+        $promptCacheOptions = is_array($body['prompt_cache_options'] ?? null)
+            ? $body['prompt_cache_options']
+            : [];
+        $body['prompt_cache_options'] = [
+            ...$promptCacheOptions,
+            'mode' => 'explicit',
+        ];
     }
 
     protected function messageMapper(): MessageMapperInterface

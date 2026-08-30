@@ -82,6 +82,15 @@ class WeatherToolkit extends AbstractToolkit
 
 class AgentInstructionsTest extends TestCase
 {
+    public function test_default_instructions_are_not_cached(): void
+    {
+        $blocks = Agent::make()->getInstructions()->getTextBlocks();
+
+        $this->assertCount(1, $blocks);
+        $this->assertInstanceOf(SystemContent::class, $blocks[0]);
+        $this->assertFalse($blocks[0]->isCached());
+    }
+
     // ---------------------------------------------------------------
     // Unit: middleware appends its prompt as a new content block
     // ---------------------------------------------------------------

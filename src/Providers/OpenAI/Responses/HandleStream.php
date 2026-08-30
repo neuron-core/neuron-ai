@@ -45,22 +45,7 @@ trait HandleStream
      */
     public function stream(Message ...$messages): Generator
     {
-        $body = [
-            'stream' => true,
-            'model' => $this->model,
-            'input' => $this->messageMapper()->map($messages),
-            ...$this->parameters,
-        ];
-
-        // Attach the system prompt
-        if (isset($this->system)) {
-            $body['instructions'] = $this->system;
-        }
-
-        // Attach tools
-        if (!empty($this->tools)) {
-            $body['tools'] = $this->toolPayloadMapper()->map($this->tools);
-        }
+        $body = $this->requestBody($messages, true);
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
