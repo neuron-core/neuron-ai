@@ -13,6 +13,7 @@ use function array_merge;
 use function array_slice;
 use function count;
 use function implode;
+use function min;
 use function preg_split;
 use function trim;
 
@@ -85,7 +86,13 @@ class SentenceTextSplitter extends AbstractSplitter
                         $chunks[] = $currentWords;
                         $currentWords = [];
                     }
-                    $chunks = array_merge($chunks, $this->splitLongSentence($sentenceWords));
+                    $previousWords = $chunks === [] ? [] : $chunks[count($chunks) - 1];
+                    $chunks = array_merge($chunks, $this->splitLongSentence($sentenceWords, $previousWords));
+                    continue;
+                }
+
+                if ($currentWords === [] && $chunks !== [] && $this->overlapWords > 0) {
+                    $currentWords = $this->startChunkWithOverlap($chunks[count($chunks) - 1], $sentenceWords);
                     continue;
                 }
 
@@ -95,7 +102,7 @@ class SentenceTextSplitter extends AbstractSplitter
                     if ($currentWords !== []) {
                         $chunks[] = $currentWords;
                     }
-                    $currentWords = $sentenceWords;
+                    $currentWords = $this->startChunkWithOverlap($currentWords, $sentenceWords);
                 } else {
                     $currentWords = array_merge($currentWords, $sentenceWords);
                 }
@@ -104,10 +111,6 @@ class SentenceTextSplitter extends AbstractSplitter
 
         if ($currentWords !== []) {
             $chunks[] = $currentWords;
-        }
-
-        if ($this->overlapWords > 0) {
-            $chunks = $this->applyOverlap($chunks);
         }
 
         $chunks = $this->enforceMinWords($chunks);
@@ -176,58 +179,42 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Applies overlap of words between consecutive chunks.
-     *
-     * @param  array<array<string>>  $chunks
-     * @return array<array<string>>
+     * @param  string[]  $previousWords
+     * @param  string[]  $words
+     * @return string[]
      */
-    private function applyOverlap(array $chunks): array
+    protected function startChunkWithOverlap(array $previousWords, array $words): array
     {
-        if ($chunks === []) {
-            return [];
-        }
+        $overlapCount = min(
+            $this->overlapWords,
+            count($previousWords),
+            $this->maxWords - count($words)
+        );
+        $overlap = $overlapCount > 0 ? array_slice($previousWords, -$overlapCount) : [];
 
-        $result = [$chunks[0]];
-        $count = count($chunks);
-
-        for ($i = 1; $i < $count; $i++) {
-            $prevWords = $chunks[$i - 1];
-            $curWords = $chunks[$i];
-
-            $overlap = array_slice($prevWords, -$this->overlapWords);
-
-            // Only remove leading words if current chunk has enough words
-            $remaining = count($curWords) > $this->overlapWords
-                ? array_slice($curWords, $this->overlapWords)
-                : $curWords;
-
-            $result[] = array_merge($overlap, $remaining);
-        }
-
-        return $result;
+        return array_merge($overlap, $words);
     }
 
     /**
      * Splits a long sentence into smaller chunks that respect the maxWords limit.
      *
      * @param  string[]  $words Array of words from the sentence
+     * @param  string[]  $previousWords
      * @return array<array<string>>
      */
-    private function splitLongSentence(array $words): array
+    protected function splitLongSentence(array $words, array $previousWords = []): array
     {
         $chunks = [];
-        $currentChunk = [];
 
-        foreach ($words as $word) {
-            if (count($currentChunk) >= $this->maxWords) {
-                $chunks[] = $currentChunk;
-                $currentChunk = [];
-            }
-            $currentChunk[] = $word;
-        }
+        while ($words !== []) {
+            $overlapCount = min($this->overlapWords, count($previousWords));
+            $overlap = $overlapCount > 0 ? array_slice($previousWords, -$overlapCount) : [];
+            $newWords = array_slice($words, 0, $this->maxWords - count($overlap));
+            $currentChunk = array_merge($overlap, $newWords);
 
-        if ($currentChunk !== []) {
             $chunks[] = $currentChunk;
+            $words = array_slice($words, count($newWords));
+            $previousWords = $currentChunk;
         }
 
         return $chunks;

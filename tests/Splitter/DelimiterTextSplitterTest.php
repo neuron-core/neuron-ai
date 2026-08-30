@@ -9,6 +9,7 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function file_get_contents;
 use function mb_strlen;
 
@@ -120,6 +121,22 @@ class DelimiterTextSplitterTest extends TestCase
 
         foreach ($result as $chunk) {
             $this->assertLessThanOrEqual(20, mb_strlen($chunk->getContent()));
+        }
+    }
+
+    public function test_overlap_is_reduced_to_preserve_content_and_max_length(): void
+    {
+        $splitter = new DelimiterTextSplitter(maxLength: 6, wordOverlap: 1);
+
+        $result = $splitter->splitDocument(new Document('aa bb cccc dd'));
+
+        $this->assertSame(
+            ['aa bb', 'cccc', 'dd'],
+            array_map(static fn (Document $chunk): string => $chunk->getContent(), $result)
+        );
+
+        foreach ($result as $chunk) {
+            $this->assertLessThanOrEqual(6, mb_strlen($chunk->getContent()));
         }
     }
 }
