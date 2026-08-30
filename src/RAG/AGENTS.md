@@ -126,7 +126,8 @@ combine vector and lexical ranking.
 - `Filter::raw(StoreClass::class, $fragment)` — backend-native escape hatch,
   tagged with its target store. The tagged store passes the fragment through
   verbatim; every other store's compiler throws (fail-loud on store swap,
-  never silent misfiltering).
+  never silent misfiltering). Raw fragments must be trusted, developer-authored
+  syntax; never interpolate request values into them.
 
 Each backend has a compiler class in `VectorStore/Filter/Compilers/`
 (`QdrantFilterCompiler`, `MeilisearchFilterCompiler`, ...;
@@ -134,6 +135,10 @@ Each backend has a compiler class in `VectorStore/Filter/Compilers/`
 internal wiring — no shared interface, not injectable. `FileVectorStore` and
 `MemoryVectorStore` share the PHP-side `FilterEvaluator` instead (raw filters
 throw there — nothing can execute them).
+
+Retrieval logs include the filter's fields, operators, and boolean structure,
+but omit comparison values and raw fragments so authorization data does not
+leak into the default log context.
 
 Backend caveats: Meilisearch filterable attributes and new MongoDB Atlas
 indexes are derived from `DocumentSchema`; existing indexes may require
@@ -197,7 +202,8 @@ Stores validate declared values and filters locally. Only `sourceType`,
 `sourceName`, and declared filterable metadata fields are portable filter
 targets. Array fields are supported for validation/storage but need raw
 backend filters except for portable filterable string arrays, which support
-`containsAny` and `containsAll`. A `DocumentField` can be passed directly to
+`containsAny` and `containsAll`. Declared arrays must be non-empty homogeneous
+lists. A `DocumentField` can be passed directly to
 filter factories for schema-aware construction. `neq` requires a required
 field so missing-field behavior cannot diverge between databases. RAG
 validates documents before embedding.

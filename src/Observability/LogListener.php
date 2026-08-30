@@ -35,6 +35,10 @@ use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -288,8 +292,29 @@ class LogListener
     {
         return [
             'question' => $data->question->jsonSerialize(),
-            'filters' => $data->filters?->toArray(),
+            'filters' => $data->filters === null ? null : $this->serializeFilter($data->filters),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    protected function serializeFilter(FilterExpression $filters): array
+    {
+        if ($filters instanceof Filter) {
+            return ['operator' => $filters->operator->value, 'field' => $filters->field];
+        }
+
+        if ($filters instanceof RawFilter) {
+            return ['operator' => 'raw', 'store' => $filters->store];
+        }
+
+        if ($filters instanceof FilterGroup) {
+            return [
+                'operator' => $filters->operator()->value,
+                'conditions' => array_map($this->serializeFilter(...), $filters->conditions()),
+            ];
+        }
+
+        return ['operator' => 'unsupported', 'class' => $filters::class];
     }
 
     /** @return array<string, mixed> */

@@ -8,8 +8,10 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 
 use function array_key_exists;
-use function is_numeric;
 use function is_array;
+use function is_float;
+use function is_int;
+use function is_numeric;
 
 /**
  * Matches a document's fields against a FilterGroup in PHP, for stores that
@@ -17,6 +19,9 @@ use function is_array;
  */
 class FilterEvaluator
 {
+    /**
+     * @throws VectorStoreException
+     */
     public function matchesDocument(FilterExpression $filters, Document $document): bool
     {
         return $this->matches($filters, [
@@ -29,6 +34,7 @@ class FilterEvaluator
 
     /**
      * @param array<string, mixed> $fields Flat field map: sourceType, sourceName, content, and metadata keys.
+     * @throws VectorStoreException
      */
     public function matches(FilterExpression $filters, array $fields): bool
     {
@@ -86,9 +92,9 @@ class FilterEvaluator
 
     protected function equals(mixed $stored, mixed $expected): bool
     {
-        // Numeric values compare loosely so a 5 filter matches a stored 5.0
-        // (or a "5" that survived a JSON round trip); everything else strictly.
-        if (is_numeric($stored) && is_numeric($expected)) {
+        // Integers and floats share portable numeric semantics; strings remain
+        // strict so identifiers that look numeric can never collapse together.
+        if ((is_int($stored) || is_float($stored)) && (is_int($expected) || is_float($expected))) {
             return $stored == $expected;
         }
 
@@ -110,7 +116,6 @@ class FilterEvaluator
     }
 
     /**
-     * @param array<mixed> $stored
      * @param array<string> $values
      */
     protected function containsAny(array $stored, array $values): bool
@@ -125,7 +130,6 @@ class FilterEvaluator
     }
 
     /**
-     * @param array<mixed> $stored
      * @param array<string> $values
      */
     protected function containsAll(array $stored, array $values): bool

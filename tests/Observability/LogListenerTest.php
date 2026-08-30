@@ -14,6 +14,8 @@ use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
@@ -114,19 +116,30 @@ class LogListenerTest extends TestCase
         ], $logger->records);
     }
 
-    public function testRetrievingLogsPortableFilters(): void
+    public function testRetrievingLogsFilterStructureWithoutValues(): void
     {
         $logger = $this->recordingLogger();
 
         (new LogListener($logger))(new Retrieving(
             new UserMessage('question'),
-            Filter::eq('tenant', 'acme'),
+            FilterGroup::allOf(
+                Filter::eq('tenant', 'secret-tenant'),
+                Filter::raw(MariaDBVectorStore::class, 'secret SQL fragment'),
+            ),
         ));
 
         $this->assertSame([
-            'operator' => 'eq',
-            'field' => 'tenant',
-            'value' => 'acme',
+            'operator' => 'and',
+            'conditions' => [
+                [
+                    'operator' => 'eq',
+                    'field' => 'tenant',
+                ],
+                [
+                    'operator' => 'raw',
+                    'store' => MariaDBVectorStore::class,
+                ],
+            ],
         ], $logger->records[0]['context']['filters']);
     }
 }

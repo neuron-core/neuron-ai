@@ -29,6 +29,7 @@ class Filter implements FilterExpression
 {
     /**
      * @param string|int|float|bool|array<string|int|float|bool> $value
+     * @throws VectorStoreException
      */
     protected function __construct(
         public readonly string $field,
@@ -40,6 +41,9 @@ class Filter implements FilterExpression
         }
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function eq(
         string|DocumentField $field,
         string|int|float|bool|BackedEnum|DateTimeInterface $value,
@@ -47,6 +51,9 @@ class Filter implements FilterExpression
         return self::comparison($field, FilterOperator::Eq, self::normalize($value));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function neq(
         string|DocumentField $field,
         string|int|float|bool|BackedEnum|DateTimeInterface $value,
@@ -56,6 +63,7 @@ class Filter implements FilterExpression
 
     /**
      * @param array<string|int|float|bool|BackedEnum|DateTimeInterface> $values
+     * @throws VectorStoreException
      */
     public static function in(string|DocumentField $field, array $values): self
     {
@@ -77,21 +85,33 @@ class Filter implements FilterExpression
         return self::comparison($field, FilterOperator::In, $normalized);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function gt(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
         return self::range($field, FilterOperator::Gt, $value);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function gte(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
         return self::range($field, FilterOperator::Gte, $value);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function lt(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
         return self::range($field, FilterOperator::Lt, $value);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function lte(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
         return self::range($field, FilterOperator::Lte, $value);
@@ -99,6 +119,7 @@ class Filter implements FilterExpression
 
     /**
      * @param array<string|BackedEnum> $values
+     * @throws VectorStoreException
      */
     public static function containsAny(string|DocumentField $field, array $values): self
     {
@@ -107,6 +128,7 @@ class Filter implements FilterExpression
 
     /**
      * @param array<string|BackedEnum> $values
+     * @throws VectorStoreException
      */
     public static function containsAll(string|DocumentField $field, array $values): self
     {
@@ -141,6 +163,9 @@ class Filter implements FilterExpression
         ];
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     protected static function comparison(
         string|DocumentField $field,
         FilterOperator $operator,
@@ -152,6 +177,9 @@ class Filter implements FilterExpression
         return $filter;
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     protected static function range(
         string|DocumentField $field,
         FilterOperator $operator,
@@ -170,6 +198,7 @@ class Filter implements FilterExpression
 
     /**
      * @param array<string|BackedEnum> $values
+     * @throws VectorStoreException
      */
     protected static function contains(
         string|DocumentField $field,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
@@ -17,7 +18,7 @@ use function array_map;
 use function implode;
 use function is_bool;
 use function is_string;
-use function str_replace;
+use function str_contains;
 
 class TypesenseFilterCompiler extends FilterCompiler
 {
@@ -84,9 +85,13 @@ class TypesenseFilterCompiler extends FilterCompiler
         }
 
         if (is_string($value)) {
-            // Backticks delimit values with special characters; Typesense has
-            // no escape for a literal backtick, so it is stripped.
-            return '`' . str_replace('`', '', $value) . '`';
+            if (str_contains($value, '`')) {
+                throw new VectorStoreException(
+                    'Typesense filter values cannot contain backticks without changing their meaning.'
+                );
+            }
+
+            return '`' . $value . '`';
         }
 
         return (string) $value;

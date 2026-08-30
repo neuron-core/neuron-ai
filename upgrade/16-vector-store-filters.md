@@ -106,7 +106,8 @@ filterability against its `DocumentSchema` before database I/O:
   normalize to epoch timestamps, and backed enums normalize to their scalar values.
 - Groups support nested `allOf()` and `anyOf()` expressions. Use
   `FilterScope::merge()` rather than an OR group to combine mandatory scopes.
-- Filterable string arrays support `containsAny()` and `containsAll()`.
+- Filterable string arrays support `containsAny()` and `containsAll()`;
+  declared array values must be non-empty homogeneous lists.
 
 Backend capabilities outside the vocabulary go through the tagged escape
 hatch:
@@ -117,7 +118,8 @@ Filter::raw(MeilisearchVectorStore::class, "_geoRadius(45.4, 9.1, 2000)")
 
 The tagged store passes the fragment through verbatim; every other store
 throws — swapping stores fails loudly at the first search instead of
-silently matching the wrong documents.
+silently matching the wrong documents. Treat raw fragments as trusted,
+developer-authored syntax and never interpolate request values into them.
 
 ## Migration
 

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\RAG\VectorStore\SearchRequest;
@@ -27,12 +29,42 @@ class DocumentSchemaTest extends TestCase
         $document = (new Document('Hello'))
             ->addMetadata('tenant', 'acme')
             ->addMetadata('year', 2026)
-            ->addMetadata('tags', [])
+            ->addMetadata('tags', ['php'])
             ->addMetadata('custom', ['nested' => true]);
 
         $schema->validate($document);
 
         $this->assertSame(['nested' => true], $document->getMetadata()['custom']);
+    }
+
+    public function test_declared_arrays_must_be_non_empty_lists(): void
+    {
+        $schema = DocumentSchema::of(DocumentField::strings('tags'));
+
+        foreach ([[], ['primary' => 'php']] as $tags) {
+            try {
+                $schema->validate((new Document('Hello'))->addMetadata('tags', $tags));
+                $this->fail('The invalid array shape was accepted.');
+            } catch (DocumentSchemaException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function test_unknown_filter_expressions_are_rejected(): void
+    {
+        $store = new MemoryVectorStore();
+        $expression = new class () implements FilterExpression {
+            public function toArray(): array
+            {
+                return ['operator' => 'custom'];
+            }
+        };
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Unsupported filter expression');
+
+        $store->search(new SearchRequest([1, 0], $expression));
     }
 
     public function test_required_field_must_exist(): void

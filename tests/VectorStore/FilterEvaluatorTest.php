@@ -93,6 +93,14 @@ class FilterEvaluatorTest extends TestCase
         ));
     }
 
+    public function test_numeric_strings_compare_strictly(): void
+    {
+        $this->assertFalse($this->evaluator->matches(
+            Filter::eq('tenant', '0e12345'),
+            ['tenant' => '0e67890'],
+        ));
+    }
+
     public function test_boolean_values_compare_strictly(): void
     {
         $this->assertTrue($this->evaluator->matches(

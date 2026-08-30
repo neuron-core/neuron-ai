@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 
@@ -26,7 +27,7 @@ final class FilterValidator
         }
 
         if (!$filters instanceof Filter) {
-            return;
+            throw new VectorStoreException('Unsupported filter expression: ' . $filters::class . '.');
         }
 
         $field = $schema->requireFilterableField($filters->field);

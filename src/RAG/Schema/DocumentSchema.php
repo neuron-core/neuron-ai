@@ -8,6 +8,7 @@ use NeuronAI\RAG\Document;
 use JsonException;
 
 use function array_key_exists;
+use function array_is_list;
 use function array_values;
 use function get_debug_type;
 use function is_array;
@@ -160,7 +161,7 @@ final class DocumentSchema
 
     protected function arrayContains(mixed $value, callable $validator): bool
     {
-        if (!is_array($value)) {
+        if (!is_array($value) || $value === [] || !array_is_list($value)) {
             return false;
         }
 

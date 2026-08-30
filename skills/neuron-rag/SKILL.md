@@ -298,7 +298,7 @@ $schema = DocumentSchema::of(
 $store = new MemoryVectorStore(schema: $schema);
 ```
 
-Field constructors: `string`, `integer`, `float`, `boolean`, and homogeneous arrays `strings`, `integers`, `floats`, `booleans`. Integers are valid values for float fields. `required()` means every document must carry a non-null value; `filterable()` means the field can appear in a portable filter.
+Field constructors: `string`, `integer`, `float`, `boolean`, and non-empty homogeneous lists `strings`, `integers`, `floats`, `booleans`. Integers are valid values for float fields. `required()` means every document must carry a non-null value; `filterable()` means the field can appear in a portable filter.
 
 Declare only what the database needs — a field that must exist on every document, needs a known type, or appears in portable filters. Undeclared JSON-safe metadata still round-trips (stored and returned), but cannot be filtered portably because its database type is unknown. Filterable string arrays support portable containment checks; other array types are validated and stored but require raw backend filters. `neq` is available only for required fields, preventing absent fields from widening a scope on databases with different missing-field behavior.
 
@@ -353,7 +353,7 @@ FilterGroup::allOf(
 );
 ```
 
-A raw filter may also be passed directly. It deliberately couples the expression to one store and is not interpreted or normalized by the portable model.
+A raw filter may also be passed directly. It deliberately couples the expression to one store and is not interpreted or normalized by the portable model. Raw fragments must contain trusted, developer-authored syntax; never interpolate request values into them.
 
 ### Static filters vs per-run filters
 

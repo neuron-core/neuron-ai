@@ -26,6 +26,9 @@ class FilterGroup implements FilterExpression
         $this->conditions = $conditions;
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function and(FilterExpression ...$conditions): self
     {
         return self::allOf(...$conditions);
@@ -36,16 +39,25 @@ class FilterGroup implements FilterExpression
         return self::anyOf(...$conditions);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function allOf(FilterExpression ...$conditions): self
     {
         return self::group(FilterCombinator::And, ...$conditions);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public static function anyOf(FilterExpression ...$conditions): self
     {
         return self::group(FilterCombinator::Or, ...$conditions);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     protected static function group(FilterCombinator $operator, FilterExpression ...$conditions): self
     {
         $flattened = [];

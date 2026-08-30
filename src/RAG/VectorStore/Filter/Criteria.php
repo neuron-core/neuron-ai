@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\VectorStore\Filter;
 
 use BackedEnum;
 use DateTimeInterface;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Schema\DocumentField;
 
 /**
@@ -22,6 +23,9 @@ class Criteria extends FilterGroup
         return new self(FilterCombinator::And, $expression);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function where(
         string|DocumentField $field,
         string|int|float|bool|BackedEnum|DateTimeInterface $value,
@@ -29,6 +33,9 @@ class Criteria extends FilterGroup
         return $this->with(Filter::eq($field, $value));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereNot(
         string|DocumentField $field,
         string|int|float|bool|BackedEnum|DateTimeInterface $value,
@@ -38,12 +45,16 @@ class Criteria extends FilterGroup
 
     /**
      * @param array<string|int|float|bool|BackedEnum|DateTimeInterface> $values
+     * @throws VectorStoreException
      */
     public function whereIn(string|DocumentField $field, array $values): self
     {
         return $this->with(Filter::in($field, $values));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereGreaterThan(
         string|DocumentField $field,
         int|float|BackedEnum|DateTimeInterface $value,
@@ -51,6 +62,9 @@ class Criteria extends FilterGroup
         return $this->with(Filter::gt($field, $value));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereGreaterThanOrEqual(
         string|DocumentField $field,
         int|float|BackedEnum|DateTimeInterface $value,
@@ -58,6 +72,9 @@ class Criteria extends FilterGroup
         return $this->with(Filter::gte($field, $value));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereLessThan(
         string|DocumentField $field,
         int|float|BackedEnum|DateTimeInterface $value,
@@ -65,6 +82,9 @@ class Criteria extends FilterGroup
         return $this->with(Filter::lt($field, $value));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereLessThanOrEqual(
         string|DocumentField $field,
         int|float|BackedEnum|DateTimeInterface $value,
@@ -74,6 +94,7 @@ class Criteria extends FilterGroup
 
     /**
      * @param array<string|BackedEnum> $values
+     * @throws VectorStoreException
      */
     public function whereContainsAny(string|DocumentField $field, array $values): self
     {
@@ -82,12 +103,16 @@ class Criteria extends FilterGroup
 
     /**
      * @param array<string|BackedEnum> $values
+     * @throws VectorStoreException
      */
     public function whereContainsAll(string|DocumentField $field, array $values): self
     {
         return $this->with(Filter::containsAll($field, $values));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function whereAny(FilterExpression ...$expressions): self
     {
         return $this->with(FilterGroup::anyOf(...$expressions));

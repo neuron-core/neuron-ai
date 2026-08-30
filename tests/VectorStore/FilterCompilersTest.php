@@ -155,6 +155,14 @@ class FilterCompilersTest extends TestCase
         $this->assertSame('sourceType:=`file` && lang:=[`en`, `it`] && year:>2020', $expression);
     }
 
+    public function test_typesense_rejects_values_that_cannot_be_represented_losslessly(): void
+    {
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('backticks');
+
+        (new TypesenseFilterCompiler())->compile(Filter::eq('tenant', 'ac`me'));
+    }
+
     public function test_mongodb_nests_custom_metadata_fields(): void
     {
         $filter = (new MongoDBFilterCompiler())->compile(FilterGroup::and(
