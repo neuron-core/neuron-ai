@@ -36,7 +36,7 @@ class InstructionsNode extends Node
     public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
     {
         $instructions = new SystemMessage($this->baseInstructions->getContentBlocks());
-        $instructions->addContent(new SystemContent($this->buildContextBlock($event->documents)));
+        $instructions->addContent(new SystemContent($this->buildBlockContent($event->documents)));
 
         $inference = new AIInferenceEvent(
             instructions: $instructions,
@@ -51,7 +51,7 @@ class InstructionsNode extends Node
             : $inference->routed();
     }
 
-    private function buildContextBlock(array $documents): string
+    private function buildBlockContent(array $documents): string
     {
         $context = "<EXTRA-CONTEXT>";
         foreach ($documents as $document) {
