@@ -72,9 +72,9 @@ class DelimiterTextSplitter extends AbstractSplitter
         $split = [];
         foreach ($chunks as $chunk) {
             $newDocument = new Document($chunk);
-            $newDocument->setSourceType($document->getSourceType());
-            $newDocument->setSourceName($document->getSourceName());
-            $newDocument->setMetadata($document->getMetadata());
+            $newDocument->sourceType = $document->getSourceType();
+            $newDocument->sourceName = $document->getSourceName();
+            $newDocument->metadata = $document->metadata;
             $split[] = $newDocument;
         }
 
@@ -107,6 +107,10 @@ class DelimiterTextSplitter extends AbstractSplitter
 
                 $calculatedOverlap = min($this->wordOverlap, count($currentChunk) - 1);
                 $overlapWords = $calculatedOverlap > 0 ? array_slice($currentChunk, -$calculatedOverlap) : [];
+
+                while ($overlapWords !== [] && $this->calculateChunkLength([...$overlapWords, $word]) > $this->maxLength) {
+                    $overlapWords = array_slice($overlapWords, 1);
+                }
 
                 $currentChunk = [...$overlapWords, $word];
                 $currentChunkLength = $this->calculateChunkLength($currentChunk);

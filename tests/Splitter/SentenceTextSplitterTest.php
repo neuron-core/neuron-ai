@@ -15,6 +15,7 @@ use function count;
 use function explode;
 use function implode;
 use function preg_split;
+use function range;
 use function str_contains;
 use function substr_count;
 use function trim;
@@ -30,8 +31,8 @@ class SentenceTextSplitterTest extends TestCase
                 "This is the third sentence that completes the text.";
 
         $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
+        $document->sourceType = 'test';
+        $document->sourceName = 'test.txt';
 
         $result = $splitter->splitDocument($document);
 
@@ -53,8 +54,8 @@ class SentenceTextSplitterTest extends TestCase
 
         $text = "Test document.";
         $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
+        $document->sourceType = 'test';
+        $document->sourceName = 'test.txt';
 
         $result = $splitter->splitDocument($document);
 
@@ -75,8 +76,8 @@ class SentenceTextSplitterTest extends TestCase
 
         $text = "This is the first sentence. This is the second sentence. This is the third sentence.";
         $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
+        $document->sourceType = 'test';
+        $document->sourceName = 'test.txt';
 
         $result = $splitter->splitDocument($document);
 
@@ -144,6 +145,52 @@ class SentenceTextSplitterTest extends TestCase
         $this->assertEquals(
             array_slice($firstChunkWords, -2),
             array_slice($secondChunkWords, 0, 2)
+        );
+    }
+
+    public function test_overlap_preserves_all_words_in_long_sentences(): void
+    {
+        $words = array_map(static fn (int $index): string => "w{$index}", range(1, 300));
+        $splitter = new SentenceTextSplitter(maxWords: 100, overlapWords: 20);
+
+        $result = $splitter->splitDocument(new Document(implode(' ', $words)));
+
+        $this->assertCount(4, $result);
+        $this->assertSame([
+            implode(' ', array_slice($words, 0, 100)),
+            implode(' ', array_slice($words, 80, 100)),
+            implode(' ', array_slice($words, 160, 100)),
+            implode(' ', array_slice($words, 240, 60)),
+        ], array_map(static fn (Document $chunk): string => $chunk->getContent(), $result));
+    }
+
+    public function test_overlap_never_exceeds_max_words_when_tail_is_shorter_than_overlap(): void
+    {
+        $words = array_map(static fn (int $index): string => "w{$index}", range(1, 19));
+        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 9);
+
+        $result = $splitter->splitDocument(new Document(implode(' ', $words)));
+
+        $this->assertCount(10, $result);
+        foreach ($result as $index => $chunk) {
+            $this->assertSame(
+                array_slice($words, $index, 10),
+                explode(' ', $chunk->getContent())
+            );
+        }
+    }
+
+    public function test_overlap_is_reduced_to_preserve_sentence_boundaries_and_max_words(): void
+    {
+        $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 2);
+
+        $result = $splitter->splitDocument(
+            new Document('One two three four. Five six seven eight nine.')
+        );
+
+        $this->assertSame(
+            ['One two three four.', 'Five six seven eight nine.'],
+            array_map(static fn (Document $chunk): string => $chunk->getContent(), $result)
         );
     }
 
@@ -297,8 +344,8 @@ class SentenceTextSplitterTest extends TestCase
     {
         $text = "First sentence here. Second sentence here. Third sentence here.";
         $doc = new Document($text);
-        $doc->setSourceType('file');
-        $doc->setSourceName('test.txt');
+        $doc->sourceType = 'file';
+        $doc->sourceName = 'test.txt';
         $doc->addMetadata('key', 'value');
 
         $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 0);
@@ -307,7 +354,7 @@ class SentenceTextSplitterTest extends TestCase
         foreach ($result as $chunk) {
             $this->assertEquals('file', $chunk->getSourceType());
             $this->assertEquals('test.txt', $chunk->getSourceName());
-            $this->assertEquals(['key' => 'value'], $chunk->getMetadata());
+            $this->assertEquals(['key' => 'value'], $chunk->metadata);
         }
     }
 }

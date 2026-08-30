@@ -13,6 +13,7 @@ use function array_merge;
 use function array_slice;
 use function count;
 use function implode;
+use function min;
 use function preg_split;
 use function trim;
 
@@ -59,7 +60,9 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * @return Document[]
+     * Splits text into word-based chunks, preserving sentence boundaries.
+     *
+     * @return Document[] Array of Document chunks
      */
     public function splitDocument(Document $document): array
     {
@@ -77,12 +80,19 @@ class SentenceTextSplitter extends AbstractSplitter
                     continue;
                 }
 
+                // If the sentence alone exceeds the limit, split it
                 if (count($sentenceWords) > $this->maxWords) {
                     if ($currentWords !== []) {
                         $chunks[] = $currentWords;
                         $currentWords = [];
                     }
-                    $chunks = array_merge($chunks, $this->splitLongSentence($sentenceWords));
+                    $previousWords = $chunks === [] ? [] : $chunks[count($chunks) - 1];
+                    $chunks = array_merge($chunks, $this->splitLongSentence($sentenceWords, $previousWords));
+                    continue;
+                }
+
+                if ($currentWords === [] && $chunks !== [] && $this->overlapWords > 0) {
+                    $currentWords = $this->startChunkWithOverlap($chunks[count($chunks) - 1], $sentenceWords);
                     continue;
                 }
 
@@ -92,7 +102,7 @@ class SentenceTextSplitter extends AbstractSplitter
                     if ($currentWords !== []) {
                         $chunks[] = $currentWords;
                     }
-                    $currentWords = $sentenceWords;
+                    $currentWords = $this->startChunkWithOverlap($currentWords, $sentenceWords);
                 } else {
                     $currentWords = array_merge($currentWords, $sentenceWords);
                 }
@@ -103,18 +113,14 @@ class SentenceTextSplitter extends AbstractSplitter
             $chunks[] = $currentWords;
         }
 
-        if ($this->overlapWords > 0) {
-            $chunks = $this->applyOverlap($chunks);
-        }
-
         $chunks = $this->enforceMinWords($chunks);
 
         $split = [];
         foreach ($chunks as $wordArray) {
             $newDocument = new Document(implode(' ', $wordArray));
-            $newDocument->setSourceType($document->getSourceType());
-            $newDocument->setSourceName($document->getSourceName());
-            $newDocument->setMetadata($document->getMetadata());
+            $newDocument->sourceType = $document->getSourceType();
+            $newDocument->sourceName = $document->getSourceName();
+            $newDocument->metadata = $document->metadata;
             $split[] = $newDocument;
         }
 
@@ -134,7 +140,9 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * @return string[]
+     * Tokenizes text into words (simple whitespace split).
+     *
+     * @return string[] Array of words
      */
     private function tokenizeWords(string $text): array
     {
@@ -143,6 +151,8 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
+     * Merges chunks that fall below minWords into the previous chunk.
+     *
      * @param  array<array<string>>  $chunks
      * @return array<array<string>>
      */
@@ -169,54 +179,42 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * @param  array<array<string>>  $chunks
-     * @return array<array<string>>
+     * @param  string[]  $previousWords
+     * @param  string[]  $words
+     * @return string[]
      */
-    private function applyOverlap(array $chunks): array
+    protected function startChunkWithOverlap(array $previousWords, array $words): array
     {
-        if ($chunks === []) {
-            return [];
-        }
+        $overlapCount = min(
+            $this->overlapWords,
+            count($previousWords),
+            $this->maxWords - count($words)
+        );
+        $overlap = $overlapCount > 0 ? array_slice($previousWords, -$overlapCount) : [];
 
-        $result = [$chunks[0]];
-        $count = count($chunks);
-
-        for ($i = 1; $i < $count; $i++) {
-            $prevWords = $chunks[$i - 1];
-            $curWords = $chunks[$i];
-
-            $overlap = array_slice($prevWords, -$this->overlapWords);
-
-            // Only remove leading words if current chunk has enough words
-            $remaining = count($curWords) > $this->overlapWords
-                ? array_slice($curWords, $this->overlapWords)
-                : $curWords;
-
-            $result[] = array_merge($overlap, $remaining);
-        }
-
-        return $result;
+        return array_merge($overlap, $words);
     }
 
     /**
-     * @param  string[]  $words
+     * Splits a long sentence into smaller chunks that respect the maxWords limit.
+     *
+     * @param  string[]  $words Array of words from the sentence
+     * @param  string[]  $previousWords
      * @return array<array<string>>
      */
-    private function splitLongSentence(array $words): array
+    protected function splitLongSentence(array $words, array $previousWords = []): array
     {
         $chunks = [];
-        $currentChunk = [];
 
-        foreach ($words as $word) {
-            if (count($currentChunk) >= $this->maxWords) {
-                $chunks[] = $currentChunk;
-                $currentChunk = [];
-            }
-            $currentChunk[] = $word;
-        }
+        while ($words !== []) {
+            $overlapCount = min($this->overlapWords, count($previousWords));
+            $overlap = $overlapCount > 0 ? array_slice($previousWords, -$overlapCount) : [];
+            $newWords = array_slice($words, 0, $this->maxWords - count($overlap));
+            $currentChunk = array_merge($overlap, $newWords);
 
-        if ($currentChunk !== []) {
             $chunks[] = $currentChunk;
+            $words = array_slice($words, count($newWords));
+            $previousWords = $currentChunk;
         }
 
         return $chunks;
