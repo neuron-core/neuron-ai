@@ -44,7 +44,7 @@ class QdrantFilterCompiler extends FilterCompiler
 
         if ($filters->operator() === FilterCombinator::Or) {
             return [['should' => array_map(
-                fn (FilterExpression $condition): array => $this->condition($condition),
+                $this->condition(...),
                 $filters->conditions(),
             )]];
         }
