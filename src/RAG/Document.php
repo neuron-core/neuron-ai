@@ -36,11 +36,8 @@ final class Document implements JsonSerializable
      */
     protected array $metadata = [];
 
-    protected string $content;
-
-    public function __construct(string $content = '')
+    public function __construct(protected string $content = '')
     {
-        $this->content = $content;
         $this->id = UniqueIdGenerator::generateUUID();
     }
 

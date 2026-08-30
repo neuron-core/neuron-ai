@@ -67,7 +67,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('How can I assist you today?', $response->message()->getContent());
         $this->assertSame('end_turn', $response->message()->stopReason());
     }
@@ -122,7 +122,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_url_image(): void
@@ -170,7 +170,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_base64_document(): void
@@ -223,7 +223,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_chat_with_url_document(): void
@@ -271,7 +271,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload(): void
@@ -335,7 +335,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_properties(): void
@@ -413,7 +413,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_mapped_class(): void
@@ -492,7 +492,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_object_array_properties(): void
@@ -598,7 +598,7 @@ class AnthropicTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedResponse, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedResponse, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_stream_returns_message_with_text_chunks(): void

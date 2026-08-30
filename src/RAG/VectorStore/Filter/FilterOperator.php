@@ -13,4 +13,6 @@ enum FilterOperator: string
     case Gte = 'gte';
     case Lt = 'lt';
     case Lte = 'lte';
+    case ContainsAny = 'contains_any';
+    case ContainsAll = 'contains_all';
 }

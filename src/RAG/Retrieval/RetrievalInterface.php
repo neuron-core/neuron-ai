@@ -6,7 +6,7 @@ namespace NeuronAI\RAG\Retrieval;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Document;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 interface RetrievalInterface
 {
@@ -19,5 +19,5 @@ interface RetrievalInterface
      *
      * @return Document[]
      */
-    public function retrieve(Message $query, ?FilterGroup $filters = null): array;
+    public function retrieve(Message $query, ?FilterExpression $filters = null): array;
 }

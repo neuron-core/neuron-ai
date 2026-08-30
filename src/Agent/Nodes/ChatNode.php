@@ -18,6 +18,7 @@ use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Workflow\Events\StopEvent;
 use Throwable;
+
 use function end;
 
 /**

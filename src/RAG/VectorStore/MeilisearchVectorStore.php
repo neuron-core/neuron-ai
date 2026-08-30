@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MeilisearchFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Exception;
 
 use function array_map;
@@ -68,6 +71,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
+     * @throws JsonException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -100,8 +105,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->httpClient->request(
@@ -116,10 +122,12 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -134,7 +142,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $body['filter'] = (new MeilisearchFilterCompiler())->compile($request->filters);
         }
 
@@ -179,6 +187,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     }
 
+    /**
+     * @throws HttpException
+     */
     protected function configureIndex(): void
     {
         $response = $this->httpClient->request(

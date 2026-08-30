@@ -9,6 +9,7 @@ use NeuronAI\RAG\Document;
 
 use function array_key_exists;
 use function is_numeric;
+use function is_array;
 
 /**
  * Matches a document's fields against a FilterGroup in PHP, for stores that
@@ -16,7 +17,7 @@ use function is_numeric;
  */
 class FilterEvaluator
 {
-    public function matchesDocument(FilterGroup $filters, Document $document): bool
+    public function matchesDocument(FilterExpression $filters, Document $document): bool
     {
         return $this->matches($filters, [
             'content' => $document->getContent(),
@@ -29,21 +30,31 @@ class FilterEvaluator
     /**
      * @param array<string, mixed> $fields Flat field map: sourceType, sourceName, content, and metadata keys.
      */
-    public function matches(FilterGroup $filters, array $fields): bool
+    public function matches(FilterExpression $filters, array $fields): bool
     {
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                throw new VectorStoreException(
-                    "Raw filter targets {$condition->store}; it cannot be evaluated in PHP."
-                );
-            }
-
-            if (!$this->matchesCondition($condition, $fields)) {
-                return false;
-            }
+        if ($filters instanceof RawFilter) {
+            throw new VectorStoreException(
+                "Raw filter targets {$filters->store}; it cannot be evaluated in PHP."
+            );
         }
 
-        return true;
+        if ($filters instanceof FilterGroup) {
+            foreach ($filters->conditions() as $condition) {
+                $matches = $this->matches($condition, $fields);
+
+                if ($filters->operator() === FilterCombinator::And && !$matches) {
+                    return false;
+                }
+
+                if ($filters->operator() === FilterCombinator::Or && $matches) {
+                    return true;
+                }
+            }
+
+            return $filters->operator() === FilterCombinator::And;
+        }
+
+        return $filters instanceof Filter && $this->matchesCondition($filters, $fields);
     }
 
     /**
@@ -68,6 +79,8 @@ class FilterEvaluator
             FilterOperator::Gte => is_numeric($stored) && $stored >= $expected,
             FilterOperator::Lt => is_numeric($stored) && $stored < $expected,
             FilterOperator::Lte => is_numeric($stored) && $stored <= $expected,
+            FilterOperator::ContainsAny => is_array($stored) && $this->containsAny($stored, (array) $expected),
+            FilterOperator::ContainsAll => is_array($stored) && $this->containsAll($stored, (array) $expected),
         };
     }
 
@@ -94,5 +107,35 @@ class FilterEvaluator
         }
 
         return false;
+    }
+
+    /**
+     * @param array<mixed> $stored
+     * @param array<string> $values
+     */
+    protected function containsAny(array $stored, array $values): bool
+    {
+        foreach ($values as $value) {
+            if ($this->isAnyOf($value, $stored)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<mixed> $stored
+     * @param array<string> $values
+     */
+    protected function containsAll(array $stored, array $values): bool
+    {
+        foreach ($values as $value) {
+            if (!$this->isAnyOf($value, $stored)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Observability;
 
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Observability\LogListener;
 use NeuronAI\Observability\LogObserver;
 use NeuronAI\Observability\ObservabilityEvent;
@@ -11,6 +12,8 @@ use NeuronAI\Observability\Events\MemoryRecalled;
 use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
+use NeuronAI\Observability\Events\Retrieving;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
@@ -109,5 +112,21 @@ class LogListenerTest extends TestCase
                 'context' => [],
             ],
         ], $logger->records);
+    }
+
+    public function testRetrievingLogsPortableFilters(): void
+    {
+        $logger = $this->recordingLogger();
+
+        (new LogListener($logger))(new Retrieving(
+            new UserMessage('question'),
+            Filter::eq('tenant', 'acme'),
+        ));
+
+        $this->assertSame([
+            'operator' => 'eq',
+            'field' => 'tenant',
+            'value' => 'acme',
+        ], $logger->records[0]['context']['filters']);
     }
 }

@@ -114,4 +114,26 @@ class FilterEvaluatorTest extends TestCase
             $this->fields
         );
     }
+
+    public function test_nested_or_groups_are_evaluated(): void
+    {
+        $filters = FilterGroup::allOf(
+            Filter::eq('sourceType', 'file'),
+            FilterGroup::anyOf(
+                Filter::eq('year', 2025),
+                Filter::eq('reviewed', true),
+            ),
+        );
+
+        $this->assertTrue($this->evaluator->matches($filters, $this->fields));
+    }
+
+    public function test_string_array_containment_is_evaluated(): void
+    {
+        $fields = [...$this->fields, 'tags' => ['php', 'rag', 'agents']];
+
+        $this->assertTrue($this->evaluator->matches(Filter::containsAny('tags', ['ai', 'rag']), $fields));
+        $this->assertTrue($this->evaluator->matches(Filter::containsAll('tags', ['php', 'agents']), $fields));
+        $this->assertFalse($this->evaluator->matches(Filter::containsAll('tags', ['php', 'missing']), $fields));
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -12,8 +13,9 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\WeaviateFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function array_chunk;
 use function array_map;
@@ -79,6 +81,7 @@ class WeaviateVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -88,6 +91,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     /**
      * @param Document[] $documents
      * @throws HttpException
+     * @throws VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -121,8 +125,9 @@ class WeaviateVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->httpClient->request(
@@ -142,16 +147,17 @@ class WeaviateVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
         $vectorString = implode(', ', $request->embedding);
 
-        $where = $request->filters instanceof FilterGroup
+        $where = $request->filters instanceof FilterExpression
             ? 'where: ' . (new WeaviateFilterCompiler())->compileGraphQL($request->filters)
             : '';
 

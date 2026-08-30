@@ -230,4 +230,71 @@ class FilterCompilersTest extends TestCase
             (new WeaviateFilterCompiler())->compile(FilterGroup::and(Filter::eq('tenant', 'acme'))),
         );
     }
+
+    public function test_logical_groups_compile_recursively(): void
+    {
+        $filters = FilterGroup::allOf(
+            Filter::eq('tenant', 'acme'),
+            FilterGroup::anyOf(Filter::eq('lang', 'en'), Filter::eq('lang', 'it')),
+        );
+
+        $this->assertSame([
+            '$and' => [
+                ['tenant' => ['$eq' => 'acme']],
+                ['$or' => [
+                    ['lang' => ['$eq' => 'en']],
+                    ['lang' => ['$eq' => 'it']],
+                ]],
+            ],
+        ], (new PineconeFilterCompiler())->compile($filters));
+
+        $this->assertSame(
+            "tenant = 'acme' AND (lang = 'en' OR lang = 'it')",
+            (new MeilisearchFilterCompiler())->compile($filters),
+        );
+
+        $this->assertSame(
+            'tenant:=`acme` && (lang:=`en` || lang:=`it`)',
+            (new TypesenseFilterCompiler())->compile($filters),
+        );
+    }
+
+    public function test_string_array_containment_compiles_portably(): void
+    {
+        $filters = FilterGroup::allOf(
+            Filter::containsAny('tags', ['php', 'rag']),
+            Filter::containsAll('roles', ['reader', 'editor']),
+        );
+
+        $this->assertSame([
+            '$and' => [
+                ['tags' => ['$in' => ['php', 'rag']]],
+                ['$and' => [
+                    ['roles' => ['$eq' => 'reader']],
+                    ['roles' => ['$eq' => 'editor']],
+                ]],
+            ],
+        ], (new PineconeFilterCompiler())->compile($filters));
+
+        $this->assertSame(
+            "tags IN ['php', 'rag'] AND (roles = 'reader' AND roles = 'editor')",
+            (new MeilisearchFilterCompiler())->compile($filters),
+        );
+
+        $this->assertSame([
+            'operator' => 'And',
+            'operands' => [
+                [
+                    'path' => ['tags'],
+                    'operator' => 'ContainsAny',
+                    'valueTextArray' => ['php', 'rag'],
+                ],
+                [
+                    'path' => ['roles'],
+                    'operator' => 'ContainsAll',
+                    'valueTextArray' => ['reader', 'editor'],
+                ],
+            ],
+        ], (new WeaviateFilterCompiler())->compile($filters));
+    }
 }

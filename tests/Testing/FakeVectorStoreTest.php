@@ -146,6 +146,28 @@ class FakeVectorStoreTest extends TestCase
         $store->assertSearchCount(1);
     }
 
+    public function test_assert_searched_with_filters(): void
+    {
+        $store = new FakeVectorStore();
+        $filters = FilterGroup::anyOf(Filter::eq('sourceType', 'file'), Filter::eq('sourceType', 'web'));
+
+        $store->search(new SearchRequest([0.1], $filters));
+
+        $store->assertSearchedWithFilters($filters);
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_assert_deleted_with_filters(): void
+    {
+        $store = new FakeVectorStore();
+        $filters = Filter::eq('sourceType', 'file');
+
+        $store->delete($filters);
+
+        $store->assertDeletedWithFilters($filters);
+        $this->addToAssertionCount(1);
+    }
+
     public function test_assert_document_count(): void
     {
         $store = new FakeVectorStore();

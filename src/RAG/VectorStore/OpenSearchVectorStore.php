@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use JsonException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\OpenSearchFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use OpenSearch\Client;
 use Exception;
 
@@ -127,6 +130,11 @@ class OpenSearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws VectorStoreException
+     * @throws JsonException
+     * @throws Exception
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         if ($documents === []) {
@@ -164,7 +172,10 @@ class OpenSearchVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->client->deleteByQuery([
@@ -179,10 +190,11 @@ class OpenSearchVectorStore implements VectorStoreInterface
 
     /**
      * @return Document[]
+     * @throws DocumentSchemaException|VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -207,7 +219,7 @@ class OpenSearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $searchParams['body']['query']['knn']['embedding']['filter'] = (new OpenSearchFilterCompiler())->compile($request->filters);
         }
 

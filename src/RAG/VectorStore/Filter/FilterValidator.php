@@ -12,43 +12,70 @@ use function in_array;
 
 final class FilterValidator
 {
-    public function validate(FilterGroup $filters, DocumentSchema $schema): void
+    public function validate(FilterExpression $filters, DocumentSchema $schema): void
     {
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                continue;
+        if ($filters instanceof FilterGroup) {
+            foreach ($filters->conditions() as $condition) {
+                $this->validate($condition, $schema);
             }
+            return;
+        }
 
-            $field = $schema->requireFilterableField($condition->field);
-            $type = $field->getType();
+        if ($filters instanceof RawFilter) {
+            return;
+        }
 
-            if ($condition->operator === FilterOperator::Neq && !$field->isRequired()) {
+        if (!$filters instanceof Filter) {
+            return;
+        }
+
+        $field = $schema->requireFilterableField($filters->field);
+        $type = $field->getType();
+
+        if ($filters->operator === FilterOperator::Neq && !$field->isRequired()) {
+            throw new DocumentSchemaException(
+                "Portable neq filters require field \"{$filters->field}\" to be declared required, so missing fields cannot match differently across databases."
+            );
+        }
+
+        $contains = in_array(
+            $filters->operator,
+            [FilterOperator::ContainsAny, FilterOperator::ContainsAll],
+            true,
+        );
+
+        if ($contains && $type !== \NeuronAI\RAG\Schema\DocumentFieldType::StringArray) {
+            throw new DocumentSchemaException(
+                "Filter operator {$filters->operator->value} requires a filterable string[] field; \"{$filters->field}\" is {$type->value}."
+            );
+        }
+
+        if (!$contains && $type->isArray()) {
+            throw new DocumentSchemaException(
+                "Array field \"{$filters->field}\" requires contains_any or contains_all."
+            );
+        }
+
+        if (in_array($filters->operator, [FilterOperator::Gt, FilterOperator::Gte, FilterOperator::Lt, FilterOperator::Lte], true)
+            && !$type->isNumeric()) {
+            throw new DocumentSchemaException(
+                "Filter operator {$filters->operator->value} requires a numeric field; \"{$filters->field}\" is {$type->value}."
+            );
+        }
+
+        $values = in_array(
+            $filters->operator,
+            [FilterOperator::In, FilterOperator::ContainsAny, FilterOperator::ContainsAll],
+            true,
+        ) ? $filters->value : [$filters->value];
+
+        foreach ((array) $values as $value) {
+            $valueType = $contains ? $type->elementType() : $type;
+
+            if (!$schema->valueMatches($valueType, $value)) {
                 throw new DocumentSchemaException(
-                    "Portable neq filters require field \"{$condition->field}\" to be declared required, so missing fields cannot match differently across databases."
+                    "Filter field \"{$filters->field}\" expects {$valueType->value}; ".get_debug_type($value).' given.'
                 );
-            }
-
-            if ($type->isArray()) {
-                throw new DocumentSchemaException(
-                    "Portable filters for array field \"{$condition->field}\" are not supported yet. Use a raw backend filter."
-                );
-            }
-
-            if (in_array($condition->operator, [FilterOperator::Gt, FilterOperator::Gte, FilterOperator::Lt, FilterOperator::Lte], true)
-                && !$type->isNumeric()) {
-                throw new DocumentSchemaException(
-                    "Filter operator {$condition->operator->value} requires a numeric field; \"{$condition->field}\" is {$type->value}."
-                );
-            }
-
-            $values = $condition->operator === FilterOperator::In ? $condition->value : [$condition->value];
-
-            foreach ((array) $values as $value) {
-                if (!$schema->valueMatches($type, $value)) {
-                    throw new DocumentSchemaException(
-                        "Filter field \"{$condition->field}\" expects {$type->value}; ".get_debug_type($value).' given.'
-                    );
-                }
             }
         }
     }

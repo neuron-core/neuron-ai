@@ -286,7 +286,10 @@ class LogListener
     /** @return array<string, mixed> */
     protected function serializeRetrieving(Retrieving $data): array
     {
-        return ['question' => $data->question->jsonSerialize()];
+        return [
+            'question' => $data->question->jsonSerialize(),
+            'filters' => $data->filters?->toArray(),
+        ];
     }
 
     /** @return array<string, mixed> */

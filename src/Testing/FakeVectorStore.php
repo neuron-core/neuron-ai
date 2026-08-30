@@ -7,7 +7,7 @@ namespace NeuronAI\Testing;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\HasDocumentSchema;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
@@ -65,7 +65,7 @@ class FakeVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
@@ -85,7 +85,7 @@ class FakeVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): array
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
         $this->searchCount++;
@@ -132,6 +132,43 @@ class FakeVectorStore implements VectorStoreInterface
             $expected,
             $this->searchCount,
             "Expected {$expected} similarity searches, got {$this->searchCount}."
+        );
+    }
+
+    public function assertSearchedWithFilters(FilterExpression $expected): void
+    {
+        $filters = [];
+        foreach ($this->recorded as $record) {
+            if ($record['method'] !== 'search' || !$record['args'][0] instanceof SearchRequest) {
+                continue;
+            }
+
+            $actual = $record['args'][0]->filters;
+            if ($actual instanceof FilterExpression) {
+                $filters[] = $actual->toArray();
+            }
+        }
+
+        Assert::assertContains(
+            $expected->toArray(),
+            $filters,
+            'The vector store was not searched with the expected filters.',
+        );
+    }
+
+    public function assertDeletedWithFilters(FilterExpression $expected): void
+    {
+        $filters = [];
+        foreach ($this->recorded as $record) {
+            if ($record['method'] === 'delete' && $record['args'][0] instanceof FilterExpression) {
+                $filters[] = $record['args'][0]->toArray();
+            }
+        }
+
+        Assert::assertContains(
+            $expected->toArray(),
+            $filters,
+            'The vector store was not deleted with the expected filters.',
         );
     }
 

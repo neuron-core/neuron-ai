@@ -21,6 +21,7 @@ use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Observability\Events\MemoryRecalled;
 use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Workflow\Node;
+
 use function count;
 use function end;
 use function implode;

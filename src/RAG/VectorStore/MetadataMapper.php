@@ -67,7 +67,7 @@ final class MetadataMapper
             try {
                 $metadata = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
             } catch (JsonException $exception) {
-                throw new VectorStoreException('Stored document metadata payload contains invalid JSON.', previous: $exception);
+                throw new VectorStoreException('Stored document metadata payload contains invalid JSON.', $exception->getCode(), previous: $exception);
             }
 
             if (!is_array($metadata)) {

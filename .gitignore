@@ -7,6 +7,7 @@ composer.lock
 /tests/VectorStore/*.store
 .claude
 .junie
+.codex
 .env
 scripts
 phpunit.xml.local

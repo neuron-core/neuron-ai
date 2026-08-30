@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
+use LogicException;
 
 use function array_is_list;
 use function array_map;
@@ -31,29 +34,33 @@ class WeaviateFilterCompiler extends FilterCompiler
      *
      * @return array<string, mixed>
      */
-    public function compile(FilterGroup $filters): array
+    public function compile(FilterExpression $filters): array
     {
-        $conditions = [];
-
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                $this->assertTargetsThisStore($condition);
-                $conditions[] = (array) $condition->fragment;
-                continue;
-            }
-
-            $conditions[] = $this->compileCondition($condition);
+        if ($filters instanceof RawFilter) {
+            $this->assertTargetsThisStore($filters);
+            return (array) $filters->fragment;
         }
 
-        return count($conditions) === 1
-            ? $conditions[0]
-            : ['operator' => 'And', 'operands' => $conditions];
+        if ($filters instanceof Filter) {
+            return $this->compileCondition($filters);
+        }
+
+        if (!$filters instanceof FilterGroup) {
+            throw new LogicException('Unsupported filter expression.');
+        }
+
+        $conditions = array_map($this->compile(...), $filters->conditions());
+
+        return count($conditions) === 1 ? $conditions[0] : [
+            'operator' => $filters->operator() === FilterCombinator::And ? 'And' : 'Or',
+            'operands' => $conditions,
+        ];
     }
 
     /**
      * The same filter rendered as a GraphQL argument (similarity search).
      */
-    public function compileGraphQL(FilterGroup $filters): string
+    public function compileGraphQL(FilterExpression $filters): string
     {
         return $this->render($this->compile($filters));
     }
@@ -71,6 +78,8 @@ class WeaviateFilterCompiler extends FilterCompiler
             FilterOperator::Gte => 'GreaterThanEqual',
             FilterOperator::Lt => 'LessThan',
             FilterOperator::Lte => 'LessThanEqual',
+            FilterOperator::ContainsAny => 'ContainsAny',
+            FilterOperator::ContainsAll => 'ContainsAll',
         };
 
         return [

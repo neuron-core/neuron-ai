@@ -6,7 +6,8 @@ namespace NeuronAI\RAG\Events;
 
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 use NeuronAI\Workflow\Events\Event;
 
 /**
@@ -19,7 +20,7 @@ use NeuronAI\Workflow\Events\Event;
  */
 class QueryPreProcessedEvent implements Event
 {
-    protected ?FilterGroup $filters = null;
+    protected ?FilterScope $scope = null;
 
     /**
      * @param Message $query The (possibly transformed) query
@@ -37,15 +38,15 @@ class QueryPreProcessedEvent implements Event
      * an injected filter can narrow the search, never replace or relax
      * what another injector scoped.
      */
-    public function addFilters(FilterGroup $filters): self
+    public function addFilters(FilterExpression $filters): self
     {
-        $this->filters = FilterGroup::merge($this->filters, $filters);
+        $this->scope = FilterScope::merge($this->scope?->expression(), $filters);
 
         return $this;
     }
 
-    public function getFilters(): ?FilterGroup
+    public function getFilters(): ?FilterExpression
     {
-        return $this->filters;
+        return $this->scope?->expression();
     }
 }

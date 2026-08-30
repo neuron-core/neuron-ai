@@ -20,9 +20,10 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
 1. Extract and pre-process the user question (query expansion, rewriting)
 2. Retrieve relevant documents from the VectorStore. `QueryPreProcessedEvent`
    is the injection channel for retrieval filters: middleware (in `before()`
-   on `RetrievalNode`) and preceding nodes call `addFilters(FilterGroup)`;
-   the node forwards them to the retrieval strategy, which ANDs them with its
-   own static filters — injected filters can narrow a search, never widen it.
+   on `RetrievalNode`) and preceding nodes call `addFilters(FilterExpression)`;
+   the node combines each mandatory scope at the root with AND and forwards the
+   resulting expression to the retrieval strategy. A scope may contain nested
+   AND/OR logic, but it can never relax another scope.
    The event is born fresh every run, so a filter never leaks into the next run.
 3. Post-process (re-rank, filter)
 4. `InstructionsNode` births the inference event: document-enriched
@@ -93,24 +94,35 @@ $response = WorkoutTipsAgent::make()->chat(
 
 ```php
 $store->search(new SearchRequest(embedding: $vector, filters: $group, topK: 8));
-$store->delete(FilterGroup::and(Filter::eq('sourceType', 'file')));
+$store->delete(Filter::eq('sourceType', 'file'));
 ```
 
-`SearchRequest` is an immutable per-call value (embedding, `?FilterGroup`,
+`SearchRequest` is an immutable per-call value (embedding, `?FilterExpression`,
 `?int topK` — null falls back to the store's constructor default). There is
 no mutable search state on a store: a filter set for one call cannot leak
 into the next.
 
 ### The filter model (`VectorStore/Filter/`)
 
-A portable, backend-neutral vocabulary compiled to each store's native syntax:
+A portable, backend-neutral expression tree compiled to each store's native
+syntax. This is **filtered similarity search**: metadata filters constrain
+vector similarity results. Reserve **hybrid search** for strategies that
+combine vector and lexical ranking.
 
-- `Filter::eq/neq/in/gt/gte/lt/lte(field, value)` — the full operator set.
+- `Filter::eq/neq/in/gt/gte/lt/lte(field, value)` — low-level comparison
+  factories. `Filter::where(field, value)` starts an immutable fluent
+  `Criteria` with `where*` methods for the common path.
   Values are scalars only (`null` throws: no portable missing-vs-null
-  semantics); range operators are `int|float` only (string ranges are not
-  portable — index dates as epoch timestamps).
-- `FilterGroup::and(...)` — AND-only conjunction; nested groups flatten, so
-  merging scopes is appending and composed filters can only narrow.
+  semantics); range values normalize to `int|float` (string ranges are not
+  portable). Backed enums normalize to their value and `DateTimeInterface`
+  values normalize to epoch timestamps.
+- `FilterGroup::allOf(...)` / `anyOf(...)` — nested boolean expressions;
+  `and(...)` / `or(...)` remain short aliases. Same-operator groups flatten,
+  while mixed operators preserve their boundaries.
+- `FilterScope::merge(...)` — combines independently supplied mandatory
+  scopes with a root AND. Query expressiveness and scope safety are separate.
+- `Filter::containsAny/containsAll(field, values)` — portable filtering for
+  filterable `string[]` fields. Other array types remain backend-native.
 - `Filter::raw(StoreClass::class, $fragment)` — backend-native escape hatch,
   tagged with its target store. The tagged store passes the fragment through
   verbatim; every other store's compiler throws (fail-loud on store swap,
@@ -175,6 +187,7 @@ filtering requires a collection-level schema passed to the vector store:
 $schema = DocumentSchema::of(
     DocumentField::string('tenant')->required()->filterable(),
     DocumentField::integer('year')->filterable(),
+    DocumentField::strings('tags')->filterable(),
 );
 
 $store = new MemoryVectorStore(schema: $schema);
@@ -183,8 +196,11 @@ $store = new MemoryVectorStore(schema: $schema);
 Stores validate declared values and filters locally. Only `sourceType`,
 `sourceName`, and declared filterable metadata fields are portable filter
 targets. Array fields are supported for validation/storage but need raw
-backend filters. `neq` requires a required field so missing-field behavior
-cannot diverge between databases. RAG validates documents before embedding.
+backend filters except for portable filterable string arrays, which support
+`containsAny` and `containsAll`. A `DocumentField` can be passed directly to
+filter factories for schema-aware construction. `neq` requires a required
+field so missing-field behavior cannot diverge between databases. RAG
+validates documents before embedding.
 
 ## Embeddings (`Embeddings/`)
 
@@ -235,26 +251,26 @@ $documents = FileDataLoader::for('/path/to/documents')
 
 ## Retrieval Strategies (`Retrieval/`)
 
-`RetrievalInterface::retrieve(Message $query, ?FilterGroup $filters = null)`.
+`RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters = null)`.
 The second parameter carries per-run filters injected via
 `QueryPreProcessedEvent::addFilters()`; a strategy must AND them with its
-own — never drop them. `SimilarityRetrieval` takes an optional static filter
-scope applied to every search:
+own — never drop them. The common RAG path declares its mandatory scope with
+the protected `retrievalScope()` hook (or `setRetrievalScope()` before
+execution):
 
 ```php
-use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
-protected function retrieval(): RetrievalInterface
+protected function retrievalScope(): ?FilterExpression
 {
-    return new SimilarityRetrieval(
-        $this->resolveVectorStore(),
-        $this->resolveEmbeddingsProvider(),
-        filters: FilterGroup::and(Filter::eq('tenant', $tenantId)),  // optional
-    );
+    return Filter::where('tenant', $this->tenantId)
+        ->whereIn('status', ['published', 'reviewed']);
 }
 ```
+
+`SimilarityRetrieval` still accepts a `filters:` expression when used
+directly or inside a custom retrieval composition.
 
 ## Pre/Post Processors
 

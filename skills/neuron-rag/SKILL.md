@@ -237,37 +237,36 @@ $rag->reindexBySource($documents);
 
 ## Retrieval Strategies
 
-The built-in strategy is `SimilarityRetrieval` — embed the query, ask the vector store. It optionally takes a static filter scope applied to every search it performs:
+The built-in strategy is `SimilarityRetrieval` — embed the query, then run a similarity search in the vector store. Put mandatory application constraints in the RAG-level retrieval scope so they remain separate from the retrieval algorithm:
 
 ```php
-use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
-protected function retrieval(): RetrievalInterface
+protected function retrievalScope(): ?FilterExpression
 {
-    return new SimilarityRetrieval(
-        $this->resolveVectorStore(),
-        $this->resolveEmbeddingsProvider(),
-        filters: FilterGroup::and(Filter::eq('tenant', $this->tenantId)),
-    );
+    return Filter::where('tenant', $this->tenantId)
+        ->whereNot('status', 'archived');
 }
 ```
 
-Custom strategies implement `RetrievalInterface` — the query arrives as a `Message`, the return is `Document[]`. The second parameter carries filters injected for this run (by middleware or preceding nodes): a strategy must honor them by AND-ing them with its own — they can narrow the search, never be dropped:
+For runtime configuration, call `$rag->setRetrievalScope($filters)`. `SimilarityRetrieval` still accepts a `filters:` constructor argument when it is used directly outside a RAG workflow.
+
+Custom strategies implement `RetrievalInterface` — the query arrives as a `Message`, the return is `Document[]`. The second parameter carries the effective filter expression for this run. A strategy must honor it; if the strategy has its own mandatory constraint, merge the two as scopes so neither can relax the other:
 
 ```php
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 
 class CustomRetrieval implements RetrievalInterface
 {
-    public function retrieve(Message $query, ?FilterGroup $filters = null): array
+    public function retrieve(Message $query, ?FilterExpression $filters = null): array
     {
-        // e.g. combine vector search with a keyword index — but always
-        // apply $filters when present. FilterGroup::merge($own, $filters)
-        // is the null-tolerant AND for combining them with your own scope.
+        $effectiveFilters = FilterScope::merge($this->ownScope, $filters)?->expression();
+
+        // Apply $effectiveFilters to every retrieval path.
         return $documents;
     }
 }
@@ -275,9 +274,9 @@ class CustomRetrieval implements RetrievalInterface
 $rag->setRetrieval(new CustomRetrieval());
 ```
 
-## Filtering
+## Filtered similarity search
 
-Retrieval can be constrained by document metadata with a portable filter model that compiles to each backend's native syntax — the same `FilterGroup` works on Pinecone, Qdrant, Meilisearch, and every other store.
+Similarity search can be constrained by document metadata with a portable filter expression that compiles to each backend's native syntax. Reserve **hybrid search** for retrieval that combines vector similarity with lexical or keyword ranking; metadata constraints are **filters**.
 
 ### Document schema (`DocumentSchema`)
 
@@ -293,7 +292,7 @@ $schema = DocumentSchema::of(
     DocumentField::integer('published_at')->filterable(),
     DocumentField::float('price')->filterable(),
     DocumentField::boolean('published')->filterable(),
-    DocumentField::strings('tags'),
+    DocumentField::strings('tags')->filterable(),
 );
 
 $store = new MemoryVectorStore(schema: $schema);
@@ -301,53 +300,68 @@ $store = new MemoryVectorStore(schema: $schema);
 
 Field constructors: `string`, `integer`, `float`, `boolean`, and homogeneous arrays `strings`, `integers`, `floats`, `booleans`. Integers are valid values for float fields. `required()` means every document must carry a non-null value; `filterable()` means the field can appear in a portable filter.
 
-Declare only what the database needs — a field that must exist on every document, needs a known type, or appears in portable filters. Undeclared JSON-safe metadata still round-trips (stored and returned), but cannot be filtered portably because its database type is unknown. Arrays are validated and stored but require raw backend filters. `neq` is available only for required fields, preventing absent fields from widening a scope on databases with different missing-field behavior.
+Declare only what the database needs — a field that must exist on every document, needs a known type, or appears in portable filters. Undeclared JSON-safe metadata still round-trips (stored and returned), but cannot be filtered portably because its database type is unknown. Filterable string arrays support portable containment checks; other array types are validated and stored but require raw backend filters. `neq` is available only for required fields, preventing absent fields from widening a scope on databases with different missing-field behavior.
 
 `sourceType` and `sourceName` are built-in string fields — always filterable, and must **not** be declared in the schema.
 
 Create the schema before creating a new database index or collection; if an existing index has incompatible field mappings, recreate it and reindex.
 
-### The filter vocabulary
+### Fluent criteria and expression trees
 
 ```php
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
-FilterGroup::and(                                // conjunction: every condition must match
-    Filter::eq('tenant', 'acme'),
-    Filter::neq('status', 'draft'),
-    Filter::in('sourceType', ['pdf', 'html']),
-    Filter::gte('published_at', 1767225600),     // ranges are numeric-only
-    Filter::lt('price', 100),
+$filters = Filter::where('tenant', 'acme')
+    ->whereNot('status', 'draft')
+    ->whereIn('sourceType', ['pdf', 'html'])
+    ->whereGreaterThanOrEqual('published_at', new DateTimeImmutable('2026-01-01'))
+    ->whereLessThan('price', 100)
+    ->whereContainsAny('tags', ['php', 'rag']);
+
+$audience = FilterGroup::allOf(
+    $filters,
+    FilterGroup::anyOf(
+        Filter::eq('visibility', 'public'),
+        Filter::eq('owner_id', $userId),
+    ),
 );
 ```
 
+The fluent facade is immutable and AND-oriented. Use `whereAny()` for a nested alternative while chaining, or use `FilterGroup::allOf()` and `FilterGroup::anyOf()` when the boolean structure should be explicit. The low-level factories (`eq`, `neq`, `in`, `gt`, `gte`, `lt`, `lte`, `containsAny`, `containsAll`) remain useful for small expressions and reusable branches.
+
 Rules the filter and store schema validate before database I/O:
 
-- **Scalars only** — `null` has no portable missing-vs-null semantics across backends and throws.
-- **Ranges are `int|float` only** — not every backend can range-compare strings; index dates as epoch timestamps.
+- **No `null` comparisons** — missing-vs-null semantics are not portable across backends.
+- **Ranges are numeric** — `DateTimeInterface` values normalize to epoch timestamps; stored date fields should use integer timestamps.
+- **Backed enums normalize to their scalar values** — they can be passed directly to factories and fluent methods.
 - **Custom fields are declared and filterable** — values and operators must match the schema type.
+- **Schema fields can be passed directly** — using a `DocumentField` validates the filter as it is defined instead of waiting for store execution.
 - **`neq` fields are required** — missing records can never widen the result on a different database.
-- **Groups are AND-only** — `in()` covers OR-over-one-field, which is most real OR usage.
-- **Groups flatten** — `FilterGroup::and($scope, $userFilters)` merges by appending, so composed filters can only narrow, never widen.
+- **Boolean groups can nest** — `allOf()` means every child must match; `anyOf()` means at least one child must match.
+- **Independent scopes always AND** — use `FilterScope::merge()` for mandatory constraints; never place an untrusted expression beside a scope inside `anyOf()`.
+- **Portable arrays are string arrays** — use `containsAny()` or `containsAll()`; other array operations belong in raw backend filters.
 
 ### The raw escape hatch
 
 Backend capabilities outside the vocabulary go through `Filter::raw()`, tagged with the store class the fragment is written for. The tagged store passes it through verbatim; every other store throws — a store swap fails loudly instead of silently matching wrong documents:
 
 ```php
-FilterGroup::and(
+FilterGroup::allOf(
     Filter::eq('tenant', 'acme'),
     Filter::raw(MeilisearchVectorStore::class, "_geoRadius(45.4, 9.1, 2000)"),
 );
 ```
 
+A raw filter may also be passed directly. It deliberately couples the expression to one store and is not interpreted or normalized by the portable model.
+
 ### Static filters vs per-run filters
 
-Two delivery paths, always combined by AND (an injected filter can never relax a configured scope):
+Three delivery paths are combined as mandatory scopes with AND (an injected filter can never relax a configured scope):
 
-1. **Static scope** — the `filters:` constructor argument on `SimilarityRetrieval` (shown above). Since agents are typically built per request, capture per-request context (tenant, user) there.
-2. **Per-run injection** — filters ride the `QueryPreProcessedEvent` on its way to `RetrievalNode`. Workflow middleware adds constraints in `before()`; the event is born fresh every run, so an injected filter can never leak into the next run:
+1. **RAG scope** — implement `retrievalScope()` or call `setRetrievalScope()`. This is the preferred home for tenant, user, authorization, and lifecycle constraints.
+2. **Retrieval-local scope** — the `filters:` constructor argument on `SimilarityRetrieval`, useful when the strategy is instantiated and used directly.
+3. **Per-run injection** — filters ride the `QueryPreProcessedEvent` on its way to `RetrievalNode`. Workflow middleware adds constraints in `before()`; the event is born fresh every run, so an injected filter can never leak into the next run:
 
 ```php
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -359,9 +373,7 @@ class TenantScope implements WorkflowMiddleware
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
         if ($event instanceof QueryPreProcessedEvent) {
-            $event->addFilters(FilterGroup::and(
-                Filter::eq('tenant', $state->get('tenant')),
-            ));
+            $event->addFilters(Filter::eq('tenant', $state->get('tenant')));
         }
     }
 
@@ -382,14 +394,15 @@ use NeuronAI\RAG\VectorStore\SearchRequest;
 
 $documents = $store->search(new SearchRequest(
     embedding: $embedding,
-    filters: FilterGroup::and(Filter::eq('sourceType', 'pdf')),
+    filters: Filter::where('sourceType', 'pdf')
+        ->whereIn('status', ['published', 'reviewed']),
     topK: 8,                       // per-call override; null = store default
 ));
 
-$store->delete(FilterGroup::and(
-    Filter::eq('sourceType', 'pdf'),
-    Filter::eq('sourceName', 'manual.pdf'),
-));
+$store->delete(
+    Filter::where('sourceType', 'pdf')
+        ->where('sourceName', 'manual.pdf'),
+);
 ```
 
 ### Backend caveats

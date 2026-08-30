@@ -16,7 +16,7 @@ use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\ChromaFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function count;
 use function is_null;
@@ -77,6 +77,7 @@ class ChromaVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -85,8 +86,9 @@ class ChromaVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->httpClient->request(
@@ -114,6 +116,7 @@ class ChromaVectorStore implements VectorStoreInterface
     /**
      * @param Document[] $documents
      * @throws HttpException|VectorStoreException
+     * @throws JsonException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -139,7 +142,7 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -149,7 +152,7 @@ class ChromaVectorStore implements VectorStoreInterface
             'include' => ['documents', 'metadatas', 'distances'],
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $body['where'] = (new ChromaFilterCompiler())->compile($request->filters);
         }
 

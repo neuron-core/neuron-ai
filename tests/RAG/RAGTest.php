@@ -12,6 +12,8 @@ use NeuronAI\RAG\RAG;
 use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
@@ -128,6 +130,27 @@ class RAGTest extends TestCase
 
         $this->assertSame('I don\'t have enough information.', $message->getContent());
         $vectorStore->assertSearchCount(1);
+    }
+
+    public function test_retrieval_scope_hook_constrains_the_default_strategy(): void
+    {
+        $vectorStore = new FakeVectorStore(schema: DocumentSchema::of(
+            DocumentField::string('tenant')->required()->filterable(),
+        ));
+        $rag = new class () extends RAG {
+            protected function retrievalScope(): FilterExpression
+            {
+                return Filter::eq('tenant', 'acme');
+            }
+        };
+
+        $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
+        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
+        $rag->setVectorStore($vectorStore);
+        $rag->chat(new UserMessage('Question'));
+
+        $vectorStore->assertSearchedWithFilters(Filter::eq('tenant', 'acme'));
+        $this->addToAssertionCount(1);
     }
 
     public function test_rag_recalls_and_stores_agent_memory_without_extra_wiring(): void

@@ -10,6 +10,8 @@ use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 use NeuronAI\Workflow\Node;
 
 use function array_values;
@@ -24,7 +26,8 @@ use function md5;
 class RetrievalNode extends Node
 {
     public function __construct(
-        private readonly RetrievalInterface $retrieval
+        protected readonly RetrievalInterface $retrieval,
+        protected readonly ?FilterExpression $scope = null,
     ) {
     }
 
@@ -35,9 +38,11 @@ class RetrievalNode extends Node
     {
         $query = $event->query;
 
-        $this->emit(new Retrieving($query));
+        $filters = FilterScope::merge($this->scope, $event->getFilters())?->expression();
 
-        $documents = $this->retrieval->retrieve($query, $event->getFilters());
+        $this->emit(new Retrieving($query, $filters));
+
+        $documents = $this->retrieval->retrieve($query, $filters);
 
         // Remove duplicates by content hash
         $docs = [];

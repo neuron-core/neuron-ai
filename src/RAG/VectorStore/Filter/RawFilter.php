@@ -11,7 +11,7 @@ namespace NeuronAI\RAG\VectorStore\Filter;
  *
  * Created via {@see Filter::raw()}.
  */
-class RawFilter
+class RawFilter implements FilterExpression
 {
     /**
      * @param class-string $store The vector store class this fragment is written for.
@@ -21,5 +21,14 @@ class RawFilter
         public readonly string $store,
         public readonly mixed $fragment,
     ) {
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'operator' => 'raw',
+            'store' => $this->store,
+            'fragment' => $this->fragment,
+        ];
     }
 }

@@ -15,7 +15,7 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\PineconeFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function array_map;
 use function trim;
@@ -48,6 +48,8 @@ class PineconeVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws JsonException
+     * @throws VectorStoreException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -91,7 +93,7 @@ class PineconeVectorStore implements VectorStoreInterface
      * @throws HttpException
      * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->httpClient->request(
@@ -114,7 +116,7 @@ class PineconeVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -126,7 +128,7 @@ class PineconeVectorStore implements VectorStoreInterface
             'topK' => $request->topK ?? $this->topK,
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $queryParams['filter'] = (new PineconeFilterCompiler())->compile($request->filters);
         }
 

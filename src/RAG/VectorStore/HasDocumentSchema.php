@@ -8,7 +8,7 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterValidator;
 
 trait HasDocumentSchema
@@ -54,7 +54,7 @@ trait HasDocumentSchema
     /**
      * @throws DocumentSchemaException
      */
-    protected function validateFilters(FilterGroup $filters): void
+    protected function validateFilters(FilterExpression $filters): void
     {
         (new FilterValidator())->validate($filters, $this->schema);
     }

@@ -70,7 +70,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
         $this->assertSame('STOP', $response->message()->stopReason());
     }
@@ -113,7 +113,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -155,7 +155,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -197,7 +197,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -239,7 +239,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -308,7 +308,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_parallel_calls_of_the_same_tool_get_distinct_call_ids(): void

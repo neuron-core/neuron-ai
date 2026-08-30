@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter;
 
+use BackedEnum;
+use DateTimeInterface;
 use NeuronAI\Exceptions\VectorStoreException;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
 
 use function is_bool;
 use function is_float;
@@ -21,7 +25,7 @@ use function is_string;
  * beyond this vocabulary goes through {@see Filter::raw()} as a
  * backend-native fragment.
  */
-class Filter
+class Filter implements FilterExpression
 {
     /**
      * @param string|int|float|bool|array<string|int|float|bool> $value
@@ -36,52 +40,84 @@ class Filter
         }
     }
 
-    public static function eq(string $field, string|int|float|bool $value): self
-    {
-        return new self($field, FilterOperator::Eq, $value);
+    public static function eq(
+        string|DocumentField $field,
+        string|int|float|bool|BackedEnum|DateTimeInterface $value,
+    ): self {
+        return self::comparison($field, FilterOperator::Eq, self::normalize($value));
     }
 
-    public static function neq(string $field, string|int|float|bool $value): self
-    {
-        return new self($field, FilterOperator::Neq, $value);
+    public static function neq(
+        string|DocumentField $field,
+        string|int|float|bool|BackedEnum|DateTimeInterface $value,
+    ): self {
+        return self::comparison($field, FilterOperator::Neq, self::normalize($value));
     }
 
     /**
-     * @param array<string|int|float|bool> $values
+     * @param array<string|int|float|bool|BackedEnum|DateTimeInterface> $values
      */
-    public static function in(string $field, array $values): self
+    public static function in(string|DocumentField $field, array $values): self
     {
+        $fieldName = self::fieldName($field);
+
         if ($values === []) {
-            throw new VectorStoreException("Filter \"in\" on field \"{$field}\" requires at least one value.");
+            throw new VectorStoreException("Filter \"in\" on field \"{$fieldName}\" requires at least one value.");
         }
 
+        $normalized = [];
         foreach ($values as $value) {
-            if (!is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
-                throw new VectorStoreException("Filter \"in\" on field \"{$field}\" accepts scalar values only.");
+            if (!is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)
+                && !$value instanceof BackedEnum && !$value instanceof DateTimeInterface) {
+                throw new VectorStoreException("Filter \"in\" on field \"{$fieldName}\" accepts scalar values only.");
             }
+            $normalized[] = self::normalize($value);
         }
 
-        return new self($field, FilterOperator::In, $values);
+        return self::comparison($field, FilterOperator::In, $normalized);
     }
 
-    public static function gt(string $field, int|float $value): self
+    public static function gt(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
-        return new self($field, FilterOperator::Gt, $value);
+        return self::range($field, FilterOperator::Gt, $value);
     }
 
-    public static function gte(string $field, int|float $value): self
+    public static function gte(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
-        return new self($field, FilterOperator::Gte, $value);
+        return self::range($field, FilterOperator::Gte, $value);
     }
 
-    public static function lt(string $field, int|float $value): self
+    public static function lt(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
-        return new self($field, FilterOperator::Lt, $value);
+        return self::range($field, FilterOperator::Lt, $value);
     }
 
-    public static function lte(string $field, int|float $value): self
+    public static function lte(string|DocumentField $field, int|float|BackedEnum|DateTimeInterface $value): self
     {
-        return new self($field, FilterOperator::Lte, $value);
+        return self::range($field, FilterOperator::Lte, $value);
+    }
+
+    /**
+     * @param array<string|BackedEnum> $values
+     */
+    public static function containsAny(string|DocumentField $field, array $values): self
+    {
+        return self::contains($field, FilterOperator::ContainsAny, $values);
+    }
+
+    /**
+     * @param array<string|BackedEnum> $values
+     */
+    public static function containsAll(string|DocumentField $field, array $values): self
+    {
+        return self::contains($field, FilterOperator::ContainsAll, $values);
+    }
+
+    public static function where(
+        string|DocumentField $field,
+        string|int|float|bool|BackedEnum|DateTimeInterface $value,
+    ): Criteria {
+        return Criteria::from(self::eq($field, $value));
     }
 
     /**
@@ -94,5 +130,99 @@ class Filter
     public static function raw(string $store, mixed $fragment): RawFilter
     {
         return new RawFilter($store, $fragment);
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'operator' => $this->operator->value,
+            'field' => $this->field,
+            'value' => $this->value,
+        ];
+    }
+
+    protected static function comparison(
+        string|DocumentField $field,
+        FilterOperator $operator,
+        string|int|float|bool|array $value,
+    ): self {
+        $filter = new self(self::fieldName($field), $operator, $value);
+        self::validateSchemaField($filter, $field);
+
+        return $filter;
+    }
+
+    protected static function range(
+        string|DocumentField $field,
+        FilterOperator $operator,
+        int|float|BackedEnum|DateTimeInterface $value,
+    ): self {
+        $value = self::normalize($value);
+
+        if (!is_int($value) && !is_float($value)) {
+            throw new VectorStoreException(
+                "Filter \"{$operator->value}\" on field \"" . self::fieldName($field) . '" requires a numeric value.'
+            );
+        }
+
+        return self::comparison($field, $operator, $value);
+    }
+
+    /**
+     * @param array<string|BackedEnum> $values
+     */
+    protected static function contains(
+        string|DocumentField $field,
+        FilterOperator $operator,
+        array $values,
+    ): self {
+        $fieldName = self::fieldName($field);
+
+        if ($values === []) {
+            throw new VectorStoreException(
+                "Filter \"{$operator->value}\" on field \"{$fieldName}\" requires at least one value."
+            );
+        }
+
+        $normalized = [];
+        foreach ($values as $value) {
+            $value = self::normalize($value);
+            if (!is_string($value)) {
+                throw new VectorStoreException(
+                    "Filter \"{$operator->value}\" on field \"{$fieldName}\" accepts string values only."
+                );
+            }
+            $normalized[] = $value;
+        }
+
+        return self::comparison($field, $operator, $normalized);
+    }
+
+    protected static function normalize(
+        string|int|float|bool|BackedEnum|DateTimeInterface $value,
+    ): string|int|float|bool {
+        if ($value instanceof BackedEnum) {
+            return $value->value;
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            return $value->getTimestamp();
+        }
+
+        return $value;
+    }
+
+    protected static function fieldName(string|DocumentField $field): string
+    {
+        return $field instanceof DocumentField ? $field->getName() : $field;
+    }
+
+    protected static function validateSchemaField(self $filter, string|DocumentField $field): void
+    {
+        if (!$field instanceof DocumentField) {
+            return;
+        }
+
+        (new FilterValidator())->validate(FilterGroup::allOf($filter), DocumentSchema::of($field));
     }
 }

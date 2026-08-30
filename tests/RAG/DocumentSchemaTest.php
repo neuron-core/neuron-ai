@@ -113,4 +113,27 @@ class DocumentSchemaTest extends TestCase
             FilterGroup::and(Filter::neq('tenant', 'acme')),
         ));
     }
+
+    public function test_filterable_string_arrays_support_portable_containment(): void
+    {
+        $schema = DocumentSchema::of(DocumentField::strings('tags')->filterable());
+        $store = new MemoryVectorStore(schema: $schema);
+        $store->addDocument(
+            (new Document('Hello'))
+                ->setEmbedding([1, 0])
+                ->addMetadata('tags', ['php', 'rag'])
+        );
+
+        $results = $store->search(new SearchRequest([1, 0], Filter::containsAll('tags', ['php', 'rag'])));
+
+        $this->assertCount(1, $results);
+    }
+
+    public function test_non_string_arrays_remain_native_filter_only(): void
+    {
+        $this->expectException(DocumentSchemaException::class);
+        $this->expectExceptionMessage('Only string arrays');
+
+        DocumentField::integers('years')->filterable();
+    }
 }

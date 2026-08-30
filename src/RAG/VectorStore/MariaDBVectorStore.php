@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MariaDBFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use PDO;
 
 use function array_chunk;
@@ -58,11 +60,17 @@ class MariaDBVectorStore implements VectorStoreInterface
         $this->pdo->exec(sprintf('DROP TABLE IF EXISTS %s', $this->tableName));
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         return $this->addDocuments([$document]);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         if ($documents === []) {
@@ -103,7 +111,10 @@ class MariaDBVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $compiled = (new MariaDBFilterCompiler($this->schema))->compile($filters);
@@ -118,12 +129,15 @@ class MariaDBVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws DocumentSchemaException
+     */
     public function search(SearchRequest $request): iterable
     {
         $where = '';
         $bindings = [':embedding' => json_encode($request->embedding)];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
             $compiled = (new MariaDBFilterCompiler($this->schema))->compile($request->filters);
             $where = 'WHERE ' . $compiled['sql'];

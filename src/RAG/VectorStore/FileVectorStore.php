@@ -7,9 +7,10 @@ namespace NeuronAI\RAG\VectorStore;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Generator;
 use RuntimeException;
 
@@ -61,16 +62,23 @@ class FileVectorStore implements VectorStoreInterface
         return $this->addDocuments([$document]);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
         $this->appendToFile(
-            array_map(fn (Document $document): array => $this->storedDocument($document), $documents)
+            array_map($this->storedDocument(...), $documents)
         );
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws VectorStoreException
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
@@ -105,6 +113,10 @@ class FileVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws VectorStoreException
+     * @throws DocumentSchemaException
+     */
     public function search(SearchRequest $request): array
     {
         $topItems = [];
@@ -112,14 +124,14 @@ class FileVectorStore implements VectorStoreInterface
         $filters = $request->filters;
         $evaluator = new FilterEvaluator();
 
-        if ($filters instanceof FilterGroup) {
+        if ($filters instanceof FilterExpression) {
             $this->validateFilters($filters);
         }
 
         foreach ($this->getLine($this->getFilePath()) as $document) {
             $document = json_decode((string) $document, true);
 
-            if ($filters instanceof FilterGroup && !$evaluator->matches($filters, $this->filterFields($document))) {
+            if ($filters instanceof FilterExpression && !$evaluator->matches($filters, $this->filterFields($document))) {
                 continue;
             }
 

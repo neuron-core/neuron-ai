@@ -7,9 +7,10 @@ namespace NeuronAI\RAG\VectorStore;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\FilterEvaluator;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function array_filter;
 use function array_keys;
@@ -33,6 +34,10 @@ class MemoryVectorStore implements VectorStoreInterface
         $this->initializeSchema($schema);
     }
 
+    /**
+     * @throws VectorStoreException
+     * @throws DocumentSchemaException
+     */
     public function addDocument(Document $document): VectorStoreInterface
     {
         $this->validateDocument($document);
@@ -40,6 +45,9 @@ class MemoryVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
@@ -51,7 +59,10 @@ class MemoryVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
@@ -72,12 +83,12 @@ class MemoryVectorStore implements VectorStoreInterface
         $filters = $request->filters;
         $evaluator = new FilterEvaluator();
 
-        if ($filters instanceof FilterGroup) {
+        if ($filters instanceof FilterExpression) {
             $this->validateFilters($filters);
         }
 
         foreach ($this->documents as $index => $document) {
-            if ($filters instanceof FilterGroup && !$evaluator->matchesDocument($filters, $document)) {
+            if ($filters instanceof FilterExpression && !$evaluator->matchesDocument($filters, $document)) {
                 continue;
             }
 

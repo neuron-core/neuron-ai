@@ -6,12 +6,15 @@ namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use LogicException;
 
 use function implode;
 use function in_array;
@@ -35,23 +38,47 @@ class MariaDBFilterCompiler extends FilterCompiler
      *
      * @return array{sql: string, bindings: array<string, string|int|float>}
      */
-    public function compile(FilterGroup $filters): array
+    public function compile(FilterExpression $filters): array
     {
-        $clauses = [];
         $bindings = [];
         $index = 0;
 
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                $this->assertTargetsThisStore($condition);
-                $clauses[] = '(' . (string) $condition->fragment . ')';
-                continue;
-            }
+        return [
+            'sql' => $this->compileExpression($filters, $bindings, $index, true),
+            'bindings' => $bindings,
+        ];
+    }
 
-            $clauses[] = $this->compileCondition($condition, $bindings, $index);
+    /**
+     * @param array<string, string|int|float> $bindings
+     */
+    protected function compileExpression(
+        FilterExpression $filters,
+        array &$bindings,
+        int &$index,
+        bool $root = false,
+    ): string {
+        if ($filters instanceof RawFilter) {
+            $this->assertTargetsThisStore($filters);
+            return '(' . $filters->fragment . ')';
         }
 
-        return ['sql' => implode(' AND ', $clauses), 'bindings' => $bindings];
+        if ($filters instanceof Filter) {
+            return $this->compileCondition($filters, $bindings, $index);
+        }
+
+        if (!$filters instanceof FilterGroup) {
+            throw new LogicException('Unsupported filter expression.');
+        }
+
+        $separator = $filters->operator() === FilterCombinator::And ? ' AND ' : ' OR ';
+        $clauses = [];
+        foreach ($filters->conditions() as $condition) {
+            $clauses[] = $this->compileExpression($condition, $bindings, $index);
+        }
+        $compiled = implode($separator, $clauses);
+
+        return $root ? $compiled : '(' . $compiled . ')';
     }
 
     /**
@@ -61,28 +88,68 @@ class MariaDBFilterCompiler extends FilterCompiler
     {
         $column = $this->column($condition->field);
 
-        if ($condition->operator === FilterOperator::In) {
-            $placeholders = [];
-            foreach ((array) $condition->value as $value) {
-                $placeholder = ':f' . $index++;
-                $placeholders[] = $placeholder;
-                $bindings[$placeholder] = $this->bindable($value);
-            }
+        return match ($condition->operator) {
+            FilterOperator::Eq => $this->compileComparison($column, '=', $condition->value, $bindings, $index),
+            FilterOperator::Neq => $this->compileComparison($column, '<>', $condition->value, $bindings, $index),
+            FilterOperator::Gt => $this->compileComparison($column, '>', $condition->value, $bindings, $index),
+            FilterOperator::Gte => $this->compileComparison($column, '>=', $condition->value, $bindings, $index),
+            FilterOperator::Lt => $this->compileComparison($column, '<', $condition->value, $bindings, $index),
+            FilterOperator::Lte => $this->compileComparison($column, '<=', $condition->value, $bindings, $index),
+            FilterOperator::In => $this->compileIn($column, (array) $condition->value, $bindings, $index),
+            FilterOperator::ContainsAny => $this->compileContains($condition, ' OR ', $bindings, $index),
+            FilterOperator::ContainsAll => $this->compileContains($condition, ' AND ', $bindings, $index),
+        };
+    }
 
-            return "{$column} IN (" . implode(', ', $placeholders) . ')';
+    /**
+     * @param array<string, string|int|float> $bindings
+     */
+    protected function compileComparison(
+        string $column,
+        string $operator,
+        mixed $value,
+        array &$bindings,
+        int &$index,
+    ): string {
+        $placeholder = ':f' . $index++;
+        $bindings[$placeholder] = $this->bindable($value);
+
+        return "{$column} {$operator} {$placeholder}";
+    }
+
+    /**
+     * @param array<mixed> $values
+     * @param array<string, string|int|float> $bindings
+     */
+    protected function compileIn(string $column, array $values, array &$bindings, int &$index): string
+    {
+        $placeholders = [];
+        foreach ($values as $value) {
+            $placeholder = ':f' . $index++;
+            $placeholders[] = $placeholder;
+            $bindings[$placeholder] = $this->bindable($value);
         }
 
-        $placeholder = ':f' . $index++;
-        $bindings[$placeholder] = $this->bindable($condition->value);
+        return "{$column} IN (" . implode(', ', $placeholders) . ')';
+    }
 
-        return match ($condition->operator) {
-            FilterOperator::Eq => "{$column} = {$placeholder}",
-            FilterOperator::Neq => "{$column} <> {$placeholder}",
-            FilterOperator::Gt => "{$column} > {$placeholder}",
-            FilterOperator::Gte => "{$column} >= {$placeholder}",
-            FilterOperator::Lt => "{$column} < {$placeholder}",
-            FilterOperator::Lte => "{$column} <= {$placeholder}",
-        };
+    /**
+     * @param array<string, string|int|float> $bindings
+     */
+    protected function compileContains(
+        Filter $condition,
+        string $separator,
+        array &$bindings,
+        int &$index,
+    ): string {
+        $clauses = [];
+        foreach ($condition->value as $value) {
+            $placeholder = ':f' . $index++;
+            $bindings[$placeholder] = $this->bindable($value);
+            $clauses[] = "JSON_CONTAINS(metadata, JSON_QUOTE({$placeholder}), '$.{$condition->field}')";
+        }
+
+        return '(' . implode($separator, $clauses) . ')';
     }
 
     /**

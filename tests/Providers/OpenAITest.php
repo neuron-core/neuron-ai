@@ -68,7 +68,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
         $this->assertSame('stop', $response->message()->stopReason());
     }
@@ -108,7 +108,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -147,7 +147,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -186,7 +186,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->message()->getContent());
     }
 
@@ -252,7 +252,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_array_properties(): void
@@ -325,7 +325,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_tools_payload_with_array_properties_no_items(): void
@@ -392,7 +392,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
 
@@ -482,7 +482,7 @@ class OpenAITest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_stream_returns_message_with_text_chunks(): void
@@ -554,7 +554,7 @@ class OpenAITest extends TestCase
         $provider->structured([new UserMessage('Hi')], Person::class, $schema);
 
         $this->assertCount(1, $sentRequests);
-        $payload = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+        $payload = json_decode($sentRequests[0]['request']->getBody()->getContents(), true);
         $schema = $payload['response_format']['json_schema']['schema'];
 
         // strict mode is active in the request

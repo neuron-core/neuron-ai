@@ -6,7 +6,7 @@ namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 interface VectorStoreInterface
 {
@@ -22,7 +22,7 @@ interface VectorStoreInterface
     /**
      * Delete every document matching the filters.
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface;
+    public function delete(FilterExpression $filters): VectorStoreInterface;
 
     /**
      * Return the documents most similar to the request's embedding.

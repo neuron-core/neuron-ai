@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\QdrantFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function array_map;
 use function is_null;
@@ -82,6 +85,7 @@ class QdrantVectorStore implements VectorStoreInterface
      *
      * @param Document[] $documents
      * @throws HttpException
+     * @throws VectorStoreException|JsonException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -110,8 +114,9 @@ class QdrantVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->httpClient->request(
@@ -128,10 +133,11 @@ class QdrantVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws DocumentSchemaException|VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -144,7 +150,7 @@ class QdrantVectorStore implements VectorStoreInterface
             'with_vector' => true,
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $body['filter'] = ['must' => (new QdrantFilterCompiler())->compile($request->filters)];
         }
 

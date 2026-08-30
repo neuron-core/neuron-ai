@@ -27,4 +27,15 @@ enum DocumentFieldType: string
             default => false,
         };
     }
+
+    public function elementType(): self
+    {
+        return match ($this) {
+            self::StringArray => self::String,
+            self::IntegerArray => self::Integer,
+            self::FloatArray => self::Float,
+            self::BooleanArray => self::Boolean,
+            default => $this,
+        };
+    }
 }

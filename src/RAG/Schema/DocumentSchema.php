@@ -109,10 +109,7 @@ final class DocumentSchema
         try {
             json_encode($metadata, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new DocumentSchemaException(
-                "Document {$document->getId()} metadata is not JSON serializable: {$exception->getMessage()}",
-                previous: $exception,
-            );
+            throw new DocumentSchemaException("Document {$document->getId()} metadata is not JSON serializable: {$exception->getMessage()}", $exception->getCode(), previous: $exception);
         }
 
         foreach ($metadata as $name => $value) {

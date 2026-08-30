@@ -160,7 +160,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 Write clear and expressive code that human readers can understand its purpose, logic, and intent without needing extra comments or external guides.
 Relies on clean design, descriptive naming conventions, and logical structure.
 
-- Meaningful names: Use precise, human-readable names for variables, functions, and classes that describe what they represent (e.g., retries instead of n).
+- Meaningful names: Use the most precise, human-readable, and abbreviated version of names for variables, functions, and classes that describe what they represent (e.g., retries instead of r).
 - Small functions: Break large, complex blocks of code into small, single-purpose functions that read like a story.
 - Meaningful errors: Replace generic error codes with expressive, descriptive exceptions or named constants
 

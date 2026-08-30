@@ -14,10 +14,9 @@ use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\ElasticsearchFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\Response\Elasticsearch;
-use Exception;
 
 use function array_key_exists;
 use function array_map;
@@ -170,7 +169,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
      * @throws MissingParameterException
      * @throws DocumentSchemaException
      */
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->client->deleteByQuery([
@@ -194,7 +193,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
      */
     public function search(SearchRequest $request): array
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -217,7 +216,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
             ],
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $searchParams['body']['knn']['filter'] = (new ElasticsearchFilterCompiler())->compile($request->filters);
         }
 

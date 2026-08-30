@@ -31,11 +31,13 @@ use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Workflow\Events\StopEvent;
 use ReflectionException;
+
 use function count;
 use function end;
 use function implode;
 use function max;
 use function trim;
+
 use const PHP_EOL;
 
 /**

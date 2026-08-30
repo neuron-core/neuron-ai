@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use NeuronAI\Exceptions\VectorStoreException;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function is_float;
 use function is_int;
@@ -18,12 +18,13 @@ class SearchRequest
 {
     /**
      * @param float[] $embedding
-     * @param FilterGroup|null $filters Conditions the returned documents must match.
+     * @param FilterExpression|null $filters Conditions the returned documents must match.
      * @param int|null $topK Result limit; null falls back to the store's default.
+     * @throws VectorStoreException
      */
     public function __construct(
         public readonly array $embedding,
-        public readonly ?FilterGroup $filters = null,
+        public readonly ?FilterExpression $filters = null,
         public readonly ?int $topK = null,
     ) {
         if ($this->embedding === []) {

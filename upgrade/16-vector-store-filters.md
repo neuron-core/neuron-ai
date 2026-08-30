@@ -9,7 +9,8 @@ framework itself injects filters (tenant scoping, source scoping) that
 hazard becomes a correctness bug. Filters are now expressed in a portable,
 backend-neutral vocabulary that each store compiles to its native syntax,
 so the same filter works on Pinecone, Qdrant, Meilisearch, and every other
-backend — and composed filters can only narrow a search, never widen it.
+backend. Filter expressions can contain nested boolean logic, while mandatory
+scopes are always composed with AND so one scope cannot relax another.
 
 What changed:
 
@@ -23,7 +24,7 @@ What changed:
 
    $documents = $store->search(new SearchRequest(
        embedding: $embedding,
-       filters: FilterGroup::and(Filter::eq('sourceType', 'pdf')),
+       filters: Filter::eq('sourceType', 'pdf'),
        topK: 8,
    ));
    ```
@@ -32,27 +33,27 @@ What changed:
    outlives a call anymore. Pass filters on the `SearchRequest` instead.
 
 3. **`deleteBy(string $sourceType, ?string $sourceName)` is now
-   `delete(FilterGroup $filters)`** — deletion by any filter, not just the
+   `delete(FilterExpression $filters)`** — deletion by any filter, not just the
    two hardcoded fields:
 
    ```php
-   $store->delete(FilterGroup::and(
-       Filter::eq('sourceType', 'file'),
-       Filter::eq('sourceName', 'manual.pdf'),
-   ));
+   $store->delete(
+       Filter::where('sourceType', 'file')
+           ->where('sourceName', 'manual.pdf'),
+   );
    ```
 
 4. **`RetrievalInterface::retrieve()` gained a filters parameter**:
-   `retrieve(Message $query, ?FilterGroup $filters = null)`. The parameter
+   `retrieve(Message $query, ?FilterExpression $filters = null)`. The parameter
    carries filters injected for the current run; custom strategies must AND
-   them with their own — never drop them (`FilterGroup::merge($own, $filters)`
-   is the null-tolerant AND for exactly this). `SimilarityRetrieval` takes an
-   optional static scope: `new SimilarityRetrieval($store, $embeddings,
-   filters: $group)`.
+   them with their own — never drop them
+   (`FilterScope::merge($own, $filters)?->expression()` is the null-tolerant
+   scope composition for exactly this). RAG applications can define mandatory
+   constraints with `retrievalScope()` or `setRetrievalScope()`.
 
 5. **`QueryPreProcessedEvent` is the per-run injection channel.** Middleware
    on `RetrievalNode` (or a custom pre-retrieval node) calls
-   `$event->addFilters($group)`; `RetrievalNode` forwards the accumulated
+   `$event->addFilters($expression)`; `RetrievalNode` forwards the accumulated
    filters to the strategy. Filters only accumulate by AND, and the event is
    born fresh every run, so an injected filter can never leak into the next
    run or relax another injector's scope.
@@ -68,8 +69,8 @@ grep -rn "implements RetrievalInterface" --include="*.php" .
 ```
 
 Custom `VectorStoreInterface` implementations must adopt the new `search()`
-and `delete()` signatures (compile the `FilterGroup` to your backend's
-syntax, or evaluate it in PHP with
+and `delete()` signatures (compile the `FilterExpression` to your backend's
+syntax with whatever internal architecture best suits that store, or evaluate it in PHP with
 `NeuronAI\RAG\VectorStore\Filter\FilterEvaluator`). Custom
 `RetrievalInterface` strategies must accept and honor the new `$filters`
 parameter.
@@ -80,12 +81,18 @@ parameter.
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 
-FilterGroup::and(
-    Filter::eq('tenant', 'acme'),
-    Filter::neq('status', 'draft'),
-    Filter::in('sourceType', ['pdf', 'html']),
-    Filter::gte('published_at', 1767225600),
-    Filter::lt('price', 100),
+$filters = Filter::where('tenant', 'acme')
+    ->whereNot('status', 'draft')
+    ->whereIn('sourceType', ['pdf', 'html'])
+    ->whereGreaterThanOrEqual('published_at', 1767225600)
+    ->whereLessThan('price', 100);
+
+$visible = FilterGroup::allOf(
+    $filters,
+    FilterGroup::anyOf(
+        Filter::eq('visibility', 'public'),
+        Filter::eq('owner_id', $userId),
+    ),
 );
 ```
 
@@ -95,10 +102,11 @@ filterability against its `DocumentSchema` before database I/O:
 
 - Values are scalars — `null` throws (missing-vs-null semantics differ per
   backend and cannot be promised portably).
-- Range operators (`gt/gte/lt/lte`) are `int|float` only — string ranges are
-  not portable; index dates as epoch timestamps.
-- Groups are AND-only conjunctions; `in()` covers OR-over-one-field. Nested
-  groups flatten, so merging scopes is appending.
+- Range operators (`gt/gte/lt/lte`) are numeric. `DateTimeInterface` values
+  normalize to epoch timestamps, and backed enums normalize to their scalar values.
+- Groups support nested `allOf()` and `anyOf()` expressions. Use
+  `FilterScope::merge()` rather than an OR group to combine mandatory scopes.
+- Filterable string arrays support `containsAny()` and `containsAll()`.
 
 Backend capabilities outside the vocabulary go through the tagged escape
 hatch:
@@ -117,10 +125,10 @@ silently matching the wrong documents.
 |--------|-------|
 | `$store->similaritySearch($embedding)` | `$store->search(new SearchRequest($embedding))` |
 | `$store->withFilters($native)->similaritySearch($embedding)` | `$store->search(new SearchRequest($embedding, filters: $group))` |
-| `$store->deleteBy('file', 'a.pdf')` | `$store->delete(FilterGroup::and(Filter::eq('sourceType', 'file'), Filter::eq('sourceName', 'a.pdf')))` |
+| `$store->deleteBy('file', 'a.pdf')` | `$store->delete(Filter::where('sourceType', 'file')->where('sourceName', 'a.pdf'))` |
 | `$store->deleteBySource('file', 'a.pdf')` (Meilisearch, deprecated since 3.x) | same as `deleteBy` above |
-| `$store->deleteBy('file')` | `$store->delete(FilterGroup::and(Filter::eq('sourceType', 'file')))` |
-| `retrieve(Message $query)` (custom strategy) | `retrieve(Message $query, ?FilterGroup $filters = null)` — apply `$filters` when present |
+| `$store->deleteBy('file')` | `$store->delete(Filter::eq('sourceType', 'file'))` |
+| `retrieve(Message $query)` (custom strategy) | `retrieve(Message $query, ?FilterExpression $filters = null)` — apply `$filters` when present |
 
 Native filter arrays previously passed to `withFilters()` translate to the
 vocabulary in most cases; anything genuinely backend-specific becomes a
@@ -140,7 +148,7 @@ vocabulary in most cases; anything genuinely backend-specific becomes a
 
 - [ ] No `->similaritySearch(` calls remain — all migrated to `search(new SearchRequest(...))`
 - [ ] No `->withFilters(` calls remain — filters travel on the `SearchRequest`
-- [ ] No `->deleteBy(` calls remain — all migrated to `delete(FilterGroup::and(...))`
+- [ ] No `->deleteBy(` calls remain — all migrated to `delete(FilterExpression)`
 - [ ] Custom `VectorStoreInterface` implementations expose `search()`/`delete()`
-- [ ] Custom `RetrievalInterface` strategies accept `?FilterGroup $filters` and apply it when present
+- [ ] Custom `RetrievalInterface` strategies accept `?FilterExpression $filters` and apply it when present
 - [ ] The application's test suite and static analysis pass

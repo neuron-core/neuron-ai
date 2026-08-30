@@ -12,6 +12,7 @@ use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
@@ -51,8 +52,12 @@ class RetrievalFiltersTest extends TestCase
 
         $conditions = $request->filters->conditions();
         $this->assertCount(2, $conditions);
-        $this->assertSame('tenant', $conditions[0]->field);
-        $this->assertSame('lang', $conditions[1]->field);
+        $tenant = $conditions[0];
+        $language = $conditions[1];
+        $this->assertInstanceOf(Filter::class, $tenant);
+        $this->assertInstanceOf(Filter::class, $language);
+        $this->assertSame('tenant', $tenant->field);
+        $this->assertSame('lang', $language->field);
     }
 
     public function test_incoming_filters_alone_reach_the_store(): void
@@ -82,6 +87,20 @@ class RetrievalFiltersTest extends TestCase
         $filters = $event->getFilters();
         $this->assertInstanceOf(FilterGroup::class, $filters);
         $this->assertCount(2, $filters->conditions());
+    }
+
+    public function test_scope_merge_preserves_nested_query_logic(): void
+    {
+        $filters = FilterScope::merge(
+            Filter::eq('tenant', 'acme'),
+            FilterGroup::anyOf(Filter::eq('lang', 'en'), Filter::eq('lang', 'it')),
+        )?->expression();
+
+        $this->assertInstanceOf(FilterGroup::class, $filters);
+        $this->assertSame('and', $filters->operator()->value);
+        $nested = $filters->conditions()[1];
+        $this->assertInstanceOf(FilterGroup::class, $nested);
+        $this->assertSame('or', $nested->operator()->value);
     }
 
     protected function lastSearchRequest(FakeVectorStore $store): SearchRequest

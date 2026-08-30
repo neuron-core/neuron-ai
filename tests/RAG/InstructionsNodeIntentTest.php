@@ -17,6 +17,7 @@ use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+
 use function str_contains;
 
 class InstructionsNodeIntentTest extends TestCase

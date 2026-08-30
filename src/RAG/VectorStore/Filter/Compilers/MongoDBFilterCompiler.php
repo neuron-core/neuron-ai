@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
-use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 
 use function in_array;
+use function array_map;
 
 class MongoDBFilterCompiler extends MongoStyleFilterCompiler
 {
@@ -21,28 +21,26 @@ class MongoDBFilterCompiler extends MongoStyleFilterCompiler
      *
      * @return array<string, mixed>
      */
-    public function compile(FilterGroup $filters): array
+    protected function compileCondition(Filter $condition): array
     {
-        $conditions = [];
-
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                $this->assertTargetsThisStore($condition);
-                $conditions[] = (array) $condition->fragment;
-                continue;
-            }
-
-            $path = $this->path($condition->field);
-            $comparison = [$this->operator($condition->operator) => $condition->value];
-
-            if ($condition->operator === FilterOperator::Neq) {
-                $comparison['$exists'] = true;
-            }
-
-            $conditions[] = [$path => $comparison];
+        if ($condition->operator === FilterOperator::ContainsAny) {
+            return [$this->path($condition->field) => ['$in' => $condition->value]];
         }
 
-        return ['$and' => $conditions];
+        if ($condition->operator === FilterOperator::ContainsAll) {
+            return ['$and' => array_map(
+                fn (string $value): array => [$this->path($condition->field) => ['$eq' => $value]],
+                $condition->value,
+            )];
+        }
+
+        $comparison = [$this->operator($condition->operator) => $condition->value];
+
+        if ($condition->operator === FilterOperator::Neq) {
+            $comparison['$exists'] = true;
+        }
+
+        return [$this->path($condition->field) => $comparison];
     }
 
     /**

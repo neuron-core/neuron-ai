@@ -71,9 +71,9 @@ final class DocumentField
 
     public function filterable(bool $filterable = true): self
     {
-        if ($filterable && $this->type->isArray()) {
+        if ($filterable && $this->type->isArray() && $this->type !== DocumentFieldType::StringArray) {
             throw new DocumentSchemaException(
-                "Array field \"{$this->name}\" cannot use portable filters yet. Use a raw backend filter instead."
+                "Only string arrays support portable filters; field \"{$this->name}\" is {$this->type->value}. Use a raw backend filter instead."
             );
         }
 

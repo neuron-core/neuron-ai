@@ -39,6 +39,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+
 use function array_column;
 use function array_filter;
 use function array_map;
@@ -47,6 +48,7 @@ use function iterator_to_array;
 use function json_decode;
 use function str_starts_with;
 use function substr;
+use function array_key_last;
 
 class AgentMemoryTest extends TestCase
 {

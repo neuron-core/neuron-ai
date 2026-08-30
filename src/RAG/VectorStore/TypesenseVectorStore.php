@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use Http\Client\Exception;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\TypesenseFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Typesense\Client;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
@@ -41,6 +43,7 @@ class TypesenseVectorStore implements VectorStoreInterface
     /**
      * @throws Exception
      * @throws TypesenseClientError
+     * @throws \Exception
      */
     public function checkIndexStatus(Document $document): void
     {
@@ -105,6 +108,7 @@ class TypesenseVectorStore implements VectorStoreInterface
     /**
      * @throws Exception
      * @throws TypesenseClientError
+     * @throws JsonException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
@@ -124,7 +128,12 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws Exception
+     * @throws TypesenseClientError
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->client->collections[$this->collection]->documents->delete([
@@ -140,7 +149,7 @@ class TypesenseVectorStore implements VectorStoreInterface
      * @param Document[] $documents
      * @throws Exception
      * @throws JsonException
-     * @throws TypesenseClientError
+     * @throws TypesenseClientError|\NeuronAI\Exceptions\VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -174,9 +183,15 @@ class TypesenseVectorStore implements VectorStoreInterface
         return $this;
     }
 
+    /**
+     * @throws Exception
+     * @throws TypesenseClientError
+     * @throws VectorStoreException
+     * @throws DocumentSchemaException
+     */
     public function search(SearchRequest $request): array
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -191,7 +206,7 @@ class TypesenseVectorStore implements VectorStoreInterface
             'num_candidates' => max(50, $topK * 4),
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $params['filter_by'] = (new TypesenseFilterCompiler())->compile($request->filters);
         }
 
@@ -211,6 +226,10 @@ class TypesenseVectorStore implements VectorStoreInterface
         }, $response['results'][0]['hits']);
     }
 
+    /**
+     * @throws Exception
+     * @throws TypesenseClientError
+     */
     private function checkVectorDimension(int $dimension): void
     {
         $schema = $this->client->collections[$this->collection]->retrieve();

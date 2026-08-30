@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
+use LogicException;
+
+use function array_map;
+use function count;
 
 class QdrantFilterCompiler extends FilterCompiler
 {
@@ -21,21 +27,34 @@ class QdrantFilterCompiler extends FilterCompiler
      *
      * @return array<int, array<string, mixed>>
      */
-    public function compile(FilterGroup $filters): array
+    public function compile(FilterExpression $filters): array
     {
-        $must = [];
-
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                $this->assertTargetsThisStore($condition);
-                $must[] = (array) $condition->fragment;
-                continue;
-            }
-
-            $must[] = $this->compileCondition($condition);
+        if ($filters instanceof RawFilter) {
+            $this->assertTargetsThisStore($filters);
+            return [(array) $filters->fragment];
         }
 
-        return $must;
+        if ($filters instanceof Filter) {
+            return [$this->compileCondition($filters)];
+        }
+
+        if (!$filters instanceof FilterGroup) {
+            throw new LogicException('Unsupported filter expression.');
+        }
+
+        if ($filters->operator() === FilterCombinator::Or) {
+            return [['should' => array_map(
+                fn (FilterExpression $condition): array => $this->condition($condition),
+                $filters->conditions(),
+            )]];
+        }
+
+        $conditions = [];
+        foreach ($filters->conditions() as $condition) {
+            $conditions = [...$conditions, ...$this->compile($condition)];
+        }
+
+        return $conditions;
     }
 
     /**
@@ -51,6 +70,22 @@ class QdrantFilterCompiler extends FilterCompiler
             FilterOperator::Gte => ['key' => $condition->field, 'range' => ['gte' => $condition->value]],
             FilterOperator::Lt => ['key' => $condition->field, 'range' => ['lt' => $condition->value]],
             FilterOperator::Lte => ['key' => $condition->field, 'range' => ['lte' => $condition->value]],
+            FilterOperator::ContainsAny => ['key' => $condition->field, 'match' => ['any' => $condition->value]],
+            FilterOperator::ContainsAll => ['must' => array_map(
+                static fn (string $value): array => [
+                    'key' => $condition->field,
+                    'match' => ['value' => $value],
+                ],
+                $condition->value,
+            )],
         };
+    }
+
+    /** @return array<string, mixed> */
+    protected function condition(FilterExpression $expression): array
+    {
+        $compiled = $this->compile($expression);
+
+        return count($compiled) === 1 ? $compiled[0] : ['must' => $compiled];
     }
 }

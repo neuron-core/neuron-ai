@@ -22,6 +22,7 @@ use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
+
 use function array_reverse;
 
 class StoreMemoryNode extends Node implements AgentNodeInterface
@@ -80,7 +81,7 @@ class StoreMemoryNode extends Node implements AgentNodeInterface
 
         foreach (array_reverse($messages) as $message) {
             if (
-                $user === null
+                !$user instanceof \NeuronAI\Chat\Messages\UserMessage
                 && $message instanceof UserMessage
                 && !$message instanceof ToolResultMessage
             ) {
@@ -88,7 +89,7 @@ class StoreMemoryNode extends Node implements AgentNodeInterface
             }
 
             if (
-                $assistant === null
+                !$assistant instanceof \NeuronAI\Chat\Messages\AssistantMessage
                 && $message instanceof AssistantMessage
                 && !$message instanceof ToolCallMessage
             ) {
@@ -96,7 +97,7 @@ class StoreMemoryNode extends Node implements AgentNodeInterface
             }
         }
 
-        if ($user === null) {
+        if (!$user instanceof \NeuronAI\Chat\Messages\UserMessage) {
             foreach (array_reverse($this->chatHistory->getMessages()) as $message) {
                 if ($message instanceof UserMessage && !$message instanceof ToolResultMessage) {
                     $user = $message;

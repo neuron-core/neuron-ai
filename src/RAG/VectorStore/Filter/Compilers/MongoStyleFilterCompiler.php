@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
 
+use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
+use LogicException;
 
 use function count;
+use function array_map;
 
 /**
  * Shared dialect base for backends whose filter language is the Mongo-style
@@ -20,21 +25,43 @@ abstract class MongoStyleFilterCompiler extends FilterCompiler
     /**
      * @return array<string, mixed>
      */
-    public function compile(FilterGroup $filters): array
+    public function compile(FilterExpression $filters): array
     {
-        $conditions = [];
-
-        foreach ($filters->conditions() as $condition) {
-            if ($condition instanceof RawFilter) {
-                $this->assertTargetsThisStore($condition);
-                $conditions[] = (array) $condition->fragment;
-                continue;
-            }
-
-            $conditions[] = [$condition->field => [$this->operator($condition->operator) => $condition->value]];
+        if ($filters instanceof RawFilter) {
+            $this->assertTargetsThisStore($filters);
+            return (array) $filters->fragment;
         }
 
-        return count($conditions) === 1 ? $conditions[0] : ['$and' => $conditions];
+        if ($filters instanceof FilterGroup) {
+            $conditions = array_map($this->compile(...), $filters->conditions());
+
+            return count($conditions) === 1
+                ? $conditions[0]
+                : [$filters->operator() === FilterCombinator::And ? '$and' : '$or' => $conditions];
+        }
+
+        if ($filters instanceof Filter) {
+            return $this->compileCondition($filters);
+        }
+
+        throw new LogicException('Unsupported filter expression.');
+    }
+
+    /** @return array<string, mixed> */
+    protected function compileCondition(Filter $condition): array
+    {
+        if ($condition->operator === FilterOperator::ContainsAny) {
+            return [$condition->field => ['$in' => $condition->value]];
+        }
+
+        if ($condition->operator === FilterOperator::ContainsAll) {
+            return ['$and' => array_map(
+                static fn (string $value): array => [$condition->field => ['$eq' => $value]],
+                $condition->value,
+            )];
+        }
+
+        return [$condition->field => [$this->operator($condition->operator) => $condition->value]];
     }
 
     protected function operator(FilterOperator $operator): string
@@ -47,6 +74,7 @@ abstract class MongoStyleFilterCompiler extends FilterCompiler
             FilterOperator::Gte => '$gte',
             FilterOperator::Lt => '$lt',
             FilterOperator::Lte => '$lte',
+            FilterOperator::ContainsAny, FilterOperator::ContainsAll => throw new LogicException('Array operators compile separately.'),
         };
     }
 }

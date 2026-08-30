@@ -7,10 +7,12 @@ namespace NeuronAI\RAG\VectorStore;
 use MongoDB\Client;
 use MongoDB\Collection;
 use MongoDB\Exception\SearchNotSupportedException;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Compilers\MongoDBFilterCompiler;
-use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function array_chunk;
 use function array_map;
@@ -83,6 +85,7 @@ class MongoDBVectorStore implements VectorStoreInterface
 
     /**
      * @param Document[] $documents
+     * @throws VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -110,7 +113,10 @@ class MongoDBVectorStore implements VectorStoreInterface
         return $this;
     }
 
-    public function delete(FilterGroup $filters): VectorStoreInterface
+    /**
+     * @throws DocumentSchemaException
+     */
+    public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->collection->deleteMany((new MongoDBFilterCompiler())->compile($filters));
@@ -124,10 +130,11 @@ class MongoDBVectorStore implements VectorStoreInterface
      * method. Filtered fields must be declared in the index as filter fields.
      *
      * @return Document[]
+     * @throws DocumentSchemaException
      */
     public function search(SearchRequest $request): iterable
     {
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
 
@@ -141,7 +148,7 @@ class MongoDBVectorStore implements VectorStoreInterface
             'limit' => $topK,
         ];
 
-        if ($request->filters instanceof FilterGroup) {
+        if ($request->filters instanceof FilterExpression) {
             $vectorSearch['filter'] = (new MongoDBFilterCompiler())->compile($request->filters);
         }
 
