@@ -23,7 +23,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use Throwable;
 
 use function array_merge;
@@ -158,44 +158,55 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Continue the run in flight under the workflow ID, delivering the payload only
-     * if one is given: null revives without delivering anything (a
-     * still-suspended run re-emits its request, a crashed step retries),
-     * while an empty array delivers an explicitly empty answer.
-     *
-     * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
-     * @param bool $timedOut True when the resume was a deadline elapsing.
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param non-empty-list<ResumeInput> $inputs
      * @throws WorkflowException
      * @throws Throwable
      */
     public function resume(
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs,
         ?string $expectedRunId = null,
     ): WorkflowState {
-        return $this->consume($this->events($payload, $timedOut, true, $expectedRunId));
+        return $this->consume($this->events($inputs, true, $expectedRunId));
+    }
+
+    public function recover(
+        ?string $expectedRunId = null,
+        ?int $expectedExecutionAttempt = null,
+    ): WorkflowState {
+        return $this->consume($this->events(
+            expectedRunId: $expectedRunId,
+            recovering: true,
+            expectedExecutionAttempt: $expectedExecutionAttempt,
+        ));
+    }
+
+    public function acknowledgeCompletion(string $expectedRunId): void
+    {
+        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
     }
 
     /**
-     * The single streaming entry point behind run() and resume(). A non-null
-     * payload implies a continuation even when $resuming is not set.
-     *
-     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
-     * @param bool $resuming True to continue without delivering a payload (revive).
+     * @param list<ResumeInput> $inputs
      * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws WorkflowException
      * @throws Throwable
      */
     public function events(
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs = [],
         bool $resuming = false,
         ?string $expectedRunId = null,
+        bool $recovering = false,
+        ?int $expectedExecutionAttempt = null,
     ): Generator {
-        $resuming = $resuming || $payload !== null;
-        $generator = $this->getExecutor()->execute($this, $payload, $timedOut, $resuming, $expectedRunId);
+        $generator = $this->getExecutor()->execute(
+            $this,
+            $inputs,
+            $resuming,
+            $expectedRunId,
+            $recovering,
+            $expectedExecutionAttempt,
+        );
 
         // Open the protocol stream before any output, mirroring the pull
         // path's eager start so both emit the same framing timing.
@@ -222,10 +233,15 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
 
         $state = $this->getState();
-        $request = $state->getInterruptRequest();
-
-        if ($request instanceof InterruptRequest) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended($request, $this->workflowId ?? 'unresolved'));
+        if ($state->isInterrupted()) {
+            foreach ($state->getInterruptRequests() as $request) {
+                $this->fireChannel(
+                    fn (StreamingChannelInterface $ch) => $ch->suspended(
+                        $request,
+                        $this->workflowId ?? 'unresolved',
+                    ),
+                );
+            }
         } else {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->workflowId ?? 'unresolved'));
         }
@@ -467,11 +483,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Opt into the execution lease: while a run is executing, the engine
-     * heartbeats a lease record in its partition, and a resume() arriving
-     * while the lease is fresher than $seconds is refused — it would
+     * refreshes the lease deadline inside __control, and recover() arriving
+     * while the lease is fresh is refused — it would
      * probably duplicate a live process, not revive a dead one. Suspension,
-     * failure, and completion all release the lease, so only a violent
-     * crash (no chance to write anything) leaves it held. Pick $seconds
+     * failure, and completion all clear the deadline, so only a violent
+     * crash (no chance to commit control) leaves it held. Pick $seconds
      * well above the longest silent stretch between step boundaries (a
      * slow provider call): a too-short lease revives runs that are merely
      * slow. Null (the default) disables the lease entirely.
@@ -490,6 +506,21 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     protected function leaseTimeout(): ?int
     {
         return null;
+    }
+
+    /**
+     * Opt into replayable completion for a platform-managed invocation. The
+     * default remains immediate cleanup for manually driven workflows.
+     */
+    public function retainCompletionUntilAcknowledged(bool $retain = true): static
+    {
+        $this->retainCompletion = $retain;
+        return $this;
+    }
+
+    final public function shouldRetainCompletionUntilAcknowledged(): bool
+    {
+        return $this->retainCompletion;
     }
 
     /**

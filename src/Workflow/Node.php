@@ -36,6 +36,8 @@ abstract class Node implements NodeInterface
      */
     protected bool $timedOut = false;
 
+    protected bool $resuming = false;
+
     protected ?StepMemoizer $memoizer = null;
 
     protected ?EventDispatcherInterface $dispatcher = null;
@@ -52,21 +54,25 @@ abstract class Node implements NodeInterface
         $this->event = $context->event;
         $this->payload = $context->payload;
         $this->timedOut = $context->timedOut;
+        $this->resuming = $context->resuming;
         $this->memoizer = $context->memoizer;
         $this->dispatcher = $context->dispatcher;
     }
 
     protected function consumePayload(): ?array
     {
-        if ($this->payload !== null) {
-            $payload = $this->payload;
-            // Clear after use so a subsequent interrupt() in the same node
-            // re-suspends instead of looping on the same resume.
-            $this->payload = null;
-            return $payload;
+        if (!$this->resuming) {
+            return null;
         }
 
-        return null;
+        $payload = $this->payload;
+        // A ResumeInput satisfies exactly one interruption, including timer
+        // and expiry inputs whose payload is null. A later interruption in
+        // the same node must create a new suspension.
+        $this->payload = null;
+        $this->resuming = false;
+
+        return $payload;
     }
 
     /**
@@ -117,7 +123,7 @@ abstract class Node implements NodeInterface
     }
 
     /**
-     * Suspend the workflow, carrying $request OUTBOUND to the caller/scheduler.
+     * Suspend the workflow, carrying $request OUTBOUND to the caller.
      * On first pass this throws the internal suspend signal; on resume it
      * returns the inbound payload — node code after the call runs only on resume.
      *
@@ -153,8 +159,8 @@ abstract class Node implements NodeInterface
     /**
      * Suspend the workflow until an external event named $eventName is
      * delivered — sugar over {@see interrupt()} with a WaitForEventRequest.
-     * When the optional $expiresAt deadline elapses, the scheduler resumes
-     * with $timedOut and this returns null: the null return is the timeout
+     * When the optional $expiresAt deadline elapses, a caller delivers an
+     * expiry input and this returns null: the null return is the timeout
      * signal — node code must NOT compare the clock itself.
      *
      * @return array<string, mixed>|null The event payload, or null on timeout.
@@ -162,9 +168,11 @@ abstract class Node implements NodeInterface
     protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?array
     {
         $payload = $this->interrupt(new WaitForEventRequest($eventName, $expiresAt));
+        $timedOut = $this->timedOut;
+        $this->timedOut = false;
 
         // Reached only on resume.
-        if ($this->timedOut) {
+        if ($timedOut) {
             return null;
         }
 
@@ -173,8 +181,8 @@ abstract class Node implements NodeInterface
 
     /**
      * Suspend the workflow until a clock time — sugar over {@see interrupt()}
-     * with a SleepUntilRequest. Whether and when to fire is the scheduler's
-     * job; a timer resume carries no value, so this returns null on resume.
+     * with a SleepUntilRequest. External coordination decides when to deliver
+     * the timer input; the timer carries no value, so this returns null.
      */
     protected function sleepUntil(DateTimeImmutable $wakeAt): ?array
     {
@@ -186,7 +194,7 @@ abstract class Node implements NodeInterface
 
     public function isResuming(): bool
     {
-        return $this->payload !== null;
+        return $this->resuming;
     }
 
     /**

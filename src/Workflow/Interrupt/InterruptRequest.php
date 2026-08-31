@@ -17,7 +17,7 @@ use JsonSerializable;
 abstract class InterruptRequest implements JsonSerializable
 {
     /**
-     * The suspend category — which scheduler capability should produce the wakeup.
+     * The suspend category — which external capability should produce the input.
      *
      * Subclasses inherit their base type's value; specialize the payload, not the
      * type (adding a type is a framework concern, see {@see InterruptType}).

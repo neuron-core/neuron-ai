@@ -6,8 +6,6 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Workflow\Channel\StreamingChannelInterface;
-use NeuronAI\Workflow\Executor\NullScheduler;
-use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -29,9 +27,9 @@ trait HandleComponents
 
     protected ?Serializer $serializer = null;
 
-    protected ?SchedulerInterface $scheduler = null;
-
     protected ?int $leaseTimeout = null;
+
+    protected bool $retainCompletion = false;
 
     protected ?StreamingChannelInterface $channel = null;
 
@@ -94,26 +92,6 @@ trait HandleComponents
     protected function serializer(): Serializer
     {
         return new PhpSerializer();
-    }
-
-    /**
-     * The coordinator that wakes suspended workflows. The default
-     * NullScheduler is inert: resume stays caller-driven.
-     */
-    public function setScheduler(SchedulerInterface $scheduler): static
-    {
-        $this->scheduler = $scheduler;
-        return $this;
-    }
-
-    final public function getScheduler(): SchedulerInterface
-    {
-        return $this->scheduler ??= $this->scheduler();
-    }
-
-    protected function scheduler(): SchedulerInterface
-    {
-        return new NullScheduler();
     }
 
     /**

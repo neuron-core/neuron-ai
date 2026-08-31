@@ -28,6 +28,7 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use Throwable;
 
 use function is_array;
@@ -411,23 +412,25 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The single continuation verb. It carries no identity logic of its own:
-     * the engine identifies the run from the threadId (the Agent's declared
-     * workflow ID) or an explicit workflow ID. A null payload revives without
-     * delivering anything; an empty array delivers an empty decision set.
-     *
-     * @param array<string, mixed>|null $payload
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param non-empty-list<ResumeInput> $inputs
      * @throws Throwable
      * @throws WorkflowException
      */
     public function resume(
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs,
         ?string $expectedRunId = null,
     ): AgentState {
         /** @var AgentState $state */
-        $state = parent::resume($payload, $timedOut, $expectedRunId);
+        $state = parent::resume($inputs, $expectedRunId);
+        return $state;
+    }
+
+    public function recover(
+        ?string $expectedRunId = null,
+        ?int $expectedExecutionAttempt = null,
+    ): AgentState {
+        /** @var AgentState $state */
+        $state = parent::recover($expectedRunId, $expectedExecutionAttempt);
         return $state;
     }
 

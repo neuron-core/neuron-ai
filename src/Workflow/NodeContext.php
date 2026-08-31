@@ -19,6 +19,8 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NodeContext
 {
+    public readonly bool $resuming;
+
     /**
      * @param array<string, mixed>|null $payload The inbound resume payload, or null when not resuming.
      * @param bool $timedOut True when the resume was produced by a deadline elapsing.
@@ -30,6 +32,8 @@ class NodeContext
         public readonly bool $timedOut = false,
         public readonly ?StepMemoizer $memoizer = null,
         public readonly ?EventDispatcherInterface $dispatcher = null,
+        ?bool $resuming = null,
     ) {
+        $this->resuming = $resuming ?? ($this->payload !== null || $this->timedOut);
     }
 }

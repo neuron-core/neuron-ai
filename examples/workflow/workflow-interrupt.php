@@ -6,6 +6,7 @@ use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -42,15 +43,14 @@ if ($state->isInterrupted()) {
  * ---------------------------------------
  *
  * Rebuild the workflow with the workflow ID and the same persistence, then
- * resume by delivering an inbound PAYLOAD — a plain array carrying the answer
- * to the pause (a human decision, an event body, etc.). The outbound
+ * resume by delivering an addressed ResumeInput carrying the answer to the
+ * pause (a human decision, an event body, etc.). The outbound
  * InterruptRequest is never passed back in: it described the pause, the payload
  * satisfies it.
  *
- * For tool approval, the payload is INCREMENTAL and keyed by the tool callId —
+ * For tool approval, the payload is keyed by the tool callId —
  * e.g. ['call_123' => 'approve'] or ['call_456' => ['reject', 'too expensive']].
- * It carries only NEW decisions; the cumulative state lives in chat history,
- * not in the payload.
+ * The complete current decision set is restated on every resume.
  */
 $workflow = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
@@ -63,7 +63,9 @@ $workflow = Workflow::make(workflowId: $workflowId)
 // The inbound payload — the answer to the pause.
 $payload = ['action_id' => 'approve'];
 
-$finalState = $workflow->resume($payload);
+$finalState = $workflow->resume([
+    ResumeInput::event($state->getSuspensions()[0]->id, $payload),
+]);
 
 // It should print "completed"
 echo $finalState->get('received_feedback') . \PHP_EOL;

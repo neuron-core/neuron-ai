@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
+use JsonException;
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 
 use function file_get_contents;
@@ -12,16 +14,23 @@ use function is_dir;
 use function is_file;
 use function json_decode;
 use function json_encode;
+use function is_array;
+use function is_string;
 use function rawurlencode;
 use function unlink;
 use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
 use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * One file per partition in the configured directory (`<partition>.store`),
  * containing a JSON map of key => value strings.
+ *
+ * This backend provides restart durability for controlled single-process use.
+ * Its in-memory cache and file replacement are deliberately not a lock or CAS
+ * protocol for concurrent workers; use a transactional database backend there.
  */
 class FilePersistence implements PersistenceInterface
 {
@@ -36,38 +45,69 @@ class FilePersistence implements PersistenceInterface
         }
     }
 
-    public function put(string $partition, string $key, string $value): void
-    {
-        $data = $this->getData($partition);
-        $data[$key] = $value;
-        $this->cache[$partition] = $data;
-
-        $path = $this->filePath($partition);
-
-        // A dropped write would silently un-persist a durable record: an
-        // over-long filename, a full disk, or missing permissions must
-        // surface here, not at the next (impossible) resume.
-        if (@file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT)) === false) {
-            throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
-        }
-    }
-
     public function get(string $partition, string $key): ?string
     {
         return $this->getData($partition)[$key] ?? null;
     }
 
-    public function delete(string $partition): void
-    {
-        unset($this->cache[$partition]);
+    public function initializeIfAbsent(
+        string $partition,
+        string $conditionKey,
+        string $initialValue,
+        array $records = [],
+    ): bool {
+        $data = $this->getData($partition);
+        if (isset($data[$conditionKey])) {
+            return false;
+        }
 
+        $records[$conditionKey] = $initialValue;
+        foreach ($records as $key => $value) {
+            $data[$key] = $value;
+        }
+
+        $this->writePartition($partition, $data);
+
+        return true;
+    }
+
+    public function writeIfUnchanged(
+        string $partition,
+        string $conditionKey,
+        string $expectedValue,
+        array $records,
+    ): bool {
+        $data = $this->getData($partition);
+        if (($data[$conditionKey] ?? null) !== $expectedValue) {
+            return false;
+        }
+
+        foreach ($records as $key => $value) {
+            $data[$key] = $value;
+        }
+
+        $this->writePartition($partition, $data);
+
+        return true;
+    }
+
+    public function deleteIfUnchanged(
+        string $partition,
+        string $conditionKey,
+        string $expectedValue,
+    ): bool {
+        if (($this->getData($partition)[$conditionKey] ?? null) !== $expectedValue) {
+            return false;
+        }
+
+        unset($this->cache[$partition]);
         $path = $this->filePath($partition);
 
-        // A silently failed delete would leave the workflow ID reading as
-        // "run in flight" forever — the sweep must fail as loudly as a write.
         if (is_file($path) && !@unlink($path)) {
             throw new WorkflowException("Unable to delete partition '{$partition}' at '{$path}'.");
         }
+
+        return true;
     }
 
     /** @return array<string, string> */
@@ -83,7 +123,41 @@ class FilePersistence implements PersistenceInterface
             return [];
         }
 
-        return json_decode(file_get_contents($path), true) ?? [];
+        $contents = @file_get_contents($path);
+        if ($contents === false) {
+            throw new PersistenceException("Unable to read Workflow partition at '{$path}'.");
+        }
+
+        try {
+            $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new PersistenceException("Corrupted Workflow partition at '{$path}'.", previous: $e);
+        }
+
+        if (!is_array($data)) {
+            throw new PersistenceException("Corrupted Workflow partition at '{$path}': expected a JSON object.");
+        }
+
+        foreach ($data as $key => $value) {
+            if (!is_string($key) || !is_string($value)) {
+                throw new PersistenceException(
+                    "Corrupted Workflow partition at '{$path}': every key and value must be a string."
+                );
+            }
+        }
+
+        return $data;
+    }
+
+    /** @param array<string, string> $data */
+    protected function writePartition(string $partition, array $data): void
+    {
+        $this->cache[$partition] = $data;
+        $path = $this->filePath($partition);
+
+        if (@file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT)) === false) {
+            throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+        }
     }
 
     /**

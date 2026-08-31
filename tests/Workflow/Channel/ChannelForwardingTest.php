@@ -19,6 +19,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -214,7 +215,7 @@ class ChannelForwardingTest extends TestCase
 
         $workflow->run();
         // An incomplete payload re-suspends: consumers upsert by runId, never append.
-        $workflow->resume(['partial' => true]);
+        $workflow->resume([ResumeInput::event(1, ['partial' => true])]);
 
         $this->assertCount(2, $channel->suspensions);
         $this->assertInstanceOf(ApprovalRequest::class, $channel->suspensions[0]['request']);
@@ -224,7 +225,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame($channel->suspensions[0]['workflowId'], $channel->suspensions[1]['workflowId']);
         $this->assertCount(0, $channel->completions);
 
-        $state = $workflow->resume(['complete' => true]);
+        $state = $workflow->resume([ResumeInput::event(2, ['complete' => true])]);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(2, $channel->suspensions);
@@ -276,7 +277,7 @@ class ChannelForwardingTest extends TestCase
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
         $workflow->setChannel($resumeSegment);
-        $state = $workflow->resume([]);
+        $state = $workflow->resume([ResumeInput::event(1, [])]);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->sent);

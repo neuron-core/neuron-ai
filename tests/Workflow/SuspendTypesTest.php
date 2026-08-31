@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use DateTimeImmutable;
@@ -98,6 +99,21 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('sleep_resumed'));
         $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function testResumeKindMustMatchTheSuspensionType(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make(workflowId: 'sleep-kind')
+            ->setPersistence($persistence)
+            ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
+
+        $workflow->run();
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage("incompatible with suspension 1");
+
+        $workflow->resume([ResumeInput::event(1, [])]);
     }
 
     public function testWaitForEventSurvivesFilePersistenceSerialization(): void

@@ -26,142 +26,128 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Persistence\Serializer;
+use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Resume\ResumeInputResult;
+use NeuronAI\Workflow\Resume\ResumeInputStatus;
+use NeuronAI\Workflow\Resume\ResumeKind;
+use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function in_array;
 use function str_starts_with;
 use function time;
 use function uniqid;
 
 /**
- * The run lifecycle: ignition (register / adopt / refuse), bootstrap,
- * replay-based traversal, terminal handling. Owns no configuration — it reads
- * the run's context off the WorkflowRuntimeInterface at execute() time, so one
- * execution model composes with any persistence backend or scheduler.
- *
- * Replay is keyed by step id alone: ids are unique within a run, so a cached
- * completed step is always prior work and safe to skip. Interrupted steps
- * resume from the inbound payload; failed steps retry.
- *
- * This is the in-process model; AsyncExecutor runs parallel branches concurrently.
+ * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
+ * by the byte-identical __control value that granted this execution attempt.
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
-    /**
-     * The generation head of the workflow's partition: its presence is what
-     * "a run in flight" means, and its record names the runId currently
-     * holding the workflow ID. Deleted with the partition on clean completion.
-     */
-    protected const IGNITION_KEY = '__ignition';
-
-    /**
-     * The execution lease (opt-in): a unix-time heartbeat, or RELEASED on a
-     * deliberate stop.
-     */
-    protected const LEASE_KEY = '__lease';
-
-    protected const LEASE_RELEASED = 'released';
-
-    protected PersistenceInterface $persistence;
-
-    protected SchedulerInterface $scheduler;
-
-    protected Serializer $serializer;
-
+    protected WorkflowRunStore $runStore;
     protected ?int $leaseTimeout = null;
-
     protected string $workflowId;
-
     protected string $runId;
 
-    /**
-     * Null means fresh start or crash-recovery replay; a non-null array (even
-     * empty) means a deliberate resume — the interrupted step consumes it.
-     */
-    protected ?array $pendingPayload = null;
+    /** @var array<int, ResumeInput> */
+    protected array $pendingInputs = [];
 
-    protected bool $pendingTimedOut = false;
+    /** @var ResumeInputResult[] */
+    protected array $inputResults = [];
 
     /**
-     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
-     * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param list<ResumeInput> $inputs
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
     public function execute(
         WorkflowRuntimeInterface $workflow,
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs = [],
         bool $resuming = false,
         ?string $expectedRunId = null,
+        bool $recovering = false,
+        ?int $expectedExecutionAttempt = null,
     ): Generator {
-        $this->persistence = $workflow->getPersistence();
-        $this->scheduler = $workflow->getScheduler();
-        $this->serializer = $workflow->getSerializer();
+        $this->pendingInputs = [];
+        $this->inputResults = [];
         $this->leaseTimeout = $workflow->getLeaseTimeout();
-        $this->workflowId = $this->resolveWorkflowId($workflow, $resuming);
-        $this->runId = $this->resolveIgnition($workflow, $resuming, $expectedRunId);
-        $workflow->adoptIdentity($this->workflowId, $this->runId);
-        $this->pendingPayload = $payload;
-        $this->pendingTimedOut = $timedOut;
-        $this->renewLease();
+        $this->workflowId = $this->resolveWorkflowId($workflow, $resuming || $recovering);
+        $this->runStore = new WorkflowRunStore(
+            $workflow->getPersistence(),
+            $workflow->getSerializer(),
+            $this->workflowId,
+        );
 
+        $terminalState = $resuming || $recovering
+            ? $this->continueRun($workflow, $inputs, $expectedRunId, $recovering, $expectedExecutionAttempt)
+            : $this->startRun($workflow);
+
+        if ($terminalState instanceof WorkflowState) {
+            return $terminalState;
+        }
+
+        $workflow->adoptIdentity($this->workflowId, $this->runId);
         $workflow->bootstrap();
 
-        $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowStart($workflow->getEventNodeMap()), $workflow);
-        $workflow->getState()->set('__workflowId', $this->workflowId);
-        $workflow->getState()->set('__runId', $this->runId);
+        $this->dispatchEvent(
+            $workflow->getEventDispatcher(),
+            new WorkflowStart($workflow->getEventNodeMap()),
+            $workflow,
+        );
+
+        $workflow->getState()->markAsRunning();
+        $this->stampState($workflow->getState());
+        $workflow->getState()->setInputResults($this->inputResults);
 
         try {
-            // A deliberate resume cancels the wakeup it satisfies, leaving no
-            // stale scheduler registration; start/replay fires no onResume.
-            if ($payload !== null) {
-                $this->scheduler->onResume($this->workflowId, $this->runId);
-            }
-
             $terminal = yield from $this->traverse(
                 $workflow,
                 $workflow->getStartEvent(),
                 $workflow->getState(),
             );
+            $this->stampState($workflow->getState());
 
             if ($terminal instanceof InterruptEvent) {
-                // A pause is a scheduled wait, not a failure: it is surfaced
-                // functionally on the state and as a dedicated event, never an
-                // AgentError. Steps are kept for resume.
-                $workflow->getState()->markAsInterrupted($terminal->request);
-                $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowInterrupted($terminal->request), $workflow);
-                $this->releaseLease();
-                $this->scheduler->onSuspend($this->workflowId, $this->runId, $terminal->request);
+                $workflow->getState()->setInputResults($this->inputResults);
+                $requests = [];
+                foreach ($terminal->all() as $interrupt) {
+                    $requests[] = $interrupt->request;
+                }
+
+                $workflow->getState()->markAsSuspended($requests, $this->portableSuspensions());
+                $this->runStore->replaceControl($this->runStore->control()->suspended());
+
+                foreach ($requests as $request) {
+                    $this->dispatchEvent(
+                        $workflow->getEventDispatcher(),
+                        new WorkflowInterrupted($request),
+                        $workflow,
+                    );
+                }
+
                 yield $terminal;
             } else {
-                // Fenced sweep: delete only while the generation head still
-                // names this run. A stale replica completing after another
-                // run took the workflow ID must not destroy the live run's
-                // records or drop its coordination state. Check-then-delete
-                // is not atomic — the residual window is accepted to keep
-                // the store contract at three methods.
-                $head = $this->loadIgnition();
-                if ($head instanceof Ignition && $head->runId === $this->runId) {
-                    $this->persistence->delete($this->workflowId);
-                    $this->scheduler->onComplete($this->workflowId, $this->runId);
-                }
+                $workflow->getState()->setInputResults($this->inputResults);
                 $workflow->getState()->clearInterrupt();
+                if ($workflow->shouldRetainCompletionUntilAcknowledged()) {
+                    $this->runStore->replaceControl(
+                        $this->runStore->control()->completed($workflow->getState()),
+                    );
+                } else {
+                    $this->deleteOwnedPartition();
+                }
             }
 
             return $workflow->getState();
         } catch (Throwable $e) {
-            try {
-                $this->releaseLease();
-            } catch (Throwable) {
-                // The original failure is the story; an unreleased lease ages out.
-            }
-
+            $this->stampState($workflow->getState());
+            $workflow->getState()->setInputResults($this->inputResults);
+            $workflow->getState()->markAsFailed();
+            $this->markControlFailed();
             $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
             throw $e;
         } finally {
@@ -169,20 +155,192 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
-    /**
-     * Establish WHERE this workflow's durable records live. The declared
-     * business key wins; an explicit workflow ID must agree with it — two
-     * identities silently disagreeing is a misidentified run. A fresh
-     * ignition without any workflow ID generates one.
-     *
-     * @throws WorkflowException
-     */
-    protected function resolveWorkflowId(WorkflowRuntimeInterface $workflow, bool $resuming): string
+    public function acknowledgeCompletion(
+        WorkflowRuntimeInterface $workflow,
+        string $expectedRunId,
+    ): void {
+        $this->workflowId = $this->resolveWorkflowId($workflow, true);
+        $this->runStore = new WorkflowRunStore(
+            $workflow->getPersistence(),
+            $workflow->getSerializer(),
+            $this->workflowId,
+        );
+        $this->loadControl($expectedRunId);
+
+        $control = $this->runStore->control();
+        if ($control->runId !== $expectedRunId) {
+            throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $control->runId);
+        }
+
+        if ($control->status !== WorkflowStatus::Completed) {
+            throw new WorkflowException(
+                "Run '{$expectedRunId}' for workflow ID '{$this->workflowId}' is not completed."
+            );
+        }
+
+        if (!$this->runStore->deleteIfOwned()) {
+            throw new WorkflowException(
+                "Completion acknowledgement conflicted for workflow ID '{$this->workflowId}'."
+            );
+        }
+    }
+
+    protected function startRun(WorkflowRuntimeInterface $workflow): ?WorkflowState
     {
-        // A later segment of an instance that already resolved identity keeps
-        // it — local state wins. The declared/explicit conflict check below
-        // guards caller statements, not identity adopted mid-run.
-        if ($workflow->getRunId() !== null && $workflow->getWorkflowId() !== null) {
+        $this->runId = uniqid('run_');
+        $control = new WorkflowControl(
+            runId: $this->runId,
+            status: WorkflowStatus::Running,
+            leaseExpiresAt: $this->leaseExpiry(),
+        );
+
+        if (!$this->runStore->initialize($control, $workflow->makeIgnition($this->runId))) {
+            throw new WorkflowException(
+                "A run is already in flight for workflow ID '{$this->workflowId}' — "
+                . 'resume or settle it before igniting a new one.'
+            );
+        }
+
+        return null;
+    }
+
+    /** @param list<ResumeInput> $inputs */
+    protected function continueRun(
+        WorkflowRuntimeInterface $workflow,
+        array $inputs,
+        ?string $expectedRunId,
+        bool $recovering,
+        ?int $expectedExecutionAttempt,
+    ): ?WorkflowState {
+        $this->loadControl($expectedRunId);
+        $this->runId = $this->runStore->control()->runId;
+
+        if ($expectedRunId !== null && $expectedRunId !== $this->runId) {
+            throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $this->runId);
+        }
+
+        $ignition = $this->runStore->loadIgnition();
+        if (!$ignition instanceof Ignition) {
+            throw new WorkflowException(
+                "Run '{$this->runId}' for workflow ID '{$this->workflowId}' has no ignition record."
+            );
+        }
+        if ($ignition->runId !== $this->runId) {
+            throw new WorkflowException(
+                "Workflow ID '{$this->workflowId}' has mismatched __control and __ignition generations."
+            );
+        }
+
+        $workflow->adoptIdentity($this->workflowId, $this->runId);
+        $workflow->adoptIgnition($ignition);
+
+        if ($this->runStore->control()->status === WorkflowStatus::Completed) {
+            $state = $this->runStore->control()->completedState;
+            if (!$state instanceof WorkflowState) {
+                throw new WorkflowException("Completed run '{$this->runId}' has no retained outcome.");
+            }
+            $workflow->setState($state);
+            return $state;
+        }
+
+        if ($recovering) {
+            $this->prepareRecovery($expectedExecutionAttempt);
+        } else {
+            $this->prepareResume($inputs);
+
+            if ($this->pendingInputs === []) {
+                $state = $workflow->getState();
+                $this->stampState($state);
+                $state->setInputResults($this->inputResults);
+                $state->markAsSuspended([], $this->portableSuspensions());
+                return $state;
+            }
+        }
+
+        $this->runStore->replaceControl(
+            $this->runStore->control()->withInputs($this->pendingInputs)->claim($this->leaseExpiry()),
+        );
+
+        return null;
+    }
+
+    /** @param list<ResumeInput> $inputs */
+    protected function prepareResume(array $inputs): void
+    {
+        if ($inputs === []) {
+            throw new WorkflowException('resume() requires at least one ResumeInput. Use recover() for replay.');
+        }
+
+        $control = $this->runStore->control();
+        if (!in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)) {
+            throw new WorkflowException(
+                "Run '{$this->runId}' is '{$control->status->value}', not suspended."
+            );
+        }
+
+        $seen = [];
+        foreach ($inputs as $input) {
+            if (!$input instanceof ResumeInput) {
+                throw new WorkflowException('Every resume input must be an instance of ' . ResumeInput::class . '.');
+            }
+            if (isset($seen[$input->suspensionId])) {
+                throw new WorkflowException("Duplicate suspension ID {$input->suspensionId} in resume batch.");
+            }
+            $seen[$input->suspensionId] = true;
+
+            $active = $control->suspensions[$input->suspensionId] ?? null;
+            if (!$active instanceof ActiveSuspension) {
+                $this->inputResults[] = new ResumeInputResult(
+                    $input->suspensionId,
+                    ResumeInputStatus::Stale,
+                );
+                continue;
+            }
+
+            $active->suspension->validate($input);
+            $this->pendingInputs[$input->suspensionId] = $input;
+            $this->inputResults[] = new ResumeInputResult(
+                $input->suspensionId,
+                ResumeInputStatus::Accepted,
+            );
+        }
+    }
+
+    protected function prepareRecovery(?int $expectedExecutionAttempt): void
+    {
+        $control = $this->runStore->control();
+        if (
+            $expectedExecutionAttempt !== null
+            && $expectedExecutionAttempt !== $control->executionAttempt
+        ) {
+            throw new WorkflowException(
+                "Stale recovery for workflow ID '{$this->workflowId}': expected execution attempt "
+                . "{$expectedExecutionAttempt}, current attempt is {$control->executionAttempt}."
+            );
+        }
+
+        if (
+            $control->status === WorkflowStatus::Running
+            && $this->leaseTimeout !== null
+            && $control->leaseExpiresAt !== null
+            && $control->leaseExpiresAt > time()
+        ) {
+            throw new WorkflowException(
+                "The run for workflow ID '{$this->workflowId}' appears to be executing "
+                . "(lease expires at {$control->leaseExpiresAt}) — not recovering."
+            );
+        }
+
+        foreach ($control->suspensions as $id => $active) {
+            if ($active->input instanceof ResumeInput) {
+                $this->pendingInputs[$id] = $active->input;
+            }
+        }
+    }
+
+    protected function resolveWorkflowId(WorkflowRuntimeInterface $workflow, bool $continuing): string
+    {
+        if ($workflow->getWorkflowId() !== null && $workflow->getRunId() !== null) {
             return $workflow->getWorkflowId();
         }
 
@@ -197,15 +355,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         $workflowId = $declared ?? $explicit;
-
         if ($workflowId === null) {
-            if ($resuming) {
+            if ($continuing) {
                 throw new WorkflowException(
                     'Cannot identify the run to continue: no workflow ID was provided '
                     . 'and the workflow declares none.'
                 );
             }
-
             return uniqid('workflow_');
         }
 
@@ -219,146 +375,78 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $workflowId;
     }
 
-    /**
-     * Resolve which run holds the workflow ID, returning its generation
-     * stamp. An ignition refuses a workflow ID with a run in flight — a
-     * pending run is settled by resuming it, never silently replaced. A
-     * continuation adopts the record (a no-op for the workflow when its
-     * local state is already set) and fails loudly when there is nothing to
-     * continue.
-     *
-     * @throws WorkflowException
-     */
-    protected function resolveIgnition(
-        WorkflowRuntimeInterface $workflow,
-        bool $resuming,
-        ?string $expectedRunId = null,
-    ): string {
-        $ignition = $this->loadIgnition();
-
-        if ($resuming) {
-            if ($expectedRunId !== null && $ignition?->runId !== $expectedRunId) {
-                throw new StaleWorkflowRunException(
-                    $this->workflowId,
-                    $expectedRunId,
-                    $ignition?->runId,
-                );
+    protected function loadControl(?string $expectedRunId = null): void
+    {
+        if (!$this->runStore->loadControl() instanceof WorkflowControl) {
+            if ($expectedRunId !== null) {
+                throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, null);
             }
 
-            if (!$ignition instanceof Ignition) {
-                throw new WorkflowException(
-                    "No run in flight for workflow ID '{$this->workflowId}' — nothing to continue."
-                );
-            }
-
-            $this->guardLease();
-            $workflow->adoptIgnition($ignition);
-
-            return $ignition->runId;
-        }
-
-        if ($ignition instanceof Ignition) {
             throw new WorkflowException(
-                "A run is already in flight for workflow ID '{$this->workflowId}' — "
-                . "resume or settle it before igniting a new one."
+                "No run in flight for workflow ID '{$this->workflowId}' — nothing to continue."
             );
         }
-
-        $runId = uniqid('run_');
-        $this->saveIgnition($workflow->makeIgnition($runId));
-
-        return $runId;
     }
 
-    protected function saveIgnition(Ignition $ignition): void
+    protected function markControlFailed(): void
     {
-        $this->persistence->put($this->workflowId, self::IGNITION_KEY, $this->serializer->serialize($ignition));
+        if (!$this->runStore->hasControl() || $this->runStore->control()->status === WorkflowStatus::Completed) {
+            return;
+        }
+
+        try {
+            $this->runStore->replaceControl($this->runStore->control()->failed());
+        } catch (Throwable) {
+            // A newer owner won the control record. Preserve the original failure.
+        }
     }
 
-    protected function loadIgnition(): ?Ignition
+    protected function deleteOwnedPartition(): void
     {
-        $raw = $this->persistence->get($this->workflowId, self::IGNITION_KEY);
-        $ignition = $raw === null ? null : $this->serializer->unserialize($raw);
-
-        return $ignition instanceof Ignition ? $ignition : null;
+        if (!$this->runStore->deleteIfOwned()) {
+            $attempt = $this->runStore->control()->executionAttempt;
+            throw new WorkflowException(
+                "Stale execution attempt {$attempt} cannot complete workflow ID '{$this->workflowId}'."
+            );
+        }
     }
 
-    protected function saveStep(string $stepId, StepResult $result): void
+    protected function leaseExpiry(): ?int
     {
-        $this->persistence->put($this->workflowId, $this->recordKey($stepId), $this->serializer->serialize($result));
+        return $this->leaseTimeout === null ? null : time() + $this->leaseTimeout;
     }
 
-    /**
-     * Heartbeat the lease: "this run is still executing, as of now". A no-op
-     * unless the workflow opted in via setLeaseTimeout().
-     */
     protected function renewLease(): void
     {
-        if ($this->leaseTimeout === null) {
-            return;
+        if ($this->leaseTimeout !== null) {
+            $this->runStore->replaceControl($this->runStore->control()->heartbeat($this->leaseExpiry()));
         }
-
-        $this->persistence->put($this->workflowId, self::LEASE_KEY, (string) time());
     }
 
-    /**
-     * Mark the stop as deliberate: a released lease never blocks a resume,
-     * distinguishing "paused/failed and said so" from the silence of a
-     * violent crash.
-     */
-    protected function releaseLease(): void
+    protected function stampState(WorkflowState $state): void
     {
-        if ($this->leaseTimeout === null) {
-            return;
-        }
-
-        $this->persistence->put($this->workflowId, self::LEASE_KEY, self::LEASE_RELEASED);
+        $state->set('__workflowId', $this->workflowId);
+        $state->set('__runId', $this->runId);
+        $state->set('__executionAttempt', $this->runStore->control()->executionAttempt);
     }
 
-    /**
-     * Refuse to continue a run whose lease is held and fresher than the
-     * timeout: a process is probably executing it right now, and adopting
-     * it would duplicate live work, not revive dead work. The check is a
-     * heartbeat-based guess, not mutual exclusion — a crashed run's lease
-     * simply ages past the timeout and recovery proceeds.
-     *
-     * @throws WorkflowException
-     */
-    protected function guardLease(): void
+    /** @return Suspension[] */
+    protected function portableSuspensions(): array
     {
-        if ($this->leaseTimeout === null) {
-            return;
+        $suspensions = [];
+        foreach ($this->runStore->control()->suspensions as $active) {
+            $suspensions[] = $active->suspension;
         }
-
-        $lease = $this->persistence->get($this->workflowId, self::LEASE_KEY);
-
-        if ($lease === null || $lease === self::LEASE_RELEASED) {
-            return;
-        }
-
-        $heartbeatAge = time() - (int) $lease;
-
-        if ($heartbeatAge < $this->leaseTimeout) {
-            throw new WorkflowException(
-                "The run for workflow ID '{$this->workflowId}' appears to be executing "
-                . "(last heartbeat {$heartbeatAge}s ago, lease timeout {$this->leaseTimeout}s) — not resuming."
-            );
-        }
+        return $suspensions;
     }
 
     protected function loadStep(string $stepId): ?StepResult
     {
-        $raw = $this->persistence->get($this->workflowId, $this->recordKey($stepId));
-        $result = $raw === null ? null : $this->serializer->unserialize($raw);
+        $result = $this->runStore->readRecord($this->recordKey($stepId));
 
         return $result instanceof StepResult ? $result : null;
     }
 
-    /**
-     * Step and memo records are runId-prefixed: a workflow ID is reused across
-     * runs, and a leftover record from a prior generation must never be
-     * replayed as this run's work — step ids alone would collide.
-     */
     protected function recordKey(string $stepId): string
     {
         return $this->runId . '/' . $stepId;
@@ -370,10 +458,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     }
 
     /**
-     * Run a single node through its full lifecycle, yielding streamed events
-     * in real time. A thrown WorkflowInterrupt is converted here into an
-     * InterruptEvent terminal — traversal never sees a thrown interrupt.
-     *
      * @param WorkflowMiddleware[] $middleware
      * @return Generator<int, Event, mixed, Event>
      */
@@ -384,7 +468,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId = null,
     ): Generator {
         $node->setWorkflowContext($context);
-
         $event = $context->event;
         $state = $context->state;
         $dispatcher = $context->dispatcher;
@@ -399,7 +482,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             $result = $node->run($event, $state);
-
             if ($result instanceof Generator) {
                 foreach ($result as $streamedEvent) {
                     yield $streamedEvent;
@@ -414,22 +496,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             $this->dispatchEvent($dispatcher, new WorkflowNodeEnd($node::class, $state), $node, $branchId);
-
             return $result;
         } catch (WorkflowInterrupt $interrupt) {
-            // Events already yielded before the throw are preserved.
             return new InterruptEvent($interrupt->getRequest());
         }
     }
 
-    /**
-     * Run one node as a durable step: return the cached StepResult when a
-     * prior run completed it (streamed events are not replayed), resume an
-     * interrupted step by injecting the inbound payload, retry a failed one.
-     *
-     * @return Generator<int, Event, mixed, StepResult>
-     * @throws Throwable
-     */
+    /** @return Generator<int, Event, mixed, StepResult> */
     protected function runNodeStep(
         WorkflowRuntimeInterface $workflow,
         NodeInterface $node,
@@ -438,20 +511,18 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
-        // Liveness is signalled per step visit — replayed steps included: a
-        // reviving process racing through its cached tail is executing too.
         $this->renewLease();
-
         $cached = $this->loadStep($stepId);
 
-        // A recalled event was stripped of its transient capability at
-        // persistence time; this deserialization site is where the workflow
-        // restores it. Live results below never pass through restore.
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
         }
 
-        $resuming = $cached instanceof StepResult && $cached->isInterrupted() && $this->pendingPayload !== null;
+        $suspensionId = $cached?->getSuspensionId();
+        $input = $suspensionId === null ? null : ($this->pendingInputs[$suspensionId] ?? null);
+        $resuming = $input instanceof ResumeInput;
+        $payload = $input?->kind === ResumeKind::Event ? $input->payload : null;
+        $timedOut = $input?->kind === ResumeKind::Expired;
 
         try {
             $terminal = yield from $this->runNode(
@@ -459,46 +530,91 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 new NodeContext(
                     state: $state,
                     event: $event,
-                    payload: $resuming ? $this->pendingPayload : null,
-                    timedOut: $resuming && $this->pendingTimedOut,
-                    memoizer: new StepMemoizer($this->persistence, $this->serializer, $this->workflowId, $this->recordKey($stepId)),
+                    payload: $payload,
+                    timedOut: $timedOut,
+                    resuming: $resuming,
+                    memoizer: $this->runStore->memoizer($this->recordKey($stepId)),
                     dispatcher: $workflow->getEventDispatcher(),
                 ),
                 $workflow->getMiddlewareForNode($node),
                 $branchId,
             );
         } catch (Throwable $e) {
-            // The failed marker makes this step retry on recovery,
-            // never replay from cache.
-            $this->saveStep($stepId, new StepResult(
-                stepId: $stepId,
-                error: ['message' => $e->getMessage(), 'class' => $e::class],
-            ));
+            $this->runStore->writeRecords([
+                $this->recordKey($stepId) => new StepResult(
+                    stepId: $stepId,
+                    interrupted: $suspensionId !== null,
+                    suspensionId: $suspensionId,
+                    error: ['message' => $e->getMessage(), 'class' => $e::class],
+                ),
+            ]);
             throw $e;
         }
 
-        // On interrupt, persist only a marker: the InterruptRequest rides the
-        // event outbound but is NOT persisted — it is rebuilt by re-running
-        // the node on resume, keeping developer objects out of the serializer.
         if ($terminal instanceof InterruptEvent) {
-            $this->saveStep($stepId, new StepResult(stepId: $stepId, interrupted: true));
-            return new StepResult(stepId: $stepId, event: $terminal, state: $state, interrupted: true);
+            if ($suspensionId !== null && !$resuming) {
+                $active = $this->runStore->control()->suspensions[$suspensionId] ?? null;
+                if (!$active instanceof ActiveSuspension) {
+                    throw new WorkflowException("Suspension {$suspensionId} has no active control record.");
+                }
+
+                $interrupt = new InterruptEvent($terminal->request, $suspensionId);
+                return new StepResult(
+                    stepId: $stepId,
+                    event: $interrupt,
+                    state: $state,
+                    interrupted: true,
+                    suspensionId: $suspensionId,
+                );
+            }
+
+            $newId = $this->runStore->control()->nextSuspensionId;
+            $active = new ActiveSuspension(
+                Suspension::fromRequest($newId, $terminal->request),
+                $stepId,
+                $branchId,
+            );
+            $control = $this->runStore->control();
+            if ($suspensionId !== null) {
+                $control = $control->removeSuspension($suspensionId);
+                unset($this->pendingInputs[$suspensionId]);
+            }
+            $control = $control->addSuspension($active);
+
+            $marker = new StepResult(
+                stepId: $stepId,
+                interrupted: true,
+                suspensionId: $newId,
+            );
+            $this->runStore->replaceControl($control, [$this->recordKey($stepId) => $marker]);
+
+            $interrupt = new InterruptEvent($terminal->request, $newId);
+            return new StepResult(
+                stepId: $stepId,
+                event: $interrupt,
+                state: $state,
+                interrupted: true,
+                suspensionId: $newId,
+            );
         }
 
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
-        $this->saveStep($stepId, $result);
+        $records = [$this->recordKey($stepId) => $result];
+
+        if ($suspensionId !== null) {
+            unset($this->pendingInputs[$suspensionId]);
+            $this->runStore->replaceControl(
+                $this->runStore->control()->removeSuspension($suspensionId),
+                $records,
+            );
+        } else {
+            $this->runStore->writeRecords($records);
+        }
 
         return $result;
     }
 
-    /**
-     * Traverse nodes as durable steps, on the main path ($branchId null) or
-     * inside a parallel branch. Returns the terminal event: StopEvent on
-     * completion, InterruptEvent when traversal paused for input.
-     *
-     * @return Generator<int, Event, mixed, Event>
-     * @throws Throwable
-     */
+    /** @return Generator<int, Event, mixed, Event> */
     protected function traverse(
         WorkflowRuntimeInterface $workflow,
         Event $event,
@@ -510,14 +626,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         while (!($event instanceof StopEvent) && !($event instanceof InterruptEvent)) {
             $stepId = $this->buildStepId($node, $branchId, $index++);
-
             $result = yield from $this->runNodeStep($workflow, $node, $event, $state, $branchId, $stepId);
-
             $event = $result->getEvent();
 
             if ($branchId === null) {
-                // Main-path state follows the step result so a replayed step
-                // restores its persisted state; a branch keeps its clone.
                 $workflow->setState($result->getState());
                 $state = $workflow->getState();
             }
@@ -536,45 +648,32 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $event;
     }
 
-    /**
-     * Execute parallel branches sequentially; a paused branch returns its
-     * InterruptEvent instead of the ParallelEvent. Subclasses override to
-     * change branch execution strategy.
-     *
-     * @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent>
-     * @throws Throwable
-     */
+    /** @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent> */
     protected function executeBranches(
         WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
     ): Generator {
+        $interrupts = [];
+
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
             if ($parallelEvent->hasResult($branchId)) {
                 continue;
             }
 
             $terminal = yield from $this->executeBranch($workflow, $branchId, $branchEvent);
-
             if ($terminal instanceof InterruptEvent) {
-                return $terminal;
-            }
-
-            if ($terminal instanceof StopEvent) {
+                foreach ($terminal->all() as $interrupt) {
+                    $interrupts[] = $interrupt;
+                }
+            } elseif ($terminal instanceof StopEvent) {
                 $parallelEvent->setResult($branchId, $terminal->getResult());
             }
         }
 
-        return $parallelEvent;
+        return $interrupts === [] ? $parallelEvent : InterruptEvent::aggregate($interrupts);
     }
 
-    /**
-     * Execute a single branch in isolation with a cloned state. Resume needs
-     * no branch routing: the branch always re-runs from its start event and
-     * step replay skips or resumes each step.
-     *
-     * @return Generator<int, Event, mixed, Event>
-     * @throws Throwable
-     */
+    /** @return Generator<int, Event, mixed, Event> */
     protected function executeBranch(
         WorkflowRuntimeInterface $workflow,
         string $branchId,
@@ -582,7 +681,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     ): Generator {
         $branchState = clone $workflow->getState();
         $branchState->set('__branchId', $branchId);
-
         $this->dispatchEvent($workflow->getEventDispatcher(), new BranchStart($branchId), $workflow, $branchId);
 
         try {
@@ -597,10 +695,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->dispatchEvent($workflow->getEventDispatcher(), new WorkflowEnd($workflow->getState()), $workflow);
     }
 
-    /**
-     * Null dispatcher is a no-op so runNode() stays runnable
-     * without a workflow (e.g. in tests).
-     */
     protected function dispatchEvent(
         ?EventDispatcherInterface $dispatcher,
         ObservabilityEvent $event,

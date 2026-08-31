@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow;
 
 use Generator;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -24,39 +25,44 @@ interface WorkflowInterface
     public function run(): WorkflowState;
 
     /**
-     * Continue the run in flight under the workflow ID: replay to its next boundary,
-     * delivering the payload only if one is given. A null payload revives
-     * without delivering anything — a still-suspended run re-emits its
-     * request, a crashed step retries. An empty array is NOT null: it
-     * delivers an explicitly empty answer to the waiting step.
-     *
-     * @param array<string, mixed>|null $payload The delivered answer, or null to deliver nothing.
-     * @param bool                      $timedOut True when the resume was a deadline elapsing.
-     * @param string|null               $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param non-empty-list<ResumeInput> $inputs
      */
     public function resume(
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs,
         ?string $expectedRunId = null,
     ): WorkflowState;
 
     /**
-     * The streaming counterpart of {@see run()} / {@see resume()}: yields
-     * events in real time and returns the final state. A non-null payload or
-     * an explicit $resuming flag makes it a continuation; otherwise it
-     * ignites.
+     * Replay an interrupted, failed, or crashed run without delivering a new
+     * external input.
+     */
+    public function recover(
+        ?string $expectedRunId = null,
+        ?int $expectedExecutionAttempt = null,
+    ): WorkflowState;
+
+    /** Conditionally purge a retained completed generation. */
+    public function acknowledgeCompletion(string $expectedRunId): void;
+
+    /**
+     * Keep the terminal result until the coordinating caller acknowledges it.
+     * Disabled by default, so manually managed workflows clean up immediately.
+     */
+    public function retainCompletionUntilAcknowledged(bool $retain = true): static;
+
+    /**
+     * The streaming execution primitive behind run(), resume(), and recover().
      *
-     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null otherwise.
-     * @param bool $timedOut True when the resume was a deadline elapsing; ignored on ignition.
-     * @param bool $resuming True to continue without delivering a payload (revive).
+     * @param list<ResumeInput> $inputs
      * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function events(
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs = [],
         bool $resuming = false,
         ?string $expectedRunId = null,
+        bool $recovering = false,
+        ?int $expectedExecutionAttempt = null,
     ): Generator;
 
     /**

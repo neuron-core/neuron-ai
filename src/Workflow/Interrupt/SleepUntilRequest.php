@@ -10,16 +10,16 @@ use Exception;
 
 /**
  * Suspends the workflow until a clock time. The wakeup is produced by the
- * scheduler's timer wheel — self-generated, with no external emitter.
+ * an external timer service — self-generated, with no external emitter.
  *
  * The engine does NOT enforce timeliness: a $wakeAt in the past still suspends.
- * Whether and when to fire is exclusively the scheduler's responsibility (a
- * NullScheduler never fires, leaving the caller to resume manually).
+ * Whether and when to fire belongs to the external caller or coordination
+ * platform; the Workflow core only describes the suspension.
  */
 class SleepUntilRequest extends InterruptRequest
 {
     /**
-     * @param DateTimeImmutable $wakeAt When the scheduler should wake the workflow.
+     * @param DateTimeImmutable $wakeAt When an external coordinator should wake the workflow.
      */
     public function __construct(
         protected DateTimeImmutable $wakeAt,

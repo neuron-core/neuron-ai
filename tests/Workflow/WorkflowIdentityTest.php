@@ -7,20 +7,24 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Scheduler\Stubs\SpyScheduler;
 use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
+use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
+use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Resume\ResumeInputStatus;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -62,6 +66,19 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
+    public function testStaleOnlyResumeDoesNotClaimANewExecutionAttempt(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $first = $this->execute($workflow, $persistence);
+
+        $duplicate = $workflow->resume([ResumeInput::event(99, [])]);
+
+        $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
+        $this->assertSame(ResumeInputStatus::Stale, $duplicate->getInputResults()[0]->status);
+        $this->assertTrue($duplicate->isInterrupted());
+    }
+
     public function testMatchingRunFenceContinuesTheExpectedGeneration(): void
     {
         $persistence = new InMemoryPersistence();
@@ -80,20 +97,19 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
-    public function testForeignRunFenceIsRejectedWithoutSchedulerSideEffects(): void
+    public function testForeignRunFenceIsRejectedWithoutMutation(): void
     {
         $persistence = new InMemoryPersistence();
-        $scheduler = new SpyScheduler();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
-        $this->execute($suspended, $persistence, $scheduler);
+        $this->execute($suspended, $persistence);
         $ignition = $persistence->get('thread_1', '__ignition');
+        $control = $persistence->get('thread_1', '__control');
 
         try {
             $this->resume(
                 KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'),
                 $persistence,
                 [],
-                scheduler: $scheduler,
                 expectedRunId: 'run_foreign',
             );
             $this->fail('A stale generation should not be resumed.');
@@ -104,8 +120,7 @@ class WorkflowIdentityTest extends TestCase
         }
 
         $this->assertSame($ignition, $persistence->get('thread_1', '__ignition'));
-        $this->assertSame([], $scheduler->onResumeCalls);
-        $this->assertSame([], $scheduler->onCompleteCalls);
+        $this->assertSame($control, $persistence->get('thread_1', '__control'));
     }
 
     public function testMissingExpectedGenerationIsReportedAsStale(): void
@@ -153,6 +168,30 @@ class WorkflowIdentityTest extends TestCase
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('thread_1', $second->getWorkflowId());
         $this->assertNotSame($first->getRunId(), $second->getRunId());
+    }
+
+    public function testRetainedCompletionIsReplayableUntilAcknowledged(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make('retained-completion')
+            ->setPersistence($persistence)
+            ->retainCompletionUntilAcknowledged()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
+
+        $completed = $workflow->run();
+        $runId = (string) $workflow->getRunId();
+
+        $this->assertSame(WorkflowStatus::Completed, $completed->getStatus());
+        $this->assertNotNull($persistence->get('retained-completion', '__control'));
+        $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
+
+        $retry = Workflow::make('retained-completion')->setPersistence($persistence);
+        $replayed = $retry->recover($runId);
+
+        $this->assertSame($completed->all(), $replayed->all());
+        $retry->acknowledgeCompletion($runId);
+        $this->assertNull($persistence->get('retained-completion', '__control'));
+        $this->assertNull($persistence->get('retained-completion', '__ignition'));
     }
 
     public function testResumeOnACompletedWorkflowIdThrows(): void
@@ -274,36 +313,32 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($workflowId, $resumed->getWorkflowId());
     }
 
-    public function testReplayIgnoresRecordsOfAForeignGeneration(): void
+    public function testMismatchedControlAndIgnitionGenerationsAreRejected(): void
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $this->execute($suspended, $persistence);
 
-        // Another generation takes the workflow ID: the head now names a run
-        // that owns none of the stale records left in the partition.
-        $persistence->put(
+        // Corrupt the immutable envelope without changing the authoritative
+        // control record. Normal commits create both together atomically.
+        $expected = $persistence->get('thread_1', '__control');
+        $this->assertNotNull($expected);
+        $persistence->writeIfUnchanged(
             'thread_1',
-            '__ignition',
-            (new PhpSerializer())->serialize(new Ignition('run_foreign', new StartEvent())),
+            '__control',
+            $expected,
+            ['__ignition' => (new PhpSerializer())->serialize(new Ignition('run_foreign', new StartEvent()))],
         );
 
-        // The continuation runs as the foreign generation: the stale steps
-        // (completed AND interrupted markers) are invisible under its prefix,
-        // so the delivered answer finds no step waiting for it and the
-        // traversal re-runs from the start — re-suspending at the interrupt.
-        $resumed = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
-        $state = $this->resume($resumed, $persistence, []);
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('mismatched __control and __ignition generations');
 
-        $this->assertSame('run_foreign', $resumed->getRunId());
-        $this->assertTrue($state->isInterrupted());
-        $this->assertNull($state->get('received_feedback'));
+        $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
     }
 
-    public function testZombieCompletionNeitherSweepsNorFiresOnComplete(): void
+    public function testStaleOwnerCannotWriteOrSweepASuccessor(): void
     {
         $persistence = new InMemoryPersistence();
-        $scheduler = new SpyScheduler();
         $serializer = new PhpSerializer();
 
         // The node simulates a takeover happening mid-run: by the time this
@@ -317,10 +352,22 @@ class WorkflowIdentityTest extends TestCase
 
             public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
             {
-                $this->persistence->put(
+                $expected = $this->persistence->get('thread_1', '__control');
+                if ($expected === null) {
+                    throw new WorkflowException('The simulated owner has no control record.');
+                }
+
+                $this->persistence->writeIfUnchanged(
                     'thread_1',
-                    '__ignition',
-                    $this->serializer->serialize(new Ignition('run_successor', new StartEvent())),
+                    '__control',
+                    $expected,
+                    [
+                        '__ignition' => $this->serializer->serialize(new Ignition('run_successor', new StartEvent())),
+                        '__control' => $this->serializer->serialize(new WorkflowControl(
+                            'run_successor',
+                            WorkflowStatus::Running,
+                        )),
+                    ],
                 );
 
                 return new StopEvent();
@@ -328,9 +375,12 @@ class WorkflowIdentityTest extends TestCase
         };
 
         $workflow = Workflow::make('thread_1')->addNode($hijacked);
-        $state = $this->execute($workflow, $persistence, $scheduler);
-
-        $this->assertFalse($state->isInterrupted());
+        try {
+            $this->execute($workflow, $persistence);
+            $this->fail('The stale owner should lose its conditional step write.');
+        } catch (WorkflowException $e) {
+            $this->assertStringContainsString('Stale execution attempt', $e->getMessage());
+        }
 
         // The fenced sweep held: the successor's head record survives, the
         // zombie's own step record is left as inert garbage, and the
@@ -338,8 +388,7 @@ class WorkflowIdentityTest extends TestCase
         $head = $serializer->unserialize((string) $persistence->get('thread_1', '__ignition'));
         $this->assertInstanceOf(Ignition::class, $head);
         $this->assertSame('run_successor', $head->runId);
-        $this->assertNotNull($persistence->get('thread_1', $this->stepKey($workflow, $hijacked::class . '-0')));
-        $this->assertSame([], $scheduler->onCompleteCalls);
+        $this->assertNull($persistence->get('thread_1', $this->stepKey($workflow, $hijacked::class . '-0')));
     }
 
     public function testStateCarriesBothIdentities(): void
@@ -351,5 +400,8 @@ class WorkflowIdentityTest extends TestCase
 
         $this->assertSame('thread_1', $state->get('__workflowId'));
         $this->assertSame($workflow->getRunId(), $state->get('__runId'));
+        $this->assertSame('thread_1', $state->getWorkflowId());
+        $this->assertSame($workflow->getRunId(), $state->getRunId());
+        $this->assertSame(1, $state->getExecutionAttempt());
     }
 }

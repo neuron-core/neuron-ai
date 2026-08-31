@@ -33,6 +33,7 @@ use NeuronAI\Tests\Stubs\StructuredOutput\User;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -315,7 +316,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setPersistence($persistence);
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
-        $resumed = $resumingAgent->resume(['call-1' => 'approve']);
+        $resumed = $resumingAgent->resume([ResumeInput::event(1, ['call-1' => 'approve'])]);
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run the approved lookup.'], $memory->recalls);

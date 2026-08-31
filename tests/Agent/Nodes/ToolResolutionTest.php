@@ -128,19 +128,53 @@ class ToolResolutionTest extends TestCase
             /** @var array<string, array<string, string>> */
             public array $storage = [];
 
-            public function put(string $partition, string $key, string $value): void
-            {
-                $this->storage[$partition][$key] = $value;
-            }
-
             public function get(string $partition, string $key): ?string
             {
                 return $this->storage[$partition][$key] ?? null;
             }
 
-            public function delete(string $partition): void
-            {
+            public function initializeIfAbsent(
+                string $partition,
+                string $conditionKey,
+                string $initialValue,
+                array $records = [],
+            ): bool {
+                if (isset($this->storage[$partition][$conditionKey])) {
+                    return false;
+                }
+
+                $records[$conditionKey] = $initialValue;
+                foreach ($records as $key => $value) {
+                    $this->storage[$partition][$key] = $value;
+                }
+
+                return true;
+            }
+
+            public function writeIfUnchanged(
+                string $partition,
+                string $conditionKey,
+                string $expectedValue,
+                array $records,
+            ): bool {
+                if (($this->storage[$partition][$conditionKey] ?? null) !== $expectedValue) {
+                    return false;
+                }
+
+                foreach ($records as $key => $value) {
+                    $this->storage[$partition][$key] = $value;
+                }
+
+                return true;
+            }
+
+            public function deleteIfUnchanged(
+                string $partition,
+                string $conditionKey,
+                string $expectedValue,
+            ): bool {
                 // Keep the records: this test replays a "crashed" run.
+                return ($this->storage[$partition][$conditionKey] ?? null) === $expectedValue;
             }
 
             public function forgetByPrefix(string $partition, string $prefix): void
@@ -192,7 +226,7 @@ class ToolResolutionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume()->getMessage();
+        $message = $agent2->recover()->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());
 

@@ -23,6 +23,7 @@ final class StepMemoizer
         protected Serializer $serializer,
         protected string $workflowId,
         protected string $recordKey,
+        protected ?Closure $writer = null,
     ) {
     }
 
@@ -39,7 +40,12 @@ final class StepMemoizer
 
         $value = $operation();
 
-        $this->persistence->put($this->workflowId, $key, $this->serializer->serialize($value));
+        $serialized = $this->serializer->serialize($value);
+        if ($this->writer instanceof Closure) {
+            ($this->writer)($key, $serialized);
+        } else {
+            $this->persistence->initializeIfAbsent($this->workflowId, $key, $serialized);
+        }
 
         return $value;
     }

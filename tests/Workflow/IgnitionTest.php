@@ -14,6 +14,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -88,7 +89,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
         $this->assertNotNull($persistence->get('ign_sweep', '__ignition'));
 
-        $state = $workflow->resume(['answer' => 42]);
+        $state = $workflow->resume([ResumeInput::event(1, ['answer' => 42])]);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(42, $state->get('answer'));
@@ -107,7 +108,7 @@ class IgnitionTest extends TestCase
 
             // A blank instance: same factory shape, workflow ID only — no start event set.
             $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
-            $state = $second->resume(['answer' => 42]);
+            $state = $second->resume([ResumeInput::event(1, ['answer' => 42])]);
 
             $this->assertFalse($state->isInterrupted());
             // The node replayed with the ADOPTED event: without adoption the
@@ -131,7 +132,7 @@ class IgnitionTest extends TestCase
         // instance adopts the record, delivers nothing, and re-suspends at
         // the same step.
         $second = $this->workflow('ign_replay', $persistence);
-        $state = $second->resume();
+        $state = $second->recover();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('recovered', $state->get('ignited_with'));
@@ -144,7 +145,7 @@ class IgnitionTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'ign_unknown'");
 
-        $workflow->resume(['answer' => 1]);
+        $workflow->resume([ResumeInput::event(1, ['answer' => 1])]);
     }
 
     public function test_ignition_and_steps_share_the_workflow_persistence_under_a_custom_executor(): void

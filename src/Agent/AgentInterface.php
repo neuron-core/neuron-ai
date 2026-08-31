@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Workflow\Resume\ResumeInput;
 
 interface AgentInterface
 {
@@ -76,15 +77,19 @@ interface AgentInterface
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
 
     /**
-     * Continue a suspended run by delivering the inbound payload — the single
-     * continuation verb (a new turn is a new run; an answer is a resume).
-     *
-     * @param array<string, mixed> $payload
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param non-empty-list<ResumeInput> $inputs
      */
     public function resume(
-        array $payload = [],
-        bool $timedOut = false,
+        array $inputs,
         ?string $expectedRunId = null,
     ): AgentState;
+
+    public function recover(
+        ?string $expectedRunId = null,
+        ?int $expectedExecutionAttempt = null,
+    ): AgentState;
+
+    public function retainCompletionUntilAcknowledged(bool $retain = true): static;
+
+    public function acknowledgeCompletion(string $expectedRunId): void;
 }

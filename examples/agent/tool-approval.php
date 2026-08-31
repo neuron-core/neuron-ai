@@ -11,6 +11,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -96,10 +97,10 @@ while ($state->isInterrupted()) {
     echo "Actions requiring approval:\n";
 
     /*
-     * Decisions travel inbound as a PAYLOAD — a plain array keyed by the action
-     * id (the tool callId). The outbound ApprovalRequest is never passed back in.
-     * The payload is INCREMENTAL: it carries only NEW decisions — chat history
-     * is the system of record.
+     * Decisions travel inbound inside an addressed ResumeInput. Its payload is
+     * keyed by action id (the tool callId). The outbound ApprovalRequest is never
+     * passed back in. If approvals are collected over several UI interactions,
+     * restate the complete current decision set on every resume.
      */
     $payload = [];
     foreach ($approvalRequest->getActions() as $action) {
@@ -124,7 +125,8 @@ while ($state->isInterrupted()) {
      */
     echo "\nResuming workflow...\n\n";
 
-    $state = $makeAgent()->resume($payload);
+    $suspensionId = $state->getSuspensions()[0]->id;
+    $state = $makeAgent()->resume([ResumeInput::event($suspensionId, $payload)]);
 }
 
 echo "Agent: " . $state->getMessage()->getContent() . "\n\n";

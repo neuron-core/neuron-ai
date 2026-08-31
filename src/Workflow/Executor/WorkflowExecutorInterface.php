@@ -15,9 +15,9 @@ use NeuronAI\Workflow\WorkflowState;
  * Implementations define the execution model: sequential in-process,
  * concurrent branches with Amp fibers, or something else entirely. An
  * executor owns no configuration — it reads the run's full context
- * (definition, state store, scheduler, run id) from the
+ * (definition, state store, and run identity) from the
  * WorkflowRuntimeInterface it is handed, so one executor strategy composes
- * with any persistence backend or scheduler.
+ * with any persistence backend or external coordination platform.
  */
 interface WorkflowExecutorInterface
 {
@@ -32,16 +32,27 @@ interface WorkflowExecutorInterface
      * workflow ID, resolves ignition (register / adopt / refuse) and calls
      * the workflow's bootstrap() before traversal begins.
      *
-     * @param array<string, mixed>|null $payload The delivered answer on a continuation; null to deliver nothing.
-     * @param bool $resuming True to continue the run under the workflow ID; false to ignite a new one.
+     * @param list<\NeuronAI\Workflow\Resume\ResumeInput> $inputs Addressed inputs for a resume.
+     * @param bool $resuming True to deliver resume inputs.
      * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
+     * @param bool $recovering True to replay without delivering a new input.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function execute(
         WorkflowRuntimeInterface $workflow,
-        ?array $payload = null,
-        bool $timedOut = false,
+        array $inputs = [],
         bool $resuming = false,
         ?string $expectedRunId = null,
+        bool $recovering = false,
+        ?int $expectedExecutionAttempt = null,
     ): Generator;
+
+    /**
+     * Conditionally remove a retained completed generation after its outcome
+     * has been durably acknowledged by the caller/platform.
+     */
+    public function acknowledgeCompletion(
+        WorkflowRuntimeInterface $workflow,
+        string $expectedRunId,
+    ): void;
 }

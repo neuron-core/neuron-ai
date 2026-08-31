@@ -16,6 +16,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -90,7 +91,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -128,7 +129,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame($agent1->getRunId(), $agent2->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
@@ -148,7 +149,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
-        $agent2->resume(['call_1' => 'approve']);
+        $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
 
         // Completion swept the thread's partition: nothing survives, and a
         // further thread-first continuation has nothing to continue.
@@ -163,7 +164,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No run in flight for workflow ID');
 
-        $agent3->resume(['call_1' => 'approve']);
+        $agent3->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
     public function testConflictingExplicitWorkflowIdThrows(): void
@@ -201,7 +202,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No run in flight for workflow ID');
 
-        $agent->resume(['call_1' => 'approve']);
+        $agent->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
     public function testExplicitWorkflowIdResumeFailsOnMissingIgnition(): void
@@ -215,7 +216,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'my_explicit_run'");
 
-        $agent->resume(['call_1' => 'approve']);
+        $agent->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
     public function testSameInstanceResumeKeepsOwnRunId(): void
@@ -230,7 +231,7 @@ class AgentThreadContinuationTest extends TestCase
 
         // Resume on the SAME instance: its already-resolved identity is
         // non-null, so it wins — no re-resolution happens at all.
-        $message = $agent->resume(['call_1' => 'approve'])->getMessage();
+        $message = $agent->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame($runId, $agent->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());

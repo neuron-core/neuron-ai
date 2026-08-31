@@ -18,13 +18,69 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Resume\ResumeInputResult;
+use NeuronAI\Workflow\Resume\ResumeInputStatus;
+use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+
+use function array_map;
 
 class ParallelInterruptTest extends TestCase
 {
     use ExecutorTestHelpers;
+
+    public function testMultipleSuspensionsCanBeResolvedAcrossAddressedBatches(): void
+    {
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): Stubs\DocumentParallelEvent
+            {
+                return new Stubs\DocumentParallelEvent([
+                    'text' => new Stubs\TextProcessEvent(),
+                    'image' => new Stubs\TextProcessEvent(),
+                ]);
+            }
+        };
+
+        $workflow = Workflow::make(workflowId: 'multi-suspension')
+            ->addNodes([$fork, new InterruptableTextProcessNode(), new MergeNode()]);
+
+        $first = $workflow->run();
+        $this->assertSame(1, $first->getExecutionAttempt());
+        $this->assertCount(2, $first->getSuspensions());
+        $this->assertSame([1, 2], array_map(
+            fn (Suspension $suspension): int => $suspension->id,
+            $first->getSuspensions(),
+        ));
+
+        $partial = $workflow->resume([ResumeInput::event(1, [])]);
+        $this->assertSame(2, $partial->getExecutionAttempt());
+        $this->assertTrue($partial->isInterrupted());
+        $this->assertSame([2], array_map(
+            fn (Suspension $suspension): int => $suspension->id,
+            $partial->getSuspensions(),
+        ));
+
+        $completed = $workflow->resume([
+            ResumeInput::event(1, []),
+            ResumeInput::event(2, []),
+        ]);
+
+        $this->assertFalse($completed->isInterrupted());
+        $this->assertSame(3, $completed->getExecutionAttempt());
+        $this->assertSame(
+            [ResumeInputStatus::Stale, ResumeInputStatus::Accepted],
+            array_map(
+                fn (ResumeInputResult $result): ResumeInputStatus => $result->status,
+                $completed->getInputResults(),
+            ),
+        );
+    }
 
     public function testInterruptInsideBranchSurfacesRequest(): void
     {

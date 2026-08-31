@@ -14,16 +14,14 @@ use Exception;
  * inbound payload on resume. Subclasses specialize the outbound context
  * (ApprovalRequest is the shipped example).
  *
- * An optional $expiresAt bounds the wait: the scheduler owns the deadline
- * timer and resumes with $timedOut when it elapses — persistence stores
- * neither this request nor the timeout flag.
+ * An optional $expiresAt bounds the wait: an external caller or coordination
+ * platform owns the deadline timer and delivers an expiry ResumeInput.
  */
 class WaitForEventRequest extends InterruptRequest
 {
     /**
      * @param string                 $eventName The external occurrence to wait for.
-     * @param DateTimeImmutable|null $expiresAt Optional deadline; if set, the scheduler resumes
-     *                                          the workflow with $timedOut when it elapses.
+     * @param DateTimeImmutable|null $expiresAt Optional deadline for an external coordinator.
      */
     public function __construct(
         protected string $eventName,

@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Workflow\Executor\SchedulerInterface;
+use LogicException;
+use NeuronAI\Workflow\Executor\ActiveSuspension;
+use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
+
+use function array_values;
 
 trait ExecutorTestHelpers
 {
@@ -34,7 +40,6 @@ trait ExecutorTestHelpers
     protected function configure(
         Workflow $workflow,
         ?PersistenceInterface $persistence = null,
-        ?SchedulerInterface $scheduler = null,
     ): Workflow {
         $executor = $this->executor();
         if ($executor instanceof WorkflowExecutorInterface) {
@@ -45,24 +50,20 @@ trait ExecutorTestHelpers
             $workflow->setPersistence($persistence);
         }
 
-        if ($scheduler instanceof SchedulerInterface) {
-            $workflow->setScheduler($scheduler);
-        }
-
         return $workflow;
     }
 
     protected function execute(
         Workflow $workflow,
         ?PersistenceInterface $persistence = null,
-        ?SchedulerInterface $scheduler = null,
     ): WorkflowState {
-        return $this->configure($workflow, $persistence, $scheduler)->run();
+        return $this->configure($workflow, $persistence)->run();
     }
 
     /**
-     * Continue a run through resume(): [] delivers an empty answer (the
-     * helper default), null revives without delivering anything.
+     * Continue a run through the typed public API. This compatibility helper
+     * keeps existing test fixtures concise by addressing the run's first
+     * active suspension; tests of batching construct ResumeInput explicitly.
      *
      * @param array<string, mixed>|null $payload
      */
@@ -71,11 +72,34 @@ trait ExecutorTestHelpers
         ?PersistenceInterface $persistence = null,
         ?array $payload = [],
         bool $timedOut = false,
-        ?SchedulerInterface $scheduler = null,
         ?string $expectedRunId = null,
     ): WorkflowState {
-        return $this->configure($workflow, $persistence, $scheduler)
-            ->resume($payload, $timedOut, $expectedRunId);
+        $workflow = $this->configure($workflow, $persistence);
+        if ($payload === null) {
+            return $workflow->recover($expectedRunId);
+        }
+
+        $raw = $workflow->getPersistence()->get(
+            (string) ($workflow->getWorkflowId() ?? $workflow->workflowId()),
+            '__control',
+        );
+        $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
+        if (!$control instanceof WorkflowControl || $control->suspensions === []) {
+            return $workflow->resume([ResumeInput::event(1, $payload)], $expectedRunId);
+        }
+
+        $active = array_values($control->suspensions)[0];
+        if (!$active instanceof ActiveSuspension) {
+            throw new LogicException('The test helper found an invalid active suspension.');
+        }
+
+        $input = match (true) {
+            $timedOut => ResumeInput::expired($active->suspension->id),
+            $active->suspension->type === InterruptType::SleepUntil => ResumeInput::timer($active->suspension->id),
+            default => ResumeInput::event($active->suspension->id, $payload),
+        };
+
+        return $workflow->resume([$input], $expectedRunId);
     }
 
     /**

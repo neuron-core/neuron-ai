@@ -8,23 +8,22 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
 use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
+use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function array_slice;
+use function array_filter;
 use function count;
-use function end;
 use function time;
 
 /**
- * The execution lease (opt-in): a heartbeat record distinguishing "a process
- * is executing this run right now" from the silence of a violent crash.
- * Deliberate stops (suspend, caught failure, completion) always release it;
- * only a hard kill leaves it held, and a held lease expires by aging rather
- * than by anyone releasing it. It is a guess with a timeout, never mutual
- * exclusion.
+ * The optional lease is part of the fenced __control record. It prevents a
+ * recovery worker from claiming a run that still appears to be executing;
+ * suspension and caught failure clear the deadline.
  */
 class WorkflowLeaseTest extends TestCase
 {
@@ -37,9 +36,6 @@ class WorkflowLeaseTest extends TestCase
             ->setLeaseTimeout($timeout);
     }
 
-    /**
-     * Run a leased workflow to its suspension and hand back the store.
-     */
     protected function suspendLeased(): InMemoryPersistence
     {
         $persistence = new InMemoryPersistence();
@@ -48,64 +44,78 @@ class WorkflowLeaseTest extends TestCase
         return $persistence;
     }
 
-    public function testDisabledByDefaultWritesNoLease(): void
+    protected function control(InMemoryPersistence $persistence, string $workflowId = 'thread_1'): WorkflowControl
+    {
+        $raw = $persistence->get($workflowId, '__control');
+        $control = $raw === null ? null : (new PhpSerializer())->unserialize($raw);
+        $this->assertInstanceOf(WorkflowControl::class, $control);
+
+        return $control;
+    }
+
+    public function testLeaseIsDisabledByDefault(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
 
-        $this->assertNull($persistence->get('thread_1', '__lease'));
+        $this->assertNull($this->control($persistence)->leaseExpiresAt);
     }
 
-    public function testSuspensionReleasesTheLease(): void
+    public function testSuspensionClearsTheLeaseDeadline(): void
     {
-        $persistence = $this->suspendLeased();
+        $control = $this->control($this->suspendLeased());
 
-        // Waiting is a deliberate stop: the run said so on its way out.
-        $this->assertSame('released', $persistence->get('thread_1', '__lease'));
+        $this->assertSame(WorkflowStatus::Suspended, $control->status);
+        $this->assertNull($control->leaseExpiresAt);
     }
 
     public function testResumeRightAfterSuspendIsNotBlocked(): void
     {
         $persistence = $this->suspendLeased();
 
-        // A user answering within seconds must never be told "executing".
         $state = $this->resume($this->leasedWorkflow(300), $persistence, []);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function testFreshHeldLeaseRefusesTheResume(): void
+    public function testFreshRunningLeaseRefusesRecovery(): void
     {
         $persistence = $this->suspendLeased();
-
-        // Simulate a violent crash mid-execution: the lease is left held
-        // with a recent heartbeat, as if the process died without a word.
-        $persistence->put('thread_1', '__lease', (string) time());
+        $serializer = new PhpSerializer();
+        $expected = $persistence->get('thread_1', '__control');
+        $this->assertNotNull($expected);
+        $running = $this->control($persistence)->claim(time() + 300);
+        $persistence->writeIfUnchanged('thread_1', '__control', $expected, [
+            '__control' => $serializer->serialize($running),
+        ]);
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("The run for workflow ID 'thread_1' appears to be executing");
 
-        $this->resume($this->leasedWorkflow(300), $persistence, []);
+        $this->leasedWorkflow(300)->setPersistence($persistence)->recover();
     }
 
-    public function testStaleHeldLeaseAllowsTheResume(): void
+    public function testExpiredRunningLeaseAllowsRecoveryClaim(): void
     {
         $persistence = $this->suspendLeased();
+        $serializer = new PhpSerializer();
+        $expected = $persistence->get('thread_1', '__control');
+        $this->assertNotNull($expected);
+        $running = $this->control($persistence)->claim(time() - 1);
+        $persistence->writeIfUnchanged('thread_1', '__control', $expected, [
+            '__control' => $serializer->serialize($running),
+        ]);
 
-        // The same violent crash, discovered after the lease aged out.
-        $persistence->put('thread_1', '__lease', (string) (time() - 301));
+        $state = $this->leasedWorkflow(300)->setPersistence($persistence)->recover();
 
-        $state = $this->resume($this->leasedWorkflow(300), $persistence, []);
-
-        $this->assertFalse($state->isInterrupted());
-        $this->assertSame('completed', $state->get('received_feedback'));
+        $this->assertTrue($state->isInterrupted());
+        $this->assertGreaterThan($running->executionAttempt, $this->control($persistence)->executionAttempt);
     }
 
-    public function testCaughtFailureReleasesTheLease(): void
+    public function testCaughtFailureClearsTheLeaseDeadline(): void
     {
         $persistence = new InMemoryPersistence();
-
         $workflow = Workflow::make(workflowId: 'thread_failing')
             ->addNodes([new MemoizingNode(shouldCrash: true)])
             ->setLeaseTimeout(300);
@@ -114,46 +124,66 @@ class WorkflowLeaseTest extends TestCase
             $this->execute($workflow, $persistence);
             $this->fail('Expected the node failure to propagate.');
         } catch (RuntimeException) {
-            // A caught crash writes its failed marker and lets go of the
-            // lease — the run is immediately revivable, no timeout to wait.
-            $this->assertSame('released', $persistence->get('thread_failing', '__lease'));
+            $control = $this->control($persistence, 'thread_failing');
+            $this->assertSame(WorkflowStatus::Failed, $control->status);
+            $this->assertNull($control->leaseExpiresAt);
         }
     }
 
-    public function testExecutionClaimsAndCompletionSweepsTheLease(): void
+    public function testCompletionSweepsControlWithThePartition(): void
     {
         $persistence = $this->suspendLeased();
 
-        // Continue to completion: the lease is claimed while executing and
-        // vanishes with the partition on the clean sweep.
         $this->resume($this->leasedWorkflow(300), $persistence, []);
 
-        $this->assertNull($persistence->get('thread_1', '__lease'));
+        $this->assertNull($persistence->get('thread_1', '__control'));
     }
 
-    public function testHeartbeatsAreWrittenPerStepAndReleasedOnSuspend(): void
+    public function testControlHeartbeatsAreCommittedAtStepBoundaries(): void
     {
-        $persistence = new class () extends InMemoryPersistence {
-            /** @var string[] */
-            public array $leaseWrites = [];
+        $serializer = new PhpSerializer();
+        $persistence = new class ($serializer) extends InMemoryPersistence {
+            /** @var WorkflowControl[] */
+            public array $controls = [];
 
-            public function put(string $partition, string $key, string $value): void
+            public function __construct(protected PhpSerializer $serializer)
             {
-                if ($key === '__lease') {
-                    $this->leaseWrites[] = $value;
+            }
+
+            public function writeIfUnchanged(
+                string $partition,
+                string $conditionKey,
+                string $expectedValue,
+                array $records,
+            ): bool {
+                $committed = parent::writeIfUnchanged(
+                    $partition,
+                    $conditionKey,
+                    $expectedValue,
+                    $records,
+                );
+
+                if ($committed && isset($records['__control'])) {
+                    $control = $this->serializer->unserialize($records['__control']);
+                    if ($control instanceof WorkflowControl) {
+                        $this->controls[] = $control;
+                    }
                 }
-                parent::put($partition, $key, $value);
+
+                return $committed;
             }
         };
 
         $this->execute($this->leasedWorkflow(300), $persistence);
 
-        // Claimed at start, renewed per step visit, released at the suspend.
-        $this->assertGreaterThanOrEqual(3, count($persistence->leaseWrites));
-        $this->assertSame('released', end($persistence->leaseWrites));
+        $runningWithLease = array_filter(
+            $persistence->controls,
+            fn (WorkflowControl $control): bool => $control->status === WorkflowStatus::Running
+                && $control->leaseExpiresAt !== null,
+        );
 
-        foreach (array_slice($persistence->leaseWrites, 0, -1) as $write) {
-            $this->assertGreaterThan(0, (int) $write, "Heartbeat '{$write}' must be a timestamp.");
-        }
+        $this->assertGreaterThanOrEqual(3, count($runningWithLease));
+        $this->assertSame(WorkflowStatus::Suspended, $this->control($persistence)->status);
+        $this->assertNull($this->control($persistence)->leaseExpiresAt);
     }
 }

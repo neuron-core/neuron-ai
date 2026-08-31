@@ -13,6 +13,7 @@ use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use Throwable;
 
 use function array_key_exists;
@@ -179,7 +180,14 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->resume($payload);
+            $suspension = $state->getSuspensions()[0] ?? null;
+            if ($suspension === null) {
+                throw new EvaluationException('The interrupted Agent exposed no resumable suspension.');
+            }
+
+            $state = $this->agent->resume([
+                ResumeInput::event($suspension->id, $payload),
+            ]);
         }
     }
 

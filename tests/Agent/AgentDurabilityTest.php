@@ -24,6 +24,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -76,7 +77,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume()->getMessage();
+        $message = $agent2->recover()->getMessage();
 
         $this->assertSame('Based on my search, here are the top PHP frameworks...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -162,7 +163,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -228,7 +229,9 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => ['reject', 'Do not search the web.']])->getMessage();
+        $message = $agent2->resume([ResumeInput::event(1, [
+            'call_1' => ['reject', 'Do not search the web.'],
+        ])])->getMessage();
 
         $this->assertSame(
             'I see the search was rejected. Is there anything else I can help with?',
@@ -367,7 +370,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($tool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume()->getMessage();
+        $message = $agent2->recover()->getMessage();
 
         $this->assertSame('There are 42 users in the database.', $message->getContent());
         $this->assertSame(2, $calls);

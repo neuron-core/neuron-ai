@@ -23,8 +23,27 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  */
 class InterruptEvent implements Event
 {
+    /**
+     * @param self[] $interrupts
+     */
     public function __construct(
         public readonly InterruptRequest $request,
+        public readonly ?int $suspensionId = null,
+        protected array $interrupts = [],
     ) {
+    }
+
+    /** @param self[] $interrupts */
+    public static function aggregate(array $interrupts): self
+    {
+        $first = $interrupts[0];
+
+        return new self($first->request, $first->suspensionId, $interrupts);
+    }
+
+    /** @return self[] */
+    public function all(): array
+    {
+        return $this->interrupts === [] ? [$this] : $this->interrupts;
     }
 }

@@ -11,6 +11,7 @@ use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
+
 use function Amp\async;
 
 /**
@@ -57,7 +58,7 @@ class AsyncExecutor extends WorkflowExecutor
             });
         }
 
-        $firstInterrupt = null;
+        $interrupts = [];
         $firstError = null;
 
         // Await ALL futures before propagating any exception,
@@ -66,13 +67,15 @@ class AsyncExecutor extends WorkflowExecutor
             try {
                 $result = $future->await();
                 if ($result->interrupt instanceof InterruptEvent) {
-                    $firstInterrupt ??= $result->interrupt;
+                    foreach ($result->interrupt->all() as $interrupt) {
+                        $interrupts[] = $interrupt;
+                    }
                 } else {
                     $parallelEvent->setResult($branchId, $result->result);
+                }
 
-                    foreach ($result->streamedEvents as $streamedEvent) {
-                        yield $streamedEvent;
-                    }
+                foreach ($result->streamedEvents as $streamedEvent) {
+                    yield $streamedEvent;
                 }
             } catch (Throwable $e) {
                 $firstError ??= $e;
@@ -83,8 +86,8 @@ class AsyncExecutor extends WorkflowExecutor
             throw $firstError;
         }
 
-        if ($firstInterrupt instanceof InterruptEvent) {
-            return $firstInterrupt;
+        if ($interrupts !== []) {
+            return InterruptEvent::aggregate($interrupts);
         }
 
         return $parallelEvent;

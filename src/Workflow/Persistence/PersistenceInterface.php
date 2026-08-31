@@ -10,7 +10,7 @@ namespace NeuronAI\Workflow\Persistence;
  * array — holding every engine record.
  *
  * The engine owns all record semantics and serialization: a run's records
- * (ignition, steps, memos) live in the partition named by its workflow ID —
+ * (ignition, control, steps, memos) live in the partition named by its workflow ID —
  * a business key or a generated handle. Backends never interpret partition
  * names and never parse values — both are opaque strings.
  *
@@ -26,17 +26,45 @@ namespace NeuronAI\Workflow\Persistence;
 interface PersistenceInterface
 {
     /**
-     * Store a value under (partition, key), overwriting any previous value.
-     */
-    public function put(string $partition, string $key, string $value): void;
-
-    /**
      * The value stored under (partition, key), or null when absent.
      */
     public function get(string $partition, string $key): ?string;
 
     /**
-     * Remove a whole partition and everything in it.
+     * Atomically initialize an absent condition key and its related records.
+     * Returns false without writing anything when the key already exists.
+     *
+     * @param array<string, string> $records
      */
-    public function delete(string $partition): void;
+    public function initializeIfAbsent(
+        string $partition,
+        string $conditionKey,
+        string $initialValue,
+        array $records = [],
+    ): bool;
+
+    /**
+     * Atomically write all records only when the condition key still has the
+     * byte-identical expected value. Returns false without partial writes when
+     * the condition key is absent or its value changed.
+     *
+     * @param array<string, string> $records
+     */
+    public function writeIfUnchanged(
+        string $partition,
+        string $conditionKey,
+        string $expectedValue,
+        array $records,
+    ): bool;
+
+    /**
+     * Atomically remove the whole partition only when the condition key has the
+     * byte-identical expected value. Returns false without deleting anything
+     * when the condition key is absent or its value changed.
+     */
+    public function deleteIfUnchanged(
+        string $partition,
+        string $conditionKey,
+        string $expectedValue,
+    ): bool;
 }

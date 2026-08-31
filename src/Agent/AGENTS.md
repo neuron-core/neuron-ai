@@ -117,7 +117,8 @@ AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEve
 | `chat($messages)` | Eager: ignites and runs to completion → `AgentState` (buffered transport) |
 | `stream($messages, $adapter?)` | Pull-stream: a `Generator` yielding chunks; `getReturn()` is the `AgentState`. Pass a `StreamAdapterInterface` (Vercel/AG-UI/SSE) to yield protocol-formatted lines. |
 | `structured($messages, $class)` | Eager: returns the typed output |
-| `resume($payload)` | Continues a suspended run, whatever its mode → `AgentState` |
+| `resume($inputs, $expectedRunId?)` | Delivers addressed external inputs to a suspended run → `AgentState` |
+| `recover($expectedRunId?, $expectedAttempt?)` | Replays a crashed/failed run without external input → `AgentState` |
 
 ```php
 // Chat (eager → AgentState)
@@ -133,16 +134,19 @@ foreach (YouTubeAgent::make()->stream(new UserMessage('Hello')) as $chunk) {
 $report = MyAgent::make()->structured($message, ReportSchema::class);
 
 // Resume a suspended run (approval endpoint) — mode-agnostic → AgentState
+use NeuronAI\Workflow\Resume\ResumeInput;
+
+$suspensionId = $state->getSuspensions()[0]->id;
 $state = MyAgent::make()
     ->setChatHistory($history)
     ->setPersistence($persistence)
-    ->resume(['call_123' => 'approve']);
+    ->resume([ResumeInput::event($suspensionId, ['call_123' => 'approve'])]);
 echo $state->getMessage()->getContent();
 ```
 
 **Sugar ignites; `resume()` continues.** A new turn is a new run; an answer
 resumes the suspended one. The sugar methods take no resume payload —
-continuation goes through `resume($payload)`, the same engine verb a plain
+continuation goes through typed `resume($inputs)`, the same engine verb a plain
 Workflow uses. The run's mode never needs restating on a resume: intent is
 persisted in the ignition record (see *Ignition & thread identity* below).
 
@@ -383,10 +387,10 @@ flows require **workflow persistence AND a durable chat history** (the suspend-t
 approval).
 
 ```php
-use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
 $agent = YouTubeAgent::make()
-    ->setPersistence(new FilePersistence($directory));
+    ->setPersistence(new DatabasePersistence($pdo));
     // + a durable ChatHistory
 ```
 
@@ -394,7 +398,10 @@ A resume delivers decisions as a **cumulative** payload keyed by tool callId —
 decision set, restated on every resume:
 
 ```php
-$agent->resume(['call_123' => 'approve', 'call_456' => ['reject', 'too expensive']]);
+$agent->resume([ResumeInput::event($suspensionId, [
+    'call_123' => 'approve',
+    'call_456' => ['reject', 'too expensive'],
+])]);
 ```
 
 A tool runs iff explicitly approved; silence is never consent. An incomplete payload
@@ -424,7 +431,7 @@ $agent = Agent::make(threadId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
-$agent->resume(['call_123' => 'approve']);
+$agent->resume([ResumeInput::event($suspensionId, ['call_123' => 'approve'])]);
 // (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
 // same identity by adoption and works identically)
 ```
@@ -473,11 +480,16 @@ class SupportAgent extends Agent
 SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
-SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
+SupportAgent::make(threadId: $threadId)->resume([
+    ResumeInput::event($suspensionId, ['call_123' => 'approve']),
+]);
 
 // WorkflowId-first resume (background wake): the record supplies the thread
 // identity — the developer writes nothing.
-SupportAgent::make(workflowId: $ticket->workflowId)->resume($ticket->payload);
+SupportAgent::make(workflowId: $ticket->workflowId)->resume(
+    [ResumeInput::fromArray($ticket->input)],
+    expectedRunId: $ticket->runId,
+);
 ```
 
 Identity sources, in precedence order — any two disagreeing non-null claims

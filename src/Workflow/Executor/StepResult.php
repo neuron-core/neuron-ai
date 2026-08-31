@@ -21,6 +21,7 @@ class StepResult
          * into a request are never serialized.
          */
         protected bool $interrupted = false,
+        protected ?int $suspensionId = null,
         /**
          * Failure marker for crash observability: ['message' => string, 'class' => string].
          * Null unless this step recorded an unhandled throwable.
@@ -83,6 +84,11 @@ class StepResult
         return $this->interrupted;
     }
 
+    public function getSuspensionId(): ?int
+    {
+        return $this->suspensionId;
+    }
+
     /**
      * Failure metadata for a crashed step, or null when the step did not fail.
      *
@@ -101,11 +107,12 @@ class StepResult
     public function __serialize(): array
     {
         return [
-            'version' => 4,
+            'version' => 5,
             'stepId' => $this->stepId,
             'event' => $this->event,
             'state' => $this->state,
             'interrupted' => $this->interrupted,
+            'suspensionId' => $this->suspensionId,
             'error' => $this->error,
         ];
     }
@@ -116,6 +123,7 @@ class StepResult
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
         $this->interrupted = $data['interrupted'] ?? false;
+        $this->suspensionId = $data['suspensionId'] ?? null;
         $this->error = $data['error'] ?? null;
     }
 }

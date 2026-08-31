@@ -17,8 +17,9 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Tools\SearchTool;
 use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
 use NeuronAI\Workflow\Persistence\FilePersistence;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -86,26 +87,26 @@ class AgentDurableHistoryTest extends TestCase
 
         $provider = new FakeAIProvider(...$responses);
 
-        $recorder = new class () implements PersistenceInterface {
+        $recorder = new class () extends InMemoryPersistence {
             /** @var array<string, int> */
             public array $blobSizes = [];
-            /** @var array<string, array<string, string>> */
-            protected array $storage = [];
 
-            public function put(string $partition, string $key, string $value): void
-            {
-                $this->blobSizes[$key] = strlen($value);
-                $this->storage[$partition][$key] = $value;
-            }
+            public function writeIfUnchanged(
+                string $partition,
+                string $conditionKey,
+                string $expectedValue,
+                array $records,
+            ): bool {
+                foreach ($records as $key => $value) {
+                    $this->blobSizes[$key] = strlen($value);
+                }
 
-            public function get(string $partition, string $key): ?string
-            {
-                return $this->storage[$partition][$key] ?? null;
-            }
-
-            public function delete(string $partition): void
-            {
-                unset($this->storage[$partition]);
+                return parent::writeIfUnchanged(
+                    $partition,
+                    $conditionKey,
+                    $expectedValue,
+                    $records,
+                );
             }
         };
 
@@ -164,7 +165,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $state2 = $agent2->resume(['call_1' => 'approve']);
+        $state2 = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
 
         $steps2 = $state2->getSteps();
         $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
@@ -248,7 +249,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
-        $message = $agent2->resume(['call_1' => 'approve'])->getMessage();
+        $message = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
 

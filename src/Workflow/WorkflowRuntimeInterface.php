@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\Ignition;
-use NeuronAI\Workflow\Executor\SchedulerInterface;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -92,12 +91,6 @@ interface WorkflowRuntimeInterface
     public function getPersistence(): PersistenceInterface;
 
     /**
-     * The coordinator the executor notifies about suspends, resumes, and
-     * completion.
-     */
-    public function getScheduler(): SchedulerInterface;
-
-    /**
      * The codec for this run's durable records. The executor performs all
      * record serialization itself — backends store opaque strings.
      */
@@ -105,9 +98,12 @@ interface WorkflowRuntimeInterface
 
     /**
      * The execution-lease timeout in seconds; null disables the lease.
-     * See {@see \NeuronAI\Workflow\HandleComponents::setLeaseTimeout()}.
+     * See {@see \NeuronAI\Workflow\Workflow::setLeaseTimeout()}.
      */
     public function getLeaseTimeout(): ?int;
+
+    /** Whether completion must remain durable until an explicit acknowledgement. */
+    public function shouldRetainCompletionUntilAcknowledged(): bool;
 
     /**
      * Prepare the definition for traversal. Called once per segment, AFTER

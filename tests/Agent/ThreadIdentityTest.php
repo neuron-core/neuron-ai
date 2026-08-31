@@ -28,25 +28,7 @@ class ThreadIdentityTest extends TestCase
      */
     protected function retainingPersistence(): PersistenceInterface
     {
-        return new class () implements PersistenceInterface {
-            /** @var array<string, array<string, string>> */
-            public array $storage = [];
-
-            public function put(string $partition, string $key, string $value): void
-            {
-                $this->storage[$partition][$key] = $value;
-            }
-
-            public function get(string $partition, string $key): ?string
-            {
-                return $this->storage[$partition][$key] ?? null;
-            }
-
-            public function delete(string $partition): void
-            {
-                // Keep the records: tests replay and inspect after completion.
-            }
-        };
+        return new InMemoryPersistence();
     }
 
     public function test_unbound_history_is_bound_on_wake_from_the_ignition_record(): void
@@ -63,6 +45,7 @@ class ThreadIdentityTest extends TestCase
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
+        $first->retainCompletionUntilAcknowledged();
         $first->setChatHistory(new SQLChatHistory($pdo));
         $first->chat(new UserMessage('hello'))->getMessage();
 
@@ -75,7 +58,7 @@ class ThreadIdentityTest extends TestCase
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $second->resume();
+        $second->recover();
 
         $this->assertSame('thread-1', $second->getThreadId());
         $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
@@ -115,6 +98,7 @@ class ThreadIdentityTest extends TestCase
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $agent->setPersistence($persistence);
+        $agent->retainCompletionUntilAcknowledged();
         $agent->setChatHistory(new InMemoryChatHistory('thread-42'));
 
         $agent->chat(new UserMessage('hello'))->getMessage();
@@ -135,6 +119,7 @@ class ThreadIdentityTest extends TestCase
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
+        $first->retainCompletionUntilAcknowledged();
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
@@ -152,7 +137,7 @@ class ThreadIdentityTest extends TestCase
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $state = $second->resume();
+        $state = $second->recover();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-42', $second->getChatHistory()->getThreadId());
@@ -223,6 +208,7 @@ class ThreadIdentityTest extends TestCase
         $first->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
         $first->setPersistence($persistence);
+        $first->retainCompletionUntilAcknowledged();
         $first->setChatHistory(new InMemoryChatHistory('thread-42'));
         $first->chat(new UserMessage('hello'))->getMessage();
 
@@ -237,7 +223,7 @@ class ThreadIdentityTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Misidentified run');
 
-        $second->resume();
+        $second->recover();
     }
 
     public function test_anonymous_run_adopts_the_default_history_self_key(): void

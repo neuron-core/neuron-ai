@@ -4,7 +4,7 @@
 
 Workflow persistence is redesigned around one idea: **the store is a single
 partitioned key-value space** — string values filed under `(partition, key)`.
-A run's records (ignition, steps, memos) live in the partition named by its
+A run's records (ignition, control, steps, memos) live in the partition named by its
 **workflow ID** — the business key the workflow declares (the Agent declares its
 threadId; an order workflow might declare `'order:123'`), or an
 engine-generated handle when it declares none. One artifact per backend —
@@ -16,16 +16,36 @@ moves out of the chat-history tail.
 
 What changed:
 
-1. **`PersistenceInterface` is now three methods**:
+1. **`PersistenceInterface` is now four focused methods**:
 
    ```php
-   public function put(string $partition, string $key, string $value): void;   // write-or-overwrite
    public function get(string $partition, string $key): ?string;
-   public function delete(string $partition): void;                            // drop a whole partition
+
+   public function initializeIfAbsent(
+       string $partition,
+       string $conditionKey,
+       string $initialValue,
+       array $records = [],
+   ): bool;
+
+   public function writeIfUnchanged(
+       string $partition,
+       string $conditionKey,
+       string $expectedValue,
+       array $records,
+   ): bool;
+
+   public function deleteIfUnchanged(
+       string $partition,
+       string $conditionKey,
+       string $expectedValue,
+   ): bool;
    ```
 
-   Backends store opaque strings and know nothing about workflows. Custom
-   backends must be rewritten — see the adapter example below.
+   Backends store opaque strings and know nothing about workflows. The three
+   mutations are atomic: a false result means the condition did not match and
+   nothing was written or deleted. Custom backends must be rewritten — see the
+   adapter guidance below.
 2. **The engine owns serialization.** Backends no longer take a `Serializer`
    constructor parameter; the codec is a workflow-owned seam:
    `$workflow->setSerializer(new IgbinarySerializer())` (default
@@ -91,32 +111,26 @@ $workflow->setPersistence($persistence)
     ->setSerializer(new IgbinarySerializer());           // optional; default PhpSerializer
 ```
 
-A custom backend shrinks to a trivial adapter:
+A custom backend remains an opaque partitioned key-value adapter, but mutations
+must provide real compare-and-write atomicity. `WorkflowRunStore` owns
+`__control`, serialization, and lifecycle meaning; the backend only compares
+the requested condition key with the requested value.
 
-```php
-// Before: save(runId, stepId, StepResult) / load(...): ?StepResult / delete(runId)
-// After:
-class RedisPersistence implements PersistenceInterface
-{
-    public function __construct(protected Redis $redis) {}
+For example, a Redis adapter maps the operations like this:
 
-    public function put(string $partition, string $key, string $value): void
-    {
-        $this->redis->hSet($partition, $key, $value);
-    }
+| Operation | Redis implementation |
+|---|---|
+| `get()` | `HGET`, converting Redis' missing-value result to `null` |
+| `initializeIfAbsent()` | One Lua script that verifies the condition field is absent, then writes its initial value and all related records with `HSET` |
+| `writeIfUnchanged()` | One Lua script that compares the condition field byte-for-byte with the expected value, then writes every record together only on a match |
+| `deleteIfUnchanged()` | One Lua script that performs the same comparison, then deletes the partition only on a match |
 
-    public function get(string $partition, string $key): ?string
-    {
-        $value = $this->redis->hGet($partition, $key);
-        return $value === false ? null : $value;
-    }
-
-    public function delete(string $partition): void
-    {
-        $this->redis->del($partition);
-    }
-}
-```
+Each mutation row represents one atomic script, not separate client calls.
+SQL backends implement the same guarantees with a transaction plus unique
+condition-key insertion or a locked condition-row comparison. DynamoDB-style
+stores use their native conditional transaction API. Do not implement these
+methods as `get()` followed by independent writes: another worker could change
+the condition between those operations.
 
 Your own workflows opt into key-first continuation by declaring their workflow ID:
 
@@ -144,6 +158,7 @@ CREATE TABLE workflow_store (
     "partition" VARCHAR(255) NOT NULL,
     "key"       VARCHAR(255) NOT NULL,
     "value"     TEXT NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("partition", "key")
 );
@@ -153,6 +168,7 @@ CREATE TABLE workflow_store (
     `partition` VARCHAR(255) NOT NULL,
     `key`       VARCHAR(255) NOT NULL,
     `value`     TEXT NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`partition`, `key`)
 );
@@ -185,16 +201,18 @@ released version wrote the old layout.)
 
 - `ToolCallMessage::setRunId()`, `getRunId()`, `setResumeToken()`, `getResumeToken()`
 - `CorrelationStoreInterface` (never released)
-- `PersistenceInterface::save()/load()` — replaced by `put()/get()`
+- `PersistenceInterface::save()/load()/put()/delete()/conditionalCommit()` —
+  replaced by `get()`, `initializeIfAbsent()`, `writeIfUnchanged()`, and
+  `deleteIfUnchanged()`
 - Backend `Serializer` constructor parameters — replaced by `Workflow::setSerializer()`
 
 ## What to search for
 
 ```
-grep -rn "->save(\|->load(\|new DatabasePersistence\|new EloquentPersistence\|new FilePersistence\|getRunId\|getResumeToken" --include="*.php" .
+grep -rn "->save(\|->load(\|->put(\|conditionalCommit(\|new DatabasePersistence\|new EloquentPersistence\|new FilePersistence\|getRunId\|getResumeToken" --include="*.php" .
 ```
 
-Check each hit: persistence calls get the new verbs; backend constructions
-lose serializer arguments; a `getRunId()` used as a resume handle becomes
-`getWorkflowId()` (`getRunId()` still exists but returns the generation stamp);
-the `ToolCallMessage` variants are gone.
+Check each hit: persistence implementations adopt the explicit atomic methods;
+backend constructions lose serializer arguments; a `getRunId()` used as a
+resume handle becomes `getWorkflowId()` (`getRunId()` still exists but returns
+the generation stamp); the `ToolCallMessage` variants are gone.
