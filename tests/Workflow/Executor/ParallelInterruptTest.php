@@ -17,7 +17,7 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\MergeWithContinuationNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
-use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;

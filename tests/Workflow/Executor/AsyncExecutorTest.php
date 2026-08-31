@@ -13,10 +13,9 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
-use NeuronAI\Workflow\Executor\Amp\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
 use function Amp\async;
 use function microtime;
 

@@ -2,18 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Executor\Amp;
+namespace NeuronAI\Workflow\Executor;
 
 use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\BranchResult;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
-
 use function Amp\async;
 
 /**
