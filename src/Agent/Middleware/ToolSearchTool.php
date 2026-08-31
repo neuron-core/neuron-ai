@@ -201,9 +201,7 @@ class ToolSearchTool extends Tool
     protected function tokenize(string $text): array
     {
         $spaced = preg_replace('/(?<!^)[A-Z]/', '_$0', $text);
-        if ($spaced === null) {
-            $spaced = $text;
-        }
+        $spaced ??= $text;
 
         $spaced = strtolower(trim($spaced));
         if ($spaced === '') {

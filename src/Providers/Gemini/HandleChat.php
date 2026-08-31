@@ -138,9 +138,7 @@ trait HandleChat
         }
 
         // If no tool calls
-        if (!isset($message)) {
-            $message = new AssistantMessage($blocks);
-        }
+        $message ??= new AssistantMessage($blocks);
 
         if (array_key_exists('groundingMetadata', $result['candidates'][0])) {
             // Extract citations from groundingMetadata

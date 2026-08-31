@@ -59,7 +59,7 @@ class WorkflowRunStoreTest extends TestCase
         );
 
         $suspended = new WorkflowControl('run-1', WorkflowStatus::Suspended);
-        $step = new StepResult('step-1', state: null);
+        $step = new StepResult('step-1');
         $store->replaceControl($suspended, ['run-1/step-1' => $step]);
 
         $this->assertSame($suspended, $store->control());

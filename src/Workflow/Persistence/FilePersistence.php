@@ -131,7 +131,7 @@ class FilePersistence implements PersistenceInterface
         try {
             $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw new PersistenceException("Corrupted Workflow partition at '{$path}'.", previous: $e);
+            throw new PersistenceException("Corrupted Workflow partition at '{$path}'.", $e->getCode(), previous: $e);
         }
 
         if (!is_array($data)) {

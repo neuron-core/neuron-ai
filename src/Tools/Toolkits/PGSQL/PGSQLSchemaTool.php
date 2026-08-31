@@ -120,18 +120,16 @@ class PGSQLSchemaTool extends Tool
         foreach ($results as $row) {
             $tableName = $row['table_name'];
 
-            if (!isset($tables[$tableName])) {
-                $tables[$tableName] = [
-                    'name' => $tableName,
-                    'engine' => 'PostgreSQL',
-                    'estimated_rows' => $this->getTableRowCount($tableName),
-                    'comment' => $row['table_comment'],
-                    'columns' => [],
-                    'primary_key' => [],
-                    'unique_keys' => [],
-                    'indexes' => [],
-                ];
-            }
+            $tables[$tableName] ??= [
+                'name' => $tableName,
+                'engine' => 'PostgreSQL',
+                'estimated_rows' => $this->getTableRowCount($tableName),
+                'comment' => $row['table_comment'],
+                'columns' => [],
+                'primary_key' => [],
+                'unique_keys' => [],
+                'indexes' => [],
+            ];
 
             if ($row['column_name']) {
                 // Map PostgreSQL types to a more readable format

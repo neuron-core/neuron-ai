@@ -30,7 +30,7 @@ final class ResumeInput implements JsonSerializable
             try {
                 json_encode($this->payload, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
-                throw new WorkflowException('A resume event payload must be JSON-compatible.', previous: $e);
+                throw new WorkflowException('A resume event payload must be JSON-compatible.', $e->getCode(), previous: $e);
             }
         }
     }

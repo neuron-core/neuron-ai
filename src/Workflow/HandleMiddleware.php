@@ -72,9 +72,7 @@ trait HandleMiddleware
         $middlewareList = is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($nodeClasses as $class) {
-            if (!isset($this->nodeMiddleware[$class])) {
-                $this->nodeMiddleware[$class] = [];
-            }
+            $this->nodeMiddleware[$class] ??= [];
 
             foreach ($middlewareList as $m) {
                 if (! $m instanceof WorkflowMiddleware) {

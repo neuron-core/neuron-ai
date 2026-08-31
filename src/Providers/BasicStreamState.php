@@ -109,9 +109,7 @@ class BasicStreamState
 
     public function accumulateMetadata(string $key, string $value): self
     {
-        if (!isset($this->metadata[$key])) {
-            $this->metadata[$key] = '';
-        }
+        $this->metadata[$key] ??= '';
 
         $this->metadata[$key] .= $value;
         return $this;

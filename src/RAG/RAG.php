@@ -100,9 +100,7 @@ class RAG extends Agent
             $sourceType = $document->getSourceType();
             $sourceName = $document->getSourceName();
 
-            if (!isset($grouped[$sourceType][$sourceName])) {
-                $grouped[$sourceType][$sourceName] = [];
-            }
+            $grouped[$sourceType][$sourceName] ??= [];
 
             $grouped[$sourceType][$sourceName][] = $document;
         }

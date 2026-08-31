@@ -291,7 +291,7 @@ class LogListener
     {
         return [
             'question' => $data->question->jsonSerialize(),
-            'filters' => !$data->filters instanceof \NeuronAI\RAG\VectorStore\Filter\FilterExpression ? null : $this->serializeFilter($data->filters),
+            'filters' => $data->filters instanceof \NeuronAI\RAG\VectorStore\Filter\FilterExpression ? $this->serializeFilter($data->filters) : null,
         ];
     }
 

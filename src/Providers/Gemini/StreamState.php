@@ -18,9 +18,7 @@ class StreamState extends BasicStreamState
 
     public function updateContentBlock(string $type, string $content): void
     {
-        if (!isset($this->blocks[$type])) {
-            $this->blocks[$type] = $type === 'text' ? new TextContent('') : new ReasoningContent('');
-        }
+        $this->blocks[$type] ??= $type === 'text' ? new TextContent('') : new ReasoningContent('');
 
         $this->blocks[$type]->accumulateContent($content);
     }

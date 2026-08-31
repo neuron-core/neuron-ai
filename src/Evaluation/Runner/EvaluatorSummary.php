@@ -139,9 +139,7 @@ class EvaluatorSummary
         $groupedFailures = [];
         foreach ($this->getAllAssertionFailures() as $failure) {
             $class = $failure->getEvaluatorClass();
-            if (!isset($groupedFailures[$class])) {
-                $groupedFailures[$class] = [];
-            }
+            $groupedFailures[$class] ??= [];
             $groupedFailures[$class][] = $failure;
         }
         return $groupedFailures;
@@ -155,9 +153,7 @@ class EvaluatorSummary
         $groupedFailures = [];
         foreach ($this->getAllAssertionFailures() as $failure) {
             $key = $failure->getShortEvaluatorClass() . ':' . $failure->getLineNumber();
-            if (!isset($groupedFailures[$key])) {
-                $groupedFailures[$key] = [];
-            }
+            $groupedFailures[$key] ??= [];
             $groupedFailures[$key][] = $failure;
         }
         return $groupedFailures;
