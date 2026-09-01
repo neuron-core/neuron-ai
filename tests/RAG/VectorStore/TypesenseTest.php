@@ -13,6 +13,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 use Typesense\Client;
+
 use function bin2hex;
 use function file_get_contents;
 use function json_decode;

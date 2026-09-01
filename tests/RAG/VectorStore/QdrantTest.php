@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+
 use function sprintf;
 
 class QdrantTest extends TestCase

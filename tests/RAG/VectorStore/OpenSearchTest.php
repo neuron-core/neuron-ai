@@ -14,6 +14,7 @@ use NeuronAI\Tests\Support\CheckOpenPort;
 use OpenSearch\Client;
 use OpenSearch\GuzzleClientFactory;
 use PHPUnit\Framework\TestCase;
+
 use function file_get_contents;
 use function json_decode;
 

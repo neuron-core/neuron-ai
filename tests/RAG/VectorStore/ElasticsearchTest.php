@@ -14,6 +14,7 @@ use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+
 use function file_get_contents;
 use function json_decode;
 

@@ -12,6 +12,7 @@ use NeuronAI\Tests\Workflow\Stub\SecondNode;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+
 use function Amp\async;
 use function microtime;
 

@@ -13,6 +13,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PDO;
 use PHPUnit\Framework\TestCase;
+
 use function uniqid;
 
 class MariaDBTest extends TestCase

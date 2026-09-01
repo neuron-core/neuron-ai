@@ -20,6 +20,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+
 use function array_merge;
 
 class WorkflowMiddlewareTest extends TestCase

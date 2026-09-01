@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+
 use function uniqid;
 
 class WeaviateTest extends TestCase

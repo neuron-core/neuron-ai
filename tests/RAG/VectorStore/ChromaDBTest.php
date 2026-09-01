@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 
 class ChromaDBTest extends TestCase

@@ -17,6 +17,7 @@ use NeuronAI\Tests\Support\CheckOpenPort;
 use NeuronAI\Tools\ToolCall;
 use PDO;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 use function json_decode;
 use function uniqid;

@@ -29,6 +29,7 @@ use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+
 use function array_map;
 
 class ParallelInterruptTest extends TestCase

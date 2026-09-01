@@ -22,12 +22,14 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use PDO;
 use PHPUnit\Framework\TestCase;
+
 use function glob;
 use function is_dir;
 use function rmdir;
 use function strlen;
 use function sys_get_temp_dir;
 use function unlink;
+
 use const DIRECTORY_SEPARATOR;
 
 /**

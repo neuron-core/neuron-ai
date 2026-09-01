@@ -16,6 +16,7 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+
 use function is_dir;
 use function mkdir;
 use function rmdir;

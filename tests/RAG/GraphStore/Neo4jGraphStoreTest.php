@@ -10,6 +10,7 @@ use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
 use NeuronAI\RAG\GraphStore\Triplet;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+
 use function count;
 
 class Neo4jGraphStoreTest extends TestCase
