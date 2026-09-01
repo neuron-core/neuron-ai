@@ -30,7 +30,6 @@ In the PHP ecosystem, this set of foundations exists in one place. Each one is a
 [Streaming & UI protocols](https://docs.neuron-ai.dev/agent/streaming#stream-adapters),
 [MCP](#mcp-connector),
 [Async](https://docs.neuron-ai.dev/agent/async).
-You can compare it with any other option available to a PHP developer, and the comparison is the answer.
 
 There is also no second framework waiting for you when the project grows. The same Workflow that runs your first agent in the getting started guide runs a multi-agent system with state, loops, and human approvals in production. What you learn on day one is what you ship in future projects.
 
