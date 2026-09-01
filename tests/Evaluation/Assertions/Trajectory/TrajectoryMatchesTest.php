@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 use NeuronAI\Evaluation\Assertions\Trajectory\Mode;
 use NeuronAI\Evaluation\Assertions\Trajectory\TrajectoryMatches;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 
 class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
 {
@@ -20,7 +21,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         );
     }
 
-    public function testStrictMode(): void
+    public function test_strict_mode(): void
     {
         $trajectory = $this->fixture();
 
@@ -33,7 +34,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertFalse($missing->evaluate($trajectory)->passed);
     }
 
-    public function testUnorderedMode(): void
+    public function test_unordered_mode(): void
     {
         $trajectory = $this->fixture();
 
@@ -46,7 +47,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertFalse($fewer->evaluate($trajectory)->passed);
     }
 
-    public function testSubsetMode(): void
+    public function test_subset_mode(): void
     {
         $trajectory = $this->fixture();
 
@@ -59,7 +60,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertFalse($notPresent->evaluate($trajectory)->passed);
     }
 
-    public function testSupersetMode(): void
+    public function test_superset_mode(): void
     {
         $trajectory = $this->fixture();
 
@@ -70,7 +71,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertFalse($forbidsOne->evaluate($trajectory)->passed);
     }
 
-    public function testStrictIsTheDefaultMode(): void
+    public function test_strict_is_the_default_mode(): void
     {
         $trajectory = $this->fixture();
 
@@ -79,7 +80,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertTrue($result->passed);
     }
 
-    public function testEmptyExpectedTrajectory(): void
+    public function test_empty_expected_trajectory(): void
     {
         $empty = $this->emptyTrajectory();
         $withCalls = $this->fixture();
@@ -92,7 +93,7 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         $this->assertFalse((new TrajectoryMatches([], Mode::Superset))->evaluate($withCalls)->passed);
     }
 
-    public function testFailureMessageNamesExpectedActualAndMode(): void
+    public function test_failure_message_names_expected_actual_and_mode(): void
     {
         $result = (new TrajectoryMatches(['a', 'b'], Mode::Strict))->evaluate($this->fixture());
 

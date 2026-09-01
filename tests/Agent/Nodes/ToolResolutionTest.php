@@ -18,15 +18,14 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Tools\SearchTool;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
-
 use function str_starts_with;
 
 /**

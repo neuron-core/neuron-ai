@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasNotCalled;
+use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 
 class ToolWasNotCalledTest extends TrajectoryAssertionTestCase
 {
-    public function testPassesWhenToolWasNeverCalled(): void
+    public function test_passes_when_tool_was_never_called(): void
     {
         $trajectory = $this->trajectoryWithTools($this->makeTool('search', ['q' => 'x']));
 
@@ -18,14 +19,14 @@ class ToolWasNotCalledTest extends TrajectoryAssertionTestCase
         $this->assertSame(1.0, $result->score);
     }
 
-    public function testPassesOnEmptyTrajectory(): void
+    public function test_passes_on_empty_trajectory(): void
     {
         $result = (new ToolWasNotCalled('refund_order'))->evaluate($this->emptyTrajectory());
 
         $this->assertTrue($result->passed);
     }
 
-    public function testFailsWhenToolWasCalled(): void
+    public function test_fails_when_tool_was_called(): void
     {
         $trajectory = $this->trajectoryWithTools(
             $this->makeTool('refund_order', ['order_id' => '123'])

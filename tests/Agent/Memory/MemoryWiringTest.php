@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Memory;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tests\Agent\Memory\Stub\FailingForgetMemory;
+use NeuronAI\Tests\Agent\Memory\Stub\MemoryHookAgent;
+use NeuronAI\Tests\Agent\Memory\Stub\RecordingMemory;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -53,21 +55,7 @@ class MemoryWiringTest extends TestCase
     public function test_memory_hook_is_resolved_lazily_and_cached(): void
     {
         $memory = new RecordingMemory();
-        $agent = new class ($memory) extends Agent {
-            public int $memoryCalls = 0;
-
-            public function __construct(protected MemoryInterface $defaultMemory)
-            {
-                parent::__construct(threadId: 'thread-hook');
-            }
-
-            protected function memory(): MemoryInterface
-            {
-                $this->memoryCalls++;
-
-                return $this->defaultMemory;
-            }
-        };
+        $agent = new MemoryHookAgent($memory);
 
         $this->assertSame($memory, $agent->getMemory());
         $this->assertSame($memory, $agent->getMemory());
@@ -112,21 +100,7 @@ class MemoryWiringTest extends TestCase
 
     public function test_memory_failure_during_reset_preserves_chat_history(): void
     {
-        $memory = new class () implements MemoryInterface {
-            public function recall(string $query): array
-            {
-                return [];
-            }
-
-            public function remember(string $threadId, string $user, string $assistant): void
-            {
-            }
-
-            public function forget(string $threadId): void
-            {
-                throw new RuntimeException('Memory store unavailable.');
-            }
-        };
+        $memory = new FailingForgetMemory();
         $history = $this->conversationHistory();
         $agent = Agent::make()
             ->setChatHistory($history)
@@ -159,25 +133,5 @@ class MemoryWiringTest extends TestCase
         $history->addMessage(new AssistantMessage('Hi'));
 
         return $history;
-    }
-}
-
-class RecordingMemory implements MemoryInterface
-{
-    /** @var string[] */
-    public array $forgottenThreadIds = [];
-
-    public function recall(string $query): array
-    {
-        return [];
-    }
-
-    public function remember(string $threadId, string $user, string $assistant): void
-    {
-    }
-
-    public function forget(string $threadId): void
-    {
-        $this->forgottenThreadIds[] = $threadId;
     }
 }

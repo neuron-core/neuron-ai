@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Tests\Agent\Nodes\Stub\ParallelAnotherTool;
+use NeuronAI\Tests\Agent\Nodes\Stub\ParallelRegularTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
@@ -12,37 +14,12 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
+use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
-
-class ParallelRegularTool extends Tool
-{
-    protected string $name = 'regular_tool';
-
-    protected ?string $description = 'A regular tool';
-
-    public function __invoke(): string
-    {
-        return 'result';
-    }
-}
-
-class ParallelAnotherTool extends Tool
-{
-    protected string $name = 'another_tool';
-
-    protected ?string $description = 'Another tool';
-
-    public function __invoke(): string
-    {
-        return 'result';
-    }
-}
 
 class ParallelToolNodeTest extends TestCase
 {

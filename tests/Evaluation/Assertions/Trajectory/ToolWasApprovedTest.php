@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasApproved;
+use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 use NeuronAI\Tools\ApprovalState;
 
 class ToolWasApprovedTest extends TrajectoryAssertionTestCase
 {
-    public function testPassesWhenToolWasApproved(): void
+    public function test_passes_when_tool_was_approved(): void
     {
         $tool = $this->makeTool('refund_order', ['order_id' => '123']);
         $tool->setApprovalState(ApprovalState::Approved);
@@ -21,7 +22,7 @@ class ToolWasApprovedTest extends TrajectoryAssertionTestCase
         $this->assertSame(1.0, $result->score);
     }
 
-    public function testFailsWhenToolWasRejected(): void
+    public function test_fails_when_tool_was_rejected(): void
     {
         $tool = $this->makeTool('refund_order', ['order_id' => '123']);
         $tool->setApprovalState(ApprovalState::Rejected, 'too expensive');
@@ -33,7 +34,7 @@ class ToolWasApprovedTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('rejected', $result->message);
     }
 
-    public function testFailsWhenToolWasNotApprovalGated(): void
+    public function test_fails_when_tool_was_not_approval_gated(): void
     {
         $tool = $this->makeTool('refund_order', ['order_id' => '123']);
         $tool->setResult('refunded');
@@ -44,7 +45,7 @@ class ToolWasApprovedTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('not approval-gated', $result->message);
     }
 
-    public function testFailsWhenToolWasNeverCalled(): void
+    public function test_fails_when_tool_was_never_called(): void
     {
         $result = (new ToolWasApproved('refund_order'))->evaluate($this->emptyTrajectory());
 

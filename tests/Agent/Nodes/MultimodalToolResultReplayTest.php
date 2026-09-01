@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Tests\Agent\Nodes\Stub\MultimodalTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
@@ -21,25 +20,6 @@ use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
-
-class MultimodalTool extends Tool
-{
-    public static int $executions = 0;
-
-    protected string $name = 'multimodal_tool';
-
-    protected ?string $description = 'Returns a multimodal result';
-
-    public function __invoke(): ToolOutput
-    {
-        self::$executions++;
-
-        return new ToolOutput([
-            new TextContent('the chart'),
-            new ImageContent('base64data', SourceType::BASE64, 'image/png'),
-        ]);
-    }
-}
 
 class MultimodalToolResultReplayTest extends TestCase
 {

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
+use NeuronAI\Tests\Agent\Stub\AgentSearchTool;
+use NeuronAI\Tests\Agent\Stub\AgentSecretTool;
 use Generator;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
@@ -14,72 +17,13 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
-use NeuronAI\Tests\Stubs\StructuredOutput\User;
-use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
 use function iterator_to_array;
-
-class AgentSearchTool extends Tool
-{
-    protected string $name = 'search';
-
-    protected ?string $description = 'Search the web';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('query', PropertyType::STRING, 'Search query', true),
-        ];
-    }
-
-    public function __invoke(string $query): string
-    {
-        return "Results for: {$query}";
-    }
-}
-
-class AgentSecretTool extends Tool
-{
-    protected string $name = 'secret';
-
-    protected ?string $description = 'Secret tool';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('input', PropertyType::STRING, 'Input', true),
-        ];
-    }
-
-    public function __invoke(string $input): string
-    {
-        return "Secret: {$input}";
-    }
-}
-
-class AgentFailingTool extends Tool
-{
-    protected string $name = 'failing_tool';
-
-    protected ?string $description = 'A tool that fails';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('input', PropertyType::STRING, 'Input', true),
-        ];
-    }
-
-    public function __invoke(string $input): string
-    {
-        throw new RuntimeException('Tool failed!');
-    }
-}
 
 class AgentTest extends TestCase
 {

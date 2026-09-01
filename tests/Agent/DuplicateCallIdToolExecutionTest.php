@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Agent\Stub\DuplicateCallIdWeatherTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -11,33 +12,8 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
-
-class DuplicateCallIdWeatherTool extends Tool
-{
-    /** @var string[] */
-    public static array $executions = [];
-
-    protected string $name = 'get_weather';
-
-    protected ?string $description = 'Get the weather for a city.';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('city', PropertyType::STRING, 'The city', true),
-        ];
-    }
-
-    public function __invoke(string $city): string
-    {
-        self::$executions[] = $city;
-        return "Weather in {$city}: sunny";
-    }
-}
 
 /**
  * Regression test: providers without per-call ids (Gemini historically reused the

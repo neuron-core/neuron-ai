@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ChunkEvent;
-use NeuronAI\Tests\Workflow\Executor\Stubs\FinalTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\Step2Event;
-use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
-use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
-use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use Generator;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
+use NeuronAI\Tests\Workflow\Executor\Stub\FinalTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\Step2Event;
+use NeuronAI\Tests\Workflow\Executor\Stub\StreamingTextProcessNode;
+use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
@@ -23,7 +23,6 @@ use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-
 use function array_filter;
 use function array_map;
 use function iterator_to_array;
@@ -36,7 +35,7 @@ class WorkflowStreamingTest extends TestCase
      * NodeTwo yields a SecondEvent before returning one.
      * Verify the yielded event reaches the caller via events().
      */
-    public function testStreamedEventsReachCaller(): void
+    public function test_streamed_events_reach_caller(): void
     {
         $workflow = Workflow::make()->addNodes([
             new NodeOne(),
@@ -61,7 +60,7 @@ class WorkflowStreamingTest extends TestCase
      * StreamingTextProcessNode yields ChunkEvents with specific payloads.
      * Verify they propagate through a multi-node workflow.
      */
-    public function testStreamedChunkEventsReachCaller(): void
+    public function test_streamed_chunk_events_reach_caller(): void
     {
         $workflow = Workflow::make()->addNodes([
             // StartEvent → Step2Event
@@ -103,7 +102,7 @@ class WorkflowStreamingTest extends TestCase
      * still running — not buffered until the durable step completes. This is
      * what makes Agent::stream() deliver LLM chunks live.
      */
-    public function testStreamedEventsAreDeliveredBeforeTheNodeCompletes(): void
+    public function test_streamed_events_are_delivered_before_the_node_completes(): void
     {
         $workflow = Workflow::make()->addNodes([
             new class () extends Node {
@@ -134,7 +133,7 @@ class WorkflowStreamingTest extends TestCase
      * When a step is memoized (replay), no streamed events should be yielded
      * because the callable doesn't execute.
      */
-    public function testMemoizedStepsDoNotReEmitStreamedEvents(): void
+    public function test_memoized_steps_do_not_re_emit_streamed_events(): void
     {
         $workflow = Workflow::make()->addNodes([
             new NodeOne(),
@@ -155,7 +154,7 @@ class WorkflowStreamingTest extends TestCase
         $this->assertCount(1, $streamedFirstRun);
     }
 
-    public function testEventsStreamsAnExplicitContinuation(): void
+    public function test_events_streams_an_explicit_continuation(): void
     {
         $persistence = new InMemoryPersistence();
         $first = KeyedWorkflow::make()
@@ -173,7 +172,7 @@ class WorkflowStreamingTest extends TestCase
         $this->assertSame('completed', $generator->getReturn()->get('received_feedback'));
     }
 
-    public function testEventsStreamsAnInputlessContinuation(): void
+    public function test_events_streams_an_inputless_continuation(): void
     {
         $persistence = new InMemoryPersistence();
         $first = KeyedWorkflow::make()

@@ -14,7 +14,7 @@ use NeuronAI\Evaluation\Conversation\UserSimulator;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -48,7 +48,7 @@ class ConversationTest extends TestCase
         ]);
     }
 
-    public function testScriptedMultiTurnConversation(): void
+    public function test_scripted_multi_turn_conversation(): void
     {
         $provider = new FakeAIProvider(
             new AssistantMessage('Hi! How can I help?'),
@@ -68,7 +68,7 @@ class ConversationTest extends TestCase
         $provider->assertCallCount(2);
     }
 
-    public function testRunWithoutConfigurationThrows(): void
+    public function test_run_without_configuration_throws(): void
     {
         $conversation = Conversation::make($this->makeAgent(new FakeAIProvider()));
 
@@ -78,7 +78,7 @@ class ConversationTest extends TestCase
         $conversation->run();
     }
 
-    public function testApprovalFlowApprove(): void
+    public function test_approval_flow_approve(): void
     {
         $provider = new FakeAIProvider(
             $this->searchCall('call_1', 'PHP frameworks'),
@@ -113,7 +113,7 @@ class ConversationTest extends TestCase
         $this->assertSame('Here are the search results.', $trajectory->finalAnswer());
     }
 
-    public function testApprovalFlowReject(): void
+    public function test_approval_flow_reject(): void
     {
         $provider = new FakeAIProvider(
             $this->searchCall('call_1', 'PHP frameworks'),
@@ -134,7 +134,7 @@ class ConversationTest extends TestCase
         $this->assertSame('Understood, I will not search.', $trajectory->finalAnswer());
     }
 
-    public function testPolicyReceivesTrajectoryWithPendingTail(): void
+    public function test_policy_receives_trajectory_with_pending_tail(): void
     {
         $provider = new FakeAIProvider(
             $this->searchCall('call_1', 'PHP frameworks'),
@@ -163,7 +163,7 @@ class ConversationTest extends TestCase
         $this->assertSame(['query' => 'PHP frameworks'], $inputsAtPolicyTime);
     }
 
-    public function testSuspensionWithoutPolicyThrows(): void
+    public function test_suspension_without_policy_throws(): void
     {
         $provider = new FakeAIProvider(
             $this->searchCall('call_1', 'PHP frameworks'),
@@ -179,7 +179,7 @@ class ConversationTest extends TestCase
         $conversation->run();
     }
 
-    public function testIncompleteDecisionSetThrows(): void
+    public function test_incomplete_decision_set_throws(): void
     {
         $provider = new FakeAIProvider(
             $this->searchCall('call_1', 'PHP frameworks'),
@@ -196,7 +196,7 @@ class ConversationTest extends TestCase
         $conversation->run();
     }
 
-    public function testTurnWithConsecutiveSuspensions(): void
+    public function test_turn_with_consecutive_suspensions(): void
     {
         // The model calls the gated tool again after the first approval: the
         // resume suspends a second time and the policy answers again.
@@ -248,7 +248,7 @@ class ConversationTest extends TestCase
         ]));
     }
 
-    public function testSimulatedConversationRunsUntilTheSimulatorStops(): void
+    public function test_simulated_conversation_runs_until_the_simulator_stops(): void
     {
         $simulator = $this->makeSimulator(new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'What is the capital of France?'),
@@ -268,7 +268,7 @@ class ConversationTest extends TestCase
         $agentProvider->assertCallCount(1);
     }
 
-    public function testSimulatedConversationRespectsMaxTurns(): void
+    public function test_simulated_conversation_respects_max_turns(): void
     {
         $simulator = $this->makeSimulator(new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'Tell me more (1)'),
@@ -292,7 +292,7 @@ class ConversationTest extends TestCase
         $this->assertSame('Answer 3', $trajectory->finalAnswer());
     }
 
-    public function testSimulatedConversationWithApprovalFlow(): void
+    public function test_simulated_conversation_with_approval_flow(): void
     {
         $simulator = $this->makeSimulator(new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'Search for PHP frameworks'),
@@ -315,7 +315,7 @@ class ConversationTest extends TestCase
         $this->assertSame('Here is what I found.', $trajectory->finalAnswer());
     }
 
-    public function testBothConfigurationPathsThrow(): void
+    public function test_both_configuration_paths_throw(): void
     {
         $conversation = Conversation::make($this->makeAgent(new FakeAIProvider()))
             ->withTurns(['Hello'])
@@ -327,7 +327,7 @@ class ConversationTest extends TestCase
         $conversation->run();
     }
 
-    public function testMaxTurnsBelowOneThrows(): void
+    public function test_max_turns_below_one_throws(): void
     {
         $this->expectException(EvaluationException::class);
         $this->expectExceptionMessage('maxTurns must be at least 1');
@@ -336,7 +336,7 @@ class ConversationTest extends TestCase
             ->withUser($this->makeSimulator(new FakeAIProvider()), maxTurns: 0);
     }
 
-    public function testApprovalMidMultiTurnScript(): void
+    public function test_approval_mid_multi_turn_script(): void
     {
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello! What do you need?'),

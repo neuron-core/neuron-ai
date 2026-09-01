@@ -32,7 +32,7 @@ class TrajectoryTest extends TestCase
             ->setCallId($callId);
     }
 
-    public function testWrapsOriginalMessages(): void
+    public function test_wraps_original_messages(): void
     {
         $messages = [
             new SystemMessage('You are a helpful assistant.'),
@@ -50,7 +50,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('The capital of France is Paris.', $trajectory->finalAnswer());
     }
 
-    public function testToolRoundTripFoldsToFinalOutcome(): void
+    public function test_tool_round_trip_folds_to_final_outcome(): void
     {
         $pending = $this->makeTool('get_weather', ['city' => 'Rome'], 'call_1');
         $executed = $this->makeTool('get_weather', ['city' => 'Rome'], 'call_1')
@@ -72,7 +72,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('It is sunny in Rome.', $trajectory->finalAnswer());
     }
 
-    public function testSuspendedTailKeepsPendingEntry(): void
+    public function test_suspended_tail_keeps_pending_entry(): void
     {
         $gated = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
         $gated->setApprovalState(ApprovalState::Pending);
@@ -90,7 +90,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('', $trajectory->finalAnswer());
     }
 
-    public function testFinalOutcomeOverridesPendingSnapshot(): void
+    public function test_final_outcome_overrides_pending_snapshot(): void
     {
         // The tool_call message keeps its pending snapshot forever;
         // the final outcome lives on the ToolResultMessage and must win.
@@ -115,7 +115,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('rejected by the user', $call->getResult());
     }
 
-    public function testParallelCallsOfTheSameToolMatchByCallId(): void
+    public function test_parallel_calls_of_the_same_tool_match_by_call_id(): void
     {
         // Providers stamp a unique callId on every call, including parallel
         // calls of the same tool (Gemini synthesizes one when the API omits it).
@@ -138,7 +138,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('result B', $calls[1]->getResult());
     }
 
-    public function testToolCallsFilterAndLastToolCall(): void
+    public function test_tool_calls_filter_and_last_tool_call(): void
     {
         $search = $this->makeTool('search', ['q' => 'x'], 'call_1');
         $searchDone = $this->makeTool('search', ['q' => 'x'], 'call_1')->setResult('found');
@@ -162,7 +162,7 @@ class TrajectoryTest extends TestCase
         $this->assertNull($trajectory->lastToolCall('unknown_tool'));
     }
 
-    public function testFromChatHistory(): void
+    public function test_from_chat_history(): void
     {
         $history = new InMemoryChatHistory();
         $history->addMessage(new UserMessage('Hello'));
@@ -174,7 +174,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('Hi there.', $trajectory->finalAnswer());
     }
 
-    public function testUsageAggregation(): void
+    public function test_usage_aggregation(): void
     {
         $first = new AssistantMessage('Hi!');
         $first->setUsage(new Usage(100, 20));
@@ -194,7 +194,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame(300, $usage->getTotal());
     }
 
-    public function testSurvivesSerializationAcrossForkBoundary(): void
+    public function test_survives_serialization_across_fork_boundary(): void
     {
         $pending = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
         $pending->setApprovalState(ApprovalState::Pending);
@@ -221,7 +221,7 @@ class TrajectoryTest extends TestCase
         $this->assertSame('Too expensive', $call->getRejectReason());
     }
 
-    public function testToTranscriptRendering(): void
+    public function test_to_transcript_rendering(): void
     {
         $pending = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
         $pending->setApprovalState(ApprovalState::Pending);
@@ -251,7 +251,7 @@ class TrajectoryTest extends TestCase
         $this->assertStringContainsString('Assistant: I cannot process the refund.', $transcript);
     }
 
-    public function testPendingApprovalRendersInTranscriptWithoutResult(): void
+    public function test_pending_approval_renders_in_transcript_without_result(): void
     {
         $pending = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
         $pending->setApprovalState(ApprovalState::Pending);
@@ -267,7 +267,7 @@ class TrajectoryTest extends TestCase
         $this->assertStringNotContainsString('Tool result', $transcript);
     }
 
-    public function testAttachmentsRenderInTranscript(): void
+    public function test_attachments_render_in_transcript(): void
     {
         $trajectory = Trajectory::fromMessages([
             new UserMessage([

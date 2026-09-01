@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\Evaluation\Cache;
 
 use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\CountingEvaluator;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\NonSerializableOutputEvaluator;
+use NeuronAI\Tests\Evaluation\Cache\Stub\CountingEvaluator;
+use NeuronAI\Tests\Evaluation\Cache\Stub\NonSerializableOutputEvaluator;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -38,7 +38,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         }
     }
 
-    public function testSecondRunServesFromCacheAndStillEvaluates(): void
+    public function test_second_run_serves_from_cache_and_still_evaluates(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 
@@ -60,7 +60,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         }
     }
 
-    public function testRefreshBypassesCacheReads(): void
+    public function test_refresh_bypasses_cache_reads(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 
@@ -71,7 +71,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         $this->assertSame(0, $summary->getCachedRunCount());
     }
 
-    public function testWithoutCacheEveryRunExecutes(): void
+    public function test_without_cache_every_run_executes(): void
     {
         (new EvaluatorRunner())->run(new CountingEvaluator());
         $summary = (new EvaluatorRunner())->run(new CountingEvaluator());
@@ -80,7 +80,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         $this->assertSame(0, $summary->getCachedRunCount());
     }
 
-    public function testNonSerializableOutputIsNeverCached(): void
+    public function test_non_serializable_output_is_never_cached(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 

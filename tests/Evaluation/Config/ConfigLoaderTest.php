@@ -58,7 +58,7 @@ class ConfigLoaderTest extends TestCase
         rmdir($dir);
     }
 
-    public function testReturnsDefaultConfigWhenNoConfigFileExists(): void
+    public function test_returns_default_config_when_no_config_file_exists(): void
     {
         $originalCwd = getcwd();
         chdir($this->tempDir);
@@ -75,7 +75,7 @@ class ConfigLoaderTest extends TestCase
         }
     }
 
-    public function testGetOutputDriversReturnsDefaultWhenNoConfigFile(): void
+    public function test_get_output_drivers_returns_default_when_no_config_file(): void
     {
         $originalCwd = getcwd();
         chdir($this->tempDir);
@@ -90,7 +90,7 @@ class ConfigLoaderTest extends TestCase
         }
     }
 
-    public function testLoadsConfigFromEvaluationPhp(): void
+    public function test_loads_config_from_evaluation_php(): void
     {
         $configFile = $this->tempDir . '/evaluation.php';
         file_put_contents($configFile, '<?php return ["output_drivers" => ["MyDriver"]];');
@@ -108,7 +108,7 @@ class ConfigLoaderTest extends TestCase
         }
     }
 
-    public function testPrefersRootConfigOverConfigDirectory(): void
+    public function test_prefers_root_config_over_config_directory(): void
     {
         $rootConfig = $this->tempDir . '/evaluation.php';
         file_put_contents($rootConfig, '<?php return ["output_drivers" => ["RootDriver"]];');
@@ -130,7 +130,7 @@ class ConfigLoaderTest extends TestCase
         }
     }
 
-    public function testThrowsExceptionWhenConfigDoesNotReturnArray(): void
+    public function test_throws_exception_when_config_does_not_return_array(): void
     {
         $configFile = $this->tempDir . '/evaluation.php';
         file_put_contents($configFile, '<?php return "not an array";');

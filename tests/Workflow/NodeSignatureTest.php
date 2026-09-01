@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stub\PrioritizedSignal;
+use NeuronAI\Tests\Workflow\Stub\PrioritizedTestEvent;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
@@ -17,14 +19,6 @@ use PHPUnit\Framework\TestCase;
 use Countable;
 use Stringable;
 
-interface PrioritizedSignal
-{
-}
-
-class PrioritizedTestEvent implements Event, PrioritizedSignal
-{
-}
-
 class NodeSignatureTest extends TestCase
 {
     protected NodeSignature $signature;
@@ -34,7 +28,7 @@ class NodeSignatureTest extends TestCase
         $this->signature = new NodeSignature();
     }
 
-    public function testResolvesNamedEventClass(): void
+    public function test_resolves_named_event_class(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
@@ -46,7 +40,7 @@ class NodeSignatureTest extends TestCase
         $this->assertSame(StartEvent::class, $this->signature->eventClass($node));
     }
 
-    public function testResolvesIntersectionToItsEventMember(): void
+    public function test_resolves_intersection_to_its_event_member(): void
     {
         $node = new class () extends Node {
             public function __invoke(PrioritizedTestEvent&PrioritizedSignal $event, WorkflowState $state): StopEvent
@@ -58,7 +52,7 @@ class NodeSignatureTest extends TestCase
         $this->assertSame(PrioritizedTestEvent::class, $this->signature->eventClass($node));
     }
 
-    public function testIntersectionNodeRoutesInsideAWorkflow(): void
+    public function test_intersection_node_routes_inside_a_workflow(): void
     {
         $workflow = Workflow::make()->addNodes([
             new class () extends Node {
@@ -81,7 +75,7 @@ class NodeSignatureTest extends TestCase
         $this->assertTrue($state->get('routed_through_intersection'));
     }
 
-    public function testRejectsIntersectionWithoutAnEventMember(): void
+    public function test_rejects_intersection_without_an_event_member(): void
     {
         $node = new class () extends Node {
             public function __invoke(Countable&Stringable $event, WorkflowState $state): StopEvent
@@ -95,7 +89,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsUnionEventType(): void
+    public function test_rejects_union_event_type(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent|StopEvent $event, WorkflowState $state): StopEvent
@@ -109,7 +103,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsMissingInvoke(): void
+    public function test_rejects_missing_invoke(): void
     {
         $node = new class () extends Node {
         };
@@ -119,7 +113,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsWrongParameterCount(): void
+    public function test_rejects_wrong_parameter_count(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent $event): StopEvent
@@ -133,7 +127,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsNonEventFirstParameter(): void
+    public function test_rejects_non_event_first_parameter(): void
     {
         $node = new class () extends Node {
             public function __invoke(string $event, WorkflowState $state): StopEvent
@@ -147,7 +141,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsNonStateSecondParameter(): void
+    public function test_rejects_non_state_second_parameter(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent $event, string $state): StopEvent
@@ -161,7 +155,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testRejectsInvalidReturnType(): void
+    public function test_rejects_invalid_return_type(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): string
@@ -175,7 +169,7 @@ class NodeSignatureTest extends TestCase
         $this->signature->eventClass($node);
     }
 
-    public function testAcceptsGeneratorAndUnionReturnTypes(): void
+    public function test_accepts_generator_and_union_return_types(): void
     {
         $node = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): Generator|StopEvent

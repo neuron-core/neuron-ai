@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
-use NeuronAI\Tests\Stubs\StructuredOutput\Color;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassOnlyParentConstructor;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassOnlyParentConstructorFluent;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassWithParentConstructor;
-use NeuronAI\Tests\Stubs\Tools\TestToolClassWithParentConstructorMixed;
+use NeuronAI\Tests\StructuredOutput\Stub\Color;
+use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructor;
+use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructorFluent;
+use NeuronAI\Tests\Tools\Stub\TestToolClassWithParentConstructor;
+use NeuronAI\Tests\Tools\Stub\TestToolClassWithParentConstructorMixed;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;

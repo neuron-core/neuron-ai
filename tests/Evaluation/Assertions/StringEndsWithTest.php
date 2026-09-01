@@ -11,7 +11,7 @@ use InvalidArgumentException;
 
 class StringEndsWithTest extends TestCase
 {
-    public function testPassesWhenStringEndsWithSuffix(): void
+    public function test_passes_when_string_ends_with_suffix(): void
     {
         $assertion = new StringEndsWith('world');
         $result = $assertion->evaluate('hello world');
@@ -21,7 +21,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWithExactMatch(): void
+    public function test_passes_with_exact_match(): void
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello');
@@ -30,7 +30,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenStringDoesNotEndWithSuffix(): void
+    public function test_fails_when_string_does_not_end_with_suffix(): void
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello world');
@@ -40,7 +40,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals("Expected response to end with 'hello'", $result->message);
     }
 
-    public function testFailsWithCaseSensitiveComparison(): void
+    public function test_fails_with_case_sensitive_comparison(): void
     {
         $assertion = new StringEndsWith('World');
         $result = $assertion->evaluate('hello world');
@@ -50,7 +50,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals("Expected response to end with 'World'", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringEndsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -58,7 +58,7 @@ class StringEndsWithTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringEndsWith('world');
         $this->expectException(InvalidArgumentException::class);
@@ -66,7 +66,7 @@ class StringEndsWithTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringEndsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -74,7 +74,7 @@ class StringEndsWithTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testFailsWithObjectInput(): void
+    public function test_fails_with_object_input(): void
     {
         $assertion = new StringEndsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -82,7 +82,7 @@ class StringEndsWithTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function testPassesWithEmptySuffix(): void
+    public function test_passes_with_empty_suffix(): void
     {
         $assertion = new StringEndsWith('');
         $result = $assertion->evaluate('hello world');
@@ -91,7 +91,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithEmptySuffixAndEmptyString(): void
+    public function test_passes_with_empty_suffix_and_empty_string(): void
     {
         $assertion = new StringEndsWith('');
         $result = $assertion->evaluate('');
@@ -100,7 +100,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWithNonEmptySuffixAndEmptyString(): void
+    public function test_fails_with_non_empty_suffix_and_empty_string(): void
     {
         $assertion = new StringEndsWith('world');
         $result = $assertion->evaluate('');
@@ -110,7 +110,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals("Expected response to end with 'world'", $result->message);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringEndsWith('!@#$');
         $result = $assertion->evaluate('special end !@#$');
@@ -119,7 +119,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringEndsWith('café');
         $result = $assertion->evaluate('Welcome to café');
@@ -128,7 +128,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithWhitespace(): void
+    public function test_passes_with_whitespace(): void
     {
         $assertion = new StringEndsWith('world  ');
         $result = $assertion->evaluate('hello world  ');
@@ -137,7 +137,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenSuffixIsAtBeginning(): void
+    public function test_fails_when_suffix_is_at_beginning(): void
     {
         $assertion = new StringEndsWith('hello');
         $result = $assertion->evaluate('hello world');
@@ -147,7 +147,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals("Expected response to end with 'hello'", $result->message);
     }
 
-    public function testPassesWithPunctuationSuffix(): void
+    public function test_passes_with_punctuation_suffix(): void
     {
         $assertion = new StringEndsWith('.');
         $result = $assertion->evaluate('This is a sentence.');
@@ -156,7 +156,7 @@ class StringEndsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringEndsWith('test');
         $this->assertEquals('StringEndsWith', $assertion->getName());

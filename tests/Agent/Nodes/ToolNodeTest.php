@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Tests\Agent\Nodes\Stub\TestToolWithRequiredInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
@@ -13,34 +14,13 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Tests\Agent\Tools\TestParametrizedTool;
-use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
-use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Throwable;
-
-class TestToolWithRequiredInput extends Tool
-{
-    protected string $name = 'test_tool';
-
-    protected ?string $description = 'A test tool';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('required_input', PropertyType::STRING, 'A required input', true),
-        ];
-    }
-
-    public function __invoke(string $required_input): string
-    {
-        return "Processed: {$required_input}";
-    }
-}
 
 class ToolNodeTest extends TestCase
 {

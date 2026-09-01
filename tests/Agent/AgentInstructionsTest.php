@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
+use NeuronAI\Tests\Agent\Stub\QueryDatabaseTool;
+use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Agent;
@@ -18,67 +21,10 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\Toolkits\AbstractToolkit;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
-
-class QueryDatabaseTool extends Tool
-{
-    protected string $name = 'query_database';
-
-    protected ?string $description = 'Execute SQL queries on the database';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('sql', PropertyType::STRING, 'SQL query', true),
-        ];
-    }
-
-    public function __invoke(string $sql): string
-    {
-        return "Results for: {$sql}";
-    }
-}
-
-class GetWeatherTool extends Tool
-{
-    protected string $name = 'get_weather';
-
-    protected ?string $description = 'Get current weather for a location';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty('location', PropertyType::STRING, 'Location', true),
-        ];
-    }
-
-    public function __invoke(string $location): string
-    {
-        return "Weather for {$location}: sunny";
-    }
-}
-
-class WeatherToolkit extends AbstractToolkit
-{
-    public function guidelines(): ?string
-    {
-        return 'Always report temperatures in Celsius.';
-    }
-
-    /**
-     * @return \NeuronAI\Tools\ToolInterface[]
-     */
-    public function provide(): array
-    {
-        return [new GetWeatherTool()];
-    }
-}
 
 class AgentInstructionsTest extends TestCase
 {

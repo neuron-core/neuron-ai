@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Workflow\Executor\Stubs\CountableNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DurableInterruptNodeB;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeA;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeB;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DurableNodeC;
-use NeuronAI\Tests\Workflow\Executor\Stubs\DurableEventA;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\RestoreSpyWorkflow;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\CountableNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\DurableEventA;
+use NeuronAI\Tests\Workflow\Executor\Stub\DurableInterruptNodeB;
+use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeA;
+use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeB;
+use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeC;
+use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\RestoreSpyWorkflow;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -32,7 +33,7 @@ class DurableExecutorTest extends TestCase
         CountableNode::resetExecutionCount();
     }
 
-    public function testMemoizationOnCrashRecovery(): void
+    public function test_memoization_on_crash_recovery(): void
     {
         $workflowId = 'durable_crash_test';
         $persistence = new InMemoryPersistence();
@@ -72,7 +73,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('step_c_executed'));
     }
 
-    public function testInterruptThenResumeMemoizesCompletedSteps(): void
+    public function test_interrupt_then_resume_memoizes_completed_steps(): void
     {
         $workflowId = 'durable_interrupt_test';
         $persistence = new InMemoryPersistence();
@@ -119,7 +120,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('step_c_executed'));
     }
 
-    public function testStepCleanupAfterCompletion(): void
+    public function test_step_cleanup_after_completion(): void
     {
         $workflowId = 'durable_cleanup_test';
         $persistence = new InMemoryPersistence();
@@ -139,7 +140,7 @@ class DurableExecutorTest extends TestCase
         $this->assertNull($persistence->get($workflowId, $this->stepKey($workflow, DurableNodeC::class . '-2')));
     }
 
-    public function testStepsNotCleanedUpAfterCrash(): void
+    public function test_steps_not_cleaned_up_after_crash(): void
     {
         $workflowId = 'durable_crash_cleanup_test';
         $persistence = new InMemoryPersistence();
@@ -160,7 +161,7 @@ class DurableExecutorTest extends TestCase
         }
     }
 
-    public function testDefaultInMemoryPersistence(): void
+    public function test_default_in_memory_persistence(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -176,7 +177,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('node_three_executed'));
     }
 
-    public function testMemoizationWithFreshExecutor(): void
+    public function test_memoization_with_fresh_executor(): void
     {
         $workflowId = 'durable_fresh_engine_test';
         $persistence = new InMemoryPersistence();
@@ -216,7 +217,7 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('step_c_executed'));
     }
 
-    public function testMemoizeRunsOnceAcrossMidNodeCrashAndRecovery(): void
+    public function test_memoize_runs_once_across_mid_node_crash_and_recovery(): void
     {
         MemoizingNode::resetOperationCount();
         CountableNode::resetExecutionCount();
@@ -253,7 +254,7 @@ class DurableExecutorTest extends TestCase
         $this->assertSame('computed_1', $result->get('memo_result'));
     }
 
-    public function testRestoreEventFiresOnlyOnRecalledEvents(): void
+    public function test_restore_event_fires_only_on_recalled_events(): void
     {
         $workflowId = 'durable_restore_seam_test';
         $persistence = new InMemoryPersistence();
@@ -289,7 +290,7 @@ class DurableExecutorTest extends TestCase
         $this->assertSame([StartEvent::class, DurableEventA::class], $workflow2->restored);
     }
 
-    public function testCrashRecordsFailedStepMarker(): void
+    public function test_crash_records_failed_step_marker(): void
     {
         $workflowId = 'durable_failed_marker_test';
         $persistence = new InMemoryPersistence();

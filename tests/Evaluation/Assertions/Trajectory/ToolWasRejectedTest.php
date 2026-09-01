@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasRejected;
+use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 use NeuronAI\Tools\ApprovalState;
 
 class ToolWasRejectedTest extends TrajectoryAssertionTestCase
 {
-    public function testPassesWhenToolWasRejected(): void
+    public function test_passes_when_tool_was_rejected(): void
     {
         $tool = $this->makeTool('refund_order', ['order_id' => '123']);
         $tool->setApprovalState(ApprovalState::Rejected, 'amount too high');
@@ -21,7 +22,7 @@ class ToolWasRejectedTest extends TrajectoryAssertionTestCase
         $this->assertSame(1.0, $result->score);
     }
 
-    public function testFailsWhenToolWasApproved(): void
+    public function test_fails_when_tool_was_approved(): void
     {
         $tool = $this->makeTool('refund_order', ['order_id' => '123']);
         $tool->setApprovalState(ApprovalState::Approved);
@@ -34,7 +35,7 @@ class ToolWasRejectedTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('approved', $result->message);
     }
 
-    public function testFailsWhenToolWasNeverCalled(): void
+    public function test_fails_when_tool_was_never_called(): void
     {
         $result = (new ToolWasRejected('refund_order'))->evaluate($this->emptyTrajectory());
 

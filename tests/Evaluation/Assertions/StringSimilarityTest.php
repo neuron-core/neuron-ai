@@ -24,7 +24,7 @@ class StringSimilarityTest extends TestCase
         $this->embeddingsProvider = $this->createMock(EmbeddingsProviderInterface::class);
     }
 
-    public function testPassesWhenSimilarityIsAboveThreshold(): void
+    public function test_passes_when_similarity_is_above_threshold(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -42,7 +42,7 @@ class StringSimilarityTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWhenIdenticalStrings(): void
+    public function test_passes_when_identical_strings(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -59,7 +59,7 @@ class StringSimilarityTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenSimilarityIsBelowThreshold(): void
+    public function test_fails_when_similarity_is_below_threshold(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -77,7 +77,7 @@ class StringSimilarityTest extends TestCase
         $this->assertEquals("Expected 'goodbye universe' to be similar to 'hello world' (threshold: '0.8')", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
         $this->expectException(InvalidArgumentException::class);
@@ -85,7 +85,7 @@ class StringSimilarityTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringSimilarity('hello', $this->embeddingsProvider, 0.6);
         $this->expectException(InvalidArgumentException::class);
@@ -93,7 +93,7 @@ class StringSimilarityTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
         $this->expectException(InvalidArgumentException::class);
@@ -101,7 +101,7 @@ class StringSimilarityTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testFailsWithObjectInput(): void
+    public function test_fails_with_object_input(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
         $this->expectException(InvalidArgumentException::class);
@@ -109,7 +109,7 @@ class StringSimilarityTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function testHandlesEmbeddingsProviderException(): void
+    public function test_handles_embeddings_provider_exception(): void
     {
         $this->embeddingsProvider
             ->expects($this->once())
@@ -124,7 +124,7 @@ class StringSimilarityTest extends TestCase
         $assertion->evaluate('hello earth');
     }
 
-    public function testUsesDefaultThreshold(): void
+    public function test_uses_default_threshold(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -141,7 +141,7 @@ class StringSimilarityTest extends TestCase
         $this->assertGreaterThan(0.6, $result->score);
     }
 
-    public function testFailsWithDefaultThresholdWhenSimilarityTooLow(): void
+    public function test_fails_with_default_threshold_when_similarity_too_low(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -159,7 +159,7 @@ class StringSimilarityTest extends TestCase
         $this->assertEquals("Expected 'completely different' to be similar to 'hello world' (threshold: '0.6')", $result->message);
     }
 
-    public function testHandlesUnicodeStrings(): void
+    public function test_handles_unicode_strings(): void
     {
         $this->embeddingsProvider
             ->expects($this->exactly(2))
@@ -176,7 +176,7 @@ class StringSimilarityTest extends TestCase
         $this->assertGreaterThan(0.8, $result->score);
     }
 
-    public function testPassesWithHighDimensionalVectors(): void
+    public function test_passes_with_high_dimensional_vectors(): void
     {
         $highDimVector1 = array_fill(0, 384, 0.1);
         $highDimVector1[0] = 1.0;
@@ -199,7 +199,7 @@ class StringSimilarityTest extends TestCase
         $this->assertGreaterThan(0.7, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringSimilarity('test', $this->embeddingsProvider, 0.6);
         $this->assertEquals('StringSimilarity', $assertion->getName());

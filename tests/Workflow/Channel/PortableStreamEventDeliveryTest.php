@@ -4,37 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
-use Generator;
+use NeuronAI\Tests\Workflow\Channel\Stub\PortableProgressNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\WorkflowProgress;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Testing\FakeChannel;
-use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
 use function iterator_to_array;
 use function substr;
-
-class WorkflowProgress
-{
-    public function __construct(public readonly int $percentage)
-    {
-    }
-}
-
-class PortableProgressNode extends Node
-{
-    public function __invoke(StartEvent $event, WorkflowState $state): Generator
-    {
-        yield new WorkflowProgress(50);
-
-        return new StopEvent();
-    }
-}
 
 class PortableStreamEventDeliveryTest extends TestCase
 {

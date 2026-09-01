@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace NeuronAI\Tests\Agent\Stub;
+
+use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
+
+class AgentSearchTool extends Tool
+{
+    protected string $name = 'search';
+
+    protected ?string $description = 'Search the web';
+
+    protected function properties(): array
+    {
+        return [
+            new ToolProperty('query', PropertyType::STRING, 'Search query', true),
+        ];
+    }
+
+    public function __invoke(string $query): string
+    {
+        return "Results for: {$query}";
+    }
+}

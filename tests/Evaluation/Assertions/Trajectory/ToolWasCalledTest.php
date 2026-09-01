@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
-use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasCalled;
 use InvalidArgumentException;
+use NeuronAI\Evaluation\Assertions\Trajectory\ToolWasCalled;
+use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 
 class ToolWasCalledTest extends TrajectoryAssertionTestCase
 {
-    public function testPassesWhenToolWasCalled(): void
+    public function test_passes_when_tool_was_called(): void
     {
         $trajectory = $this->trajectoryWithTools($this->makeTool('search', ['q' => 'x']));
 
@@ -19,7 +20,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertSame(1.0, $result->score);
     }
 
-    public function testFailsWhenToolWasNeverCalled(): void
+    public function test_fails_when_tool_was_never_called(): void
     {
         $trajectory = $this->trajectoryWithTools($this->makeTool('search', ['q' => 'x']));
 
@@ -30,7 +31,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('search({"q":"x"})', $result->message);
     }
 
-    public function testFailsOnEmptyTrajectory(): void
+    public function test_fails_on_empty_trajectory(): void
     {
         $result = (new ToolWasCalled('search'))->evaluate($this->emptyTrajectory());
 
@@ -38,7 +39,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('no tool was called', $result->message);
     }
 
-    public function testArgumentSubsetMatchAllowsExtraInputs(): void
+    public function test_argument_subset_match_allows_extra_inputs(): void
     {
         $trajectory = $this->trajectoryWithTools(
             $this->makeTool('refund_order', ['order_id' => '123', 'notify' => true])
@@ -49,7 +50,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertTrue($result->passed);
     }
 
-    public function testArgumentMismatchFails(): void
+    public function test_argument_mismatch_fails(): void
     {
         $trajectory = $this->trajectoryWithTools(
             $this->makeTool('refund_order', ['order_id' => '999'])
@@ -62,7 +63,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertStringContainsString('{"order_id":"999"}', $result->message);
     }
 
-    public function testAnyMatchingCallPasses(): void
+    public function test_any_matching_call_passes(): void
     {
         $trajectory = $this->trajectoryWithTools(
             $this->makeTool('search', ['q' => 'wrong'], 'call_1'),
@@ -74,7 +75,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertTrue($result->passed);
     }
 
-    public function testClosureConstraint(): void
+    public function test_closure_constraint(): void
     {
         $trajectory = $this->trajectoryWithTools(
             $this->makeTool('refund_order', ['amount' => 150])
@@ -87,7 +88,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         $this->assertFalse($under->evaluate($trajectory)->passed);
     }
 
-    public function testThrowsOnNonTrajectoryInput(): void
+    public function test_throws_on_non_trajectory_input(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('evaluates a Trajectory, got string');
@@ -95,7 +96,7 @@ class ToolWasCalledTest extends TrajectoryAssertionTestCase
         (new ToolWasCalled('search'))->evaluate('a plain string');
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $this->assertSame('ToolWasCalled', (new ToolWasCalled('search'))->getName());
     }

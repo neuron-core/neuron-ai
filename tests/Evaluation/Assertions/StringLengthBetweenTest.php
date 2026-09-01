@@ -11,7 +11,7 @@ use InvalidArgumentException;
 
 class StringLengthBetweenTest extends TestCase
 {
-    public function testPassesWhenLengthIsWithinRange(): void
+    public function test_passes_when_length_is_within_range(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('hello world');
@@ -21,7 +21,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWhenLengthIsAtMinimum(): void
+    public function test_passes_when_length_is_at_minimum(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('hello');
@@ -30,7 +30,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWhenLengthIsAtMaximum(): void
+    public function test_passes_when_length_is_at_maximum(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('hello world max');
@@ -39,7 +39,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWhenMinAndMaxAreEqual(): void
+    public function test_passes_when_min_and_max_are_equal(): void
     {
         $assertion = new StringLengthBetween(5, 5);
         $result = $assertion->evaluate('hello');
@@ -48,7 +48,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithEmptyStringWhenMinIsZero(): void
+    public function test_passes_with_empty_string_when_min_is_zero(): void
     {
         $assertion = new StringLengthBetween(0, 5);
         $result = $assertion->evaluate('');
@@ -57,7 +57,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenLengthIsTooShort(): void
+    public function test_fails_when_length_is_too_short(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('hi');
@@ -67,7 +67,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals('Expected string length to be between 5 and 15, got 2', $result->message);
     }
 
-    public function testFailsWhenLengthIsTooLong(): void
+    public function test_fails_when_length_is_too_long(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('this is a very long string that exceeds the maximum length');
@@ -77,7 +77,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals('Expected string length to be between 5 and 15, got 58', $result->message);
     }
 
-    public function testFailsWithEmptyStringWhenMinIsNotZero(): void
+    public function test_fails_with_empty_string_when_min_is_not_zero(): void
     {
         $assertion = new StringLengthBetween(1, 10);
         $result = $assertion->evaluate('');
@@ -87,7 +87,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals('Expected string length to be between 1 and 10, got 0', $result->message);
     }
 
-    public function testFailsWhenMinAndMaxAreEqualButLengthDiffers(): void
+    public function test_fails_when_min_and_max_are_equal_but_length_differs(): void
     {
         $assertion = new StringLengthBetween(5, 5);
         $result = $assertion->evaluate('hello world');
@@ -97,7 +97,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals('Expected string length to be between 5 and 5, got 11', $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $this->expectException(InvalidArgumentException::class);
@@ -105,7 +105,7 @@ class StringLengthBetweenTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $this->expectException(InvalidArgumentException::class);
@@ -113,7 +113,7 @@ class StringLengthBetweenTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $this->expectException(InvalidArgumentException::class);
@@ -121,7 +121,7 @@ class StringLengthBetweenTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testFailsWithObjectInput(): void
+    public function test_fails_with_object_input(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $this->expectException(InvalidArgumentException::class);
@@ -129,7 +129,7 @@ class StringLengthBetweenTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('café naïve');
@@ -138,7 +138,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('!@#$%^&*()');
@@ -147,7 +147,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithWhitespaceCharacters(): void
+    public function test_passes_with_whitespace_characters(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate('  hello  ');
@@ -156,7 +156,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithNewlineCharacters(): void
+    public function test_passes_with_newline_characters(): void
     {
         $assertion = new StringLengthBetween(10, 20);
         $result = $assertion->evaluate("hello\nworld\ntest");
@@ -165,7 +165,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithTabCharacters(): void
+    public function test_passes_with_tab_characters(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $result = $assertion->evaluate("hello\tworld");
@@ -174,7 +174,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testCountsEmojiCorrectly(): void
+    public function test_counts_emoji_correctly(): void
     {
         $assertion = new StringLengthBetween(8, 12);
         $result = $assertion->evaluate('hello 🌍!');
@@ -183,7 +183,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testHandlesZeroMinimum(): void
+    public function test_handles_zero_minimum(): void
     {
         $assertion = new StringLengthBetween(0, 0);
         $result = $assertion->evaluate('');
@@ -192,7 +192,7 @@ class StringLengthBetweenTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringLengthBetween(5, 15);
         $this->assertEquals('StringLengthBetween', $assertion->getName());

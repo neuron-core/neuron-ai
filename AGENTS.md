@@ -40,25 +40,6 @@ Chat ◄────────────────────────
 
 **Workflow** is the foundation. **Agent** composes workflow nodes for AI interactions. **RAG** extends Agent with document retrieval. All share **Chat** for messaging and **Providers** for AI backends.
 
-### Agent semantic memory
-
-Configure optional long-term memory once with `Agent::setMemory()` or the
-protected `memory()` hook. `SemanticMemory` is the vector-backed implementation
-and reuses RAG's `VectorStoreInterface` and `EmbeddingsProviderInterface`; it
-uses the built-in source filters, so developers do not define a separate
-document schema. Its safe default is thread-local recall; an explicit,
-server-authorized thread list enables recall across selected conversations
-without changing thread-specific storage or deletion.
-
-`RecallMemoryNode` enriches instructions before the first provider call, and
-`StoreMemoryNode` durably stores the completed plain user-assistant exchange
-after the final response. Tool loops bypass recall and only their final exchange
-is stored; tool protocol messages are excluded. Inference nodes perform no
-memory operations. Chat history and semantic memory share thread identity but
-remain independent components: `flushAll()` clears working history, while the
-explicit `Agent::resetConversation()` operation clears both stores. See
-`src/Agent/AGENTS.md` for lifecycle details and examples.
-
 ## Modules
 
 | Module | Purpose                                                       | Dependencies |
@@ -98,6 +79,13 @@ Read module-specific `AGENTS.md` files when working on that area:
 - 100% type coverage (params, returns, properties)
 - PHP 8.1+ features (enums, constructor promotion)
 - Use **protected** visibility for non-public properties and methods (never private)
+
+## Unit Testing
+
+- Organize namespaces under the "tests" directory in the same way modules are organized in "src".
+- If you need fake or testing object to build test cases put them in a Stub namespace inside the main module so they could be reused by other test cases.
+- Put general utilities helpers, traits, classes, in Tests\Support namespace.
+- Use snake_case format for test methods.
 
 ## Think Before Coding
 

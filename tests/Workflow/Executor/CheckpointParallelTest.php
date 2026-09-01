@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Workflow\Executor\Stubs\CheckpointableTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageFirstForkNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableBranchProcessing;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MultiCheckpointTextProcessNode;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\CheckpointableTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageFirstForkNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableBranchProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MultiCheckpointTextProcessNode;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +18,7 @@ class CheckpointParallelTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testCheckpointValueSavedBeforeInterruptInBranch(): void
+    public function test_checkpoint_value_saved_before_interrupt_in_branch(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(workflowId: 'test-checkpoint-token')
@@ -35,7 +36,7 @@ class CheckpointParallelTest extends TestCase
         $this->assertSame(1, $checkpointNode->closureExecutions);
     }
 
-    public function testCheckpointNotReExecutedOnParallelResume(): void
+    public function test_checkpoint_not_re_executed_on_parallel_resume(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(workflowId: 'test-checkpoint-resume')
@@ -61,7 +62,7 @@ class CheckpointParallelTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testCheckpointWithCompletedBranchRetainedAcrossInterrupt(): void
+    public function test_checkpoint_with_completed_branch_retained_across_interrupt(): void
     {
         $checkpointNode = new CheckpointableTextProcessNode();
         $workflow = Workflow::make(workflowId: 'test-checkpoint-order')
@@ -85,7 +86,7 @@ class CheckpointParallelTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testMultipleCheckpointsInParallelBranch(): void
+    public function test_multiple_checkpoints_in_parallel_branch(): void
     {
         $workflow = Workflow::make(workflowId: 'test-multi-checkpoint')
             ->addNodes([

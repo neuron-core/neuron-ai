@@ -5,59 +5,21 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use Amp\Future;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\AsyncDelayNode;
+use NeuronAI\Tests\Workflow\Stub\FirstNode;
+use NeuronAI\Tests\Workflow\Stub\SecondNode;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-
 use function Amp\async;
-use function Amp\delay;
 use function microtime;
-
-class ProcessEvent implements Event
-{
-    public function __construct(public readonly string $value)
-    {
-    }
-}
-
-class FirstNode extends Node
-{
-    public function __invoke(StartEvent $event, WorkflowState $state): ProcessEvent
-    {
-        $state->set('first', 'executed');
-        return new ProcessEvent('data');
-    }
-}
-
-class SecondNode extends Node
-{
-    public function __invoke(ProcessEvent $event, WorkflowState $state): StopEvent
-    {
-        $state->set('second', $event->value);
-        return new StopEvent();
-    }
-}
-
-class AsyncDelayNode extends Node
-{
-    public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
-    {
-        delay(0.1);
-        $state->set('completed', true);
-        return new StopEvent();
-    }
-}
 
 class AsyncWorkflowTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testBasicAsyncExecution(): void
+    public function test_basic_async_execution(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -73,7 +35,7 @@ class AsyncWorkflowTest extends TestCase
         $this->assertEquals('data', $result->get('second'));
     }
 
-    public function testConcurrentWorkflowExecution(): void
+    public function test_concurrent_workflow_execution(): void
     {
 
         $workflow1 = Workflow::make()->addNodes([new AsyncDelayNode()]);
@@ -97,7 +59,7 @@ class AsyncWorkflowTest extends TestCase
         $this->assertLessThan(0.3, $duration, 'Concurrent execution should be faster than sequential');
     }
 
-    public function testWorkflowStatePreservation(): void
+    public function test_workflow_state_preservation(): void
     {
         $state = new WorkflowState(['initial' => 'value']);
 

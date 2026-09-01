@@ -10,7 +10,7 @@ use InvalidArgumentException;
 
 class StringContainsTest extends TestCase
 {
-    public function testPassesWhenStringContainsKeyword(): void
+    public function test_passes_when_string_contains_keyword(): void
     {
         $assertion = new StringContains('hello');
         $result = $assertion->evaluate('hello world');
@@ -20,7 +20,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWithCaseInsensitiveMatching(): void
+    public function test_passes_with_case_insensitive_matching(): void
     {
         $assertion = new StringContains('HELLO');
         $result = $assertion->evaluate('hello world');
@@ -29,7 +29,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWhenKeywordIsCaseInsensitive(): void
+    public function test_passes_when_keyword_is_case_insensitive(): void
     {
         $assertion = new StringContains('hello');
         $result = $assertion->evaluate('HELLO WORLD');
@@ -38,7 +38,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenStringDoesNotContainKeyword(): void
+    public function test_fails_when_string_does_not_contain_keyword(): void
     {
         $assertion = new StringContains('missing');
         $result = $assertion->evaluate('hello world');
@@ -48,7 +48,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals("Expected 'hello world' to contain 'missing'", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringContains('test');
         $this->expectException(InvalidArgumentException::class);
@@ -56,7 +56,7 @@ class StringContainsTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringContains('test');
         $this->expectException(InvalidArgumentException::class);
@@ -64,7 +64,7 @@ class StringContainsTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringContains('test');
         $this->expectException(InvalidArgumentException::class);
@@ -72,7 +72,7 @@ class StringContainsTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testPassesWithEmptyKeywordInNonEmptyString(): void
+    public function test_passes_with_empty_keyword_in_non_empty_string(): void
     {
         $assertion = new StringContains('');
         $result = $assertion->evaluate('hello world');
@@ -81,7 +81,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithEmptyKeywordInEmptyString(): void
+    public function test_passes_with_empty_keyword_in_empty_string(): void
     {
         $assertion = new StringContains('');
         $result = $assertion->evaluate('');
@@ -90,7 +90,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringContains('!@#$');
         $result = $assertion->evaluate('Test !@#$ special chars');
@@ -99,7 +99,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringContains('café');
         $result = $assertion->evaluate('Welcome to café');
@@ -108,7 +108,7 @@ class StringContainsTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringContains('test');
         $this->assertEquals('StringContains', $assertion->getName());

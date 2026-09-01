@@ -32,7 +32,7 @@ class FileEvaluationCacheTest extends TestCase
         }
     }
 
-    public function testMissingKeyIsAbsent(): void
+    public function test_missing_key_is_absent(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 
@@ -40,7 +40,7 @@ class FileEvaluationCacheTest extends TestCase
         $this->assertNull($cache->get('missing'));
     }
 
-    public function testSetGetRoundTrip(): void
+    public function test_set_get_round_trip(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 
@@ -52,7 +52,7 @@ class FileEvaluationCacheTest extends TestCase
         $this->assertSame(['nested' => ['data' => 42]], $cache->get('key2'));
     }
 
-    public function testOverwriteReplacesValue(): void
+    public function test_overwrite_replaces_value(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 
@@ -62,7 +62,7 @@ class FileEvaluationCacheTest extends TestCase
         $this->assertSame('second', $cache->get('key'));
     }
 
-    public function testNonSerializableValueIsSilentlySkipped(): void
+    public function test_non_serializable_value_is_silently_skipped(): void
     {
         $cache = new FileEvaluationCache($this->directory);
 

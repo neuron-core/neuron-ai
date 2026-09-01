@@ -47,7 +47,7 @@ class AgentJudgeTest extends TestCase
         return Agent::make()->setAiProvider($fakeProvider);
     }
 
-    public function testPassesWhenScoreAboveThreshold(): void
+    public function test_passes_when_score_above_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.85, 'The output meets the criteria.');
         $assertion = new AgentJudge($agent, 'Check if output is helpful', 0.7);
@@ -59,7 +59,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals('The output meets the criteria.', $result->message);
     }
 
-    public function testPassesWhenScoreEqualsThreshold(): void
+    public function test_passes_when_score_equals_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.7, 'Exactly at threshold');
         $assertion = new AgentJudge($agent, 'Check quality', 0.7);
@@ -70,7 +70,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals(0.7, $result->score);
     }
 
-    public function testFailsWhenScoreBelowThreshold(): void
+    public function test_fails_when_score_below_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.5, 'Output does not meet criteria');
         $assertion = new AgentJudge($agent, 'Check quality', 0.7);
@@ -84,7 +84,7 @@ class AgentJudgeTest extends TestCase
         $this->assertStringContainsString('Output does not meet criteria', $result->message);
     }
 
-    public function testFailsWithPerfectScoreBelowThreshold(): void
+    public function test_fails_with_perfect_score_below_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.0, 'Complete failure');
         $assertion = new AgentJudge($agent, 'Check accuracy', 0.5);
@@ -95,7 +95,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals(0.0, $result->score);
     }
 
-    public function testPassesWithPerfectScore(): void
+    public function test_passes_with_perfect_score(): void
     {
         $agent = $this->createFakeAgentWithScore(1.0, 'Perfect response');
         $assertion = new AgentJudge($agent, 'Check completeness', 0.9);
@@ -106,7 +106,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check format', 0.5);
@@ -116,7 +116,7 @@ class AgentJudgeTest extends TestCase
         $assertion->evaluate(['array', 'input']);
     }
 
-    public function testFailsWithIntegerInput(): void
+    public function test_fails_with_integer_input(): void
     {
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check value', 0.5);
@@ -126,7 +126,7 @@ class AgentJudgeTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $agent = $this->createFakeAgentWithScore(1.0, 'Should not be called');
         $assertion = new AgentJudge($agent, 'Check content', 0.5);
@@ -136,7 +136,7 @@ class AgentJudgeTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testIncludesReferenceInPrompt(): void
+    public function test_includes_reference_in_prompt(): void
     {
         $fakeProvider = FakeAIProvider::make();
         for ($i = 0; $i < 3; $i++) {
@@ -167,7 +167,7 @@ class AgentJudgeTest extends TestCase
         });
     }
 
-    public function testIncludesExamplesInPrompt(): void
+    public function test_includes_examples_in_prompt(): void
     {
         $fakeProvider = FakeAIProvider::make();
         for ($i = 0; $i < 3; $i++) {
@@ -204,7 +204,7 @@ class AgentJudgeTest extends TestCase
         });
     }
 
-    public function testBuildContextInResult(): void
+    public function test_build_context_in_result(): void
     {
         $agent = $this->createFakeAgentWithScore(0.75, 'Passable');
         $assertion = new AgentJudge(
@@ -222,7 +222,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals('Reference text', $result->context['reference']);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $agent = $this->createFakeAgentWithScore(1.0, 'Test');
         $assertion = new AgentJudge($agent, 'Test criteria');
@@ -230,7 +230,7 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals('AgentJudge', $assertion->getName());
     }
 
-    public function testDefaultThreshold(): void
+    public function test_default_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.7, 'At default threshold');
         $assertion = new AgentJudge($agent, 'Check output');
@@ -241,7 +241,7 @@ class AgentJudgeTest extends TestCase
         $this->assertTrue($result->passed);
     }
 
-    public function testPromptContainsAllSections(): void
+    public function test_prompt_contains_all_sections(): void
     {
         $fakeProvider = FakeAIProvider::make();
         for ($i = 0; $i < 3; $i++) {
@@ -279,7 +279,7 @@ class AgentJudgeTest extends TestCase
         });
     }
 
-    public function testEvaluatesTrajectoryByRenderingItsTranscript(): void
+    public function test_evaluates_trajectory_by_rendering_its_transcript(): void
     {
         $fakeProvider = FakeAIProvider::make();
         for ($i = 0; $i < 3; $i++) {

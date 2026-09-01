@@ -18,7 +18,7 @@ use function Amp\delay;
 
 class AsyncAgentTest extends TestCase
 {
-    public function testAsyncClientPattern(): void
+    public function test_async_client_pattern(): void
     {
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!')
@@ -36,7 +36,7 @@ class AsyncAgentTest extends TestCase
         $provider->assertCallCount(1);
     }
 
-    public function testConcurrentAgentExecution(): void
+    public function test_concurrent_agent_execution(): void
     {
         $provider1 = new FakeAIProvider(new AssistantMessage('1, 2, 3'));
         $provider2 = new FakeAIProvider(new AssistantMessage('Red, Green, Blue'));
@@ -61,7 +61,7 @@ class AsyncAgentTest extends TestCase
         $provider3->assertCallCount(1);
     }
 
-    public function testMixedAsyncOperations(): void
+    public function test_mixed_async_operations(): void
     {
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!')

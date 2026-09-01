@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Testing;
 
-use NeuronAI\Tests\Stubs\Tools\ToolStub;
+use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Usage;

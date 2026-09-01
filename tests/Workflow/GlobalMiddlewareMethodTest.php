@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Testing\FakeMiddleware;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
@@ -19,7 +19,7 @@ class GlobalMiddlewareMethodTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testGlobalMiddlewareOverrideRunsOnAllNodes(): void
+    public function test_global_middleware_override_runs_on_all_nodes(): void
     {
         $middleware = FakeMiddleware::make();
 
@@ -48,7 +48,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $middleware->assertCallCount(6);
     }
 
-    public function testGlobalMiddlewareOverrideRunsWhenMiddlewareReturnsEmpty(): void
+    public function test_global_middleware_override_runs_when_middleware_returns_empty(): void
     {
         $middleware = FakeMiddleware::make();
 
@@ -76,7 +76,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $middleware->assertAfterCalledTimes(3);
     }
 
-    public function testGlobalMiddlewareOverrideCombinesWithNodeMiddlewareOverride(): void
+    public function test_global_middleware_override_combines_with_node_middleware_override(): void
     {
         $global = FakeMiddleware::make();
         $nodeSpecific = FakeMiddleware::make();
@@ -116,7 +116,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $nodeSpecific->assertAfterCalledTimes(1);
     }
 
-    public function testGlobalMiddlewareOverrideExecutesInCorrectOrder(): void
+    public function test_global_middleware_override_executes_in_correct_order(): void
     {
         $order = [];
 
@@ -171,7 +171,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         ], $order);
     }
 
-    public function testGlobalMiddlewareOverrideReceivesCorrectEvents(): void
+    public function test_global_middleware_override_receives_correct_events(): void
     {
         $middleware = FakeMiddleware::make();
 
@@ -206,7 +206,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $this->assertCount(3, $afterRecords);
     }
 
-    public function testGlobalMiddlewareOverrideCanReadAndWriteState(): void
+    public function test_global_middleware_override_can_read_and_write_state(): void
     {
         $middleware = FakeMiddleware::make()
             ->setBeforeHandler(function (NodeInterface $node, Event $event, WorkflowState $state): void {
@@ -238,7 +238,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $this->assertEquals(3, $finalState->get('execution_count'));
     }
 
-    public function testEmptyGlobalMiddlewareOverrideDoesNotCauseErrors(): void
+    public function test_empty_global_middleware_override_does_not_cause_errors(): void
     {
         $workflow = new class () extends Workflow {
             protected function nodes(): array
@@ -259,7 +259,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $this->assertTrue($finalState->get('node_three_executed'));
     }
 
-    public function testMultipleGlobalMiddlewareInOverrideRunInOrder(): void
+    public function test_multiple_global_middleware_in_override_run_in_order(): void
     {
         $order = [];
 

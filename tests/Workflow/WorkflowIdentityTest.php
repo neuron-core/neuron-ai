@@ -6,12 +6,12 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
@@ -38,7 +38,7 @@ class WorkflowIdentityTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testRecordsLiveUnderTheDeclaredWorkflowId(): void
+    public function test_records_live_under_the_declared_workflow_id(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -51,7 +51,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotNull($workflow->getRunId());
     }
 
-    public function testBlankInstanceContinuesByWorkflowId(): void
+    public function test_blank_instance_continues_by_workflow_id(): void
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -67,7 +67,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
-    public function testStaleOnlyResumeDoesNotClaimANewExecutionAttempt(): void
+    public function test_stale_only_resume_does_not_claim_a_new_execution_attempt(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -85,7 +85,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertTrue($duplicate->get('interruptable_node_executed'));
     }
 
-    public function testStaleOnlyResumePreservesAFailedStatus(): void
+    public function test_stale_only_resume_preserves_a_failed_status(): void
     {
         $persistence = new InMemoryPersistence();
         $crashingNode = new class () extends Node {
@@ -110,7 +110,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame(ResumeInputStatus::Stale, $result->getInputResults()[0]->status);
     }
 
-    public function testMatchingRunFenceContinuesTheExpectedGeneration(): void
+    public function test_matching_run_fence_continues_the_expected_generation(): void
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -128,7 +128,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
-    public function testForeignRunFenceIsRejectedWithoutMutation(): void
+    public function test_foreign_run_fence_is_rejected_without_mutation(): void
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -154,7 +154,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($control, $persistence->get('thread_1', '__control'));
     }
 
-    public function testMissingExpectedGenerationIsReportedAsStale(): void
+    public function test_missing_expected_generation_is_reported_as_stale(): void
     {
         try {
             $this->resume(
@@ -171,7 +171,7 @@ class WorkflowIdentityTest extends TestCase
         }
     }
 
-    public function testIgnitionRefusesALiveWorkflowId(): void
+    public function test_ignition_refuses_a_live_workflow_id(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
@@ -182,7 +182,7 @@ class WorkflowIdentityTest extends TestCase
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
     }
 
-    public function testCompletionSweepsThePartitionAndFreesTheWorkflowId(): void
+    public function test_completion_sweeps_the_partition_and_frees_the_workflow_id(): void
     {
         $persistence = new InMemoryPersistence();
         $first = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -201,7 +201,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotSame($first->getRunId(), $second->getRunId());
     }
 
-    public function testRetainedCompletionIsReplayableUntilAcknowledged(): void
+    public function test_retained_completion_is_replayable_until_acknowledged(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make('retained-completion')
@@ -225,7 +225,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNull($persistence->get('retained-completion', '__ignition'));
     }
 
-    public function testResumeOnACompletedWorkflowIdThrows(): void
+    public function test_resume_on_a_completed_workflow_id_throws(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
@@ -237,7 +237,7 @@ class WorkflowIdentityTest extends TestCase
         $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
     }
 
-    public function testResumeOnAnUnknownWorkflowIdThrows(): void
+    public function test_resume_on_an_unknown_workflow_id_throws(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'thread_unknown'");
@@ -249,7 +249,7 @@ class WorkflowIdentityTest extends TestCase
         );
     }
 
-    public function testContinuationWithoutAnyWorkflowIdThrows(): void
+    public function test_continuation_without_any_workflow_id_throws(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('the workflow declares none');
@@ -261,7 +261,7 @@ class WorkflowIdentityTest extends TestCase
         );
     }
 
-    public function testDeclaredAndExplicitWorkflowIdConflictThrows(): void
+    public function test_declared_and_explicit_workflow_id_conflict_throws(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("Misidentified run: the workflow declares workflow ID 'thread_1' but was given 'thread_2'");
@@ -272,7 +272,7 @@ class WorkflowIdentityTest extends TestCase
         );
     }
 
-    public function testReservedAndEmptyWorkflowIdsThrow(): void
+    public function test_reserved_and_empty_workflow_ids_throw(): void
     {
         foreach (['__reserved', ''] as $invalid) {
             try {
@@ -287,7 +287,7 @@ class WorkflowIdentityTest extends TestCase
         }
     }
 
-    public function testBareResumeRevivesWithoutDeliveringAnAnswer(): void
+    public function test_bare_resume_revives_without_delivering_an_answer(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
@@ -311,7 +311,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function testEmptyArrayDeliversAnEmptyAnswer(): void
+    public function test_empty_array_delivers_an_empty_answer(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
@@ -327,7 +327,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function testGeneratedWorkflowIdIsTheContinuationHandle(): void
+    public function test_generated_workflow_id_is_the_continuation_handle(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
@@ -344,7 +344,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($workflowId, $resumed->getWorkflowId());
     }
 
-    public function testMismatchedControlAndIgnitionGenerationsAreRejected(): void
+    public function test_mismatched_control_and_ignition_generations_are_rejected(): void
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -367,7 +367,7 @@ class WorkflowIdentityTest extends TestCase
         $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
     }
 
-    public function testStaleOwnerCannotWriteOrSweepASuccessor(): void
+    public function test_stale_owner_cannot_write_or_sweep_a_successor(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -422,7 +422,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNull($persistence->get('thread_1', $this->stepKey($workflow, $hijacked::class . '-0')));
     }
 
-    public function testStateCarriesBothIdentities(): void
+    public function test_state_carries_both_identities(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');

@@ -6,10 +6,10 @@ namespace NeuronAI\Tests\Evaluation\Cache;
 
 use NeuronAI\Evaluation\Cache\CacheKey;
 use NeuronAI\Evaluation\EvaluationException;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\DependentEvaluator;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\DifferentRunEvaluator;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\IdenticalRunEvaluatorA;
-use NeuronAI\Tests\Evaluation\Cache\Fixtures\IdenticalRunEvaluatorB;
+use NeuronAI\Tests\Evaluation\Cache\Stub\DependentEvaluator;
+use NeuronAI\Tests\Evaluation\Cache\Stub\DifferentRunEvaluator;
+use NeuronAI\Tests\Evaluation\Cache\Stub\IdenticalRunEvaluatorA;
+use NeuronAI\Tests\Evaluation\Cache\Stub\IdenticalRunEvaluatorB;
 use PHPUnit\Framework\TestCase;
 
 use function file_put_contents;
@@ -24,7 +24,7 @@ class CacheKeyTest extends TestCase
         DependentEvaluator::$dependencies = [];
     }
 
-    public function testKeyIsStableForSameEvaluatorAndItem(): void
+    public function test_key_is_stable_for_same_evaluator_and_item(): void
     {
         $evaluator = new IdenticalRunEvaluatorA();
         $item = ['input' => 'hello'];
@@ -35,7 +35,7 @@ class CacheKeyTest extends TestCase
         );
     }
 
-    public function testDifferentItemsProduceDifferentKeys(): void
+    public function test_different_items_produce_different_keys(): void
     {
         $evaluator = new IdenticalRunEvaluatorA();
 
@@ -45,7 +45,7 @@ class CacheKeyTest extends TestCase
         );
     }
 
-    public function testRunMethodHashIgnoresEvaluateChanges(): void
+    public function test_run_method_hash_ignores_evaluate_changes(): void
     {
         // A and B have byte-identical run() bodies but different evaluate()
         // implementations: the run fingerprint must be the same
@@ -55,7 +55,7 @@ class CacheKeyTest extends TestCase
         );
     }
 
-    public function testRunMethodHashChangesWithRunBody(): void
+    public function test_run_method_hash_changes_with_run_body(): void
     {
         $this->assertNotSame(
             CacheKey::runMethodHash(new IdenticalRunEvaluatorA()),
@@ -63,7 +63,7 @@ class CacheKeyTest extends TestCase
         );
     }
 
-    public function testDependencyContentChangesTheKey(): void
+    public function test_dependency_content_changes_the_key(): void
     {
         $depFile = tempnam(sys_get_temp_dir(), 'neuron-dep');
         $this->assertNotFalse($depFile);
@@ -83,7 +83,7 @@ class CacheKeyTest extends TestCase
         $this->assertNotSame($before, $after);
     }
 
-    public function testClassStringDependencyIsResolvedToItsSourceFile(): void
+    public function test_class_string_dependency_is_resolved_to_its_source_file(): void
     {
         DependentEvaluator::$dependencies = [IdenticalRunEvaluatorA::class];
 
@@ -92,7 +92,7 @@ class CacheKeyTest extends TestCase
         $this->assertNotNull($key);
     }
 
-    public function testUnresolvableDependencyThrows(): void
+    public function test_unresolvable_dependency_throws(): void
     {
         DependentEvaluator::$dependencies = ['/path/that/does/not/exist.php'];
 
@@ -101,7 +101,7 @@ class CacheKeyTest extends TestCase
         CacheKey::make(new DependentEvaluator(), ['input' => 'hello']);
     }
 
-    public function testNonSerializableItemReturnsNull(): void
+    public function test_non_serializable_item_returns_null(): void
     {
         $evaluator = new IdenticalRunEvaluatorA();
 

@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
-use NeuronAI\Tests\Workflow\Executor\Stubs\FinalTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MultiStepTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingMiddleware;
-use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
-use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\FinalTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MultiStepTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\RecordingMiddleware;
+use NeuronAI\Tests\Workflow\Executor\Stub\RecordingObserver;
+use NeuronAI\Tests\Workflow\Executor\Stub\StreamingImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\StreamingTextProcessNode;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
 use function array_filter;
 use function in_array;
 use function reset;
@@ -30,7 +30,7 @@ class BranchEdgeCasesTest extends TestCase
         return new AsyncExecutor();
     }
 
-    public function testMultiStepBranchExecutesAllNodes(): void
+    public function test_multi_step_branch_executes_all_nodes(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -49,7 +49,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testStreamingNodeInsideBranchCompletesSuccessfully(): void
+    public function test_streaming_node_inside_branch_completes_successfully(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -68,7 +68,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testStreamedNodesInBothBranchesComplete(): void
+    public function test_streamed_nodes_in_both_branches_complete(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -87,7 +87,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('streamed_image', $analysis['image']);
     }
 
-    public function testAsyncMultiStepBranchCompletesAllNodes(): void
+    public function test_async_multi_step_branch_completes_all_nodes(): void
     {
 
         $workflow = Workflow::make()
@@ -107,7 +107,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testMiddlewareFiresInsideBranches(): void
+    public function test_middleware_fires_inside_branches(): void
     {
         $middleware = new RecordingMiddleware();
 
@@ -157,7 +157,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertNull(reset($mergeBefore)['branchId']);
     }
 
-    public function testAsyncMiddlewareCarriesBranchId(): void
+    public function test_async_middleware_carries_branch_id(): void
     {
         $middleware = new RecordingMiddleware();
 
@@ -189,7 +189,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertSame('image', reset($imageCalls)['branchId']);
     }
 
-    public function testAsyncObserverReceivesAllEvents(): void
+    public function test_async_observer_receives_all_events(): void
     {
         $observer = new RecordingObserver();
 

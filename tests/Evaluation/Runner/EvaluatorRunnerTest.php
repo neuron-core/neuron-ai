@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Runner;
 
-use NeuronAI\Tests\Evaluation\Stubs\StringContainsEvaluator;
+use NeuronAI\Tests\Evaluation\Stub\StringContainsEvaluator;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use PHPUnit\Framework\TestCase;
 
 class EvaluatorRunnerTest extends TestCase
 {
-    public function testAssertionStateDoesNotLeakBetweenDatasetItems(): void
+    public function test_assertion_state_does_not_leak_between_dataset_items(): void
     {
         $evaluator = new StringContainsEvaluator();
         $runner = new EvaluatorRunner();
@@ -40,7 +40,7 @@ class EvaluatorRunnerTest extends TestCase
         $this->assertEquals(1, $summary->getTotalAssertionsFailed());
     }
 
-    public function testConcurrentRunProducesSameResultsAsSequential(): void
+    public function test_concurrent_run_produces_same_results_as_sequential(): void
     {
         // Exercises the parallel path where pcntl is available (Linux/macOS),
         // and the sequential fallback elsewhere (e.g. Windows)

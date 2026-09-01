@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use NeuronAI\Tests\Stubs\Tools\ToolStub;
+use NeuronAI\Tests\Tools\Stub\ToolStub;
 use Generator;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;

@@ -11,7 +11,7 @@ use InvalidArgumentException;
 
 class StringStartsWithTest extends TestCase
 {
-    public function testPassesWhenStringStartsWithPrefix(): void
+    public function test_passes_when_string_starts_with_prefix(): void
     {
         $assertion = new StringStartsWith('hello');
         $result = $assertion->evaluate('hello world');
@@ -21,7 +21,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWithExactMatch(): void
+    public function test_passes_with_exact_match(): void
     {
         $assertion = new StringStartsWith('hello');
         $result = $assertion->evaluate('hello');
@@ -30,7 +30,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenStringDoesNotStartWithPrefix(): void
+    public function test_fails_when_string_does_not_start_with_prefix(): void
     {
         $assertion = new StringStartsWith('world');
         $result = $assertion->evaluate('hello world');
@@ -40,7 +40,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals("Expected response to start with 'world'", $result->message);
     }
 
-    public function testFailsWithCaseSensitiveComparison(): void
+    public function test_fails_with_case_sensitive_comparison(): void
     {
         $assertion = new StringStartsWith('Hello');
         $result = $assertion->evaluate('hello world');
@@ -50,7 +50,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals("Expected response to start with 'Hello'", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringStartsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -58,7 +58,7 @@ class StringStartsWithTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringStartsWith('hello');
         $this->expectException(InvalidArgumentException::class);
@@ -66,7 +66,7 @@ class StringStartsWithTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringStartsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -74,7 +74,7 @@ class StringStartsWithTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testFailsWithObjectInput(): void
+    public function test_fails_with_object_input(): void
     {
         $assertion = new StringStartsWith('test');
         $this->expectException(InvalidArgumentException::class);
@@ -82,7 +82,7 @@ class StringStartsWithTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function testPassesWithEmptyPrefix(): void
+    public function test_passes_with_empty_prefix(): void
     {
         $assertion = new StringStartsWith('');
         $result = $assertion->evaluate('hello world');
@@ -91,7 +91,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithEmptyPrefixAndEmptyString(): void
+    public function test_passes_with_empty_prefix_and_empty_string(): void
     {
         $assertion = new StringStartsWith('');
         $result = $assertion->evaluate('');
@@ -100,7 +100,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWithNonEmptyPrefixAndEmptyString(): void
+    public function test_fails_with_non_empty_prefix_and_empty_string(): void
     {
         $assertion = new StringStartsWith('hello');
         $result = $assertion->evaluate('');
@@ -110,7 +110,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals("Expected response to start with 'hello'", $result->message);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringStartsWith('!@#$');
         $result = $assertion->evaluate('!@#$ special start');
@@ -119,7 +119,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringStartsWith('café');
         $result = $assertion->evaluate('café is delicious');
@@ -128,7 +128,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithWhitespace(): void
+    public function test_passes_with_whitespace(): void
     {
         $assertion = new StringStartsWith('  hello');
         $result = $assertion->evaluate('  hello world');
@@ -137,7 +137,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenPrefixIsInMiddle(): void
+    public function test_fails_when_prefix_is_in_middle(): void
     {
         $assertion = new StringStartsWith('world');
         $result = $assertion->evaluate('hello world');
@@ -147,7 +147,7 @@ class StringStartsWithTest extends TestCase
         $this->assertEquals("Expected response to start with 'world'", $result->message);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringStartsWith('test');
         $this->assertEquals('StringStartsWith', $assertion->getName());

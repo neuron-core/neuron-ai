@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Workflow\NodeContext;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
-use NeuronAI\Tests\Workflow\Stubs\NodeCheckpoint;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\FirstEvent;
+use NeuronAI\Tests\Workflow\Stub\NodeCheckpoint;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +18,7 @@ class NodeTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testNodeRunMethodSignature(): void
+    public function test_node_run_method_signature(): void
     {
         $node = new NodeOne();
         $event = new StartEvent();
@@ -30,7 +30,7 @@ class NodeTest extends TestCase
         $this->assertEquals('First complete', $result->message);
     }
 
-    public function testNodeStateModification(): void
+    public function test_node_state_modification(): void
     {
         $node = new NodeOne();
         $state = new WorkflowState(['existing' => 'data']);
@@ -44,7 +44,7 @@ class NodeTest extends TestCase
         $this->assertEquals('data', $state->get('existing'));
     }
 
-    public function testNodeCheckpoint(): void
+    public function test_node_checkpoint(): void
     {
 
         $workflow = Workflow::make()->addNode(new NodeCheckpoint());

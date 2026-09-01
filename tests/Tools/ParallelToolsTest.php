@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use NeuronAI\Tests\Tools\Stub\AddTool;
+use NeuronAI\Tests\Tools\Stub\FailingTool;
+use NeuronAI\Tests\Tools\Stub\MultiplyTool;
+use NeuronAI\Tests\Tools\Stub\TestToolA;
+use NeuronAI\Tests\Tools\Stub\TestToolB;
+use NeuronAI\Tests\Tools\Stub\WorkingTool;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -19,103 +25,8 @@ use RuntimeException;
 use ReflectionClass;
 
 use function extension_loaded;
-use function usleep;
 use function class_exists;
 use function iterator_to_array;
-
-/**
- * Simple test tool that can be serialized for parallel execution.
- */
-class TestToolA extends Tool
-{
-    protected string $name = 'tool_a';
-
-    protected ?string $description = 'Tool A';
-
-    public function __invoke(string $input): string
-    {
-        usleep(10000); // 10ms delay
-        return "Tool A received: {$input}";
-    }
-}
-
-/**
- * Simple test tool that can be serialized for parallel execution.
- */
-class TestToolB extends Tool
-{
-    protected string $name = 'tool_b';
-
-    protected ?string $description = 'Tool B';
-
-    public function __invoke(string $input): string
-    {
-        usleep(10000); // 10ms delay
-        return "Tool B received: {$input}";
-    }
-}
-
-/**
- * Multiply tool for parallel execution testing.
- */
-class MultiplyTool extends Tool
-{
-    protected string $name = 'multiply';
-
-    protected ?string $description = 'Multiply two numbers';
-
-    public function __invoke(int $a, int $b): string
-    {
-        usleep(10000); // 10ms delay
-        return (string) ($a * $b);
-    }
-}
-
-/**
- * Add tool for parallel execution testing.
- */
-class AddTool extends Tool
-{
-    protected string $name = 'add';
-
-    protected ?string $description = 'Add two numbers';
-
-    public function __invoke(int $x, int $y): string
-    {
-        usleep(10000); // 10ms delay
-        return (string) ($x + $y);
-    }
-}
-
-/**
- * Failing tool for error testing.
- */
-class FailingTool extends Tool
-{
-    protected string $name = 'failing_tool';
-
-    protected ?string $description = 'This tool will fail';
-
-    public function __invoke(string $input): string
-    {
-        throw new RuntimeException('Tool execution failed');
-    }
-}
-
-/**
- * Working tool for error testing.
- */
-class WorkingTool extends Tool
-{
-    protected string $name = 'working_tool';
-
-    protected ?string $description = 'This tool works';
-
-    public function __invoke(string $input): string
-    {
-        return "Success: {$input}";
-    }
-}
 
 class ParallelToolsTest extends TestCase
 {

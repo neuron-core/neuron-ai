@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\MCP;
+namespace NeuronAI\Tests\MCP;
 
 use NeuronAI\MCP\McpClient;
 use NeuronAI\MCP\McpConnector;
@@ -46,21 +46,21 @@ class McpConnectorTest extends TestCase
         return [$connector, $transport];
     }
 
-    public function testExcludeReturnsSelf(): void
+    public function test_exclude_returns_self(): void
     {
         $result = $this->connector->exclude(['tool1', 'tool2']);
 
         $this->assertSame($this->connector, $result);
     }
 
-    public function testOnlyReturnsSelf(): void
+    public function test_only_returns_self(): void
     {
         $result = $this->connector->only(['tool1', 'tool2']);
 
         $this->assertSame($this->connector, $result);
     }
 
-    public function testMcpToolsAreSerializable(): void
+    public function test_mcp_tools_are_serializable(): void
     {
         $item = [
             'name' => 'test_tool',
@@ -82,7 +82,7 @@ class McpConnectorTest extends TestCase
         $this->assertSame('test_tool', $unserialized->getName());
     }
 
-    public function testInvokeToolStaticMethodCreatesNewInstance(): void
+    public function test_invoke_tool_static_method_creates_new_instance(): void
     {
         $item = [
             'name' => 'test_tool',
@@ -131,7 +131,7 @@ class McpConnectorTest extends TestCase
         $this->assertEquals(['result' => 'success'], $result);
     }
 
-    public function testInvokeToolThrowsExceptionOnError(): void
+    public function test_invoke_tool_throws_exception_on_error(): void
     {
         [$connector,] = $this->createConnectorWithMockedClient(
             extraResponses: [
@@ -160,7 +160,7 @@ class McpConnectorTest extends TestCase
         );
     }
 
-    public function testInvokeToolReturnsEmptyStringWhenNoContent(): void
+    public function test_invoke_tool_returns_empty_string_when_no_content(): void
     {
         $item = [
             'name' => 'test_tool',
@@ -193,7 +193,7 @@ class McpConnectorTest extends TestCase
         $this->assertEquals('', $result);
     }
 
-    public function testFakeTransportInitializesCorrectly(): void
+    public function test_fake_transport_initializes_correctly(): void
     {
         $transport = new FakeMcpTransport(
             // Response for initialize request
@@ -210,7 +210,7 @@ class McpConnectorTest extends TestCase
         $transport->assertToolsListCalled();
     }
 
-    public function testFakeTransportToolsList(): void
+    public function test_fake_transport_tools_list(): void
     {
         $transport = new FakeMcpTransport(
             // Response for initialize request
@@ -257,7 +257,7 @@ class McpConnectorTest extends TestCase
         $transport->assertToolsListCalled();
     }
 
-    public function testFakeTransportToolCalling(): void
+    public function test_fake_transport_tool_calling(): void
     {
         [$connector,$transport] = $this->createConnectorWithMockedClient(
             extraResponses: [
@@ -282,7 +282,7 @@ class McpConnectorTest extends TestCase
         $transport->assertToolCalled('calculator', 1);
     }
 
-    public function testFakeTransportOnlyAndExcludeFilters(): void
+    public function test_fake_transport_only_and_exclude_filters(): void
     {
         $transport = new FakeMcpTransport(
             // Response for initialize request

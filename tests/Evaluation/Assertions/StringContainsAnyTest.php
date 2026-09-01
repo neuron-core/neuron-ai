@@ -10,7 +10,7 @@ use InvalidArgumentException;
 
 class StringContainsAnyTest extends TestCase
 {
-    public function testPassesWhenStringContainsOneKeyword(): void
+    public function test_passes_when_string_contains_one_keyword(): void
     {
         $assertion = new StringContainsAny(['hello', 'missing']);
         $result = $assertion->evaluate('hello world');
@@ -20,7 +20,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWhenStringContainsMultipleKeywords(): void
+    public function test_passes_when_string_contains_multiple_keywords(): void
     {
         $assertion = new StringContainsAny(['hello', 'world']);
         $result = $assertion->evaluate('hello beautiful world');
@@ -29,7 +29,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithCaseInsensitiveMatching(): void
+    public function test_passes_with_case_insensitive_matching(): void
     {
         $assertion = new StringContainsAny(['HELLO', 'MISSING']);
         $result = $assertion->evaluate('hello world');
@@ -38,7 +38,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithMixedCaseKeywords(): void
+    public function test_passes_with_mixed_case_keywords(): void
     {
         $assertion = new StringContainsAny(['Hello', 'MISSING', 'test']);
         $result = $assertion->evaluate('hello world');
@@ -47,7 +47,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenNoKeywordsAreFound(): void
+    public function test_fails_when_no_keywords_are_found(): void
     {
         $assertion = new StringContainsAny(['missing1', 'missing2']);
         $result = $assertion->evaluate('hello world');
@@ -57,7 +57,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals("Expected 'hello world' to contain any of: missing1, missing2", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringContainsAny(['test']);
         $this->expectException(InvalidArgumentException::class);
@@ -65,7 +65,7 @@ class StringContainsAnyTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringContainsAny(['hello']);
         $this->expectException(InvalidArgumentException::class);
@@ -73,7 +73,7 @@ class StringContainsAnyTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringContainsAny(['test']);
         $this->expectException(InvalidArgumentException::class);
@@ -81,7 +81,7 @@ class StringContainsAnyTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testPassesWithEmptyKeywordsArray(): void
+    public function test_passes_with_empty_keywords_array(): void
     {
         $assertion = new StringContainsAny([]);
         $result = $assertion->evaluate('any string');
@@ -91,7 +91,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals("Expected 'any string' to contain any of: ", $result->message);
     }
 
-    public function testHandlesNonStringKeywords(): void
+    public function test_handles_non_string_keywords(): void
     {
         $assertion = new StringContainsAny([123, 'hello', 456]);
         $result = $assertion->evaluate('hello world');
@@ -100,7 +100,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenOnlyNonStringKeywordsProvided(): void
+    public function test_fails_when_only_non_string_keywords_provided(): void
     {
         $assertion = new StringContainsAny([123, 456, true]);
         $result = $assertion->evaluate('hello world');
@@ -110,7 +110,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals("Expected 'hello world' to contain any of: 123, 456, 1", $result->message);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringContainsAny(['!@#', 'missing']);
         $result = $assertion->evaluate('Test !@# special chars');
@@ -119,7 +119,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringContainsAny(['café', 'missing']);
         $result = $assertion->evaluate('Welcome to café');
@@ -128,7 +128,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithSingleKeyword(): void
+    public function test_passes_with_single_keyword(): void
     {
         $assertion = new StringContainsAny(['hello']);
         $result = $assertion->evaluate('hello world');
@@ -137,7 +137,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithFirstMatchingKeyword(): void
+    public function test_passes_with_first_matching_keyword(): void
     {
         $assertion = new StringContainsAny(['hello', 'world', 'test']);
         $result = $assertion->evaluate('hello beautiful day');
@@ -146,7 +146,7 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringContainsAny(['test']);
         $this->assertEquals('StringContainsAny', $assertion->getName());

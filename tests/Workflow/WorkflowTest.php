@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Stubs\ConditionalNode;
-use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
-use NeuronAI\Tests\Workflow\Stubs\NodeForThird;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\ConditionalNode;
+use NeuronAI\Tests\Workflow\Stub\FirstEvent;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\NodeForSecond;
+use NeuronAI\Tests\Workflow\Stub\NodeForThird;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -24,7 +24,7 @@ class WorkflowTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testBasicLinearWorkflowExecution(): void
+    public function test_basic_linear_workflow_execution(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -41,7 +41,7 @@ class WorkflowTest extends TestCase
         $this->assertEquals('Second complete', $finalState->get('second_message'));
     }
 
-    public function testRunExecutesTheWorkflowSynchronously(): void
+    public function test_run_executes_the_workflow_synchronously(): void
     {
         // Drive through the public run() entry point (not the executor helper) to
         // ensure the lazy generator is actually consumed and the state returned.
@@ -59,7 +59,7 @@ class WorkflowTest extends TestCase
         $this->assertFalse($finalState->isInterrupted());
     }
 
-    public function testWorkflowWithInitialState(): void
+    public function test_workflow_with_initial_state(): void
     {
         $workflow = Workflow::make(state: new WorkflowState(['initial_data' => 'test']))
             ->addNodes([
@@ -74,7 +74,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('node_one_executed'));
     }
 
-    public function testNodeClassStringInstantiation(): void
+    public function test_node_class_string_instantiation(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -90,7 +90,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('node_three_executed'));
     }
 
-    public function testEventNodeMapBuilding(): void
+    public function test_event_node_map_building(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -106,7 +106,7 @@ class WorkflowTest extends TestCase
         $this->assertArrayHasKey(FirstEvent::class, $eventNodeMap);
     }
 
-    public function testConditionalNodeWithUnionReturnType(): void
+    public function test_conditional_node_with_union_return_type(): void
     {
         $nodes = [
             new NodeOne(),
@@ -136,7 +136,7 @@ class WorkflowTest extends TestCase
         $this->assertEquals('Conditional chose third', $finalState->get('final_third_message'));
     }
 
-    public function testWorkflowValidationFailsWithNoStartNode(): void
+    public function test_workflow_validation_fails_with_no_start_node(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
@@ -150,7 +150,7 @@ class WorkflowTest extends TestCase
         $this->execute($workflow);
     }
 
-    public function testWorkflowFailsWhenNoNodeHandlesEvent(): void
+    public function test_workflow_fails_when_no_node_handles_event(): void
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No node found that handle event');
@@ -165,7 +165,7 @@ class WorkflowTest extends TestCase
         $this->execute($workflow);
     }
 
-    public function testWorkflowInterrupt(): void
+    public function test_workflow_interrupt(): void
     {
         $workflowId = 'test-workflow';
 
@@ -185,7 +185,7 @@ class WorkflowTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
     }
 
-    public function testWorkflowResume(): void
+    public function test_workflow_resume(): void
     {
         $workflowId = 'test-workflow';
 
@@ -213,7 +213,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testIdentityIsAssignedByTheExecutor(): void
+    public function test_identity_is_assigned_by_the_executor(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -235,7 +235,7 @@ class WorkflowTest extends TestCase
         $this->assertStringStartsWith('run_', (string) $workflow->getRunId());
     }
 
-    public function testInterruptStateIsResumableFromToken(): void
+    public function test_interrupt_state_is_resumable_from_token(): void
     {
         // Prove durability: resume on a fresh executor + fresh workflow instance,
         // sharing only the persistence and the resume token.

@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
 
 class WorkflowRunStoreTest extends TestCase
 {
-    public function testInitializesAndLoadsOneRunPartition(): void
+    public function test_initializes_and_loads_one_run_partition(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -34,7 +34,7 @@ class WorkflowRunStoreTest extends TestCase
         $this->assertEquals($ignition, $reconstructed->loadIgnition());
     }
 
-    public function testRejectsASecondInitialization(): void
+    public function test_rejects_a_second_initialization(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -48,7 +48,7 @@ class WorkflowRunStoreTest extends TestCase
         $this->assertFalse($second->initialize($control, $ignition));
     }
 
-    public function testReplacesControlAndWritesRecordsAtomically(): void
+    public function test_replaces_control_and_writes_records_atomically(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -66,7 +66,7 @@ class WorkflowRunStoreTest extends TestCase
         $this->assertEquals($step, $store->readRecord('run-1/step-1'));
     }
 
-    public function testStaleStoreCannotWriteAfterAnotherStoreChangesControl(): void
+    public function test_stale_store_cannot_write_after_another_store_changes_control(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -85,7 +85,7 @@ class WorkflowRunStoreTest extends TestCase
         $stale->writeRecords(['run-1/step-1' => new StepResult('step-1')]);
     }
 
-    public function testMemoizerWritesRequireTheCurrentControlValue(): void
+    public function test_memoizer_writes_require_the_current_control_value(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -105,7 +105,7 @@ class WorkflowRunStoreTest extends TestCase
         $memoizer->memo('provider', fn (): string => 'result');
     }
 
-    public function testExistingMemoizerUsesTheStoresLatestControlSnapshot(): void
+    public function test_existing_memoizer_uses_the_stores_latest_control_snapshot(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();
@@ -122,7 +122,7 @@ class WorkflowRunStoreTest extends TestCase
         $this->assertSame('result', $memoizer->memo('provider', fn (): string => 'must-not-run'));
     }
 
-    public function testDeletesOnlyTheOwnedPartition(): void
+    public function test_deletes_only_the_owned_partition(): void
     {
         $persistence = new InMemoryPersistence();
         $serializer = new PhpSerializer();

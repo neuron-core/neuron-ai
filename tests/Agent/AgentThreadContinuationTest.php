@@ -13,7 +13,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Resume\ResumeInput;
@@ -61,7 +61,7 @@ class AgentThreadContinuationTest extends TestCase
         );
     }
 
-    public function testSuspendedRunLivesUnderTheThreadWorkflowId(): void
+    public function test_suspended_run_lives_under_the_thread_workflow_id(): void
     {
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
@@ -74,7 +74,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertNotNull($persistence->get((string) $history->getThreadId(), '__ignition'));
     }
 
-    public function testBlankAgentResumesByThread(): void
+    public function test_blank_agent_resumes_by_thread(): void
     {
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
@@ -99,7 +99,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertSame(2, $provider->getCallCount());
     }
 
-    public function testThreadFirstResumeWithExplicitThreadIdAndUnboundHistory(): void
+    public function test_thread_first_resume_with_explicit_thread_id_and_unbound_history(): void
     {
         // The binding model's one-wiring-expression promise: identical
         // make(threadId:) + unbound-history wiring for the fresh run and the
@@ -135,7 +135,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertSame('Here are the search results...', $message->getContent());
     }
 
-    public function testCompletedRunReadsAsNoRunInFlight(): void
+    public function test_completed_run_reads_as_no_run_in_flight(): void
     {
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
@@ -167,7 +167,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent3->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
-    public function testConflictingExplicitWorkflowIdThrows(): void
+    public function test_conflicting_explicit_workflow_id_throws(): void
     {
         // The thread is the declared workflow ID; an explicit workflow ID that
         // disagrees is a misidentified run and must fail loudly, never
@@ -189,7 +189,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent->chat(new UserMessage('Search for PHP frameworks'));
     }
 
-    public function testResumeWithNothingInFlightFailsLoudly(): void
+    public function test_resume_with_nothing_in_flight_fails_loudly(): void
     {
         // A thread-keyed continuation of a thread with nothing in flight is
         // an unidentifiable request: it fails loudly rather than silently
@@ -205,7 +205,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
-    public function testExplicitWorkflowIdResumeFailsOnMissingIgnition(): void
+    public function test_explicit_workflow_id_resume_fails_on_missing_ignition(): void
     {
         // An explicit workflow ID agreeing with the thread resolves fine — and
         // then fails on the missing generation head, not on identity.
@@ -219,7 +219,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
     }
 
-    public function testSameInstanceResumeKeepsOwnRunId(): void
+    public function test_same_instance_resume_keeps_own_run_id(): void
     {
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();

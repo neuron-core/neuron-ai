@@ -4,33 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Agent\Stub\IntentDummyTool;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function serialize;
 use function unserialize;
 
-class IntentDummyTool extends Tool
-{
-    protected string $name = 'intent_dummy';
-
-    protected ?string $description = 'Dummy tool for intent tests';
-
-    public function __invoke(): string
-    {
-        return 'ok';
-    }
-}
-
 class InferenceIntentTest extends TestCase
 {
-    public function testDefaultIntent(): void
+    public function test_default_intent(): void
     {
         $event = new AgentStartEvent();
 
@@ -39,7 +27,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame(1, $event->maxTries);
     }
 
-    public function testSetStreamRecordsTheFlagOnTheSameInstance(): void
+    public function test_set_stream_records_the_flag_on_the_same_instance(): void
     {
         $event = new AgentStartEvent();
 
@@ -50,7 +38,7 @@ class InferenceIntentTest extends TestCase
         $this->assertFalse($event->stream);
     }
 
-    public function testSetStructuredOutputRecordsInPlaceOnEveryClass(): void
+    public function test_set_structured_output_records_in_place_on_every_class(): void
     {
         foreach ([
             new AgentStartEvent(),
@@ -63,7 +51,7 @@ class InferenceIntentTest extends TestCase
         }
     }
 
-    public function testRoutedWithoutStructuredIntentReturnsTheSameInstance(): void
+    public function test_routed_without_structured_intent_returns_the_same_instance(): void
     {
         $event = new AIInferenceEvent(new SystemMessage('Be helpful'), []);
         $event->setStream();
@@ -71,7 +59,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame($event, $event->routed());
     }
 
-    public function testRoutedDerivesTheStructuredEventFromRecordedIntent(): void
+    public function test_routed_derives_the_structured_event_from_recorded_intent(): void
     {
         $tool = IntentDummyTool::make();
         $event = new AIInferenceEvent(new SystemMessage('Be helpful'), [$tool]);
@@ -93,7 +81,7 @@ class InferenceIntentTest extends TestCase
         $this->assertTrue($routed->stream);
     }
 
-    public function testRoutedIsIdempotentOnAnAlreadyStructuredEvent(): void
+    public function test_routed_is_idempotent_on_an_already_structured_event(): void
     {
         $event = new StructuredInferenceEvent(new SystemMessage('Be helpful'), []);
         $event->setStructuredOutput(stdClass::class, 5);
@@ -102,7 +90,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame($event, $event->routed()->routed());
     }
 
-    public function testMaxTriesIsNormalizedToAtLeastOne(): void
+    public function test_max_tries_is_normalized_to_at_least_one(): void
     {
         $start = (new AgentStartEvent())->setStructuredOutput(stdClass::class, 0);
         $this->assertSame(1, $start->maxTries);
@@ -112,7 +100,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame(1, $inference->routed()->maxTries);
     }
 
-    public function testStructuredEventSerializationKeepsIntentAndStripsTools(): void
+    public function test_structured_event_serialization_keeps_intent_and_strips_tools(): void
     {
         $event = new AIInferenceEvent(new SystemMessage('Be helpful'), [IntentDummyTool::make()]);
         $event->setStream();

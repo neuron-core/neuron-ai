@@ -18,7 +18,7 @@ use function stream_get_contents;
 
 class NeuronCliTest extends TestCase
 {
-    public function testNoArgumentsPrintsUsageAndFails(): void
+    public function test_no_arguments_prints_usage_and_fails(): void
     {
         ob_start();
         $exitCode = (new NeuronCli())->run(['neuron']);
@@ -28,7 +28,7 @@ class NeuronCliTest extends TestCase
         $this->assertStringContainsString('Usage:', $output);
     }
 
-    public function testHelpReturnsZero(): void
+    public function test_help_returns_zero(): void
     {
         ob_start();
         $exitCode = (new NeuronCli())->run(['neuron', '--help']);
@@ -37,7 +37,7 @@ class NeuronCliTest extends TestCase
         $this->assertSame(0, $exitCode);
     }
 
-    public function testUnknownCommandFails(): void
+    public function test_unknown_command_fails(): void
     {
         $cli = new NeuronCli();
         $stream = $this->captureErrorStream($cli);
@@ -72,7 +72,7 @@ class NeuronCliTest extends TestCase
         return (string) stream_get_contents($stream);
     }
 
-    public function testUsageListsEveryRegisteredCommand(): void
+    public function test_usage_lists_every_registered_command(): void
     {
         $cli = new NeuronCli();
 

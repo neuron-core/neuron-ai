@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
-use Generator;
+use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\PostStreamNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\PreStreamNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\SharedRequestInterruptNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\ThrowingNode;
+use NeuronAI\Tests\Workflow\Channel\Stub\TwoStageInterruptNode;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Testing\FakeChannel;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ChunkEvent;
-use NeuronAI\Tests\Workflow\Stubs\FirstEvent;
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
+use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Channel\CallbackChannel;
 use NeuronAI\Workflow\Events\InterruptEvent;
-use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Resume\ResumeInput;
@@ -29,85 +30,13 @@ use Throwable;
 use function array_map;
 use function count;
 
-class ChunkStreamingNode extends Node
-{
-    public function __construct(protected int $chunks = 3, protected string $prefix = 'chunk')
-    {
-    }
-
-    public function __invoke(StartEvent $event, WorkflowState $state): Generator
-    {
-        for ($i = 1; $i <= $this->chunks; $i++) {
-            yield new ChunkEvent($this->prefix . '-' . $i);
-        }
-
-        return new StopEvent();
-    }
-}
-
-class SharedRequestInterruptNode extends Node
-{
-    public function __construct(protected ApprovalRequest $request)
-    {
-    }
-
-    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent
-    {
-        $this->interrupt($this->request);
-
-        return new SecondEvent('resumed');
-    }
-}
-
-class TwoStageInterruptNode extends Node
-{
-    public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent
-    {
-        $payload = $this->interrupt(new ApprovalRequest('stage one'));
-
-        if (!isset($payload['complete'])) {
-            $this->interrupt(new ApprovalRequest('stage two'));
-        }
-
-        return new SecondEvent('resumed');
-    }
-}
-
-class PreStreamNode extends Node
-{
-    public function __invoke(StartEvent $event, WorkflowState $state): Generator
-    {
-        yield new ChunkEvent('pre');
-
-        return new FirstEvent();
-    }
-}
-
-class PostStreamNode extends Node
-{
-    public function __invoke(SecondEvent $event, WorkflowState $state): Generator
-    {
-        yield new ChunkEvent('post');
-
-        return new StopEvent();
-    }
-}
-
-class ThrowingNode extends Node
-{
-    public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
-    {
-        throw new RuntimeException('node exploded');
-    }
-}
-
 class ChannelForwardingTest extends TestCase
 {
     // ------------------------------------------------------------------
     // Phase 1 — the seam
     // ------------------------------------------------------------------
 
-    public function testWiredChannelReceivesEveryYieldedItemInOrderViaRun(): void
+    public function test_wired_channel_receives_every_yielded_item_in_order_via_run(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -128,7 +57,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame([], $channel->failures);
     }
 
-    public function testWiredChannelReceivesItemsViaCallerHeldGenerator(): void
+    public function test_wired_channel_receives_items_via_caller_held_generator(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -145,7 +74,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertCount(1, $channel->completions);
     }
 
-    public function testChannelSendFailuresNeverFailTheRunAndEveryFailureIsDispatched(): void
+    public function test_channel_send_failures_never_fail_the_run_and_every_failure_is_dispatched(): void
     {
         $channel = new FakeChannel();
         $channel->throwOnSend = new RuntimeException('transport down');
@@ -176,7 +105,7 @@ class ChannelForwardingTest extends TestCase
     // Phase 2 — terminals
     // ------------------------------------------------------------------
 
-    public function testSuspensionDeliversTheLiveRequestInstanceAndRunId(): void
+    public function test_suspension_delivers_the_live_request_instance_and_run_id(): void
     {
         $request = new ApprovalRequest('needs a human');
         $channel = new FakeChannel();
@@ -206,7 +135,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertInstanceOf(InterruptEvent::class, $pulled[count($pulled) - 1]);
     }
 
-    public function testReSuspensionFiresSuspendedAgainForUpsertByRunId(): void
+    public function test_re_suspension_fires_suspended_again_for_upsert_by_run_id(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -234,7 +163,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame($state, $channel->completions[0]['state']);
     }
 
-    public function testNodeFailureFiresFailedWithTheExceptionAndStillPropagates(): void
+    public function test_node_failure_fires_failed_with_the_exception_and_still_propagates(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -259,7 +188,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame([], $channel->suspensions);
     }
 
-    public function testResumeSegmentReceivesOnlyPostResumeItems(): void
+    public function test_resume_segment_receives_only_post_resume_items(): void
     {
         $firstSegment = new FakeChannel();
         $workflow = Workflow::make()
@@ -287,7 +216,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame([], $resumeSegment->suspensions);
     }
 
-    public function testTerminalFailureIsCaughtAndReportedNeverThrown(): void
+    public function test_terminal_failure_is_caught_and_reported_never_thrown(): void
     {
         $channel = new CallbackChannel(
             onCompleted: function (WorkflowState $state, string $runId): void {

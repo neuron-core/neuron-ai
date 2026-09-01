@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Persistence;
 
+use NeuronAI\Tests\Workflow\Persistence\Stub\WorkflowStoreModel;
 use Illuminate\Database\Capsule\Manager as Capsule;
-use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\EloquentPersistence;
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -26,15 +26,6 @@ use function uniqid;
 use function unlink;
 
 use const JSON_THROW_ON_ERROR;
-
-class WorkflowStoreModel extends Model
-{
-    protected $table = 'workflow_store';
-
-    protected $guarded = [];
-
-    public $timestamps = false;
-}
 
 /**
  * The opaque atomic store contract exercised against every built-in backend
@@ -106,7 +97,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testGetOfAnAbsentRecordReturnsNull(callable $make): void
+    public function test_get_of_an_absent_record_returns_null(callable $make): void
     {
         $store = $make($this->directory);
 
@@ -114,7 +105,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testInitializeCreatesTheConditionKeyAndRelatedRecordsAtomically(callable $make): void
+    public function test_initialize_creates_the_condition_key_and_related_records_atomically(callable $make): void
     {
         $store = $make($this->directory);
 
@@ -126,7 +117,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testInitializeRejectsAnExistingConditionKeyWithoutPartialWrites(callable $make): void
+    public function test_initialize_rejects_an_existing_condition_key_without_partial_writes(callable $make): void
     {
         $store = $make($this->directory);
         $store->initializeIfAbsent('workflow', '__control', 'attempt-1');
@@ -139,7 +130,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testWriteUpdatesAllRecordsWhenTheConditionValueIsUnchanged(callable $make): void
+    public function test_write_updates_all_records_when_the_condition_value_is_unchanged(callable $make): void
     {
         $store = $make($this->directory);
         $store->initializeIfAbsent('workflow', '__control', 'attempt-1', ['step' => 'first']);
@@ -153,7 +144,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testWriteRejectsAChangedConditionValueWithoutPartialWrites(callable $make): void
+    public function test_write_rejects_a_changed_condition_value_without_partial_writes(callable $make): void
     {
         $store = $make($this->directory);
         $store->initializeIfAbsent('workflow', '__control', 'attempt-2');
@@ -167,7 +158,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testDeleteRemovesTheOwnedPartitionAndNothingElse(callable $make): void
+    public function test_delete_removes_the_owned_partition_and_nothing_else(callable $make): void
     {
         $store = $make($this->directory);
         $store->initializeIfAbsent('workflow-a', '__control', 'attempt-1', ['step' => 'a']);
@@ -180,7 +171,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testDeleteRejectsAChangedConditionValue(callable $make): void
+    public function test_delete_rejects_a_changed_condition_value(callable $make): void
     {
         $store = $make($this->directory);
         $store->initializeIfAbsent('workflow', '__control', 'attempt-1', ['step' => 'result']);
@@ -192,7 +183,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testOpaqueKeysAndValuesRoundTripByteIdentical(callable $make): void
+    public function test_opaque_keys_and_values_round_trip_byte_identical(callable $make): void
     {
         $store = $make($this->directory);
         $value = "line1\nline2\t\"quoted\" — unicode ✓ \x07\xFF\xFE";
@@ -205,7 +196,7 @@ class PersistenceContractTest extends TestCase
     }
 
     /** @dataProvider backendProvider */
-    public function testHostilePartitionNamesRoundTripAndDeleteCleanly(callable $make): void
+    public function test_hostile_partition_names_round_trip_and_delete_cleanly(callable $make): void
     {
         $store = $make($this->directory);
         $names = ['user/42:thread #1', '../../etc/passwd', 'ordine:è-123 ✓'];
@@ -223,7 +214,7 @@ class PersistenceContractTest extends TestCase
         $this->assertSame('payload:' . $names[1], $store->get($names[1], 'step'));
     }
 
-    public function testFileBackendKeepsHostileNamesInsideItsDirectory(): void
+    public function test_file_backend_keeps_hostile_names_inside_its_directory(): void
     {
         $store = new FilePersistence($this->directory);
         $store->initializeIfAbsent('../escape-attempt', '__control', 'owner', ['step' => 'payload']);
@@ -236,7 +227,7 @@ class PersistenceContractTest extends TestCase
         );
     }
 
-    public function testFileBackendThrowsOnAFailedWrite(): void
+    public function test_file_backend_throws_on_a_failed_write(): void
     {
         $store = new FilePersistence($this->directory);
         $partition = str_repeat('x', 300);
@@ -251,7 +242,7 @@ class PersistenceContractTest extends TestCase
         $this->assertNull($store->get($partition, '__control'));
     }
 
-    public function testFileBackendRejectsAStaleWriteAcrossInstances(): void
+    public function test_file_backend_rejects_a_stale_write_across_instances(): void
     {
         $first = new FilePersistence($this->directory);
         $first->initializeIfAbsent('workflow', '__control', 'attempt-1');
@@ -268,7 +259,7 @@ class PersistenceContractTest extends TestCase
         $this->assertNull($first->get('workflow', 'step'));
     }
 
-    public function testFileBackendReadsTheLegacyJsonMap(): void
+    public function test_file_backend_reads_the_legacy_json_map(): void
     {
         new FilePersistence($this->directory);
         file_put_contents($this->directory . '/workflow.store', json_encode([
@@ -282,7 +273,7 @@ class PersistenceContractTest extends TestCase
         $this->assertSame('result', $store->get('workflow', 'step'));
     }
 
-    public function testFileBackendRejectsCorruptedPartitions(): void
+    public function test_file_backend_rejects_corrupted_partitions(): void
     {
         new FilePersistence($this->directory);
         file_put_contents($this->directory . '/corrupt.store', '{invalid');

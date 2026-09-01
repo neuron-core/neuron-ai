@@ -16,9 +16,9 @@ use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
@@ -44,7 +44,7 @@ class LogListenerTest extends TestCase
         };
     }
 
-    public function testLogListenerLogsEveryEventWithSerializedContext(): void
+    public function test_log_listener_logs_every_event_with_serialized_context(): void
     {
         $logger = $this->recordingLogger();
 
@@ -68,7 +68,7 @@ class LogListenerTest extends TestCase
         $this->fail('No workflow-node-start record found.');
     }
 
-    public function testDeprecatedLogObserverStillLogsThroughObserve(): void
+    public function test_deprecated_log_observer_still_logs_through_observe(): void
     {
         $logger = $this->recordingLogger();
 
@@ -82,7 +82,7 @@ class LogListenerTest extends TestCase
         $this->assertContains('workflow-end', $messages);
     }
 
-    public function testMemoryEventsLogOnlySafeMonitoringContext(): void
+    public function test_memory_events_log_only_safe_monitoring_context(): void
     {
         $logger = $this->recordingLogger();
         $listener = new LogListener($logger);
@@ -116,7 +116,7 @@ class LogListenerTest extends TestCase
         ], $logger->records);
     }
 
-    public function testRetrievingLogsFilterStructureWithoutValues(): void
+    public function test_retrieving_logs_filter_structure_without_values(): void
     {
         $logger = $this->recordingLogger();
 

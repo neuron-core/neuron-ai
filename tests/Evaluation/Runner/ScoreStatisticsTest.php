@@ -8,15 +8,15 @@ use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
-use NeuronAI\Tests\Evaluation\Stubs\FixedScoreAssertion;
-use NeuronAI\Tests\Evaluation\Stubs\ScoreBasedEvaluator;
+use NeuronAI\Tests\Evaluation\Stub\FixedScoreAssertion;
+use NeuronAI\Tests\Evaluation\Stub\ScoreBasedEvaluator;
 use PHPUnit\Framework\TestCase;
 
 use function array_keys;
 
 class ScoreStatisticsTest extends TestCase
 {
-    public function testScoreStatisticsAreTracked(): void
+    public function test_score_statistics_are_tracked(): void
     {
         $evaluator = new ScoreBasedEvaluator([0.8, 0.6, 0.9]);
         $runner = new EvaluatorRunner();
@@ -34,7 +34,7 @@ class ScoreStatisticsTest extends TestCase
         $this->assertEquals(0.9, $summary->getMaxAssertionScore());
     }
 
-    public function testEmptyScoresReturnZero(): void
+    public function test_empty_scores_return_zero(): void
     {
         $evaluator = new class () extends BaseEvaluator {
             public function getDataset(): DatasetInterface
@@ -62,7 +62,7 @@ class ScoreStatisticsTest extends TestCase
         $this->assertEquals(0.0, $summary->getMaxAssertionScore());
     }
 
-    public function testResultLevelScoreStatistics(): void
+    public function test_result_level_score_statistics(): void
     {
         // Create evaluator that runs multiple assertions per item
         $evaluator = new class () extends BaseEvaluator {
@@ -104,7 +104,7 @@ class ScoreStatisticsTest extends TestCase
         $this->assertEqualsWithDelta(0.7, $summary->getAverageAssertionScore(), 0.001);
     }
 
-    public function testScoreLabelDefaultsToAssertionName(): void
+    public function test_score_label_defaults_to_assertion_name(): void
     {
         $evaluator = new ScoreBasedEvaluator([0.8, 0.6]);
         $runner = new EvaluatorRunner();
@@ -119,7 +119,7 @@ class ScoreStatisticsTest extends TestCase
         $this->assertEquals(['FixedScoreAssertion'], array_keys($summary->getScoresByLabel()));
     }
 
-    public function testExplicitLabelOverridesAssertionName(): void
+    public function test_explicit_label_overrides_assertion_name(): void
     {
         $evaluator = new class () extends BaseEvaluator {
             public function getDataset(): DatasetInterface
@@ -147,7 +147,7 @@ class ScoreStatisticsTest extends TestCase
         $this->assertEquals(0.85, $scores[0]->value);
     }
 
-    public function testScoreStatisticsByLabel(): void
+    public function test_score_statistics_by_label(): void
     {
         $evaluator = new class () extends BaseEvaluator {
             public function getDataset(): DatasetInterface

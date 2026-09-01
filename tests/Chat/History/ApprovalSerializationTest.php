@@ -4,32 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\AbstractChatHistory;
-use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Tests\Chat\History\Stub\TestableChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
-
-/**
- * Exposes the protected deserialization machinery for round-trip testing.
- */
-class TestableChatHistory extends AbstractChatHistory
-{
-    /**
-     * @param array<int, array<string, mixed>> $messages
-     * @return Message[]
-     */
-    public function publicDeserialize(array $messages): array
-    {
-        return $this->deserializeMessages($messages);
-    }
-
-    public function getThreadId(): string
-    {
-        return 'testable';
-    }
-}
 
 class ApprovalSerializationTest extends TestCase
 {

@@ -139,33 +139,4 @@ final class WorkflowControl
             completedState: $state,
         );
     }
-
-    /** @return array<string, mixed> */
-    public function __serialize(): array
-    {
-        return [
-            'version' => 2,
-            'runId' => $this->runId,
-            'status' => $this->status,
-            'executionAttempt' => $this->executionAttempt,
-            'leaseExpiresAt' => $this->leaseExpiresAt,
-            'nextSuspensionId' => $this->nextSuspensionId,
-            'suspensions' => $this->suspensions,
-            'checkpointState' => $this->checkpointState,
-            'completedState' => $this->completedState,
-        ];
-    }
-
-    /** @param array<string, mixed> $data */
-    public function __unserialize(array $data): void
-    {
-        $this->runId = $data['runId'];
-        $this->status = $data['status'];
-        $this->executionAttempt = $data['executionAttempt'] ?? 1;
-        $this->leaseExpiresAt = $data['leaseExpiresAt'] ?? null;
-        $this->nextSuspensionId = $data['nextSuspensionId'] ?? 1;
-        $this->suspensions = $data['suspensions'] ?? [];
-        $this->checkpointState = $data['checkpointState'] ?? null;
-        $this->completedState = $data['completedState'] ?? null;
-    }
 }

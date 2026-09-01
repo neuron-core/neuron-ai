@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeForSecond;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\NodeForSecond;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;

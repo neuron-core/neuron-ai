@@ -10,7 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeMiddleware;
-use NeuronAI\Tests\Stubs\StructuredOutput\User;
+use NeuronAI\Tests\StructuredOutput\Stub\User;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;

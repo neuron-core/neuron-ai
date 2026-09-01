@@ -10,7 +10,7 @@ use InvalidArgumentException;
 
 class StringContainsAllTest extends TestCase
 {
-    public function testPassesWhenStringContainsAllKeywords(): void
+    public function test_passes_when_string_contains_all_keywords(): void
     {
         $assertion = new StringContainsAll(['hello', 'world']);
         $result = $assertion->evaluate('hello beautiful world');
@@ -20,7 +20,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWithCaseInsensitiveMatching(): void
+    public function test_passes_with_case_insensitive_matching(): void
     {
         $assertion = new StringContainsAll(['HELLO', 'WORLD']);
         $result = $assertion->evaluate('hello beautiful world');
@@ -29,7 +29,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithMixedCaseKeywords(): void
+    public function test_passes_with_mixed_case_keywords(): void
     {
         $assertion = new StringContainsAll(['Hello', 'WORLD', 'test']);
         $result = $assertion->evaluate('hello world test case');
@@ -38,7 +38,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenSomeKeywordsAreMissing(): void
+    public function test_fails_when_some_keywords_are_missing(): void
     {
         $assertion = new StringContainsAll(['hello', 'world', 'missing']);
         $result = $assertion->evaluate('hello beautiful world');
@@ -48,7 +48,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals("Expected 'hello beautiful world' to contain all keywords. Missing: missing", $result->message);
     }
 
-    public function testFailsWithMultipleMissingKeywords(): void
+    public function test_fails_with_multiple_missing_keywords(): void
     {
         $assertion = new StringContainsAll(['hello', 'missing1', 'missing2']);
         $result = $assertion->evaluate('hello world');
@@ -58,7 +58,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals("Expected 'hello world' to contain all keywords. Missing: missing1, missing2", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringContainsAll(['test']);
         $this->expectException(InvalidArgumentException::class);
@@ -66,7 +66,7 @@ class StringContainsAllTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringContainsAll(['hello']);
         $this->expectException(InvalidArgumentException::class);
@@ -74,7 +74,7 @@ class StringContainsAllTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringContainsAll(['test']);
         $this->expectException(InvalidArgumentException::class);
@@ -82,7 +82,7 @@ class StringContainsAllTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testPassesWithEmptyKeywordsArray(): void
+    public function test_passes_with_empty_keywords_array(): void
     {
         $assertion = new StringContainsAll([]);
         $result = $assertion->evaluate('any string');
@@ -91,7 +91,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testHandlesNonStringKeywords(): void
+    public function test_handles_non_string_keywords(): void
     {
         $assertion = new StringContainsAll(['hello', 'world']);
         $result = $assertion->evaluate('hello world');
@@ -100,7 +100,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWhenNonStringKeywordsAreExpected(): void
+    public function test_fails_when_non_string_keywords_are_expected(): void
     {
         $assertion = new StringContainsAll(['hello', 'missing']);
         $result = $assertion->evaluate('hello world');
@@ -110,7 +110,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals("Expected 'hello world' to contain all keywords. Missing: missing", $result->message);
     }
 
-    public function testPassesWithSpecialCharacters(): void
+    public function test_passes_with_special_characters(): void
     {
         $assertion = new StringContainsAll(['!@#', '$%^']);
         $result = $assertion->evaluate('Test !@# and $%^ special chars');
@@ -119,7 +119,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithUnicodeCharacters(): void
+    public function test_passes_with_unicode_characters(): void
     {
         $assertion = new StringContainsAll(['café', 'naïve']);
         $result = $assertion->evaluate('A naïve person at café');
@@ -128,7 +128,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testPassesWithSingleKeyword(): void
+    public function test_passes_with_single_keyword(): void
     {
         $assertion = new StringContainsAll(['hello']);
         $result = $assertion->evaluate('hello world');
@@ -137,7 +137,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringContainsAll(['test']);
         $this->assertEquals('StringContainsAll', $assertion->getName());

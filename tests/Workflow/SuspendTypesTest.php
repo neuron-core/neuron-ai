@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\ObjectCarryingInterruptNode;
-use NeuronAI\Tests\Workflow\Stubs\ObjectCarryingRequest;
-use NeuronAI\Tests\Workflow\Stubs\SleepUntilNode;
-use NeuronAI\Tests\Workflow\Stubs\WaitForEventNode;
-use NeuronAI\Tests\Workflow\Stubs\WaitForEventWithTimeoutNode;
-use NeuronAI\Workflow\Interrupt\InterruptType;
+use DateTimeImmutable;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\ObjectCarryingInterruptNode;
+use NeuronAI\Tests\Workflow\Stub\ObjectCarryingRequest;
+use NeuronAI\Tests\Workflow\Stub\SleepUntilNode;
+use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
+use NeuronAI\Tests\Workflow\Stub\WaitForEventWithTimeoutNode;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -21,23 +22,20 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-use DateTimeImmutable;
-
 use function glob;
 use function is_dir;
 use function rmdir;
+use function serialize;
 use function sys_get_temp_dir;
 use function unlink;
-use function serialize;
 use function unserialize;
-
 use const DIRECTORY_SEPARATOR;
 
 class SuspendTypesTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testWaitForEventPausesAndResumes(): void
+    public function test_wait_for_event_pauses_and_resumes(): void
     {
         $persistence = new InMemoryPersistence();
         $token = 'wfe-basic';
@@ -70,7 +68,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testSleepUntilPausesAndResumes(): void
+    public function test_sleep_until_pauses_and_resumes(): void
     {
         $persistence = new InMemoryPersistence();
         $token = 'sleep-basic';
@@ -101,7 +99,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testResumeKindMustMatchTheSuspensionType(): void
+    public function test_resume_kind_must_match_the_suspension_type(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make(workflowId: 'sleep-kind')
@@ -116,7 +114,7 @@ class SuspendTypesTest extends TestCase
         $workflow->resume([ResumeInput::event(1, [])]);
     }
 
-    public function testWaitForEventSurvivesFilePersistenceSerialization(): void
+    public function test_wait_for_event_survives_file_persistence_serialization(): void
     {
         // FilePersistence forces real PHP serialize/unserialize of the interrupted
         // StepResult across the pause/resume. Under fire-and-forget only the
@@ -150,7 +148,7 @@ class SuspendTypesTest extends TestCase
         }
     }
 
-    public function testWaitForEventResumeWithoutPayload(): void
+    public function test_wait_for_event_resume_without_payload(): void
     {
         $persistence = new InMemoryPersistence();
         $token = 'wfe-empty-payload';
@@ -175,7 +173,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testSleepUntilPastTimeStillPauses(): void
+    public function test_sleep_until_past_time_still_pauses(): void
     {
         // The engine does NOT enforce timeliness — a past wakeAt still suspends.
         // Whether to fire is exclusively the scheduler's responsibility.
@@ -189,7 +187,7 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
     }
 
-    public function testWaitForEventRequestCarriesDeadline(): void
+    public function test_wait_for_event_request_carries_deadline(): void
     {
         // The deadline is an OUTBOUND term on the request (the node declares it;
         // the scheduler arms a timer from it). The timeout FACT is inbound
@@ -210,7 +208,7 @@ class SuspendTypesTest extends TestCase
         $this->assertSame($expiresAt->getTimestamp(), $fromArray->getExpiresAt()->getTimestamp());
     }
 
-    public function testApprovalRequestInheritsDeadline(): void
+    public function test_approval_request_inherits_deadline(): void
     {
         // ApprovalRequest is a WaitForEventRequest specialization, so the deadline
         // capability is inherited — no special-casing needed for "auto-reject after T".
@@ -222,7 +220,7 @@ class SuspendTypesTest extends TestCase
         $this->assertSame(InterruptType::WaitForEvent, $request->type());
     }
 
-    public function testAwaitEventReturnsNullOnTimeout(): void
+    public function test_await_event_returns_null_on_timeout(): void
     {
         // The developer-facing timeout contract: when the deadline elapses the
         // scheduler resumes the wait with $timedOut, and awaitEvent() surfaces that
@@ -255,7 +253,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function testRequestCarryingNonSerializableObjectIsNotSerialized(): void
+    public function test_request_carrying_non_serializable_object_is_not_serialized(): void
     {
         // Fire-and-forget: the InterruptRequest is never persisted, so a developer can
         // stuff a non-serializable object (here a closure) into a custom request without

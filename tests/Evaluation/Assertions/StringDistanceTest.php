@@ -13,7 +13,7 @@ use function str_repeat;
 
 class StringDistanceTest extends TestCase
 {
-    public function testPassesWithIdenticalStrings(): void
+    public function test_passes_with_identical_strings(): void
     {
         $assertion = new StringDistance('hello world', 0.5, 10);
         $result = $assertion->evaluate('hello world');
@@ -23,7 +23,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals('', $result->message);
     }
 
-    public function testPassesWithMinorDifferences(): void
+    public function test_passes_with_minor_differences(): void
     {
         $assertion = new StringDistance('hello world', 0.5, 10);
         $result = $assertion->evaluate('hello word');
@@ -32,7 +32,7 @@ class StringDistanceTest extends TestCase
         $this->assertGreaterThan(0.5, $result->score);
     }
 
-    public function testPassesWithinMaxDistance(): void
+    public function test_passes_within_max_distance(): void
     {
         $assertion = new StringDistance('hello', 0.3, 5);
         $result = $assertion->evaluate('helo');
@@ -41,7 +41,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.8, $result->score); // 1 - (1/5) = 0.8
     }
 
-    public function testFailsWhenScoreIsBelowThreshold(): void
+    public function test_fails_when_score_is_below_threshold(): void
     {
         $assertion = new StringDistance('hello world', 0.8, 10);
         $result = $assertion->evaluate('goodbye world');
@@ -52,7 +52,7 @@ class StringDistanceTest extends TestCase
         $this->assertStringContainsString('threshold: 0.8', $result->message);
     }
 
-    public function testFailsWhenDistanceExceedsMaximum(): void
+    public function test_fails_when_distance_exceeds_maximum(): void
     {
         $assertion = new StringDistance('hello', 0.5, 3);
         $result = $assertion->evaluate('goodbye');
@@ -62,7 +62,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals("Expected 'goodbye' to be similar to 'hello' (distance: 7, max_accepted: 3)", $result->message);
     }
 
-    public function testFailsWithNonStringInput(): void
+    public function test_fails_with_non_string_input(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
         $this->expectException(InvalidArgumentException::class);
@@ -70,7 +70,7 @@ class StringDistanceTest extends TestCase
         $assertion->evaluate(123);
     }
 
-    public function testFailsWithArrayInput(): void
+    public function test_fails_with_array_input(): void
     {
         $assertion = new StringDistance('hello', 0.5, 10);
         $this->expectException(InvalidArgumentException::class);
@@ -78,7 +78,7 @@ class StringDistanceTest extends TestCase
         $assertion->evaluate(['hello', 'world']);
     }
 
-    public function testFailsWithNullInput(): void
+    public function test_fails_with_null_input(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
         $this->expectException(InvalidArgumentException::class);
@@ -86,7 +86,7 @@ class StringDistanceTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function testFailsWithObjectInput(): void
+    public function test_fails_with_object_input(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
         $this->expectException(InvalidArgumentException::class);
@@ -94,7 +94,7 @@ class StringDistanceTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function testPassesWithEmptyStrings(): void
+    public function test_passes_with_empty_strings(): void
     {
         $assertion = new StringDistance('', 0.5, 10);
         $result = $assertion->evaluate('');
@@ -103,7 +103,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testHandlesSingleCharacterDifference(): void
+    public function test_handles_single_character_difference(): void
     {
         $assertion = new StringDistance('cat', 0.5, 5);
         $result = $assertion->evaluate('bat');
@@ -112,7 +112,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.8, $result->score); // 1 - (1/5) = 0.8
     }
 
-    public function testHandlesInsertionDifference(): void
+    public function test_handles_insertion_difference(): void
     {
         $assertion = new StringDistance('cat', 0.5, 5);
         $result = $assertion->evaluate('cart');
@@ -121,7 +121,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.8, $result->score); // 1 - (1/5) = 0.8
     }
 
-    public function testHandlesDeletionDifference(): void
+    public function test_handles_deletion_difference(): void
     {
         $assertion = new StringDistance('cart', 0.5, 5);
         $result = $assertion->evaluate('cat');
@@ -130,7 +130,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.8, $result->score); // 1 - (1/5) = 0.8
     }
 
-    public function testHandlesCaseChanges(): void
+    public function test_handles_case_changes(): void
     {
         $assertion = new StringDistance('Hello', 0.5, 10);
         $result = $assertion->evaluate('hello');
@@ -139,7 +139,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.9, $result->score); // 1 - (1/10) = 0.9
     }
 
-    public function testHandlesUnicodeCharacters(): void
+    public function test_handles_unicode_characters(): void
     {
         $assertion = new StringDistance('café', 0.5, 5);
         $result = $assertion->evaluate('cafe');
@@ -148,7 +148,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.6, $result->score); // 1 - (2/5) = 0.6 (unicode char difference)
     }
 
-    public function testCalculatesCorrectScore(): void
+    public function test_calculates_correct_score(): void
     {
         $assertion = new StringDistance('hello', 0.4, 10);
         $result = $assertion->evaluate('helo');
@@ -157,7 +157,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.9, $result->score); // distance = 1, score = 1 - (1/10) = 0.9
     }
 
-    public function testWithZeroMaxDistance(): void
+    public function test_with_zero_max_distance(): void
     {
         $assertion = new StringDistance('hello', 0.5, 1);
         $result = $assertion->evaluate('hello');
@@ -166,7 +166,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function testFailsWithZeroMaxDistanceAndDifferentStrings(): void
+    public function test_fails_with_zero_max_distance_and_different_strings(): void
     {
         $assertion = new StringDistance('hello', 0.5, 0);
         $result = $assertion->evaluate('world');
@@ -176,7 +176,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals("Expected 'world' to be similar to 'hello' (distance: 4, max_accepted: 0)", $result->message);
     }
 
-    public function testHandlesLongStrings(): void
+    public function test_handles_long_strings(): void
     {
         $longString1 = str_repeat('a', 100);
         $longString2 = str_repeat('a', 99) . 'b';
@@ -188,7 +188,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.98, $result->score); // 1 - (1/50) = 0.98
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $assertion = new StringDistance('test', 0.5, 10);
         $this->assertEquals('StringDistance', $assertion->getName());

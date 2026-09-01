@@ -24,6 +24,6 @@ return RectorConfig::configure()
         Rector\DeadCode\Rector\For_\RemoveDeadLoopRector::class => [
             // Empty foreach loops that intentionally consume a lazy generator.
             __DIR__ . '/src/Workflow/Workflow.php',
-            __DIR__ . '/tests/Workflow/Executor/ExecutorTestHelpers.php',
+            __DIR__ . '/tests/Stub/ExecutorTestHelpers.php',
         ],
     ]);

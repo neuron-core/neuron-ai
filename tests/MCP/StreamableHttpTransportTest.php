@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\MCP;
+namespace NeuronAI\Tests\MCP;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\McpException;
@@ -12,7 +12,7 @@ use ReflectionClass;
 
 class StreamableHttpTransportTest extends TestCase
 {
-    public function testConnectValidatesUrl(): void
+    public function test_connect_validates_url(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'invalid-url']);
 
@@ -22,7 +22,7 @@ class StreamableHttpTransportTest extends TestCase
         $transport->connect();
     }
 
-    public function testConnectRequiresUrl(): void
+    public function test_connect_requires_url(): void
     {
         $transport = new StreamableHttpTransport([]);
 
@@ -32,7 +32,7 @@ class StreamableHttpTransportTest extends TestCase
         $transport->connect();
     }
 
-    public function testSendRequiresUrl(): void
+    public function test_send_requires_url(): void
     {
         $transport = new StreamableHttpTransport([]);
 
@@ -42,7 +42,7 @@ class StreamableHttpTransportTest extends TestCase
         $transport->send(['jsonrpc' => '2.0', 'method' => 'test', 'id' => 1]);
     }
 
-    public function testReceiveWithoutSendThrowsException(): void
+    public function test_receive_without_send_throws_exception(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
 
@@ -52,7 +52,7 @@ class StreamableHttpTransportTest extends TestCase
         $transport->receive();
     }
 
-    public function testParseSSEResponseExtractsJsonData(): void
+    public function test_parse_sse_response_extracts_json_data(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
         $reflection = new ReflectionClass($transport);
@@ -64,7 +64,7 @@ class StreamableHttpTransportTest extends TestCase
         $this->assertEquals('{"test":"value"}', $result);
     }
 
-    public function testParseSSEResponseWithNoDataThrowsException(): void
+    public function test_parse_sse_response_with_no_data_throws_exception(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
         $reflection = new ReflectionClass($transport);
@@ -76,7 +76,7 @@ class StreamableHttpTransportTest extends TestCase
         $method->invoke($transport, "event: message\n\n");
     }
 
-    public function testDisconnectClearsState(): void
+    public function test_disconnect_clears_state(): void
     {
         $transport = new StreamableHttpTransport(['url' => 'https://example.com/mcp']);
 

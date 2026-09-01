@@ -44,7 +44,7 @@ class UserSimulatorTest extends TestCase
         return Trajectory::fromMessages([]);
     }
 
-    public function testNextTurnReturnsTheGeneratedUserMessage(): void
+    public function test_next_turn_returns_the_generated_user_message(): void
     {
         $provider = new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'Hi, I need a refund for order 123.'),
@@ -56,7 +56,7 @@ class UserSimulatorTest extends TestCase
         $this->assertSame('Hi, I need a refund for order 123.', $message->getContent());
     }
 
-    public function testNextTurnReturnsNullOnStop(): void
+    public function test_next_turn_returns_null_on_stop(): void
     {
         $provider = new FakeAIProvider(
             $this->simulatorResponse(stop: true, reason: 'Goal satisfied — the refund was issued.'),
@@ -67,7 +67,7 @@ class UserSimulatorTest extends TestCase
         $this->assertNull($message);
     }
 
-    public function testNextTurnWithoutGoalThrows(): void
+    public function test_next_turn_without_goal_throws(): void
     {
         $simulator = UserSimulator::make()->withPersona('Anyone');
         $simulator->setAiProvider(new FakeAIProvider());
@@ -78,7 +78,7 @@ class UserSimulatorTest extends TestCase
         $simulator->nextTurn($this->emptyTrajectory());
     }
 
-    public function testPromptCarriesPersonaGoalAndTranscript(): void
+    public function test_prompt_carries_persona_goal_and_transcript(): void
     {
         $provider = new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'And what about the shipping costs?'),
@@ -100,7 +100,7 @@ class UserSimulatorTest extends TestCase
         });
     }
 
-    public function testFirstTurnPromptSaysConversationNotStarted(): void
+    public function test_first_turn_prompt_says_conversation_not_started(): void
     {
         $provider = new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'Hello!'),
@@ -114,7 +114,7 @@ class UserSimulatorTest extends TestCase
         ));
     }
 
-    public function testEachStepIsStateless(): void
+    public function test_each_step_is_stateless(): void
     {
         $provider = new FakeAIProvider(
             $this->simulatorResponse(stop: false, message: 'First message'),

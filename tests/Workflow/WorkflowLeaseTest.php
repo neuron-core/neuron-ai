@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Tests\Workflow\Executor\ExecutorTestHelpers;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MemoizingNode;
-use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
+use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -15,7 +15,6 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
 use function array_filter;
 use function count;
 use function time;
@@ -53,7 +52,7 @@ class WorkflowLeaseTest extends TestCase
         return $control;
     }
 
-    public function testLeaseIsDisabledByDefault(): void
+    public function test_lease_is_disabled_by_default(): void
     {
         $persistence = new InMemoryPersistence();
         $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
@@ -61,7 +60,7 @@ class WorkflowLeaseTest extends TestCase
         $this->assertNull($this->control($persistence)->leaseExpiresAt);
     }
 
-    public function testSuspensionClearsTheLeaseDeadline(): void
+    public function test_suspension_clears_the_lease_deadline(): void
     {
         $control = $this->control($this->suspendLeased());
 
@@ -69,7 +68,7 @@ class WorkflowLeaseTest extends TestCase
         $this->assertNull($control->leaseExpiresAt);
     }
 
-    public function testResumeRightAfterSuspendIsNotBlocked(): void
+    public function test_resume_right_after_suspend_is_not_blocked(): void
     {
         $persistence = $this->suspendLeased();
 
@@ -79,7 +78,7 @@ class WorkflowLeaseTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function testFreshRunningLeaseRefusesRecovery(): void
+    public function test_fresh_running_lease_refuses_recovery(): void
     {
         $persistence = $this->suspendLeased();
         $serializer = new PhpSerializer();
@@ -96,7 +95,7 @@ class WorkflowLeaseTest extends TestCase
         $this->leasedWorkflow(300)->setPersistence($persistence)->resume();
     }
 
-    public function testExpiredRunningLeaseAllowsRecoveryClaim(): void
+    public function test_expired_running_lease_allows_recovery_claim(): void
     {
         $persistence = $this->suspendLeased();
         $serializer = new PhpSerializer();
@@ -113,7 +112,7 @@ class WorkflowLeaseTest extends TestCase
         $this->assertGreaterThan($running->executionAttempt, $this->control($persistence)->executionAttempt);
     }
 
-    public function testStaleExecutionAttemptRefusesContinuation(): void
+    public function test_stale_execution_attempt_refuses_continuation(): void
     {
         $persistence = $this->suspendLeased();
         $attempt = $this->control($persistence)->executionAttempt;
@@ -126,7 +125,7 @@ class WorkflowLeaseTest extends TestCase
             ->resume(expectedExecutionAttempt: $attempt - 1);
     }
 
-    public function testCaughtFailureClearsTheLeaseDeadline(): void
+    public function test_caught_failure_clears_the_lease_deadline(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make(workflowId: 'thread_failing')
@@ -143,7 +142,7 @@ class WorkflowLeaseTest extends TestCase
         }
     }
 
-    public function testCompletionSweepsControlWithThePartition(): void
+    public function test_completion_sweeps_control_with_the_partition(): void
     {
         $persistence = $this->suspendLeased();
 
@@ -152,7 +151,7 @@ class WorkflowLeaseTest extends TestCase
         $this->assertNull($persistence->get('thread_1', '__control'));
     }
 
-    public function testControlHeartbeatsAreCommittedAtStepBoundaries(): void
+    public function test_control_heartbeats_are_committed_at_step_boundaries(): void
     {
         $serializer = new PhpSerializer();
         $persistence = new class ($serializer) extends InMemoryPersistence {

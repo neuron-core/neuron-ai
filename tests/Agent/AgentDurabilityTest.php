@@ -15,9 +15,9 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Tools\ClosureDependencyTool;
-use NeuronAI\Tests\Agent\Tools\CrashSearchTool;
-use NeuronAI\Tests\Agent\Tools\SearchTool;
+use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
+use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
@@ -38,7 +38,7 @@ use const DIRECTORY_SEPARATOR;
 
 class AgentDurabilityTest extends TestCase
 {
-    public function testCrashRecoveryDuringToolExecution(): void
+    public function test_crash_recovery_during_tool_execution(): void
     {
         $workflowId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
@@ -84,7 +84,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $searchTool->getCallCount());
     }
 
-    public function testChatNodeInferenceMemoizedAcrossCrashRecovery(): void
+    public function test_chat_node_inference_memoized_across_crash_recovery(): void
     {
         $chatHistory = new InMemoryChatHistory();
         // Crash window under test: ChatNode's inference succeeds and is memoized
@@ -123,7 +123,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
     }
 
-    public function testInterruptResumeWithApprovalGate(): void
+    public function test_interrupt_resume_with_approval_gate(): void
     {
         $workflowId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
@@ -169,7 +169,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $provider->getCallCount());
     }
 
-    public function testChatNoToolsStepCleanupAfterCompletion(): void
+    public function test_chat_no_tools_step_cleanup_after_completion(): void
     {
         $workflowId = 'agent_cleanup_test';
         $persistence = new InMemoryPersistence();
@@ -191,7 +191,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertNull($persistence->get($workflowId, \NeuronAI\Agent\Nodes\ChatNode::class . '-0'));
     }
 
-    public function testApprovalGateRejectsTool(): void
+    public function test_approval_gate_rejects_tool(): void
     {
         $workflowId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
@@ -239,7 +239,7 @@ class AgentDurabilityTest extends TestCase
         );
     }
 
-    public function testSuccessfulToolCallWithStepEngine(): void
+    public function test_successful_tool_call_with_step_engine(): void
     {
         $workflowId = 'agent_tool_success_test';
         $persistence = new InMemoryPersistence();
@@ -267,7 +267,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertNull($persistence->get($workflowId, ChatNode::class . '-0'));
     }
 
-    public function testInterruptResumeWithFilePersistence(): void
+    public function test_interrupt_resume_with_file_persistence(): void
     {
         $workflowId = 'agent_file_interrupt_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
@@ -291,7 +291,7 @@ class AgentDurabilityTest extends TestCase
         $this->removeDirectory($dir);
     }
 
-    public function testToolCallWithFilePersistenceAndUnserializableToolDependency(): void
+    public function test_tool_call_with_file_persistence_and_unserializable_tool_dependency(): void
     {
         // Regression: with a durable persistence backend every step (and the inference
         // memo) is serialized. A tool holding a non-serializable dependency (PDO,
@@ -322,7 +322,7 @@ class AgentDurabilityTest extends TestCase
         $this->removeDirectory($dir);
     }
 
-    public function testCrashRecoveryResolvesToolsFromLiveRegistry(): void
+    public function test_crash_recovery_resolves_tools_from_live_registry(): void
     {
         $workflowId = 'agent_file_tool_recovery_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;

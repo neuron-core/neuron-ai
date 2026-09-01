@@ -4,21 +4,22 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Workflow\Executor\Stubs\ContinuationNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageFirstForkNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableBranchProcessing;
-use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableStep1TextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableStep2TextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\InterruptableTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\LinearInterruptNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MergeWithContinuationNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\SummaryProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchImageFirstForkNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ThreeBranchMergeNode;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\ContinuationNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageFirstForkNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableBranchProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableStep1TextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableStep2TextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\LinearInterruptNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeWithContinuationNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\SummaryProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchImageFirstForkNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Resume\ResumeInput;
@@ -28,21 +29,20 @@ use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-
 use function array_map;
 
 class ParallelInterruptTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function testMultipleSuspensionsCanBeResolvedAcrossAddressedBatches(): void
+    public function test_multiple_suspensions_can_be_resolved_across_addressed_batches(): void
     {
         $fork = new class () extends Node {
-            public function __invoke(StartEvent $event, WorkflowState $state): Stubs\DocumentParallelEvent
+            public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
             {
-                return new Stubs\DocumentParallelEvent([
-                    'text' => new Stubs\TextProcessEvent(),
-                    'image' => new Stubs\TextProcessEvent(),
+                return new Stub\DocumentParallelEvent([
+                    'text' => new Stub\TextProcessEvent(),
+                    'image' => new Stub\TextProcessEvent(),
                 ]);
             }
         };
@@ -82,7 +82,7 @@ class ParallelInterruptTest extends TestCase
         );
     }
 
-    public function testInterruptInsideBranchSurfacesRequest(): void
+    public function test_interrupt_inside_branch_surfaces_request(): void
     {
         $workflow = Workflow::make(workflowId: 'test-resume-token')
             ->addNodes([
@@ -101,7 +101,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertFalse($state->has('merge_node_executed'));
     }
 
-    public function testParallelResumeCompletesAllBranches(): void
+    public function test_parallel_resume_completes_all_branches(): void
     {
         // Durability: resume on a fresh executor sharing only persistence.
         $persistence = new InMemoryPersistence();
@@ -134,7 +134,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testCompletedBranchRetainedAcrossInterrupt(): void
+    public function test_completed_branch_retained_across_interrupt(): void
     {
         // Image branch completes, then the text branch pauses. On resume the
         // already-completed image branch must still contribute its result —
@@ -158,7 +158,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('processed_image.jpg', $analysis['image']);
     }
 
-    public function testParallelResumeContinuesPastJoinNode(): void
+    public function test_parallel_resume_continues_past_join_node(): void
     {
         $workflow = Workflow::make(workflowId: 'test-resume-token')
             ->addNodes([
@@ -178,7 +178,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertTrue($result->get('continuation_node_executed'));
     }
 
-    public function testParallelResumeWithThreeBranches(): void
+    public function test_parallel_resume_with_three_branches(): void
     {
         $workflow = Workflow::make(workflowId: 'test-resume-token')
             ->addNodes([
@@ -201,7 +201,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('SUMMARY', $mergeResults['summary']);
     }
 
-    public function testReInterruptInResumedBranch(): void
+    public function test_re_interrupt_in_resumed_branch(): void
     {
         $workflow = Workflow::make(workflowId: 'test-resume-token')
             ->addNodes([
@@ -228,7 +228,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('TWO_STEP_APPROVED', $result->get('analysis')['text']);
     }
 
-    public function testLinearInterruptSurfacesAndResumes(): void
+    public function test_linear_interrupt_surfaces_and_resumes(): void
     {
         // A non-parallel interrupt behaves the same way: surfaces on the state,
         // resumes through the request. (No parallel-specific metadata exists.)
@@ -243,7 +243,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertFalse($result->isInterrupted());
     }
 
-    public function testAsyncParallelInterruptSurfacesRequest(): void
+    public function test_async_parallel_interrupt_surfaces_request(): void
     {
         $workflow = Workflow::make(workflowId: 'test-async-token')
             ->setExecutor(new AsyncExecutor())
@@ -260,7 +260,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame('text branch needs approval', $state->getInterruptRequest()->getMessage());
     }
 
-    public function testAsyncParallelResumeCompletesAllBranches(): void
+    public function test_async_parallel_resume_completes_all_branches(): void
     {
         $persistence = new InMemoryPersistence();
 

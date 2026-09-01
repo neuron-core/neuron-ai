@@ -56,7 +56,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test that generateId returns an integer
      */
-    public function testGenerateIdReturnsInteger(): void
+    public function test_generate_id_returns_integer(): void
     {
         $id = UniqueIdGenerator::generateId('id_');
         $this->assertStringStartsWith('id_', $id);
@@ -65,7 +65,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test that multiple calls generate unique IDs
      */
-    public function testGenerateMultipleUniqueIds(): void
+    public function test_generate_multiple_unique_ids(): void
     {
         $ids = [];
         $count = 1000;
@@ -86,7 +86,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test that IDs are generally increasing (due to timestamp component)
      */
-    public function testIdsAreGenerallyIncreasing(): void
+    public function test_ids_are_generally_increasing(): void
     {
         $id1 = UniqueIdGenerator::generateId();
 
@@ -101,7 +101,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test machine ID is within valid range (1-1023)
      */
-    public function testMachineIdWithinValidRange(): void
+    public function test_machine_id_within_valid_range(): void
     {
         $id = (int) UniqueIdGenerator::generateId();
 
@@ -115,7 +115,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test sequence increments within same millisecond
      */
-    public function testSequenceIncrementsWithinSameMillisecond(): void
+    public function test_sequence_increments_within_same_millisecond(): void
     {
         // Generate multiple IDs rapidly to likely hit same millisecond
         $ids = [];
@@ -137,7 +137,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test that machine ID remains consistent across multiple calls
      */
-    public function testMachineIdConsistency(): void
+    public function test_machine_id_consistency(): void
     {
         $id1 = (int) UniqueIdGenerator::generateId();
         $id2 = (int) UniqueIdGenerator::generateId();
@@ -151,7 +151,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test ID bit composition (timestamp + machine + sequence = 64 bits)
      */
-    public function testIdBitComposition(): void
+    public function test_id_bit_composition(): void
     {
         $id = (int) UniqueIdGenerator::generateId();
 
@@ -178,7 +178,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test sequence overflow handling
      */
-    public function testSequenceOverflow(): void
+    public function test_sequence_overflow(): void
     {
         // Use reflection to manipulate internal state
         $reflection = new ReflectionClass(UniqueIdGenerator::class);
@@ -202,7 +202,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test concurrent generation simulation
      */
-    public function testConcurrentGenerationSimulation(): void
+    public function test_concurrent_generation_simulation(): void
     {
         $ids = [];
         $iterations = 10000;
@@ -239,7 +239,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test timestamp extraction and validation
      */
-    public function testTimestampExtraction(): void
+    public function test_timestamp_extraction(): void
     {
         $beforeTime = (int)(microtime(true) * 1000);
         $id = (int) UniqueIdGenerator::generateId();
@@ -254,7 +254,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test performance - should generate IDs quickly
      */
-    public function testPerformance(): void
+    public function test_performance(): void
     {
         $startTime = microtime(true);
         $count = 1000;
@@ -277,7 +277,7 @@ class UniqueIdGeneratorTest extends TestCase
     /**
      * Test that static properties maintain state correctly
      */
-    public function testStaticStateManagement(): void
+    public function test_static_state_management(): void
     {
         // Generate first ID
         $id1 = (int) UniqueIdGenerator::generateId();

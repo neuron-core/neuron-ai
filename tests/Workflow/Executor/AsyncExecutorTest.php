@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Workflow\Executor\Stubs\DocumentParallelProcessing;
-use NeuronAI\Tests\Workflow\Executor\Stubs\ImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\MergeNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\SlowImageProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\SlowTextProcessNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\TextProcessNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\SlowImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\SlowTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
 use function Amp\async;
 use function microtime;
 
@@ -29,7 +29,7 @@ class AsyncExecutorTest extends TestCase
         return new AsyncExecutor();
     }
 
-    public function testAsyncExecutorWithNormalNodes(): void
+    public function test_async_executor_with_normal_nodes(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -45,7 +45,7 @@ class AsyncExecutorTest extends TestCase
         $this->assertTrue($result->get('node_three_executed'));
     }
 
-    public function testParallelBranchesRunWithDefaultExecutor(): void
+    public function test_parallel_branches_run_with_default_executor(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -64,7 +64,7 @@ class AsyncExecutorTest extends TestCase
         $this->assertGreaterThan(0.15, $elapsed, 'The default executor should run branches one by one');
     }
 
-    public function testAsyncExecutorRunsBranchesConcurrently(): void
+    public function test_async_executor_runs_branches_concurrently(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -82,7 +82,7 @@ class AsyncExecutorTest extends TestCase
         $this->assertLessThan(0.18, $elapsed, 'AsyncExecutor should run branches concurrently');
     }
 
-    public function testBranchStateIsIsolatedAndMerged(): void
+    public function test_branch_state_is_isolated_and_merged(): void
     {
         $workflow = Workflow::make()
             ->addNodes([

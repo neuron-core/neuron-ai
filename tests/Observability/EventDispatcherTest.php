@@ -11,13 +11,13 @@ use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObservabilityEvent;
-use NeuronAI\Tests\Observability\Stubs\CustomTestEvent;
-use NeuronAI\Tests\Observability\Stubs\EmittingNode;
-use NeuronAI\Tests\Workflow\Executor\Stubs\RecordingObserver;
-use NeuronAI\Tests\Workflow\Stubs\InterruptableNode;
-use NeuronAI\Tests\Workflow\Stubs\NodeOne;
-use NeuronAI\Tests\Workflow\Stubs\NodeThree;
-use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Observability\Stub\CustomTestEvent;
+use NeuronAI\Tests\Observability\Stub\EmittingNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\RecordingObserver;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
@@ -40,7 +40,7 @@ class EventDispatcherTest extends TestCase
         return [new NodeOne(), new NodeTwo(), new NodeThree()];
     }
 
-    public function testSubscribeReceivesClassKeyedEvents(): void
+    public function test_subscribe_receives_class_keyed_events(): void
     {
         $received = [];
 
@@ -57,7 +57,7 @@ class EventDispatcherTest extends TestCase
         $this->assertNull($received[0]->branchId);
     }
 
-    public function testWorkflowEventCatchAllReceivesFullLifecycle(): void
+    public function test_workflow_event_catch_all_receives_full_lifecycle(): void
     {
         $names = [];
 
@@ -75,7 +75,7 @@ class EventDispatcherTest extends TestCase
         $this->assertContains('workflow-node-end', $names);
     }
 
-    public function testLegacyObserverKeepsWorkingThroughAdapter(): void
+    public function test_legacy_observer_keeps_working_through_adapter(): void
     {
         $observer = new RecordingObserver();
 
@@ -96,7 +96,7 @@ class EventDispatcherTest extends TestCase
         }
     }
 
-    public function testNodeEmitStampsSourceAndDispatchesToSubscribers(): void
+    public function test_node_emit_stamps_source_and_dispatches_to_subscribers(): void
     {
         $received = [];
 
@@ -114,7 +114,7 @@ class EventDispatcherTest extends TestCase
         $this->assertNull($received[0]->branchId);
     }
 
-    public function testEventsAreIsolatedPerWorkflowInstance(): void
+    public function test_events_are_isolated_per_workflow_instance(): void
     {
         $first = [];
         $second = [];
@@ -137,7 +137,7 @@ class EventDispatcherTest extends TestCase
         $this->assertSame([], $second);
     }
 
-    public function testListenersSurviveMultipleRunsOfTheSameInstance(): void
+    public function test_listeners_survive_multiple_runs_of_the_same_instance(): void
     {
         $starts = 0;
 
@@ -153,7 +153,7 @@ class EventDispatcherTest extends TestCase
         $this->assertSame(2, $starts);
     }
 
-    public function testExternalPsrDispatcherReceivesForwardedEvents(): void
+    public function test_external_psr_dispatcher_receives_forwarded_events(): void
     {
         $external = new class () implements EventDispatcherInterface {
             /** @var object[] */
@@ -183,7 +183,7 @@ class EventDispatcherTest extends TestCase
         $this->assertCount(count($external->events), $local);
     }
 
-    public function testInterruptionDispatchesDedicatedEventNotAgentError(): void
+    public function test_interruption_dispatches_dedicated_event_not_agent_error(): void
     {
         $interrupted = [];
         $errors = [];
@@ -214,7 +214,7 @@ class EventDispatcherTest extends TestCase
         $this->assertSame([], $errors);
     }
 
-    public function testEventNameDerivationAndOverrides(): void
+    public function test_event_name_derivation_and_overrides(): void
     {
         $this->assertSame('workflow-node-start', (new WorkflowNodeStart(NodeOne::class, new WorkflowState()))->name());
         $this->assertSame('workflow-end', (new WorkflowEnd(new WorkflowState()))->name());

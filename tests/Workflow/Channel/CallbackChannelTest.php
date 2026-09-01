@@ -15,7 +15,7 @@ use Throwable;
 
 class CallbackChannelTest extends TestCase
 {
-    public function testUnsetHooksAreSilentNoOps(): void
+    public function test_unset_hooks_are_silent_no_ops(): void
     {
         $received = [];
         $channel = new CallbackChannel(
@@ -35,7 +35,7 @@ class CallbackChannelTest extends TestCase
         $this->assertSame([$item], $received);
     }
 
-    public function testEachHookReceivesItsArguments(): void
+    public function test_each_hook_receives_its_arguments(): void
     {
         $calls = [];
         $channel = new CallbackChannel(
@@ -71,7 +71,7 @@ class CallbackChannelTest extends TestCase
         ], $calls);
     }
 
-    public function testSendLineReceivesEachLineAndIsSilentWhenUnset(): void
+    public function test_send_line_receives_each_line_and_is_silent_when_unset(): void
     {
         // Unset onSendLine: a silent no-op (same shape as the other hooks).
         (new CallbackChannel())->sendLine('dropped');
