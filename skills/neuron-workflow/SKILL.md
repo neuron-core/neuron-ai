@@ -1,6 +1,6 @@
 ---
 name: neuron-workflow
-description: Build custom Neuron AI workflows with nodes, events, middleware, and human-in-the-loop patterns. Use this skill whenever the user mentions workflows, orchestration, event-driven systems, custom agents, complex multi-step processes, human-in-the-loop patterns, or wants to build a custom agentic system from scratch. Also trigger for tasks involving node creation, event routing, workflow middleware, persistence, or interruption patterns.
+description: Build or modify Neuron AI Workflow graphs, including nodes, events, middleware, persistence, parallel branches, streaming, and human-in-the-loop interruption. Use for tasks specifically involving Neuron's Workflow APIs or custom Neuron agentic orchestration; do not trigger for generic workflow or event-driven design questions.
 ---
 
 # Neuron AI Workflow
@@ -44,7 +44,7 @@ class ValidationNode extends Node
         return new ProcessEvent($validated);
     }
 
-    private function validate(mixed $input): array
+    protected function validate(mixed $input): array
     {
         // Validation logic
         return ['valid' => true, 'data' => $input];
@@ -59,7 +59,7 @@ class ValidationNode extends Node
 ```php
 use NeuronAI\Workflow\Events\Event;
 
-class UserValidatedEvent extends Event
+class UserValidatedEvent implements Event
 {
     public function __construct(
         public readonly string $userId,
@@ -67,7 +67,7 @@ class UserValidatedEvent extends Event
     ) {}
 }
 
-class ProcessCompleteEvent extends Event
+class ProcessCompleteEvent implements Event
 {
     public function __construct(
         public readonly string $result
@@ -123,7 +123,9 @@ class MyWorkflow extends Workflow
 
 ## Workflow State
 
-`WorkflowState` is a shared state container that persists across all nodes:
+`WorkflowState` carries workflow data between nodes. Parallel branches receive
+cloned branch state; return branch results through `StopEvent` and merge them in
+the join node instead of relying on concurrent mutation of one state instance:
 
 ```php
 $state = new WorkflowState();
@@ -157,14 +159,17 @@ By default, workflows use `InMemoryPersistence` — results are kept in memory a
 
 ### How It Works
 
-Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store (string values under `(partition, key)`; a run's records live in a partition named by its runId). Completed steps are replayed from cache and never re-executed; interrupted steps resume; failed steps retry.
+Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store. A run's records live in the partition named by its workflow ID; the run ID is a generation stamp inside that partition. Completed steps are replayed from cache and never re-executed; addressed interrupted steps resume; failed steps retry.
 
-This means: if your process crashes mid-workflow, simply re-run it with the same persistence and runId. The engine will replay all completed steps from cache and resume from the point of failure.
+After a crash, reconstruct the workflow with the same persistence and workflow
+ID, then call inputless `resume()`. The engine replays completed steps and
+continues the current run without inventing an external answer.
 
 ### Persistence Backends
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\EloquentPersistence;
 
@@ -190,9 +195,10 @@ $workflow = Workflow::make()
 $finalState = $workflow->run();
 ```
 
-Executors carry no storage of their own — persistence, serializer, and
-scheduler are workflow-owned seams read by the executor at execute time. The
-record codec is configurable via `setSerializer()` (default `PhpSerializer`).
+Executors carry no storage of their own. Persistence and serialization are
+workflow-owned seams read by the executor at execution time. The record codec
+is configurable via `setSerializer()` (default `PhpSerializer`); timers, event
+subscriptions, and queue jobs belong to the calling platform, not Workflow core.
 
 ### Database Table Schema
 
@@ -213,7 +219,11 @@ For `EloquentPersistence`, the model must have `partition`, `key`, and `value` c
 
 ### Workflow Lifecycle
 
-When the workflow completes successfully, the engine calls `delete()` on the persistence layer to clean up stored steps. Interrupted workflows retain their persisted state until resumed and completed, or manually cleaned up.
+By default, successful completion conditionally removes the owned workflow
+partition. A platform that must replay a lost completion response can call
+`retainCompletionUntilAcknowledged()` and later
+`acknowledgeCompletion($runId)`. Interrupted workflows retain their active
+requests and step records until continued.
 
 ## Human-in-the-Loop Patterns
 
@@ -221,9 +231,11 @@ Workflows support interruption for human intervention at any point.
 
 ### Interrupting a Node
 
-The request is **outbound-only** — a pure description of the pause, rendered to
-the user. On resume the verb returns the **inbound payload** (the plain array
-delivered to `resume()`); the request object never comes back:
+`InterruptRequest` is the canonical portable description of the pause. The
+executor clones it, assigns a positive run-scoped ID, persists it while active,
+and exposes that same ID-bound request to callers. Keep request fields
+serializable; inject live services into the node instead. On an addressed
+resume, `interrupt()` returns the inbound payload array:
 
 ```php
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
@@ -251,10 +263,9 @@ class DangerousOperationNode extends Node
             ],
         ));
 
-        // The payload's shape is YOUR contract with the resuming caller, e.g.
-        // resume(['delete_files' => true, 'send_email' => false]):
-        foreach ($payload ?? [] as $actionId => $approved) {
-            if ($approved === true) {
+        // The payload's shape is YOUR contract with the resuming caller.
+        foreach ($payload ?? [] as $actionId => $decision) {
+            if ($decision === 'approve') {
                 $this->executeAction($actionId);
             }
         }
@@ -302,22 +313,35 @@ $workflow = Workflow::make()
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    // Present the request to the user and collect a decision (outbound).
+    // Present the request to the user and retain its engine-assigned ID.
     $request = $state->getInterruptRequest();
-    $workflowId = $workflow->getWorkflowId();   // assigned by the engine at ignition
+    $workflowId = $state->getWorkflowId();
 
     // ... user approves/rejects ...
 
-    // Resume — same persistence + workflow ID, delivering the answer as an inbound
-    // PAYLOAD (a plain array). Completed nodes replay from cache; only the
-    // interrupted node re-runs and receives the payload.
+    // Resume the exact active request. Completed nodes replay from cache; the
+    // addressed interrupted node re-runs and receives this payload.
     $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->resume(['approved' => true]);
+        ->resume([
+            ResumeInput::event($request->getId(), ['approved' => true]),
+        ]);
 }
 
 $result = $state->get('result');
+```
+
+Direct application-controlled continuation may omit `expectedRunId` to target
+the workflow ID's current run. Delayed, queued, or platform delivery should
+also pass the run ID copied from the suspended state so a stale delivery cannot
+reach a newer generation:
+
+```php
+$workflow->resume(
+    [ResumeInput::event($request->getId(), $payload)],
+    expectedRunId: $suspendedState->getRunId(),
+);
 ```
 
 ### Resuming by business key — the workflow ID
@@ -332,17 +356,27 @@ built from the business key alone finds the pending run:
 ```php
 class OrderWorkflow extends Workflow
 {
+    public function __construct(protected string $orderId)
+    {
+        parent::__construct();
+    }
+
     public function workflowId(): ?string
     {
         return 'order:' . $this->orderId;
     }
 }
 
-// Later, in a blank process holding only the order id — nothing stored
-// anywhere by the application:
-$state = OrderWorkflow::make(orderId: $orderId)
-    ->setPersistence($persistence)
-    ->resume(['approved' => true]);
+// Later, a blank process holding only the order id can first recover the
+// current active request set without delivering an answer:
+$workflow = OrderWorkflow::make(orderId: $orderId)
+    ->setPersistence($persistence);
+$pending = $workflow->resume();
+$request = $pending->getInterruptRequest();
+
+$state = $workflow->resume([
+    ResumeInput::event($request->getId(), ['approved' => true]),
+]);
 ```
 
 Rules: **one live run per workflow ID** — `run()` while a run is in flight for
@@ -355,18 +389,22 @@ workflow ID (`getWorkflowId()` after the first segment) and are otherwise
 unaffected. The `Agent` uses exactly this mechanism with its threadId as the
 workflow ID.
 
-## The Suspend Vocabulary (beyond approval)
+## Interruption Vocabulary (beyond approval)
 
 Approval is the most common reason to suspend, but it is just one payload. The
-suspend model has two deliberately separated axes:
+interruption model has two axes:
 
 - **`InterruptType` enum (closed)** — `WaitForEvent`, `SleepUntil`. Each maps to a
-  scheduler capability (an event router, a timer wheel). Adding a type is a framework
-  concern. You don't invent new types in app code.
+  coordination capability such as an event subscription or timer. Adding a type
+  is a framework concern.
 - **`InterruptRequest` class hierarchy (open)** — `InterruptRequest` is abstract.
-  Subclass an *existing* type to carry a richer payload; `type()` stays inherited.
+  Subclass an existing type to add portable coordination or presentation data;
+  `type()` remains inherited.
 
-Three verbs on `Node`, each returning the same request subclass back (or `null`):
+On the first pass, `interrupt()`, `awaitEvent()`, and `sleepUntil()` pause the
+node internally. Once that interruption is addressed, execution re-enters the
+node and the verb returns the inbound payload or timeout result—never the request
+object.
 
 ### Wait for an external event — `awaitEvent()`
 
@@ -383,8 +421,7 @@ class OrderNode extends Node
             return new OrderExpiredEvent();           // timed out — no event arrived
         }
 
-        $payment = $wait->getPayload();               // the delivered event payload
-        return new ResultEvent($payment);
+        return new ResultEvent($wait);                // delivered payload array
     }
 }
 ```
@@ -393,32 +430,35 @@ Resume delivers the matched event's data as the inbound payload — the node's
 `awaitEvent()` call returns it:
 
 ```php
-// The caller (a webhook controller, a queue worker, a scheduler) resumes the
-// run with the event payload:
+// A webhook controller or queue worker addresses this particular wait.
+$request = $state->getInterruptRequest();
+
 $state = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([...])
-    ->resume($paymentPayload);
+    ->resume([
+        ResumeInput::event($request->getId(), $paymentPayload),
+    ]);
 ```
 
-**Timeouts are scheduler-driven.** When the deadline elapses the scheduler resumes
-the workflow with the wait marked expired internally; `awaitEvent()` surfaces that as
-`null`. Branch on `if ($wait === null)` — never compare the clock in the node.
+When the deadline elapses, external coordination delivers
+`ResumeInput::expired($request->getId())`; `awaitEvent()` returns `null`. Branch
+on that result instead of comparing clocks inside the node.
 
 ### Sleep until a clock time — `sleepUntil()`
 
 ```php
-// Suspend until $wakeAt. Whether and when it fires is the scheduler's job.
+// Suspend until $wakeAt. Workflow core records the request but does not run a timer.
 $this->sleepUntil($wakeAt);
 ```
 
-With the default `NullScheduler` nothing fires on its own — a caller must resume. A
-real scheduler (a cron/queue worker, or a cloud platform) drives the wakeup.
+When an external timer fires, continue with
+`ResumeInput::timer($request->getId())`.
 
 ### Carrying a custom payload
 
-Subclass an existing type to add typed fields. `type()` is inherited, so the
-scheduler still routes it correctly:
+Subclass an existing type to add typed portable fields. `type()` and input
+validation are inherited; expose custom transport metadata explicitly:
 
 ```php
 class QuotaRefreshRequest extends WaitForEventRequest
@@ -427,22 +467,30 @@ class QuotaRefreshRequest extends WaitForEventRequest
     {
         parent::__construct('quota.refreshed.' . $customerId);
     }
+
+    protected function metadata(): array
+    {
+        return ['customerId' => $this->customerId];
+    }
 }
 
 // In a node:
-$req = $this->interrupt(new QuotaRefreshRequest($customerId));
-// ...on resume, $req is the same QuotaRefreshRequest with getPayload() populated.
+$payload = $this->interrupt(new QuotaRefreshRequest($customerId));
 ```
 
-### The scheduler — coordination, not state
+### Coordination stays outside Workflow core
 
-`PersistenceInterface` stores **state** (your DB); `SchedulerInterface` owns
-**coordination** — when a suspended workflow wakes. Wire one optionally:
+Workflow returns the complete active request set. The invoking application or
+platform reconciles subscriptions and timers, then sends addressed inputs when
+they arrive. There is no scheduler interface or scheduler state inside the
+workflow:
 
 ```php
-$workflow = Workflow::make()
-    ->setPersistence(new DatabasePersistence($pdo))   // state
-    ->setScheduler(new MyQueueScheduler());            // coordination (defaults to inert NullScheduler)
+$state = $workflow->run();
+
+foreach ($state->getInterruptRequests() as $request) {
+    $platform->reconcile($state->getWorkflowId(), $state->getRunId(), $request);
+}
 ```
 
 ## Durable Memoization (`memoize`)
@@ -713,8 +761,9 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Prefer node-specific middleware over global
 
 ### Interruptions
-- **ALWAYS configure persistence when using interruptions**
+- Use durable persistence when an interruption must survive process loss or resume elsewhere
 - Provide clear, actionable descriptions in InterruptRequest
+- Keep request coordination data and metadata serializable; keep services on nodes
 - Use `memoize()` to avoid re-running expensive operations across an interruption
 
 ## Common Patterns
@@ -802,12 +851,12 @@ class ImageAnalysisParallelEvent extends ParallelEvent {}
 ```php
 use NeuronAI\Workflow\Events\Event;
 
-class ExtractStructuredDataEvent extends Event
+class ExtractStructuredDataEvent implements Event
 {
     public function __construct(public readonly string $imageUrl) {}
 }
 
-class GenerateDescriptionEvent extends Event
+class GenerateDescriptionEvent implements Event
 {
     public function __construct(public readonly string $imageUrl) {}
 }
@@ -923,7 +972,8 @@ $state = $workflow->run();
 By default, `WorkflowExecutor` runs branches **sequentially** (one after another). For true concurrency, use `AsyncExecutor`:
 
 ```php
-use NeuronAI\Workflow\Executor\AsyncExecutor;use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Workflow;
 
 $workflow = Workflow::make()
     ->setExecutor(new AsyncExecutor())
@@ -936,6 +986,11 @@ $workflow = Workflow::make()
 ```
 
 `AsyncExecutor` is a drop-in replacement — it runs branches as concurrent Amp futures while keeping linear (non-parallel) nodes sequential as usual.
+
+Async branch invocations receive shallow-cloned node wrappers so the mutable
+execution context injected by `Node` cannot leak between fibers. Keep durable
+branch data in `WorkflowState` or branch events; injected service objects remain
+shared unless the application gives them their own isolation.
 
 ### AsyncWorkflow with AmpHttpClient
 
@@ -956,26 +1011,34 @@ $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
 
 ### Parallel Branches with Interruptions
 
-Parallel branches fully support human-in-the-loop. If any branch calls
-`$this->interrupt()`, the workflow pauses exactly as in the linear case — the
-state is marked interrupted and the request is available via
-`$state->getInterruptRequest()`. Resume is driven by step replay, so already-completed
-branches are skipped and only the interrupted branch re-runs with the request.
-No parallel-specific metadata is exposed.
+Parallel branches fully support human-in-the-loop. The executor lets every
+reachable sibling branch finish or interrupt before the segment returns, so one
+state can expose several active requests. `AsyncExecutor` awaits all branch
+futures before returning the set; it does not stop at the first interruption.
+
+Resume may address any subset. Addressed branches continue, completed branches
+stay cached, and unaddressed interrupted nodes are not rerun—their persisted
+requests remain in the returned active set. A platform may therefore deliver
+answers one at a time or batch all currently available answers. Each interrupt
+ID may occur only once in a resume batch; settled or unknown IDs are reported as
+stale through `WorkflowState::getInputResults()`.
 
 ```php
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    $request = $state->getInterruptRequest();   // outbound: render it
+    $requests = $state->getInterruptRequests();
     $workflowId = $workflow->getWorkflowId();
 
-    // ... user responds ...
+    // Address one request now; other active requests remain suspended.
+    $request = $requests[$interruptId];
 
     $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->resume(['answer' => $decision]);      // inbound payload
+        ->resume([
+            ResumeInput::event($request->getId(), ['answer' => $decision]),
+        ]);
 }
 ```
 

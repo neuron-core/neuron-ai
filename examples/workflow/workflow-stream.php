@@ -2,31 +2,77 @@
 
 declare(strict_types=1);
 
-use NeuronAI\Tests\Workflow\Stub\NodeForSecond;
-use NeuronAI\Tests\Workflow\Stub\NodeOne;
-use NeuronAI\Tests\Workflow\Stub\NodeTwo;
-use NeuronAI\Tests\Workflow\Stub\SecondEvent;
+use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$workflow = new Workflow();
+final class ProcessingStarted implements Event
+{
+}
 
-$workflow->addNodes([
-    new NodeOne(),
-    new NodeTwo(), // <-- This node streams the SecondEvent
-    new NodeForSecond(),
-]);
-
-$generator = $workflow->events();
-
-foreach ($generator as $event) {
-    if ($event instanceof SecondEvent) {
-        echo \PHP_EOL.'- ' . $event->message.\PHP_EOL;
+final class ProgressUpdate implements Event
+{
+    public function __construct(public readonly string $message)
+    {
     }
 }
 
-$finalState = $generator->getReturn();
+final class ProcessingFinished implements Event
+{
+    public function __construct(public readonly string $message)
+    {
+    }
+}
 
-// It should print "Second complete"
-echo $finalState->get('final_second_message').\PHP_EOL;
+final class StartProcessing extends Node
+{
+    public function __invoke(StartEvent $event, WorkflowState $state): ProcessingStarted
+    {
+        return new ProcessingStarted();
+    }
+}
+
+final class StreamProgress extends Node
+{
+    public function __invoke(ProcessingStarted $event, WorkflowState $state): Generator
+    {
+        yield new ProgressUpdate('Loading input');
+        yield new ProgressUpdate('Processing input');
+
+        return new ProcessingFinished('Processing complete');
+    }
+}
+
+final class FinishProcessing extends Node
+{
+    public function __invoke(ProcessingFinished $event, WorkflowState $state): StopEvent
+    {
+        $state->set('result', $event->message);
+
+        return new StopEvent();
+    }
+}
+
+$workflow = Workflow::make()
+    ->addNodes([
+        new StartProcessing(),
+        new StreamProgress(),
+        new FinishProcessing(),
+    ]);
+
+$events = $workflow->events();
+
+foreach ($events as $event) {
+    if ($event instanceof ProgressUpdate) {
+        echo '- ' . $event->message . \PHP_EOL;
+    }
+}
+
+$completed = $events->getReturn();
+
+echo $completed->get('result') . \PHP_EOL;
