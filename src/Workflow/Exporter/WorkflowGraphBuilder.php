@@ -147,7 +147,7 @@ final class WorkflowGraphBuilder
         $this->graph->addEdge(new WorkflowGraphEdge($this->nodeId($node), $splitId));
 
         foreach ($transition->branches as $branch => $event) {
-            if (!is_a($event, Event::class, true)) {
+            if (!is_string($event) || !is_a($event, Event::class, true)) {
                 throw new InvalidArgumentException($event . ' must implement ' . Event::class);
             }
 
