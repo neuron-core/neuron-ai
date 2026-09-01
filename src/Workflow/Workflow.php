@@ -178,6 +178,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * @param list<ResumeInput>|null $inputs
      * @return Generator<int, object|string, mixed, WorkflowState>
+     * @throws Throwable
      */
     public function events(
         ?array $inputs = null,
@@ -288,6 +289,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function consume(Generator $generator): WorkflowState
     {
+        // empty foreach is more memory efficient than iterator_to_array()
         foreach ($generator as $event) {
         }
 
