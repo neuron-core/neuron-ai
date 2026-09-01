@@ -34,7 +34,6 @@ class Ignition
     public function __serialize(): array
     {
         return [
-            'version' => 2,
             'runId' => $this->runId,
             'startEvent' => $this->startEvent,
             'context' => $this->context,

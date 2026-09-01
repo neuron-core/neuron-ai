@@ -133,7 +133,7 @@ All records for a Workflow ID stay in one persistence partition:
 |---|---|
 | `__ignition` | immutable start event, run ID, and engine-opaque context |
 | `__control` | mutable lifecycle authority and optimistic condition value |
-| `<runId>/<stepId>` | durable step result or marker |
+| `<runId>/<stepId>` | durable step result or marker; branch steps include a hash of their complete parent-fork path |
 | `<runId>/<stepId>::<memo>` | durable memo result |
 
 `__control` contains the current run ID, status, monotonic execution attempt,

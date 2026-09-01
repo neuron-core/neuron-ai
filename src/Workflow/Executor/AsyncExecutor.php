@@ -53,6 +53,7 @@ class AsyncExecutor extends WorkflowExecutor
     protected function executeBranches(
         WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
+        string $forkStepId,
     ): Generator {
         $futures = [];
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
@@ -63,9 +64,14 @@ class AsyncExecutor extends WorkflowExecutor
             // executeBranch() is a live generator; a fiber has no consumer to
             // yield into, so each branch buffers its streamed events and the
             // parent re-emits them after the await.
-            $futures[$branchId] = async(function () use ($workflow, $branchId, $branchEvent): BranchResult {
+            $futures[$branchId] = async(function () use (
+                $workflow,
+                $branchId,
+                $branchEvent,
+                $forkStepId,
+            ): BranchResult {
                 $streamedEvents = [];
-                $branch = $this->executeBranch($workflow, $branchId, $branchEvent);
+                $branch = $this->executeBranch($workflow, $branchId, $branchEvent, $forkStepId);
                 foreach ($branch as $streamedEvent) {
                     $streamedEvents[] = $streamedEvent;
                 }

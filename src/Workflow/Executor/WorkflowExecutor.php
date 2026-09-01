@@ -41,6 +41,7 @@ use function in_array;
 use function str_starts_with;
 use function time;
 use function array_push;
+use function hash;
 
 /**
  * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
@@ -52,6 +53,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected ?int $leaseTimeout = null;
     protected string $workflowId;
     protected string $runId;
+    protected bool $ownsExecutionSegment = false;
 
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
@@ -94,6 +96,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?int $expectedExecutionAttempt = null,
     ): Generator {
         $this->inputResults = [];
+        $this->ownsExecutionSegment = false;
         $this->leaseTimeout = $workflow->getLeaseTimeout();
         $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
         $this->runStore = new WorkflowRunStore(
@@ -102,28 +105,28 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->workflowId,
         );
 
-        $terminalState = $continuing
-            ? $this->continueRun($workflow, $inputs, $expectedRunId, $expectedExecutionAttempt)
-            : $this->startRun($workflow);
-
-        if ($terminalState instanceof WorkflowState) {
-            return $terminalState;
-        }
-
-        $workflow->adoptIdentity($this->workflowId, $this->runId);
-        $workflow->bootstrap();
-
-        $this->dispatchEvent(
-            $workflow->getEventDispatcher(),
-            new WorkflowStart($workflow->getEventNodeMap()),
-            $workflow,
-        );
-
-        $workflow->getState()->markAsRunning();
-        $this->stampState($workflow->getState());
-        $workflow->getState()->setInputResults($this->inputResults);
-
         try {
+            $terminalState = $continuing
+                ? $this->continueRun($workflow, $inputs, $expectedRunId, $expectedExecutionAttempt)
+                : $this->startRun($workflow);
+
+            if ($terminalState instanceof WorkflowState) {
+                return $terminalState;
+            }
+
+            $workflow->adoptIdentity($this->workflowId, $this->runId);
+            $workflow->bootstrap();
+
+            $this->dispatchEvent(
+                $workflow->getEventDispatcher(),
+                new WorkflowStart($workflow->getEventNodeMap()),
+                $workflow,
+            );
+
+            $workflow->getState()->markAsRunning();
+            $this->stampState($workflow->getState());
+            $workflow->getState()->setInputResults($this->inputResults);
+
             $terminal = yield from $this->traverse(
                 $workflow,
                 $workflow->getStartEvent(),
@@ -160,14 +163,18 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             return $workflow->getState();
         } catch (Throwable $e) {
-            $this->stampState($workflow->getState());
-            $workflow->getState()->setInputResults($this->inputResults);
-            $workflow->getState()->markAsFailed();
-            $this->markControlFailed();
-            $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
+            if ($this->ownsExecutionSegment) {
+                $this->stampState($workflow->getState());
+                $workflow->getState()->setInputResults($this->inputResults);
+                $workflow->getState()->markAsFailed();
+                $this->markControlFailed();
+                $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
+            }
             throw $e;
         } finally {
-            $this->workflowEnd($workflow);
+            if ($this->ownsExecutionSegment) {
+                $this->workflowEnd($workflow);
+            }
         }
     }
 
@@ -216,6 +223,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 . 'resume or settle it before igniting a new one.'
             );
         }
+
+        $this->ownsExecutionSegment = true;
 
         return null;
     }
@@ -299,6 +308,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 : $this->runStore->control()->withInputs($acceptedInputs)
             )->claim($this->leaseExpiry()),
         );
+        $this->ownsExecutionSegment = true;
 
         return null;
     }
@@ -477,9 +487,18 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $this->runId . '/' . $stepId;
     }
 
-    protected function buildStepId(NodeInterface $node, ?string $branchId, int $index): string
+    protected function buildStepId(
+        NodeInterface $node,
+        ?string $branchId,
+        ?string $branchPath,
+        int $index,
+    ): string
     {
-        return ($branchId !== null ? $branchId . '.' : '') . $node::class . '-' . $index;
+        if ($branchId === null) {
+            return $node::class . '-' . $index;
+        }
+
+        return 'branch_' . hash('sha256', $branchPath . "\0" . $node::class . "\0" . $index);
     }
 
     /**
@@ -637,12 +656,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         Event $event,
         WorkflowState $state,
         ?string $branchId = null,
+        ?string $branchPath = null,
     ): Generator {
         $node = $workflow->getNodeForEvent($event::class);
         $index = 0;
 
         while (!($event instanceof StopEvent) && !($event instanceof InterruptEvent)) {
-            $stepId = $this->buildStepId($node, $branchId, $index++);
+            $stepId = $this->buildStepId($node, $branchId, $branchPath, $index++);
             $result = yield from $this->runNodeStep($workflow, $node, $event, $state, $branchId, $stepId);
             $event = $result->getEvent();
 
@@ -652,7 +672,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
 
             if ($event instanceof ParallelEvent) {
-                $event = yield from $this->executeBranches($workflow, $event);
+                $event = yield from $this->executeBranches($workflow, $event, $stepId);
             }
 
             if ($event instanceof StopEvent || $event instanceof InterruptEvent) {
@@ -669,6 +689,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function executeBranches(
         WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
+        string $forkStepId,
     ): Generator {
         $requests = [];
 
@@ -677,7 +698,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 continue;
             }
 
-            $terminal = yield from $this->executeBranch($workflow, $branchId, $branchEvent);
+            $terminal = yield from $this->executeBranch($workflow, $branchId, $branchEvent, $forkStepId);
             if ($terminal instanceof InterruptEvent) {
                 array_push($requests, ...$terminal->requests);
             } elseif ($terminal instanceof StopEvent) {
@@ -693,13 +714,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowRuntimeInterface $workflow,
         string $branchId,
         Event $branchEvent,
+        string $forkStepId,
     ): Generator {
         $branchState = clone $workflow->getState();
         $branchState->set('__branchId', $branchId);
         $this->dispatchEvent($workflow->getEventDispatcher(), new BranchStart($branchId), $workflow, $branchId);
 
         try {
-            return yield from $this->traverse($workflow, $branchEvent, $branchState, $branchId);
+            return yield from $this->traverse(
+                $workflow,
+                $branchEvent,
+                $branchState,
+                $branchId,
+                $forkStepId . "\0" . $branchId,
+            );
         } finally {
             $this->dispatchEvent($workflow->getEventDispatcher(), new BranchEnd($branchId), $workflow, $branchId);
         }
@@ -722,6 +750,23 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $event->source = $source;
         $event->branchId = $branchId;
-        $dispatcher->dispatch($event);
+
+        try {
+            $dispatcher->dispatch($event);
+        } catch (Throwable $e) {
+            if ($event instanceof AgentError) {
+                return;
+            }
+
+            $error = new AgentError($e, false);
+            $error->source = $source;
+            $error->branchId = $branchId;
+
+            try {
+                $dispatcher->dispatch($error);
+            } catch (Throwable) {
+                // Monitoring failures must not change Workflow execution.
+            }
+        }
     }
 }

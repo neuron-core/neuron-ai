@@ -12,9 +12,13 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
 class WorkflowValidationTest extends TestCase
@@ -71,5 +75,26 @@ class WorkflowValidationTest extends TestCase
         $state = $this->execute($workflow);
         $this->assertInstanceOf(CustomState::class, $state);
         $this->assertEquals('custom property', $state->custom);
+    }
+
+    public function test_validation_failure_marks_the_owned_run_as_failed(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make(workflowId: 'invalid-workflow')
+            ->setPersistence($persistence)
+            ->setLeaseTimeout(300);
+
+        try {
+            $workflow->run();
+            $this->fail('Expected validation to fail.');
+        } catch (WorkflowException) {
+        }
+
+        $raw = $persistence->get('invalid-workflow', '__control');
+        $control = $raw === null ? null : (new PhpSerializer())->unserialize($raw);
+
+        $this->assertInstanceOf(WorkflowControl::class, $control);
+        $this->assertSame(WorkflowStatus::Failed, $control->status);
+        $this->assertNull($control->leaseExpiresAt);
     }
 }
