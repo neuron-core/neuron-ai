@@ -413,6 +413,46 @@ user-assistant exchange. Chat, streaming, structured output, RAG, and
 tool-assisted turns all use the same behavior. Tool calls and tool results are
 protocol traffic and are excluded from the stored exchange.
 
+#### Control recall and remembering independently
+
+Why control the branches separately: an application may need to keep creating
+memories while allowing each user to decide whether the agent can use past
+conversations. Attach memory normally, then set the policy for the new run:
+
+```php
+$state = MyAgent::make(threadId: $threadId)
+    ->setMemory($memory)
+    ->setMemoryUsage(
+        recall: $user->allowsMemoryRecall(),
+        remember: true,
+    )
+    ->chat(new UserMessage($input));
+```
+
+`recall` controls the branch before inference. `remember` controls the branch
+after the final assistant response. Both default to `true`, so existing agents
+keep the complete memory lifecycle without additional configuration.
+
+Use the combinations directly when a fixed policy is needed:
+
+```php
+// Remember this exchange without reading past memories.
+$agent->setMemoryUsage(recall: false);
+
+// Read past memories without storing this exchange.
+$agent->setMemoryUsage(remember: false);
+
+// Keep memory attached but skip it for this run.
+$agent->setMemoryUsage(recall: false, remember: false);
+```
+
+Each call defines the complete policy; an omitted argument defaults to `true`.
+The policy may change between new turns. It is recorded as run intent, so a
+suspended run keeps its original choices when resumed in another process.
+Disabled branches are not traversed and emit no memory stream or observability
+events. `resetConversation()` remains an explicit lifecycle operation and
+still clears attached memory regardless of the current usage policy.
+
 During a stream, the memory nodes expose their work through portable step
 events:
 

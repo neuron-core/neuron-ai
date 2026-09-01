@@ -111,6 +111,40 @@ class AgentMemoryTest extends TestCase
         );
     }
 
+    public function test_agent_can_switch_memory_usage_without_recomposing_the_graph(): void
+    {
+        $memory = new InspectableMemory(['Remembered context.']);
+        $agent = Agent::make(threadId: 'thread-1');
+        $agent->setAiProvider(new FakeAIProvider(
+            new AssistantMessage('First response.'),
+            new AssistantMessage('Second response.'),
+            new AssistantMessage('Third response.'),
+        ));
+        $agent->setMemory($memory);
+
+        $agent->setMemoryUsage(recall: false)
+            ->chat(new UserMessage('Remember this.'));
+
+        $agent->setMemoryUsage(remember: false)
+            ->chat(new UserMessage('Recall for this.'));
+
+        $agent->setMemoryUsage(recall: false, remember: false)
+            ->chat(new UserMessage('Use no memory.'));
+
+        $this->assertSame(['Recall for this.'], $memory->recalls);
+        $this->assertSame([
+            ['thread-1', 'Remember this.', 'First response.'],
+        ], $memory->remembered);
+        $this->assertInstanceOf(
+            RecallMemoryNode::class,
+            $agent->getEventNodeMap()[RecallMemoryEvent::class] ?? null,
+        );
+        $this->assertInstanceOf(
+            StoreMemoryNode::class,
+            $agent->getEventNodeMap()[StoreMemoryEvent::class] ?? null,
+        );
+    }
+
     public function test_agent_delegates_recall_scope_to_memory(): void
     {
         $memory = new InspectableMemory();
@@ -297,6 +331,20 @@ class AgentMemoryTest extends TestCase
         ], $memory->remembered);
     }
 
+    public function test_streaming_can_skip_remembering(): void
+    {
+        $memory = new InspectableMemory();
+        $agent = Agent::make(threadId: 'thread-1')
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Streamed answer.')))
+            ->setMemory($memory)
+            ->setMemoryUsage(remember: false);
+
+        iterator_to_array($agent->stream(new UserMessage('Stream this.')));
+
+        $this->assertSame(['Stream this.'], $memory->recalls);
+        $this->assertSame([], $memory->remembered);
+    }
+
     public function test_incomplete_stream_does_not_store_memory(): void
     {
         $memory = new InspectableMemory();
@@ -374,6 +422,20 @@ class AgentMemoryTest extends TestCase
         ], $memory->remembered);
     }
 
+    public function test_structured_output_can_skip_remembering(): void
+    {
+        $memory = new InspectableMemory();
+        $agent = Agent::make(threadId: 'thread-1')
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name":"Taylor"}')))
+            ->setMemory($memory)
+            ->setMemoryUsage(remember: false);
+
+        $agent->structured(new UserMessage('Create a user.'), User::class);
+
+        $this->assertSame(['Create a user.'], $memory->recalls);
+        $this->assertSame([], $memory->remembered);
+    }
+
     public function test_structured_retry_stores_the_original_request(): void
     {
         $memory = new InspectableMemory();
@@ -423,6 +485,40 @@ class AgentMemoryTest extends TestCase
         $this->assertSame([
             ['thread-1', 'Run the approved lookup.', 'Approved lookup complete.'],
         ], $memory->remembered);
+    }
+
+    public function test_remember_choice_survives_tool_approval_resume(): void
+    {
+        $memory = new InspectableMemory();
+        $history = new InMemoryChatHistory('thread-1');
+        $persistence = new InMemoryPersistence();
+        $tool = (new MemoryLookupTool())->requireApproval();
+
+        $agent = Agent::make(threadId: 'thread-1');
+        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [
+            ToolCall::make($tool->getName(), 'call-1'),
+        ])));
+        $agent->setChatHistory($history);
+        $agent->setPersistence($persistence);
+        $agent->setMemory($memory);
+        $agent->setMemoryUsage(remember: false);
+        $agent->addTool($tool);
+
+        $interrupted = $agent->chat(new UserMessage('Run without remembering.'));
+        $this->assertTrue($interrupted->isInterrupted());
+
+        $resumingAgent = Agent::make(threadId: 'thread-1');
+        $resumingAgent->setAiProvider(new FakeAIProvider(new AssistantMessage('Completed.')));
+        $resumingAgent->setChatHistory($history);
+        $resumingAgent->setPersistence($persistence);
+        $resumingAgent->setMemory($memory);
+        $resumingAgent->addTool($tool);
+
+        $resumed = $resumingAgent->resume([ResumeInput::event(1, ['call-1' => 'approve'])]);
+
+        $this->assertFalse($resumed->isInterrupted());
+        $this->assertSame(['Run without remembering.'], $memory->recalls);
+        $this->assertSame([], $memory->remembered);
     }
 
     public function test_middleware_can_customize_the_exchange_before_it_is_stored(): void

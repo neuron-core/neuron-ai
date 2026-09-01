@@ -14,7 +14,7 @@ RAG overrides `entryNodes()`: the retrieval chain replaces the Agent's
 in `InstructionsNode`:
 
 ```
-AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode] → inference
+AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode when requested] → inference
 ```
 
 1. Extract and pre-process the user question (query expansion, rewriting)
@@ -30,8 +30,10 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
    instructions + the run's intent, carried through the chain on each event's
    `$startEvent` (so a streamed or structured RAG run keeps its mode across
    the retrieval boundary — a custom node inserted into the chain must thread
-   `$startEvent` through its own event the same way). The event then passes
-   through the Agent's recall phase before its first inference.
+   `$startEvent` through its own event the same way). When requested through
+   `setMemoryUsage()`, the event then passes through the Agent's recall phase
+   before its first inference. Remember routing remains independent after the
+   final response.
 
 ## Core Files
 

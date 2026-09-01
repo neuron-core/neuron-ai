@@ -122,7 +122,7 @@ class StructuredOutputNode extends InferenceNode
                 $state->set('structured_output', $output);
                 $state->setResponse($providerResponse);
 
-                return $this->routeThroughMemory
+                return $this->memoryAvailable && $event->rememberMemory
                     ? new StoreMemoryEvent([...$event->getMessages(), $message])
                     : new StopEvent();
 

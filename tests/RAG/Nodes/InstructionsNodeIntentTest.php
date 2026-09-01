@@ -22,9 +22,9 @@ use function str_contains;
 
 class InstructionsNodeIntentTest extends TestCase
 {
-    protected function node(bool $routeThroughMemory = false): InstructionsNode
+    protected function node(bool $memoryAvailable = false): InstructionsNode
     {
-        return new InstructionsNode(new SystemMessage('Base instructions'), [], $routeThroughMemory);
+        return new InstructionsNode(new SystemMessage('Base instructions'), [], $memoryAvailable);
     }
 
     protected function event(AgentStartEvent $startEvent): DocumentsProcessedEvent
@@ -81,5 +81,19 @@ class InstructionsNodeIntentTest extends TestCase
 
         $this->assertInstanceOf(RecallMemoryEvent::class, $recall);
         $this->assertSame(AIInferenceEvent::class, $recall->inferenceEvent::class);
+    }
+
+    public function test_memory_usage_survives_retrieval_and_controls_recall(): void
+    {
+        $startEvent = (new AgentStartEvent())->setMemoryUsage(
+            recall: false,
+            remember: false,
+        );
+
+        $inference = ($this->node(true))($this->event($startEvent), new AgentState());
+
+        $this->assertSame(AIInferenceEvent::class, $inference::class);
+        $this->assertFalse($inference->recallMemory);
+        $this->assertFalse($inference->rememberMemory);
     }
 }

@@ -25,6 +25,8 @@ class InferenceIntentTest extends TestCase
         $this->assertFalse($event->stream);
         $this->assertNull($event->outputClass);
         $this->assertSame(1, $event->maxTries);
+        $this->assertTrue($event->recallMemory);
+        $this->assertTrue($event->rememberMemory);
     }
 
     public function test_set_stream_records_the_flag_on_the_same_instance(): void
@@ -36,6 +38,19 @@ class InferenceIntentTest extends TestCase
 
         $event->setStream(false);
         $this->assertFalse($event->stream);
+    }
+
+    public function test_set_memory_usage_records_both_independent_choices(): void
+    {
+        $event = new AgentStartEvent();
+
+        $this->assertSame($event, $event->setMemoryUsage(recall: false));
+        $this->assertFalse($event->recallMemory);
+        $this->assertTrue($event->rememberMemory);
+
+        $event->setMemoryUsage(remember: false);
+        $this->assertTrue($event->recallMemory);
+        $this->assertFalse($event->rememberMemory);
     }
 
     public function test_set_structured_output_records_in_place_on_every_class(): void
@@ -65,6 +80,7 @@ class InferenceIntentTest extends TestCase
         $event = new AIInferenceEvent(new SystemMessage('Be helpful'), [$tool]);
         $event->setMessages(new UserMessage('Hi'));
         $event->setStream();
+        $event->setMemoryUsage(recall: false, remember: false);
         $event->setStructuredOutput(stdClass::class, 2);
 
         $routed = $event->routed();
@@ -79,6 +95,8 @@ class InferenceIntentTest extends TestCase
         $this->assertSame([$tool], $routed->tools);
         $this->assertCount(1, $routed->getMessages());
         $this->assertTrue($routed->stream);
+        $this->assertFalse($routed->recallMemory);
+        $this->assertFalse($routed->rememberMemory);
     }
 
     public function test_routed_is_idempotent_on_an_already_structured_event(): void
@@ -104,6 +122,7 @@ class InferenceIntentTest extends TestCase
     {
         $event = new AIInferenceEvent(new SystemMessage('Be helpful'), [IntentDummyTool::make()]);
         $event->setStream();
+        $event->setMemoryUsage(recall: false, remember: false);
         $routed = $event->setStructuredOutput(stdClass::class, 4)->routed();
 
         /** @var StructuredInferenceEvent $restored */
@@ -113,6 +132,8 @@ class InferenceIntentTest extends TestCase
         $this->assertSame(stdClass::class, $restored->outputClass);
         $this->assertSame(4, $restored->maxTries);
         $this->assertTrue($restored->stream);
+        $this->assertFalse($restored->recallMemory);
+        $this->assertFalse($restored->rememberMemory);
         $this->assertSame([], $restored->tools);
     }
 }

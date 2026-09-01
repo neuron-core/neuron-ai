@@ -9,6 +9,9 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use NeuronAI\Workflow\NodeContext;
+use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
 
@@ -22,6 +25,24 @@ use function Amp\async;
  */
 class AsyncExecutor extends WorkflowExecutor
 {
+    /**
+     * @param WorkflowMiddleware[] $middleware
+     * @return Generator<int, Event, mixed, Event>
+     */
+    protected function runNode(
+        NodeInterface $node,
+        NodeContext $context,
+        array $middleware = [],
+        ?string $branchId = null,
+    ): Generator {
+        return yield from parent::runNode(
+            $branchId === null ? $node : clone $node,
+            $context,
+            $middleware,
+            $branchId,
+        );
+    }
+
     /**
      * Override to run branches as concurrent Amp futures.
      *

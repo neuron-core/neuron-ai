@@ -23,15 +23,15 @@ class InstructionsNode extends Node
     public function __construct(
         private readonly SystemMessage $baseInstructions,
         private readonly array $tools,
-        protected bool $routeThroughMemory = false,
+        protected bool $memoryAvailable = false,
     ) {
     }
 
     /**
      * Inject documents into instructions. The emitted event is where RAG's
      * inference event is born, so the start event's inference intent is honored
-     * here. With memory enabled, recall runs before the routed inference class
-     * is derived.
+     * here. When recall is requested and memory is available, it runs before
+     * the routed inference class is derived.
      */
     public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
     {
@@ -45,8 +45,10 @@ class InstructionsNode extends Node
         $inference->stream = $event->startEvent->stream;
         $inference->outputClass = $event->startEvent->outputClass;
         $inference->maxTries = $event->startEvent->maxTries;
+        $inference->recallMemory = $event->startEvent->recallMemory;
+        $inference->rememberMemory = $event->startEvent->rememberMemory;
 
-        return $this->routeThroughMemory
+        return $this->memoryAvailable && $event->startEvent->recallMemory
             ? new RecallMemoryEvent($inference)
             : $inference->routed();
     }

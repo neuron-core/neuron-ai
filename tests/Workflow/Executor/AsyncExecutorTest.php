@@ -5,20 +5,27 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor;
 
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\SlowImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\SlowTextProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 use function Amp\async;
+use function Amp\delay;
 use function microtime;
 
 class AsyncExecutorTest extends TestCase
@@ -98,5 +105,37 @@ class AsyncExecutorTest extends TestCase
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
+    }
+
+    public function test_same_node_context_is_isolated_between_parallel_branches(): void
+    {
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
+            {
+                return new DocumentParallelEvent([
+                    'text' => new TextProcessEvent(),
+                    'image' => new TextProcessEvent(),
+                ]);
+            }
+        };
+
+        $sharedNode = new class () extends Node {
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                delay(0.01);
+
+                return new StopEvent(result: $this->state->get('__branchId'));
+            }
+        };
+
+        $workflow = Workflow::make()
+            ->addNodes([$fork, $sharedNode, new MergeNode()]);
+
+        $result = $this->execute($workflow);
+
+        $this->assertSame([
+            'text' => 'text',
+            'image' => 'image',
+        ], $result->get('analysis'));
     }
 }

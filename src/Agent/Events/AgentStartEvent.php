@@ -17,7 +17,7 @@ class AgentStartEvent implements Event
     protected array $messages = [];
 
     /**
-     * Inference intent — how the run wants its inference performed. Recorded on
+     * Execution intent — how the run wants inference and memory performed. Recorded on
      * whatever start event the workflow resolves, and honored where the
      * inference event is born: StartNode for a plain Agent, InstructionsNode
      * for RAG.
@@ -25,6 +25,8 @@ class AgentStartEvent implements Event
     public bool $stream = false;
     public ?string $outputClass = null;
     public int $maxTries = 1;
+    public bool $recallMemory = true;
+    public bool $rememberMemory = true;
 
     public function setMessages(Message ...$messages): void
     {
@@ -42,6 +44,14 @@ class AgentStartEvent implements Event
     public function setStream(bool $stream = true): static
     {
         $this->stream = $stream;
+        return $this;
+    }
+
+    public function setMemoryUsage(bool $recall = true, bool $remember = true): static
+    {
+        $this->recallMemory = $recall;
+        $this->rememberMemory = $remember;
+
         return $this;
     }
 

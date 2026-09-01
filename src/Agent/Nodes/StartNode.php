@@ -14,7 +14,7 @@ use NeuronAI\Workflow\Node;
 /**
  * The Agent's entry point: births the inference event by joining the agent
  * definition (instructions, tools) with the start event's run data (messages,
- * intent), then optionally routes it through the recall phase. The start event
+ * intent), then routes it through recall when requested and available. The start event
  * stays pure run data — definition capability enters the flow here, never at ignition.
  * RAG replaces this node with its retrieval chain ending in InstructionsNode,
  * which births the inference event the same way.
@@ -24,7 +24,7 @@ class StartNode extends Node
     public function __construct(
         private readonly SystemMessage $instructions,
         private readonly array $tools,
-        protected bool $routeThroughMemory = false,
+        protected bool $memoryAvailable = false,
     ) {
     }
 
@@ -37,8 +37,10 @@ class StartNode extends Node
         $inference->stream = $event->stream;
         $inference->outputClass = $event->outputClass;
         $inference->maxTries = $event->maxTries;
+        $inference->recallMemory = $event->recallMemory;
+        $inference->rememberMemory = $event->rememberMemory;
 
-        return $this->routeThroughMemory
+        return $this->memoryAvailable && $event->recallMemory
             ? new RecallMemoryEvent($inference)
             : $inference->routed();
     }

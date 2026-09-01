@@ -51,6 +51,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected ?MemoryInterface $memory = null;
 
+    protected bool $recallMemory = true;
+
+    protected bool $rememberMemory = true;
+
     /**
      * The conversation this run belongs to, and the run's declared workflow
      * ID. Assigned exactly once through adoptThreadId() and NEVER generated —
@@ -132,6 +136,23 @@ class Agent extends Workflow implements AgentInterface
     public function setMemory(MemoryInterface $memory): self
     {
         $this->memory = $memory;
+
+        return $this;
+    }
+
+    /**
+     * Configure how attached memory participates in each new run. The policy
+     * is copied to the start event, so a suspended run keeps its original
+     * choices when resumed while later runs may choose differently.
+     */
+    public function setMemoryUsage(bool $recall = true, bool $remember = true): self
+    {
+        $this->recallMemory = $recall;
+        $this->rememberMemory = $remember;
+
+        if (isset($this->startEvent) && $this->startEvent instanceof AgentStartEvent) {
+            $this->startEvent->setMemoryUsage($recall, $remember);
+        }
 
         return $this;
     }
@@ -223,7 +244,7 @@ class Agent extends Workflow implements AgentInterface
 
         $chatHistory = $this->getChatHistory();
         $memory = $this->getMemory();
-        $routeThroughMemory = $memory instanceof MemoryInterface;
+        $memoryAvailable = $memory instanceof MemoryInterface;
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler())
@@ -231,8 +252,8 @@ class Agent extends Workflow implements AgentInterface
 
         $nodes = [
             ...$this->entryNodes(),
-            new ChatNode($this->getProvider(), $chatHistory, $routeThroughMemory),
-            new StructuredOutputNode($this->getProvider(), $chatHistory, $routeThroughMemory),
+            new ChatNode($this->getProvider(), $chatHistory, $memoryAvailable),
+            new StructuredOutputNode($this->getProvider(), $chatHistory, $memoryAvailable),
             $toolNode,
         ];
 
@@ -320,7 +341,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected function startEvent(): AgentStartEvent
     {
-        return new AgentStartEvent();
+        return (new AgentStartEvent())->setMemoryUsage(
+            recall: $this->recallMemory,
+            remember: $this->rememberMemory,
+        );
     }
 
     /**

@@ -64,7 +64,7 @@ class ChatNode extends InferenceNode
 
         $this->addToChatHistory($message, 'history.response');
 
-        return $this->routeThroughMemory
+        return $this->memoryAvailable && $event->rememberMemory
             ? new StoreMemoryEvent([...$inbound, $message])
             : new StopEvent();
     }
@@ -120,7 +120,7 @@ class ChatNode extends InferenceNode
 
             $this->addToChatHistory($message, 'history.response');
 
-            return $this->routeThroughMemory
+            return $this->memoryAvailable && $event->rememberMemory
                 ? new StoreMemoryEvent([...$inbound, $message])
                 : new StopEvent();
 

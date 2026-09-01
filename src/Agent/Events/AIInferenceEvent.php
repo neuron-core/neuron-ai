@@ -46,6 +46,8 @@ class AIInferenceEvent extends AgentStartEvent
         $event->stream = $this->stream;
         $event->outputClass = $this->outputClass;
         $event->maxTries = $this->maxTries;
+        $event->recallMemory = $this->recallMemory;
+        $event->rememberMemory = $this->rememberMemory;
 
         return $event;
     }

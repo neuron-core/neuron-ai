@@ -45,6 +45,8 @@ interface AgentInterface
 
     public function setMemory(MemoryInterface $memory): AgentInterface;
 
+    public function setMemoryUsage(bool $recall = true, bool $remember = true): AgentInterface;
+
     public function getMemory(): ?MemoryInterface;
 
     /**

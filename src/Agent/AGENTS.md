@@ -85,22 +85,24 @@ function of the agent definition, never of which sugar method was called:
 
 ```
 AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─┐
- (messages+intent)                when configured     or StructuredInferenceEvent     ├► ToolNode ⟲
+ (messages+intent)                 when requested      or StructuredInferenceEvent     ├► ToolNode ⟲
                                                        ─► StructuredOutputNode ───────┘
                                                                      │ final response
                                                                      ▼
                                                        [StoreMemoryNode] ─► Stop
-                                                          when configured
+                                                          when requested
 ```
 
-- The start event is **pure run data**: messages plus the inference intent
-  fields (`stream`, `outputClass`, `maxTries`). Sugar methods only *record*
-  intent (`setStream()` / `setStructuredOutput()`); none of them changes the
-  graph or hard-constructs event classes.
+- The start event is **pure run data**: messages plus inference and memory
+  intent (`stream`, `outputClass`, `maxTries`, `recallMemory`,
+  `rememberMemory`). Sugar and configuration methods only *record*
+  intent (`setStream()`, `setStructuredOutput()`, `setMemoryUsage()`); none of
+  them changes the graph or hard-constructs event classes.
 - **`StartNode`** (the default `entryNodes()` chain) births the
   `AIInferenceEvent` from the definition (instructions cloned, tools
   injected) plus the start event's data, then sends it through
-  `RecallMemoryNode`. That node derives the routed class via
+  `RecallMemoryNode` when recall is requested and memory is available. That
+  node derives the routed class via
   `AIInferenceEvent::routed()` — recorded structured intent yields a
   `StructuredInferenceEvent`, which exact-class routing sends to
   `StructuredOutputNode`. RAG overrides `entryNodes()` with its retrieval
@@ -273,6 +275,29 @@ the exact developer-provided history instance; memory does not wrap, replace,
 or proxy it. Calling `setMemory()` before or after `setChatHistory()` produces
 the same result.
 
+`setMemoryUsage(recall: bool, remember: bool)` independently controls the two
+branches for each new run. Both default to true, preserving the normal
+recall-before-inference and remember-after-inference behavior. For example,
+keep writing memories while honoring a user's per-turn recall preference:
+
+```php
+$agent
+    ->setMemory($memory)
+    ->setMemoryUsage(
+        recall: $user->allowsMemoryRecall(),
+        remember: true,
+    )
+    ->chat($message);
+```
+
+Use `setMemoryUsage(recall: false)` for remember-only,
+`setMemoryUsage(remember: false)` for recall-only, or set both false to skip
+memory for the run while keeping the component attached. The choices are run
+intent: they can change between turns, survive structured routing and tool
+loops, and a suspended run resumes with its original choices. Memory nodes
+remain registered once the graph is composed, but disabled branches are not
+traversed and emit no stream or observability events.
+
 Subclasses may provide the dependency through the lazy hook instead:
 
 ```php
@@ -318,10 +343,10 @@ followed by the existing `AgentError` and no successful completion event.
 
 Inference nodes do not depend on `MemoryInterface` and perform no recall,
 prompt injection, pair extraction, or storage. They only route final responses
-to the store phase when memory is enabled. The Agent adds the recall and store
-nodes only when memory is configured, so a memory-free Agent keeps its original
-graph and execution cost. Implement `MemoryInterface` to customize recall,
-redaction, or persistence.
+to the store phase when remembering is requested and memory is available. The
+Agent adds the recall and store nodes only when memory is configured, so a
+memory-free Agent keeps its original graph and execution cost. Implement
+`MemoryInterface` to customize recall, redaction, or persistence.
 
 Chat history and long-term memory share thread identity, but they have separate
 lifecycles. `ChatHistoryInterface::flushAll()` clears only working history.
