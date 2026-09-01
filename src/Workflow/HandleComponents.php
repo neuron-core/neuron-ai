@@ -33,10 +33,7 @@ trait HandleComponents
 
     protected ?StreamingChannelInterface $channel = null;
 
-    /**
-     * Optional push-side delivery transform: yielded items become protocol
-     * lines (sendLine()) instead of native chunks (send()).
-     */
+    /** Optional transform from native stream objects to protocol lines. */
     protected ?StreamAdapterInterface $streamAdapter = null;
 
     final protected function getExecutor(): WorkflowExecutorInterface
@@ -115,11 +112,9 @@ trait HandleComponents
     }
 
     /**
-     * Attach a push-side delivery transform: yielded items become protocol
-     * lines delivered via sendLine() instead of native chunks via send().
-     * Adapter and channel compose — the adapter decides the shape, the
-     * channel the destination. The adapter is stateful; do not share one
-     * instance with a pull consumer (Agent::stream($message, $adapter)).
+     * Attach the stream transform used by both pull iteration and channel
+     * delivery. Adapter and channel compose — the adapter decides the shape,
+     * the channel the destination. An adapter is stateful for one stream.
      */
     public function setStreamAdapter(?StreamAdapterInterface $adapter): static
     {

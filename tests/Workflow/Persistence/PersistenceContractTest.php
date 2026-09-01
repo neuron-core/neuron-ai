@@ -17,12 +17,15 @@ use PHPUnit\Framework\TestCase;
 use function array_diff;
 use function file_put_contents;
 use function is_dir;
+use function json_encode;
 use function rmdir;
 use function scandir;
 use function str_repeat;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+
+use const JSON_THROW_ON_ERROR;
 
 class WorkflowStoreModel extends Model
 {
@@ -192,7 +195,7 @@ class PersistenceContractTest extends TestCase
     public function testOpaqueKeysAndValuesRoundTripByteIdentical(callable $make): void
     {
         $store = $make($this->directory);
-        $value = "line1\nline2\t\"quoted\" — unicode ✓ \x07";
+        $value = "line1\nline2\t\"quoted\" — unicode ✓ \x07\xFF\xFE";
 
         $store->initializeIfAbsent('workflow', '__control', 'owner', [
             'user/42:thread #1' => $value,
@@ -236,11 +239,47 @@ class PersistenceContractTest extends TestCase
     public function testFileBackendThrowsOnAFailedWrite(): void
     {
         $store = new FilePersistence($this->directory);
+        $partition = str_repeat('x', 300);
 
-        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
-        $this->expectExceptionMessage('Unable to write partition');
+        try {
+            $store->initializeIfAbsent($partition, '__control', 'owner');
+            $this->fail('The oversized partition filename should fail.');
+        } catch (\NeuronAI\Exceptions\WorkflowException $e) {
+            $this->assertStringContainsString('Unable to write partition', $e->getMessage());
+        }
 
-        $store->initializeIfAbsent(str_repeat('x', 300), '__control', 'owner');
+        $this->assertNull($store->get($partition, '__control'));
+    }
+
+    public function testFileBackendRejectsAStaleWriteAcrossInstances(): void
+    {
+        $first = new FilePersistence($this->directory);
+        $first->initializeIfAbsent('workflow', '__control', 'attempt-1');
+
+        $second = new FilePersistence($this->directory);
+        $second->writeIfUnchanged('workflow', '__control', 'attempt-1', [
+            '__control' => 'attempt-2',
+        ]);
+
+        $this->assertFalse($first->writeIfUnchanged('workflow', '__control', 'attempt-1', [
+            'step' => 'must-not-land',
+        ]));
+        $this->assertSame('attempt-2', $first->get('workflow', '__control'));
+        $this->assertNull($first->get('workflow', 'step'));
+    }
+
+    public function testFileBackendReadsTheLegacyJsonMap(): void
+    {
+        new FilePersistence($this->directory);
+        file_put_contents($this->directory . '/workflow.store', json_encode([
+            '__control' => 'attempt-1',
+            'step' => 'result',
+        ], JSON_THROW_ON_ERROR));
+
+        $store = new FilePersistence($this->directory);
+
+        $this->assertSame('attempt-1', $store->get('workflow', '__control'));
+        $this->assertSame('result', $store->get('workflow', 'step'));
     }
 
     public function testFileBackendRejectsCorruptedPartitions(): void

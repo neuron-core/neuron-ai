@@ -132,7 +132,7 @@ class IgnitionTest extends TestCase
         // instance adopts the record, delivers nothing, and re-suspends at
         // the same step.
         $second = $this->workflow('ign_replay', $persistence);
-        $state = $second->recover();
+        $state = $second->resume();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('recovered', $state->get('ignited_with'));

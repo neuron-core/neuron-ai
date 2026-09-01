@@ -42,7 +42,7 @@ Workflow uses:
 | Method | Returns |
 |--------|---------|
 | `chat($messages)` | `AgentState` — eager; runs to completion |
-| `stream($messages, $adapter?)` | `Generator` — pull-stream; `getReturn()` is the `AgentState` |
+| `stream($messages)` | `Generator` — pull-stream; `getReturn()` is the `AgentState` |
 | `structured($messages, $class)` | the typed output — eager |
 | `resume($payload)` | `AgentState` — continues a suspended run |
 
@@ -146,12 +146,10 @@ use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 Route::post('/chat', function (Request $request) {
     $adapter = new VercelAIAdapter();
 
-    // The adapter is the optional second argument to stream(); the generator
-    // yields the adapter's protocol-formatted lines.
-    $stream = MyAgent::make()->stream(
-        new UserMessage($request->input('message')),
-        $adapter
-    );
+    // Workflow owns the adapter; the generator yields its protocol lines.
+    $stream = MyAgent::make()
+        ->setStreamAdapter($adapter)
+        ->stream(new UserMessage($request->input('message')));
 
     return response()->stream(
         function () use ($stream) {

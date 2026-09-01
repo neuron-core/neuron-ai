@@ -8,17 +8,19 @@ use JsonException;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 
+use function base64_decode;
+use function base64_encode;
 use function file_get_contents;
 use function file_put_contents;
+use function is_array;
 use function is_dir;
 use function is_file;
+use function is_string;
 use function json_decode;
 use function json_encode;
-use function is_array;
-use function is_string;
+use function mkdir;
 use function rawurlencode;
 use function unlink;
-use function mkdir;
 
 use const DIRECTORY_SEPARATOR;
 use const JSON_PRETTY_PRINT;
@@ -26,17 +28,14 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * One file per partition in the configured directory (`<partition>.store`),
- * containing a JSON map of key => value strings.
+ * containing a versioned JSON envelope of base64-encoded key/value strings.
  *
  * This backend provides restart durability for controlled single-process use.
- * Its in-memory cache and file replacement are deliberately not a lock or CAS
- * protocol for concurrent workers; use a transactional database backend there.
+ * File replacement is deliberately not a lock or CAS protocol for concurrent
+ * workers; use a transactional database backend there.
  */
 class FilePersistence implements PersistenceInterface
 {
-    /** @var array<string, array<string, string>> */
-    protected array $cache = [];
-
     public function __construct(
         protected string $directory,
     ) {
@@ -100,7 +99,6 @@ class FilePersistence implements PersistenceInterface
             return false;
         }
 
-        unset($this->cache[$partition]);
         $path = $this->filePath($partition);
 
         if (is_file($path) && !@unlink($path)) {
@@ -113,7 +111,7 @@ class FilePersistence implements PersistenceInterface
     /** @return array<string, string> */
     protected function getData(string $partition): array
     {
-        return $this->cache[$partition] ?? $this->cache[$partition] = $this->readFile($this->filePath($partition));
+        return $this->readFile($this->filePath($partition));
     }
 
     /** @return array<string, string> */
@@ -138,6 +136,10 @@ class FilePersistence implements PersistenceInterface
             throw new PersistenceException("Corrupted Workflow partition at '{$path}': expected a JSON object.");
         }
 
+        if (($data['version'] ?? null) === 2 && is_array($data['records'] ?? null)) {
+            return $this->decodeRecords($data['records'], $path);
+        }
+
         foreach ($data as $key => $value) {
             if (!is_string($key) || !is_string($value)) {
                 throw new PersistenceException(
@@ -152,12 +154,50 @@ class FilePersistence implements PersistenceInterface
     /** @param array<string, string> $data */
     protected function writePartition(string $partition, array $data): void
     {
-        $this->cache[$partition] = $data;
         $path = $this->filePath($partition);
 
-        if (@file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT)) === false) {
+        $records = [];
+        foreach ($data as $key => $value) {
+            $records[base64_encode($key)] = base64_encode($value);
+        }
+
+        try {
+            $contents = json_encode([
+                'version' => 2,
+                'records' => $records,
+            ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new PersistenceException(
+                "Unable to encode Workflow partition '{$partition}'.",
+                $e->getCode(),
+                previous: $e,
+            );
+        }
+
+        if (@file_put_contents($path, $contents) === false) {
             throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
         }
+    }
+
+    /**
+     * @param array<string, mixed> $records
+     * @return array<string, string>
+     */
+    protected function decodeRecords(array $records, string $path): array
+    {
+        $decoded = [];
+        foreach ($records as $key => $value) {
+            $decodedKey = is_string($key) ? base64_decode($key, true) : false;
+            $decodedValue = is_string($value) ? base64_decode($value, true) : false;
+
+            if ($decodedKey === false || $decodedValue === false) {
+                throw new PersistenceException("Corrupted Workflow partition at '{$path}': invalid encoded record.");
+            }
+
+            $decoded[$decodedKey] = $decodedValue;
+        }
+
+        return $decoded;
     }
 
     /**

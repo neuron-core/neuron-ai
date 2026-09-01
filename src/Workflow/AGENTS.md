@@ -77,15 +77,19 @@ earlier outcome:
 $state = $workflow->resume($inputs, expectedRunId: $runId);
 ```
 
-Recovery is a different operation. It replays a crashed or failed attempt
-without inventing an external answer:
+An inputless resume replays a crashed or failed attempt without inventing an
+external answer:
 
 ```php
-$state = $workflow->recover(
+$state = $workflow->resume(
     expectedRunId: $runId,
     expectedExecutionAttempt: $attempt,
 );
 ```
+
+Streaming uses the same continuation model. `events()` starts a run;
+`events($inputs)` resumes with addressed inputs; and `events([])` or
+`events(expectedRunId: $runId)` resumes without delivering a new input.
 
 Nodes never receive `ResumeInput`. The executor translates an accepted input
 into the existing node semantics: event payload, timeout null, or timer wake.
@@ -102,7 +106,7 @@ A platform SDK is an invocation gateway:
 
 1. reconstruct the Workflow and all live dependencies through its own factory;
 2. configure persistence, serializer, lease, and completion retention;
-3. call `run()`, `resume()`, or `recover()`;
+3. call `run()` to ignite or `resume()` to continue;
 4. inspect the returned status, run ID, input dispositions, and complete active
    suspension set;
 5. durably reconcile the platform's timers, subscriptions, and jobs.
@@ -166,10 +170,10 @@ $workflow->setLeaseTimeout(300);
 
 The lease deadline lives inside `__control`; there is no separate lease record.
 The executor refreshes it at step boundaries. Suspension and caught failure
-clear it because no process is intentionally executing. A recovery worker may
-take over a `running` attempt only when leases are disabled or the enabled lease
-has expired. The conditional claim still ensures only one contender advances
-the attempt.
+clear it because no process is intentionally executing. An inputless
+continuation worker may take over a `running` attempt only when leases are
+disabled or the enabled lease has expired. The conditional claim still ensures
+only one contender advances the attempt.
 
 A lease is a crash-overlap safeguard, not proof that the prior process died.
 Choose a timeout longer than the longest silent node operation, and use external

@@ -16,6 +16,7 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
+use function iterator_to_array;
 use function substr;
 
 class WorkflowProgress
@@ -37,6 +38,30 @@ class PortableProgressNode extends Node
 
 class PortableStreamEventDeliveryTest extends TestCase
 {
+    public function test_workflow_adapter_maps_pull_output(): void
+    {
+        $adapter = (new VercelAIAdapter())->mapEvent(
+            WorkflowProgress::class,
+            static fn (WorkflowProgress $event): CustomStreamEvent => new CustomStreamEvent(
+                'workflow-progress',
+                ['percentage' => $event->percentage],
+            ),
+        );
+        $workflow = Workflow::make()
+            ->addNodes([new PortableProgressNode()])
+            ->setStreamAdapter($adapter);
+
+        $lines = iterator_to_array($workflow->events());
+
+        $this->assertCount(3, $lines);
+        $custom = json_decode(substr($lines[0], 6, -2), true);
+        $this->assertSame([
+            'type' => 'data-workflow-progress',
+            'data' => ['percentage' => 50],
+            'transient' => true,
+        ], $custom);
+    }
+
     public function test_workflow_push_delivery_maps_custom_events_without_affecting_routing(): void
     {
         $adapter = (new VercelAIAdapter())->mapEvent(

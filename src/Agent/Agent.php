@@ -39,6 +39,7 @@ use function is_string;
  * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
  * @method AgentStartEvent getStartEvent()
  * @method AgentState getState()
+ * @method static setStreamAdapter(?StreamAdapterInterface $adapter) Configure Workflow-owned stream adaptation.
  */
 class Agent extends Workflow implements AgentInterface
 {
@@ -343,10 +344,9 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The pull-stream verb: yields Neuron chunks, and
-     * {@see Generator::getReturn()} is the final {@see AgentState}. Pass a
-     * {@see StreamAdapterInterface} to yield protocol-adapted lines instead
-     * (Vercel AI SDK, AG-UI, SSE); for push delivery to a channel, attach the
-     * adapter via {@see setStreamAdapter()} instead.
+     * {@see Generator::getReturn()} is the final {@see AgentState}. A stream
+     * adapter configured on the Workflow transforms the yielded output and,
+     * when a channel is attached, the same lines are delivered there.
      *
      * @param Message|Message[] $messages
      * @return Generator<int, object|string, mixed, AgentState>
@@ -354,38 +354,14 @@ class Agent extends Workflow implements AgentInterface
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): Generator
+    public function stream(Message|array $messages = []): Generator
     {
         $this->getStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
 
-        $generator = $this->events();
-
-        if ($adapter instanceof StreamAdapterInterface) {
-            foreach ($adapter->start() as $output) {
-                yield $output;
-            }
-        }
-
-        foreach ($generator as $event) {
-            if ($adapter instanceof StreamAdapterInterface) {
-                foreach ($adapter->transform($event) as $output) {
-                    yield $output;
-                }
-            } else {
-                yield $event;
-            }
-        }
-
-        if ($adapter instanceof StreamAdapterInterface) {
-            foreach ($adapter->end() as $output) {
-                yield $output;
-            }
-        }
-
         /** @var AgentState $state */
-        $state = $generator->getReturn();
+        $state = yield from $this->events();
         return $state;
     }
 
@@ -412,25 +388,17 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param non-empty-list<ResumeInput> $inputs
+     * @param list<ResumeInput> $inputs
      * @throws Throwable
      * @throws WorkflowException
      */
     public function resume(
-        array $inputs,
-        ?string $expectedRunId = null,
-    ): AgentState {
-        /** @var AgentState $state */
-        $state = parent::resume($inputs, $expectedRunId);
-        return $state;
-    }
-
-    public function recover(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): AgentState {
         /** @var AgentState $state */
-        $state = parent::recover($expectedRunId, $expectedExecutionAttempt);
+        $state = parent::resume($inputs, $expectedRunId, $expectedExecutionAttempt);
         return $state;
     }
 

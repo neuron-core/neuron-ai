@@ -10,15 +10,15 @@ with `run()` (eager → state) and `events()` (lazy → generator):
 | Method | Before | After |
 |--------|--------|-------|
 | `chat($messages)` | `AgentHandler` | `AgentState` (eager — runs to completion) |
-| `stream($messages, $adapter?)` | `AgentHandler` | `Generator` (pull-stream; `getReturn()` is the `AgentState`) |
+| `stream($messages)` | `AgentHandler` | `Generator` (pull-stream; `getReturn()` is the `AgentState`) |
 | `structured($messages, $class)` | `mixed` | `mixed` (unchanged) |
 | `resume($payload)` | — | `AgentState` (replaces `wake()`) |
 | `wake($payload)` | `AgentHandler` | **removed** — use `resume()` |
 
 `chat()` runs eagerly and returns the final `AgentState` directly — there is no longer a
-separate `->run()` step. `stream()` *is* the generator: iterate it directly, and pass a
-`StreamAdapterInterface` (Vercel / AG-UI / SSE) as the optional second argument when you
-want protocol-formatted lines instead of raw Neuron chunks.
+separate `->run()` step. `stream()` *is* the generator: iterate it directly. Configure a
+`StreamAdapterInterface` (Vercel / AG-UI / SSE) through `setStreamAdapter()` when you want
+protocol-formatted lines instead of raw Neuron chunks.
 
 The continuation verb is `resume($payload): AgentState` everywhere — `wake()` no longer
 exists. Interrupt state is read on the returned `AgentState` itself, exactly like a plain
@@ -120,17 +120,19 @@ foreach ($handler->events(new VercelAIAdapter()) as $line) {
 }
 ```
 
-After — the adapter is the optional second argument to `stream()`:
+After — configure the Workflow component, then stream normally:
 
 ```php
-foreach ($agent->stream(new UserMessage($input), new VercelAIAdapter()) as $line) {
+$agent->setStreamAdapter(new VercelAIAdapter());
+
+foreach ($agent->stream(new UserMessage($input)) as $line) {
     echo $line;
 }
 ```
 
-(Push delivery to a live sink is still available: attach a stream adapter via
-`setStreamAdapter($adapter)` and the workflow delivers the adapted protocol lines
-to the channel's `sendLine()` port — the adapter and channel compose independently.)
+When a live channel is also attached, Workflow delivers these same adapted
+protocol lines to its `sendLine()` port. The adapter and channel compose
+independently.
 
 ### Case 4: Continuing a suspended run (tool approval, etc.)
 
@@ -209,5 +211,5 @@ public function handle(AgentState $state): void { /* ... */ }
 - [ ] No `->events(` calls remain on an Agent result — streaming iterates `stream()` directly
 - [ ] No `->interrupted(` / `->getState(` / `->getProviderResponse(` remain on Agent results
 - [ ] `->getResult()` after a consumed stream is replaced with `$generator->getReturn()`
-- [ ] UI-adapter streaming passes the adapter as the second argument to `stream()`
+- [ ] UI-adapter streaming configures the adapter through `setStreamAdapter()`
 - [ ] The application's test suite and static analysis pass

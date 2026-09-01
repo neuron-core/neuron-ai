@@ -22,7 +22,6 @@ class BranchResult
      *   null on normal completion (the branch reached a StopEvent).
      */
     public function __construct(
-        public readonly string $branchId,
         public readonly mixed $result = null,
         public readonly array $streamedEvents = [],
         public readonly ?InterruptEvent $interrupt = null,

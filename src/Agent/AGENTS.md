@@ -115,10 +115,9 @@ AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEve
 | Method | Effect |
 |--------|--------|
 | `chat($messages)` | Eager: ignites and runs to completion → `AgentState` (buffered transport) |
-| `stream($messages, $adapter?)` | Pull-stream: a `Generator` yielding chunks; `getReturn()` is the `AgentState`. Pass a `StreamAdapterInterface` (Vercel/AG-UI/SSE) to yield protocol-formatted lines. |
+| `stream($messages)` | Pull-stream: a `Generator` yielding native chunks or lines from the Workflow's configured adapter; `getReturn()` is the `AgentState`. |
 | `structured($messages, $class)` | Eager: returns the typed output |
-| `resume($inputs, $expectedRunId?)` | Delivers addressed external inputs to a suspended run → `AgentState` |
-| `recover($expectedRunId?, $expectedAttempt?)` | Replays a crashed/failed run without external input → `AgentState` |
+| `resume($inputs?, $expectedRunId?, $expectedAttempt?)` | Continues a suspended, failed, or crashed run, optionally delivering addressed inputs → `AgentState` |
 
 ```php
 // Chat (eager → AgentState)
@@ -145,8 +144,9 @@ echo $state->getMessage()->getContent();
 ```
 
 **Sugar ignites; `resume()` continues.** A new turn is a new run; an answer
-resumes the suspended one. The sugar methods take no resume payload —
-continuation goes through typed `resume($inputs)`, the same engine verb a plain
+resumes the suspended one. Calling `resume()` without inputs replays a crashed
+or failed attempt without inventing an external answer. The sugar methods take
+no resume payload — continuation goes through the same engine verb a plain
 Workflow uses. The run's mode never needs restating on a resume: intent is
 persisted in the ignition record (see *Ignition & thread identity* below).
 
@@ -527,16 +527,14 @@ a **blank process** — a factory that knows only the workflow ID.
 - `setChatHistory()` accepts a `ChatHistoryInterface` (pre-bound = identity
   declaration; unbound = the framework binds). `setChannel()` accepts a
   concrete channel or null.
-- **Adapted push delivery**: a `StreamingChannelInterface` has two ports —
+- **Adapted stream delivery**: a `StreamingChannelInterface` has two ports —
   `send(object)` for native chunks and `sendLine(string)` for protocol lines. With no
   adapter attached, the channel receives native chunks via `send()`. Attach a stream
   adapter via `setStreamAdapter($adapter)` and the workflow runs each yielded chunk through
-  it, delivering the resulting lines (plus the adapter's `start()`/`end()` framing) to the
-  channel via `sendLine()`. The adapter and the channel are independent — the adapter
-  decides the output shape, the channel decides the destination (Pusher, websocket, …).
-  The adapter is stateful; never share one instance between `setStreamAdapter()` and a pull
-  consumer (`stream($message, $adapter)`). This is the push path only; the pull path keeps
-  its per-call `stream($message, $adapter)` argument.
+  it once. Pull iteration yields the resulting lines (including the adapter's
+  `start()`/`end()` framing), and an attached channel receives the same lines via
+  `sendLine()`. The adapter decides the output shape; the channel independently decides
+  the destination (Pusher, websocket, …). An adapter is stateful for one stream.
 - **Persisted-wins**: on a resume the recorded start event and context win over
   the factory's defaults. Editing `instructions()` between suspend and resume
   does not affect the resumed run — the record is the run's contract; the

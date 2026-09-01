@@ -19,10 +19,11 @@ resume(
 New signature:
 
 ```php
-/** @param non-empty-list<ResumeInput> $inputs */
+/** @param list<ResumeInput> $inputs */
 resume(
-    array $inputs,
+    array $inputs = [],
     ?string $expectedRunId = null,
+    ?int $expectedExecutionAttempt = null,
 ): WorkflowState
 ```
 
@@ -30,18 +31,11 @@ The new contract makes suspension addressing mandatory without exposing run
 generation identity during ordinary manual continuation:
 
 - Every input identifies the active suspension it intends to resolve.
+- An empty input batch continues without delivering an external answer.
 - `expectedRunId`, when supplied, fences the whole delivery against the active
   run generation.
-
-At least one input is required. Payload-less crash recovery is a separate
-operation; it is no longer encoded as `resume(null)`.
-
-```php
-recover(
-    ?string $expectedRunId = null,
-    ?int $expectedExecutionAttempt = null,
-): WorkflowState
-```
+- `expectedExecutionAttempt`, when supplied, fences the continuation against
+  the exact ownership attempt observed by a durable worker.
 
 ## Choose current-run or exact-run semantics
 
@@ -162,25 +156,24 @@ accept a batch: inputs for active suspensions execute, while already-settled or
 unknown suspension IDs are reported as stale. A stale `runId` rejects the entire
 batch before any node executes.
 
-## Replace payload-less resume
+## Use inputless resume for replay
 
-These old calls do not mean "deliver an empty answer":
+An empty batch does not mean "deliver an empty answer":
 
 ```php
 $workflow->resume();
-$workflow->resume(null, expectedRunId: $runId);
 ```
 
-They requested crash recovery/replay. Move them to the explicit recovery operation
-introduced by the Workflow ownership refactor. Do not manufacture an empty
-`ResumeInput` or reuse a suspension ID: external delivery and process recovery are
-different transitions with different fencing requirements.
+It continues the current run without inventing an external input. Do not
+manufacture a `ResumeInput` or reuse a suspension ID for crash replay. A real
+empty event payload remains an addressed input such as
+`ResumeInput::event($suspensionId, [])`.
 
 ```php
-$state = $workflow->recover();
+$state = $workflow->resume();
 
-// Durable worker recovery fences the exact ownership state it observed.
-$state = $workflow->recover(
+// A durable worker fences the exact ownership state it observed.
+$state = $workflow->resume(
     expectedRunId: $runId,
     expectedExecutionAttempt: $executionAttempt,
 );
@@ -258,9 +251,9 @@ Platform SDK factories should enable replayable completion before invoking core:
 $workflow->retainCompletionUntilAcknowledged();
 ```
 
-With retention enabled, a lost completion response can retry `resume()` or
-`recover()` and receive the same completed state without rerunning nodes. Once
-the platform has durably accepted that outcome, acknowledge the exact run:
+With retention enabled, a lost completion response can retry `resume()` and
+receive the same completed state without rerunning nodes. Once the platform has
+durably accepted that outcome, acknowledge the exact run:
 
 ```php
 $workflow->acknowledgeCompletion($runId);

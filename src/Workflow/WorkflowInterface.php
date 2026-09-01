@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -24,19 +23,9 @@ interface WorkflowInterface
      */
     public function run(): WorkflowState;
 
-    /**
-     * @param non-empty-list<ResumeInput> $inputs
-     */
+    /** @param list<ResumeInput> $inputs */
     public function resume(
-        array $inputs,
-        ?string $expectedRunId = null,
-    ): WorkflowState;
-
-    /**
-     * Replay an interrupted, failed, or crashed run without delivering a new
-     * external input.
-     */
-    public function recover(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): WorkflowState;
@@ -51,17 +40,17 @@ interface WorkflowInterface
     public function retainCompletionUntilAcknowledged(bool $retain = true): static;
 
     /**
-     * The streaming execution primitive behind run(), resume(), and recover().
+     * Stream a new run, or resume one when inputs are supplied.
      *
-     * @param list<ResumeInput> $inputs
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
-     * @return Generator<int, Event, mixed, WorkflowState>
+     * With no arguments this starts a run. Supplying inputs or either
+     * continuation fence resumes one; an empty input array delivers no input.
+     *
+     * @param list<ResumeInput>|null $inputs
+     * @return Generator<int, object|string, mixed, WorkflowState>
      */
     public function events(
-        array $inputs = [],
-        bool $resuming = false,
+        ?array $inputs = null,
         ?string $expectedRunId = null,
-        bool $recovering = false,
         ?int $expectedExecutionAttempt = null,
     ): Generator;
 

@@ -76,7 +76,7 @@ trait ExecutorTestHelpers
     ): WorkflowState {
         $workflow = $this->configure($workflow, $persistence);
         if ($payload === null) {
-            return $workflow->recover($expectedRunId);
+            return $workflow->resume(expectedRunId: $expectedRunId);
         }
 
         $raw = $workflow->getPersistence()->get(

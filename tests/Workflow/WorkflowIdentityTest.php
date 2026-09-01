@@ -26,6 +26,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
  * Key-based identity: a run's durable records live in the partition named
@@ -72,11 +73,41 @@ class WorkflowIdentityTest extends TestCase
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $first = $this->execute($workflow, $persistence);
 
-        $duplicate = $workflow->resume([ResumeInput::event(99, [])]);
+        $duplicate = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('thread_1')
+            ->setPersistence($persistence)
+            ->resume([ResumeInput::event(99, [])]);
 
         $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
         $this->assertSame(ResumeInputStatus::Stale, $duplicate->getInputResults()[0]->status);
         $this->assertTrue($duplicate->isInterrupted());
+        $this->assertTrue($duplicate->get('node_one_executed'));
+        $this->assertTrue($duplicate->get('interruptable_node_executed'));
+    }
+
+    public function testStaleOnlyResumePreservesAFailedStatus(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $crashingNode = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+            {
+                throw new RuntimeException('crash');
+            }
+        };
+
+        try {
+            Workflow::make('failed-run')->setPersistence($persistence)->addNode($crashingNode)->run();
+            $this->fail('The workflow should fail.');
+        } catch (RuntimeException) {
+        }
+
+        $result = Workflow::make('failed-run')
+            ->setPersistence($persistence)
+            ->addNode(new NodeOne())
+            ->resume([ResumeInput::event(99, [])]);
+
+        $this->assertSame(WorkflowStatus::Failed, $result->getStatus());
+        $this->assertSame(ResumeInputStatus::Stale, $result->getInputResults()[0]->status);
     }
 
     public function testMatchingRunFenceContinuesTheExpectedGeneration(): void
@@ -186,7 +217,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
 
         $retry = Workflow::make('retained-completion')->setPersistence($persistence);
-        $replayed = $retry->recover($runId);
+        $replayed = $retry->resume(expectedRunId: $runId);
 
         $this->assertSame($completed->all(), $replayed->all());
         $retry->acknowledgeCompletion($runId);

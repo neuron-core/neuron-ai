@@ -93,7 +93,7 @@ class WorkflowLeaseTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("The run for workflow ID 'thread_1' appears to be executing");
 
-        $this->leasedWorkflow(300)->setPersistence($persistence)->recover();
+        $this->leasedWorkflow(300)->setPersistence($persistence)->resume();
     }
 
     public function testExpiredRunningLeaseAllowsRecoveryClaim(): void
@@ -107,10 +107,23 @@ class WorkflowLeaseTest extends TestCase
             '__control' => $serializer->serialize($running),
         ]);
 
-        $state = $this->leasedWorkflow(300)->setPersistence($persistence)->recover();
+        $state = $this->leasedWorkflow(300)->setPersistence($persistence)->resume();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertGreaterThan($running->executionAttempt, $this->control($persistence)->executionAttempt);
+    }
+
+    public function testStaleExecutionAttemptRefusesContinuation(): void
+    {
+        $persistence = $this->suspendLeased();
+        $attempt = $this->control($persistence)->executionAttempt;
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Stale continuation for workflow ID 'thread_1'");
+
+        $this->leasedWorkflow(300)
+            ->setPersistence($persistence)
+            ->resume(expectedExecutionAttempt: $attempt - 1);
     }
 
     public function testCaughtFailureClearsTheLeaseDeadline(): void

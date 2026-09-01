@@ -18,6 +18,7 @@ use NeuronAI\Observability\Events\WorkflowNodeEnd;
 use NeuronAI\Observability\Events\WorkflowNodeStart;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
@@ -40,7 +41,6 @@ use Throwable;
 use function in_array;
 use function str_starts_with;
 use function time;
-use function uniqid;
 
 /**
  * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
@@ -59,31 +59,55 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
 
+    /** @return Generator<int, Event, mixed, WorkflowState> */
+    public function execute(WorkflowRuntimeInterface $workflow): Generator
+    {
+        return $this->executeSegment($workflow);
+    }
+
+    /**
+     * @param list<ResumeInput> $inputs
+     * @return Generator<int, Event, mixed, WorkflowState>
+     */
+    public function resume(
+        WorkflowRuntimeInterface $workflow,
+        array $inputs = [],
+        ?string $expectedRunId = null,
+        ?int $expectedExecutionAttempt = null,
+    ): Generator {
+        return $this->executeSegment(
+            $workflow,
+            $inputs,
+            continuing: true,
+            expectedRunId: $expectedRunId,
+            expectedExecutionAttempt: $expectedExecutionAttempt,
+        );
+    }
+
     /**
      * @param list<ResumeInput> $inputs
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
-    public function execute(
+    protected function executeSegment(
         WorkflowRuntimeInterface $workflow,
         array $inputs = [],
-        bool $resuming = false,
+        bool $continuing = false,
         ?string $expectedRunId = null,
-        bool $recovering = false,
         ?int $expectedExecutionAttempt = null,
     ): Generator {
         $this->pendingInputs = [];
         $this->inputResults = [];
         $this->leaseTimeout = $workflow->getLeaseTimeout();
-        $this->workflowId = $this->resolveWorkflowId($workflow, $resuming || $recovering);
+        $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
         $this->runStore = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
             $this->workflowId,
         );
 
-        $terminalState = $resuming || $recovering
-            ? $this->continueRun($workflow, $inputs, $expectedRunId, $recovering, $expectedExecutionAttempt)
+        $terminalState = $continuing
+            ? $this->continueRun($workflow, $inputs, $expectedRunId, $expectedExecutionAttempt)
             : $this->startRun($workflow);
 
         if ($terminalState instanceof WorkflowState) {
@@ -118,8 +142,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     $requests[] = $interrupt->request;
                 }
 
-                $workflow->getState()->markAsSuspended($requests, $this->portableSuspensions());
-                $this->runStore->replaceControl($this->runStore->control()->suspended());
+                $suspensions = $this->portableSuspensions();
+                $workflow->getState()->markAsSuspended($requests, $suspensions);
+                $checkpoint = clone $workflow->getState();
+                $checkpoint->markAsSuspended([], $suspensions);
+                $this->runStore->replaceControl($this->runStore->control()->suspended($checkpoint));
 
                 foreach ($requests as $request) {
                     $this->dispatchEvent(
@@ -187,7 +214,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function startRun(WorkflowRuntimeInterface $workflow): ?WorkflowState
     {
-        $this->runId = uniqid('run_');
+        $this->runId = UniqueIdGenerator::generateId('run_');
         $control = new WorkflowControl(
             runId: $this->runId,
             status: WorkflowStatus::Running,
@@ -209,7 +236,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowRuntimeInterface $workflow,
         array $inputs,
         ?string $expectedRunId,
-        bool $recovering,
         ?int $expectedExecutionAttempt,
     ): ?WorkflowState {
         $this->loadControl($expectedRunId);
@@ -217,6 +243,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         if ($expectedRunId !== null && $expectedRunId !== $this->runId) {
             throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $this->runId);
+        }
+
+        $control = $this->runStore->control();
+        if (
+            $expectedExecutionAttempt !== null
+            && $expectedExecutionAttempt !== $control->executionAttempt
+        ) {
+            throw new WorkflowException(
+                "Stale continuation for workflow ID '{$this->workflowId}': expected execution attempt "
+                . "{$expectedExecutionAttempt}, current attempt is {$control->executionAttempt}."
+            );
         }
 
         $ignition = $this->runStore->loadIgnition();
@@ -234,8 +271,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->adoptIdentity($this->workflowId, $this->runId);
         $workflow->adoptIgnition($ignition);
 
-        if ($this->runStore->control()->status === WorkflowStatus::Completed) {
-            $state = $this->runStore->control()->completedState;
+        if ($control->status === WorkflowStatus::Completed) {
+            $state = $control->completedState;
             if (!$state instanceof WorkflowState) {
                 throw new WorkflowException("Completed run '{$this->runId}' has no retained outcome.");
             }
@@ -243,16 +280,24 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return $state;
         }
 
-        if ($recovering) {
-            $this->prepareRecovery($expectedExecutionAttempt);
+        if ($inputs === []) {
+            $this->prepareReplay();
         } else {
             $this->prepareResume($inputs);
 
             if ($this->pendingInputs === []) {
-                $state = $workflow->getState();
+                $control = $this->runStore->control();
+                $state = $control->checkpointState instanceof WorkflowState
+                    ? clone $control->checkpointState
+                    : $workflow->getState();
+                $workflow->setState($state);
                 $this->stampState($state);
                 $state->setInputResults($this->inputResults);
-                $state->markAsSuspended([], $this->portableSuspensions());
+                if ($control->status === WorkflowStatus::Failed) {
+                    $state->markAsFailed();
+                } else {
+                    $state->markAsSuspended([], $this->portableSuspensions());
+                }
                 return $state;
             }
         }
@@ -264,13 +309,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return null;
     }
 
-    /** @param list<ResumeInput> $inputs */
+    /** @param non-empty-list<ResumeInput> $inputs */
     protected function prepareResume(array $inputs): void
     {
-        if ($inputs === []) {
-            throw new WorkflowException('resume() requires at least one ResumeInput. Use recover() for replay.');
-        }
-
         $control = $this->runStore->control();
         if (!in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)) {
             throw new WorkflowException(
@@ -306,19 +347,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
-    protected function prepareRecovery(?int $expectedExecutionAttempt): void
+    protected function prepareReplay(): void
     {
         $control = $this->runStore->control();
-        if (
-            $expectedExecutionAttempt !== null
-            && $expectedExecutionAttempt !== $control->executionAttempt
-        ) {
-            throw new WorkflowException(
-                "Stale recovery for workflow ID '{$this->workflowId}': expected execution attempt "
-                . "{$expectedExecutionAttempt}, current attempt is {$control->executionAttempt}."
-            );
-        }
-
         if (
             $control->status === WorkflowStatus::Running
             && $this->leaseTimeout !== null
@@ -327,7 +358,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ) {
             throw new WorkflowException(
                 "The run for workflow ID '{$this->workflowId}' appears to be executing "
-                . "(lease expires at {$control->leaseExpiresAt}) — not recovering."
+                . "(lease expires at {$control->leaseExpiresAt}) — cannot continue without input."
             );
         }
 
@@ -362,7 +393,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     . 'and the workflow declares none.'
                 );
             }
-            return uniqid('workflow_');
+            return UniqueIdGenerator::generateId('workflow_');
         }
 
         if ($workflowId === '' || str_starts_with($workflowId, '__')) {

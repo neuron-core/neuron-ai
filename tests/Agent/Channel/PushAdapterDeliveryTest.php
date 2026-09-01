@@ -20,8 +20,7 @@ use function iterator_to_array;
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
  * ids, so two independent instances produce identical output for the same
- * item sequence — which is what byte-parity needs (adapters are stateful and
- * must never be shared between the pull side and a push delivery).
+ * item sequence — which is what byte-parity needs.
  */
 class ParityAdapter implements StreamAdapterInterface
 {
@@ -47,19 +46,19 @@ class PushAdapterDeliveryTest extends TestCase
 {
     public function testPushOutputIsByteIdenticalToThePullPath(): void
     {
-        // Pull: the caller drains stream($message, $adapter).
-        $pullAgent = Agent::make()->setAiProvider(
+        // Pull: the caller drains the Workflow-managed adapter output.
+        $pullAgent = Agent::make()->setStreamAdapter(new ParityAdapter());
+        $pullAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
 
         $pulled = [];
-        foreach ($pullAgent->stream(new UserMessage('Hi'), new ParityAdapter()) as $line) {
+        foreach ($pullAgent->stream(new UserMessage('Hi')) as $line) {
             $pulled[] = $line;
         }
 
-        // Push: the workflow owns the adapter (setStreamAdapter) and delivers
-        // adapted lines to the channel's sendLine port. A SECOND adapter
-        // instance — adapters are stateful and never shared between sides.
+        // Push: the same Workflow-owned adapter path also delivers each line
+        // to the channel's sendLine port.
         $sink = [];
         $pushAgent = Agent::make();
         $pushAgent->setAiProvider(
@@ -86,12 +85,11 @@ class PushAdapterDeliveryTest extends TestCase
         // run with the protocol start/end sequences; so must the push path,
         // whose finishDelivery() emits start+end on completion even though no
         // item was ever delivered to sendLine().
-        $pullAgent = Agent::make()->setAiProvider(
-            new FakeAIProvider(new AssistantMessage(''))
-        );
+        $pullAgent = Agent::make()->setStreamAdapter(new ParityAdapter());
+        $pullAgent->setAiProvider(new FakeAIProvider(new AssistantMessage('')));
 
         $pulled = [];
-        foreach ($pullAgent->stream(new UserMessage('Hi'), new ParityAdapter()) as $line) {
+        foreach ($pullAgent->stream(new UserMessage('Hi')) as $line) {
             $pulled[] = $line;
         }
 

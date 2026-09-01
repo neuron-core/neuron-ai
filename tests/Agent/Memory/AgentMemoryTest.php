@@ -224,13 +224,12 @@ class AgentMemoryTest extends TestCase
     {
         $memory = new InspectableMemory(['Remembered context']);
         $agent = Agent::make(threadId: 'thread-1')
+            ->setStreamAdapter(new VercelAIAdapter());
+        $agent
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer.')))
             ->setMemory($memory);
 
-        $lines = iterator_to_array($agent->stream(
-            new UserMessage('Question.'),
-            new VercelAIAdapter(),
-        ));
+        $lines = iterator_to_array($agent->stream(new UserMessage('Question.')));
         $events = [];
 
         foreach ($lines as $line) {

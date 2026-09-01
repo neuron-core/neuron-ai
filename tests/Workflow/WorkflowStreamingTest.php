@@ -12,17 +12,21 @@ use NeuronAI\Tests\Workflow\Executor\Stubs\StreamingTextProcessNode;
 use NeuronAI\Tests\Workflow\Stubs\NodeOne;
 use NeuronAI\Tests\Workflow\Stubs\NodeThree;
 use NeuronAI\Tests\Workflow\Stubs\NodeTwo;
+use NeuronAI\Tests\Workflow\Stubs\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stubs\SecondEvent;
 use Generator;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
 use function array_map;
+use function iterator_to_array;
 
 class WorkflowStreamingTest extends TestCase
 {
@@ -149,5 +153,47 @@ class WorkflowStreamingTest extends TestCase
         // The streamed event was emitted on the first run
         $streamedFirstRun = array_filter($eventsFirstRun, fn (object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
         $this->assertCount(1, $streamedFirstRun);
+    }
+
+    public function testEventsStreamsAnExplicitContinuation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $first = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-resume')
+            ->setPersistence($persistence)
+            ->run();
+
+        $generator = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-resume')
+            ->setPersistence($persistence)
+            ->events([ResumeInput::event($first->getSuspensions()[0]->id, [])]);
+
+        iterator_to_array($generator);
+
+        $this->assertSame('completed', $generator->getReturn()->get('received_feedback'));
+    }
+
+    public function testEventsStreamsAnInputlessContinuation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $first = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-replay')
+            ->setPersistence($persistence)
+            ->run();
+
+        $generator = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-replay')
+            ->setPersistence($persistence)
+            ->events(
+                expectedRunId: $first->getRunId(),
+                expectedExecutionAttempt: $first->getExecutionAttempt(),
+            );
+
+        iterator_to_array($generator);
+        $state = $generator->getReturn();
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertTrue($state->get('node_one_executed'));
+        $this->assertGreaterThan($first->getExecutionAttempt(), $state->getExecutionAttempt());
     }
 }

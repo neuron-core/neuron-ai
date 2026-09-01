@@ -19,6 +19,7 @@ final class WorkflowControl
         public readonly ?int $leaseExpiresAt = null,
         public readonly int $nextSuspensionId = 1,
         public readonly array $suspensions = [],
+        public readonly ?WorkflowState $checkpointState = null,
         public readonly ?WorkflowState $completedState = null,
     ) {
     }
@@ -32,6 +33,7 @@ final class WorkflowControl
             leaseExpiresAt: $leaseExpiresAt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $this->suspensions,
+            checkpointState: $this->checkpointState,
         );
     }
 
@@ -44,6 +46,7 @@ final class WorkflowControl
             leaseExpiresAt: $leaseExpiresAt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $this->suspensions,
+            checkpointState: $this->checkpointState,
             completedState: $this->completedState,
         );
     }
@@ -60,6 +63,7 @@ final class WorkflowControl
             leaseExpiresAt: $this->leaseExpiresAt,
             nextSuspensionId: $active->suspension->id + 1,
             suspensions: $suspensions,
+            checkpointState: $this->checkpointState,
         );
     }
 
@@ -75,6 +79,7 @@ final class WorkflowControl
             leaseExpiresAt: $this->leaseExpiresAt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $suspensions,
+            checkpointState: $this->checkpointState,
         );
     }
 
@@ -95,11 +100,12 @@ final class WorkflowControl
             leaseExpiresAt: $this->leaseExpiresAt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $suspensions,
+            checkpointState: $this->checkpointState,
             completedState: $this->completedState,
         );
     }
 
-    public function suspended(): self
+    public function suspended(WorkflowState $state): self
     {
         return new self(
             runId: $this->runId,
@@ -107,6 +113,7 @@ final class WorkflowControl
             executionAttempt: $this->executionAttempt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $this->suspensions,
+            checkpointState: $state,
         );
     }
 
@@ -118,6 +125,7 @@ final class WorkflowControl
             executionAttempt: $this->executionAttempt,
             nextSuspensionId: $this->nextSuspensionId,
             suspensions: $this->suspensions,
+            checkpointState: $this->checkpointState,
         );
     }
 
@@ -130,5 +138,34 @@ final class WorkflowControl
             nextSuspensionId: $this->nextSuspensionId,
             completedState: $state,
         );
+    }
+
+    /** @return array<string, mixed> */
+    public function __serialize(): array
+    {
+        return [
+            'version' => 2,
+            'runId' => $this->runId,
+            'status' => $this->status,
+            'executionAttempt' => $this->executionAttempt,
+            'leaseExpiresAt' => $this->leaseExpiresAt,
+            'nextSuspensionId' => $this->nextSuspensionId,
+            'suspensions' => $this->suspensions,
+            'checkpointState' => $this->checkpointState,
+            'completedState' => $this->completedState,
+        ];
+    }
+
+    /** @param array<string, mixed> $data */
+    public function __unserialize(array $data): void
+    {
+        $this->runId = $data['runId'];
+        $this->status = $data['status'];
+        $this->executionAttempt = $data['executionAttempt'] ?? 1;
+        $this->leaseExpiresAt = $data['leaseExpiresAt'] ?? null;
+        $this->nextSuspensionId = $data['nextSuspensionId'] ?? 1;
+        $this->suspensions = $data['suspensions'] ?? [];
+        $this->checkpointState = $data['checkpointState'] ?? null;
+        $this->completedState = $data['completedState'] ?? null;
     }
 }

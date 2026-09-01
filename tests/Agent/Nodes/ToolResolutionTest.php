@@ -226,7 +226,7 @@ class ToolResolutionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->recover()->getMessage();
+        $message = $agent2->resume()->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());
 

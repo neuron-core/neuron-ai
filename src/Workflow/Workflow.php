@@ -158,26 +158,16 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param non-empty-list<ResumeInput> $inputs
+     * @param list<ResumeInput> $inputs
      * @throws WorkflowException
      * @throws Throwable
      */
     public function resume(
-        array $inputs,
-        ?string $expectedRunId = null,
-    ): WorkflowState {
-        return $this->consume($this->events($inputs, true, $expectedRunId));
-    }
-
-    public function recover(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): WorkflowState {
-        return $this->consume($this->events(
-            expectedRunId: $expectedRunId,
-            recovering: true,
-            expectedExecutionAttempt: $expectedExecutionAttempt,
-        ));
+        return $this->consume($this->events($inputs, $expectedRunId, $expectedExecutionAttempt));
     }
 
     public function acknowledgeCompletion(string $expectedRunId): void
@@ -186,51 +176,56 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param list<ResumeInput> $inputs
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
-     * @return Generator<int, Event, mixed, WorkflowState>
-     * @throws WorkflowException
-     * @throws Throwable
+     * @param list<ResumeInput>|null $inputs
+     * @return Generator<int, object|string, mixed, WorkflowState>
      */
     public function events(
-        array $inputs = [],
-        bool $resuming = false,
+        ?array $inputs = null,
         ?string $expectedRunId = null,
-        bool $recovering = false,
         ?int $expectedExecutionAttempt = null,
     ): Generator {
-        $generator = $this->getExecutor()->execute(
-            $this,
-            $inputs,
-            $resuming,
-            $expectedRunId,
-            $recovering,
-            $expectedExecutionAttempt,
-        );
+        $continuing = $inputs !== null
+            || $expectedRunId !== null
+            || $expectedExecutionAttempt !== null;
+        $generator = $continuing
+            ? $this->getExecutor()->resume(
+                $this,
+                $inputs ?? [],
+                $expectedRunId,
+                $expectedExecutionAttempt,
+            )
+            : $this->getExecutor()->execute($this);
 
-        // Open the protocol stream before any output, mirroring the pull
-        // path's eager start so both emit the same framing timing.
-        $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->start());
+        return $this->forwardEvents($generator);
+    }
+
+    /**
+     * @return Generator<int, object|string, mixed, WorkflowState>
+     * @throws Throwable
+     */
+    protected function forwardEvents(Generator $generator): Generator
+    {
+        foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->start()) as $output) {
+            yield $output;
+        }
 
         try {
-            // The single delivery choke point: every yielded item feeds the
-            // channel (push) before it reaches the caller (pull). The
-            // InterruptEvent terminal is delivered via suspended() instead —
-            // pull consumers still receive it unchanged.
             foreach ($generator as $item) {
-                if (!$item instanceof InterruptEvent) {
-                    $this->deliver($item);
+                foreach ($this->streamOutput($item) as $output) {
+                    yield $output;
                 }
-                yield $item;
             }
         } catch (Throwable $e) {
-            $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
+            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
+                yield $output;
+            }
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->workflowId ?? 'unresolved'));
             throw $e;
         }
 
-        // Close the stream on every clean terminal (completion or suspension).
-        $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->end());
+        foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
+            yield $output;
+        }
 
         $state = $this->getState();
         if ($state->isInterrupted()) {
@@ -242,7 +237,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
                     ),
                 );
             }
-        } else {
+        } elseif ($state->getStatus() === WorkflowStatus::Completed) {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->workflowId ?? 'unresolved'));
         }
 
@@ -250,34 +245,42 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Deliver one yielded item to the channel: as protocol lines when an
-     * adapter is attached, as the native chunk otherwise.
+     * @return Generator<int, object|string>
      */
-    protected function deliver(object $item): void
+    protected function streamOutput(object $item): Generator
     {
-        if ($this->getStreamAdapter() instanceof StreamAdapterInterface) {
-            $this->fireAdapter(fn (StreamAdapterInterface $a): iterable => $a->transform($item));
-        } else {
+        $adapter = $this->getStreamAdapter();
+        if ($adapter instanceof StreamAdapterInterface) {
+            foreach ($adapter->transform($item) as $line) {
+                if (!$item instanceof InterruptEvent) {
+                    $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
+                }
+                yield $line;
+            }
+            return;
+        }
+
+        if (!$item instanceof InterruptEvent) {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
         }
+        yield $item;
     }
 
     /**
-     * Drain adapter-produced protocol frames to the channel as sendLine()
-     * lines, under fireChannel's catch-report-continue guard.
-     *
      * @param Closure(StreamAdapterInterface): iterable<string> $frames
+     * @return Generator<int, string>
      */
-    protected function fireAdapter(Closure $frames): void
+    protected function adapterOutput(Closure $frames): Generator
     {
-        if (!$this->getStreamAdapter() instanceof StreamAdapterInterface) {
+        $adapter = $this->getStreamAdapter();
+        if (!$adapter instanceof StreamAdapterInterface) {
             return;
         }
-        $this->fireChannel(function (StreamingChannelInterface $ch) use ($frames): void {
-            foreach ($frames($this->getStreamAdapter()) as $line) {
-                $ch->sendLine($line);
-            }
-        });
+
+        foreach ($frames($adapter) as $line) {
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
+            yield $line;
+        }
     }
 
     /**
@@ -483,8 +486,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Opt into the execution lease: while a run is executing, the engine
-     * refreshes the lease deadline inside __control, and recover() arriving
-     * while the lease is fresh is refused — it would
+     * refreshes the lease deadline inside __control, and an inputless resume
+     * arriving while the lease is fresh is refused — it would
      * probably duplicate a live process, not revive a dead one. Suspension,
      * failure, and completion all clear the deadline, so only a violent
      * crash (no chance to commit control) leaves it held. Pick $seconds

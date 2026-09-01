@@ -50,7 +50,6 @@ class AsyncExecutor extends WorkflowExecutor
                 $terminal = $branch->getReturn();
 
                 return new BranchResult(
-                    branchId: $branchId,
                     result: $terminal instanceof StopEvent ? $terminal->getResult() : null,
                     streamedEvents: $streamedEvents,
                     interrupt: $terminal instanceof InterruptEvent ? $terminal : null,

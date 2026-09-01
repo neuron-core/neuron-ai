@@ -22,28 +22,27 @@ use NeuronAI\Workflow\WorkflowState;
 interface WorkflowExecutorInterface
 {
     /**
-     * Execute the run, yielding every event in real time and returning the
-     * final state. Intent is explicit: an ignition ($resuming false) refuses
-     * a run already in flight under the workflow ID; a continuation
-     * ($resuming true) adopts it, delivering the payload only when one is
-     * given.
+     * Ignite a new run, yielding every event in real time and returning the
+     * final state.
      *
      * The executor drives the full segment lifecycle: it resolves the
      * workflow ID, resolves ignition (register / adopt / refuse) and calls
      * the workflow's bootstrap() before traversal begins.
      *
-     * @param list<\NeuronAI\Workflow\Resume\ResumeInput> $inputs Addressed inputs for a resume.
-     * @param bool $resuming True to deliver resume inputs.
-     * @param string|null $expectedRunId Optional generation fence supplied by a coordinator.
-     * @param bool $recovering True to replay without delivering a new input.
      * @return Generator<int, Event, mixed, WorkflowState>
      */
-    public function execute(
+    public function execute(WorkflowRuntimeInterface $workflow): Generator;
+
+    /**
+     * Continue an existing run, optionally delivering addressed inputs.
+     *
+     * @param list<\NeuronAI\Workflow\Resume\ResumeInput> $inputs
+     * @return Generator<int, Event, mixed, WorkflowState>
+     */
+    public function resume(
         WorkflowRuntimeInterface $workflow,
         array $inputs = [],
-        bool $resuming = false,
         ?string $expectedRunId = null,
-        bool $recovering = false,
         ?int $expectedExecutionAttempt = null,
     ): Generator;
 

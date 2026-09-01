@@ -8,7 +8,6 @@ use Generator;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -69,22 +68,16 @@ interface AgentInterface
      * @param Message|Message[] $messages
      * @return Generator<int, object|string, mixed, AgentState>
      */
-    public function stream(Message|array $messages = [], ?StreamAdapterInterface $adapter = null): Generator;
+    public function stream(Message|array $messages = []): Generator;
 
     /**
      * @param Message|Message[] $messages
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
 
-    /**
-     * @param non-empty-list<ResumeInput> $inputs
-     */
+    /** @param list<ResumeInput> $inputs */
     public function resume(
-        array $inputs,
-        ?string $expectedRunId = null,
-    ): AgentState;
-
-    public function recover(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): AgentState;

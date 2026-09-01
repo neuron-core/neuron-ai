@@ -9,11 +9,12 @@ objects and UI transports such as AG-UI and the Vercel AI SDK data stream.
 compatibility, but the capability is consumed by the underlying `Workflow`:
 
 - a node may yield any object as intermediate, live output;
-- `Workflow::events()` exposes those objects to pull consumers;
-- a workflow with a streaming channel and `setStreamAdapter()` converts them to
-  protocol lines before push delivery;
-- `Agent::stream($messages, $adapter)` uses the same adapter contract for pull
-  delivery.
+- `Workflow::events()` exposes native objects when no adapter is configured;
+- `setStreamAdapter()` makes Workflow convert output to protocol lines once;
+- pull consumers receive those lines, and an attached streaming channel
+  receives the same lines through `sendLine()`;
+- `Agent::stream($messages)` only records streaming intent and yields Workflow
+  output.
 
 Do not combine changes to this feature with a namespace move. A namespace move
 would be a separate breaking-change decision. Keep the portable abstraction free
@@ -29,7 +30,8 @@ of Agent-specific and memory-specific concepts so custom workflows can use it.
 - `end()` emits optional protocol termination.
 
 Adapters are stateful for one stream. Never share one adapter instance between
-two concurrent streams, or between pull and push delivery.
+two concurrent streams. Pull and push delivery from one Workflow execution use
+the same transformation and therefore the same instance by design.
 
 `SSEAdapter` owns only common SSE formatting and ID generation. Protocol state
 and protocol payloads belong in the concrete adapters.
@@ -187,7 +189,7 @@ Coverage must preserve:
 - Vercel emitting `start` once when the first native chunk later arrives;
 - AG-UI run and text/reasoning lifecycle ordering remaining valid;
 - mixed native chunks and portable events preserving their original order;
-- pull (`Agent::stream`) and push (`Workflow` channel) delivery using the same
-  conversions;
+- pull (`Agent::stream`) and push (`Workflow` channel) delivery receiving the
+  same converted lines from one Workflow-owned adapter path;
 - generator return events continuing to route the workflow and never being
   emitted as UI progress.
