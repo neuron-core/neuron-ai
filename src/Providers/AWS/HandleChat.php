@@ -7,10 +7,15 @@ namespace NeuronAI\Providers\AWS;
 use Aws\ResultInterface;
 use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Providers\ProviderResponse;
+
+use function end;
 
 trait HandleChat
 {
@@ -34,6 +39,8 @@ trait HandleChat
                 );
 
                 $stopReason = $result['stopReason'] ?? '';
+                $blocks = $this->mapResponseContent($result['output']['message']['content'] ?? []);
+
                 if ($stopReason === 'tool_use') {
                     $tools = [];
                     foreach ($result['output']['message']['content'] ?? [] as $toolContent) {
@@ -42,23 +49,48 @@ trait HandleChat
                         }
                     }
 
-                    $message = new ToolCallMessage(tools: $tools);
+                    $message = new ToolCallMessage($blocks, $tools);
                     $message->setUsage($usage);
                     $message->setStopReason($stopReason);
                     return $message;
                 }
 
-                $text = '';
-                foreach ($result['output']['message']['content'] ?? [] as $content) {
-                    if (isset($content['text'])) {
-                        $text .= $content['text'];
-                    }
-                }
-
-                $message = new AssistantMessage($text);
+                $message = new AssistantMessage($blocks);
                 $message->setUsage($usage);
                 $message->setStopReason($stopReason);
                 return $message;
             });
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $contents
+     * @return ContentBlockInterface[]
+     */
+    protected function mapResponseContent(array $contents): array
+    {
+        $blocks = [];
+
+        foreach ($contents as $content) {
+            if (isset($content['text'])) {
+                $lastBlock = end($blocks);
+
+                if ($lastBlock instanceof TextContent && !$lastBlock instanceof ReasoningContent) {
+                    $lastBlock->accumulateContent($content['text']);
+                } else {
+                    $blocks[] = new TextContent($content['text']);
+                }
+                continue;
+            }
+
+            if (isset($content['reasoningContent']['reasoningText'])) {
+                $reasoningText = $content['reasoningContent']['reasoningText'];
+                $blocks[] = new ReasoningContent(
+                    $reasoningText['text'],
+                    $reasoningText['signature'] ?? null,
+                );
+            }
+        }
+
+        return $blocks;
     }
 }

@@ -75,12 +75,21 @@ trait HandleStream
                 }
 
                 if (isset($event['contentBlockDelta']['delta']['reasoningContent'])) {
-                    $reasoningChunk = $event['contentBlockDelta']['delta']['reasoningContent']['text'];
-                    $this->streamState->updateContentBlock(
-                        $event['contentBlockDelta']['contentBlockIndex'],
-                        new ReasoningContent($reasoningChunk, $event['contentBlockDelta']['delta']['reasoningContent']['signature'])
-                    );
-                    yield new ReasoningChunk($this->streamState->messageId(), $reasoningChunk);
+                    $reasoningContent = $event['contentBlockDelta']['delta']['reasoningContent'];
+                    $contentBlockIndex = $event['contentBlockDelta']['contentBlockIndex'];
+
+                    if (isset($reasoningContent['text'])) {
+                        $this->streamState->updateContentBlock(
+                            $contentBlockIndex,
+                            new ReasoningContent($reasoningContent['text'])
+                        );
+                        yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent['text']);
+                    }
+
+                    if (isset($reasoningContent['signature'])) {
+                        $this->streamState->signReasoningContentBlock($contentBlockIndex, $reasoningContent['signature']);
+                    }
+
                     continue;
                 }
 

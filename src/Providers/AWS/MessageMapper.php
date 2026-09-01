@@ -123,7 +123,14 @@ class MessageMapper implements MessageMapperInterface
     protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
-            ReasoningContent::class => ['text' => $block->content, 'signature' => $block->id],
+            ReasoningContent::class => [
+                'reasoningContent' => [
+                    'reasoningText' => [
+                        'text' => $block->content,
+                        ...($block->id === null ? [] : ['signature' => $block->id]),
+                    ],
+                ],
+            ],
             TextContent::class => ['text' => $block->content],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),
