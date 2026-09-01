@@ -231,14 +231,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
         $state = $this->getState();
         if ($state->isInterrupted()) {
-            foreach ($state->getInterruptRequests() as $request) {
-                $this->fireChannel(
-                    fn (StreamingChannelInterface $ch) => $ch->suspended(
-                        $request,
-                        $this->workflowId ?? 'unresolved',
-                    ),
-                );
-            }
+            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended(clone $state));
         } elseif ($state->getStatus() === WorkflowStatus::Completed) {
             $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->workflowId ?? 'unresolved'));
         }

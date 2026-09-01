@@ -19,24 +19,27 @@ use NeuronAI\Tests\Workflow\Executor\Stub\SummaryProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Resume\ResumeInputResult;
 use NeuronAI\Workflow\Resume\ResumeInputStatus;
-use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
+use function array_keys;
 use function array_map;
 
 class ParallelInterruptTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function test_multiple_suspensions_can_be_resolved_across_addressed_batches(): void
+    public function test_multiple_interruptions_can_be_resolved_across_addressed_batches(): void
     {
         $fork = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
@@ -53,19 +56,12 @@ class ParallelInterruptTest extends TestCase
 
         $first = $workflow->run();
         $this->assertSame(1, $first->getExecutionAttempt());
-        $this->assertCount(2, $first->getSuspensions());
-        $this->assertSame([1, 2], array_map(
-            fn (Suspension $suspension): int => $suspension->id,
-            $first->getSuspensions(),
-        ));
+        $this->assertSame([1, 2], array_keys($first->getInterruptRequests()));
 
         $partial = $workflow->resume([ResumeInput::event(1, [])]);
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
-        $this->assertSame([2], array_map(
-            fn (Suspension $suspension): int => $suspension->id,
-            $partial->getSuspensions(),
-        ));
+        $this->assertSame([2], array_keys($partial->getInterruptRequests()));
 
         $completed = $workflow->resume([
             ResumeInput::event(1, []),
@@ -81,6 +77,49 @@ class ParallelInterruptTest extends TestCase
                 $completed->getInputResults(),
             ),
         );
+    }
+
+    public function test_partial_resume_does_not_rerun_unaddressed_interrupts(): void
+    {
+        foreach ([null, new AsyncExecutor()] as $index => $executor) {
+            $counter = new stdClass();
+            $counter->runs = 0;
+
+            $fork = new class () extends Node {
+                public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
+                {
+                    return new Stub\DocumentParallelEvent([
+                        'text' => new Stub\TextProcessEvent(),
+                        'image' => new Stub\TextProcessEvent(),
+                    ]);
+                }
+            };
+
+            $node = new class ($counter) extends Node {
+                public function __construct(protected stdClass $counter)
+                {
+                }
+
+                public function __invoke(Stub\TextProcessEvent $event, WorkflowState $state): StopEvent
+                {
+                    $this->counter->runs++;
+                    $this->interrupt(new ApprovalRequest('approval'));
+
+                    return new StopEvent($state->get('__branchId'));
+                }
+            };
+
+            $workflow = Workflow::make(workflowId: "selective-resume-{$index}")
+                ->addNodes([$fork, $node, new MergeNode()]);
+            if ($executor instanceof AsyncExecutor) {
+                $workflow->setExecutor($executor);
+            }
+
+            $workflow->run();
+            $workflow->resume([ResumeInput::event(1, [])]);
+
+            $this->assertSame(3, $counter->runs);
+        }
     }
 
     public function test_interrupt_inside_branch_surfaces_request(): void

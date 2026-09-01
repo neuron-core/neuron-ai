@@ -49,4 +49,20 @@ class WaitForEventRequestTest extends TestCase
         $this->assertSame($original->getEventName(), $restored->getEventName());
         $this->assertSame($original->getExpiresAt()->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
     }
+
+    public function test_bound_request_owns_the_complete_portable_envelope(): void
+    {
+        $request = (new WaitForEventRequest('order.paid'))->withId(7);
+
+        $this->assertSame(7, $request->getId());
+        $this->assertSame([
+            'interruptId' => 7,
+            'type' => 'wait_for_event',
+            'eventName' => 'order.paid',
+            'expiresAt' => null,
+        ], $request->jsonSerialize());
+
+        $restored = WaitForEventRequest::fromArray($request->jsonSerialize());
+        $this->assertSame(7, $restored->getId());
+    }
 }

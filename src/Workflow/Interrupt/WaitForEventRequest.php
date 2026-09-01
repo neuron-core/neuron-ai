@@ -7,6 +7,9 @@ namespace NeuronAI\Workflow\Interrupt;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Resume\ResumeKind;
 
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
@@ -53,15 +56,24 @@ class WaitForEventRequest extends InterruptRequest
         return $this->expiresAt;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
+    public function validate(ResumeInput $input): void
+    {
+        $valid = $input->kind === ResumeKind::Event
+            || ($input->kind === ResumeKind::Expired && $this->expiresAt instanceof DateTimeImmutable);
+
+        if (!$valid) {
+            throw new WorkflowException(
+                "Resume input '{$input->kind->value}' is incompatible with interrupt {$this->getId()} "
+                . "of type '{$this->type()->value}'."
+            );
+        }
+    }
+
+    protected function coordinationData(): array
     {
         return [
-            'type' => $this->type()->value,
-            'event' => $this->eventName,
-            'expires_at' => $this->expiresAt?->format(DateTimeInterface::ATOM),
+            'eventName' => $this->eventName,
+            'expiresAt' => $this->expiresAt?->format(DateTimeInterface::ATOM),
         ];
     }
 
@@ -72,13 +84,17 @@ class WaitForEventRequest extends InterruptRequest
      */
     public static function fromArray(array $data): self
     {
-        $expiresAt = isset($data['expires_at'])
-            ? new DateTimeImmutable((string) $data['expires_at'])
+        $expiresAt = isset($data['expiresAt'])
+            ? new DateTimeImmutable((string) $data['expiresAt'])
             : null;
 
-        return new self(
-            (string) ($data['event'] ?? ''),
+        $request = new self(
+            (string) ($data['eventName'] ?? ''),
             $expiresAt,
         );
+
+        return isset($data['interruptId'])
+            ? $request->withId((int) $data['interruptId'])
+            : $request;
     }
 }

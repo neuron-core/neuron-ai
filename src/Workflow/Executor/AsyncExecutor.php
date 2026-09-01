@@ -16,6 +16,7 @@ use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
 
 use function Amp\async;
+use function array_push;
 
 /**
  * Executor that runs parallel branches concurrently using Amp fibers.
@@ -78,7 +79,7 @@ class AsyncExecutor extends WorkflowExecutor
             });
         }
 
-        $interrupts = [];
+        $requests = [];
         $firstError = null;
 
         // Await ALL futures before propagating any exception,
@@ -87,9 +88,7 @@ class AsyncExecutor extends WorkflowExecutor
             try {
                 $result = $future->await();
                 if ($result->interrupt instanceof InterruptEvent) {
-                    foreach ($result->interrupt->all() as $interrupt) {
-                        $interrupts[] = $interrupt;
-                    }
+                    array_push($requests, ...$result->interrupt->requests);
                 } else {
                     $parallelEvent->setResult($branchId, $result->result);
                 }
@@ -106,8 +105,8 @@ class AsyncExecutor extends WorkflowExecutor
             throw $firstError;
         }
 
-        if ($interrupts !== []) {
-            return InterruptEvent::aggregate($interrupts);
+        if ($requests !== []) {
+            return new InterruptEvent($requests);
         }
 
         return $parallelEvent;

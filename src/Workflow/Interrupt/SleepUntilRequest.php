@@ -7,6 +7,9 @@ namespace NeuronAI\Workflow\Interrupt;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Resume\ResumeKind;
 
 /**
  * Suspends the workflow until a clock time. The wakeup is produced by the
@@ -41,14 +44,20 @@ class SleepUntilRequest extends InterruptRequest
         return $this->wakeAt;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function jsonSerialize(): array
+    public function validate(ResumeInput $input): void
+    {
+        if ($input->kind !== ResumeKind::Timer) {
+            throw new WorkflowException(
+                "Resume input '{$input->kind->value}' is incompatible with interrupt {$this->getId()} "
+                . "of type '{$this->type()->value}'."
+            );
+        }
+    }
+
+    protected function coordinationData(): array
     {
         return [
-            'type' => $this->type()->value,
-            'wake_at' => $this->wakeAt->format(DateTimeInterface::ATOM),
+            'wakeAt' => $this->wakeAt->format(DateTimeInterface::ATOM),
         ];
     }
 
@@ -59,8 +68,12 @@ class SleepUntilRequest extends InterruptRequest
      */
     public static function fromArray(array $data): self
     {
-        return new self(
-            new DateTimeImmutable((string) ($data['wake_at'] ?? 'now')),
+        $request = new self(
+            new DateTimeImmutable((string) ($data['wakeAt'] ?? 'now')),
         );
+
+        return isset($data['interruptId'])
+            ? $request->withId((int) $data['interruptId'])
+            : $request;
     }
 }

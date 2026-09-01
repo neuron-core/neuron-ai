@@ -15,13 +15,13 @@ use function sprintf;
  * Outbound request carrying the actions that require a human decision before
  * the workflow may proceed. A pure OUTBOUND snapshot for the caller to render
  * — never handed back into the workflow. The decisions travel inbound as a
- * cumulative resume payload keyed by action id:
+ * resume payload keyed by action id:
  *
  *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
  *
- * Rebuilt fresh by the node on every pass (replay-by-rerun), so it is not
- * persisted and may safely reference real objects; pending approval state is
- * persisted in chat history — the system of record the UI already reads.
+ * The request is persisted while active. Its actions and all custom metadata
+ * must therefore remain portable values; live services and other runtime
+ * objects belong on the node, not in the request.
  */
 class ApprovalRequest extends WaitForEventRequest
 {
@@ -75,7 +75,7 @@ class ApprovalRequest extends WaitForEventRequest
     /**
      * @return array<string, mixed>
      */
-    public function jsonSerialize(): array
+    protected function metadata(): array
     {
         return [
             'message' => $this->message,

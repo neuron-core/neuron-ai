@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Channel;
 
 use Closure;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -20,7 +19,7 @@ final class CallbackChannel implements StreamingChannelInterface
     /**
      * @param ?Closure(object): void $onSend
      * @param ?Closure(string): void $onSendLine
-     * @param ?Closure(InterruptRequest, string): void $onSuspended
+     * @param ?Closure(WorkflowState): void $onSuspended
      * @param ?Closure(WorkflowState, string): void $onCompleted
      * @param ?Closure(Throwable, string): void $onFailed
      */
@@ -47,10 +46,10 @@ final class CallbackChannel implements StreamingChannelInterface
         }
     }
 
-    public function suspended(InterruptRequest $request, string $workflowId): void
+    public function suspended(WorkflowState $state): void
     {
         if ($this->onSuspended instanceof Closure) {
-            ($this->onSuspended)($request, $workflowId);
+            ($this->onSuspended)($state);
         }
     }
 

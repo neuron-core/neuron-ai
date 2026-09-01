@@ -138,7 +138,7 @@ Custom `WorkflowExecutorInterface` implementations should pass
 
 A run that suspends for external input (tool approval, `awaitEvent()`,
 `sleepUntil()`) now dispatches a dedicated `WorkflowInterrupted` event carrying
-the outbound `InterruptRequest`. Previously a suspension was invisible to
+the complete interrupted `WorkflowState`. Previously a suspension was invisible to
 observers — only `WorkflowEnd` fired. Interruption is a scheduled pause, not a
 failure, so it is deliberately **not** an `AgentError`:
 
@@ -146,7 +146,9 @@ failure, so it is deliberately **not** an `AgentError`:
 use NeuronAI\Observability\Events\WorkflowInterrupted;
 
 $agent->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event): void {
-    $alerts->notify("Waiting for input: {$event->request->getMessage()}");
+    foreach ($event->state->getInterruptRequests() as $request) {
+        $alerts->notify("Waiting for input: {$request->getMessage()}");
+    }
 });
 ```
 

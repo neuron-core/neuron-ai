@@ -68,7 +68,7 @@ abstract class Node implements NodeInterface
         $payload = $this->payload;
         // A ResumeInput satisfies exactly one interruption, including timer
         // and expiry inputs whose payload is null. A later interruption in
-        // the same node must create a new suspension.
+        // the same node must create a new interruption.
         $this->payload = null;
         $this->resuming = false;
 

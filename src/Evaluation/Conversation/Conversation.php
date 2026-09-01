@@ -180,13 +180,13 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $suspension = $state->getSuspensions()[0] ?? null;
-            if ($suspension === null) {
-                throw new EvaluationException('The interrupted Agent exposed no resumable suspension.');
+            $request = $state->getInterruptRequest();
+            if ($request === null) {
+                throw new EvaluationException('The interrupted Agent exposed no interrupt request.');
             }
 
             $state = $this->agent->resume([
-                ResumeInput::event($suspension->id, $payload),
+                ResumeInput::event($request->getId(), $payload),
             ]);
         }
     }

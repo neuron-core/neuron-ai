@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Support;
 
 use LogicException;
-use NeuronAI\Workflow\Executor\ActiveSuspension;
+use NeuronAI\Workflow\Executor\ActiveInterrupt;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptType;
@@ -63,7 +63,7 @@ trait ExecutorTestHelpers
     /**
      * Continue a run through the typed public API. This compatibility helper
      * keeps existing test fixtures concise by addressing the run's first
-     * active suspension; tests of batching construct ResumeInput explicitly.
+     * active interrupt; tests of batching construct ResumeInput explicitly.
      *
      * @param array<string, mixed>|null $payload
      */
@@ -84,19 +84,19 @@ trait ExecutorTestHelpers
             '__control',
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
-        if (!$control instanceof WorkflowControl || $control->suspensions === []) {
+        if (!$control instanceof WorkflowControl || $control->interrupts === []) {
             return $workflow->resume([ResumeInput::event(1, $payload)], $expectedRunId);
         }
 
-        $active = array_values($control->suspensions)[0];
-        if (!$active instanceof ActiveSuspension) {
-            throw new LogicException('The test helper found an invalid active suspension.');
+        $active = array_values($control->interrupts)[0];
+        if (!$active instanceof ActiveInterrupt) {
+            throw new LogicException('The test helper found an invalid active interrupt.');
         }
 
         $input = match (true) {
-            $timedOut => ResumeInput::expired($active->suspension->id),
-            $active->suspension->type === InterruptType::SleepUntil => ResumeInput::timer($active->suspension->id),
-            default => ResumeInput::event($active->suspension->id, $payload),
+            $timedOut => ResumeInput::expired($active->request->getId()),
+            $active->request->type() === InterruptType::SleepUntil => ResumeInput::timer($active->request->getId()),
+            default => ResumeInput::event($active->request->getId(), $payload),
         };
 
         return $workflow->resume([$input], $expectedRunId);

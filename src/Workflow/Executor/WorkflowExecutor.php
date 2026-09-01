@@ -31,7 +31,6 @@ use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Resume\ResumeInputResult;
 use NeuronAI\Workflow\Resume\ResumeInputStatus;
 use NeuronAI\Workflow\Resume\ResumeKind;
-use NeuronAI\Workflow\Suspension\Suspension;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -41,6 +40,7 @@ use Throwable;
 use function in_array;
 use function str_starts_with;
 use function time;
+use function array_push;
 
 /**
  * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
@@ -52,9 +52,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected ?int $leaseTimeout = null;
     protected string $workflowId;
     protected string $runId;
-
-    /** @var array<int, ResumeInput> */
-    protected array $pendingInputs = [];
 
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
@@ -96,7 +93,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): Generator {
-        $this->pendingInputs = [];
         $this->inputResults = [];
         $this->leaseTimeout = $workflow->getLeaseTimeout();
         $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
@@ -137,24 +133,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             if ($terminal instanceof InterruptEvent) {
                 $workflow->getState()->setInputResults($this->inputResults);
-                $requests = [];
-                foreach ($terminal->all() as $interrupt) {
-                    $requests[] = $interrupt->request;
-                }
-
-                $suspensions = $this->portableSuspensions();
-                $workflow->getState()->markAsSuspended($requests, $suspensions);
+                $requests = $this->activeInterruptRequests();
+                $workflow->getState()->markAsSuspended($requests);
                 $checkpoint = clone $workflow->getState();
-                $checkpoint->markAsSuspended([], $suspensions);
+                $checkpoint->markAsSuspended([]);
                 $this->runStore->replaceControl($this->runStore->control()->suspended($checkpoint));
 
-                foreach ($requests as $request) {
-                    $this->dispatchEvent(
-                        $workflow->getEventDispatcher(),
-                        new WorkflowInterrupted($request),
-                        $workflow,
-                    );
-                }
+                $this->dispatchEvent(
+                    $workflow->getEventDispatcher(),
+                    new WorkflowInterrupted($workflow->getState()),
+                    $workflow,
+                );
 
                 yield $terminal;
             } else {
@@ -280,12 +269,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return $state;
         }
 
+        $acceptedInputs = [];
         if ($inputs === []) {
-            $this->prepareReplay();
+            $this->assertInputlessContinuationAllowed();
         } else {
-            $this->prepareResume($inputs);
+            $acceptedInputs = $this->prepareResume($inputs);
 
-            if ($this->pendingInputs === []) {
+            if ($acceptedInputs === []) {
                 $control = $this->runStore->control();
                 $state = $control->checkpointState instanceof WorkflowState
                     ? clone $control->checkpointState
@@ -296,21 +286,28 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 if ($control->status === WorkflowStatus::Failed) {
                     $state->markAsFailed();
                 } else {
-                    $state->markAsSuspended([], $this->portableSuspensions());
+                    $state->markAsSuspended($this->activeInterruptRequests());
                 }
                 return $state;
             }
         }
 
         $this->runStore->replaceControl(
-            $this->runStore->control()->withInputs($this->pendingInputs)->claim($this->leaseExpiry()),
+            (
+                $acceptedInputs === []
+                ? $this->runStore->control()
+                : $this->runStore->control()->withInputs($acceptedInputs)
+            )->claim($this->leaseExpiry()),
         );
 
         return null;
     }
 
-    /** @param non-empty-list<ResumeInput> $inputs */
-    protected function prepareResume(array $inputs): void
+    /**
+     * @param non-empty-list<ResumeInput> $inputs
+     * @return array<int, ResumeInput>
+     */
+    protected function prepareResume(array $inputs): array
     {
         $control = $this->runStore->control();
         if (!in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)) {
@@ -320,34 +317,37 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         $seen = [];
+        $accepted = [];
         foreach ($inputs as $input) {
             if (!$input instanceof ResumeInput) {
                 throw new WorkflowException('Every resume input must be an instance of ' . ResumeInput::class . '.');
             }
-            if (isset($seen[$input->suspensionId])) {
-                throw new WorkflowException("Duplicate suspension ID {$input->suspensionId} in resume batch.");
+            if (isset($seen[$input->interruptId])) {
+                throw new WorkflowException("Duplicate interrupt ID {$input->interruptId} in resume batch.");
             }
-            $seen[$input->suspensionId] = true;
+            $seen[$input->interruptId] = true;
 
-            $active = $control->suspensions[$input->suspensionId] ?? null;
-            if (!$active instanceof ActiveSuspension) {
+            $active = $control->interrupts[$input->interruptId] ?? null;
+            if (!$active instanceof ActiveInterrupt) {
                 $this->inputResults[] = new ResumeInputResult(
-                    $input->suspensionId,
+                    $input->interruptId,
                     ResumeInputStatus::Stale,
                 );
                 continue;
             }
 
-            $active->suspension->validate($input);
-            $this->pendingInputs[$input->suspensionId] = $input;
+            $active->request->validate($input);
+            $accepted[$input->interruptId] = $input;
             $this->inputResults[] = new ResumeInputResult(
-                $input->suspensionId,
+                $input->interruptId,
                 ResumeInputStatus::Accepted,
             );
         }
+
+        return $accepted;
     }
 
-    protected function prepareReplay(): void
+    protected function assertInputlessContinuationAllowed(): void
     {
         $control = $this->runStore->control();
         if (
@@ -360,12 +360,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 "The run for workflow ID '{$this->workflowId}' appears to be executing "
                 . "(lease expires at {$control->leaseExpiresAt}) — cannot continue without input."
             );
-        }
-
-        foreach ($control->suspensions as $id => $active) {
-            if ($active->input instanceof ResumeInput) {
-                $this->pendingInputs[$id] = $active->input;
-            }
         }
     }
 
@@ -461,14 +455,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $state->set('__executionAttempt', $this->runStore->control()->executionAttempt);
     }
 
-    /** @return Suspension[] */
-    protected function portableSuspensions(): array
+    /** @return array<int, \NeuronAI\Workflow\Interrupt\InterruptRequest> */
+    protected function activeInterruptRequests(): array
     {
-        $suspensions = [];
-        foreach ($this->runStore->control()->suspensions as $active) {
-            $suspensions[] = $active->suspension;
+        $requests = [];
+        foreach ($this->runStore->control()->interrupts as $id => $active) {
+            $requests[$id] = $active->request;
         }
-        return $suspensions;
+        return $requests;
     }
 
     protected function loadStep(string $stepId): ?StepResult
@@ -529,7 +523,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->dispatchEvent($dispatcher, new WorkflowNodeEnd($node::class, $state), $node, $branchId);
             return $result;
         } catch (WorkflowInterrupt $interrupt) {
-            return new InterruptEvent($interrupt->getRequest());
+            return InterruptEvent::fromRequest($interrupt->getRequest());
         }
     }
 
@@ -549,11 +543,27 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
         }
 
-        $suspensionId = $cached?->getSuspensionId();
-        $input = $suspensionId === null ? null : ($this->pendingInputs[$suspensionId] ?? null);
+        $interruptId = $cached?->getInterruptId();
+        $active = $interruptId === null
+            ? null
+            : ($this->runStore->control()->interrupts[$interruptId] ?? null);
+        if ($interruptId !== null && !$active instanceof ActiveInterrupt) {
+            throw new WorkflowException("Interrupt {$interruptId} has no active control record.");
+        }
+
+        $input = $active?->input;
         $resuming = $input instanceof ResumeInput;
         $payload = $input?->kind === ResumeKind::Event ? $input->payload : null;
         $timedOut = $input?->kind === ResumeKind::Expired;
+
+        if ($active instanceof ActiveInterrupt && !$resuming) {
+            return new StepResult(
+                stepId: $stepId,
+                event: InterruptEvent::fromRequest($active->request),
+                state: $cached->getState(),
+                interruptId: $interruptId,
+            );
+        }
 
         try {
             $terminal = yield from $this->runNode(
@@ -574,8 +584,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->runStore->writeRecords([
                 $this->recordKey($stepId) => new StepResult(
                     stepId: $stepId,
-                    interrupted: $suspensionId !== null,
-                    suspensionId: $suspensionId,
+                    interruptId: $interruptId,
                     error: ['message' => $e->getMessage(), 'class' => $e::class],
                 ),
             ]);
@@ -583,59 +592,36 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         if ($terminal instanceof InterruptEvent) {
-            if ($suspensionId !== null && !$resuming) {
-                $active = $this->runStore->control()->suspensions[$suspensionId] ?? null;
-                if (!$active instanceof ActiveSuspension) {
-                    throw new WorkflowException("Suspension {$suspensionId} has no active control record.");
-                }
-
-                $interrupt = new InterruptEvent($terminal->request, $suspensionId);
-                return new StepResult(
-                    stepId: $stepId,
-                    event: $interrupt,
-                    state: $state,
-                    interrupted: true,
-                    suspensionId: $suspensionId,
-                );
-            }
-
-            $newId = $this->runStore->control()->nextSuspensionId;
-            $active = new ActiveSuspension(
-                Suspension::fromRequest($newId, $terminal->request),
-                $stepId,
-                $branchId,
-            );
+            $request = $terminal->requests[0]->withId($this->runStore->control()->nextInterruptId);
+            $newId = $request->getId();
+            $active = new ActiveInterrupt($request);
             $control = $this->runStore->control();
-            if ($suspensionId !== null) {
-                $control = $control->removeSuspension($suspensionId);
-                unset($this->pendingInputs[$suspensionId]);
+            if ($interruptId !== null) {
+                $control = $control->removeInterrupt($interruptId);
             }
-            $control = $control->addSuspension($active);
+            $control = $control->addInterrupt($active);
 
             $marker = new StepResult(
                 stepId: $stepId,
-                interrupted: true,
-                suspensionId: $newId,
+                state: $state,
+                interruptId: $newId,
             );
             $this->runStore->replaceControl($control, [$this->recordKey($stepId) => $marker]);
 
-            $interrupt = new InterruptEvent($terminal->request, $newId);
             return new StepResult(
                 stepId: $stepId,
-                event: $interrupt,
+                event: InterruptEvent::fromRequest($request),
                 state: $state,
-                interrupted: true,
-                suspensionId: $newId,
+                interruptId: $newId,
             );
         }
 
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
         $records = [$this->recordKey($stepId) => $result];
 
-        if ($suspensionId !== null) {
-            unset($this->pendingInputs[$suspensionId]);
+        if ($interruptId !== null) {
             $this->runStore->replaceControl(
-                $this->runStore->control()->removeSuspension($suspensionId),
+                $this->runStore->control()->removeInterrupt($interruptId),
                 $records,
             );
         } else {
@@ -684,7 +670,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
     ): Generator {
-        $interrupts = [];
+        $requests = [];
 
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
             if ($parallelEvent->hasResult($branchId)) {
@@ -693,15 +679,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             $terminal = yield from $this->executeBranch($workflow, $branchId, $branchEvent);
             if ($terminal instanceof InterruptEvent) {
-                foreach ($terminal->all() as $interrupt) {
-                    $interrupts[] = $interrupt;
-                }
+                array_push($requests, ...$terminal->requests);
             } elseif ($terminal instanceof StopEvent) {
                 $parallelEvent->setResult($branchId, $terminal->getResult());
             }
         }
 
-        return $interrupts === [] ? $parallelEvent : InterruptEvent::aggregate($interrupts);
+        return $requests === [] ? $parallelEvent : new InterruptEvent($requests);
     }
 
     /** @return Generator<int, Event, mixed, Event> */

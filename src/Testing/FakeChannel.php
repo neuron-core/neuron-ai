@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Testing;
 
 use NeuronAI\Workflow\Channel\StreamingChannelInterface;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -21,8 +20,8 @@ final class FakeChannel implements StreamingChannelInterface
     /** @var string[] */
     public array $lines = [];
 
-    /** @var array{request: InterruptRequest, workflowId: string}[] */
-    public array $suspensions = [];
+    /** @var WorkflowState[] */
+    public array $suspendedStates = [];
 
     /** @var array{state: WorkflowState, workflowId: string}[] */
     public array $completions = [];
@@ -46,9 +45,9 @@ final class FakeChannel implements StreamingChannelInterface
         $this->lines[] = $line;
     }
 
-    public function suspended(InterruptRequest $request, string $workflowId): void
+    public function suspended(WorkflowState $state): void
     {
-        $this->suspensions[] = ['request' => $request, 'workflowId' => $workflowId];
+        $this->suspendedStates[] = $state;
     }
 
     public function completed(WorkflowState $state, string $workflowId): void

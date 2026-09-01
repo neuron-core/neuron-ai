@@ -137,11 +137,11 @@ $report = MyAgent::make()->structured($message, ReportSchema::class);
 // Resume a suspended run (approval endpoint) — mode-agnostic → AgentState
 use NeuronAI\Workflow\Resume\ResumeInput;
 
-$suspensionId = $state->getSuspensions()[0]->id;
+$interruptId = $state->getInterruptRequest()->getId();
 $state = MyAgent::make()
     ->setChatHistory($history)
     ->setPersistence($persistence)
-    ->resume([ResumeInput::event($suspensionId, ['call_123' => 'approve'])]);
+    ->resume([ResumeInput::event($interruptId, ['call_123' => 'approve'])]);
 echo $state->getMessage()->getContent();
 ```
 
@@ -423,7 +423,7 @@ A resume delivers decisions as a **cumulative** payload keyed by tool callId —
 decision set, restated on every resume:
 
 ```php
-$agent->resume([ResumeInput::event($suspensionId, [
+$agent->resume([ResumeInput::event($interruptId, [
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
 ])]);
@@ -456,7 +456,7 @@ $agent = Agent::make(threadId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
-$agent->resume([ResumeInput::event($suspensionId, ['call_123' => 'approve'])]);
+$agent->resume([ResumeInput::event($interruptId, ['call_123' => 'approve'])]);
 // (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
 // same identity by adoption and works identically)
 ```
@@ -506,7 +506,7 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
 SupportAgent::make(threadId: $threadId)->resume([
-    ResumeInput::event($suspensionId, ['call_123' => 'approve']),
+    ResumeInput::event($interruptId, ['call_123' => 'approve']),
 ]);
 
 // WorkflowId-first resume (background wake): the record supplies the thread

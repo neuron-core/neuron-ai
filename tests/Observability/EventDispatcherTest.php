@@ -201,7 +201,8 @@ class EventDispatcherTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
         $this->assertCount(1, $interrupted);
-        $this->assertInstanceOf(ApprovalRequest::class, $interrupted[0]->request);
+        $this->assertSame($state, $interrupted[0]->state);
+        $this->assertInstanceOf(ApprovalRequest::class, $interrupted[0]->state->getInterruptRequest());
         $this->assertSame($workflow, $interrupted[0]->source);
         $this->assertSame('workflow-interrupted', $interrupted[0]->name());
         $this->assertSame([], $errors);

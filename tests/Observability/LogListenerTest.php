@@ -13,13 +13,16 @@ use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Observability\Events\Retrieving;
+use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Stringable;
@@ -114,6 +117,20 @@ class LogListenerTest extends TestCase
                 'context' => [],
             ],
         ], $logger->records);
+    }
+
+    public function test_interruption_logs_the_complete_request_list(): void
+    {
+        $state = new WorkflowState();
+        $state->markAsSuspended([
+            1 => (new ApprovalRequest('first'))->withId(1),
+            2 => (new ApprovalRequest('second'))->withId(2),
+        ]);
+
+        $logger = $this->recordingLogger();
+        (new LogListener($logger))(new WorkflowInterrupted($state));
+
+        $this->assertSame([1, 2], array_column($logger->records[0]['context']['interrupts'], 'interruptId'));
     }
 
     public function test_retrieving_logs_filter_structure_without_values(): void

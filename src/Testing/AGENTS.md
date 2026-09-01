@@ -11,7 +11,7 @@ Test fakes and utilities for testing Neuron applications.
 | `FakeVectorStore` | Mock vector store |
 | `FakeMiddleware` | Track middleware execution |
 | `FakeMcpTransport` | Mock MCP transport, record send/receive |
-| `FakeChannel` | Record channel deliveries (sent/lines/suspensions/completions/failures); `throwOnSend` exercises the failure policy |
+| `FakeChannel` | Record channel deliveries (sent/lines/suspended states/completions/failures); `throwOnSend` exercises the failure policy |
 | `FakeMessageMapper` | Mock message mapping |
 | `FakeToolMapper` | Mock tool mapping |
 

@@ -10,15 +10,15 @@ use NeuronAI\Workflow\WorkflowStatus;
 final class WorkflowControl
 {
     /**
-     * @param array<int, ActiveSuspension> $suspensions
+     * @param array<int, ActiveInterrupt> $interrupts
      */
     public function __construct(
         public readonly string $runId,
         public readonly WorkflowStatus $status,
         public readonly int $executionAttempt = 1,
         public readonly ?int $leaseExpiresAt = null,
-        public readonly int $nextSuspensionId = 1,
-        public readonly array $suspensions = [],
+        public readonly int $nextInterruptId = 1,
+        public readonly array $interrupts = [],
         public readonly ?WorkflowState $checkpointState = null,
         public readonly ?WorkflowState $completedState = null,
     ) {
@@ -31,8 +31,8 @@ final class WorkflowControl
             status: WorkflowStatus::Running,
             executionAttempt: $this->executionAttempt + 1,
             leaseExpiresAt: $leaseExpiresAt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $this->suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $this->interrupts,
             checkpointState: $this->checkpointState,
         );
     }
@@ -44,41 +44,41 @@ final class WorkflowControl
             status: $this->status,
             executionAttempt: $this->executionAttempt,
             leaseExpiresAt: $leaseExpiresAt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $this->suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $this->interrupts,
             checkpointState: $this->checkpointState,
             completedState: $this->completedState,
         );
     }
 
-    public function addSuspension(ActiveSuspension $active): self
+    public function addInterrupt(ActiveInterrupt $active): self
     {
-        $suspensions = $this->suspensions;
-        $suspensions[$active->suspension->id] = $active;
+        $interrupts = $this->interrupts;
+        $interrupts[$active->request->getId()] = $active;
 
         return new self(
             runId: $this->runId,
             status: WorkflowStatus::Running,
             executionAttempt: $this->executionAttempt,
             leaseExpiresAt: $this->leaseExpiresAt,
-            nextSuspensionId: $active->suspension->id + 1,
-            suspensions: $suspensions,
+            nextInterruptId: $active->request->getId() + 1,
+            interrupts: $interrupts,
             checkpointState: $this->checkpointState,
         );
     }
 
-    public function removeSuspension(int $id): self
+    public function removeInterrupt(int $id): self
     {
-        $suspensions = $this->suspensions;
-        unset($suspensions[$id]);
+        $interrupts = $this->interrupts;
+        unset($interrupts[$id]);
 
         return new self(
             runId: $this->runId,
             status: WorkflowStatus::Running,
             executionAttempt: $this->executionAttempt,
             leaseExpiresAt: $this->leaseExpiresAt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $interrupts,
             checkpointState: $this->checkpointState,
         );
     }
@@ -86,10 +86,10 @@ final class WorkflowControl
     /** @param array<int, \NeuronAI\Workflow\Resume\ResumeInput> $inputs */
     public function withInputs(array $inputs): self
     {
-        $suspensions = $this->suspensions;
+        $interrupts = $this->interrupts;
         foreach ($inputs as $id => $input) {
-            if (isset($suspensions[$id])) {
-                $suspensions[$id] = $suspensions[$id]->withInput($input);
+            if (isset($interrupts[$id])) {
+                $interrupts[$id] = $interrupts[$id]->withInput($input);
             }
         }
 
@@ -98,8 +98,8 @@ final class WorkflowControl
             status: $this->status,
             executionAttempt: $this->executionAttempt,
             leaseExpiresAt: $this->leaseExpiresAt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $interrupts,
             checkpointState: $this->checkpointState,
             completedState: $this->completedState,
         );
@@ -111,8 +111,8 @@ final class WorkflowControl
             runId: $this->runId,
             status: WorkflowStatus::Suspended,
             executionAttempt: $this->executionAttempt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $this->suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $this->interrupts,
             checkpointState: $state,
         );
     }
@@ -123,8 +123,8 @@ final class WorkflowControl
             runId: $this->runId,
             status: WorkflowStatus::Failed,
             executionAttempt: $this->executionAttempt,
-            nextSuspensionId: $this->nextSuspensionId,
-            suspensions: $this->suspensions,
+            nextInterruptId: $this->nextInterruptId,
+            interrupts: $this->interrupts,
             checkpointState: $this->checkpointState,
         );
     }
@@ -135,7 +135,7 @@ final class WorkflowControl
             runId: $this->runId,
             status: WorkflowStatus::Completed,
             executionAttempt: $this->executionAttempt,
-            nextSuspensionId: $this->nextSuspensionId,
+            nextInterruptId: $this->nextInterruptId,
             completedState: $state,
         );
     }

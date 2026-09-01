@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Channel;
 
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -34,12 +33,9 @@ interface StreamingChannelInterface
     public function sendLine(string $line): void;
 
     /**
-     * Run segment ended in a suspension. The request is the live, in-process
-     * object — never serialized. Contract for consumers: UPSERT by workflow
-     * ID ("current pending request"), never append — replay-by-rerun re-emits
-     * this on every re-suspension of the same run.
+     * Run segment ended with one or more active interrupt requests.
      */
-    public function suspended(InterruptRequest $request, string $workflowId): void;
+    public function suspended(WorkflowState $state): void;
 
     /** Run segment ended cleanly. */
     public function completed(WorkflowState $state, string $workflowId): void;

@@ -6,12 +6,12 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Resume\ResumeInputResult;
-use NeuronAI\Workflow\Suspension\Suspension;
 
 use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
 use function array_diff_key;
+use function array_values;
 use function is_int;
 use function is_string;
 use function serialize;
@@ -19,13 +19,8 @@ use function unserialize;
 
 class WorkflowState
 {
-    protected ?InterruptRequest $interrupt = null;
-
-    /** @var InterruptRequest[] */
-    protected array $interrupts = [];
-
-    /** @var Suspension[] */
-    protected array $suspensions = [];
+    /** @var array<int, InterruptRequest> */
+    protected array $interruptRequests = [];
 
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
@@ -41,30 +36,16 @@ class WorkflowState
      * callers of run()/events() can detect the pause without catching an
      * exception.
      */
-    public function markAsInterrupted(InterruptRequest $request): void
+    /** @param array<int, InterruptRequest> $requests */
+    public function markAsSuspended(array $requests): void
     {
-        $this->interrupt = $request;
-        $this->interrupts = [$request];
-        $this->status = WorkflowStatus::Suspended;
-    }
-
-    /**
-     * @param InterruptRequest[] $requests
-     * @param Suspension[] $suspensions
-     */
-    public function markAsSuspended(array $requests, array $suspensions): void
-    {
-        $this->interrupts = $requests;
-        $this->interrupt = $requests[0] ?? null;
-        $this->suspensions = $suspensions;
+        $this->interruptRequests = $requests;
         $this->status = WorkflowStatus::Suspended;
     }
 
     public function markAsRunning(): void
     {
-        $this->interrupt = null;
-        $this->interrupts = [];
-        $this->suspensions = [];
+        $this->interruptRequests = [];
         $this->status = WorkflowStatus::Running;
     }
 
@@ -74,9 +55,7 @@ class WorkflowState
      */
     public function clearInterrupt(): void
     {
-        $this->interrupt = null;
-        $this->interrupts = [];
-        $this->suspensions = [];
+        $this->interruptRequests = [];
         $this->status = WorkflowStatus::Completed;
     }
 
@@ -87,25 +66,15 @@ class WorkflowState
 
     public function getInterruptRequest(): ?InterruptRequest
     {
-        return $this->interrupt;
+        return $this->interruptRequests === []
+            ? null
+            : array_values($this->interruptRequests)[0];
     }
 
-    /** @return InterruptRequest[] */
+    /** @return array<int, InterruptRequest> */
     public function getInterruptRequests(): array
     {
-        return $this->interrupts;
-    }
-
-    /** @return Suspension[] */
-    public function getSuspensions(): array
-    {
-        return $this->suspensions;
-    }
-
-    /** @param Suspension[] $suspensions */
-    public function setSuspensions(array $suspensions): void
-    {
-        $this->suspensions = $suspensions;
+        return $this->interruptRequests;
     }
 
     /** @return ResumeInputResult[] */

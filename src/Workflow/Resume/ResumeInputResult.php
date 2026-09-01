@@ -9,16 +9,16 @@ use JsonSerializable;
 final class ResumeInputResult implements JsonSerializable
 {
     public function __construct(
-        public readonly int $suspensionId,
+        public readonly int $interruptId,
         public readonly ResumeInputStatus $status,
     ) {
     }
 
-    /** @return array{suspensionId: int, status: string} */
+    /** @return array{interruptId: int, status: string} */
     public function jsonSerialize(): array
     {
         return [
-            'suspensionId' => $this->suspensionId,
+            'interruptId' => $this->interruptId,
             'status' => $this->status->value,
         ];
     }

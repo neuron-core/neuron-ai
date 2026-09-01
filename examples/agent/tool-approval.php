@@ -125,8 +125,8 @@ while ($state->isInterrupted()) {
      */
     echo "\nResuming workflow...\n\n";
 
-    $suspensionId = $state->getSuspensions()[0]->id;
-    $state = $makeAgent()->resume([ResumeInput::event($suspensionId, $payload)]);
+    $interruptId = $state->getInterruptRequest()->getId();
+    $state = $makeAgent()->resume([ResumeInput::event($interruptId, $payload)]);
 }
 
 echo "Agent: " . $state->getMessage()->getContent() . "\n\n";

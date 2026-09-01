@@ -15,13 +15,10 @@ class StepResult
         protected ?Event $event = null,
         protected ?WorkflowState $state = null,
         /**
-         * Marker that this step is suspended waiting for a resume payload. Only the flag
-         * is persisted — the InterruptRequest itself is NOT stored (it is outbound-only
-         * and rebuilt by re-running the node on resume), so developer objects stuffed
-         * into a request are never serialized.
+         * The active interrupt associated with this incomplete step. The request
+         * itself lives in WorkflowControl; this marker connects replay to it.
          */
-        protected bool $interrupted = false,
-        protected ?int $suspensionId = null,
+        protected ?int $interruptId = null,
         /**
          * Failure marker for crash observability: ['message' => string, 'class' => string].
          * Null unless this step recorded an unhandled throwable.
@@ -65,8 +62,8 @@ class StepResult
     }
 
     /**
-     * The completed step's resulting state. Marker records carry none — see
-     * getEvent().
+     * The step's resulting state. Interrupted markers retain their state so
+     * an unaddressed interruption can be replayed without invoking its node.
      *
      * @throws WorkflowException
      */
@@ -81,12 +78,12 @@ class StepResult
 
     public function isInterrupted(): bool
     {
-        return $this->interrupted;
+        return $this->interruptId !== null;
     }
 
-    public function getSuspensionId(): ?int
+    public function getInterruptId(): ?int
     {
-        return $this->suspensionId;
+        return $this->interruptId;
     }
 
     /**
@@ -107,12 +104,11 @@ class StepResult
     public function __serialize(): array
     {
         return [
-            'version' => 5,
+            'version' => 6,
             'stepId' => $this->stepId,
             'event' => $this->event,
             'state' => $this->state,
-            'interrupted' => $this->interrupted,
-            'suspensionId' => $this->suspensionId,
+            'interruptId' => $this->interruptId,
             'error' => $this->error,
         ];
     }
@@ -122,8 +118,7 @@ class StepResult
         $this->stepId = $data['stepId'];
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
-        $this->interrupted = $data['interrupted'] ?? false;
-        $this->suspensionId = $data['suspensionId'] ?? null;
+        $this->interruptId = $data['interruptId'] ?? null;
         $this->error = $data['error'] ?? null;
     }
 }

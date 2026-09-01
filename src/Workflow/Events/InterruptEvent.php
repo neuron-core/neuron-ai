@@ -15,35 +15,22 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
  * final yielded event and marks the returned {@see \NeuronAI\Workflow\WorkflowState}
  * as interrupted, carrying the request outbound.
  *
- * Resume is driven by step replay: the interrupted step is persisted as an
- * interrupted StepResult and re-run with the user's resume request, so this
- * event carries only the request — no node/state/branch context, and no
- * durability detail like the interrupted step's id (that stays with the step
- * engine, which re-derives it during replay).
+ * The executor binds and persists each request before this event reaches the
+ * workflow boundary. A parallel event may therefore carry several active,
+ * self-identifying requests.
  */
 class InterruptEvent implements Event
 {
     /**
-     * @param self[] $interrupts
+     * @param list<InterruptRequest> $requests
      */
     public function __construct(
-        public readonly InterruptRequest $request,
-        public readonly ?int $suspensionId = null,
-        protected array $interrupts = [],
+        public readonly array $requests,
     ) {
     }
 
-    /** @param self[] $interrupts */
-    public static function aggregate(array $interrupts): self
+    public static function fromRequest(InterruptRequest $request): self
     {
-        $first = $interrupts[0];
-
-        return new self($first->request, $first->suspensionId, $interrupts);
-    }
-
-    /** @return self[] */
-    public function all(): array
-    {
-        return $this->interrupts === [] ? [$this] : $this->interrupts;
+        return new self([$request]);
     }
 }

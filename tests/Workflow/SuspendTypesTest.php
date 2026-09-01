@@ -8,8 +8,6 @@ use DateTimeImmutable;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
-use NeuronAI\Tests\Workflow\Stub\ObjectCarryingInterruptNode;
-use NeuronAI\Tests\Workflow\Stub\ObjectCarryingRequest;
 use NeuronAI\Tests\Workflow\Stub\SleepUntilNode;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventWithTimeoutNode;
@@ -101,7 +99,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function test_resume_kind_must_match_the_suspension_type(): void
+    public function test_resume_kind_must_match_the_interrupt_type(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make(workflowId: 'sleep-kind')
@@ -111,17 +109,15 @@ class SuspendTypesTest extends TestCase
         $workflow->run();
 
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
-        $this->expectExceptionMessage("incompatible with suspension 1");
+        $this->expectExceptionMessage("incompatible with interrupt 1");
 
         $workflow->resume([ResumeInput::event(1, [])]);
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void
     {
-        // FilePersistence forces real PHP serialize/unserialize of the interrupted
-        // StepResult across the pause/resume. Under fire-and-forget only the
-        // interrupted flag is persisted (the request is rebuilt by re-running the
-        // node), so serialization is trivially safe.
+        // FilePersistence forces real PHP serialization of the active request
+        // across the pause/resume boundary.
         $dir = sys_get_temp_dir() . '/neuron_test_wfe_serial';
         $persistence = new FilePersistence($dir);
         $token = 'wfe-serial';
@@ -200,8 +196,7 @@ class SuspendTypesTest extends TestCase
 
         $this->assertSame($expiresAt, $request->getExpiresAt());
 
-        // The deadline survives PHP serialize (FilePersistence) — but only as an
-        // outbound term; the request itself is not persisted across a suspend.
+        // The deadline survives PHP serialization with the request.
         $restored = unserialize(serialize($request));
         $this->assertSame($expiresAt->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
 
@@ -253,36 +248,6 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('timed_out'));
         $this->assertFalse($state->has('received_payload'));
         $this->assertTrue($state->get('node_three_executed'));
-    }
-
-    public function test_request_carrying_non_serializable_object_is_not_serialized(): void
-    {
-        // Fire-and-forget: the InterruptRequest is never persisted, so a developer can
-        // stuff a non-serializable object (here a closure) into a custom request without
-        // breaking FilePersistence's serialize across the pause. Under the old design —
-        // which persisted the request into the StepResult — this would have thrown.
-        $dir = sys_get_temp_dir() . '/neuron_test_object_carrying';
-        $persistence = new FilePersistence($dir);
-        $token = 'object-carrying';
-
-        try {
-            $workflow = Workflow::make(workflowId: $token)
-                ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
-            $state = $this->execute($workflow, $persistence);
-
-            $this->assertTrue($state->isInterrupted());
-            $this->assertInstanceOf(ObjectCarryingRequest::class, $state->getInterruptRequest());
-
-            $resumed = Workflow::make(workflowId: $token)
-                ->addNodes([new NodeOne(), new ObjectCarryingInterruptNode(), new NodeThree()]);
-            $state = $this->resume($resumed, $persistence, []);
-
-            $this->assertFalse($state->isInterrupted());
-            $this->assertTrue($state->get('resumed_with_object'));
-            $this->assertTrue($state->get('node_three_executed'));
-        } finally {
-            $this->removeDirectory($dir);
-        }
     }
 
     private function removeDirectory(string $dir): void

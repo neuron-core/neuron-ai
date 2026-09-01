@@ -32,21 +32,23 @@ $this->sleepUntil($wakeAt);
 $payload = $this->interrupt(new MyApprovalRequest(...));
 ```
 
-The rich `InterruptRequest` is transient presentation data returned by the
-current segment. It is not persisted and is not the platform wire protocol.
-Portable coordination uses the fixed `Suspension` descriptor returned on
-`WorkflowState::getSuspensions()`:
+`InterruptRequest` is the canonical, portable description of the pause. The
+executor assigns its ID, persists it, and returns the same ID-bound value to
+the caller. Request subclasses may add portable presentation metadata but must
+remain serializable:
 
 ```php
 $state = $workflow->run();
 
-foreach ($state->getSuspensions() as $suspension) {
-    // id, type, eventName/expiresAt or wakeAt
+foreach ($state->getInterruptRequests() as $request) {
+    // getId(), type(), plus request-specific coordination and metadata
 }
 ```
 
-Every suspension receives a positive, run-scoped, monotonically increasing ID.
-Parallel branches may expose multiple active suspensions at once.
+Every interrupt receives a positive, run-scoped, monotonically increasing ID.
+Parallel branches may expose multiple active interrupts at once. A partial
+resume executes only addressed interrupted nodes; unaddressed requests are
+returned directly from persistence without rerunning their nodes.
 
 Resume uses addressed, typed inputs:
 
@@ -108,7 +110,7 @@ A platform SDK is an invocation gateway:
 2. configure persistence, serializer, lease, and completion retention;
 3. call `run()` to ignite or `resume()` to continue;
 4. inspect the returned status, run ID, input dispositions, and complete active
-   suspension set;
+   interrupt set;
 5. durably reconcile the platform's timers, subscriptions, and jobs.
 
 This makes HTTP round trips, queue workers, CLI loops, and other infrastructures
@@ -117,7 +119,7 @@ and factory identity do not enter Workflow persistence.
 
 `WorkflowState::getWorkflowId()`, `getRunId()`, and `getExecutionAttempt()` expose
 portable ownership identity. `getStatus()`, `getInputResults()`, and
-`getSuspensions()` expose the lifecycle result.
+`getInterruptRequests()` expose the lifecycle result.
 
 Reconstruction is explicitly the application/platform SDK factory's
 responsibility. Ignition context may restore small domain identity, but it is not
@@ -135,7 +137,7 @@ All records for a Workflow ID stay in one persistence partition:
 | `<runId>/<stepId>::<memo>` | durable memo result |
 
 `__control` contains the current run ID, status, monotonic execution attempt,
-optional lease deadline, next suspension ID, active suspensions, and—only when
+optional lease deadline, next interrupt ID, active interrupts, and—only when
 enabled—the retained completed state.
 
 Every runtime mutation uses one of the explicit atomic persistence operations:

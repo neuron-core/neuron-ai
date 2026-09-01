@@ -64,7 +64,7 @@ $workflow = Workflow::make(workflowId: $workflowId)
 $payload = ['action_id' => 'approve'];
 
 $finalState = $workflow->resume([
-    ResumeInput::event($state->getSuspensions()[0]->id, $payload),
+    ResumeInput::event($state->getInterruptRequest()->getId(), $payload),
 ]);
 
 // It should print "completed"

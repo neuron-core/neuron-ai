@@ -19,7 +19,6 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Channel\CallbackChannel;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -53,7 +52,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame(['chunk-1', 'chunk-2', 'chunk-3'], $payloads);
         $this->assertCount(1, $channel->completions);
         $this->assertSame($workflow->getWorkflowId(), $channel->completions[0]['workflowId']);
-        $this->assertSame([], $channel->suspensions);
+        $this->assertSame([], $channel->suspendedStates);
         $this->assertSame([], $channel->failures);
     }
 
@@ -105,7 +104,7 @@ class ChannelForwardingTest extends TestCase
     // Phase 2 — terminals
     // ------------------------------------------------------------------
 
-    public function test_suspension_delivers_the_live_request_instance_and_run_id(): void
+    public function test_suspension_delivers_one_state_with_the_active_request(): void
     {
         $request = new ApprovalRequest('needs a human');
         $channel = new FakeChannel();
@@ -122,10 +121,12 @@ class ChannelForwardingTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
 
-        // The channel receives the SAME live request object the node created…
-        $this->assertCount(1, $channel->suspensions);
-        $this->assertSame($request, $channel->suspensions[0]['request']);
-        $this->assertSame($workflow->getWorkflowId(), $channel->suspensions[0]['workflowId']);
+        // The channel receives one state-level snapshot with the ID-bound request.
+        $this->assertCount(1, $channel->suspendedStates);
+        $delivered = $channel->suspendedStates[0];
+        $this->assertSame($workflow->getWorkflowId(), $delivered->getWorkflowId());
+        $this->assertSame('needs a human', $delivered->getInterruptRequest()->getMessage());
+        $this->assertSame(1, $delivered->getInterruptRequest()->getId());
 
         // …and never the InterruptEvent — nor does a suspended segment complete.
         $this->assertSame([], $channel->sent);
@@ -135,7 +136,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertInstanceOf(InterruptEvent::class, $pulled[count($pulled) - 1]);
     }
 
-    public function test_re_suspension_fires_suspended_again_for_upsert_by_run_id(): void
+    public function test_re_interruption_delivers_a_new_state_snapshot(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -143,21 +144,24 @@ class ChannelForwardingTest extends TestCase
             ->setChannel($channel);
 
         $workflow->run();
-        // An incomplete payload re-suspends: consumers upsert by runId, never append.
+        // An incomplete payload interrupts again with a new active request.
         $workflow->resume([ResumeInput::event(1, ['partial' => true])]);
 
-        $this->assertCount(2, $channel->suspensions);
-        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspensions[0]['request']);
-        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspensions[1]['request']);
-        $this->assertSame('stage one', $channel->suspensions[0]['request']->getMessage());
-        $this->assertSame('stage two', $channel->suspensions[1]['request']->getMessage());
-        $this->assertSame($channel->suspensions[0]['workflowId'], $channel->suspensions[1]['workflowId']);
+        $this->assertCount(2, $channel->suspendedStates);
+        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[0]->getInterruptRequest());
+        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[1]->getInterruptRequest());
+        $this->assertSame('stage one', $channel->suspendedStates[0]->getInterruptRequest()->getMessage());
+        $this->assertSame('stage two', $channel->suspendedStates[1]->getInterruptRequest()->getMessage());
+        $this->assertSame(
+            $channel->suspendedStates[0]->getWorkflowId(),
+            $channel->suspendedStates[1]->getWorkflowId(),
+        );
         $this->assertCount(0, $channel->completions);
 
         $state = $workflow->resume([ResumeInput::event(2, ['complete' => true])]);
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertCount(2, $channel->suspensions);
+        $this->assertCount(2, $channel->suspendedStates);
         $this->assertCount(1, $channel->completions);
         $this->assertSame($workflow->getWorkflowId(), $channel->completions[0]['workflowId']);
         $this->assertSame($state, $channel->completions[0]['state']);
@@ -185,7 +189,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame($caught, $channel->failures[0]['exception']);
         $this->assertSame($workflow->getWorkflowId(), $channel->failures[0]['workflowId']);
         $this->assertSame([], $channel->completions);
-        $this->assertSame([], $channel->suspensions);
+        $this->assertSame([], $channel->suspendedStates);
     }
 
     public function test_resume_segment_receives_only_post_resume_items(): void
@@ -200,7 +204,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertCount(1, $firstSegment->sent);
         $this->assertInstanceOf(ChunkEvent::class, $firstSegment->sent[0]);
         $this->assertSame('pre', $firstSegment->sent[0]->payload);
-        $this->assertCount(1, $firstSegment->suspensions);
+        $this->assertCount(1, $firstSegment->suspendedStates);
 
         // Crash-replayed / cached steps yield nothing, so the resume segment's
         // channel never re-broadcasts the pre-suspension stream.
@@ -213,7 +217,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertInstanceOf(ChunkEvent::class, $resumeSegment->sent[0]);
         $this->assertSame('post', $resumeSegment->sent[0]->payload);
         $this->assertCount(1, $resumeSegment->completions);
-        $this->assertSame([], $resumeSegment->suspensions);
+        $this->assertSame([], $resumeSegment->suspendedStates);
     }
 
     public function test_terminal_failure_is_caught_and_reported_never_thrown(): void

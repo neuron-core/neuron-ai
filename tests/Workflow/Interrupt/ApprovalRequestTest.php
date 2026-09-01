@@ -61,6 +61,8 @@ class ApprovalRequestTest extends TestCase
         $serialized = (new ApprovalRequest('Test message', $actions))->jsonSerialize();
 
         $this->assertSame('Test message', $serialized['message']);
+        $this->assertSame('wait_for_event', $serialized['type']);
+        $this->assertSame('approval', $serialized['eventName']);
         // actions is a nested array (no double-encoding to a JSON string)
         $this->assertIsArray($serialized['actions']);
         $this->assertCount(2, $serialized['actions']);

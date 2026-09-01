@@ -1,9 +1,9 @@
-# Upgrade: typed, suspension-addressed Workflow resume
+# Upgrade: typed, interrupt-addressed Workflow resume
 
 ## Summary
 
 Workflow resume is changing from a nullable payload plus positional flags to a
-typed, suspension-addressed input API. This is an intentional breaking change;
+typed, interrupt-addressed input API. This is an intentional breaking change;
 the old signature is removed without a compatibility shim.
 
 Before:
@@ -27,10 +27,10 @@ resume(
 ): WorkflowState
 ```
 
-The new contract makes suspension addressing mandatory without exposing run
+The new contract makes interrupt addressing mandatory without exposing run
 generation identity during ordinary manual continuation:
 
-- Every input identifies the active suspension it intends to resolve.
+- Every input identifies the active interrupt request it intends to resolve.
 - An empty input batch continues without delivering an external answer.
 - `expectedRunId`, when supplied, fences the whole delivery against the active
   run generation.
@@ -44,7 +44,7 @@ is currently active under the Workflow ID. Core obtains that run from `__control
 
 ```php
 $state = $workflow->resume([
-    ResumeInput::event($suspensionId, ['approved' => true]),
+    ResumeInput::event($interruptId, ['approved' => true]),
 ]);
 ```
 
@@ -57,7 +57,7 @@ delivered by an external platform:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::event($suspensionId, ['approved' => true])],
+    [ResumeInput::event($interruptId, ['approved' => true])],
     expectedRunId: $runId,
 );
 ```
@@ -86,7 +86,7 @@ After:
 use NeuronAI\Workflow\Resume\ResumeInput;
 
 $state = $workflow->resume(
-    [ResumeInput::event($suspensionId, ['approved' => true])],
+    [ResumeInput::event($interruptId, ['approved' => true])],
 );
 ```
 
@@ -97,7 +97,7 @@ An explicitly empty event payload remains valid:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::event($suspensionId, [])],
+    [ResumeInput::event($interruptId, [])],
 );
 ```
 
@@ -116,7 +116,7 @@ After:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::expired($suspensionId)],
+    [ResumeInput::expired($interruptId)],
     expectedRunId: $runId,
 );
 ```
@@ -125,17 +125,17 @@ After — fired sleep timer:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::timer($suspensionId)],
+    [ResumeInput::timer($interruptId)],
     expectedRunId: $runId,
 );
 ```
 
-`event` and `expired` can target only a `wait_for_event` suspension. `expired`
-also requires that the suspension has an expiry. `timer` can target only a
-`sleep_until` suspension. The Workflow core validates these combinations before
+`event` and `expired` can target only a `wait_for_event` request. `expired`
+also requires that the request has an expiry. `timer` can target only a
+`sleep_until` request. The Workflow core validates these combinations before
 delivering anything to a node.
 
-## Resume multiple suspensions in one segment
+## Resume multiple interrupts in one segment
 
 Pass all currently available answers in the same call. This supports parallel
 branches without making the caller choose an execution order:
@@ -143,17 +143,17 @@ branches without making the caller choose an execution order:
 ```php
 $state = $workflow->resume(
     [
-        ResumeInput::event($approvalSuspensionId, ['approved' => true]),
-        ResumeInput::event($documentSuspensionId, ['documentId' => 'doc-7']),
-        ResumeInput::timer($delaySuspensionId),
+        ResumeInput::event($approvalInterruptId, ['approved' => true]),
+        ResumeInput::event($documentInterruptId, ['documentId' => 'doc-7']),
+        ResumeInput::timer($delayInterruptId),
     ],
     expectedRunId: $runId,
 );
 ```
 
-Each suspension ID may appear only once in a batch. A matching run may partially
-accept a batch: inputs for active suspensions execute, while already-settled or
-unknown suspension IDs are reported as stale. A stale `runId` rejects the entire
+Each interrupt ID may appear only once in a batch. A matching run may partially
+accept a batch: inputs for active interrupts execute, while already-settled or
+unknown interrupt IDs are reported as stale. A stale `runId` rejects the entire
 batch before any node executes.
 
 ## Use inputless resume for replay
@@ -165,9 +165,9 @@ $workflow->resume();
 ```
 
 It continues the current run without inventing an external input. Do not
-manufacture a `ResumeInput` or reuse a suspension ID for crash replay. A real
+manufacture a `ResumeInput` or reuse an interrupt ID for crash replay. A real
 empty event payload remains an addressed input such as
-`ResumeInput::event($suspensionId, [])`.
+`ResumeInput::event($interruptId, [])`.
 
 ```php
 $state = $workflow->resume();
@@ -233,7 +233,7 @@ $workflow = $factory->make($fnId, $workflowId)
 
 $state = $workflow->resume($inputs, expectedRunId: $runId);
 
-// The SDK/platform durably reconciles $state->getSuspensions() here.
+// The SDK/platform durably reconciles $state->getInterruptRequests() here.
 ```
 
 The factory owns reconstruction and dependency injection. Workflow persistence
@@ -276,16 +276,16 @@ Workflow core.
   "runId": "run-abc",
   "inputs": [
     {
-      "suspensionId": 4,
+      "interruptId": 4,
       "kind": "event",
       "payload": {"approved": true}
     },
     {
-      "suspensionId": 5,
+      "interruptId": 5,
       "kind": "expired"
     },
     {
-      "suspensionId": 6,
+      "interruptId": 6,
       "kind": "timer"
     }
   ]
@@ -296,7 +296,7 @@ Wire rules:
 
 - `type` is `wake`.
 - `workflowId`, `runId`, and a non-empty `inputs` list are required.
-- `suspensionId` is a positive, run-scoped integer and is unique in the batch.
+- `interruptId` is a positive, run-scoped integer and is unique in the batch.
 - `kind` is exactly `event`, `expired`, or `timer`.
 - `event` requires a JSON object `payload`; `{}` is valid and `null` is invalid.
 - `expired` and `timer` omit `payload`.
@@ -310,11 +310,11 @@ Constructor mapping:
 
 | Wire entry | Core value |
 |---|---|
-| `{"suspensionId": 4, "kind": "event", "payload": {...}}` | `ResumeInput::event(4, [...])` |
-| `{"suspensionId": 5, "kind": "expired"}` | `ResumeInput::expired(5)` |
-| `{"suspensionId": 6, "kind": "timer"}` | `ResumeInput::timer(6)` |
+| `{"interruptId": 4, "kind": "event", "payload": {...}}` | `ResumeInput::event(4, [...])` |
+| `{"interruptId": 5, "kind": "expired"}` | `ResumeInput::expired(5)` |
+| `{"interruptId": 6, "kind": "timer"}` | `ResumeInput::timer(6)` |
 
-The response contains the complete current suspension set so the platform can
+The response contains the complete current interrupt request set so the platform can
 reconcile its registrations after duplicate delivery or a lost response:
 
 ```json
@@ -324,12 +324,12 @@ reconcile its registrations after duplicate delivery or a lost response:
   "executionAttempt": 3,
   "status": "suspended",
   "inputResults": [
-    {"suspensionId": 4, "status": "accepted"},
-    {"suspensionId": 3, "status": "stale"}
+    {"interruptId": 4, "status": "accepted"},
+    {"interruptId": 3, "status": "stale"}
   ],
-  "suspensions": [
+  "interrupts": [
     {
-      "suspensionId": 7,
+      "interruptId": 7,
       "type": "wait_for_event",
       "eventName": "payment.received",
       "expiresAt": "2026-09-01T12:00:00+00:00"
@@ -338,7 +338,7 @@ reconcile its registrations after duplicate delivery or a lost response:
 }
 ```
 
-A completed response uses `"status": "completed"` and an empty `suspensions`
+A completed response uses `"status": "completed"` and an empty `interrupts`
 list. Transport-specific HTTP status codes and platform delivery metadata remain
 outside the Workflow protocol.
 
@@ -364,14 +364,14 @@ Search application code, packages, and tests for:
 
 - [ ] Every delayed, queued, or platform resume supplies the expected run ID.
 - [ ] Direct manual resumes omit it only when "current active run" is intended.
-- [ ] Every external input supplies the suspension ID it resolves.
+- [ ] Every external input supplies the interrupt ID it resolves.
 - [ ] Event, expiry, and timer delivery use the matching named constructor.
-- [ ] Multiple inputs for one segment contain no duplicate suspension IDs.
+- [ ] Multiple inputs for one segment contain no duplicate interrupt IDs.
 - [ ] No old `$timedOut` or nullable-payload resume calls remain.
-- [ ] Crash recovery uses the explicit recovery operation, not `resume()`.
+- [ ] Crash recovery uses inputless `resume()`, without manufacturing an input.
 - [ ] The Cloud SDK validates the JSON discriminator before constructing core values.
 - [ ] A stale run rejects the whole batch without executing nodes.
-- [ ] A mixed active/stale suspension batch reports each input disposition.
+- [ ] A mixed active/stale interrupt batch reports each input disposition.
 - [ ] Platform factories call `retainCompletionUntilAcknowledged()` and acknowledge
       only after the completed outcome is durable outside Workflow.
 - [ ] Scheduler callbacks and injection have been removed from integration code.
