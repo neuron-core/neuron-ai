@@ -15,7 +15,9 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
+use function count;
 use function uniqid;
+use function usleep;
 
 class MongoDBTest extends TestCase
 {
@@ -34,6 +36,10 @@ class MongoDBTest extends TestCase
         $client = new Client('mongodb://127.0.0.1:27017');
 
         $this->collectionName = 'test_vectors_' . uniqid();
+
+        // Atlas auto-creates the collection on createSearchIndex; Atlas Local requires it to exist
+        $client->selectDatabase('neuron_test')->createCollection($this->collectionName);
+
         $this->store = new MongoDBVectorStore(
             client: $client,
             database: 'neuron_test',
@@ -42,12 +48,50 @@ class MongoDBTest extends TestCase
         );
 
         $this->store->setupVectorIndex(dimensions: 3);
+        $this->waitForVectorIndexQueryable($client);
 
         try {
-            $this->store->search(new SearchRequest([0, 0, 0]));
+            $this->store->search(new SearchRequest([0, 0, 1]));
         } catch (Exception $e) {
             $this->markTestSkipped($e->getMessage());
         }
+    }
+
+    protected function waitForVectorIndexQueryable(Client $client): void
+    {
+        $collection = $client->selectCollection('neuron_test', $this->collectionName);
+
+        for ($attempt = 0; $attempt < 60; $attempt++) {
+            foreach ($collection->listSearchIndexes() as $index) {
+                if ($index->queryable ?? false) {
+                    return;
+                }
+            }
+            usleep(500_000);
+        }
+
+        $this->markTestSkipped('MongoDB vector index did not become queryable in time.');
+    }
+
+    /**
+     * The search index is updated asynchronously, so poll until
+     * the expected number of documents becomes visible.
+     *
+     * @return Document[]
+     */
+    protected function searchUntilCount(SearchRequest $request, int $expectedCount): array
+    {
+        $results = [];
+
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $results = [...$this->store->search($request)];
+            if (count($results) === $expectedCount) {
+                break;
+            }
+            usleep(500_000);
+        }
+
+        return $results;
     }
 
     protected function tearDown(): void
@@ -70,7 +114,7 @@ class MongoDBTest extends TestCase
 
         $this->store->addDocument($document);
 
-        $results = $this->store->search(new SearchRequest([1, 0, 0]));
+        $results = $this->searchUntilCount(new SearchRequest([1, 0, 0]), 1);
 
         $this->assertCount(1, $results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
@@ -88,7 +132,7 @@ class MongoDBTest extends TestCase
 
         $this->store->addDocuments([$document1, $document2]);
 
-        $results = $this->store->search(new SearchRequest([1, 0, 0]));
+        $results = $this->searchUntilCount(new SearchRequest([1, 0, 0]), 2);
 
         $this->assertCount(2, $results);
         $this->assertEquals($document1->getContent(), $results[0]->getContent());
@@ -108,9 +152,11 @@ class MongoDBTest extends TestCase
         $document2->setEmbedding([0, 1, 0]);
 
         $this->store->addDocuments([$document, $document2]);
+        $this->searchUntilCount(new SearchRequest([1, 0, 0]), 2);
+
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'manual'), Filter::eq('sourceName', 'manual')));
 
-        $results = $this->store->search(new SearchRequest([1, 0, 0]));
+        $results = $this->searchUntilCount(new SearchRequest([1, 0, 0]), 0);
         $this->assertCount(0, $results);
     }
 
@@ -132,9 +178,11 @@ class MongoDBTest extends TestCase
         $document3->setEmbedding([0, 0, 1]);
 
         $this->store->addDocuments([$document1, $document2, $document3]);
+        $this->searchUntilCount(new SearchRequest([1, 0, 0]), 3);
+
         $this->store->delete(FilterGroup::and(Filter::eq('sourceType', 'web')));
 
-        $results = $this->store->search(new SearchRequest([1, 0, 0]));
+        $results = $this->searchUntilCount(new SearchRequest([1, 0, 0]), 1);
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
     }

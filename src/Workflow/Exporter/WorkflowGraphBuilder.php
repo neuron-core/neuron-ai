@@ -175,7 +175,7 @@ final class WorkflowGraphBuilder
             return $this->transitions[$event] = $node->describe();
         }
 
-        $method = new ReflectionClass($node)->getMethod('__invoke');
+        $method = (new ReflectionClass($node))->getMethod('__invoke');
         $returnType = $method->getReturnType();
         $types = $returnType instanceof ReflectionUnionType
             ? $returnType->getTypes()
@@ -230,6 +230,6 @@ final class WorkflowGraphBuilder
 
     protected function shortName(string $class): string
     {
-        return new ReflectionClass($class)->getShortName();
+        return (new ReflectionClass($class))->getShortName();
     }
 }

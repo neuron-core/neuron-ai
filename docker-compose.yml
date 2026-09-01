@@ -35,6 +35,8 @@ services:
         condition: service_healthy
       typesense:
         condition: service_healthy
+      mongodb:
+        condition: service_healthy
 
   qdrant:
     image: qdrant/qdrant:${QDRANT_VERSION:-v1.14.1}
@@ -147,6 +149,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+  mongodb:
+    # Atlas Local bundles the search engine (mongot) required by $vectorSearch
+    image: mongodb/mongodb-atlas-local:${MONGODB_VERSION:-8.0}
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: ["CMD-SHELL", "runner healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   composer-cache:
