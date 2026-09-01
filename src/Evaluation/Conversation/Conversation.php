@@ -161,8 +161,10 @@ class Conversation
     protected function resolveInterrupts(AgentState $state): void
     {
         while ($state->isInterrupted()) {
-            /** @var InterruptRequest $request */
             $request = $state->getInterruptRequest();
+            if (!$request instanceof InterruptRequest) {
+                throw new EvaluationException('The interrupted Agent exposed no interrupt request.');
+            }
 
             if (!$this->approvals instanceof Closure) {
                 throw new EvaluationException(
@@ -178,11 +180,6 @@ class Conversation
 
             if ($request instanceof ApprovalRequest) {
                 $this->assertCompleteDecisionSet($request, $payload);
-            }
-
-            $request = $state->getInterruptRequest();
-            if (!$request instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
-                throw new EvaluationException('The interrupted Agent exposed no interrupt request.');
             }
 
             $state = $this->agent->resume([

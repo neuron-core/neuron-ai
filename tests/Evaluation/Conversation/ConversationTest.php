@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Conversation;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentInterface;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -20,6 +22,7 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Resume\ResumeInput;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
@@ -227,6 +230,52 @@ class ConversationTest extends TestCase
         $this->assertSame(2, $policyCalls);
         $this->assertCount(2, $trajectory->toolCalls('search'));
         $this->assertSame('Both searches done.', $trajectory->finalAnswer());
+    }
+
+    public function test_multiple_active_interruptions_are_resolved_one_at_a_time(): void
+    {
+        $first = new AgentState();
+        $first->markAsSuspended([
+            1 => (new ApprovalRequest('first'))->withId(1),
+            2 => (new ApprovalRequest('second'))->withId(2),
+        ]);
+
+        $second = new AgentState();
+        $second->markAsSuspended([
+            2 => (new ApprovalRequest('second'))->withId(2),
+        ]);
+
+        $completed = new AgentState();
+        $completed->clearInterrupt();
+
+        $history = new InMemoryChatHistory();
+        $resumedInterrupts = [];
+
+        $agent = $this->createMock(AgentInterface::class);
+        $agent->method('getChatHistory')->willReturn($history);
+        $agent->expects($this->once())->method('chat')->willReturn($first);
+        $agent->expects($this->exactly(2))
+            ->method('resume')
+            ->willReturnCallback(function (array $inputs) use (&$resumedInterrupts, $second, $completed): AgentState {
+                $input = $inputs[0] ?? null;
+                $this->assertInstanceOf(ResumeInput::class, $input);
+                $resumedInterrupts[] = $input->interruptId;
+
+                return $input->interruptId === 1 ? $second : $completed;
+            });
+
+        $policyInterrupts = [];
+
+        Conversation::make($agent)
+            ->withTurns(['Approve both'])
+            ->withApprovals(function (InterruptRequest $request) use (&$policyInterrupts): array {
+                $policyInterrupts[] = $request->getId();
+                return [];
+            })
+            ->run();
+
+        $this->assertSame([1, 2], $policyInterrupts);
+        $this->assertSame([1, 2], $resumedInterrupts);
     }
 
     protected function makeSimulator(FakeAIProvider $provider): UserSimulator
