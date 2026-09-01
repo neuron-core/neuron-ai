@@ -10,13 +10,14 @@ use NeuronAI\Providers\Anthropic;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Resume\ResumeInput;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 // Create some example tools that we want to gate with approval
-class FileDeleteTool extends Tool
+final class FileDeleteTool extends Tool
 {
     protected string $name = 'delete_file';
 
@@ -32,7 +33,7 @@ class FileDeleteTool extends Tool
     // shown to the approver. Attach-time config (requireApproval(),
     // suppressApproval(), withApprovalPolicy()) overrides this declaration
     // in both directions.
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(array $inputs): string
     {
         return 'Deleting a file is irreversible';
     }
@@ -43,30 +44,44 @@ class FileDeleteTool extends Tool
     }
 }
 
-echo "=== Agent Middleware: Tool Approval Example ===\n";
+echo "=== Agent Tool Approval Example ===\n";
 echo "-------------------------------------------------------------------\n\n";
+
+$apiKey = \getenv('ANTHROPIC_API_KEY');
+if (!\is_string($apiKey) || $apiKey === '') {
+    throw new \RuntimeException('Set ANTHROPIC_API_KEY before running this example.');
+}
+
+$storage = \sys_get_temp_dir() . \DIRECTORY_SEPARATOR . 'neuron-agent-tool-approval';
+$threadId = 'tool-approval-demo-' . \bin2hex(\random_bytes(4));
 
 /*
  * The agent is rebuilt on every execution cycle from the only identity the
  * application owns: the chat thread. The thread IS the workflow ID of the run —
  * the engine binds threadId → runId in workflow persistence when the run
- * ignites, so a blank agent holding only the thread finds the suspended run.
- * No runId is stored anywhere by the application. The durable chat history
- * carries the suspension's conversation side (pending tools, decisions).
+ * ignites. Durable chat history carries the pending tool-call context; the
+ * active InterruptRequest and its run fence come from the suspended state.
  */
-$makeAgent = fn (): Agent => Agent::make()
-    ->setPersistence(new FilePersistence(__DIR__))
-    ->setChatHistory(new FileChatHistory(__DIR__, 'tool-approval-demo'))
-    ->setAiProvider(
+$makeAgent = function () use ($storage, $threadId, $apiKey): Agent {
+    $agent = Agent::make();
+    $agent->setPersistence(new FilePersistence($storage . \DIRECTORY_SEPARATOR . 'workflow'));
+    $agent->setChatHistory(new FileChatHistory(
+        $storage . \DIRECTORY_SEPARATOR . 'chat',
+        $threadId,
+    ));
+    $agent->setAiProvider(
         new Anthropic\Anthropic(
-            '',
+            $apiKey,
             'claude-3-7-sonnet-latest'
         )
-    )
-    ->setInstructions(
+    );
+    $agent->setInstructions(
         'You are a helpful assistant with access to file and command tools. Be concise.'
-    )
-    ->addTool(new FileDeleteTool());
+    );
+    $agent->addTool(new FileDeleteTool());
+
+    return $agent;
+};
 
 $agent = $makeAgent();
 
@@ -84,8 +99,12 @@ while ($state->isInterrupted()) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
     $approvalRequest = $state->getInterruptRequest();
+    $runId = $state->getRunId();
+    if (!$approvalRequest instanceof ApprovalRequest || $runId === null) {
+        throw new \RuntimeException('The Agent did not expose the expected approval interruption.');
+    }
 
-    // The suspension is recorded in chat history as conversation: the annotated
+    // The pending call is recorded in chat history as conversation: the annotated
     // tool call message carries the pending approval states, which is what lets
     // a cold process RENDER the pending approvals without booting a workflow.
     $tail = $agent->getChatHistory()->getLastMessage();
@@ -118,15 +137,19 @@ while ($state->isInterrupted()) {
     }
 
     /*
-     * Imagine a new execution cycle starts here (e.g. the approve/deny HTTP
-     * endpoint): rebuild the agent from the thread alone — NO runId — and
-     * deliver the payload. The thread IS the run's workflow ID, so the engine
-     * finds the suspended run there. Nothing else to store, nothing else to pass.
+     * Imagine a new execution cycle starts here, such as an approve/deny HTTP
+     * endpoint. The endpoint receives the thread ID, interrupt ID, run ID, and
+     * decision captured from the suspended outcome. The thread locates the
+     * workflow partition; the run ID prevents a delayed decision from reaching
+     * a newer generation.
      */
     echo "\nResuming workflow...\n\n";
 
-    $interruptId = $state->getInterruptRequest()->getId();
-    $state = $makeAgent()->resume([ResumeInput::event($interruptId, $payload)]);
+    $agent = $makeAgent();
+    $state = $agent->resume(
+        [ResumeInput::event($approvalRequest->getId(), $payload)],
+        expectedRunId: $runId,
+    );
 }
 
 echo "Agent: " . $state->getMessage()->getContent() . "\n\n";
@@ -135,12 +158,10 @@ echo "Agent: " . $state->getMessage()->getContent() . "\n\n";
 function promptUserForApproval(): bool
 {
     // In a real application, this would prompt the user via CLI, web UI, etc.
-    // For this example, we'll automatically approve for demonstration
+    // For this example, automatically approve for deterministic output.
     echo "\n[Simulating user decision...]\n\n";
-    \sleep(1);
 
-    // Randomly approve or deny for demonstration
-    return (bool) \rand(0, 1);
+    return true;
 }
 
 echo "\n\n=== Example Complete ===\n";
