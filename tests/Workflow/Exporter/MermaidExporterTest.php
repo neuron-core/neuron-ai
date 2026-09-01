@@ -146,7 +146,7 @@ class MermaidExporterTest extends TestCase
             'Second\\DuplicateEvent',
         ));
 
-        $output = new MermaidExporter()->export($graph);
+        $output = (new MermaidExporter())->export($graph);
 
         $this->assertStringContainsString('event_one["DuplicateEvent"]', $output);
         $this->assertStringContainsString('event_two["DuplicateEvent"]', $output);
