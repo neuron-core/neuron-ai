@@ -4,73 +4,42 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Exporter;
 
-use NeuronAI\Workflow\NodeInterface;
-use ReflectionClass;
-use ReflectionException;
-use ReflectionNamedType;
-use ReflectionUnionType;
-
-use function in_array;
+use function str_replace;
 
 class MermaidExporter implements ExporterInterface
 {
-    /**
-     * @param array<string, NodeInterface> $eventNodeMap
-     * @throws ReflectionException
-     */
-    public function export(array $eventNodeMap): string
+    public function export(WorkflowGraph $graph): string
     {
         $output = "graph TD\n";
-        $processedConnections = [];
 
-        foreach ($eventNodeMap as $eventClass => $node) {
-            $eventName = $this->getShortClassName($eventClass);
-            $nodeName = $this->getShortClassName($node::class);
+        foreach ($graph->getVertices() as $vertex) {
+            $output .= '    ' . $this->renderVertex($vertex) . "\n";
+        }
 
-            // Add connection from event to node
-            $connection = "{$eventName} --> {$nodeName}";
-            if (!in_array($connection, $processedConnections)) {
-                $output .= "    {$connection}\n";
-                $processedConnections[] = $connection;
-            }
-
-            // Try to determine what event this node produces by looking at return type
-            $reflection = new ReflectionClass($node);
-            $runMethod = $reflection->getMethod('__invoke');
-            $returnType = $runMethod->getReturnType();
-
-            if ($returnType) {
-                $returnEventClasses = [];
-
-                if ($returnType instanceof ReflectionNamedType && !$returnType->isBuiltin()) {
-                    $returnEventClasses[] = $returnType->getName();
-                } elseif ($returnType instanceof ReflectionUnionType) {
-                    foreach ($returnType->getTypes() as $type) {
-                        if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                            $returnEventClasses[] = $type->getName();
-                        }
-                    }
-                }
-
-                foreach ($returnEventClasses as $returnEventClass) {
-                    $returnEventName = $this->getShortClassName($returnEventClass);
-
-                    // Add connection from node to produced event
-                    $connection = "{$nodeName} --> {$returnEventName}";
-                    if (!in_array($connection, $processedConnections)) {
-                        $output .= "    {$connection}\n";
-                        $processedConnections[] = $connection;
-                    }
-                }
-            }
+        foreach ($graph->getEdges() as $edge) {
+            $label = $edge->label === null
+                ? '-->'
+                : '-->|"' . $this->escape($edge->label) . '"|';
+            $output .= "    {$edge->from} {$label} {$edge->to}\n";
         }
 
         return $output;
     }
 
-    private function getShortClassName(string $class): string
+    protected function renderVertex(WorkflowGraphVertex $vertex): string
     {
-        $reflection = new ReflectionClass($class);
-        return $reflection->getShortName();
+        $label = $this->escape($vertex->label);
+
+        return match ($vertex->type) {
+            WorkflowGraphVertexType::Event => "{$vertex->id}[\"{$label}\"]",
+            WorkflowGraphVertexType::Node => "{$vertex->id}[[\"{$label}\"]]",
+            WorkflowGraphVertexType::ParallelSplit,
+            WorkflowGraphVertexType::ParallelJoin => "{$vertex->id}{\"{$label}\"}",
+        };
+    }
+
+    protected function escape(string $value): string
+    {
+        return str_replace(['&', '"'], ['&amp;', '&quot;'], $value);
     }
 }

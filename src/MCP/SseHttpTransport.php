@@ -67,15 +67,16 @@ class SseHttpTransport implements McpTransportInterface
     /**
      * @param array<string, mixed> $config
      */
-    public function __construct(protected array $config)
-    {
-        $this->httpClient = new CurlHttpClient(
-            timeout: (float) ($config['timeout'] ?? 30),
+    public function __construct(
+        protected array $config,
+        ?HttpClientInterface $httpClient = null,
+    ) {
+        $this->httpClient = ($httpClient ?? new CurlHttpClient(
             curlOptions: ($config['verify'] ?? true) ? [] : [
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_SSL_VERIFYHOST => 0,
             ],
-        );
+        ))->withTimeout((float) ($config['timeout'] ?? 30));
     }
 
     /**

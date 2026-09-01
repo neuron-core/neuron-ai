@@ -62,6 +62,7 @@ class MyAgent extends Agent
 ### Remote MCP Server
 
 ```php
+use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\MCP\McpConnector;
 
 protected function tools(): array
@@ -72,10 +73,13 @@ protected function tools(): array
             'url' => 'https://mcp.example.com',
             'token' => env('MCP_BEARER_TOKEN'),
             'timeout' => 30,
-        ])->tools(),
+        ], httpClient: new GuzzleHttpClient())->tools(),
     ];
 }
 ```
+
+The optional `httpClient` argument accepts any `HttpClientInterface` implementation. If omitted,
+MCP HTTP transports use `CurlHttpClient`.
 
 ### SSE Transport (Async)
 

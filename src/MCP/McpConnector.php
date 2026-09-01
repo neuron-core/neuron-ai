@@ -6,6 +6,7 @@ namespace NeuronAI\MCP;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -44,8 +45,10 @@ class McpConnector
     /**
      * @param array<string, mixed> $config
      */
-    public function __construct(protected array $config)
-    {
+    public function __construct(
+        protected array $config,
+        protected ?HttpClientInterface $httpClient = null,
+    ) {
     }
 
     /**
@@ -53,7 +56,7 @@ class McpConnector
      */
     protected function client(): McpClient
     {
-        return $this->client ??= new McpClient($this->config);
+        return $this->client ??= new McpClient($this->config, $this->httpClient);
     }
 
     public function __serialize(): array
@@ -70,6 +73,7 @@ class McpConnector
         $this->config = $data['config'];
         $this->only = $data['only'];
         $this->exclude = $data['exclude'];
+        $this->httpClient = null;
     }
 
     /**

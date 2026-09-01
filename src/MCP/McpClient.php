@@ -6,6 +6,7 @@ namespace NeuronAI\MCP;
 
 use Exception;
 use JsonException;
+use NeuronAI\HttpClient\HttpClientInterface;
 use stdClass;
 
 use function array_filter;
@@ -26,7 +27,7 @@ class McpClient
      * @throws McpException
      * @throws JsonException
      */
-    public function __construct(array $config)
+    public function __construct(array $config, ?HttpClientInterface $httpClient = null)
     {
         if (isset($config['transport']) && $config['transport'] instanceof McpTransportInterface) {
             $this->transport = $config['transport'];
@@ -35,8 +36,8 @@ class McpClient
         } elseif (isset($config['url'])) {
             $isAsync = $config['async'] ?? false;
             $this->transport = $isAsync
-                ? new SseHttpTransport($config)
-                : new StreamableHttpTransport($config);
+                ? new SseHttpTransport($config, $httpClient)
+                : new StreamableHttpTransport($config, $httpClient);
         } else {
             throw new McpException('Transport not supported! Provide either "command" for StdioTransport, "url" for StreamableHttpTransport/SseHttpTransport, or a custom "transport" instance.');
         }

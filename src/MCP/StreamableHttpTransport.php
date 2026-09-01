@@ -33,16 +33,17 @@ class StreamableHttpTransport implements McpTransportInterface
     /**
      * @param array<string, mixed> $config
      */
-    public function __construct(protected array $config)
-    {
-        $this->httpClient = new CurlHttpClient(
-            customHeaders: [
+    public function __construct(
+        protected array $config,
+        ?HttpClientInterface $httpClient = null,
+    ) {
+        $this->httpClient = ($httpClient ?? new CurlHttpClient())
+            ->withHeaders([
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
                 'User-Agent' => 'neuron-ai/1.0.0',
-            ],
-            timeout: (float) ($config['timeout'] ?? 30),
-        );
+            ])
+            ->withTimeout((float) ($config['timeout'] ?? 30));
     }
 
     /**

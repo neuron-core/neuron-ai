@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\MCP;
 
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\McpClient;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\MCP\McpTool;
@@ -13,6 +16,7 @@ use ReflectionClass;
 
 use function serialize;
 use function unserialize;
+use function count;
 
 class McpConnectorTest extends TestCase
 {
@@ -58,6 +62,47 @@ class McpConnectorTest extends TestCase
         $result = $this->connector->only(['tool1', 'tool2']);
 
         $this->assertSame($this->connector, $result);
+    }
+
+    public function test_custom_http_client_is_used_for_http_transport(): void
+    {
+        $requests = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
+            ->method('withHeaders')
+            ->with([
+                'Accept' => 'application/json, text/event-stream',
+                'Content-Type' => 'application/json',
+                'User-Agent' => 'neuron-ai/1.0.0',
+            ])
+            ->willReturnSelf();
+        $httpClient->expects($this->once())
+            ->method('withTimeout')
+            ->with(15.0)
+            ->willReturnSelf();
+        $httpClient->expects($this->exactly(3))
+            ->method('request')
+            ->willReturnCallback(function (HttpRequest $request) use (&$requests): HttpResponse {
+                $requests[] = $request;
+                return match (count($requests)) {
+                    1 => new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":[]}'),
+                    2 => new HttpResponse(202, ''),
+                    default => new HttpResponse(200, '{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}'),
+                };
+            });
+
+        $connector = new McpConnector(
+            config: [
+                'url' => 'https://example.com/mcp',
+                'timeout' => 15,
+            ],
+            httpClient: $httpClient,
+        );
+
+        $this->assertSame([], $connector->tools());
+        $this->assertCount(3, $requests);
+        $this->assertSame('https://example.com/mcp', $requests[0]->uri);
     }
 
     public function test_mcp_tools_are_serializable(): void

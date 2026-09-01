@@ -4,196 +4,214 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Exporter;
 
-use NeuronAI\Tests\Workflow\Stub\FirstEvent;
-use NeuronAI\Tests\Workflow\Stub\SecondEvent;
-use NeuronAI\Workflow\Exporter\MermaidExporter;
-use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Workflow;
-use PHPUnit\Framework\TestCase;
+use Generator;
+use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
 use NeuronAI\Tests\Workflow\Stub\ConditionalNode;
 use NeuronAI\Tests\Workflow\Stub\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stub\NodeForThird;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Exporter\MermaidExporter;
+use NeuronAI\Workflow\Exporter\WorkflowGraph;
+use NeuronAI\Workflow\Exporter\WorkflowGraphVertex;
+use NeuronAI\Workflow\Exporter\WorkflowGraphVertexType;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\TestCase;
 
 use function array_filter;
 use function array_unique;
 use function count;
 use function explode;
-use function implode;
-use function str_contains;
+use function preg_match;
+use function preg_quote;
+use function substr_count;
 use function trim;
 
 class MermaidExporterTest extends TestCase
 {
     public function test_basic_mermaid_export(): void
     {
-        $workflow = Workflow::make()
+        $output = Workflow::make()
             ->addNodes([
-                StartEvent::class => new NodeOne(),
-                FirstEvent::class => new NodeTwo(),
-                SecondEvent::class => new NodeThree(),
+                new NodeOne(),
+                new NodeTwo(),
+                new NodeThree(),
             ])
-            ->setExporter(new MermaidExporter());
+            ->setExporter(new MermaidExporter())
+            ->export();
 
-        $mermaidOutput = $workflow->export();
-
-        // Verify Mermaid format header
-        $this->assertStringStartsWith('graph TD', $mermaidOutput);
-
-        // Verify event to node connections
-        $this->assertStringContainsString('StartEvent --> NodeOne', $mermaidOutput);
-        $this->assertStringContainsString('FirstEvent --> NodeTwo', $mermaidOutput);
-        $this->assertStringContainsString('SecondEvent --> NodeThree', $mermaidOutput);
-
-        // Verify node to event connections (return types)
-        $this->assertStringContainsString('NodeOne --> FirstEvent', $mermaidOutput);
-        $this->assertStringContainsString('NodeTwo --> SecondEvent', $mermaidOutput);
-        $this->assertStringContainsString('NodeThree --> StopEvent', $mermaidOutput);
+        $this->assertStringStartsWith('graph TD', $output);
+        $this->assertEdge($output, 'StartEvent', 'NodeOne');
+        $this->assertEdge($output, 'NodeOne', 'FirstEvent');
+        $this->assertEdge($output, 'FirstEvent', 'NodeTwo');
+        $this->assertEdge($output, 'NodeTwo', 'SecondEvent');
+        $this->assertEdge($output, 'SecondEvent', 'NodeThree');
+        $this->assertEdge($output, 'NodeThree', 'StopEvent');
     }
 
-    public function test_conditional_node_mermaid_export(): void
+    public function test_union_return_types_are_exported(): void
     {
-        $workflow = Workflow::make()
+        $output = Workflow::make()
             ->addNodes([
                 new NodeOne(),
                 new ConditionalNode(),
                 new NodeForSecond(),
                 new NodeForThird(),
             ])
-            ->setExporter(new MermaidExporter());
+            ->setExporter(new MermaidExporter())
+            ->export();
 
-        $mermaidOutput = $workflow->export();
-
-        // Verify conditional flow representation
-        $this->assertStringContainsString('StartEvent --> NodeOne', $mermaidOutput);
-        $this->assertStringContainsString('NodeOne --> FirstEvent', $mermaidOutput);
-        $this->assertStringContainsString('FirstEvent --> ConditionalNode', $mermaidOutput);
-
-        // Verify conditional node can produce both events
-        // Note: Since ConditionalNode has union return type, the exporter should show
-        // the actual return type from reflection, but union types are complex to detect
-        // The exporter will show one of the union types or handle it differently
-        $this->assertTrue(
-            str_contains($mermaidOutput, 'SecondEvent --> NodeForSecond') ||
-            str_contains($mermaidOutput, 'ThirdEvent --> NodeForThird')
-        );
+        $this->assertEdge($output, 'ConditionalNode', 'SecondEvent');
+        $this->assertEdge($output, 'ConditionalNode', 'ThirdEvent');
+        $this->assertEdge($output, 'SecondEvent', 'NodeForSecond');
+        $this->assertEdge($output, 'ThirdEvent', 'NodeForThird');
     }
 
-    public function test_mermaid_export_no_duplicate_connections(): void
+    public function test_parallel_branches_connect_to_the_join(): void
     {
-        $workflow = Workflow::make()
+        $output = Workflow::make()
             ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                 new NodeThree(),
+                new DocumentParallelProcessing(),
+                new TextProcessNode(),
+                new ImageProcessNode(),
+                new MergeNode(),
             ])
-            ->setExporter(new MermaidExporter());
+            ->setExporter(new MermaidExporter())
+            ->export();
 
-        $mermaidOutput = $workflow->export();
-        $lines = explode("\n", $mermaidOutput);
-
-        // Remove empty lines and header
-        $connections = array_filter($lines, fn (string $line): bool => trim($line) !== '' && !str_contains($line, 'graph TD'));
-
-        // Check for duplicate connections
-        $uniqueConnections = array_unique($connections);
-        $this->assertCount(count($connections), $uniqueConnections, 'Found duplicate connections in Mermaid output');
+        $this->assertEdge($output, 'DocumentParallelProcessing', 'DocumentParallelEvent split');
+        $this->assertEdge($output, 'DocumentParallelEvent split', 'TextProcessEvent', 'text');
+        $this->assertEdge($output, 'DocumentParallelEvent split', 'ImageProcessEvent', 'image');
+        $this->assertEdge($output, 'TextProcessEvent', 'TextProcessNode');
+        $this->assertEdge($output, 'ImageProcessEvent', 'ImageProcessNode');
+        $this->assertEdge($output, 'TextProcessNode', 'DocumentParallelEvent join');
+        $this->assertEdge($output, 'ImageProcessNode', 'DocumentParallelEvent join');
+        $this->assertEdge($output, 'DocumentParallelEvent join', 'DocumentParallelEvent');
+        $this->assertEdge($output, 'DocumentParallelEvent', 'MergeNode');
+        $this->assertEdge($output, 'MergeNode', 'StopEvent');
     }
 
-    public function test_mermaid_export_short_class_names(): void
+    public function test_generator_is_not_exported_as_an_event(): void
     {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-            ])
-            ->setExporter(new MermaidExporter());
-
-        $mermaidOutput = $workflow->export();
-
-        // Should use short class names, not full namespaced names
-        $this->assertStringContainsString('NodeOne', $mermaidOutput);
-        $this->assertStringContainsString('NodeTwo', $mermaidOutput);
-        $this->assertStringContainsString('StartEvent', $mermaidOutput);
-        $this->assertStringContainsString('FirstEvent', $mermaidOutput);
-
-        // Should not contain full namespaces
-        $this->assertStringNotContainsString('Tests\\Workflow\\Stub\\', $mermaidOutput);
-        $this->assertStringNotContainsString('NeuronAI\\Workflow\\', $mermaidOutput);
-    }
-
-    public function test_mermaid_export_complex_flow(): void
-    {
-        // Create a more complex workflow with multiple paths
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new ConditionalNode(),
-                 new NodeForSecond(),
-                new NodeForThird(),
-            ])
-            ->setExporter(new MermaidExporter());
-
-        $mermaidOutput = $workflow->export();
-        $lines = explode("\n", trim($mermaidOutput));
-
-        // Remove header
-        $connections = array_filter($lines, fn (string $line): bool => !str_contains($line, 'graph TD') && trim($line) !== '');
-
-        // Should have multiple connections representing the branching flow
-        $this->assertGreaterThan(3, count($connections), 'Complex workflow should have multiple connections');
-
-        // Verify structure
-        $connectionsStr = implode(' ', $connections);
-        $this->assertStringContainsString('StartEvent', $connectionsStr);
-        $this->assertStringContainsString('StopEvent', $connectionsStr);
-    }
-
-    public function test_mermaid_export_with_return_type_analysis(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-            ])
-            ->setExporter(new MermaidExporter());
-
-        $mermaidOutput = $workflow->export();
-
-        // Verify that return type analysis works correctly
-        // NodeOne returns FirstEvent
-        $this->assertStringContainsString('NodeOne --> FirstEvent', $mermaidOutput);
-
-        // NodeTwo returns SecondEvent
-        $this->assertStringContainsString('NodeTwo --> SecondEvent', $mermaidOutput);
-    }
-
-    public function test_mermaid_export_valid_mermaid_syntax(): void
-    {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                 new NodeThree(),
-            ])
-            ->setExporter(new MermaidExporter());
-
-        $mermaidOutput = $workflow->export();
-        $lines = explode("\n", $mermaidOutput);
-
-        // Verify Mermaid syntax is valid
-        $this->assertEquals('graph TD', trim($lines[0]));
-        // Each connection line should follow the pattern "    NodeA --> NodeB"
-        $counter = count($lines);
-
-        // Each connection line should follow the pattern "    NodeA --> NodeB"
-        for ($i = 1; $i < $counter; $i++) {
-            $line = $lines[$i];
-            if (trim($line) !== '') {
-                $this->assertMatchesRegularExpression('/^\s+\w+ --> \w+$/', $line, "Invalid Mermaid syntax in line: {$line}");
+        $node = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): Generator
+            {
+                yield 'chunk';
+                return new StopEvent();
             }
+        };
+
+        $output = Workflow::make()
+            ->addNode($node)
+            ->setExporter(new MermaidExporter())
+            ->export();
+
+        $this->assertStringNotContainsString('["Generator"]', $output);
+    }
+
+    public function test_mermaid_export_uses_short_labels_and_stable_ids(): void
+    {
+        $output = Workflow::make()
+            ->addNodes([new NodeOne(), new NodeTwo()])
+            ->setExporter(new MermaidExporter())
+            ->export();
+
+        $this->assertMatchesRegularExpression('/event_[a-f0-9]{40}\["StartEvent"\]/', $output);
+        $this->assertMatchesRegularExpression('/node_[a-f0-9]{40}\[\["NodeOne"\]\]/', $output);
+        $this->assertStringNotContainsString('Tests\\Workflow\\Stub\\', $output);
+        $this->assertStringNotContainsString('NeuronAI\\Workflow\\', $output);
+    }
+
+    public function test_vertices_with_the_same_short_label_remain_distinct(): void
+    {
+        $graph = new WorkflowGraph('event_one');
+        $graph->addVertex(new WorkflowGraphVertex(
+            'event_one',
+            'DuplicateEvent',
+            WorkflowGraphVertexType::Event,
+            'First\\DuplicateEvent',
+        ));
+        $graph->addVertex(new WorkflowGraphVertex(
+            'event_two',
+            'DuplicateEvent',
+            WorkflowGraphVertexType::Event,
+            'Second\\DuplicateEvent',
+        ));
+
+        $output = new MermaidExporter()->export($graph);
+
+        $this->assertStringContainsString('event_one["DuplicateEvent"]', $output);
+        $this->assertStringContainsString('event_two["DuplicateEvent"]', $output);
+        $this->assertSame(2, substr_count($output, '["DuplicateEvent"]'));
+    }
+
+    public function test_mermaid_export_has_no_duplicate_lines(): void
+    {
+        $output = Workflow::make()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->setExporter(new MermaidExporter())
+            ->export();
+        $lines = array_filter(
+            explode("\n", $output),
+            fn (string $line): bool => trim($line) !== '' && trim($line) !== 'graph TD',
+        );
+
+        $this->assertCount(count($lines), array_unique($lines));
+    }
+
+    public function test_mermaid_export_uses_valid_statement_syntax(): void
+    {
+        $output = Workflow::make()
+            ->addNodes([
+                new DocumentParallelProcessing(),
+                new TextProcessNode(),
+                new ImageProcessNode(),
+                new MergeNode(),
+            ])
+            ->setExporter(new MermaidExporter())
+            ->export();
+        $lines = explode("\n", $output);
+
+        $this->assertSame('graph TD', trim($lines[0]));
+
+        foreach (array_filter($lines, fn (string $line): bool => trim($line) !== '' && trim($line) !== 'graph TD') as $line) {
+            $vertex = preg_match('/^\s+\w+(?:\["[^"]*"\]|\[\["[^"]*"\]\]|\{"[^"]*"\})$/', $line) === 1;
+            $edge = preg_match('/^\s+\w+ -->(?:\|"[^"]*"\|)? \w+$/', $line) === 1;
+            $this->assertTrue($vertex || $edge, "Invalid Mermaid statement: {$line}");
         }
+    }
+
+    protected function assertEdge(
+        string $output,
+        string $fromLabel,
+        string $toLabel,
+        ?string $edgeLabel = null,
+    ): void {
+        $from = $this->vertexId($output, $fromLabel);
+        $to = $this->vertexId($output, $toLabel);
+        $arrow = $edgeLabel === null ? '-->' : '-->|"' . $edgeLabel . '"|';
+
+        $this->assertStringContainsString("{$from} {$arrow} {$to}", $output);
+    }
+
+    protected function vertexId(string $output, string $label): string
+    {
+        $matched = preg_match(
+            '/^\s+(\w+)(?:\[+|\{)"' . preg_quote($label, '/') . '"/m',
+            $output,
+            $matches,
+        );
+
+        $this->assertSame(1, $matched, "Missing graph vertex: {$label}");
+
+        return $matches[1];
     }
 }

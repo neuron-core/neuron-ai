@@ -4,161 +4,85 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Exporter;
 
-use NeuronAI\Workflow\NodeInterface;
-use ReflectionClass;
-use ReflectionNamedType;
-use ReflectionUnionType;
+use NeuronAI\Workflow\Events\StopEvent;
 
-use function array_map;
-use function in_array;
+use function is_a;
 use function str_repeat;
 
 class ConsoleExporter implements ExporterInterface
 {
-    /**
-     * @param array<string, NodeInterface> $eventNodeMap
-     */
-    public function export(array $eventNodeMap): string
+    public function export(WorkflowGraph $graph): string
     {
         $output = "Workflow Structure:\n";
-        $output .= str_repeat("=", 50) . "\n\n";
+        $output .= str_repeat('=', 50) . "\n\n";
+        $rendered = [];
+        $path = [];
+        $output .= $this->renderVertex($graph, $graph->startVertexId, $rendered, $path);
 
-        $connections = $this->buildConnections($eventNodeMap);
-
-        return $output . $this->renderFlow($connections);
-    }
-
-    private function buildConnections(array $eventNodeMap): array
-    {
-        $connections = [];
-
-        foreach ($eventNodeMap as $eventClass => $node) {
-            $eventName = $this->getShortClassName($eventClass);
-            $nodeName = $this->getShortClassName($node::class);
-
-            // Get the events this node produces
-            $producedEvents = $this->getProducedEvents($node);
-
-            $connections[] = [
-                'event' => $eventName,
-                'node' => $nodeName,
-                'produces' => $producedEvents,
-                'eventClass' => $eventClass,
-                'nodeClass' => $node::class,
-            ];
-        }
-
-        return $connections;
-    }
-
-    private function getProducedEvents(object $node): array
-    {
-        $reflection = new ReflectionClass($node);
-        $runMethod = $reflection->getMethod('__invoke');
-        $returnType = $runMethod->getReturnType();
-
-        if (!$returnType) {
-            return [];
-        }
-
-        $returnEventClasses = [];
-
-        if ($returnType instanceof ReflectionNamedType && !$returnType->isBuiltin()) {
-            $returnEventClasses[] = $returnType->getName();
-        } elseif ($returnType instanceof ReflectionUnionType) {
-            foreach ($returnType->getTypes() as $type) {
-                if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                    $returnEventClasses[] = $type->getName();
-                }
+        foreach ($graph->getVertices() as $vertex) {
+            if ($vertex->type !== WorkflowGraphVertexType::Event || isset($rendered[$vertex->id])) {
+                continue;
             }
-        }
 
-        return array_map($this->getShortClassName(...), $returnEventClasses);
-    }
-
-    private function renderFlow(array $connections): string
-    {
-        $output = "";
-
-        // Find the start event
-        $startConnection = null;
-        foreach ($connections as $connection) {
-            if ($connection['event'] === 'StartEvent') {
-                $startConnection = $connection;
-                break;
-            }
-        }
-
-        if (!$startConnection) {
-            return "No StartEvent found in workflow.\n";
-        }
-
-        // Build a map for quick lookups
-        $eventToConnection = [];
-        foreach ($connections as $connection) {
-            $eventToConnection[$connection['event']] = $connection;
-        }
-
-        // Render the flow starting from StartEvent
-        $visited = [];
-        $output .= $this->renderConnection($startConnection, $eventToConnection, $visited, 0);
-
-        // Render any unvisited connections (orphaned nodes)
-        foreach ($connections as $connection) {
-            if (!in_array($connection['event'], $visited)) {
-                $output .= "\n" . str_repeat("─", 30) . "\n";
-                $output .= "Orphaned Node:\n";
-                $output .= $this->renderConnection($connection, $eventToConnection, $visited, 0);
-            }
+            $output .= "\n" . str_repeat('─', 30) . "\n";
+            $output .= "Orphaned Node:\n";
+            $output .= $this->renderVertex($graph, $vertex->id, $rendered, $path);
         }
 
         return $output;
     }
 
-    private function renderConnection(array $connection, array $eventToConnection, array &$visited, int $depth): string
-    {
-        if (in_array($connection['event'], $visited)) {
-            return str_repeat("  ", $depth) . "↻ [Cycle detected]\n";
+    /**
+     * @param array<string, true> $rendered
+     * @param array<string, true> $path
+     */
+    protected function renderVertex(
+        WorkflowGraph $graph,
+        string $vertexId,
+        array &$rendered,
+        array &$path,
+        int $depth = 0,
+    ): string {
+        $vertex = $graph->getVertex($vertexId);
+        $indent = str_repeat('  ', $depth);
+
+        if (isset($path[$vertexId])) {
+            return $indent . "↻ {$vertex->label} [Cycle detected]\n";
         }
 
-        $visited[] = $connection['event'];
-        $indent = str_repeat("  ", $depth);
-        $output = "";
-
-        // Render current step
-        if ($depth === 0) {
-            $output .= $indent . "🏁 " . $connection['event'] . "\n";
-        } else {
-            $output .= $indent . "🔗 " . $connection['event'] . "\n";
+        if (isset($rendered[$vertexId])) {
+            return $indent . "↳ {$vertex->label} [Already shown]\n";
         }
 
-        $output .= $indent . "   ↓\n";
-        $output .= $indent . "⚡ " . $connection['node'] . "\n";
+        $path[$vertexId] = true;
+        $rendered[$vertexId] = true;
+        $output = $indent . $this->icon($graph, $vertex) . ' ' . $vertex->label . "\n";
 
-        // Handle produced events
-        if (!empty($connection['produces'])) {
-            foreach ($connection['produces'] as $producedEvent) {
-                $output .= $indent . "   ↓\n";
-
-                if ($producedEvent === 'StopEvent') {
-                    $output .= $indent . "🏁 " . $producedEvent . "\n";
-                } elseif (isset($eventToConnection[$producedEvent])) {
-                    $output .= $this->renderConnection($eventToConnection[$producedEvent], $eventToConnection, $visited, $depth + 1);
-                } else {
-                    $output .= $indent . "❓ " . $producedEvent . " (no handler)\n";
-                }
-            }
-        } else {
-            $output .= $indent . "   ↓\n";
-            $output .= $indent . "❓ (unknown output)\n";
+        foreach ($graph->getOutgoingEdges($vertexId) as $edge) {
+            $output .= $indent . '   ';
+            $output .= $edge->label === null ? "↓\n" : "[{$edge->label}] ↓\n";
+            $output .= $this->renderVertex($graph, $edge->to, $rendered, $path, $depth + 1);
         }
+
+        unset($path[$vertexId]);
 
         return $output;
     }
 
-    private function getShortClassName(string $class): string
+    protected function icon(WorkflowGraph $graph, WorkflowGraphVertex $vertex): string
     {
-        $reflection = new ReflectionClass($class);
-        return $reflection->getShortName();
+        if (
+            $vertex->id === $graph->startVertexId
+            || ($vertex->class !== null && is_a($vertex->class, StopEvent::class, true))
+        ) {
+            return '🏁';
+        }
+
+        return match ($vertex->type) {
+            WorkflowGraphVertexType::Event => '🔗',
+            WorkflowGraphVertexType::Node => '⚡',
+            WorkflowGraphVertexType::ParallelSplit => '⑂',
+            WorkflowGraphVertexType::ParallelJoin => '⑃',
+        };
     }
 }

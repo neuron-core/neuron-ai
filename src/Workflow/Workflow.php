@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
 use NeuronAI\Workflow\Resume\ResumeInput;
 use Throwable;
 
@@ -537,7 +538,12 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             $this->bootstrap();
         }
 
-        return $this->exporter->export($this->eventNodeMap);
+        $graph = (new WorkflowGraphBuilder())->build(
+            $this->getStartEvent()::class,
+            $this->eventNodeMap,
+        );
+
+        return $this->exporter->export($graph);
     }
 
     public function setExporter(ExporterInterface $exporter): static
