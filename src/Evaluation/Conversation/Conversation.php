@@ -181,7 +181,7 @@ class Conversation
             }
 
             $request = $state->getInterruptRequest();
-            if ($request === null) {
+            if (!$request instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
                 throw new EvaluationException('The interrupted Agent exposed no interrupt request.');
             }
 
