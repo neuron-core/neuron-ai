@@ -15,6 +15,7 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 
 use function array_diff;
+use function fileperms;
 use function file_put_contents;
 use function is_dir;
 use function json_encode;
@@ -26,6 +27,7 @@ use function uniqid;
 use function unlink;
 
 use const JSON_THROW_ON_ERROR;
+use const PHP_OS_FAMILY;
 
 /**
  * The opaque atomic store contract exercised against every built-in backend
@@ -227,6 +229,24 @@ class PersistenceContractTest extends TestCase
         );
     }
 
+    public function test_file_backend_creates_owner_only_storage(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('POSIX permission bits are not available on Windows.');
+        }
+
+        $store = new FilePersistence($this->directory);
+        $store->initializeIfAbsent('workflow', '__control', 'owner');
+
+        $directoryPermissions = fileperms($this->directory);
+        $partitionPermissions = fileperms($this->directory . '/workflow.store');
+
+        $this->assertNotFalse($directoryPermissions);
+        $this->assertNotFalse($partitionPermissions);
+        $this->assertSame(0, $directoryPermissions & 0o077);
+        $this->assertSame(0, $partitionPermissions & 0o077);
+    }
+
     public function test_file_backend_throws_on_a_failed_write(): void
     {
         $store = new FilePersistence($this->directory);
@@ -240,6 +260,10 @@ class PersistenceContractTest extends TestCase
         }
 
         $this->assertNull($store->get($partition, '__control'));
+        $this->assertSame(
+            [],
+            array_diff(scandir($this->directory) ?: [], ['.', '..']),
+        );
     }
 
     public function test_file_backend_rejects_a_stale_write_across_instances(): void

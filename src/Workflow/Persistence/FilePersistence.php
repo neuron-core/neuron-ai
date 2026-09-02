@@ -20,6 +20,9 @@ use function json_decode;
 use function json_encode;
 use function mkdir;
 use function rawurlencode;
+use function rename;
+use function strlen;
+use function tempnam;
 use function unlink;
 
 use const DIRECTORY_SEPARATOR;
@@ -39,7 +42,7 @@ class FilePersistence implements PersistenceInterface
     public function __construct(
         protected string $directory,
     ) {
-        if (!is_dir($this->directory) && !mkdir($this->directory, 0o755, true)) {
+        if (!is_dir($this->directory) && !mkdir($this->directory, 0o700, true)) {
             throw new WorkflowException("Unable to create directory '{$this->directory}'");
         }
     }
@@ -174,8 +177,24 @@ class FilePersistence implements PersistenceInterface
             );
         }
 
-        if (@file_put_contents($path, $contents) === false) {
+        $temporaryPath = @tempnam($this->directory, '.workflow-');
+        if ($temporaryPath === false) {
             throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+        }
+
+        try {
+            $written = @file_put_contents($temporaryPath, $contents);
+            if ($written !== strlen($contents)) {
+                throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+            }
+
+            if (!@rename($temporaryPath, $path)) {
+                throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+            }
+        } finally {
+            if (is_file($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
         }
     }
 

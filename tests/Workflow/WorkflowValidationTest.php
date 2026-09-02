@@ -77,6 +77,39 @@ class WorkflowValidationTest extends TestCase
         $this->assertEquals('custom property', $state->custom);
     }
 
+    /** @dataProvider invalidLeaseTimeoutProvider */
+    public function test_explicit_lease_timeout_must_be_positive(int $seconds): void
+    {
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Lease timeout must be a positive number of seconds or null.');
+
+        Workflow::make()->setLeaseTimeout($seconds);
+    }
+
+    /** @return array<string, array{int}> */
+    public static function invalidLeaseTimeoutProvider(): array
+    {
+        return [
+            'zero' => [0],
+            'negative' => [-1],
+        ];
+    }
+
+    public function test_default_lease_timeout_must_be_positive(): void
+    {
+        $workflow = new class () extends Workflow {
+            protected function leaseTimeout(): int
+            {
+                return 0;
+            }
+        };
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Lease timeout must be a positive number of seconds or null.');
+
+        $workflow->getLeaseTimeout();
+    }
+
     public function test_validation_failure_marks_the_owned_run_as_failed(): void
     {
         $persistence = new InMemoryPersistence();

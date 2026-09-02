@@ -944,7 +944,8 @@ class AnalyzeImageForkNode extends Node
 }
 ```
 
-Branch IDs come from the array keys (`'structured'`, `'description'`). If you pass a sequential array, IDs are auto-derived from each event's short class name.
+Branch IDs come from non-empty string array keys (`'structured'`,
+`'description'`). Sequential arrays are rejected; every branch must be named.
 
 ### Step 4 — Create Branch Nodes (Each Ends with StopEvent)
 

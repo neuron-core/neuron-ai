@@ -304,18 +304,27 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     public function setLeaseTimeout(?int $seconds): static
     {
-        $this->leaseTimeout = $seconds;
+        $this->leaseTimeout = $this->validateLeaseTimeout($seconds);
         return $this;
     }
 
     final public function getLeaseTimeout(): ?int
     {
-        return $this->leaseTimeout ??= $this->leaseTimeout();
+        return $this->validateLeaseTimeout($this->leaseTimeout ??= $this->leaseTimeout());
     }
 
     protected function leaseTimeout(): ?int
     {
         return null;
+    }
+
+    protected function validateLeaseTimeout(?int $seconds): ?int
+    {
+        if ($seconds !== null && $seconds < 1) {
+            throw new WorkflowException('Lease timeout must be a positive number of seconds or null.');
+        }
+
+        return $seconds;
     }
 
     /**

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Events;
 
-use function array_is_list;
+use NeuronAI\Exceptions\WorkflowException;
+
+use function is_string;
 
 /**
  * Event that triggers parallel branch execution.
@@ -15,8 +17,7 @@ use function array_is_list;
  * routed through the event→node map to a join node, whose __invoke() accepts
  * the subclass and reads the results back.
  *
- * Associative array keys are used as-is as branch IDs; list entries derive
- * their ID from the event class name.
+ * Every branch must have a non-empty string name, which becomes its branch ID.
  */
 class ParallelEvent implements Event
 {
@@ -32,19 +33,21 @@ class ParallelEvent implements Event
     protected array $results = [];
 
     /**
-     * @param array<string, Event>|array<int, Event> $branches Named branches, or a list whose IDs derive from each event's class.
+     * @param array<array-key, Event> $branches Events keyed by non-empty string branch names
+     * @throws WorkflowException
      */
     public function __construct(array $branches)
     {
-        if (array_is_list($branches)) {
-            $named = [];
-            foreach ($branches as $branchEvent) {
-                $named[$branchEvent::class] = $branchEvent;
+        $named = [];
+        foreach ($branches as $branch => $event) {
+            if (!is_string($branch) || $branch === '') {
+                throw new WorkflowException('Parallel branches must use non-empty string names.');
             }
-            $this->branches = $named;
-        } else {
-            $this->branches = $branches;
+
+            $named[$branch] = $event;
         }
+
+        $this->branches = $named;
     }
 
     public function setResult(string $branch, mixed $result): self
