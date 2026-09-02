@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -35,6 +38,8 @@ trait HandleComponents
 
     /** Optional transform from native stream objects to protocol lines. */
     protected ?StreamAdapterInterface $streamAdapter = null;
+
+    protected ExporterInterface $exporter;
 
     final protected function getExecutor(): WorkflowExecutorInterface
     {
@@ -130,5 +135,28 @@ trait HandleComponents
     protected function streamAdapter(): ?StreamAdapterInterface
     {
         return null;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    public function export(): string
+    {
+        if ($this->eventNodeMap === []) {
+            $this->bootstrap();
+        }
+
+        $graph = (new WorkflowGraphBuilder())->build(
+            $this->getStartEvent()::class,
+            $this->eventNodeMap,
+        );
+
+        return $this->exporter->export($graph);
+    }
+
+    public function setExporter(ExporterInterface $exporter): static
+    {
+        $this->exporter = $exporter;
+        return $this;
     }
 }
