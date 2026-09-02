@@ -9,16 +9,15 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\MariaDBFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\MariaDBFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use PDO;
-
 use function array_chunk;
 use function in_array;
+use function is_array;
 use function json_decode;
 use function json_encode;
 use function sprintf;
-use function is_array;
 
 class MariaDBVectorStore implements VectorStoreInterface
 {

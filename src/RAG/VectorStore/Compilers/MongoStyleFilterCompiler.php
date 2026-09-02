@@ -2,18 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
+namespace NeuronAI\RAG\VectorStore\Compilers;
 
+use LogicException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
-use LogicException;
-
-use function count;
 use function array_map;
+use function count;
 
 /**
  * Shared dialect base for backends whose filter language is the Mongo-style

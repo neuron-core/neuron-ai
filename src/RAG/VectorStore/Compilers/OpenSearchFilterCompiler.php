@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
+namespace NeuronAI\RAG\VectorStore\Compilers;
 
 use NeuronAI\RAG\VectorStore\OpenSearchVectorStore;
 

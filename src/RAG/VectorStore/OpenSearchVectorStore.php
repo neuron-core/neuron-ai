@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use Exception;
 use JsonException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\OpenSearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\OpenSearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use OpenSearch\Client;
-use Exception;
-
 use function array_key_exists;
 use function array_map;
 use function count;

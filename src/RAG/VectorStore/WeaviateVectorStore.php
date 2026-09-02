@@ -14,21 +14,20 @@ use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\WeaviateFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\WeaviateFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-
 use function array_chunk;
+use function array_key_exists;
 use function array_map;
 use function implode;
 use function in_array;
-use function is_null;
-use function sprintf;
-use function ucfirst;
 use function is_array;
+use function is_null;
 use function json_decode;
 use function json_encode;
+use function sprintf;
 use function strcasecmp;
-use function array_key_exists;
+use function ucfirst;
 
 class WeaviateVectorStore implements VectorStoreInterface
 {

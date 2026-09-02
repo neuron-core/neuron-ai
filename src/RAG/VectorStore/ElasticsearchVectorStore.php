@@ -4,25 +4,24 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\Exception\ClientResponseException;
 use Elastic\Elasticsearch\Exception\MissingParameterException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
+use Elastic\Elasticsearch\Response\Elasticsearch;
 use JsonException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\ElasticsearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\ElasticsearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-use Elastic\Elasticsearch\Client;
-use Elastic\Elasticsearch\Response\Elasticsearch;
-
+use function array_chunk;
 use function array_key_exists;
 use function array_map;
 use function count;
 use function max;
-use function array_chunk;
 
 class ElasticsearchVectorStore implements VectorStoreInterface
 {

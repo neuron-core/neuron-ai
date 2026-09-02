@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
+namespace NeuronAI\RAG\VectorStore\Compilers;
 
+use LogicException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
@@ -12,8 +13,6 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
-use LogicException;
-
 use function array_map;
 use function implode;
 use function is_bool;

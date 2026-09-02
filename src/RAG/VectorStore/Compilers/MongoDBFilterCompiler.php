@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\RAG\VectorStore\Filter\Compilers;
+namespace NeuronAI\RAG\VectorStore\Compilers;
 
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
-
-use function in_array;
 use function array_map;
+use function in_array;
 
 class MongoDBFilterCompiler extends MongoStyleFilterCompiler
 {

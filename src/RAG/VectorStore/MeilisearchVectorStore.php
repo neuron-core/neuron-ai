@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use Exception;
 use JsonException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\VectorStoreException;
@@ -14,17 +15,15 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\MeilisearchFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\MeilisearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-use Exception;
-
+use function array_chunk;
 use function array_map;
 use function is_null;
 use function min;
 use function range;
-use function usleep;
 use function uniqid;
-use function array_chunk;
+use function usleep;
 
 class MeilisearchVectorStore implements VectorStoreInterface
 {

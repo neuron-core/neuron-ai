@@ -8,21 +8,20 @@ use JsonException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\CurlHttpClient;
-use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HasHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\ChromaFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-
+use function array_chunk;
 use function count;
 use function is_null;
 use function trim;
 use function uniqid;
-use function array_chunk;
 
 class ChromaVectorStore implements VectorStoreInterface
 {

@@ -5,26 +5,25 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore;
 
 use Http\Client\Exception;
+use JsonException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentFieldType;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
-use NeuronAI\RAG\VectorStore\Filter\Compilers\TypesenseFilterCompiler;
+use NeuronAI\RAG\VectorStore\Compilers\TypesenseFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Typesense\Client;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
-use JsonException;
-
+use function array_chunk;
 use function array_key_exists;
 use function array_map;
 use function count;
 use function implode;
 use function json_encode;
 use function max;
-use function array_chunk;
 
 class TypesenseVectorStore implements VectorStoreInterface
 {
