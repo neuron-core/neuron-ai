@@ -119,7 +119,9 @@ AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEve
 | `chat($messages)` | Eager: ignites and runs to completion → `AgentState` (buffered transport) |
 | `stream($messages)` | Pull-stream: a `Generator` yielding native chunks or lines from the Workflow's configured adapter; `getReturn()` is the `AgentState`. |
 | `structured($messages, $class)` | Eager: returns the typed output |
-| `resume($inputs?, $expectedRunId?, $expectedAttempt?)` | Continues a suspended, failed, or crashed run, optionally delivering addressed inputs → `AgentState` |
+| `run($inputs = null, $expectedRunId = null, $expectedAttempt = null)` | Eager Workflow terminal: no input starts a run; an explicit array continues one. |
+| `events($inputs = null, $expectedRunId = null, $expectedAttempt = null)` | Pull-stream Workflow terminal; `getReturn()` is the `AgentState`. |
+| `toolApprovalDecisions($decisions)` | Stages approval decisions by tool call ID for the following `run()` or `events()`. |
 
 ```php
 // Chat (eager → AgentState)
@@ -134,27 +136,22 @@ foreach (YouTubeAgent::make()->stream(new UserMessage('Hello')) as $chunk) {
 // Structured output
 $report = MyAgent::make()->structured($message, ReportSchema::class);
 
-// Resume a suspended run (approval endpoint) — mode-agnostic → AgentState
-use NeuronAI\Workflow\Interrupt\ResumeInput;
-
-$request = $state->getInterruptRequest();
+// Resume an approval by thread ID and decisions alone.
 $state = MyAgent::make()
     ->setChatHistory($history)
     ->setPersistence($persistence)
-    ->resume([ResumeInput::event($request, ['call_123' => 'approve'])]);
+    ->toolApprovalDecisions(['call_123' => 'approve'])
+    ->run();
 echo $state->getMessage()->getContent();
 ```
 
-**Sugar ignites; `resume()` continues.** A new turn is a new run; an answer
-resumes the suspended one. Calling `resume()` without inputs replays a crashed
-or failed attempt without inventing an external answer. The sugar methods take
-no resume payload — continuation goes through the same engine verb a plain
-Workflow uses. The run's mode never needs restating on a resume: intent is
-persisted in the ignition record (see *Ignition & thread identity* below).
+**`run()` and `events()` express both start and continuation.** With no input they start a new run; an explicit input array continues the existing one. Use `run([])` to evaluate due deadlines or recover without delivering an answer. Agent approvals are staged with `toolApprovalDecisions()`; durable platform SDKs pass addressed `ResumeInput` values directly to `run()` or `events()`. The run's mode never needs restating: intent is persisted in the ignition record (see *Ignition & thread identity* below).
 
-`chat()`/`resume()` are eager and return `AgentState`; `stream()` is the
-pull-stream verb (a `Generator`) — the same eager/lazy split as Workflow's
-`run()` / `events()`. `AgentState::getMessage()` reads the final assistant
+`chat()` and `run()` are eager and return `AgentState`; `stream()` and `events()` are pull-stream verbs returning a `Generator`.
+Workflow's generic state contract binds the inherited execution methods to
+`AgentState`; Agent does not override `run()` or `events()` merely to narrow
+their return types.
+`AgentState::getMessage()` reads the final assistant
 message off the stored provider response; `isInterrupted()` /
 `getInterruptRequest()` surface an approval pause on the state itself, just
 like a plain `WorkflowState`.
@@ -419,14 +416,14 @@ $agent = YouTubeAgent::make()
     // + a durable ChatHistory
 ```
 
-A resume delivers decisions as a **cumulative** payload keyed by tool callId — the entire
-decision set, restated on every resume:
+A continuation delivers decisions as a **cumulative** payload keyed by tool callId — the entire
+decision set, restated on every continuation:
 
 ```php
-$agent->resume([ResumeInput::event($request, [
+$agent->toolApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
-])]);
+])->run();
 ```
 
 A tool runs iff explicitly approved; silence is never consent. An incomplete payload
@@ -456,19 +453,20 @@ $agent = Agent::make(threadId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
-$agent->resume([ResumeInput::event($request, ['call_123' => 'approve'])]);
+$agent->toolApprovalDecisions(['call_123' => 'approve'])
+    ->run();
 // (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
 // same identity by adoption and works identically)
 ```
 
-This works for **every** suspension type — approval, `awaitEvent()`,
-`sleepUntil()` — because it is an engine mechanism, not an approval one. One
-live run per thread, enforced by the engine: a new `chat()` while a run is
-suspended on the thread is **refused** loudly ("run in flight for workflow ID");
-settle the pending run first — typically `resume()` with decline decisions.
-A continuation that can identify no run at all (no workflow ID, nothing in
-flight) throws a `WorkflowException` rather than running against the wrong
-one.
+The decision-map form specifically resolves Agent tool approval. Ordinary
+Workflow event waits use `signal()`, due timers use `run([])`, and a
+platform can address any interruption type with `ResumeInput`. One live run per
+thread is enforced by the engine: a new `chat()` while a run is suspended on the
+thread is **refused** loudly ("run in flight for workflow ID"); settle the
+pending run first — typically `toolApprovalDecisions()` followed by `run()` with decline decisions. A continuation
+that can identify no run at all (no workflow ID, nothing in flight) throws a
+`WorkflowException` rather than running against the wrong one.
 
 The declared workflow ID is `null` while no thread identity has been declared —
 the run then lives under an engine-generated workflow ID (`getWorkflowId()` after the
@@ -505,13 +503,13 @@ class SupportAgent extends Agent
 SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
-SupportAgent::make(threadId: $threadId)->resume([
-    ResumeInput::event($request, ['call_123' => 'approve']),
-]);
+SupportAgent::make(threadId: $threadId)
+    ->toolApprovalDecisions(['call_123' => 'approve'])
+    ->run();
 
 // WorkflowId-first resume (background wake): the record supplies the thread
 // identity — the developer writes nothing.
-SupportAgent::make(workflowId: $ticket->workflowId)->resume(
+SupportAgent::make(workflowId: $ticket->workflowId)->run(
     [ResumeInput::fromArray($ticket->input)],
     expectedRunId: $ticket->runId,
 );

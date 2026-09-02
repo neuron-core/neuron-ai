@@ -46,6 +46,13 @@ interface WorkflowExecutorInterface
         ?int $expectedExecutionAttempt = null,
     ): Generator;
 
+    /** @return Generator<int, Event, mixed, WorkflowState> */
+    public function signal(
+        WorkflowRuntimeInterface $workflow,
+        string $name,
+        array $payload = [],
+    ): Generator;
+
     /**
      * Conditionally remove a retained completed generation after its outcome
      * has been durably acknowledged by the caller/platform.

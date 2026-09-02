@@ -25,7 +25,6 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -34,10 +33,9 @@ use function is_array;
 use function is_string;
 
 /**
- * @method static static make(?string $workflowId = null, ?WorkflowState $state = null, ?string $threadId = null)
- * @method AgentState run() Run to completion; return type narrowed covariantly from {@see WorkflowState}
+ * @extends Workflow<AgentState>
+ * @method static static make(?string $workflowId = null, ?AgentState $state = null, ?string $threadId = null)
  * @method AgentStartEvent getStartEvent()
- * @method AgentState getState()
  * @method static setStreamAdapter(?StreamAdapterInterface $adapter) Configure Workflow-owned stream adaptation.
  */
 class Agent extends Workflow implements AgentInterface
@@ -45,6 +43,8 @@ class Agent extends Workflow implements AgentInterface
     use HandleProvider;
     use HandleTools;
     use HandleInstructions;
+
+    protected const APPROVAL_SIGNAL = 'approval';
 
     protected ChatHistoryInterface $chatHistory;
 
@@ -66,7 +66,7 @@ class Agent extends Workflow implements AgentInterface
 
     public function __construct(
         ?string $workflowId = null,
-        ?WorkflowState $state = null,
+        ?AgentState $state = null,
         ?string $threadId = null,
     ) {
         parent::__construct($workflowId, $state);
@@ -348,7 +348,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * A new turn starts a new run — to continue a suspended run use
-     * {@see resume()}. Runs eagerly to completion; the returned state
+     * {@see run()}. Runs eagerly to completion; the returned state
      * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
      *
      * @param Message|Message[] $messages
@@ -383,7 +383,6 @@ class Agent extends Workflow implements AgentInterface
             ...(is_array($messages) ? $messages : [$messages])
         );
 
-        /** @var AgentState $state */
         $state = yield from $this->events();
         return $state;
     }
@@ -404,25 +403,15 @@ class Agent extends Workflow implements AgentInterface
                 ...(is_array($messages) ? $messages : [$messages])
             );
 
-        /** @var AgentState $finalState */
         $finalState = $this->run();
 
         return $finalState->get('structured_output');
     }
 
-    /**
-     * @param list<ResumeInput> $inputs
-     * @throws Throwable
-     * @throws WorkflowException
-     */
-    public function resume(
-        array $inputs = [],
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): AgentState {
-        /** @var AgentState $state */
-        $state = parent::resume($inputs, $expectedRunId, $expectedExecutionAttempt);
-        return $state;
+    /** @param array<array-key, mixed> $decisions */
+    public function toolApprovalDecisions(array $decisions): static
+    {
+        return $this->signal(self::APPROVAL_SIGNAL, $decisions);
     }
 
     /**

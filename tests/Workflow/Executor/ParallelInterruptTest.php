@@ -57,12 +57,12 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame(1, $first->getExecutionAttempt());
         $this->assertSame([1, 2], array_keys($first->getInterruptRequests()));
 
-        $partial = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+        $partial = $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
         $this->assertSame([2], array_keys($partial->getInterruptRequests()));
 
-        $completed = $workflow->resume([
+        $completed = $workflow->run([
             ResumeInput::event((new ApprovalRequest('test'))->withId(1), []),
             ResumeInput::event((new ApprovalRequest('test'))->withId(2), []),
         ]);
@@ -74,6 +74,34 @@ class ParallelInterruptTest extends TestCase
             array_map(
                 fn (ResumeInputResult $result): ResumeInputStatus => $result->status,
                 $completed->getInputResults(),
+            ),
+        );
+    }
+
+    public function test_named_signal_broadcasts_to_all_matching_interruptions(): void
+    {
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
+            {
+                return new Stub\DocumentParallelEvent([
+                    'text' => new Stub\TextProcessEvent(),
+                    'image' => new Stub\TextProcessEvent(),
+                ]);
+            }
+        };
+
+        $workflow = Workflow::make(workflowId: 'broadcast-signal')
+            ->addNodes([$fork, new InterruptableTextProcessNode(), new MergeNode()]);
+
+        $workflow->run();
+        $state = $workflow->signal('approval')->run();
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame(
+            [ResumeInputStatus::Accepted, ResumeInputStatus::Accepted],
+            array_map(
+                fn (ResumeInputResult $result): ResumeInputStatus => $result->status,
+                $state->getInputResults(),
             ),
         );
     }
@@ -115,7 +143,7 @@ class ParallelInterruptTest extends TestCase
             }
 
             $workflow->run();
-            $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+            $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
 
             $this->assertSame(3, $counter->runs);
         }

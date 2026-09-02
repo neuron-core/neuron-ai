@@ -254,7 +254,7 @@ class ConversationTest extends TestCase
         $agent->method('getChatHistory')->willReturn($history);
         $agent->expects($this->once())->method('chat')->willReturn($first);
         $agent->expects($this->exactly(2))
-            ->method('resume')
+            ->method('run')
             ->willReturnCallback(function (array $inputs) use (&$resumedInterrupts, $second, $completed): AgentState {
                 $input = $inputs[0] ?? null;
                 $this->assertInstanceOf(ResumeInput::class, $input);

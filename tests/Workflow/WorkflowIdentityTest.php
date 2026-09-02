@@ -76,7 +76,7 @@ class WorkflowIdentityTest extends TestCase
         $duplicate = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
             ->setPersistence($persistence)
-            ->resume([ResumeInput::fromArray([
+            ->run([ResumeInput::fromArray([
                 'interruptId' => 99,
                 'kind' => 'event',
                 'payload' => [],
@@ -108,7 +108,7 @@ class WorkflowIdentityTest extends TestCase
         $result = Workflow::make('failed-run')
             ->setPersistence($persistence)
             ->addNode(new NodeOne())
-            ->resume([ResumeInput::fromArray([
+            ->run([ResumeInput::fromArray([
                 'interruptId' => 99,
                 'kind' => 'event',
                 'payload' => [],
@@ -225,7 +225,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
 
         $retry = Workflow::make('retained-completion')->setPersistence($persistence);
-        $replayed = $retry->resume(expectedRunId: $runId);
+        $replayed = $retry->run([], expectedRunId: $runId);
 
         $this->assertSame($completed->all(), $replayed->all());
         $retry->acknowledgeCompletion($runId);

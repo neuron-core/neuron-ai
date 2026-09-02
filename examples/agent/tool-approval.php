@@ -11,7 +11,6 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -60,7 +59,7 @@ $threadId = 'tool-approval-demo-' . \bin2hex(\random_bytes(4));
  * application owns: the chat thread. The thread IS the workflow ID of the run —
  * the engine binds threadId → runId in workflow persistence when the run
  * ignites. Durable chat history carries the pending tool-call context; the
- * active InterruptRequest and its run fence come from the suspended state.
+ * Workflow persistence carries the active interruption internally.
  */
 $makeAgent = function () use ($storage, $threadId, $apiKey): Agent {
     $agent = Agent::make();
@@ -99,8 +98,7 @@ while ($state->isInterrupted()) {
     echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
 
     $approvalRequest = $state->getInterruptRequest();
-    $runId = $state->getRunId();
-    if (!$approvalRequest instanceof ApprovalRequest || $runId === null) {
+    if (!$approvalRequest instanceof ApprovalRequest) {
         throw new \RuntimeException('The Agent did not expose the expected approval interruption.');
     }
 
@@ -116,11 +114,9 @@ while ($state->isInterrupted()) {
     echo "Actions requiring approval:\n";
 
     /*
-     * Decisions travel inbound inside an addressed ResumeInput. Its payload is
-     * keyed by action id (the tool callId). The ApprovalRequest supplies the
-     * interrupt address; it is not itself the inbound payload. If approvals are
-     * collected over several UI interactions, restate the complete current
-     * decision set on every resume.
+     * Decisions are keyed by action ID (the provider tool call ID). If approvals
+     * are collected over several UI interactions, restate the complete current
+     * decision set on every continuation.
      */
     $payload = [];
     foreach ($approvalRequest->getActions() as $action) {
@@ -139,18 +135,13 @@ while ($state->isInterrupted()) {
 
     /*
      * Imagine a new execution cycle starts here, such as an approve/deny HTTP
-     * endpoint. The endpoint receives the thread ID, interrupt ID, run ID, and
-     * decision captured from the suspended outcome. The thread locates the
-     * workflow partition; the run ID prevents a delayed decision from reaching
-     * a newer generation.
+     * endpoint. The endpoint receives only the thread ID and decisions. The
+     * thread locates the Workflow partition; Agent hides the approval signal.
      */
     echo "\nResuming workflow...\n\n";
 
     $agent = $makeAgent();
-    $state = $agent->resume(
-        [ResumeInput::event($approvalRequest, $payload)],
-        expectedRunId: $runId,
-    );
+    $state = $agent->toolApprovalDecisions($payload)->run();
 }
 
 echo "Agent: " . $state->getMessage()->getContent() . "\n\n";

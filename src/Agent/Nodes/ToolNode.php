@@ -104,7 +104,7 @@ class ToolNode extends Node implements AgentNodeInterface
             // keeps a resume pass from duplicating the tail.
             $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
 
-            // A tool runs iff explicitly approved; silence is never consent.
+            // A tool runs if explicitly approved; silence is never consent.
             // An incomplete decision set loops and re-suspends with the
             // delivered decisions reflected on the outbound request.
             while ($this->pendingTools($gated) !== []) {
@@ -228,7 +228,7 @@ class ToolNode extends Node implements AgentNodeInterface
      * decisions, the latest delivery wins. Entries for unknown callIds or
      * malformed decisions are ignored.
      *
-     * @param array<string, mixed> $payload Decisions keyed by callId.
+     * @param array<array-key, mixed> $payload Decisions keyed by callId.
      * @param ToolCall[]           $gated
      */
     protected function applyDecisions(array $payload, array $gated): void
@@ -242,9 +242,7 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         foreach ($payload as $callId => $decision) {
-            if (!is_string($callId)) {
-                continue;
-            }
+            $callId = (string) $callId;
             if (!array_key_exists($callId, $byCallId)) {
                 continue;
             }

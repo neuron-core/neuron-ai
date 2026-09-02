@@ -45,53 +45,73 @@ foreach ($state->getInterruptRequests() as $request) {
 }
 ```
 
+Application code normally resumes an event wait by signal name:
+
+```php
+$state = $workflow
+    ->signal('order.approved', ['approved' => true])
+    ->run();
+```
+
+The signal is delivered to every currently active `awaitEvent()` with that
+name, including waits in parallel branches. It is never queued: when no active
+wait matches, `signal()` throws a `WorkflowException` without persisting the
+payload. Use distinct names or a domain correlation key when delivery must
+target only one wait.
+
+Call `events()` instead of `run()` after `signal()` to stream the resumed segment.
+
 Every interrupt receives a positive, run-scoped, monotonically increasing ID.
 Parallel branches may expose multiple active interrupts at once. A partial
 resume executes only addressed interrupted nodes; unaddressed requests are
 returned directly from persistence without rerunning their nodes.
 
-Resume uses addressed, typed inputs:
+Durable platform SDKs use addressed, typed inputs:
 
 ```php
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 
-$state = $workflow->resume([
+$state = $workflow->run([
     ResumeInput::event($eventWaitRequest, ['approved' => true]),
     ResumeInput::expired($expiredEventWaitRequest),
     ResumeInput::timer($sleepRequest),
 ]);
 ```
 
-- `event` and `expired` target `wait_for_event`; `expired` requires a declared
-  expiry.
-- `timer` targets `sleep_until`.
+- `event` targets `wait_for_event`.
+- `expired` and `timer` remain available to infrastructure integrations, but
+  ordinary timer coordination invokes `run([])` and lets Workflow
+  determine which waits are due.
 - Event payloads must be JSON-compatible arrays; `{}`/`[]` is a real empty
   answer.
 - A matching-run batch accepts active IDs and reports already-settled/unknown
   IDs as `stale` through `WorkflowState::getInputResults()`.
 - A stale `expectedRunId` rejects the whole batch before traversal.
 
-For manually controlled, current-run continuation, omit `expectedRunId`. A
-durable SDK or delayed delivery must always supply the `runId` copied from the
+For directly controlled current-run continuation, `expectedRunId` may be
+omitted. A durable SDK or delayed delivery supplies the `runId` copied from the
 earlier outcome:
 
 ```php
-$state = $workflow->resume($inputs, expectedRunId: $runId);
+$state = $workflow->run($inputs, expectedRunId: $runId);
 ```
 
-An inputless resume replays a crashed or failed attempt without inventing an
-external answer:
+An inputless continuation evaluates the clock and resolves every active
+`sleepUntil()` or expiring `awaitEvent()` whose deadline is due. It also replays
+a crashed or failed attempt without inventing an external answer. Future waits
+remain suspended:
 
 ```php
-$state = $workflow->resume(
+$state = $workflow->run(
+    [],
     expectedRunId: $runId,
     expectedExecutionAttempt: $attempt,
 );
 ```
 
 Streaming uses the same continuation model. `events()` starts a run;
-`events($inputs)` resumes with addressed inputs; and `events([])` or
-`events(expectedRunId: $runId)` resumes without delivering a new input.
+`signal($name, $payload)->events()` delivers an application signal;
+`events()` continues with addressed platform inputs, and `events([])` performs inputless continuation. Fences require the explicit input array.
 
 Nodes never receive `ResumeInput`. The executor translates an accepted input
 into the existing node semantics: event payload, timeout null, or timer wake.
@@ -108,7 +128,7 @@ A platform SDK is an invocation gateway:
 
 1. reconstruct the Workflow and all live dependencies through its own factory;
 2. configure persistence, serializer, lease, and completion retention;
-3. call `run()` to ignite or `resume()` to continue;
+3. call `run()` with addressed inputs or `[]` for inputless continuation;
 4. inspect the returned status, run ID, input dispositions, and complete active
    interrupt set;
 5. durably reconcile the platform's timers, subscriptions, and jobs.
@@ -120,6 +140,20 @@ and factory identity do not enter Workflow persistence.
 `WorkflowState::getWorkflowId()`, `getRunId()`, and `getExecutionAttempt()` expose
 portable ownership identity. `getStatus()`, `getInputResults()`, and
 `getInterruptRequests()` expose the lifecycle result.
+
+The complete `InterruptRequest` remains authoritative in Workflow persistence.
+The platform stores only a JSON projection needed to route or schedule work:
+`workflowId`, `runId`, `interruptId`, type, event name, deadline, and its own job
+metadata. A delivery job stores the interrupt-ID set resolved when the external
+signal was first accepted and reuses exactly that set on every retry; it never
+rematches by signal name after a lost response. The request object itself is
+never sent back as continuation input.
+
+For timers, the platform stores the workflow/run identity and earliest deadline,
+then invokes `run([])`. Workflow validates the clock and selects all
+currently due waits. `expectedExecutionAttempt` is available for exact recovery
+fencing but is normally omitted from delayed event delivery because legitimate
+recovery may advance the execution attempt.
 
 Reconstruction is explicitly the application/platform SDK factory's
 responsibility. Ignition context may restore small domain identity, but it is not

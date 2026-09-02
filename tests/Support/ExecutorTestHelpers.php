@@ -75,7 +75,7 @@ trait ExecutorTestHelpers
     ): WorkflowState {
         $workflow = $this->configure($workflow, $persistence);
         if ($payload === null) {
-            return $workflow->resume(expectedRunId: $expectedRunId);
+            return $workflow->run([], expectedRunId: $expectedRunId);
         }
 
         $raw = $workflow->getPersistence()->get(
@@ -84,7 +84,7 @@ trait ExecutorTestHelpers
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
         if (!$control instanceof WorkflowControl || $control->interrupts === []) {
-            return $workflow->resume([ResumeInput::fromArray([
+            return $workflow->run([ResumeInput::fromArray([
                 'interruptId' => 1,
                 'kind' => 'event',
                 'payload' => $payload,
@@ -102,7 +102,7 @@ trait ExecutorTestHelpers
             default => ResumeInput::event($active->request, $payload),
         };
 
-        return $workflow->resume([$input], $expectedRunId);
+        return $workflow->run([$input], $expectedRunId);
     }
 
     /**

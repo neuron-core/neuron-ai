@@ -164,7 +164,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $state2 = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])]);
+        $state2 = $agent2->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])]);
 
         $steps2 = $state2->getSteps();
         $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
@@ -248,7 +248,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
-        $message = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->getMessage();
+        $message = $agent2->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
 

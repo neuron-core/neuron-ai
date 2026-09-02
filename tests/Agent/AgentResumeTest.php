@@ -97,16 +97,21 @@ class AgentResumeTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory($pdo));
         $agent2->setChannel($channel);
 
-        // resume() runs eagerly → AgentState. The resumed inference's live
-        // chunks are delivered to the channel (push), not pulled by the caller.
-        $state = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])]);
+        // The approval wrapper hides the signal name; events() selects streaming.
+        $handler2 = $agent2->toolApprovalDecisions(['call_1' => 'approve'])
+            ->events();
+        $chunks = iterator_to_array($handler2);
+        $state = $handler2->getReturn();
 
         // The run completed, on the right thread, in the right mode.
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-1', $agent2->getChatHistory()->getThreadId());
 
-        // Stream intent survived suspend → resume: the post-resume inference
-        // streamed live chunks to the resolved channel.
+        // Stream intent survived suspend → resume through both pull and push delivery.
+        $this->assertNotEmpty(
+            array_filter($chunks, fn (object $item): bool => $item instanceof TextChunk)
+        );
+
         $this->assertNotEmpty(
             array_filter($channel->sent, fn (object $item): bool => $item instanceof TextChunk)
         );
@@ -156,9 +161,11 @@ class AgentResumeTest extends TestCase
         $agent2->setPersistence($persistence);
         $agent2->setChatHistory($history);
 
-        // The resume is mode-agnostic: structured intent rides the ignition
+        // Continuation is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
-        $user = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
+        $user = $agent2->toolApprovalDecisions(['call_1' => 'approve'])
+            ->run()
+            ->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
@@ -189,12 +196,12 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])]);
+        $partial = $agent1->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])]);
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // The full, restated decision set completes the run.
-        $complete = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
+        $complete = $agent1->run([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
             'call_a' => 'approve',
             'call_b' => 'approve',
         ])]);
@@ -242,9 +249,38 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
+        $user = $rag2->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
     }
+
+    public function test_resume_accepts_numeric_tool_call_ids(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $history = new InMemoryChatHistory('numeric-call-id');
+        $searchTool = new SearchTool();
+        $searchTool->requireApproval();
+
+        $agent = Agent::make(workflowId: 'numeric-call-id');
+        $agent->setAiProvider(new FakeAIProvider(
+            new ToolCallMessage(null, [
+                ToolCall::make($searchTool->getName(), '123', ['query' => 'PHP']),
+            ]),
+            new AssistantMessage('Search complete.'),
+        ))->setInstructions('Search once.');
+        $agent->addTool($searchTool);
+        $agent->setPersistence($persistence);
+        $agent->setChatHistory($history);
+
+        $suspended = $agent->chat(new UserMessage('Search'));
+        $this->assertTrue($suspended->isInterrupted());
+
+        // PHP converts a numeric-string JSON object key to an integer array key.
+        $completed = $agent->toolApprovalDecisions([123 => 'approve'])->run();
+
+        $this->assertFalse($completed->isInterrupted());
+        $this->assertSame('Search complete.', $completed->getMessage()->getContent());
+    }
+
 }

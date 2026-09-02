@@ -41,16 +41,28 @@ Workflow uses:
 
 | Method | Returns |
 |--------|---------|
-| `chat($messages)` | `AgentState` — eager; runs to completion |
-| `stream($messages)` | `Generator` — pull-stream; `getReturn()` is the `AgentState` |
-| `structured($messages, $class)` | the typed output — eager |
-| `resume($payload)` | `AgentState` — continues a suspended run |
+| `chat($messages)` | `AgentState` — starts a new run and consumes it eagerly |
+| `stream($messages)` | `Generator` — starts a new run; `getReturn()` is the `AgentState` |
+| `structured($messages, $class)` | The typed output — starts a new run and consumes it eagerly |
+| `run($inputs = null, $expectedRunId = null, $expectedExecutionAttempt = null)` | `AgentState` — inherited eager Workflow terminal |
+| `events($inputs = null, $expectedRunId = null, $expectedExecutionAttempt = null)` | `Generator` — inherited pull-stream Workflow terminal; `getReturn()` is the `AgentState` |
+| `toolApprovalDecisions($decisions)` | Stages Agent approval decisions; finish with `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
 Read the assistant message off it with `getMessage()`, and read an approval pause with
 `isInterrupted()` / `getInterruptRequest()` — the same surface a plain `WorkflowState`
-exposes. There is no `AgentHandler` wrapper and no `wake()`; `resume()` is the single
-continuation verb.
+exposes.
+
+There is no separate `resume()` API. The inherited Workflow terminals express both
+operations: calling `run()` / `events()` with no input starts a run, while an explicit
+`ResumeInput[]` continues one. `run([])` is an inputless continuation for due timers
+or crash recovery. Agent tool approval normally hides `ResumeInput` behind
+`toolApprovalDecisions($decisions)->run()` or
+`toolApprovalDecisions($decisions)->events()`.
+
+`Agent` specializes the generic `Workflow<AgentState>` contract, so inherited
+`run()`, `events()`, `getState()`, and `setState()` retain the concrete
+`AgentState` type without Agent forwarding methods or local type assertions.
 
 ### Chat Mode (Synchronous)
 
@@ -621,7 +633,7 @@ $agent->parallelToolCalls(true);
 
 ## Persistence and Durability
 
-Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **resume after interruptions** (e.g., a tool-approval suspension).
+Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **continue after interruptions** (e.g., a tool-approval suspension).
 
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -635,8 +647,8 @@ $response = MyAgent::make()
 When the agent suspends (e.g., waiting for tool approval), no exception is thrown —
 `chat()` returns an `AgentState` marked interrupted. The **thread is the workflow ID**:
 the run's durable records live in the partition named by the threadId itself, so a
-later `resume()` built from the threadId alone finds the pending run — nothing
-stored anywhere by the application:
+later continuation built from the threadId alone finds the pending run — no
+workflow coordination ID needs to be stored by the application:
 
 ```php
 $state = MyAgent::make(threadId: $threadId)
@@ -653,18 +665,25 @@ if ($state->isInterrupted()) {
     $state = MyAgent::make(threadId: $threadId)
         ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->resume(['call_123' => 'approve']);
+        ->toolApprovalDecisions(['call_123' => 'approve'])
+        ->run();
 }
 
 $response = $state->getMessage();
 ```
 
-This works for every suspension type (approval, `awaitEvent()`, `sleepUntil()`).
-Background (workflowId-first) resumes pass `make(workflowId:)` instead — the threadId
-then arrives from the run's ignition record and is bound into the history by
-the framework.
+The approval wrapper stages the internal `approval` signal, so application code
+needs only the thread ID and decisions keyed by tool call ID. Call `events()`
+instead of `run()` when the continued segment must stream.
 
-Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow-architect** skill for full details on how persistence works, available backends, and database schema requirements — and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
+Other interruption types use the generic Workflow API: application-controlled
+event waits use `signal($name, $payload)->run()`, due timers and inputless
+recovery use `run([])`, and durable platform SDKs pass addressed
+`ResumeInput[]` to `run()` or `events()`. A background, workflow-ID-first
+continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
+the ignition record and is bound into history by the framework.
+
+Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow** skill for full details on persistence and continuation, and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
 
 ## Key Decisions
 

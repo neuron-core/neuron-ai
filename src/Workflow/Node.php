@@ -159,9 +159,9 @@ abstract class Node implements NodeInterface
     /**
      * Suspend the workflow until an external event named $eventName is
      * delivered — sugar over {@see interrupt()} with a WaitForEventRequest.
-     * When the optional $expiresAt deadline elapses, a caller delivers an
-     * expiry input and this returns null: the null return is the timeout
-     * signal — node code must NOT compare the clock itself.
+     * On inputless continuation, Workflow resolves an elapsed $expiresAt and
+     * this returns null: the null return is the timeout signal — node code must
+     * NOT compare the clock itself.
      *
      * @return array<string, mixed>|null The event payload, or null on timeout.
      */
@@ -181,8 +181,8 @@ abstract class Node implements NodeInterface
 
     /**
      * Suspend the workflow until a clock time — sugar over {@see interrupt()}
-     * with a SleepUntilRequest. External coordination decides when to deliver
-     * the timer input; the timer carries no value, so this returns null.
+     * with a SleepUntilRequest. Inputless continuation resolves it only after
+     * the deadline; an external platform merely schedules that invocation.
      */
     protected function sleepUntil(DateTimeImmutable $wakeAt): ?array
     {

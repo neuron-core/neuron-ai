@@ -14,7 +14,6 @@ use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\ObserverAdapter;
 use NeuronAI\Observability\ObserverInterface;
 use NeuronAI\Observability\WorkflowEventDispatcher;
-use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
@@ -30,12 +29,13 @@ use function array_merge;
 use function is_array;
 
 /**
- * @method static static make(?string $workflowId = null, ?WorkflowState $state = null)
+ * @template TState of WorkflowState = WorkflowState
+ * @implements WorkflowInterface<TState>
  */
 class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 {
-    use StaticConstructor;
     use HandleMiddleware;
+    /** @use ResolveState<TState> */
     use ResolveState;
     use HandleComponents;
 
@@ -61,13 +61,23 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     protected ?string $runId = null;
 
+    /** @var TState|null */
+    protected ?WorkflowState $state;
+
+    protected ?string $stagedSignalName = null;
+
+    /** @var array<string, mixed> */
+    protected array $stagedSignalPayload = [];
+
     /**
+     * @param TState|null $state
      * @throws WorkflowException
      */
     public function __construct(
         protected ?string $workflowId = null,
-        protected ?WorkflowState   $state = null,
+        ?WorkflowState $state = null,
     ) {
+        $this->state = $state;
         $this->exporter = new ConsoleExporter();
 
         $this->addGlobalMiddleware($this->globalMiddleware());
@@ -75,6 +85,12 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             $middleware = is_array($middleware) ? $middleware : [$middleware];
             $this->addMiddleware($node, $middleware);
         }
+    }
+
+    public static function make(...$arguments): static
+    {
+        $class = static::class;
+        return new $class(...$arguments);
     }
 
     /**
@@ -146,28 +162,33 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Ignite a new run under the workflow ID. Never adopts a run already in
-     * flight there — that is refused loudly; continue it with {@see resume()}.
-     *
+     * @param list<ResumeInput>|null $inputs
+     * @return TState
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function run(): WorkflowState
-    {
-        return $this->consume($this->events());
-    }
-
-    /**
-     * @param list<ResumeInput> $inputs
-     * @throws WorkflowException
-     * @throws Throwable
-     */
-    public function resume(
-        array $inputs = [],
+    public function run(
+        ?array $inputs = null,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): WorkflowState {
         return $this->consume($this->events($inputs, $expectedRunId, $expectedExecutionAttempt));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    public function signal(string $name, array $payload = []): static
+    {
+        if ($this->stagedSignalName !== null) {
+            throw new WorkflowException(
+                "Signal '{$this->stagedSignalName}' is already staged for this workflow."
+            );
+        }
+
+        $this->stagedSignalName = $name;
+        $this->stagedSignalPayload = $payload;
+        return $this;
     }
 
     public function acknowledgeCompletion(string $expectedRunId): void
@@ -177,7 +198,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * @param list<ResumeInput>|null $inputs
-     * @return Generator<int, object|string, mixed, WorkflowState>
+     * @return Generator<int, object|string, mixed, TState>
      * @throws Throwable
      */
     public function events(
@@ -185,23 +206,43 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): Generator {
-        $continuing = $inputs !== null
-            || $expectedRunId !== null
-            || $expectedExecutionAttempt !== null;
-        $generator = $continuing
-            ? $this->getExecutor()->resume(
-                $this,
-                $inputs ?? [],
-                $expectedRunId,
-                $expectedExecutionAttempt,
-            )
-            : $this->getExecutor()->execute($this);
+        if ($this->stagedSignalName !== null) {
+            if ($inputs !== null || $expectedRunId !== null || $expectedExecutionAttempt !== null) {
+                throw new WorkflowException(
+                    'A staged signal cannot be combined with addressed inputs or continuation fences.'
+                );
+            }
+
+            $name = $this->stagedSignalName;
+            $payload = $this->stagedSignalPayload;
+            $this->stagedSignalName = null;
+            $this->stagedSignalPayload = [];
+
+            return $this->forwardEvents($this->getExecutor()->signal($this, $name, $payload));
+        }
+
+        if ($inputs === null) {
+            if ($expectedRunId !== null || $expectedExecutionAttempt !== null) {
+                throw new WorkflowException(
+                    'Continuation fences require an explicit input array; use [] for inputless continuation.'
+                );
+            }
+
+            return $this->forwardEvents($this->getExecutor()->execute($this));
+        }
+
+        $generator = $this->getExecutor()->resume(
+            $this,
+            $inputs,
+            $expectedRunId,
+            $expectedExecutionAttempt,
+        );
 
         return $this->forwardEvents($generator);
     }
 
     /**
-     * @return Generator<int, object|string, mixed, WorkflowState>
+     * @return Generator<int, object|string, mixed, TState>
      * @throws Throwable
      */
     protected function forwardEvents(Generator $generator): Generator
@@ -279,6 +320,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * The traversal body is lazy — it does not execute until iterated.
+     *
+     * @param Generator<int, object|string, mixed, TState> $generator
+     * @return TState
      */
     protected function consume(Generator $generator): WorkflowState
     {
@@ -481,7 +525,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Opt into the execution lease: while a run is executing, the engine
-     * refreshes the lease deadline inside __control, and an inputless resume
+     * refreshes the lease deadline inside __control, and an inputless continuation
      * arriving while the lease is fresh is refused — it would
      * probably duplicate a live process, not revive a dead one. Suspension,
      * failure, and completion all clear the deadline, so only a violent

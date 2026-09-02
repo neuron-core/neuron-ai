@@ -15,14 +15,15 @@ use NeuronAI\Exceptions\WorkflowException;
  * inbound payload on resume. Subclasses specialize the outbound context
  * (ApprovalRequest is the shipped example).
  *
- * An optional $expiresAt bounds the wait: an external caller or coordination
- * platform owns the deadline timer and delivers an expiry ResumeInput.
+ * An optional $expiresAt bounds the wait. Inputless continuation evaluates the
+ * clock and produces the expiry internally; an external platform only schedules
+ * when to invoke the workflow again.
  */
 class WaitForEventRequest extends InterruptRequest
 {
     /**
      * @param string                 $eventName The external occurrence to wait for.
-     * @param DateTimeImmutable|null $expiresAt Optional deadline for an external coordinator.
+     * @param DateTimeImmutable|null $expiresAt Optional deadline evaluated on continuation.
      */
     public function __construct(
         protected string $eventName,

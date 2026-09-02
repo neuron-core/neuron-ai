@@ -1,10 +1,11 @@
-# Upgrade: typed, interrupt-addressed Workflow resume
+# Upgrade: Workflow signals and unified execution
 
 ## Summary
 
-Workflow resume is changing from a nullable payload plus positional flags to a
-typed, interrupt-addressed input API. This is an intentional breaking change;
-the old signature is removed without a compatibility shim.
+Application event delivery now uses named signals, while durable platform SDKs
+retain typed, interrupt-addressed inputs for retry-safe delivery. This is an
+intentional breaking change; the old nullable payload and positional flags are
+removed without a compatibility shim.
 
 Before:
 
@@ -16,47 +17,64 @@ resume(
 ): WorkflowState
 ```
 
-New signature:
+New application APIs:
 
 ```php
-/** @param list<ResumeInput> $inputs */
-resume(
-    array $inputs = [],
-    ?string $expectedRunId = null,
-    ?int $expectedExecutionAttempt = null,
-): WorkflowState
+signal(string $name, array $payload = []): static
+run(?array $inputs = null, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): WorkflowState
+events(?array $inputs = null, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): Generator
 ```
 
-The new contract makes interrupt addressing mandatory without exposing run
-generation identity during ordinary manual continuation:
+Agent approval hides the internal signal name:
 
-- Every input identifies the active interrupt request it intends to resolve.
+```php
+$agent->toolApprovalDecisions(['call_123' => 'approve'])->run();
+$agent->toolApprovalDecisions(['call_123' => 'approve'])->events();
+```
+
+Durable platform SDKs use the same terminals with an explicit addressed input array:
+
+```php
+$state = $workflow->run($inputs, expectedRunId: $runId);
+```
+
+The two-layer contract removes coordination identity from ordinary application
+continuation without weakening the platform protocol. In the addressed layer:
+
+- Every platform input identifies the active interrupt request it resolves.
 - An empty input batch continues without delivering an external answer.
 - `expectedRunId`, when supplied, fences the whole delivery against the active
   run generation.
 - `expectedExecutionAttempt`, when supplied, fences the continuation against
   the exact ownership attempt observed by a durable worker.
 
-## Choose current-run or exact-run semantics
+## Choose application signal or exact platform semantics
 
-Omit `expectedRunId` when application code is deliberately resuming the run that
-is currently active under the Workflow ID. Core obtains that run from `__control`:
+Application code delivers an event to the currently active waits by name:
 
 ```php
-$state = $workflow->resume([
-    ResumeInput::event($request, ['approved' => true]),
-]);
+$state = $workflow
+    ->signal('order.approved', ['approved' => true])
+    ->run();
 ```
 
-This is the normal manually managed flow. It also preserves thread-first Agent
-continuation: the thread/chat history identifies the Workflow partition, while
-core resolves its current run. Developers do not copy or generate a run ID.
+Agent tool approval uses the thread as Workflow identity and tool-call IDs as
+domain payload keys:
+
+```php
+$state = $agent
+    ->toolApprovalDecisions(['call_123' => 'approve'])
+    ->run();
+```
+
+Neither application path requires a run ID, execution attempt, interrupt
+request, or interrupt ID.
 
 Supply `expectedRunId` when the input may have been delayed, retried, queued, or
 delivered by an external platform:
 
 ```php
-$state = $workflow->resume(
+$state = $workflow->run(
     [ResumeInput::event($request, ['approved' => true])],
     expectedRunId: $runId,
 );
@@ -66,8 +84,8 @@ The value is copied from the earlier suspended outcome; callers never invent it.
 It changes the operation from "resume whichever run is current" to "resume only
 this exact run." A mismatch rejects the entire batch before node execution.
 
-The Cloud SDK must always use exact-run semantics. Omitting the fence is intended
-for direct application-controlled continuation, not durable delivery machinery.
+The Cloud SDK must always use exact-run semantics. Application code uses
+`signal()` or the Agent decision-map wrapper instead.
 
 ## Update event delivery
 
@@ -83,65 +101,52 @@ $state = $workflow->resume(
 After:
 
 ```php
-use NeuronAI\Workflow\Interrupt\ResumeInput;
-
-$state = $workflow->resume(
-    [ResumeInput::event($request, ['approved' => true])],
-);
+$state = $workflow
+    ->signal('order.approved', ['approved' => true])
+    ->run();
 ```
 
-The application payload remains `array<string, mixed>`. Only lifecycle and
-routing information moves into the typed value.
+The application payload remains `array<string, mixed>`. Workflow resolves the
+currently active waits internally. A signal is broadcast to every active wait
+with the same name; it is not queued for future waits. When nothing matches,
+`signal()` throws without persisting the payload.
 
 An explicitly empty event payload remains valid:
 
 ```php
-$state = $workflow->resume(
-    [ResumeInput::event($request, [])],
-);
+$state = $workflow->signal('order.approved')->run();
 ```
 
 ## Update deadline and timer delivery
 
-An expired `awaitEvent()` deadline and a fired `sleepUntil()` timer are different
-inputs. Neither is represented by a boolean flag or a sentinel payload.
-
-Before — expired event deadline:
+Before — an external scheduler manufactured a timeout input:
 
 ```php
 $state = $workflow->resume([], timedOut: true, expectedRunId: $runId);
 ```
 
-After:
+After — the platform schedules only the earliest workflow deadline:
 
 ```php
-$state = $workflow->resume(
-    [ResumeInput::expired($request)],
+$state = $workflow->run(
+    [],
     expectedRunId: $runId,
 );
 ```
 
-After — fired sleep timer:
+Workflow evaluates the clock and resolves every currently due `sleepUntil()` or
+expiring `awaitEvent()` request. Future deadlines remain suspended.
 
-```php
-$state = $workflow->resume(
-    [ResumeInput::timer($request)],
-    expectedRunId: $runId,
-);
-```
+`ResumeInput::expired()` and `ResumeInput::timer()` remain available to advanced
+infrastructure integrations, but ordinary timer jobs do not need interrupt IDs.
 
-`event` and `expired` can target only a `wait_for_event` request. `expired`
-also requires that the request has an expiry. `timer` can target only a
-`sleep_until` request. The Workflow core validates these combinations before
-delivering anything to a node.
-
-## Resume multiple interrupts in one segment
+## Continue multiple interrupts in one segment
 
 Pass all currently available answers in the same call. This supports parallel
 branches without making the caller choose an execution order:
 
 ```php
-$state = $workflow->resume(
+$state = $workflow->run(
     [
         ResumeInput::event($approvalRequest, ['approved' => true]),
         ResumeInput::event($documentRequest, ['documentId' => 'doc-7']),
@@ -156,24 +161,26 @@ accept a batch: inputs for active interrupts execute, while already-settled or
 unknown interrupt IDs are reported as stale. A stale `runId` rejects the entire
 batch before any node executes.
 
-## Use inputless resume for replay
+## Use explicit empty input for deadlines and replay
 
-An empty batch does not mean "deliver an empty answer":
+An explicit empty batch requests continuation without delivering an answer:
 
 ```php
-$workflow->resume();
+$workflow->run([]);
 ```
 
-It continues the current run without inventing an external input. Do not
-manufacture a `ResumeInput` or reuse an interrupt ID for crash replay. A real
-empty event payload remains an addressed input such as
+It evaluates due deadlines and continues the current run without inventing an
+external input. Do not manufacture a `ResumeInput` or reuse an interrupt ID for
+ordinary timer delivery or crash replay. A real empty application event payload
+uses `signal('event.name')`; an exact platform delivery uses
 `ResumeInput::event($request, [])`.
 
 ```php
-$state = $workflow->resume();
+$state = $workflow->run([]);
 
 // A durable worker fences the exact ownership state it observed.
-$state = $workflow->resume(
+$state = $workflow->run(
+    [],
     expectedRunId: $runId,
     expectedExecutionAttempt: $executionAttempt,
 );
@@ -231,7 +238,7 @@ $workflow = $factory->make($fnId, $workflowId)
     ->setPersistence($productionStore)
     ->retainCompletionUntilAcknowledged();
 
-$state = $workflow->resume($inputs, expectedRunId: $runId);
+$state = $workflow->run($inputs, expectedRunId: $runId);
 
 // The SDK/platform durably reconciles $state->getInterruptRequests() here.
 ```
@@ -251,7 +258,7 @@ Platform SDK factories should enable replayable completion before invoking core:
 $workflow->retainCompletionUntilAcknowledged();
 ```
 
-With retention enabled, a lost completion response can retry `resume()` and
+With retention enabled, a lost completion response can retry `run([])` and
 receive the same completed state without rerunning nodes. Once the platform has
 durably accepted that outcome, acknowledge the exact run:
 
@@ -306,6 +313,17 @@ Wire rules:
 - The SDK passes the envelope's `runId` as `expectedRunId`; it never uses the
   optional current-run behavior.
 
+The platform does not serialize or later resubmit PHP `InterruptRequest`
+objects. It stores a JSON projection containing the workflow/run identity,
+interrupt ID, request type, event name or deadline, and its own job metadata.
+When accepting a named external event, it resolves and stores the complete
+matching interrupt-ID set once. Every retry reuses that exact set instead of
+matching the signal name again, so a delayed retry cannot satisfy a newer wait.
+
+Ordinary timer jobs store the workflow/run identity and earliest deadline, then
+invoke `run([], expectedRunId: $runId)`. They do not construct the
+addressed timer entries shown above.
+
 Constructor mapping:
 
 | Wire entry | Core value |
@@ -350,25 +368,32 @@ state keys directly.
 
 Search application code, packages, and tests for:
 
-- `->resume(` calls whose array contains raw application payload values rather
-  than `ResumeInput` objects.
+- Workflow `->run(` calls whose array contains raw application payload
+  values; migrate them to `signal($name, $payload)`.
+- Agent approval endpoints that retain an interrupt request; migrate them to `toolApprovalDecisions($decisions)` followed by `run()` or `events()`.
 - `timedOut:` and positional timeout booleans.
 - `expectedRunId:` passed as the third argument.
-- bare `->resume()` and `->resume(null` recovery calls.
-- Cloud handlers that forward decoded JSON arrays directly into `resume()`.
-- timer handlers that deliver `[]` only to make the old nullable sentinel work.
+- bare `->resume()` calls; migrate inputless continuation to `->run([])`.
+- Cloud handlers that forward decoded JSON arrays directly into `run()`.
+- timer handlers that manufacture addressed timer/expiry inputs; ordinary
+  scheduling now invokes `run([])` after the deadline.
 - `setScheduler()`, `SchedulerInterface`, and scheduler lifecycle callbacks.
 - SDK factories that need retained completion but do not enable and acknowledge it.
 
 ## Verification checklist
 
-- [ ] Every delayed, queued, or platform resume supplies the expected run ID.
-- [ ] Direct manual resumes omit it only when "current active run" is intended.
-- [ ] Every external input supplies the interrupt ID it resolves.
-- [ ] Event, expiry, and timer delivery use the matching named constructor.
+- [ ] Application event delivery uses `signal()` followed by `run()` or `events()` and does not
+      retain Workflow interrupt IDs.
+- [ ] Agent approval uses decision maps keyed by tool-call ID.
+- [ ] Every delayed, queued platform continuation supplies the expected run ID.
+- [ ] Every exact platform event input supplies the interrupt ID it resolves.
+- [ ] Ordinary timer delivery calls `run([])`; Workflow evaluates
+      which deadlines are due.
+- [ ] Advanced addressed event, expiry, and timer delivery uses the matching
+      named `ResumeInput` constructor.
 - [ ] Multiple inputs for one segment contain no duplicate interrupt IDs.
 - [ ] No old `$timedOut` or nullable-payload resume calls remain.
-- [ ] Crash recovery uses inputless `resume()`, without manufacturing an input.
+- [ ] Crash recovery uses `run([])`, without manufacturing an input.
 - [ ] The Cloud SDK validates the JSON discriminator before constructing core values.
 - [ ] A stale run rejects the whole batch without executing nodes.
 - [ ] A mixed active/stale interrupt batch reports each input disposition.

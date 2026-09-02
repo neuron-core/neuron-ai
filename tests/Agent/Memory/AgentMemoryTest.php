@@ -478,7 +478,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setPersistence($persistence);
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
-        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
+        $resumed = $resumingAgent->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run the approved lookup.'], $memory->recalls);
@@ -514,7 +514,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
 
-        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
+        $resumed = $resumingAgent->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run without remembering.'], $memory->recalls);

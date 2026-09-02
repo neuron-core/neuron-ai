@@ -1,6 +1,6 @@
 ---
 name: neuron-tool-approval
-description: Implement human-in-the-loop tool approval flows with Neuron AI agents — gating risky tools behind approve/deny decisions, rendering approval UIs from chat history, submitting decisions, and building a single endpoint that handles both conversation turns and approval resumes. Use this skill whenever the user mentions tool approval, human in the loop (HITL), approve/deny actions, pending approvals, confirming dangerous tool calls, resuming a suspended agent, or building the UI side of an approval workflow.
+description: Implement human-in-the-loop tool approval flows with Neuron AI agents — gating risky tools behind approve/deny decisions, rendering approval UIs from chat history, submitting decisions, and building a single endpoint that handles both conversation turns and approval continuations. Use this skill whenever the user mentions tool approval, human in the loop (HITL), approve/deny actions, pending approvals, confirming dangerous tool calls, resuming a suspended agent, or building the UI side of an approval workflow.
 ---
 
 # Neuron AI Tool Approval
@@ -11,16 +11,16 @@ This skill helps you gate agent tool execution behind human approval and build t
 
 **Approval is owned by `ToolNode` and configured on the tools themselves**. There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
-**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Resuming needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread id alone. Nothing is stored on the side.
+**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Continuing needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread ID alone, stages the decisions with `toolApprovalDecisions()`, and finishes with `run()` or `events()`. No workflow coordination ID is stored on the side.
 
 Two facts shape the UI:
 
 - **History is append-only.** The suspended `tool_call` message keeps its *pending snapshot* forever; the final outcomes (approved/rejected + feedback + results) are recorded on the `tool_call_result` message that follows it. "Is approval pending?" = the thread tail is a `tool_call` with pending tools.
-- **Partial decisions are not persisted anywhere.** The resume payload is **cumulative** — every resume restates the entire decision set, and accumulation lives with your application (client- or server-side) until the set is complete.
+- **Partial decisions are not persisted anywhere.** The approval payload is **cumulative** — every continuation restates the entire decision set, and accumulation lives with your application (client- or server-side) until the set is complete.
 
 ## Enabling Approval
 
-Two requirements for cross-process flows: **workflow persistence** (the suspend/resume machinery) and a **durable chat history** (the record itself — `InMemoryChatHistory` keeps the safety property but loses the thread across processes).
+Two requirements for cross-process flows: **workflow persistence** (the suspension/continuation machinery) and a **durable chat history** (the record itself — `InMemoryChatHistory` keeps the safety property but loses the thread across processes).
 
 ```php
 use NeuronAI\Chat\History\SQLChatHistory;
@@ -155,7 +155,7 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ### The contract
 
-1. **Cumulative** — the payload is the *entire decision set*, restated on every resume. A decision that is not restated is not remembered: an omitted `callId` reverts to pending.
+1. **Cumulative** — the payload is the *entire decision set*, restated on every continuation. A decision that is not restated is not remembered: an omitted `callId` reverts to pending.
 2. **Accumulation lives with your app** — collect decisions client- or server-side; the framework deliberately persists no partial progress (a process death loses undelivered partials; the caller re-sends).
 3. **Revisable until complete** — the latest delivered payload wins, so a resubmitted `callId` overwrites its earlier decision while any tool is still pending.
 4. **Completeness is the point of no return** — the moment every gated tool has a decision, the workflow proceeds immediately.
@@ -176,12 +176,11 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ## One Endpoint for the Whole Conversation
 
-A normal turn and an approval resume are the same operation: build the agent from the thread id, feed it what the client sent, return the thread's new state. With `decisions`, `resume()` finds the thread's pending run under the thread's own workflow ID; with a message, `chat()` starts a fresh run.
+A normal turn and an approval continuation share the same agent construction: build it from the thread ID, feed it what the client sent, and return the thread's new state. With `decisions`, `toolApprovalDecisions()` stages the approval signal and `run()` continues the pending run; with a message, `chat()` starts a fresh run.
 
 ```php
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Exceptions\WorkflowException;
 
 /**
  * POST /threads/{threadId}/chat — body is ONE of:
@@ -195,9 +194,10 @@ function chatEndpoint(string $threadId, array $body): array
 
     try {
         $state = isset($body['decisions'])
-            ? $agent->resume($body['decisions'])                       // answer → resume the pending run
-            : $agent->chat(new UserMessage($body['message']));         // new turn → new run
-    } catch (ChatHistoryException $e) {
+            ? $agent->toolApprovalDecisions($body['decisions'])
+                ->run()                                                // answer → continue the pending run
+            : $agent->chat(new UserMessage($body['message']));         // message → start a new run
+    } catch (WorkflowException $e) {
         // A user message arrived while the thread has a pending tool call
         // (the UI failed to lock the input). Nothing was executed or persisted.
         return ['status' => 'conflict', 'error' => $e->getMessage()];   // HTTP 409
@@ -215,10 +215,12 @@ function chatEndpoint(string $threadId, array $body): array
 Why this works as one endpoint:
 
 1. **Same construction** — both paths build the identical agent from the thread id; the thread IS the run's workflow ID, so the decisions branch needs nothing extra.
-2. **Same outcomes** — a fresh turn can end suspended (model called a gated tool) and a resume can end suspended (incomplete decision set, or the model called another gated tool). One response contract covers both: `awaiting_approval | completed`.
+2. **Same outcomes** — a fresh turn can end suspended (model called a gated tool) and a continuation can end suspended (incomplete decision set, or the model called another gated tool). One response contract covers both: `awaiting_approval | completed`.
 3. **Same failure containment** — a user message on a suspended thread is refused by the engine ("run is already in flight") before anything reaches the provider or the durable store; map it to HTTP 409.
 
-Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented. For streaming, swap `chat()` for `stream()` (a `Generator` — emit its chunks), and read the final `AgentState` from `$stream->getReturn()` after it drains (`isInterrupted()` tells you which status to return).
+Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented.
+
+For streaming, a new message uses `stream($message)`; an approval continuation uses `toolApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one.
 
 ## A Complete Decision Round Trip
 
@@ -255,6 +257,6 @@ Set complete → approved tool runs, rejected tool's template becomes its result
 
 ## Related
 
-- **Stale suspensions / deadlines**: an `expiresAt` on the outbound request plus a `$timedOut` resume — see the **neuron-workflow-architect** skill (suspend & resume beyond approval).
-- **Declaring tool risk** when creating tools: the **neuron-tool-creator** skill.
-- **Agent setup** (providers, history backends, persistence): the **neuron-agent-builder** skill.
+- **Stale suspensions / deadlines**: event waits, due timers, addressed `ResumeInput`, and continuation fences — see the **neuron-workflow** skill.
+- **Declaring tool risk** when creating tools: the **neuron-tool** skill.
+- **Agent setup** (providers, history backends, persistence): the **neuron-agent** skill.

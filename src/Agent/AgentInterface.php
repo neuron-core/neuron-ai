@@ -12,9 +12,10 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\WorkflowInterface;
 
-interface AgentInterface
+/** @extends WorkflowInterface<AgentState> */
+interface AgentInterface extends WorkflowInterface
 {
     public function setAiProvider(AIProviderInterface $provider): AgentInterface;
 
@@ -77,14 +78,6 @@ interface AgentInterface
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
 
-    /** @param list<ResumeInput> $inputs */
-    public function resume(
-        array $inputs = [],
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): AgentState;
-
-    public function retainCompletionUntilAcknowledged(bool $retain = true): static;
-
-    public function acknowledgeCompletion(string $expectedRunId): void;
+    /** @param array<array-key, mixed> $decisions */
+    public function toolApprovalDecisions(array $decisions): static;
 }

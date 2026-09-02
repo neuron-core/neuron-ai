@@ -9,6 +9,8 @@ use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
+ * @template-covariant TState of WorkflowState
+ *
  * The application-facing contract of a workflow. Configuration is
  * concrete-class API on {@see Workflow}; the engine-facing collaboration
  * points live on {@see WorkflowRuntimeInterface}. getWorkflowId() appears on
@@ -18,17 +20,20 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 interface WorkflowInterface
 {
     /**
-     * Ignite a new run under the workflow ID. Never adopts a run already in
-     * flight there — that is refused loudly; continue it with {@see resume()}.
+     * With no inputs, ignite a new run. An explicit input array continues an
+     * existing run; [] delivers no external answer.
+     *
+     * @param list<ResumeInput>|null $inputs
+     * @return TState
      */
-    public function run(): WorkflowState;
-
-    /** @param list<ResumeInput> $inputs */
-    public function resume(
-        array $inputs = [],
+    public function run(
+        ?array $inputs = null,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): WorkflowState;
+
+    /** @param array<string, mixed> $payload */
+    public function signal(string $name, array $payload = []): static;
 
     /** Conditionally purge a retained completed generation. */
     public function acknowledgeCompletion(string $expectedRunId): void;
@@ -40,13 +45,14 @@ interface WorkflowInterface
     public function retainCompletionUntilAcknowledged(bool $retain = true): static;
 
     /**
-     * Stream a new run, or resume one when inputs are supplied.
+     * Stream a new run, or continue one when inputs are supplied.
      *
-     * With no arguments this starts a run. Supplying inputs or either
-     * continuation fence resumes one; an empty input array delivers no input.
+     * With no arguments this starts a run. An explicit input array continues
+     * one; an empty input array delivers no external answer. Continuation
+     * fences require an explicit input array.
      *
      * @param list<ResumeInput>|null $inputs
-     * @return Generator<int, object|string, mixed, WorkflowState>
+     * @return Generator<int, object|string, mixed, TState>
      */
     public function events(
         ?array $inputs = null,

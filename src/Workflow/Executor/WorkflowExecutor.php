@@ -27,6 +27,8 @@ use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputResult;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Interrupt\ResumeKind;
+use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
@@ -82,6 +84,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
     }
 
+    /** @return Generator<int, Event, mixed, WorkflowState> */
+    public function signal(
+        WorkflowRuntimeInterface $workflow,
+        string $name,
+        array $payload = [],
+    ): Generator {
+        return $this->executeSegment(
+            $workflow,
+            continuing: true,
+            signalName: $name,
+            signalPayload: $payload,
+        );
+    }
+
     /**
      * @param list<ResumeInput> $inputs
      * @return Generator<int, Event, mixed, WorkflowState>
@@ -93,6 +109,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         bool $continuing = false,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
+        ?string $signalName = null,
+        array $signalPayload = [],
     ): Generator {
         $this->inputResults = [];
         $this->ownsExecutionSegment = false;
@@ -106,7 +124,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         try {
             $terminalState = $continuing
-                ? $this->continueRun($workflow, $inputs, $expectedRunId, $expectedExecutionAttempt)
+                ? $this->continueRun(
+                    $workflow,
+                    $inputs,
+                    $expectedRunId,
+                    $expectedExecutionAttempt,
+                    $signalName,
+                    $signalPayload,
+                )
                 : $this->startRun($workflow);
 
             if ($terminalState instanceof WorkflowState) {
@@ -234,6 +259,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         array $inputs,
         ?string $expectedRunId,
         ?int $expectedExecutionAttempt,
+        ?string $signalName,
+        array $signalPayload,
     ): ?WorkflowState {
         $this->loadControl($expectedRunId);
         $this->runId = $this->runStore->control()->runId;
@@ -269,6 +296,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $workflow->adoptIgnition($ignition);
 
         if ($control->status === WorkflowStatus::Completed) {
+            if ($signalName !== null) {
+                throw new WorkflowException(
+                    "No active interruption for workflow ID '{$this->workflowId}' is waiting for signal '{$signalName}'."
+                );
+            }
             $state = $control->completedState;
             if (!$state instanceof WorkflowState) {
                 throw new WorkflowException("Completed run '{$this->runId}' has no retained outcome.");
@@ -278,8 +310,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         $acceptedInputs = [];
-        if ($inputs === []) {
+        if ($signalName !== null) {
+            $acceptedInputs = $this->prepareSignal($signalName, $signalPayload);
+        } elseif ($inputs === []) {
             $this->assertInputlessContinuationAllowed();
+            $dueInputs = $this->dueInputs();
+            $acceptedInputs = $dueInputs === []
+                ? []
+                : $this->prepareResume($dueInputs, allowRunning: true);
         } else {
             $acceptedInputs = $this->prepareResume($inputs);
 
@@ -316,10 +354,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @param non-empty-list<ResumeInput> $inputs
      * @return array<int, ResumeInput>
      */
-    protected function prepareResume(array $inputs): array
+    protected function prepareResume(array $inputs, bool $allowRunning = false): array
     {
         $control = $this->runStore->control();
-        if (!in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)) {
+        $canResume = in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)
+            || ($allowRunning && $control->status === WorkflowStatus::Running);
+
+        if (!$canResume) {
             throw new WorkflowException(
                 "Run '{$this->runId}' is '{$control->status->value}', not suspended."
             );
@@ -354,6 +395,57 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         return $accepted;
+    }
+
+    /** @return array<int, ResumeInput> */
+    protected function prepareSignal(string $name, array $payload): array
+    {
+        $inputs = [];
+        foreach ($this->runStore->control()->interrupts as $active) {
+            $request = $active->request;
+            if (
+                $request instanceof WaitForEventRequest
+                && $request->getEventName() === $name
+            ) {
+                $inputs[] = ResumeInput::event($request, $payload);
+            }
+        }
+
+        if ($inputs === []) {
+            throw new WorkflowException(
+                "No active interruption for workflow ID '{$this->workflowId}' is waiting for signal '{$name}'."
+            );
+        }
+
+        return $this->prepareResume($inputs);
+    }
+
+    /** @return list<ResumeInput> */
+    protected function dueInputs(): array
+    {
+        $now = time();
+        $inputs = [];
+
+        foreach ($this->runStore->control()->interrupts as $active) {
+            if ($active->input instanceof ResumeInput) {
+                continue;
+            }
+
+            $request = $active->request;
+            if ($request instanceof SleepUntilRequest && $request->getWakeAt()->getTimestamp() <= $now) {
+                $inputs[] = ResumeInput::timer($request);
+                continue;
+            }
+
+            $expiresAt = $request instanceof WaitForEventRequest
+                ? $request->getExpiresAt()
+                : null;
+            if ($expiresAt !== null && $expiresAt->getTimestamp() <= $now) {
+                $inputs[] = ResumeInput::expired($request);
+            }
+        }
+
+        return $inputs;
     }
 
     protected function assertInputlessContinuationAllowed(): void

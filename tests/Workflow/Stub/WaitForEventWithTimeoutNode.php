@@ -11,13 +11,17 @@ use NeuronAI\Workflow\WorkflowState;
 /**
  * Like WaitForEventNode, but bounds the wait with a deadline and shows the
  * developer-facing timeout branch: awaitEvent() returns null when the deadline
- * elapses (delivered via the $timedOut resume flag), so the node branches on null.
+ * elapses, so the node branches on null.
  */
 class WaitForEventWithTimeoutNode extends Node
 {
+    public function __construct(protected ?DateTimeImmutable $expiresAt = null)
+    {
+    }
+
     public function __invoke(FirstEvent $event, WorkflowState $state): SecondEvent
     {
-        $payload = $this->awaitEvent('user.signup', expiresAt: new DateTimeImmutable('+1 hour'));
+        $payload = $this->awaitEvent('user.signup', expiresAt: $this->expiresAt ?? new DateTimeImmutable('+1 hour'));
 
         if ($payload === null) {
             // Timeout branch: the deadline elapsed with no event delivered.

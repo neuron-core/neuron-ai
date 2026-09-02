@@ -172,6 +172,25 @@ class WorkflowStreamingTest extends TestCase
         $this->assertSame('completed', $generator->getReturn()->get('received_feedback'));
     }
 
+    public function test_staged_signal_streams_through_events(): void
+    {
+        $persistence = new InMemoryPersistence();
+        KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-signal')
+            ->setPersistence($persistence)
+            ->run();
+
+        $generator = KeyedWorkflow::make()
+            ->withDeclaredWorkflowId('streamed-signal')
+            ->setPersistence($persistence)
+            ->signal('approval')
+            ->events();
+
+        iterator_to_array($generator);
+
+        $this->assertSame('completed', $generator->getReturn()->get('received_feedback'));
+    }
+
     public function test_events_streams_an_inputless_continuation(): void
     {
         $persistence = new InMemoryPersistence();
@@ -184,6 +203,7 @@ class WorkflowStreamingTest extends TestCase
             ->withDeclaredWorkflowId('streamed-replay')
             ->setPersistence($persistence)
             ->events(
+                [],
                 expectedRunId: $first->getRunId(),
                 expectedExecutionAttempt: $first->getExecutionAttempt(),
             );

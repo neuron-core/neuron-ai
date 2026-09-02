@@ -79,7 +79,7 @@ $workflow = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([new PrepareOperation(), new ApproveOperation()]);
 
-$completed = $workflow->resume(
+$completed = $workflow->run(
     [ResumeInput::event($request, ['delete_files' => 'approve'])],
     expectedRunId: $runId,
 );

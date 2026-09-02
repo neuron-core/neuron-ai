@@ -66,6 +66,84 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
+    public function test_named_signal_resumes_matching_event(): void
+    {
+        $workflow = Workflow::make(workflowId: 'named-signal')
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
+
+        $workflow->run();
+        $state = $workflow->signal('user.signup', ['id' => 7])->run();
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame(['id' => 7], $state->get('received_payload'));
+        $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_unmatched_signal_fails_loudly(): void
+    {
+        $workflow = Workflow::make(workflowId: 'unmatched-signal')
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
+
+        $workflow->run();
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage("is waiting for signal 'other.event'");
+
+        $workflow->signal('other.event')->run();
+    }
+
+    public function test_signal_to_retained_completed_run_fails_loudly(): void
+    {
+        $workflow = Workflow::make(workflowId: 'completed-signal')
+            ->retainCompletionUntilAcknowledged()
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
+
+        $workflow->run();
+        $workflow->signal('user.signup')->run();
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage("is waiting for signal 'user.signup'");
+
+        $workflow->signal('user.signup')->run();
+    }
+
+    public function test_only_one_signal_can_be_staged(): void
+    {
+        $workflow = Workflow::make();
+        $this->assertSame($workflow, $workflow->signal('first'));
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage("Signal 'first' is already staged");
+
+        $workflow->signal('second');
+    }
+
+    public function test_staged_signal_rejects_explicit_continuation_arguments(): void
+    {
+        $workflow = Workflow::make(workflowId: 'signal-input-conflict')
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()]);
+
+        $workflow->run();
+        $workflow->signal('user.signup');
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage('cannot be combined with addressed inputs');
+
+        $workflow->run([]);
+    }
+
+    public function test_continuation_fence_requires_explicit_input_array(): void
+    {
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage('require an explicit input array');
+
+        Workflow::make(workflowId: 'explicit-input-fence')->run(expectedRunId: 'run_1');
+    }
+
     public function test_sleep_until_pauses_and_resumes(): void
     {
         $persistence = new InMemoryPersistence();
@@ -109,7 +187,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage("incompatible with interrupt 1");
 
-        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+        $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void
@@ -171,8 +249,8 @@ class SuspendTypesTest extends TestCase
 
     public function test_sleep_until_past_time_still_pauses(): void
     {
-        // The engine does NOT enforce timeliness — a past wakeAt still suspends.
-        // Whether to fire is exclusively the scheduler's responsibility.
+        // Every wait is persisted before continuation; a past deadline is then
+        // resolved by the clock-aware, inputless resume.
         $workflow = Workflow::make(workflowId: 'sleep-past')
             ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('-1 minute')), new NodeThree()]);
 
@@ -181,6 +259,42 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->isInterrupted());
         $this->assertInstanceOf(SleepUntilRequest::class, $state->getInterruptRequest());
         $this->assertFalse($state->has('node_three_executed'));
+
+        $state = $workflow->run([]);
+        $this->assertFalse($state->isInterrupted());
+        $this->assertTrue($state->get('sleep_resumed'));
+        $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_inputless_resume_keeps_future_sleep_suspended(): void
+    {
+        $workflow = Workflow::make(workflowId: 'sleep-future')
+            ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('+1 hour')), new NodeThree()]);
+
+        $workflow->run();
+        $state = $workflow->run([]);
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertFalse($state->get('sleep_resumed', false));
+        $this->assertFalse($state->has('node_three_executed'));
+    }
+
+    public function test_inputless_resume_expires_due_event_wait(): void
+    {
+        $workflow = Workflow::make(workflowId: 'event-expired')
+            ->addNodes([
+                new NodeOne(),
+                new WaitForEventWithTimeoutNode(new DateTimeImmutable('-1 minute')),
+                new NodeThree(),
+            ]);
+
+        $workflow->run();
+        $state = $workflow->run([]);
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertTrue($state->get('timed_out'));
+        $this->assertFalse($state->has('received_payload'));
+        $this->assertTrue($state->get('node_three_executed'));
     }
 
     public function test_wait_for_event_request_carries_deadline(): void

@@ -10,17 +10,15 @@ use Exception;
 use NeuronAI\Exceptions\WorkflowException;
 
 /**
- * Suspends the workflow until a clock time. The wakeup is produced by the
- * an external timer service — self-generated, with no external emitter.
- *
- * The engine does NOT enforce timeliness: a $wakeAt in the past still suspends.
- * Whether and when to fire belongs to the external caller or coordination
- * platform; the Workflow core only describes the suspension.
+ * Suspends the workflow until a clock time. Every wait is persisted first;
+ * inputless continuation then evaluates the clock and resumes due waits. An
+ * external platform schedules the invocation but never asserts that the timer
+ * elapsed.
  */
 class SleepUntilRequest extends InterruptRequest
 {
     /**
-     * @param DateTimeImmutable $wakeAt When an external coordinator should wake the workflow.
+     * @param DateTimeImmutable $wakeAt Earliest time at which continuation may resolve the wait.
      */
     public function __construct(
         protected DateTimeImmutable $wakeAt,

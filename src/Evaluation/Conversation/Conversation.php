@@ -151,7 +151,7 @@ class Conversation
     }
 
     /**
-     * A resume may legitimately suspend again (a later gated tool call);
+     * A continuation may legitimately suspend again (a later gated tool call);
      * termination rides on the agent's own tool-run limits.
      *
      * @throws EvaluationException
@@ -181,7 +181,7 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->resume([
+            $state = $this->agent->run([
                 ResumeInput::event($request, $payload),
             ]);
         }
