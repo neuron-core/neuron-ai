@@ -20,6 +20,7 @@ use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PDO;
@@ -98,7 +99,7 @@ class AgentResumeTest extends TestCase
 
         // resume() runs eagerly → AgentState. The resumed inference's live
         // chunks are delivered to the channel (push), not pulled by the caller.
-        $state = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])]);
+        $state = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])]);
 
         // The run completed, on the right thread, in the right mode.
         $this->assertFalse($state->isInterrupted());
@@ -157,7 +158,7 @@ class AgentResumeTest extends TestCase
 
         // The resume is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
-        $user = $agent2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->get('structured_output');
+        $user = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
@@ -188,12 +189,12 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->resume([ResumeInput::event(1, ['call_a' => 'approve'])]);
+        $partial = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])]);
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // The full, restated decision set completes the run.
-        $complete = $agent1->resume([ResumeInput::event(2, [
+        $complete = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
             'call_a' => 'approve',
             'call_b' => 'approve',
         ])]);
@@ -241,7 +242,7 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->resume([ResumeInput::event(1, ['call_1' => 'approve'])])->get('structured_output');
+        $user = $rag2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);

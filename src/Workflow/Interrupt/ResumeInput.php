@@ -34,19 +34,19 @@ final class ResumeInput implements JsonSerializable
     }
 
     /** @param array<string, mixed> $payload */
-    public static function event(InterruptRequest|int $request, array $payload): self
+    public static function event(InterruptRequest $request, array $payload): self
     {
-        return new self(self::interruptId($request), ResumeKind::Event, $payload);
+        return new self($request->getId(), ResumeKind::Event, $payload);
     }
 
-    public static function expired(InterruptRequest|int $request): self
+    public static function expired(InterruptRequest $request): self
     {
-        return new self(self::interruptId($request), ResumeKind::Expired);
+        return new self($request->getId(), ResumeKind::Expired);
     }
 
-    public static function timer(InterruptRequest|int $request): self
+    public static function timer(InterruptRequest $request): self
     {
-        return new self(self::interruptId($request), ResumeKind::Timer);
+        return new self($request->getId(), ResumeKind::Timer);
     }
 
     /** @param array<string, mixed> $data */
@@ -58,10 +58,10 @@ final class ResumeInput implements JsonSerializable
 
         return match ($data['kind'] ?? null) {
             ResumeKind::Event->value => is_array($data['payload'] ?? null)
-                ? self::event($data['interruptId'], $data['payload'])
+                ? new self($data['interruptId'], ResumeKind::Event, $data['payload'])
                 : throw new WorkflowException('A resume event input requires an array payload.'),
-            ResumeKind::Expired->value => self::expired($data['interruptId']),
-            ResumeKind::Timer->value => self::timer($data['interruptId']),
+            ResumeKind::Expired->value => new self($data['interruptId'], ResumeKind::Expired),
+            ResumeKind::Timer->value => new self($data['interruptId'], ResumeKind::Timer),
             default => throw new WorkflowException('Unknown resume input kind.'),
         };
     }
@@ -79,10 +79,5 @@ final class ResumeInput implements JsonSerializable
         }
 
         return $data;
-    }
-
-    protected static function interruptId(InterruptRequest|int $request): int
-    {
-        return $request instanceof InterruptRequest ? $request->getId() : $request;
     }
 }

@@ -44,7 +44,7 @@ is currently active under the Workflow ID. Core obtains that run from `__control
 
 ```php
 $state = $workflow->resume([
-    ResumeInput::event($interruptId, ['approved' => true]),
+    ResumeInput::event($request, ['approved' => true]),
 ]);
 ```
 
@@ -57,7 +57,7 @@ delivered by an external platform:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::event($interruptId, ['approved' => true])],
+    [ResumeInput::event($request, ['approved' => true])],
     expectedRunId: $runId,
 );
 ```
@@ -86,7 +86,7 @@ After:
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 
 $state = $workflow->resume(
-    [ResumeInput::event($interruptId, ['approved' => true])],
+    [ResumeInput::event($request, ['approved' => true])],
 );
 ```
 
@@ -97,7 +97,7 @@ An explicitly empty event payload remains valid:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::event($interruptId, [])],
+    [ResumeInput::event($request, [])],
 );
 ```
 
@@ -116,7 +116,7 @@ After:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::expired($interruptId)],
+    [ResumeInput::expired($request)],
     expectedRunId: $runId,
 );
 ```
@@ -125,7 +125,7 @@ After — fired sleep timer:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::timer($interruptId)],
+    [ResumeInput::timer($request)],
     expectedRunId: $runId,
 );
 ```
@@ -143,9 +143,9 @@ branches without making the caller choose an execution order:
 ```php
 $state = $workflow->resume(
     [
-        ResumeInput::event($approvalInterruptId, ['approved' => true]),
-        ResumeInput::event($documentInterruptId, ['documentId' => 'doc-7']),
-        ResumeInput::timer($delayInterruptId),
+        ResumeInput::event($approvalRequest, ['approved' => true]),
+        ResumeInput::event($documentRequest, ['documentId' => 'doc-7']),
+        ResumeInput::timer($delayRequest),
     ],
     expectedRunId: $runId,
 );
@@ -167,7 +167,7 @@ $workflow->resume();
 It continues the current run without inventing an external input. Do not
 manufacture a `ResumeInput` or reuse an interrupt ID for crash replay. A real
 empty event payload remains an addressed input such as
-`ResumeInput::event($interruptId, [])`.
+`ResumeInput::event($request, [])`.
 
 ```php
 $state = $workflow->resume();
@@ -310,9 +310,9 @@ Constructor mapping:
 
 | Wire entry | Core value |
 |---|---|
-| `{"interruptId": 4, "kind": "event", "payload": {...}}` | `ResumeInput::event(4, [...])` |
-| `{"interruptId": 5, "kind": "expired"}` | `ResumeInput::expired(5)` |
-| `{"interruptId": 6, "kind": "timer"}` | `ResumeInput::timer(6)` |
+| `{"interruptId": 4, "kind": "event", "payload": {...}}` | `ResumeInput::fromArray($entry)` |
+| `{"interruptId": 5, "kind": "expired"}` | `ResumeInput::fromArray($entry)` |
+| `{"interruptId": 6, "kind": "timer"}` | `ResumeInput::fromArray($entry)` |
 
 The response contains the complete current interrupt request set so the platform can
 reconcile its registrations after duplicate delivery or a lost response:

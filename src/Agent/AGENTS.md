@@ -423,7 +423,7 @@ A resume delivers decisions as a **cumulative** payload keyed by tool callId —
 decision set, restated on every resume:
 
 ```php
-$agent->resume([ResumeInput::event($interruptId, [
+$agent->resume([ResumeInput::event($request, [
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
 ])]);
@@ -456,7 +456,7 @@ $agent = Agent::make(threadId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
-$agent->resume([ResumeInput::event($interruptId, ['call_123' => 'approve'])]);
+$agent->resume([ResumeInput::event($request, ['call_123' => 'approve'])]);
 // (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
 // same identity by adoption and works identically)
 ```
@@ -506,7 +506,7 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
 SupportAgent::make(threadId: $threadId)->resume([
-    ResumeInput::event($interruptId, ['call_123' => 'approve']),
+    ResumeInput::event($request, ['call_123' => 'approve']),
 ]);
 
 // WorkflowId-first resume (background wake): the record supplies the thread

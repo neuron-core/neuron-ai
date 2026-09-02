@@ -84,7 +84,11 @@ trait ExecutorTestHelpers
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
         if (!$control instanceof WorkflowControl || $control->interrupts === []) {
-            return $workflow->resume([ResumeInput::event(1, $payload)], $expectedRunId);
+            return $workflow->resume([ResumeInput::fromArray([
+                'interruptId' => 1,
+                'kind' => 'event',
+                'payload' => $payload,
+            ])], $expectedRunId);
         }
 
         $active = array_values($control->interrupts)[0];

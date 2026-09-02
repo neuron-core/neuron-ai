@@ -65,7 +65,11 @@ class ResumeInputTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('positive integer');
 
-        ResumeInput::event(0, []);
+        ResumeInput::fromArray([
+            'interruptId' => 0,
+            'kind' => 'event',
+            'payload' => [],
+        ]);
     }
 
     public function test_event_payload_must_be_json_compatible(): void
@@ -73,7 +77,9 @@ class ResumeInputTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('JSON-compatible');
 
-        ResumeInput::event(1, ['invalid' => NAN]);
+        $request = (new WaitForEventRequest('order.approved'))->withId(1);
+
+        ResumeInput::event($request, ['invalid' => NAN]);
     }
 
     public function test_unknown_wire_kind_is_rejected(): void

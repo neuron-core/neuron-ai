@@ -109,7 +109,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage("incompatible with interrupt 1");
 
-        $workflow->resume([ResumeInput::event(1, [])]);
+        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void
