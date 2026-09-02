@@ -475,17 +475,17 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param Closure(StreamAdapterInterface): iterable<string> $frames
+     * @param Closure(StreamAdapterInterface): iterable<string> $callback
      * @return Generator<int, string>
      */
-    protected function adapterOutput(Closure $frames): Generator
+    protected function adapterOutput(Closure $callback): Generator
     {
         $adapter = $this->getStreamAdapter();
         if (!$adapter instanceof StreamAdapterInterface) {
             return;
         }
 
-        foreach ($frames($adapter) as $line) {
+        foreach ($callback($adapter) as $line) {
             $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
             yield $line;
         }
@@ -496,16 +496,16 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * dispatched as a ChannelError and delivery moves on. Circuit-breaking
      * and retry are the channel implementation's own policy, not the engine's.
      *
-     * @param Closure(StreamingChannelInterface): void $op Receives the attached channel (non-null).
+     * @param Closure(StreamingChannelInterface): void $callback Receives the attached channel (non-null).
      */
-    protected function fireChannel(Closure $op): void
+    protected function fireChannel(Closure $callback): void
     {
         if (!$this->getChannel() instanceof StreamingChannelInterface) {
             return;
         }
 
         try {
-            $op($this->getChannel());
+            $callback($this->getChannel());
         } catch (Throwable $e) {
             $event = new ChannelError($e);
             $event->source = $this;

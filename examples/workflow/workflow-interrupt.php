@@ -7,7 +7,6 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Workflow;
@@ -50,38 +49,33 @@ final class ApproveOperation extends Node
 $persistence = new FilePersistence(
     \sys_get_temp_dir() . \DIRECTORY_SEPARATOR . 'neuron-workflow-example',
 );
+$workflowId = 'workflow-interrupt-demo-' . \bin2hex(\random_bytes(4));
 
-$workflow = Workflow::make()
-    ->setPersistence($persistence)
-    ->addNodes([new PrepareOperation(), new ApproveOperation()]);
+$makeWorkflow = static function () use ($persistence, $workflowId): Workflow {
+    $workflow = Workflow::make(workflowId: $workflowId);
+    $workflow->setPersistence($persistence);
+    $workflow->addNodes([new PrepareOperation(), new ApproveOperation()]);
 
-// The first segment returns normally with a suspended state. Its request is
-// already ID-bound and persisted by the engine.
-$suspended = $workflow->run();
+    return $workflow;
+};
+
+// The first segment returns normally with a suspended state.
+$suspended = $makeWorkflow()->run();
 $request = $suspended->getInterruptRequest();
-$workflowId = $suspended->getWorkflowId();
-$runId = $suspended->getRunId();
 
-if (!$request instanceof ApprovalRequest || $workflowId === null || $runId === null) {
-    throw new RuntimeException('The workflow did not expose the expected interruption.');
+if (!$request instanceof ApprovalRequest) {
+    throw new \RuntimeException('The workflow did not expose the expected interruption.');
 }
 
-echo "Paused: {$request->getMessage()}" . \PHP_EOL;
-echo "Workflow ID: {$workflowId}" . \PHP_EOL;
-echo "Interrupt ID: {$request->getId()}" . \PHP_EOL;
+echo "Paused: {$request->getMessage()}\n";
 
 /*
- * Imagine a new process starts here. Reconstruct the graph with the workflow
- * ID and persistence, then address this request. A delayed delivery also
- * supplies the run ID observed above so it cannot wake a newer generation.
+ * Imagine a new process starts here. Application code reconstructs the graph
+ * from its workflow ID, delivers the domain signal, and chooses run() or
+ * events() depending on whether it needs eager or streaming consumption.
  */
-$workflow = Workflow::make(workflowId: $workflowId)
-    ->setPersistence($persistence)
-    ->addNodes([new PrepareOperation(), new ApproveOperation()]);
+$completed = $makeWorkflow()
+    ->signal('approval', ['delete_files' => 'approve'])
+    ->run();
 
-$completed = $workflow->run(
-    [ResumeInput::event($request, ['delete_files' => 'approve'])],
-    expectedRunId: $runId,
-);
-
-echo $completed->get('result') . \PHP_EOL;
+echo 'Result: ' . $completed->get('result') . "\n";

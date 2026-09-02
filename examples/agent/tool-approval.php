@@ -6,16 +6,14 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Providers\Anthropic;
+use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-// Create some example tools that we want to gate with approval
 final class FileDeleteTool extends Tool
 {
     protected string $name = 'delete_file';
@@ -27,11 +25,6 @@ final class FileDeleteTool extends Tool
         ];
     }
 
-    // The tool declares its own intrinsic risk via the protected hook.
-    // Returning a string counts as "true" and doubles as the approval reason
-    // shown to the approver. Attach-time config (requireApproval(),
-    // suppressApproval(), withApprovalPolicy()) overrides this declaration
-    // in both directions.
     protected function approvalPolicy(array $inputs): string
     {
         return 'Deleting a file is irreversible';
@@ -43,9 +36,6 @@ final class FileDeleteTool extends Tool
     }
 }
 
-echo "=== Agent Tool Approval Example ===\n";
-echo "-------------------------------------------------------------------\n\n";
-
 $apiKey = \getenv('ANTHROPIC_API_KEY');
 if (!\is_string($apiKey) || $apiKey === '') {
     throw new \RuntimeException('Set ANTHROPIC_API_KEY before running this example.');
@@ -55,105 +45,80 @@ $storage = \sys_get_temp_dir() . \DIRECTORY_SEPARATOR . 'neuron-agent-tool-appro
 $threadId = 'tool-approval-demo-' . \bin2hex(\random_bytes(4));
 
 /*
- * The agent is rebuilt on every execution cycle from the only identity the
- * application owns: the chat thread. The thread IS the workflow ID of the run —
- * the engine binds threadId → runId in workflow persistence when the run
- * ignites. Durable chat history carries the pending tool-call context; the
- * Workflow persistence carries the active interruption internally.
+ * Rebuild the Agent for every request from the application-owned thread ID.
+ * Workflow persistence stores execution state; chat history stores the pending
+ * ToolCallMessage used by the approval UI.
  */
 $makeAgent = function () use ($storage, $threadId, $apiKey): Agent {
-    $agent = Agent::make();
+    $agent = Agent::make(threadId: $threadId);
     $agent->setPersistence(new FilePersistence($storage . \DIRECTORY_SEPARATOR . 'workflow'));
-    $agent->setChatHistory(new FileChatHistory(
-        $storage . \DIRECTORY_SEPARATOR . 'chat',
-        $threadId,
-    ));
-    $agent->setAiProvider(
-        new Anthropic\Anthropic(
-            $apiKey,
-            'claude-3-7-sonnet-latest'
-        )
-    );
-    $agent->setInstructions(
-        'You are a helpful assistant with access to file and command tools. Be concise.'
-    );
+    $agent->setChatHistory(new FileChatHistory($storage . \DIRECTORY_SEPARATOR . 'chat'));
+    $agent->setAiProvider(new Anthropic($apiKey, 'claude-3-7-sonnet-latest'));
+    $agent->setInstructions('You are a helpful assistant. Be concise.');
     $agent->addTool(new FileDeleteTool());
 
     return $agent;
 };
 
-$agent = $makeAgent();
-
-// Start each demo run with a clean thread.
-$agent->getChatHistory()->flushAll();
-
 $message = new UserMessage('Delete the C:/old_logs.txt file');
 echo "User: {$message->getContent()}\n\n";
 
-// chat() runs eagerly → AgentState. When a gated tool is requested, execution
-// pauses and the state is marked interrupted — no exception is thrown.
+$agent = $makeAgent();
 $state = $agent->chat($message);
 
 while ($state->isInterrupted()) {
-    echo "⚠️  WORKFLOW INTERRUPTED - Approval Required\n\n";
-
-    $approvalRequest = $state->getInterruptRequest();
-    if (!$approvalRequest instanceof ApprovalRequest) {
-        throw new \RuntimeException('The Agent did not expose the expected approval interruption.');
-    }
-
-    // The pending call is recorded in chat history as conversation: the annotated
-    // tool call message carries the pending approval states, which is what lets
-    // a cold process RENDER the pending approvals without booting a workflow.
+    /*
+     * A real approval page can load this message directly from durable chat
+     * history. It does not need the Workflow interruption request or its ID.
+     */
     $tail = $agent->getChatHistory()->getLastMessage();
-    if ($tail instanceof ToolCallMessage) {
-        echo "Pending tool calls on the thread: " . \count($tail->getToolCalls()) . "\n";
+    if (!$tail instanceof ToolCallMessage) {
+        throw new \RuntimeException('Expected a pending tool call in chat history.');
     }
 
-    echo "Message: {$approvalRequest->getMessage()}\n\n";
-    echo "Actions requiring approval:\n";
+    echo "Approval required:\n";
+    $decisions = [];
 
-    /*
-     * Decisions are keyed by action ID (the provider tool call ID). If approvals
-     * are collected over several UI interactions, restate the complete current
-     * decision set on every continuation.
-     */
-    $payload = [];
-    foreach ($approvalRequest->getActions() as $action) {
-        echo "  - {$action->name}: {$action->description}\n";
-
-        if ($action->reason !== null) {
-            echo "    Why approval is needed: {$action->reason}\n";
+    foreach ($tail->getToolCalls() as $call) {
+        if ($call->getApprovalState()?->isPending() !== true) {
+            continue;
         }
 
-        if (promptUserForApproval()) {
-            $payload[$action->id] = 'approve';
-        } else {
-            $payload[$action->id] = ['reject', 'User denied operation'];
+        $callId = $call->getCallId();
+        if ($callId === null) {
+            throw new \RuntimeException('A pending tool call must have a call ID.');
         }
+
+        echo "  Tool: {$call->getName()}\n";
+        echo '  Inputs: ' . \json_encode($call->getInputs(), \JSON_PRETTY_PRINT) . "\n";
+
+        if ($call->getApprovalReason() !== null) {
+            echo "  Reason: {$call->getApprovalReason()}\n";
+        }
+
+        $decisions[$callId] = promptUserForApproval()
+            ? 'approve'
+            : ['reject', 'User denied operation'];
+    }
+
+    if ($decisions === []) {
+        throw new \RuntimeException('The interrupted Agent exposed no pending approvals.');
     }
 
     /*
-     * Imagine a new execution cycle starts here, such as an approve/deny HTTP
-     * endpoint. The endpoint receives only the thread ID and decisions. The
-     * thread locates the Workflow partition; Agent hides the approval signal.
+     * An approve/deny endpoint receives only the thread ID and the complete
+     * decision map. Agent hides the underlying Workflow signal and request IDs.
      */
-    echo "\nResuming workflow...\n\n";
-
+    echo "\nContinuing Agent...\n\n";
     $agent = $makeAgent();
-    $state = $agent->toolApprovalDecisions($payload)->run();
+    $state = $agent->toolApprovalDecisions($decisions)->run();
 }
 
-echo "Agent: " . $state->getMessage()->getContent() . "\n\n";
+echo 'Agent: ' . $state->getMessage()->getContent() . "\n";
 
-// Helper function to simulate user input
 function promptUserForApproval(): bool
 {
-    // In a real application, this would prompt the user via CLI, web UI, etc.
-    // For this example, automatically approve for deterministic output.
-    echo "\n[Simulating user decision...]\n\n";
+    echo "  [Simulating approval]\n";
 
     return true;
 }
-
-echo "\n\n=== Example Complete ===\n";
