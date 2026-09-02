@@ -17,13 +17,12 @@ use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-
 use function array_filter;
 use function array_map;
 use function iterator_to_array;
@@ -166,7 +165,7 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
             ->setPersistence($persistence)
-            ->events([ResumeInput::event($first->getInterruptRequest()->getId(), [])]);
+            ->events([ResumeInput::event($first->getInterruptRequest(), [])]);
 
         iterator_to_array($generator);
 

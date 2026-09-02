@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 
 final class ActiveInterrupt
 {

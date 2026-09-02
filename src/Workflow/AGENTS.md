@@ -53,12 +53,12 @@ returned directly from persistence without rerunning their nodes.
 Resume uses addressed, typed inputs:
 
 ```php
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 
 $state = $workflow->resume([
-    ResumeInput::event($eventWaitId, ['approved' => true]),
-    ResumeInput::expired($expiredEventWaitId),
-    ResumeInput::timer($sleepId),
+    ResumeInput::event($eventWaitRequest, ['approved' => true]),
+    ResumeInput::expired($expiredEventWaitRequest),
+    ResumeInput::timer($sleepRequest),
 ]);
 ```
 

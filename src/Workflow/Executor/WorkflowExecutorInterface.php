@@ -36,7 +36,7 @@ interface WorkflowExecutorInterface
     /**
      * Continue an existing run, optionally delivering addressed inputs.
      *
-     * @param list<\NeuronAI\Workflow\Resume\ResumeInput> $inputs
+     * @param list<\NeuronAI\Workflow\Interrupt\ResumeInput> $inputs
      * @return Generator<int, Event, mixed, WorkflowState>
      */
     public function resume(

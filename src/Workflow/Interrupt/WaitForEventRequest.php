@@ -8,8 +8,6 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Resume\ResumeKind;
 
 /**
  * Suspends the workflow until an external event named $eventName is delivered.

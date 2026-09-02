@@ -15,21 +15,19 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use PDO;
 use PHPUnit\Framework\TestCase;
-
 use function glob;
 use function is_dir;
 use function rmdir;
 use function strlen;
 use function sys_get_temp_dir;
 use function unlink;
-
 use const DIRECTORY_SEPARATOR;
 
 /**

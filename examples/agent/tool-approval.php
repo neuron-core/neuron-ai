@@ -11,8 +11,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\FilePersistence;
-use NeuronAI\Workflow\Resume\ResumeInput;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -117,9 +117,10 @@ while ($state->isInterrupted()) {
 
     /*
      * Decisions travel inbound inside an addressed ResumeInput. Its payload is
-     * keyed by action id (the tool callId). The outbound ApprovalRequest is never
-     * passed back in. If approvals are collected over several UI interactions,
-     * restate the complete current decision set on every resume.
+     * keyed by action id (the tool callId). The ApprovalRequest supplies the
+     * interrupt address; it is not itself the inbound payload. If approvals are
+     * collected over several UI interactions, restate the complete current
+     * decision set on every resume.
      */
     $payload = [];
     foreach ($approvalRequest->getActions() as $action) {
@@ -147,7 +148,7 @@ while ($state->isInterrupted()) {
 
     $agent = $makeAgent();
     $state = $agent->resume(
-        [ResumeInput::event($approvalRequest->getId(), $payload)],
+        [ResumeInput::event($approvalRequest, $payload)],
         expectedRunId: $runId,
     );
 }

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
-use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -18,22 +16,21 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\StepMemoizer;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
 use function glob;
 use function is_dir;
 use function rmdir;
 use function sys_get_temp_dir;
 use function unlink;
-
 use const DIRECTORY_SEPARATOR;
 
 class AgentDurabilityTest extends TestCase
@@ -105,7 +102,7 @@ class AgentDurabilityTest extends TestCase
         // step itself as completed — simulating a crash right after memoize().)
 
         $state1 = new AgentState();
-        $state1->set('__runId', $workflowId);
+        $state1->setExecutionMetadata($workflowId, $workflowId, 1);
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
         $node1($event, $state1);
@@ -115,7 +112,7 @@ class AgentDurabilityTest extends TestCase
         // Recovery: brand-new engine, same persistence (simulates a process restart).
 
         $state2 = new AgentState();
-        $state2->set('__runId', $workflowId);
+        $state2->setExecutionMetadata($workflowId, $workflowId, 1);
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
         $node2($event, $state2);

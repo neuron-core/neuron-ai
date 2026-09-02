@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**

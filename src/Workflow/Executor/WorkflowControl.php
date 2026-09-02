@@ -83,7 +83,7 @@ final class WorkflowControl
         );
     }
 
-    /** @param array<int, \NeuronAI\Workflow\Resume\ResumeInput> $inputs */
+    /** @param array<int, \NeuronAI\Workflow\Interrupt\ResumeInput> $inputs */
     public function withInputs(array $inputs): self
     {
         $interrupts = $this->interrupts;

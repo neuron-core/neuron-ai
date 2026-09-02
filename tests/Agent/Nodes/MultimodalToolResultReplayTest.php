@@ -64,7 +64,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $call1 = ToolCall::make('multimodal_tool', 'call_1', []);
 
         $state = new AgentState();
-        $state->set('__runId', $runId);
+        $state->setExecutionMetadata($runId, $runId, 1);
 
         // Run 1: the tool executes and its result is memoized mid-node.
         $toolCallMessage1 = new ToolCallMessage(null, [$call1]);

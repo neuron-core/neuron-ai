@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Resume;
 
+use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Resume\ResumeKind;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeKind;
+use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
-
 use const NAN;
 
 class ResumeInputTest extends TestCase
@@ -31,14 +33,31 @@ class ResumeInputTest extends TestCase
 
     public function test_payloadless_kinds_use_their_named_factories(): void
     {
+        $eventWait = (new WaitForEventRequest(
+            'order.approved',
+            new DateTimeImmutable('+1 hour'),
+        ))->withId(2);
+        $sleep = (new SleepUntilRequest(new DateTimeImmutable('+1 hour')))->withId(3);
+
         $this->assertSame(
             ['interruptId' => 2, 'kind' => 'expired'],
-            ResumeInput::expired(2)->jsonSerialize(),
+            ResumeInput::expired($eventWait)->jsonSerialize(),
         );
         $this->assertSame(
             ['interruptId' => 3, 'kind' => 'timer'],
-            ResumeInput::timer(3)->jsonSerialize(),
+            ResumeInput::timer($sleep)->jsonSerialize(),
         );
+    }
+
+    public function test_event_factory_accepts_the_interrupt_request(): void
+    {
+        $request = (new WaitForEventRequest('order.approved'))->withId(7);
+
+        $input = ResumeInput::event($request, ['approved' => true]);
+
+        $this->assertSame(7, $input->interruptId);
+        $this->assertSame(ResumeKind::Event, $input->kind);
+        $this->assertSame(['approved' => true], $input->payload);
     }
 
     public function test_interrupt_id_must_be_positive(): void

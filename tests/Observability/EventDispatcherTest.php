@@ -19,12 +19,11 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
-
 use function array_column;
 use function array_map;
 use function count;

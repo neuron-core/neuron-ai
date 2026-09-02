@@ -83,7 +83,7 @@ $state = $workflow->resume(
 After:
 
 ```php
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 
 $state = $workflow->resume(
     [ResumeInput::event($interruptId, ['approved' => true])],

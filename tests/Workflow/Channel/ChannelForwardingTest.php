@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use NeuronAI\Observability\Events\ChannelError;
+use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\PostStreamNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\PreStreamNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\SharedRequestInterruptNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\ThrowingNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\TwoStageInterruptNode;
-use NeuronAI\Observability\Events\ChannelError;
-use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
@@ -19,13 +19,12 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Channel\CallbackChannel;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-
 use function array_map;
 use function count;
 

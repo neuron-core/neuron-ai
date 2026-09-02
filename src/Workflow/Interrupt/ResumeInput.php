@@ -2,16 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Resume;
+namespace NeuronAI\Workflow\Interrupt;
 
 use JsonException;
 use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
-
 use function is_array;
 use function is_int;
 use function json_encode;
-
 use const JSON_THROW_ON_ERROR;
 
 final class ResumeInput implements JsonSerializable
@@ -36,19 +34,19 @@ final class ResumeInput implements JsonSerializable
     }
 
     /** @param array<string, mixed> $payload */
-    public static function event(int $interruptId, array $payload): self
+    public static function event(InterruptRequest|int $request, array $payload): self
     {
-        return new self($interruptId, ResumeKind::Event, $payload);
+        return new self(self::interruptId($request), ResumeKind::Event, $payload);
     }
 
-    public static function expired(int $interruptId): self
+    public static function expired(InterruptRequest|int $request): self
     {
-        return new self($interruptId, ResumeKind::Expired);
+        return new self(self::interruptId($request), ResumeKind::Expired);
     }
 
-    public static function timer(int $interruptId): self
+    public static function timer(InterruptRequest|int $request): self
     {
-        return new self($interruptId, ResumeKind::Timer);
+        return new self(self::interruptId($request), ResumeKind::Timer);
     }
 
     /** @param array<string, mixed> $data */
@@ -81,5 +79,10 @@ final class ResumeInput implements JsonSerializable
         }
 
         return $data;
+    }
+
+    protected static function interruptId(InterruptRequest|int $request): int
+    {
+        return $request instanceof InterruptRequest ? $request->getId() : $request;
     }
 }

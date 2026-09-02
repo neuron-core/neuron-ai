@@ -23,25 +23,24 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInputResult;
+use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
+use NeuronAI\Workflow\Interrupt\ResumeKind;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Resume\ResumeInputResult;
-use NeuronAI\Workflow\Resume\ResumeInputStatus;
-use NeuronAI\Workflow\Resume\ResumeKind;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
-
+use function array_push;
+use function hash;
 use function in_array;
 use function str_starts_with;
 use function time;
-use function array_push;
-use function hash;
 
 /**
  * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
@@ -460,9 +459,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function stampState(WorkflowState $state): void
     {
-        $state->set('__workflowId', $this->workflowId);
-        $state->set('__runId', $this->runId);
-        $state->set('__executionAttempt', $this->runStore->control()->executionAttempt);
+        $state->setExecutionMetadata(
+            $this->workflowId,
+            $this->runId,
+            $this->runStore->control()->executionAttempt,
+        );
     }
 
     /** @return array<int, \NeuronAI\Workflow\Interrupt\InterruptRequest> */

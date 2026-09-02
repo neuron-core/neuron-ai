@@ -17,14 +17,13 @@ use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use PHPUnit\Framework\TestCase;
-
 use function json_encode;
 
 class ConversationTest extends TestCase

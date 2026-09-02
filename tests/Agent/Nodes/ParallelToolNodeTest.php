@@ -119,7 +119,7 @@ class ParallelToolNodeTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
 
         $state = new AgentState();
-        $state->set('__runId', $runId);
+        $state->setExecutionMetadata($runId, $runId, 1);
 
         // Run 1: the batch executes and its result is memoized mid-node.
         $node1 = new ParallelToolNode(new InMemoryChatHistory());

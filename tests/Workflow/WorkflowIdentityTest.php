@@ -17,11 +17,11 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Resume\ResumeInputStatus;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -422,15 +422,16 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNull($persistence->get('thread_1', $this->stepKey($workflow, $hijacked::class . '-0')));
     }
 
-    public function test_state_carries_both_identities(): void
+    public function test_state_carries_execution_metadata_outside_application_data(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
 
         $state = $this->execute($workflow, $persistence);
 
-        $this->assertSame('thread_1', $state->get('__workflowId'));
-        $this->assertSame($workflow->getRunId(), $state->get('__runId'));
+        $this->assertFalse($state->has('__workflowId'));
+        $this->assertFalse($state->has('__runId'));
+        $this->assertFalse($state->has('__executionAttempt'));
         $this->assertSame('thread_1', $state->getWorkflowId());
         $this->assertSame($workflow->getRunId(), $state->getRunId());
         $this->assertSame(1, $state->getExecutionAttempt());

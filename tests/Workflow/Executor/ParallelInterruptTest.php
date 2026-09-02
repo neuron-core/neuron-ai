@@ -22,16 +22,15 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInputResult;
+use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Resume\ResumeInputResult;
-use NeuronAI\Workflow\Resume\ResumeInputStatus;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use stdClass;
-
 use function array_keys;
 use function array_map;
 

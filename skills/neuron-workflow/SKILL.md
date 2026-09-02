@@ -168,10 +168,7 @@ continues the current run without inventing an external answer.
 ### Persistence Backends
 
 ```php
-use NeuronAI\Workflow\Persistence\FilePersistence;
-use NeuronAI\Workflow\Resume\ResumeInput;
-use NeuronAI\Workflow\Persistence\DatabasePersistence;
-use NeuronAI\Workflow\Persistence\EloquentPersistence;
+use NeuronAI\Workflow\Persistence\DatabasePersistence;use NeuronAI\Workflow\Persistence\EloquentPersistence;use NeuronAI\Workflow\Persistence\FilePersistence;
 
 // File system — directory is auto-created if it doesn't exist
 $persistence = new FilePersistence('/path/to/storage');
@@ -325,7 +322,7 @@ if ($state->isInterrupted()) {
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume([
-            ResumeInput::event($request->getId(), ['approved' => true]),
+            ResumeInput::event($request, ['approved' => true]),
         ]);
 }
 
@@ -339,7 +336,7 @@ reach a newer generation:
 
 ```php
 $workflow->resume(
-    [ResumeInput::event($request->getId(), $payload)],
+    [ResumeInput::event($request, $payload)],
     expectedRunId: $suspendedState->getRunId(),
 );
 ```
@@ -375,7 +372,7 @@ $pending = $workflow->resume();
 $request = $pending->getInterruptRequest();
 
 $state = $workflow->resume([
-    ResumeInput::event($request->getId(), ['approved' => true]),
+    ResumeInput::event($request, ['approved' => true]),
 ]);
 ```
 
@@ -437,12 +434,12 @@ $state = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([...])
     ->resume([
-        ResumeInput::event($request->getId(), $paymentPayload),
+        ResumeInput::event($request, $paymentPayload),
     ]);
 ```
 
 When the deadline elapses, external coordination delivers
-`ResumeInput::expired($request->getId())`; `awaitEvent()` returns `null`. Branch
+`ResumeInput::expired($request)`; `awaitEvent()` returns `null`. Branch
 on that result instead of comparing clocks inside the node.
 
 ### Sleep until a clock time — `sleepUntil()`
@@ -453,7 +450,7 @@ $this->sleepUntil($wakeAt);
 ```
 
 When an external timer fires, continue with
-`ResumeInput::timer($request->getId())`.
+`ResumeInput::timer($request)`.
 
 ### Carrying a custom payload
 
@@ -1037,7 +1034,7 @@ if ($state->isInterrupted()) {
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume([
-            ResumeInput::event($request->getId(), ['answer' => $decision]),
+            ResumeInput::event($request, ['answer' => $decision]),
         ]);
 }
 ```

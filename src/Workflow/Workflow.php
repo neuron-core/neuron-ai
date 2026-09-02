@@ -10,11 +10,10 @@ use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Observability\ListenerRegistry;
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\ObserverAdapter;
 use NeuronAI\Observability\ObserverInterface;
-use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\WorkflowEventDispatcher;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -24,9 +23,9 @@ use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
-
 use function array_merge;
 use function is_array;
 
@@ -221,7 +220,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
                 yield $output;
             }
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->failed($e, $this->workflowId ?? 'unresolved'));
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->failed($e, $this->workflowId ?? 'unresolved'));
             throw $e;
         }
 
@@ -231,9 +230,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
         $state = $this->getState();
         if ($state->isInterrupted()) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->suspended(clone $state));
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->suspended(clone $state));
         } elseif ($state->getStatus() === WorkflowStatus::Completed) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->completed($state, $this->workflowId ?? 'unresolved'));
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->completed($state, $this->workflowId ?? 'unresolved'));
         }
 
         return $state;
@@ -256,7 +255,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         }
 
         if (!$item instanceof InterruptEvent) {
-            $this->fireChannel(fn (StreamingChannelInterface $ch) => $ch->send($item));
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($item));
         }
         yield $item;
     }

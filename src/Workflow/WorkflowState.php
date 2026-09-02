@@ -5,15 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Resume\ResumeInputResult;
-
+use NeuronAI\Workflow\Interrupt\ResumeInputResult;
+use function array_diff_key;
 use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
-use function array_diff_key;
 use function array_values;
-use function is_int;
-use function is_string;
 use function serialize;
 use function unserialize;
 
@@ -26,6 +23,12 @@ class WorkflowState
     protected array $inputResults = [];
 
     protected WorkflowStatus $status = WorkflowStatus::Running;
+
+    protected ?string $workflowId = null;
+
+    protected ?string $runId = null;
+
+    protected ?int $executionAttempt = null;
 
     public function __construct(protected array $data = [])
     {
@@ -96,20 +99,30 @@ class WorkflowState
 
     public function getWorkflowId(): ?string
     {
-        $workflowId = $this->get('__workflowId');
-        return is_string($workflowId) ? $workflowId : null;
+        return $this->workflowId;
     }
 
     public function getRunId(): ?string
     {
-        $runId = $this->get('__runId');
-        return is_string($runId) ? $runId : null;
+        return $this->runId;
     }
 
     public function getExecutionAttempt(): ?int
     {
-        $attempt = $this->get('__executionAttempt');
-        return is_int($attempt) ? $attempt : null;
+        return $this->executionAttempt;
+    }
+
+    /**
+     * @internal Set by the Workflow executor.
+     */
+    public function setExecutionMetadata(
+        string $workflowId,
+        string $runId,
+        int $executionAttempt,
+    ): void {
+        $this->workflowId = $workflowId;
+        $this->runId = $runId;
+        $this->executionAttempt = $executionAttempt;
     }
 
     public function markAsFailed(): void

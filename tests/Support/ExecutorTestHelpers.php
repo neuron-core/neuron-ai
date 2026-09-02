@@ -9,12 +9,11 @@ use NeuronAI\Workflow\Executor\ActiveInterrupt;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptType;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
-
 use function array_values;
 
 trait ExecutorTestHelpers
@@ -94,9 +93,9 @@ trait ExecutorTestHelpers
         }
 
         $input = match (true) {
-            $timedOut => ResumeInput::expired($active->request->getId()),
-            $active->request->type() === InterruptType::SleepUntil => ResumeInput::timer($active->request->getId()),
-            default => ResumeInput::event($active->request->getId(), $payload),
+            $timedOut => ResumeInput::expired($active->request),
+            $active->request->type() === InterruptType::SleepUntil => ResumeInput::timer($active->request),
+            default => ResumeInput::event($active->request, $payload),
         };
 
         return $workflow->resume([$input], $expectedRunId);

@@ -73,7 +73,7 @@ class ChatNodeStreamingTest extends TestCase
         $stepId = ChatNode::class . '-0';
 
         $state = new AgentState();
-        $state->set('__runId', $runId);
+        $state->setExecutionMetadata($runId, $runId, 1);
 
         $event = new AIInferenceEvent(instructions: 'Test', tools: []);
         $event->setStream();
@@ -100,7 +100,7 @@ class ChatNodeStreamingTest extends TestCase
         // persisted and the response must come from the memo, not from state).
         $node2 = new ChatNode($provider, $chatHistory);
         $state2 = new AgentState();
-        $state2->set('__runId', $runId);
+        $state2->setExecutionMetadata($runId, $runId, 1);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
 
         $generator2 = $node2($event, $state2);

@@ -25,12 +25,11 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use Throwable;
-
 use function is_array;
 use function is_string;
 

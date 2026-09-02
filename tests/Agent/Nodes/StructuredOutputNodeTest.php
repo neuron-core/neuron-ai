@@ -103,7 +103,7 @@ class StructuredOutputNodeTest extends TestCase
 
         // Run 1: two real inference calls (bad then good), node succeeds.
         $state = new AgentState();
-        $state->set('__runId', $runId);
+        $state->setExecutionMetadata($runId, $runId, 1);
 
         $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
         $event->setStructuredOutput(User::class, 1);
@@ -122,7 +122,7 @@ class StructuredOutputNodeTest extends TestCase
         // (prior bad response + correction text) are reconstructed deterministically
         // from the recalled memos, so both attempts are served from cache.
         $state2 = new AgentState();
-        $state2->set('__runId', $runId);
+        $state2->setExecutionMetadata($runId, $runId, 1);
 
         $node2 = new StructuredOutputNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));

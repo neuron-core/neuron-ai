@@ -13,9 +13,8 @@ use NeuronAI\Evaluation\Trajectory\Trajectory;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Throwable;
-
 use function array_key_exists;
 use function get_debug_type;
 use function implode;
@@ -183,7 +182,7 @@ class Conversation
             }
 
             $state = $this->agent->resume([
-                ResumeInput::event($request->getId(), $payload),
+                ResumeInput::event($request, $payload),
             ]);
         }
     }

@@ -7,9 +7,9 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\FilePersistence;
-use NeuronAI\Workflow\Resume\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -80,7 +80,7 @@ $workflow = Workflow::make(workflowId: $workflowId)
     ->addNodes([new PrepareOperation(), new ApproveOperation()]);
 
 $completed = $workflow->resume(
-    [ResumeInput::event($request->getId(), ['delete_files' => 'approve'])],
+    [ResumeInput::event($request, ['delete_files' => 'approve'])],
     expectedRunId: $runId,
 );
 

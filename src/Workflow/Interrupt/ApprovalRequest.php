@@ -13,9 +13,9 @@ use function sprintf;
 
 /**
  * Outbound request carrying the actions that require a human decision before
- * the workflow may proceed. A pure OUTBOUND snapshot for the caller to render
- * — never handed back into the workflow. The decisions travel inbound as a
- * resume payload keyed by action id:
+ * the workflow may proceed. The request is an outbound snapshot for the caller
+ * to render and may address its ResumeInput; the decisions themselves travel
+ * inbound as a payload keyed by action id:
  *
  *   ['<callId>' => 'approve' | 'reject' | ['reject', $reason]]
  *

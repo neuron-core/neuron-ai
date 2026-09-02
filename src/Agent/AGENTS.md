@@ -135,13 +135,13 @@ foreach (YouTubeAgent::make()->stream(new UserMessage('Hello')) as $chunk) {
 $report = MyAgent::make()->structured($message, ReportSchema::class);
 
 // Resume a suspended run (approval endpoint) — mode-agnostic → AgentState
-use NeuronAI\Workflow\Resume\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 
-$interruptId = $state->getInterruptRequest()->getId();
+$request = $state->getInterruptRequest();
 $state = MyAgent::make()
     ->setChatHistory($history)
     ->setPersistence($persistence)
-    ->resume([ResumeInput::event($interruptId, ['call_123' => 'approve'])]);
+    ->resume([ResumeInput::event($request, ['call_123' => 'approve'])]);
 echo $state->getMessage()->getContent();
 ```
 
