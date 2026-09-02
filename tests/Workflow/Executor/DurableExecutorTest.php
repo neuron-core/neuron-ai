@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\CountableNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\DurableEventA;
@@ -71,6 +72,53 @@ class DurableExecutorTest extends TestCase
         $this->assertTrue($result->get('step_a_executed'));
         $this->assertTrue($result->get('step_b_executed'));
         $this->assertTrue($result->get('step_c_executed'));
+    }
+
+    public function test_invalid_completed_step_record_does_not_reexecute_the_node(): void
+    {
+        $workflowId = 'durable_invalid_step_test';
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $workflow = Workflow::make(workflowId: $workflowId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableNodeB(true),
+                new DurableNodeC(),
+            ]);
+
+        try {
+            $this->execute($workflow, $persistence);
+            $this->fail('Expected RuntimeException');
+        } catch (RuntimeException) {
+            $control = $persistence->get($workflowId, '__control');
+            $this->assertNotNull($control);
+            $this->assertTrue($persistence->writeIfUnchanged(
+                $workflowId,
+                '__control',
+                $control,
+                [
+                    $this->stepKey($workflow, DurableNodeA::class . '-0')
+                        => $serializer->serialize('not-a-step-result'),
+                ],
+            ));
+        }
+
+        CountableNode::resetExecutionCount();
+        $workflow = Workflow::make(workflowId: $workflowId)
+            ->addNodes([
+                new DurableNodeA(),
+                new DurableNodeB(),
+                new DurableNodeC(),
+            ]);
+
+        try {
+            $this->resume($workflow, $persistence, null);
+            $this->fail('Expected PersistenceException');
+        } catch (PersistenceException $e) {
+            $this->assertStringContainsString('Invalid step record', $e->getMessage());
+        }
+
+        $this->assertSame(0, CountableNode::getExecutionCount());
     }
 
     public function test_interrupt_then_resume_memoizes_completed_steps(): void

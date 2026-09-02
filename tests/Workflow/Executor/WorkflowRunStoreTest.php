@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
@@ -63,7 +64,63 @@ class WorkflowRunStoreTest extends TestCase
         $store->replaceControl($suspended, ['run-1/step-1' => $step]);
 
         $this->assertSame($suspended, $store->control());
-        $this->assertEquals($step, $store->readRecord('run-1/step-1'));
+        $this->assertEquals($step, $store->loadStep('run-1/step-1'));
+    }
+
+    public function test_load_step_returns_null_when_record_is_absent(): void
+    {
+        $store = new WorkflowRunStore(
+            new InMemoryPersistence(),
+            new PhpSerializer(),
+            'workflow-1',
+        );
+
+        $this->assertNull($store->loadStep('run-1/missing-step'));
+    }
+
+    public function test_load_step_rejects_a_present_record_with_the_wrong_type(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $store = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $store->writeRecords(['run-1/step-1' => 'not-a-step-result']);
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage(
+            "Invalid step record 'run-1/step-1' for workflow ID 'workflow-1'.",
+        );
+
+        $store->loadStep('run-1/step-1');
+    }
+
+    public function test_load_step_rejects_an_undecodable_record(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $store = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $control = $persistence->get('workflow-1', '__control');
+        $this->assertNotNull($control);
+        $this->assertTrue($persistence->writeIfUnchanged(
+            'workflow-1',
+            '__control',
+            $control,
+            ['run-1/step-1' => 'not-serialized-data'],
+        ));
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage(
+            "Invalid step record 'run-1/step-1' for workflow ID 'workflow-1'.",
+        );
+
+        $store->loadStep('run-1/step-1');
     }
 
     public function test_stale_store_cannot_write_after_another_store_changes_control(): void

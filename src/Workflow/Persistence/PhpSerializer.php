@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
+use NeuronAI\Exceptions\PersistenceException;
+
 use function base64_decode;
 use function base64_encode;
 use function serialize;
@@ -29,6 +31,11 @@ class PhpSerializer implements Serializer
             $decoded = $data;
         }
 
-        return unserialize($decoded);
+        $value = @unserialize($decoded);
+        if ($value === false && $decoded !== serialize(false)) {
+            throw new PersistenceException('Unable to unserialize persisted Workflow value.');
+        }
+
+        return $value;
     }
 }

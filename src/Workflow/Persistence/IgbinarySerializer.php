@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Persistence;
 
 use LogicException;
+use NeuronAI\Exceptions\PersistenceException;
 
 use function base64_decode;
 use function base64_encode;
@@ -46,6 +47,14 @@ class IgbinarySerializer implements Serializer
             $decoded = $data;
         }
 
-        return igbinary_unserialize($decoded);
+        $value = @igbinary_unserialize($decoded);
+        if (
+            ($value === null && $decoded !== igbinary_serialize(null))
+            || ($value === false && $decoded !== igbinary_serialize(false))
+        ) {
+            throw new PersistenceException('Unable to unserialize persisted Workflow value.');
+        }
+
+        return $value;
     }
 }

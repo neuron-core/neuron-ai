@@ -475,13 +475,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $requests;
     }
 
-    protected function loadStep(string $stepId): ?StepResult
-    {
-        $result = $this->runStore->readRecord($this->recordKey($stepId));
-
-        return $result instanceof StepResult ? $result : null;
-    }
-
     protected function recordKey(string $stepId): string
     {
         return $this->runId . '/' . $stepId;
@@ -556,7 +549,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $stepId,
     ): Generator {
         $this->renewLease();
-        $cached = $this->loadStep($stepId);
+        $cached = $this->runStore->loadStep($this->recordKey($stepId));
 
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));

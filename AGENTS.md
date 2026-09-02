@@ -1,3 +1,5 @@
+> This branch is a new major version under development. So forget about backward compatibility and think only about the best code for the problem.
+
 # Neuron AI - Project Overview
 
 This repository contains Neuron AI, a PHP framework for building agentic applications.

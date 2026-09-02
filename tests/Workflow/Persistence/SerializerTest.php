@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Persistence;
 
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Workflow\Executor\StepResult;
 use NeuronAI\Workflow\Persistence\IgbinarySerializer;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -36,6 +37,21 @@ final class SerializerTest extends TestCase
         Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
     }
 
+    public function test_php_serializer_rejects_malformed_data(): void
+    {
+        $this->expectException(PersistenceException::class);
+
+        (new PhpSerializer())->unserialize('not-serialized-data');
+    }
+
+    public function test_php_serializer_preserves_false_and_null(): void
+    {
+        $serializer = new PhpSerializer();
+
+        $this->assertFalse($serializer->unserialize($serializer->serialize(false)));
+        $this->assertNull($serializer->unserialize($serializer->serialize(null)));
+    }
+
     public function test_igbinary_serializer_round_trip(): void
     {
         if (!function_exists('igbinary_serialize')) {
@@ -51,6 +67,29 @@ final class SerializerTest extends TestCase
         Assert::assertSame('step-1', $restored->getStepId());
         Assert::assertTrue($restored->isFailed());
         Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
+    }
+
+    public function test_igbinary_serializer_rejects_malformed_data(): void
+    {
+        if (!function_exists('igbinary_serialize')) {
+            self::markTestSkipped('ext-igbinary not available');
+        }
+
+        $this->expectException(PersistenceException::class);
+
+        (new IgbinarySerializer())->unserialize('not-serialized-data');
+    }
+
+    public function test_igbinary_serializer_preserves_false_and_null(): void
+    {
+        if (!function_exists('igbinary_serialize')) {
+            self::markTestSkipped('ext-igbinary not available');
+        }
+
+        $serializer = new IgbinarySerializer();
+
+        $this->assertFalse($serializer->unserialize($serializer->serialize(false)));
+        $this->assertNull($serializer->unserialize($serializer->serialize(null)));
     }
 
     public function test_igbinary_blob_is_smaller_than_php_blob(): void

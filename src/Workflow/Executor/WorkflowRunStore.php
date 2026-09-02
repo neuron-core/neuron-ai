@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
+use Throwable;
 
 /**
  * Persistence protocol for one Workflow run partition.
@@ -77,6 +79,9 @@ final class WorkflowRunStore
         return $ignition instanceof Ignition ? $ignition : null;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function control(): WorkflowControl
     {
         if (!$this->hasControl()) {
@@ -91,7 +96,10 @@ final class WorkflowRunStore
         return $this->control instanceof WorkflowControl;
     }
 
-    /** @param array<string, mixed> $records */
+    /**
+     * @param array<string, mixed> $records
+     * @throws WorkflowException
+     */
     public function replaceControl(WorkflowControl $control, array $records = []): void
     {
         $controlSnapshot = $this->serializer->serialize($control);
@@ -115,12 +123,18 @@ final class WorkflowRunStore
         $this->controlSnapshot = $controlSnapshot;
     }
 
-    /** @param array<string, mixed> $records */
+    /**
+     * @param array<string, mixed> $records
+     * @throws WorkflowException
+     */
     public function writeRecords(array $records): void
     {
         $this->writeSerialized($this->serializeRecords($records));
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function deleteIfOwned(): bool
     {
         $deleted = $this->persistence->deleteIfUnchanged(
@@ -137,11 +151,33 @@ final class WorkflowRunStore
         return $deleted;
     }
 
-    public function readRecord(string $key): mixed
+    /**
+     * @throws PersistenceException
+     */
+    public function loadStep(string $key): ?StepResult
     {
         $raw = $this->persistence->get($this->workflowId, $key);
+        if ($raw === null) {
+            return null;
+        }
 
-        return $raw === null ? null : $this->serializer->unserialize($raw);
+        try {
+            $step = $this->serializer->unserialize($raw);
+        } catch (Throwable $e) {
+            throw new PersistenceException(
+                "Invalid step record '{$key}' for workflow ID '{$this->workflowId}'.",
+                $e->getCode(),
+                previous: $e,
+            );
+        }
+
+        if (!$step instanceof StepResult) {
+            throw new PersistenceException(
+                "Invalid step record '{$key}' for workflow ID '{$this->workflowId}'."
+            );
+        }
+
+        return $step;
     }
 
     public function memoizer(string $recordKey): StepMemoizer
@@ -155,7 +191,10 @@ final class WorkflowRunStore
         );
     }
 
-    /** @param array<string, string> $records */
+    /**
+     * @param array<string, string> $records
+     * @throws WorkflowException
+     */
     protected function writeSerialized(array $records): void
     {
         if (!$this->persistence->writeIfUnchanged(
@@ -171,6 +210,9 @@ final class WorkflowRunStore
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function expectedControlValue(): string
     {
         if ($this->controlSnapshot === null) {
