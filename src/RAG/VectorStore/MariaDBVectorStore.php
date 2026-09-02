@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Compilers\MariaDBFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use PDO;
+
 use function array_chunk;
 use function in_array;
 use function is_array;

@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
+
 use function array_merge;
 
 /**

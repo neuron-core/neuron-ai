@@ -7,6 +7,7 @@ namespace NeuronAI\RAG\VectorStore\Compilers;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
+
 use function array_map;
 
 /**

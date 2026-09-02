@@ -14,6 +14,7 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\OpenSearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use OpenSearch\Client;
+
 use function array_key_exists;
 use function array_map;
 use function count;

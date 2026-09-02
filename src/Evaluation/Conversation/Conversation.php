@@ -15,6 +15,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Throwable;
+
 use function array_key_exists;
 use function get_debug_type;
 use function implode;

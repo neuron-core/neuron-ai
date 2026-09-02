@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
+
 use function array_map;
 use function implode;
 use function is_bool;

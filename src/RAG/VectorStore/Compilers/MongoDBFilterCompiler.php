@@ -7,6 +7,7 @@ namespace NeuronAI\RAG\VectorStore\Compilers;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
+
 use function array_map;
 use function in_array;
 

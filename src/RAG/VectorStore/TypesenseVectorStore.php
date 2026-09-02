@@ -17,6 +17,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use Typesense\Client;
 use Typesense\Exceptions\ObjectNotFound;
 use Typesense\Exceptions\TypesenseClientError;
+
 use function array_chunk;
 use function array_key_exists;
 use function array_map;

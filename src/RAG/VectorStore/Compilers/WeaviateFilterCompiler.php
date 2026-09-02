@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\FilterOperator;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
+
 use function array_is_list;
 use function array_map;
 use function count;

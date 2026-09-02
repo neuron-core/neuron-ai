@@ -16,6 +16,7 @@ use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\QdrantFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+
 use function array_chunk;
 use function array_map;
 use function is_null;

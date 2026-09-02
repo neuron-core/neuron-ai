@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInputResult;
+
 use function array_diff_key;
 use function array_flip;
 use function array_intersect_key;

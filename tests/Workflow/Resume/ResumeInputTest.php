@@ -11,6 +11,7 @@ use NeuronAI\Workflow\Interrupt\ResumeKind;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
+
 use const NAN;
 
 class ResumeInputTest extends TestCase

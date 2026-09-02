@@ -38,6 +38,8 @@ use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use DateTimeImmutable;
+
 use function array_push;
 use function hash;
 use function in_array;
@@ -464,7 +466,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $expiresAt = $request instanceof WaitForEventRequest
                 ? $request->getExpiresAt()
                 : null;
-            if ($expiresAt !== null && $expiresAt->getTimestamp() <= $now) {
+            if ($expiresAt instanceof DateTimeImmutable && $expiresAt->getTimestamp() <= $now) {
                 $inputs[] = ResumeInput::expired($request);
             }
         }
@@ -624,8 +626,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         ?string $branchPath,
         int $index,
-    ): string
-    {
+    ): string {
         if ($branchId === null) {
             return $node::class . '-' . $index;
         }

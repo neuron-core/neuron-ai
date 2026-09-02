@@ -25,6 +25,7 @@ use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PDO;
 use PHPUnit\Framework\TestCase;
+
 use function array_filter;
 use function iterator_to_array;
 

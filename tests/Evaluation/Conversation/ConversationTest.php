@@ -24,6 +24,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use PHPUnit\Framework\TestCase;
+
 use function json_encode;
 
 class ConversationTest extends TestCase

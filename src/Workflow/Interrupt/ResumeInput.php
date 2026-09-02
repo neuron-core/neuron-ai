@@ -7,9 +7,11 @@ namespace NeuronAI\Workflow\Interrupt;
 use JsonException;
 use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
+
 use function is_array;
 use function is_int;
 use function json_encode;
+
 use const JSON_THROW_ON_ERROR;
 
 final class ResumeInput implements JsonSerializable

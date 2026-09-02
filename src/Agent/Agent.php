@@ -29,6 +29,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
+
 use function is_array;
 use function is_string;
 
@@ -382,9 +383,7 @@ class Agent extends Workflow implements AgentInterface
         $this->getStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
-
-        $state = yield from $this->events();
-        return $state;
+        return yield from $this->events();
     }
 
     /**

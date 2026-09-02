@@ -17,6 +17,7 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+
 use function array_chunk;
 use function count;
 use function is_null;

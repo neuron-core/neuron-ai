@@ -16,6 +16,7 @@ use ReflectionUnionType;
 
 use function is_a;
 use function sha1;
+use function is_string;
 
 final class WorkflowGraphBuilder
 {
