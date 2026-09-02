@@ -356,9 +356,10 @@ class DurableExecutorTest extends TestCase
         // The crashed step leaves a failed marker, making the run observable.
         $raw = $persistence->get($workflowId, $this->stepKey($workflow, MemoizingNode::class . '-0'));
         $this->assertNotNull($raw);
+        $this->assertStringNotContainsString('Simulated crash after memoize', $raw);
+        $this->assertStringNotContainsString(RuntimeException::class, $raw);
         $failed = (new PhpSerializer())->unserialize($raw);
         $this->assertInstanceOf(StepResult::class, $failed);
         $this->assertTrue($failed->isFailed());
-        $this->assertStringContainsString('Simulated crash', $failed->getError()['message']);
     }
 }

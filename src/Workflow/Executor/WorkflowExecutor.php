@@ -59,7 +59,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
 
-    /** @return Generator<int, Event, mixed, WorkflowState> */
+    /**
+     * @return Generator<int, Event, mixed, WorkflowState>
+     * @throws Throwable
+     */
     public function execute(WorkflowRuntimeInterface $workflow): Generator
     {
         return $this->executeSegment($workflow);
@@ -68,6 +71,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @param list<ResumeInput> $inputs
      * @return Generator<int, Event, mixed, WorkflowState>
+     * @throws Throwable
      */
     public function resume(
         WorkflowRuntimeInterface $workflow,
@@ -84,7 +88,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
     }
 
-    /** @return Generator<int, Event, mixed, WorkflowState> */
+    /**
+     * @return Generator<int, Event, mixed, WorkflowState>
+     * @throws Throwable
+     */
     public function signal(
         WorkflowRuntimeInterface $workflow,
         string $name,
@@ -202,6 +209,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws StaleWorkflowRunException
+     * @throws WorkflowException
+     */
     public function acknowledgeCompletion(
         WorkflowRuntimeInterface $workflow,
         string $expectedRunId,
@@ -232,6 +243,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function startRun(WorkflowRuntimeInterface $workflow): ?WorkflowState
     {
         $this->runId = UniqueIdGenerator::generateId('run_');
@@ -253,7 +267,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return null;
     }
 
-    /** @param list<ResumeInput> $inputs */
+    /**
+     * @param list<ResumeInput> $inputs
+     * @throws WorkflowException
+     */
     protected function continueRun(
         WorkflowRuntimeInterface $workflow,
         array $inputs,
@@ -353,6 +370,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @param non-empty-list<ResumeInput> $inputs
      * @return array<int, ResumeInput>
+     * @throws WorkflowException
      */
     protected function prepareResume(array $inputs, bool $allowRunning = false): array
     {
@@ -397,7 +415,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $accepted;
     }
 
-    /** @return array<int, ResumeInput> */
+    /**
+     * @return array<int, ResumeInput>
+     * @throws WorkflowException
+     */
     protected function prepareSignal(string $name, array $payload): array
     {
         $inputs = [];
@@ -420,7 +441,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $this->prepareResume($inputs);
     }
 
-    /** @return list<ResumeInput> */
+    /**
+     * @return list<ResumeInput>
+     * @throws WorkflowException
+     */
     protected function dueInputs(): array
     {
         $now = time();
@@ -448,6 +472,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $inputs;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function assertInputlessContinuationAllowed(): void
     {
         $control = $this->runStore->control();
@@ -464,6 +491,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function resolveWorkflowId(WorkflowRuntimeInterface $workflow, bool $continuing): string
     {
         if ($workflow->getWorkflowId() !== null && $workflow->getRunId() !== null) {
@@ -501,6 +531,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $workflowId;
     }
 
+    /**
+     * @throws StaleWorkflowRunException
+     * @throws WorkflowException
+     */
     protected function loadControl(?string $expectedRunId = null): void
     {
         if (!$this->runStore->loadControl() instanceof WorkflowControl) {
@@ -527,6 +561,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function deleteOwnedPartition(): void
     {
         if (!$this->runStore->deleteIfOwned()) {
@@ -542,6 +579,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $this->leaseTimeout === null ? null : time() + $this->leaseTimeout;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function renewLease(): void
     {
         if ($this->leaseTimeout !== null) {
@@ -549,6 +589,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function stampState(WorkflowState $state): void
     {
         $state->setExecutionMetadata(
@@ -558,7 +601,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
     }
 
-    /** @return array<int, \NeuronAI\Workflow\Interrupt\InterruptRequest> */
+    /**
+     * @return array<int, \NeuronAI\Workflow\Interrupt\InterruptRequest>
+     * @throws WorkflowException
+     */
     protected function activeInterruptRequests(): array
     {
         $requests = [];
@@ -632,7 +678,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
     }
 
-    /** @return Generator<int, Event, mixed, StepResult> */
+    /**
+     * @return Generator<int, Event, mixed, StepResult>
+     * @throws WorkflowException|Throwable
+     */
     protected function runNodeStep(
         WorkflowRuntimeInterface $workflow,
         NodeInterface $node,
@@ -690,7 +739,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $this->recordKey($stepId) => new StepResult(
                     stepId: $stepId,
                     interruptId: $interruptId,
-                    error: ['message' => $e->getMessage(), 'class' => $e::class],
+                    failed: true,
                 ),
             ]);
             throw $e;
@@ -771,7 +820,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $event;
     }
 
-    /** @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent> */
+    /**
+     * @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent>
+     */
     protected function executeBranches(
         WorkflowRuntimeInterface $workflow,
         ParallelEvent $parallelEvent,
@@ -795,7 +846,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $requests === [] ? $parallelEvent : new InterruptEvent($requests);
     }
 
-    /** @return Generator<int, Event, mixed, Event> */
+    /**
+     * @return Generator<int, Event, mixed, Event>
+     */
     protected function executeBranch(
         WorkflowRuntimeInterface $workflow,
         string $branchId,

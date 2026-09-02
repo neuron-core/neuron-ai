@@ -284,6 +284,27 @@ class PersistenceContractTest extends TestCase
         (new FilePersistence($this->directory))->get('corrupt', 'step');
     }
 
+    public function test_database_backend_quotes_the_configured_table_identifier(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('
+            CREATE TABLE "workflow""store" (
+                "partition" VARCHAR(255) NOT NULL,
+                "key"       VARCHAR(255) NOT NULL,
+                "value"     TEXT NOT NULL,
+                updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("partition", "key")
+            )
+        ');
+
+        $store = new DatabasePersistence($pdo, 'workflow"store');
+
+        $this->assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner', [
+            'step' => 'result',
+        ]));
+        $this->assertSame('result', $store->get('workflow', 'step'));
+    }
+
     protected function removeDirectory(string $directory): void
     {
         if (!is_dir($directory)) {

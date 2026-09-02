@@ -20,7 +20,7 @@ final class SerializerTest extends TestCase
     {
         return new StepResult(
             stepId: 'step-1',
-            error: ['message' => 'boom', 'class' => 'RuntimeException'],
+            failed: true,
         );
     }
 
@@ -34,7 +34,6 @@ final class SerializerTest extends TestCase
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
         Assert::assertTrue($restored->isFailed());
-        Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
     }
 
     public function test_php_serializer_rejects_malformed_data(): void
@@ -66,7 +65,6 @@ final class SerializerTest extends TestCase
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
         Assert::assertTrue($restored->isFailed());
-        Assert::assertSame(['message' => 'boom', 'class' => 'RuntimeException'], $restored->getError());
     }
 
     public function test_igbinary_serializer_rejects_malformed_data(): void

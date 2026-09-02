@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use Generator;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
@@ -23,6 +25,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 use function Amp\async;
 use function Amp\delay;
@@ -137,5 +140,50 @@ class AsyncExecutorTest extends TestCase
             'text' => 'text',
             'image' => 'image',
         ], $result->get('analysis'));
+    }
+
+    public function test_parallel_streaming_is_live_and_backpressured(): void
+    {
+        $progress = new stdClass();
+        $progress->advancedPastFirstEvent = false;
+
+        $streamingNode = new class ($progress) extends Node {
+            public function __construct(protected stdClass $progress)
+            {
+            }
+
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): Generator
+            {
+                yield new ChunkEvent('first');
+                $this->progress->advancedPastFirstEvent = true;
+                yield new ChunkEvent('second');
+
+                return new StopEvent(result: 'HELLO');
+            }
+        };
+
+        $workflow = Workflow::make()->addNodes([
+            new DocumentParallelProcessing(),
+            $streamingNode,
+            new ImageProcessNode(),
+            new MergeNode(),
+        ]);
+        $this->configure($workflow);
+
+        $payloads = [];
+        foreach ($workflow->events() as $event) {
+            if (!$event instanceof ChunkEvent) {
+                continue;
+            }
+
+            $payloads[] = $event->payload;
+            if ($event->payload === 'first') {
+                $this->assertFalse($progress->advancedPastFirstEvent);
+            }
+        }
+
+        $this->assertSame(['first', 'second'], $payloads);
+        $this->assertTrue($progress->advancedPastFirstEvent);
+        $this->assertTrue($workflow->getState()->get('merge_node_executed'));
     }
 }

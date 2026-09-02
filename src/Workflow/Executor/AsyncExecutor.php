@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use Amp\Future;
 use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
@@ -55,55 +56,49 @@ class AsyncExecutor extends WorkflowExecutor
         ParallelEvent $parallelEvent,
         string $forkStepId,
     ): Generator {
+        /** @var array<string, Generator<int, Event, mixed, Event>> $branches */
+        $branches = [];
         $futures = [];
         foreach ($parallelEvent->branches as $branchId => $branchEvent) {
             if ($parallelEvent->hasResult($branchId)) {
                 continue;
             }
 
-            // executeBranch() is a live generator; a fiber has no consumer to
-            // yield into, so each branch buffers its streamed events and the
-            // parent re-emits them after the await.
-            $futures[$branchId] = async(function () use (
-                $workflow,
-                $branchId,
-                $branchEvent,
-                $forkStepId,
-            ): BranchResult {
-                $streamedEvents = [];
-                $branch = $this->executeBranch($workflow, $branchId, $branchEvent, $forkStepId);
-                foreach ($branch as $streamedEvent) {
-                    $streamedEvents[] = $streamedEvent;
-                }
-                $terminal = $branch->getReturn();
-
-                return new BranchResult(
-                    result: $terminal instanceof StopEvent ? $terminal->getResult() : null,
-                    streamedEvents: $streamedEvents,
-                    interrupt: $terminal instanceof InterruptEvent ? $terminal : null,
-                );
-            });
+            $branch = $this->executeBranch($workflow, $branchId, $branchEvent, $forkStepId);
+            $branches[$branchId] = $branch;
+            $futures[$branchId] = async(
+                fn (): BranchResult => $this->advanceBranch($branch),
+            );
         }
 
         $requests = [];
         $firstError = null;
 
-        // Await ALL futures before propagating any exception,
-        // otherwise un-awaited futures trigger UnhandledFutureError on destruction.
-        foreach ($futures as $branchId => $future) {
-            try {
-                $result = $future->await();
-                if ($result->interrupt instanceof InterruptEvent) {
-                    array_push($requests, ...$result->interrupt->requests);
-                } else {
-                    $parallelEvent->setResult($branchId, $result->result);
-                }
+        // Drain every branch before propagating an exception so no failed
+        // future is left unobserved.
+        while ($futures !== []) {
+            foreach (Future::iterate($futures) as $branchId => $future) {
+                unset($futures[$branchId]);
 
-                foreach ($result->streamedEvents as $streamedEvent) {
-                    yield $streamedEvent;
+                try {
+                    $result = $future->await();
+                    if ($result->streamedEvent instanceof Event) {
+                        yield $result->streamedEvent;
+                        $branch = $branches[$branchId];
+                        $futures[$branchId] = async(
+                            fn (): BranchResult => $this->advanceBranch($branch, true),
+                        );
+                        continue;
+                    }
+
+                    if ($result->interrupt instanceof InterruptEvent) {
+                        array_push($requests, ...$result->interrupt->requests);
+                    } else {
+                        $parallelEvent->setResult($branchId, $result->result);
+                    }
+                } catch (Throwable $e) {
+                    $firstError ??= $e;
                 }
-            } catch (Throwable $e) {
-                $firstError ??= $e;
             }
         }
 
@@ -116,5 +111,26 @@ class AsyncExecutor extends WorkflowExecutor
         }
 
         return $parallelEvent;
+    }
+
+    /**
+     * @param Generator<int, Event, mixed, Event> $branch
+     */
+    protected function advanceBranch(Generator $branch, bool $resume = false): BranchResult
+    {
+        if ($resume) {
+            $branch->next();
+        }
+
+        if ($branch->valid()) {
+            return new BranchResult(streamedEvent: $branch->current());
+        }
+
+        $terminal = $branch->getReturn();
+
+        return new BranchResult(
+            result: $terminal instanceof StopEvent ? $terminal->getResult() : null,
+            interrupt: $terminal instanceof InterruptEvent ? $terminal : null,
+        );
     }
 }

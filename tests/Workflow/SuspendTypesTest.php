@@ -148,9 +148,10 @@ class SuspendTypesTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $token = 'sleep-basic';
+        $wakeAt = new DateTimeImmutable('-1 minute');
 
         $workflow = Workflow::make(workflowId: $token)
-            ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
+            ->addNodes([new NodeOne(), new SleepUntilNode($wakeAt), new NodeThree()]);
 
         $state = $this->execute($workflow, $persistence);
 
@@ -162,7 +163,7 @@ class SuspendTypesTest extends TestCase
 
         // Resume carries no payload — the wakeup itself is the signal (empty payload).
         $resumed = Workflow::make(workflowId: $token)
-            ->addNodes([new NodeOne(), new SleepUntilNode(), new NodeThree()]);
+            ->addNodes([new NodeOne(), new SleepUntilNode($wakeAt), new NodeThree()]);
 
         $state = $this->resume(
             $resumed,
@@ -279,6 +280,21 @@ class SuspendTypesTest extends TestCase
         $this->assertFalse($state->has('node_three_executed'));
     }
 
+    public function test_addressed_timer_cannot_resume_future_sleep(): void
+    {
+        $workflow = Workflow::make(workflowId: 'sleep-future-addressed')
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('+1 hour')), new NodeThree()]);
+
+        $request = $workflow->run()->getInterruptRequest();
+        $this->assertInstanceOf(SleepUntilRequest::class, $request);
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage('arrived before its wake time');
+
+        $workflow->run([ResumeInput::timer($request)]);
+    }
+
     public function test_inputless_resume_expires_due_event_wait(): void
     {
         $workflow = Workflow::make(workflowId: 'event-expired')
@@ -295,6 +311,25 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('timed_out'));
         $this->assertFalse($state->has('received_payload'));
         $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_addressed_expiry_cannot_expire_future_event_wait(): void
+    {
+        $workflow = Workflow::make(workflowId: 'event-future-addressed')
+            ->setPersistence(new InMemoryPersistence())
+            ->addNodes([
+                new NodeOne(),
+                new WaitForEventWithTimeoutNode(new DateTimeImmutable('+1 hour')),
+                new NodeThree(),
+            ]);
+
+        $request = $workflow->run()->getInterruptRequest();
+        $this->assertInstanceOf(WaitForEventRequest::class, $request);
+
+        $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
+        $this->expectExceptionMessage('arrived before its deadline');
+
+        $workflow->run([ResumeInput::expired($request)]);
     }
 
     public function test_wait_for_event_request_carries_deadline(): void
@@ -336,11 +371,12 @@ class SuspendTypesTest extends TestCase
         // to the node as null. The node branches on null — it never inspects a flag.
         $persistence = new InMemoryPersistence();
         $token = 'wfe-timeout';
+        $expiresAt = new DateTimeImmutable('-1 minute');
 
         // Run 1: suspends on a bounded wait. The expressed deadline is carried on
         // the interrupted request (outbound).
         $workflow = Workflow::make(workflowId: $token)
-            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
+            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode($expiresAt), new NodeThree()]);
         $state = $this->execute($workflow, $persistence);
 
         $this->assertTrue($state->isInterrupted());
@@ -351,7 +387,7 @@ class SuspendTypesTest extends TestCase
         // Resume with $timedOut — exactly what the scheduler does when the
         // deadline fires.
         $resumed = Workflow::make(workflowId: $token)
-            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode(), new NodeThree()]);
+            ->addNodes([new NodeOne(), new WaitForEventWithTimeoutNode($expiresAt), new NodeThree()]);
         $state = $this->resume($resumed, $persistence, [], true);
 
         // The node's null branch ran: it saw no event, took the timeout path, and

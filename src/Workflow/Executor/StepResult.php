@@ -19,11 +19,7 @@ class StepResult
          * itself lives in WorkflowControl; this marker connects replay to it.
          */
         protected ?int $interruptId = null,
-        /**
-         * Failure marker for crash observability: ['message' => string, 'class' => string].
-         * Null unless this step recorded an unhandled throwable.
-         */
-        protected ?array $error = null,
+        protected bool $failed = false,
     ) {
     }
 
@@ -86,19 +82,9 @@ class StepResult
         return $this->interruptId;
     }
 
-    /**
-     * Failure metadata for a crashed step, or null when the step did not fail.
-     *
-     * @return array{message: string, class: string}|null
-     */
-    public function getError(): ?array
-    {
-        return $this->error;
-    }
-
     public function isFailed(): bool
     {
-        return $this->error !== null;
+        return $this->failed;
     }
 
     public function __serialize(): array
@@ -109,7 +95,7 @@ class StepResult
             'event' => $this->event,
             'state' => $this->state,
             'interruptId' => $this->interruptId,
-            'error' => $this->error,
+            'failed' => $this->failed,
         ];
     }
 
@@ -119,6 +105,6 @@ class StepResult
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
         $this->interruptId = $data['interruptId'] ?? null;
-        $this->error = $data['error'] ?? null;
+        $this->failed = $data['failed'] ?? false;
     }
 }

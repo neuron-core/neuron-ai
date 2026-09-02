@@ -8,22 +8,21 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 
 /**
- * Buffered outcome of a parallel branch executed inside an Amp fiber.
+ * One streamed event or the terminal outcome of an asynchronous branch.
  *
- * The sequential executor streams branches live and needs no buffer; only
- * {@see \NeuronAI\Workflow\Executor\AsyncExecutor} uses this, because a
- * fiber has no consumer to yield into while it runs.
+ * AsyncExecutor advances each branch only once per instance, keeping output
+ * bounded while the parent forwards events with backpressure.
  */
 class BranchResult
 {
     /**
-     * @param array<int, Event> $streamedEvents Events yielded during branch execution
+     * @param Event|null $streamedEvent The next event yielded by the branch
      * @param InterruptEvent|null $interrupt Set when the branch paused for input;
      *   null on normal completion (the branch reached a StopEvent).
      */
     public function __construct(
         public readonly mixed $result = null,
-        public readonly array $streamedEvents = [],
+        public readonly ?Event $streamedEvent = null,
         public readonly ?InterruptEvent $interrupt = null,
     ) {
     }

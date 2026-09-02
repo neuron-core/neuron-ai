@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use NeuronAI\Exceptions\WorkflowException;
+use function time;
 
 /**
  * Suspends the workflow until a clock time. Every wait is persisted first;
@@ -46,6 +47,13 @@ class SleepUntilRequest extends InterruptRequest
             throw new WorkflowException(
                 "Resume input '{$input->kind->value}' is incompatible with interrupt {$this->getId()} "
                 . "of type '{$this->type()->value}'."
+            );
+        }
+
+        if ($this->wakeAt->getTimestamp() > time()) {
+            throw new WorkflowException(
+                "Timer input for interrupt {$this->getId()} arrived before its wake time "
+                . $this->wakeAt->format(DateTimeInterface::ATOM) . '.'
             );
         }
     }

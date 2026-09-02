@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Persistence;
 
 use PDO;
 use Throwable;
+use function str_replace;
 
 /**
  * PDO-backed store. One table:
@@ -57,6 +58,7 @@ class DatabasePersistence implements PersistenceInterface
         $this->mysql = $this->driver === 'mysql';
 
         $quote = $this->mysql ? '`' : '"';
+        $this->table = $quote . str_replace($quote, $quote . $quote, $this->table) . $quote;
         $this->partitionCol = $quote . 'partition' . $quote;
         $this->keyCol = $quote . 'key' . $quote;
         $this->valueCol = $quote . 'value' . $quote;

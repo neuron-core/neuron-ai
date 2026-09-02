@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use NeuronAI\Exceptions\WorkflowException;
+use function time;
 
 /**
  * Suspends the workflow until an external event named $eventName is delivered.
@@ -64,6 +65,17 @@ class WaitForEventRequest extends InterruptRequest
             throw new WorkflowException(
                 "Resume input '{$input->kind->value}' is incompatible with interrupt {$this->getId()} "
                 . "of type '{$this->type()->value}'."
+            );
+        }
+
+        if (
+            $input->kind === ResumeKind::Expired
+            && $this->expiresAt instanceof DateTimeImmutable
+            && $this->expiresAt->getTimestamp() > time()
+        ) {
+            throw new WorkflowException(
+                "Expiry input for interrupt {$this->getId()} arrived before its deadline "
+                . $this->expiresAt->format(DateTimeInterface::ATOM) . '.'
             );
         }
     }
