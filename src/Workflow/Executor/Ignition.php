@@ -13,8 +13,7 @@ use NeuronAI\Workflow\Events\Event;
  * head), the start event (the run's cause and the entry key for step replay),
  * and the workflow's context bag — an opaque section populated and consumed
  * by workflow subclasses via ignitionContext()/applyIgnitionContext(), never
- * interpreted by the engine (the analog of Inngest's `event.user` /
- * Temporal's `memo`).
+ * interpreted by the engine.
  */
 class Ignition
 {

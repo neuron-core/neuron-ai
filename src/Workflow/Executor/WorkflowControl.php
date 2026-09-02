@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 
@@ -83,7 +84,9 @@ final class WorkflowControl
         );
     }
 
-    /** @param array<int, \NeuronAI\Workflow\Interrupt\ResumeInput> $inputs */
+    /**
+     * @param array<int, ResumeInput> $inputs
+     */
     public function withInputs(array $inputs): self
     {
         $interrupts = $this->interrupts;

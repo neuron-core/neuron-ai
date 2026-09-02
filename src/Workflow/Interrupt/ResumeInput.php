@@ -16,7 +16,10 @@ use const JSON_THROW_ON_ERROR;
 
 final class ResumeInput implements JsonSerializable
 {
-    /** @param array<string, mixed>|null $payload */
+    /**
+     * @param array<string, mixed>|null $payload
+     * @throws WorkflowException
+     */
     protected function __construct(
         public readonly int $interruptId,
         public readonly ResumeKind $kind,
@@ -35,23 +38,35 @@ final class ResumeInput implements JsonSerializable
         }
     }
 
-    /** @param array<string, mixed> $payload */
+    /**
+     * @param array<string, mixed> $payload
+     * @throws WorkflowException
+     */
     public static function event(InterruptRequest $request, array $payload): self
     {
         return new self($request->getId(), ResumeKind::Event, $payload);
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public static function expired(InterruptRequest $request): self
     {
         return new self($request->getId(), ResumeKind::Expired);
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public static function timer(InterruptRequest $request): self
     {
         return new self($request->getId(), ResumeKind::Timer);
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @throws WorkflowException
+     */
     public static function fromArray(array $data): self
     {
         if (!is_int($data['interruptId'] ?? null)) {
@@ -68,7 +83,9 @@ final class ResumeInput implements JsonSerializable
         };
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
         $data = [
