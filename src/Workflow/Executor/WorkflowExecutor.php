@@ -327,7 +327,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         // delete is fenced by the bytes just read, so a concurrent claimant wins.
         if (
             !$ignited
-            && ($current === null || ($this->isDeadGeneration($current) && $this->store->deleteIfOwned()))
+            && (!$current instanceof \NeuronAI\Workflow\Executor\WorkflowControl || ($this->isDeadGeneration($current) && $this->store->deleteIfOwned()))
         ) {
             $ignited = $this->store->initialize($control, $ignition);
         }

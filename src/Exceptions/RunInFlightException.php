@@ -80,7 +80,7 @@ class RunInFlightException extends WorkflowException
     protected function describeInterrupts(): string
     {
         $descriptions = array_map(
-            fn (InterruptRequest $request): string => $this->describeInterrupt($request),
+            $this->describeInterrupt(...),
             $this->interrupts,
         );
 

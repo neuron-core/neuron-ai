@@ -7,6 +7,9 @@ namespace NeuronAI\Tests\StructuredOutput;
 use NeuronAI\StructuredOutput\JsonExtractor;
 use PHPUnit\Framework\TestCase;
 
+use function base64_decode;
+use function base64_encode;
+
 use const PHP_EOL;
 
 class ExtractorTest extends TestCase

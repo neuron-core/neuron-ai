@@ -57,7 +57,7 @@ class DurableTurnRecoveryTest extends TestCase
     protected function tearDown(): void
     {
         if (is_dir($this->directory)) {
-            array_map('unlink', glob($this->directory . DIRECTORY_SEPARATOR . '*') ?: []);
+            array_map(unlink(...), glob($this->directory . DIRECTORY_SEPARATOR . '*') ?: []);
             rmdir($this->directory);
         }
     }
