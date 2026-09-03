@@ -52,6 +52,18 @@ class FileVectorStoreTest extends TestCase
         $this->assertFileDoesNotExist(__DIR__.'/neuron.store');
     }
 
+    public function test_search_on_fresh_store_returns_no_results(): void
+    {
+        $directory = sys_get_temp_dir().'/'.uniqid('neuron_store_');
+        $store = new FileVectorStore($directory);
+
+        $this->assertFileExists($directory.'/neuron.store');
+        $this->assertSame([], $store->search(new SearchRequest([1, 2, 3])));
+
+        unlink($directory.'/neuron.store');
+        rmdir($directory);
+    }
+
     public function test_does_not_persist_runtime_score(): void
     {
         $document = (new Document('Hello!'))
@@ -133,6 +145,7 @@ class FileVectorStoreTest extends TestCase
         $this->assertDirectoryExists($testDir);
 
         // Cleanup
+        unlink($testDir.'/neuron.store');
         rmdir($testDir);
     }
 }

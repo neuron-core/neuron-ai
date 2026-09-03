@@ -19,6 +19,7 @@ use function array_slice;
 use function count;
 use function fclose;
 use function fgets;
+use function file_exists;
 use function file_put_contents;
 use function fopen;
 use function fwrite;
@@ -26,6 +27,7 @@ use function implode;
 use function is_dir;
 use function json_decode;
 use function rename;
+use function touch;
 use function unlink;
 use function usort;
 use function mkdir;
@@ -49,6 +51,9 @@ class FileVectorStore implements VectorStoreInterface
         $this->initializeSchema($schema);
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true)) {
             throw new VectorStoreException("Directory '{$this->directory}' does not exist and could not be created.");
+        }
+        if (!file_exists($this->getFilePath()) && !@touch($this->getFilePath())) {
+            throw new VectorStoreException("Store file '{$this->getFilePath()}' does not exist and could not be created.");
         }
     }
 
