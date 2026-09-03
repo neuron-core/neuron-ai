@@ -437,6 +437,19 @@ from the `ToolResultMessage` that follows. The thread stays effectively
 one-live-run-per-workflow-ID refusal (see *Thread-first continuation* below)
 blocks any new turn until the pending approvals are settled.
 
+### Leases: surviving a killed process
+
+Every Agent run holds a **ten-minute lease** by default (`leaseTimeout()`).
+A caught failure records `failed` and the next turn supersedes it, but a
+process killed with no chance to write (memory limit, `max_execution_time`,
+an OOM-killed container) leaves the thread `running`, and nothing can tell
+that apart from a live worker. The lease resolves it: every step commit
+renews a deadline, so once it passes the next `chat()` supersedes the dead
+run instead of refusing; until then the refusal names the deadline. Raise it
+above your slowest provider or tool call with `setLeaseTimeout()` or by
+overriding `leaseTimeout()`. `null` disables it, in which case a killed
+process strands the thread until `run([])` takes it over. The renewal rides
+on the step commit, so the lease costs no extra write.
 ### Thread-first continuation: the thread IS the workflow ID
 
 The Agent declares its **threadId as the run's workflow ID** (`workflowId()`), so the

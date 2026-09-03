@@ -198,15 +198,20 @@ conditional partition cleanup. `WorkflowExecutor` works with typed
 
 ## Execution lease
 
-Leases are opt-in:
+Leases are opt-in for a plain Workflow; `Agent` holds one by default (ten
+minutes, see `src/Agent/AGENTS.md`):
 
 ```php
 $workflow->setLeaseTimeout(300);
 ```
 
 The lease deadline lives inside `__control`; there is no separate lease record.
-The executor refreshes it at step boundaries. Suspension and caught failure
-clear it because no process is intentionally executing. An inputless
+Every step commit renews it in the same conditional write as the step record,
+so a heartbeat never costs a write of its own. Suspension and caught failure
+clear it because no process is intentionally executing. A process killed with
+no chance to write (memory limit, execution timeout, OOM kill) leaves the
+record `running`: without a lease only `run([])` can take it over; with one,
+the next ignition supersedes it once the deadline passes. An inputless
 continuation worker may take over a `running` attempt only when leases are
 disabled or the enabled lease has expired. The conditional claim still ensures
 only one contender advances the attempt.

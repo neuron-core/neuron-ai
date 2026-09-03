@@ -287,24 +287,31 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Opt into the execution lease: while a run is executing, the engine
-     * refreshes the lease deadline inside __control, and an inputless continuation
+     * renews the lease deadline inside __control with every step commit, and an inputless continuation
      * arriving while the lease is fresh is refused — it would
      * probably duplicate a live process, not revive a dead one. Suspension,
-     * failure, and completion all clear the deadline, so only a violent
-     * crash (no chance to commit control) leaves it held. Pick $seconds
+     * failure, and completion all clear the deadline, so only a process killed
+     * with no chance to commit (memory limit, timeout, OOM kill) leaves it
+     * held, and the next ignition supersedes it once it expires. Pick $seconds
      * well above the longest silent stretch between step boundaries (a
-     * slow provider call): a too-short lease revives runs that are merely
-     * slow. Null (the default) disables the lease entirely.
+     * slow provider or tool call): a too-short lease revives runs that are merely
+     * slow. Null disables the lease; the default comes from leaseTimeout():
+     * null for a plain Workflow, ten minutes for an Agent.
      */
     public function setLeaseTimeout(?int $seconds): static
     {
         $this->leaseTimeout = $this->validateLeaseTimeout($seconds);
+        $this->leaseTimeoutConfigured = true;
         return $this;
     }
 
     final public function getLeaseTimeout(): ?int
     {
-        return $this->validateLeaseTimeout($this->leaseTimeout ??= $this->leaseTimeout());
+        if (!$this->leaseTimeoutConfigured) {
+            $this->setLeaseTimeout($this->leaseTimeout());
+        }
+
+        return $this->leaseTimeout;
     }
 
     protected function leaseTimeout(): ?int

@@ -32,6 +32,8 @@ trait HandleComponents
 
     protected ?int $leaseTimeout = null;
 
+    protected bool $leaseTimeoutConfigured = false;
+
     protected bool $retainCompletion = false;
 
     protected ?StreamingChannelInterface $channel = null;

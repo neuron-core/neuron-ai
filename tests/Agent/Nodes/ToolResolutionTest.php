@@ -226,6 +226,10 @@ class ToolResolutionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
+        // The simulated crash left the default lease fresh; this test is about
+        // tool resolution on replay, so take the run over without waiting.
+        $agent2->setLeaseTimeout(null);
+
         $message = $agent2->run([])->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());

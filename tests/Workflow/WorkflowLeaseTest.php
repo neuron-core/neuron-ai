@@ -152,12 +152,12 @@ class WorkflowLeaseTest extends TestCase
         $this->assertNull($persistence->get('thread_1', '__control'));
     }
 
-    public function test_control_heartbeats_are_committed_at_step_boundaries(): void
+    public function test_lease_renewals_ride_on_step_commits(): void
     {
         $serializer = new PhpSerializer();
         $persistence = new class ($serializer) extends InMemoryPersistence {
-            /** @var WorkflowControl[] */
-            public array $controls = [];
+            /** @var list<array{control: WorkflowControl, records: int}> */
+            public array $controlWrites = [];
 
             public function __construct(protected PhpSerializer $serializer)
             {
@@ -179,7 +179,7 @@ class WorkflowLeaseTest extends TestCase
                 if ($committed && isset($records['__control'])) {
                     $control = $this->serializer->unserialize($records['__control']);
                     if ($control instanceof WorkflowControl) {
-                        $this->controls[] = $control;
+                        $this->controlWrites[] = ['control' => $control, 'records' => count($records) - 1];
                     }
                 }
 
@@ -189,13 +189,18 @@ class WorkflowLeaseTest extends TestCase
 
         $this->execute($this->leasedWorkflow(300), $persistence);
 
-        $runningWithLease = array_filter(
-            $persistence->controls,
-            fn (WorkflowControl $control): bool => $control->status === WorkflowStatus::Running
-                && $control->leaseExpiresAt !== null,
+        $leased = array_filter(
+            $persistence->controlWrites,
+            fn (array $write): bool => $write['control']->status === WorkflowStatus::Running
+                && $write['control']->leaseExpiresAt !== null,
         );
 
-        $this->assertGreaterThanOrEqual(3, count($runningWithLease));
+        // NodeOne's commit renewed the deadline and the suspension marker kept
+        // it; both travelled with a step record, never as a control-only write.
+        $this->assertCount(2, $leased);
+        foreach ($leased as $write) {
+            $this->assertGreaterThan(0, $write['records']);
+        }
         $this->assertSame(WorkflowStatus::Suspended, $this->control($persistence)->status);
         $this->assertNull($this->control($persistence)->leaseExpiresAt);
     }

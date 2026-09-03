@@ -95,6 +95,17 @@ class Agent extends Workflow implements AgentInterface
         return new AgentState();
     }
 
+    /**
+     * Ten minutes: above any single provider or tool call in ordinary use,
+     * and the longest a thread stays refused after its process was killed
+     * with no chance to record the failure. Override the hook, or call
+     * setLeaseTimeout() (null disables), for slower nodes.
+     */
+    protected function leaseTimeout(): ?int
+    {
+        return 600;
+    }
+
     protected function chatHistory(): ChatHistoryInterface
     {
         // With no explicit threadId the history self-keys, and its key is

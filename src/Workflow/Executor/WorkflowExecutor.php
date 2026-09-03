@@ -673,15 +673,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return $this->leaseTimeout === null ? null : time() + $this->leaseTimeout;
     }
 
-    /**
-     * @throws WorkflowException
-     */
-    protected function renewLease(): void
-    {
-        if ($this->leaseTimeout !== null) {
-            $this->store->replaceControl($this->store->control()->heartbeat($this->leaseExpiry()));
-        }
-    }
 
     /**
      * @throws WorkflowException
@@ -770,7 +761,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
-        $this->renewLease();
         $cached = $this->store->loadStep($this->recordKey($stepId));
 
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
@@ -853,13 +843,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
         $records = [$this->recordKey($stepId) => $result];
 
+        $control = $this->store->control();
         if ($interruptId !== null) {
-            $this->store->replaceControl(
-                $this->store->control()->removeInterrupt($interruptId),
-                $records,
-            );
-        } else {
+            $control = $control->removeInterrupt($interruptId);
+        }
+        if ($this->leaseTimeout !== null) {
+            // The commit carries the lease renewal for the node that runs
+            // next, so a heartbeat never costs a write of its own.
+            $control = $control->heartbeat($this->leaseExpiry());
+        }
+
+        if ($control === $this->store->control()) {
             $this->store->writeRecords($records);
+        } else {
+            $this->store->replaceControl($control, $records);
         }
 
         return $result;
