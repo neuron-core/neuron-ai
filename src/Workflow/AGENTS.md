@@ -215,6 +215,23 @@ A lease is a crash-overlap safeguard, not proof that the prior process died.
 Choose a timeout longer than the longest silent node operation, and use external
 idempotency for uncertain side effects.
 
+## Failed and dead generations
+
+A caught failure commits `failed` into `__control` and leaves the partition in
+place. Two verbs settle it:
+
+- `run([])` replays the generation: committed steps and memos are reused and
+  only the failed step runs again. The run ID is unchanged.
+- A fresh `run()` at the same workflow ID supersedes it: the dead generation
+  is conditionally swept and a new generation ignites with the new start event.
+
+A `running` generation whose lease deadline has expired is dead in the same
+sense (the process never committed again) and is superseded the same way.
+Suspended generations, retained completions, and `running` generations with
+no lease deadline or a fresh one still refuse a fresh ignition. The sweep is
+fenced by the control bytes just read: a recovery worker that claims the
+generation first keeps it, and the ignition is refused.
+
 ## Completion and cleanup
 
 Manual workflows clean up by default. A clean `StopEvent` conditionally deletes

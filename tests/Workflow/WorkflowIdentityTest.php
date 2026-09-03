@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use Closure;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
@@ -28,11 +30,15 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function time;
+
 /**
  * Key-based identity: a run's durable records live in the partition named
  * by its workflow ID (the declared business key, or a generated handle), with the
  * ignition record as the generation head. One live run per workflow ID, enforced
- * by refusal; completion sweeps the whole partition, leaving nothing behind.
+ * by refusal, except that a dead generation (failed, or lease expired) is
+ * swept by the next ignition; completion sweeps the whole partition, leaving
+ * nothing behind.
  */
 class WorkflowIdentityTest extends TestCase
 {
@@ -443,5 +449,181 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame('thread_1', $state->getWorkflowId());
         $this->assertSame($workflow->getRunId(), $state->getRunId());
         $this->assertSame(1, $state->getExecutionAttempt());
+    }
+
+    public function test_ignition_supersedes_a_failed_generation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $crashed = Workflow::make('thread_1')->addNodes([new MemoizingNode(shouldCrash: true)]);
+        try {
+            $this->execute($crashed, $persistence);
+            $this->fail('The workflow should fail.');
+        } catch (RuntimeException) {
+        }
+        $failedStepKey = $this->stepKey($crashed, MemoizingNode::class . '-0');
+        $this->assertNotNull($persistence->get('thread_1', $failedStepKey));
+
+        // A new run at the same key is a deliberate statement: the dead
+        // generation is swept and replaced, not replayed.
+        $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $state = $this->execute($fresh, $persistence);
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertNotSame($crashed->getRunId(), $fresh->getRunId());
+        $this->assertNull($persistence->get('thread_1', $failedStepKey));
+        $this->assertSame($fresh->getRunId(), $this->loadControl($persistence)->runId);
+    }
+
+    public function test_failed_generation_stays_replayable_by_inputless_continuation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $attempts = 0;
+        $flaky = new class (function () use (&$attempts): bool {
+            return $attempts++ === 0;
+        }) extends Node {
+            public function __construct(protected Closure $shouldCrash)
+            {
+            }
+
+            public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+            {
+                if (($this->shouldCrash)()) {
+                    throw new RuntimeException('transient');
+                }
+
+                $state->set('recovered', true);
+                return new StopEvent();
+            }
+        };
+
+        $crashed = Workflow::make('thread_1')->addNode($flaky);
+        try {
+            $this->execute($crashed, $persistence);
+            $this->fail('The workflow should fail.');
+        } catch (RuntimeException) {
+        }
+
+        // Recovery keeps the generation: same run ID, only the failed step runs again.
+        $recovered = Workflow::make('thread_1')->addNode($flaky)->setPersistence($persistence);
+        $state = $recovered->run([]);
+
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+        $this->assertTrue($state->get('recovered'));
+        $this->assertSame($crashed->getRunId(), $recovered->getRunId());
+        $this->assertNull($persistence->get('thread_1', '__control'));
+    }
+
+    public function test_ignition_refuses_a_running_generation_without_a_lease(): void
+    {
+        // Without a lease deadline nothing distinguishes a crashed process
+        // from a live one, so the safeguard stays.
+        $persistence = new InMemoryPersistence();
+        $this->seedRunningGeneration($persistence, leaseExpiresAt: null);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
+
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+    }
+
+    public function test_ignition_refuses_a_running_generation_with_a_fresh_lease(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $this->seedRunningGeneration($persistence, leaseExpiresAt: time() + 300);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
+
+        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+    }
+
+    public function test_ignition_supersedes_a_running_generation_with_an_expired_lease(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $this->seedRunningGeneration($persistence, leaseExpiresAt: time() - 1);
+
+        $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $state = $this->execute($fresh, $persistence);
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertNotSame('run_stale', $fresh->getRunId());
+        $this->assertSame($fresh->getRunId(), $this->loadControl($persistence)->runId);
+    }
+
+    public function test_ignition_refuses_a_retained_completed_generation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $nodes = fn (): array => [new NodeOne(), new NodeTwo(), new NodeThree()];
+        Workflow::make('thread_1')
+            ->setPersistence($persistence)
+            ->retainCompletionUntilAcknowledged()
+            ->addNodes($nodes())
+            ->run();
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
+
+        Workflow::make('thread_1')->setPersistence($persistence)->addNodes($nodes())->run();
+    }
+
+    public function test_ignition_loses_the_sweep_to_a_concurrent_recovery_claim(): void
+    {
+        $serializer = new PhpSerializer();
+        $persistence = new class ($serializer) extends InMemoryPersistence {
+            public function __construct(protected PhpSerializer $serializer)
+            {
+            }
+
+            public function deleteIfUnchanged(string $partition, string $conditionKey, string $expectedValue): bool
+            {
+                // A recovery worker claims the failed generation between the
+                // igniter's read of __control and its sweep.
+                $control = $this->serializer->unserialize($expectedValue);
+                if ($control instanceof WorkflowControl) {
+                    $this->storage[$partition][$conditionKey] = $this->serializer->serialize($control->claim(null));
+                }
+
+                return parent::deleteIfUnchanged($partition, $conditionKey, $expectedValue);
+            }
+        };
+
+        $crashed = Workflow::make('thread_1')->addNodes([new MemoizingNode(shouldCrash: true)]);
+        try {
+            $this->execute($crashed, $persistence);
+            $this->fail('The workflow should fail.');
+        } catch (RuntimeException) {
+        }
+
+        try {
+            $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            $this->fail('The igniter should lose the fenced sweep.');
+        } catch (WorkflowException $e) {
+            $this->assertStringContainsString('already in flight', $e->getMessage());
+        }
+
+        // The claimant keeps the generation: same run ID, advanced attempt.
+        $control = $this->loadControl($persistence);
+        $this->assertSame($crashed->getRunId(), $control->runId);
+        $this->assertSame(2, $control->executionAttempt);
+    }
+
+    protected function seedRunningGeneration(InMemoryPersistence $persistence, ?int $leaseExpiresAt): void
+    {
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent(
+            'thread_1',
+            '__control',
+            $serializer->serialize(new WorkflowControl('run_stale', WorkflowStatus::Running, leaseExpiresAt: $leaseExpiresAt)),
+            ['__ignition' => $serializer->serialize(new Ignition('run_stale', new StartEvent()))],
+        );
+    }
+
+    protected function loadControl(InMemoryPersistence $persistence): WorkflowControl
+    {
+        $raw = $persistence->get('thread_1', '__control');
+        $control = $raw === null ? null : (new PhpSerializer())->unserialize($raw);
+        $this->assertInstanceOf(WorkflowControl::class, $control);
+
+        return $control;
     }
 }

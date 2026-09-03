@@ -257,7 +257,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             leaseExpiresAt: $this->leaseExpiry(),
         );
 
-        if (!$this->runStore->initialize($control, $workflow->makeIgnition($this->runId))) {
+        $ignition = $workflow->makeIgnition($this->runId);
+
+        if (
+            !$this->runStore->initialize($control, $ignition)
+            && !$this->supersedeDeadGeneration($control, $ignition)
+        ) {
             throw new WorkflowException(
                 "A run is already in flight for workflow ID '{$this->workflowId}' — "
                 . 'resume or settle it before igniting a new one.'
@@ -267,6 +272,42 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->ownsExecutionSegment = true;
 
         return null;
+    }
+
+    /**
+     * A generation that failed, or whose lease deadline expired without a
+     * further commit, is dead: no process is executing it and no interrupt
+     * waits on it. A fresh ignition sweeps it and ignites in its place
+     * rather than refusing, while run([]) still replays it for callers that
+     * prefer recovery. Suspended, retained completed, and unleased running
+     * generations keep refusing: a live pause, an unacknowledged outcome, or
+     * possibly a live process. The sweep is fenced by the control bytes just
+     * read, so a recovery worker that claims the generation first keeps it.
+     *
+     * @throws WorkflowException
+     */
+    protected function supersedeDeadGeneration(WorkflowControl $control, Ignition $ignition): bool
+    {
+        $current = $this->runStore->loadControl();
+
+        if ($current instanceof WorkflowControl) {
+            if (!$this->isDeadGeneration($current) || !$this->runStore->deleteIfOwned()) {
+                return false;
+            }
+        }
+
+        return $this->runStore->initialize($control, $ignition);
+    }
+
+    protected function isDeadGeneration(WorkflowControl $control): bool
+    {
+        if ($control->status === WorkflowStatus::Failed) {
+            return true;
+        }
+
+        return $control->status === WorkflowStatus::Running
+            && $control->leaseExpiresAt !== null
+            && $control->leaseExpiresAt <= time();
     }
 
     /**

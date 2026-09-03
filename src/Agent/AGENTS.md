@@ -468,6 +468,14 @@ pending run first — typically `toolApprovalDecisions()` followed by `run()` wi
 that can identify no run at all (no workflow ID, nothing in flight) throws a
 `WorkflowException` rather than running against the wrong one.
 
+A *failed* turn does not lock the thread. A provider outage or a crashed tool
+commits `failed` under the thread; the inbound message was never written to
+history, so nothing dangles. The next `chat()` supersedes the dead generation
+and starts a fresh turn with whatever messages it carries. Call `run([])`
+instead to replay the failed turn as it was, reusing every memoized step (a
+long tool loop is not re-billed). See *Failed and dead generations* in
+`src/Workflow/AGENTS.md`.
+
 The declared workflow ID is `null` while no thread identity has been declared —
 the run then lives under an engine-generated workflow ID (`getWorkflowId()` after the
 first segment) and the threadId, if any, arrives from the ignition record.
