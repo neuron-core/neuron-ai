@@ -144,7 +144,9 @@ class StructuredOutputNode extends InferenceNode
     ): object {
         // Extract a valid JSON object from the LLM response
         $this->emit('structured-extracting', new Extracting($response));
-        $json = (new JsonExtractor())->getJson($response->getContent());
+        // A completion without text blocks yields a null content: treat it as an
+        // extraction failure so it goes through the retry loop instead of a TypeError.
+        $json = (new JsonExtractor())->getJson($response->getContent() ?? '');
         $this->emit('structured-extracted', new Extracted($response, $schema, $json));
         if ($json === null || $json === '') {
             throw new AgentException("The response does not contains a valid JSON Object.");
