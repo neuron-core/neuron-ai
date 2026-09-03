@@ -56,7 +56,8 @@ exposes.
 There is no separate `resume()` API. The inherited Workflow terminals express both
 operations: calling `run()` / `events()` with no input starts a run, while an explicit
 `ResumeInput[]` continues one. `run([])` is an inputless continuation for due timers
-or crash recovery. Agent tool approval normally hides `ResumeInput` behind
+or crash recovery (a failed turn needs neither: the next `chat()` supersedes
+it). Agent tool approval normally hides `ResumeInput` behind
 `toolApprovalDecisions($decisions)->run()` or
 `toolApprovalDecisions($decisions)->events()`.
 
@@ -684,6 +685,35 @@ continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
 
 Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow** skill for full details on persistence and continuation, and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
+
+### Failed turns, pending approvals, and the lease
+
+A provider outage or a crashed tool leaves a **failed** turn with nothing in
+history: the inbound message commits only after the provider call succeeds.
+The thread is not locked. The next `chat()` supersedes the failed turn with
+whatever message the user sends next; `run([])` replays it instead, reusing
+the first inference and any tool runs already committed.
+
+A **pending approval** does lock the thread: a `chat()` while the run is
+suspended throws `RunInFlightException`, whose message names the awaited
+`approval` event and whose `interrupts` carry the `ApprovalRequest`. Catch it
+to re-render the pending decision, and settle it with `toolApprovalDecisions()`
+(decline decisions are the cancel path).
+
+`abandonRun()` dismisses a failed turn without starting a new one and returns
+`false` when nothing is in flight. It refuses while an approval is pending,
+because the pre-suspend tool call would be left unanswered in history.
+`resetConversation()` frees the thread unconditionally, since it wipes the
+history anyway.
+
+Every Agent run holds a **ten-minute lease** by default. A process killed with
+no chance to record its failure (memory limit, `max_execution_time`, an
+OOM-killed container) leaves the thread `running`; once the lease deadline
+passes, the next `chat()` supersedes the dead run instead of refusing. Raise it
+above your slowest provider or tool call with `setLeaseTimeout()` or by
+overriding `leaseTimeout()`; `null` disables it, in which case a killed
+process strands the thread until `run([])` takes it over. A suspended run holds
+no lease, so a pending approval never expires on its own.
 
 ## Key Decisions
 

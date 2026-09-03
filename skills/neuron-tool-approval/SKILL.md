@@ -180,7 +180,7 @@ A normal turn and an approval continuation share the same agent construction: bu
 
 ```php
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\RunInFlightException;
 
 /**
  * POST /threads/{threadId}/chat — body is ONE of:
@@ -197,10 +197,15 @@ function chatEndpoint(string $threadId, array $body): array
             ? $agent->toolApprovalDecisions($body['decisions'])
                 ->run()                                                // answer → continue the pending run
             : $agent->chat(new UserMessage($body['message']));         // message → start a new run
-    } catch (WorkflowException $e) {
+    } catch (RunInFlightException $e) {
         // A user message arrived while the thread has a pending tool call
-        // (the UI failed to lock the input). Nothing was executed or persisted.
-        return ['status' => 'conflict', 'error' => $e->getMessage()];   // HTTP 409
+        // (the UI failed to lock the input). Nothing was executed or persisted;
+        // the exception carries the pending requests so the client can re-render them.
+        return [
+            'status' => 'conflict',
+            'error' => $e->getMessage(),
+            'pending' => array_values($e->interrupts),   // InterruptRequest is JsonSerializable
+        ];   // HTTP 409
     }
 
     // Both branches converge: on a suspended run getMessage() IS the annotated
@@ -216,9 +221,16 @@ Why this works as one endpoint:
 
 1. **Same construction** — both paths build the identical agent from the thread id; the thread IS the run's workflow ID, so the decisions branch needs nothing extra.
 2. **Same outcomes** — a fresh turn can end suspended (model called a gated tool) and a continuation can end suspended (incomplete decision set, or the model called another gated tool). One response contract covers both: `awaiting_approval | completed`.
-3. **Same failure containment** — a user message on a suspended thread is refused by the engine ("run is already in flight") before anything reaches the provider or the durable store; map it to HTTP 409.
+3. **Same failure containment** — a user message on a suspended thread is refused by the engine with a `RunInFlightException` naming the pending approval, before anything reaches the provider or the durable store; map it to HTTP 409. A failed turn never causes this: the next message supersedes it.
 
 Treat `message` and `decisions` as mutually exclusive in the request body (400 if both). Serialize with `->jsonSerialize()` explicitly — framework serializers (e.g. Symfony's) would otherwise reflect over the object and produce a different shape than documented.
+
+A pending decision has no clock of its own: a suspended run holds no lease, so
+the approval can arrive minutes or days later unless the request carries an
+`expiresAt`. Cancelling is a decline: deliver `reject` decisions and the model
+gets the rejection template as the tool result. `abandonRun()` refuses while an
+approval is pending, because the pre-suspend tool call would be left unanswered
+in history; `resetConversation()` wipes the history and frees the thread instead.
 
 For streaming, a new message uses `stream($message)`; an approval continuation uses `toolApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one.
 

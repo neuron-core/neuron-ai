@@ -135,6 +135,7 @@ distinguish a new run from continuation:
 | `events([])` / `events($inputs, ...)` | Stream an inputless or addressed continuation. |
 | `signal($name, $payload)->run()` | Deliver an application event, then continue eagerly. |
 | `signal($name, $payload)->events()` | Deliver an application event, then stream the continued segment. |
+| `abandonRun($expectedRunId?)` | Discard the run holding the workflow ID so a new one can ignite; `false` when nothing is in flight. Refuses a retained completion and a run under a fresh lease. |
 
 `ResumeInput` is infrastructure-facing: create values with `event($request,
 $payload)`, `expired($request)`, or `timer($request)`; reconstruct a
@@ -218,6 +219,11 @@ After a crash, reconstruct the workflow with the same persistence and workflow
 ID, then call `run([])`. The explicit empty list selects inputless continuation:
 the engine replays completed steps without inventing an external answer.
 
+A failed generation does not block the workflow ID: a plain `run()` at the same
+ID sweeps it and starts a new generation with the new start event. Choose
+`run([])` to replay it and reuse every committed step, or `run()` to start
+over with different input.
+
 ### Persistence Backends
 
 ```php
@@ -249,6 +255,24 @@ Executors carry no storage of their own. Persistence and serialization are
 workflow-owned seams read by the executor at execution time. The record codec
 is configurable via `setSerializer()` (default `PhpSerializer`); timers, event
 subscriptions, and queue jobs belong to the calling platform, not Workflow core.
+
+### Execution Lease
+
+A caught failure records `failed`, but a process killed with no chance to
+write (memory limit, execution timeout, OOM kill) leaves the record `running`,
+and the engine cannot tell that apart from a live worker. A lease resolves it:
+
+```php
+$workflow->setLeaseTimeout(300);
+```
+
+Every step commit renews a deadline inside the control record at no extra
+write. A run whose deadline has passed is treated as dead: the next `run()`
+supersedes it and `run([])` may take it over. Without a lease only `run([])`
+can take over a `running` record. Pick a value above the longest single node
+(a slow provider or tool call). Plain workflows are opt-in; `Agent` holds a
+ten-minute lease by default, and `setLeaseTimeout(null)` disables it. A
+suspended run holds no lease, so a pause never expires on its own.
 
 ### Database Table Schema
 
@@ -440,8 +464,14 @@ $state = $workflow
 ```
 
 Rules: **one live run per workflow ID** — `run()` with no inputs starts a new
-run and throws if one is already in flight. Settle the pending run with
-`signal(...)->run()` or `run($inputs)`. Completed records are swept by default,
+run and throws `RunInFlightException` when a live one holds the ID: a
+suspended run, a retained completion, or a running attempt whose lease has not
+expired. The exception carries `runId`, `status`, `executionAttempt`,
+`leaseExpiresAt`, and the active `interrupts`, and its message names the verb
+that settles the state. A failed generation, or one whose lease expired, is
+not live: the next `run()` sweeps it. Settle a pending run with
+`signal(...)->run()` or `run($inputs)`, or discard it with `abandonRun()`.
+Completed records are swept by default,
 so a later explicit continuation such as `run([])` throws "No run in flight";
 a no-input `run()` may start a new generation. A continuation with no workflow
 ID at all throws. A declared `workflowId()` wins over an explicit
@@ -826,6 +856,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Provide clear, actionable descriptions in InterruptRequest
 - Keep request coordination data and metadata serializable; keep services on nodes
 - Use `memoize()` to avoid re-running expensive operations across an interruption
+- Use `abandonRun()` to discard a run whose awaited event or timer will never come, so the workflow ID is free again
 
 ## Common Patterns
 
