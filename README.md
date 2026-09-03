@@ -49,9 +49,7 @@ For a software house, this is a place to be recognized as a specialist rather th
 
 ## How To
 
-- [Install](#install)
-- [Create an Agent](#create)
-- [Talk to the Agent](#talk)
+- [Getting Started](#start)
 - [Monitoring](#monitoring)
 - [AI Providers](#providers)
 - [Tools & Toolkits](#tools)
@@ -63,23 +61,21 @@ For a software house, this is a place to be recognized as a specialist rather th
 - [Security Vulnerabilities](#security)
 - [Official Documentation](#documentation)
 
-<a name="install">
+<a name="start">
 
-## Install
+## Getting Started in 3 Steps
 
-Install the latest version via composer:
+### 1) Install
 
 ```
 composer require neuron-core/neuron-ai
 ```
 
-<a name="create">
-
-## Create an Agent
+### 2) Create an Agent
 
 Neuron provides you with the Agent class you can extend to inherit the main features of the framework
 and create fully functional agents. This class automatically manages some advanced mechanisms for you, such as memory,
-tools, and function calls, up to RAG (Retrieval Augmented Generation). You can go deeper into these aspects in the [documentation](https://docs.neuron-ai.dev).
+tools, up to RAG (Retrieval Augmented Generation). You can go deeper into these aspects below.
 
 Let's create an Agent with the command below:
 
@@ -109,21 +105,12 @@ class DataAnalystAgent extends Agent
 
     protected function instructions(): string
     {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a data analyst expert in creating reports from SQL databases."
-            ]
-        );
+        return "You are a data analyst expert in creating reports from SQL databases.";
     }
 }
 ```
 
-The `SystemPrompt` class is designed to take your base instructions and build a consistent prompt for the underlying model
-reducing the effort for prompt engineering.
-
-<a name="talk">
-
-## Talk to the Agent
+### 3) Talk to the Agent
 
 Send a message to the agent to get a response from the underlying LLM:
 
