@@ -8,6 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -23,6 +24,7 @@ use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
+use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
@@ -49,6 +51,15 @@ use const PHP_EOL;
  */
 class StructuredOutputNode extends InferenceNode
 {
+    public function __construct(
+        AIProviderInterface $provider,
+        ChatHistoryInterface $chatHistory,
+        bool $memoryAvailable = false,
+        protected JsonExtractor $extractor = new JsonExtractor(),
+    ) {
+        parent::__construct($provider, $chatHistory, $memoryAvailable);
+    }
+
     /**
      * @throws AgentException
      * @throws DeserializerException
@@ -151,7 +162,9 @@ class StructuredOutputNode extends InferenceNode
         string $class,
     ): object {
         $this->emit(new Extracting($response));
-        $json = (new JsonExtractor())->getJson($response->getContent());
+        // Passing an empty string when the response has no content generate an invalid json
+        // It avoids TypeError on the extractor and go through a new generation attempt.
+        $json = $this->extractor->getJson($response->getContent() ?? '');
         $this->emit(new Extracted($response, $schema, $json));
         if ($json === null || $json === '') {
             throw new AgentException("The response does not contains a valid JSON Object.");
