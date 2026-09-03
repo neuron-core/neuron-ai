@@ -89,6 +89,21 @@ class EvaluatorSummary
         return array_filter($this->results, fn (EvaluatorResult $result): bool => !$result->isPassed());
     }
 
+    /**
+     * Results grouped by the evaluator that produced them: the seam for a consumer
+     * handed a merged summary (the CLI outputs one for every evaluator it ran).
+     *
+     * @return array<string, EvaluatorResult[]>
+     */
+    public function getResultsByEvaluatorClass(): array
+    {
+        $grouped = [];
+        foreach ($this->results as $result) {
+            $grouped[$result->getEvaluatorClass()][] = $result;
+        }
+        return $grouped;
+    }
+
     public function hasFailures(): bool
     {
         return $this->getFailedCount() > 0;

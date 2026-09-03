@@ -133,6 +133,7 @@ class EvaluatorRunner
         $executionTime = microtime(true) - $startTime;
 
         return new EvaluatorResult(
+            $evaluator::class,
             $index,
             $outcomes instanceof AssertionOutcomes && $outcomes->isPassed(),
             $item,
@@ -159,6 +160,7 @@ class EvaluatorRunner
             return $result;
         } catch (Throwable) {
             return new EvaluatorResult(
+                $result->getEvaluatorClass(),
                 $result->getIndex(),
                 $result->isPassed(),
                 $result->getInput(),

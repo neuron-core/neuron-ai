@@ -76,7 +76,7 @@ provider drift: pair `--cache` in CI with a periodic `--fresh` run.
 | `Assertions/` | Built-in: string (via `StringAssertion` base), JSON, similarity, distance; `Assertions/Trajectory/` for tool-call/HITL assertions; `Assertions/Judges/` for LLM judges |
 | `Conversation/` | `Conversation` (multi-turn runner), `UserSimulator`, `SimulatorOutput` |
 | `Trajectory/` | `Trajectory` — the recorded evaluation subject (view over chat messages) |
-| `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary` |
+| `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary`, `EvaluatorReport`, `EvaluationSuiteSummary` |
 | `Output/` | `ConsoleOutput`, `JsonOutput`, `OutputPipeline` |
 | `Config/` | Config loading and driver resolution |
 | `Discovery/` | Auto-discover evaluator classes |
@@ -230,6 +230,18 @@ plus a per-result `scores` list). The flat float views (`EvaluatorResult::getAss
 `EvaluatorSummary::getAllAssertionScores()` and the summary avg/min/max) are derived from
 the same records — the summary is the single home for statistics.
 
+## Evaluator Attribution
+
+The CLI passes one `EvaluationSuiteSummary` to the output pipeline. It retains an ordered
+`EvaluatorReport` for each discovered evaluator, containing the runner's original
+`EvaluatorSummary`, evaluator class, optional Agent/Workflow namespace, exact UTC start and finish instants, and any error raised before item execution. Empty and
+errored evaluators therefore remain visible, and per-evaluator wall-clock timing is not
+reconstructed from item durations.
+
+Every `EvaluatorResult` also carries the producing evaluator class
+(`getEvaluatorClass()` / `getShortEvaluatorClass()`) so flat result exports remain
+attributable. Item indexes restart at zero for each evaluator.
+
 ## Output Configuration
 
 Create `evaluation.php` in project root. Each `output` entry is either a
@@ -266,7 +278,7 @@ class DatabaseOutput implements EvaluationOutputInterface
     ) {
     }
 
-    public function output(EvaluatorSummary $summary): void
+    public function output(EvaluationSuiteSummary $summary): void
     {
         // Store in database
     }

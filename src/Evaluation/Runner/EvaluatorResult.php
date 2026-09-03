@@ -8,15 +8,22 @@ use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Score;
 
 use function array_map;
+use function end;
+use function explode;
 
 class EvaluatorResult
 {
     /**
+     * @param string $evaluatorClass The evaluator that produced this result. Results of
+     *        several evaluators may share one summary (the CLI merges them), so the stamp
+     *        is what lets a consumer attribute or regroup them: the index alone is only
+     *        unique within one evaluator's dataset.
      * @param array<string, mixed> $input
      * @param array<AssertionFailure> $assertionFailures
      * @param array<Score> $assertionScores
      */
     public function __construct(
+        private readonly string $evaluatorClass,
         private readonly int $index,
         private readonly bool $passed,
         private readonly array $input,
@@ -29,6 +36,17 @@ class EvaluatorResult
         private readonly ?string $error = null,
         private readonly bool $cachedRun = false
     ) {
+    }
+
+    public function getEvaluatorClass(): string
+    {
+        return $this->evaluatorClass;
+    }
+
+    public function getShortEvaluatorClass(): string
+    {
+        $parts = explode('\\', $this->evaluatorClass);
+        return end($parts);
     }
 
     /**

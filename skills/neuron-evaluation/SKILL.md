@@ -688,7 +688,7 @@ JsonOutput::class
 
 ```php
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
-use NeuronAI\Evaluation\Runner\EvaluatorSummary;
+use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
 
 class DatabaseOutput implements EvaluationOutputInterface
 {
@@ -697,8 +697,10 @@ class DatabaseOutput implements EvaluationOutputInterface
         private readonly string $table = 'evaluations'
     ) {}
 
-    public function output(EvaluatorSummary $summary): void
+    public function output(EvaluationSuiteSummary $suite): void
     {
+        $summary = $suite->getAggregateSummary();
+
         $stmt = $this->pdo->prepare(
             "INSERT INTO {$this->table}
             (passed, failed, success_rate, total_time, created_at)
@@ -779,6 +781,7 @@ $summary->getAssertionSuccessRate();      // float (0.0 - 1.0)
 // Detailed results
 $summary->getResults();                 // array<EvaluatorResult>
 $summary->getFailedResults();           // array<EvaluatorResult>
+$summary->getResultsByEvaluatorClass(); // array<string, EvaluatorResult[]> grouped by the evaluator that produced them
 $summary->getCachedRunCount();          // int — items whose run() came from the cache
 
 // Assertion failures grouped by location
@@ -789,6 +792,8 @@ $summary->getAssertionFailuresByLocation();  // array<string, AssertionFailure[]
 
 ```php
 foreach ($summary->getResults() as $result) {
+    $result->getEvaluatorClass();      // string, the evaluator that produced this result
+    $result->getShortEvaluatorClass(); // string
     $result->getIndex();              // int
     $result->isPassed();             // bool
     $result->getInput();             // array

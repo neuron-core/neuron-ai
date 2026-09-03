@@ -17,6 +17,11 @@ abstract class BaseEvaluator implements EvaluatorInterface
         $this->ruleExecutor = new RuleExecutor();
     }
 
+    public function namespace(): ?string
+    {
+        return null;
+    }
+
     /**
      * Override to initialize judge agents and other resources before evaluation starts.
      */

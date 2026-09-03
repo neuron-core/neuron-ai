@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console\Evaluation;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use NeuronAI\Console\Command;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Cache\FileEvaluationCache;
@@ -11,18 +13,20 @@ use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
 use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
 use NeuronAI\Evaluation\Output\OutputPipeline;
+use NeuronAI\Evaluation\Runner\EvaluatorReport;
+use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use ReflectionClass;
 use Throwable;
 use RuntimeException;
 
-use function array_merge;
 use function array_shift;
 use function array_values;
 use function count;
 use function end;
 use function explode;
+use function microtime;
 use function str_starts_with;
 use function substr;
 
@@ -132,9 +136,7 @@ class EvaluationCommand extends Command
             return 1;
         }
 
-        $totalFailures = 0;
-        $allResults = [];
-        $totalTime = 0.0;
+        $reports = [];
         $total = count($evaluatorClasses);
 
         foreach (array_values($evaluatorClasses) as $index => $evaluatorClass) {
@@ -142,26 +144,47 @@ class EvaluationCommand extends Command
                 echo "Running {$this->getShortClassName($evaluatorClass)}... [" . ($index + 1) . "/{$total}]\n";
             }
 
+            $startedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $startTime = microtime(true);
+            $namespace = null;
+
             try {
-                $summary = $runner->run($this->createEvaluator($evaluatorClass), $concurrency);
+                $evaluator = $this->createEvaluator($evaluatorClass);
+                $namespace = $evaluator->namespace();
+                $summary = $runner->run($evaluator, $concurrency);
             } catch (Throwable $e) {
+                $finishedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
                 $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
-                $totalFailures++;
+                $reports[] = new EvaluatorReport(
+                    $evaluatorClass,
+                    new EvaluatorSummary([], microtime(true) - $startTime),
+                    $startedAt,
+                    $finishedAt,
+                    $e->getMessage(),
+                    $namespace,
+                );
                 continue;
             }
+
+            $finishedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
             if (!$verbose) {
                 $this->printProgress($summary);
             }
 
-            $totalFailures += $summary->getFailedCount();
-            $allResults[] = $summary->getResults();
-            $totalTime += $summary->getTotalExecutionTime();
+            $reports[] = new EvaluatorReport(
+                $evaluatorClass,
+                $summary,
+                $startedAt,
+                $finishedAt,
+                namespace: $namespace,
+            );
         }
 
-        $this->outputSummary(new EvaluatorSummary(array_merge(...$allResults), $totalTime));
+        $suiteSummary = new EvaluationSuiteSummary($reports);
+        $this->outputSummary($suiteSummary);
 
-        return $totalFailures > 0 ? 1 : 0;
+        return $suiteSummary->hasFailures() ? 1 : 0;
     }
 
     protected function printProgress(EvaluatorSummary $summary): void
@@ -171,7 +194,7 @@ class EvaluationCommand extends Command
         }
     }
 
-    protected function outputSummary(EvaluatorSummary $summary): void
+    protected function outputSummary(EvaluationSuiteSummary $summary): void
     {
         // Build the pipeline only after all runs complete: drivers may hold live
         // resources (e.g. DB connections) that must not exist at fork time

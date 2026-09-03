@@ -9,6 +9,11 @@ use NeuronAI\Evaluation\AssertionOutcomes;
 interface EvaluatorInterface
 {
     /**
+     * Optionally group this evaluator under an Agent, Workflow, or custom namespace.
+     */
+    public function namespace(): ?string;
+
+    /**
      * Set up the method called before evaluation starts.
      * Override this to initialize judge agents and other resources
      */

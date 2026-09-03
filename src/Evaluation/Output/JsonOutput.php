@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Output;
 
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Runner\EvaluatorReport;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorSummary;
+use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
 use NeuronAI\Evaluation\Score;
 use RuntimeException;
 use JsonException;
@@ -31,9 +33,9 @@ class JsonOutput implements EvaluationOutputInterface
     ) {
     }
 
-    public function output(EvaluatorSummary $summary): void
+    public function output(EvaluationSuiteSummary $summary): void
     {
-        $data = $this->summaryToArray($summary);
+        $data = $this->suiteToArray($summary);
 
         try {
             $json = json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
@@ -54,7 +56,39 @@ class JsonOutput implements EvaluationOutputInterface
     /**
      * @return array<string, mixed>
      */
-    private function summaryToArray(EvaluatorSummary $summary): array
+    protected function suiteToArray(EvaluationSuiteSummary $suite): array
+    {
+        $data = $this->summaryToArray($suite->getAggregateSummary());
+        $data['has_failures'] = $suite->hasFailures();
+        $data['evaluators'] = array_map(
+            fn (EvaluatorReport $report): array => $this->reportToArray($report),
+            $suite->getEvaluatorReports(),
+        );
+
+        return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function reportToArray(EvaluatorReport $report): array
+    {
+        $data = $this->summaryToArray($report->getSummary());
+        unset($data['results']);
+
+        return [
+            'evaluator_class' => $report->getEvaluatorClass(),
+            'namespace' => $report->getNamespace(),
+            ...$data,
+            'error' => $report->getError(),
+            'has_failures' => $report->hasFailures(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function summaryToArray(EvaluatorSummary $summary): array
     {
         $allScores = $summary->getAllAssertionScores();
 
@@ -79,6 +113,7 @@ class JsonOutput implements EvaluationOutputInterface
             'has_failures' => $summary->hasFailures(),
             'results' => array_map(
                 fn (EvaluatorResult $r): array => [
+                    'evaluator_class' => $r->getEvaluatorClass(),
                     'index' => $r->getIndex(),
                     'passed' => $r->isPassed(),
                     'input' => $r->getInput(),

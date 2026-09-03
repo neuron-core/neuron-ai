@@ -56,11 +56,24 @@ class EvaluatorRunnerTest extends TestCase
         $this->assertEquals(0, $results[0]->getIndex());
         $this->assertEquals(1, $results[1]->getIndex());
 
+        // The stamp must survive the fork boundary
+        $this->assertSame(StringContainsEvaluator::class, $results[0]->getEvaluatorClass());
+
         $this->assertFalse($results[0]->isPassed());
         $this->assertTrue($results[1]->isPassed());
 
         $this->assertEquals(2, $summary->getTotalAssertions());
         $this->assertEquals(1, $summary->getTotalAssertionsPassed());
         $this->assertEquals(1, $summary->getTotalAssertionsFailed());
+    }
+
+    public function test_results_are_stamped_with_the_evaluator_class(): void
+    {
+        $summary = (new EvaluatorRunner())->run(new StringContainsEvaluator());
+
+        foreach ($summary->getResults() as $result) {
+            $this->assertSame(StringContainsEvaluator::class, $result->getEvaluatorClass());
+            $this->assertSame('StringContainsEvaluator', $result->getShortEvaluatorClass());
+        }
     }
 }
