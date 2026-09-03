@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
+
+use function array_map;
 
 final class WorkflowControl
 {
@@ -23,6 +26,17 @@ final class WorkflowControl
         public readonly ?WorkflowState $checkpointState = null,
         public readonly ?WorkflowState $completedState = null,
     ) {
+    }
+
+    /**
+     * @return array<int, InterruptRequest>
+     */
+    public function interruptRequests(): array
+    {
+        return array_map(
+            static fn (ActiveInterrupt $active): InterruptRequest => $active->request,
+            $this->interrupts,
+        );
     }
 
     public function claim(?int $leaseExpiresAt): self

@@ -10,6 +10,7 @@ use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
@@ -18,6 +19,7 @@ use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\WorkflowStatus;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -235,6 +237,46 @@ class AgentThreadContinuationTest extends TestCase
         $message = $agent->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->getMessage();
 
         $this->assertSame($runId, $agent->getRunId());
+        $this->assertSame('Here are the search results...', $message->getContent());
+    }
+
+    public function test_new_turn_is_refused_while_an_approval_is_pending(): void
+    {
+        $history = new InMemoryChatHistory();
+        $persistence = new InMemoryPersistence();
+        $searchTool = new SearchTool();
+        $provider = $this->makeProvider($searchTool);
+
+        $suspended = $this->makeSuspendedRun($history, $persistence, $provider, $searchTool);
+
+        // The thread is held by a live pause, not a dead run: the refusal
+        // names the awaited event so the caller knows how to settle it.
+        $agent2 = Agent::make();
+        $agent2->setChatHistory($history);
+        $agent2->setAiProvider($provider);
+        $agent2->addTool($searchTool);
+        $agent2->setPersistence($persistence);
+
+        try {
+            $agent2->chat(new UserMessage('Never mind, something else'));
+            $this->fail('A pending approval should refuse a new turn.');
+        } catch (RunInFlightException $e) {
+            $this->assertSame($history->getThreadId(), $e->workflowId);
+            $this->assertSame($suspended->getRunId(), $e->runId);
+            $this->assertSame(WorkflowStatus::Suspended, $e->status);
+            $this->assertInstanceOf(ApprovalRequest::class, $e->interrupts[1]);
+            $this->assertStringContainsString("wait_for_event 'approval'", $e->getMessage());
+        }
+
+        // Nothing was disturbed: the approval is still deliverable.
+        $agent3 = Agent::make();
+        $agent3->setChatHistory($history);
+        $agent3->setAiProvider($provider);
+        $agent3->addTool($searchTool);
+        $agent3->setPersistence($persistence);
+
+        $message = $agent3->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->getMessage();
+
         $this->assertSame('Here are the search results...', $message->getContent());
     }
 }

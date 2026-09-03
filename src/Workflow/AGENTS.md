@@ -232,6 +232,12 @@ no lease deadline or a fresh one still refuse a fresh ignition. The sweep is
 fenced by the control bytes just read: a recovery worker that claims the
 generation first keeps it, and the ignition is refused.
 
+The refusal is a `RunInFlightException` (a `WorkflowException`) describing the
+generation that holds the ID: `runId`, `status`, `executionAttempt`,
+`leaseExpiresAt`, and the active `interrupts`. Its message names the verb that
+settles that state: deliver the awaited input, acknowledge the retained
+completion, wait for the lease, or configure a lease so a dead run can be
+superseded next time.
 ## Completion and cleanup
 
 Manual workflows clean up by default. A clean `StopEvent` conditionally deletes

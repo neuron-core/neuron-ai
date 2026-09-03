@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
+use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\AgentError;
@@ -169,7 +170,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             if ($terminal instanceof InterruptEvent) {
                 $workflow->getState()->setInputResults($this->inputResults);
-                $requests = $this->activeInterruptRequests();
+                $requests = $this->runStore->control()->interruptRequests();
                 $workflow->getState()->markAsSuspended($requests);
                 $checkpoint = clone $workflow->getState();
                 $checkpoint->markAsSuspended([]);
@@ -259,14 +260,32 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $ignition = $workflow->makeIgnition($this->runId);
 
+        $ignited = $this->runStore->initialize($control, $ignition);
+        $current = $ignited ? null : $this->runStore->loadControl();
+
+        // A dead generation (failed, or lease expired) is swept and replaced; the
+        // delete is fenced by the bytes just read, so a concurrent claimant wins.
         if (
-            !$this->runStore->initialize($control, $ignition)
-            && !$this->supersedeDeadGeneration($control, $ignition)
+            !$ignited
+            && ($current === null || ($this->isDeadGeneration($current) && $this->runStore->deleteIfOwned()))
         ) {
-            throw new WorkflowException(
-                "A run is already in flight for workflow ID '{$this->workflowId}' — "
-                . 'resume or settle it before igniting a new one.'
-            );
+            $ignited = $this->runStore->initialize($control, $ignition);
+        }
+
+        if (!$ignited) {
+            throw $current instanceof WorkflowControl
+                ? new RunInFlightException(
+                    workflowId: $this->workflowId,
+                    runId: $current->runId,
+                    status: $current->status,
+                    executionAttempt: $current->executionAttempt,
+                    leaseExpiresAt: $current->leaseExpiresAt,
+                    interrupts: $current->interruptRequests(),
+                )
+                : new WorkflowException(
+                    "Cannot ignite a new run for workflow ID '{$this->workflowId}': "
+                    . 'a concurrent process is changing it. Retry the ignition.'
+                );
         }
 
         $this->ownsExecutionSegment = true;
@@ -274,40 +293,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         return null;
     }
 
-    /**
-     * A generation that failed, or whose lease deadline expired without a
-     * further commit, is dead: no process is executing it and no interrupt
-     * waits on it. A fresh ignition sweeps it and ignites in its place
-     * rather than refusing, while run([]) still replays it for callers that
-     * prefer recovery. Suspended, retained completed, and unleased running
-     * generations keep refusing: a live pause, an unacknowledged outcome, or
-     * possibly a live process. The sweep is fenced by the control bytes just
-     * read, so a recovery worker that claims the generation first keeps it.
-     *
-     * @throws WorkflowException
-     */
-    protected function supersedeDeadGeneration(WorkflowControl $control, Ignition $ignition): bool
-    {
-        $current = $this->runStore->loadControl();
-
-        if ($current instanceof WorkflowControl) {
-            if (!$this->isDeadGeneration($current) || !$this->runStore->deleteIfOwned()) {
-                return false;
-            }
-        }
-
-        return $this->runStore->initialize($control, $ignition);
-    }
-
     protected function isDeadGeneration(WorkflowControl $control): bool
     {
-        if ($control->status === WorkflowStatus::Failed) {
-            return true;
-        }
-
-        return $control->status === WorkflowStatus::Running
-            && $control->leaseExpiresAt !== null
-            && $control->leaseExpiresAt <= time();
+        return $control->status === WorkflowStatus::Failed
+            || ($control->status === WorkflowStatus::Running
+                && $control->leaseExpiresAt !== null
+                && $control->leaseExpiresAt <= time());
     }
 
     /**
@@ -392,7 +383,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 if ($control->status === WorkflowStatus::Failed) {
                     $state->markAsFailed();
                 } else {
-                    $state->markAsSuspended($this->activeInterruptRequests());
+                    $state->markAsSuspended($this->runStore->control()->interruptRequests());
                 }
                 return $state;
             }
@@ -642,19 +633,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->runId,
             $this->runStore->control()->executionAttempt,
         );
-    }
-
-    /**
-     * @return array<int, \NeuronAI\Workflow\Interrupt\InterruptRequest>
-     * @throws WorkflowException
-     */
-    protected function activeInterruptRequests(): array
-    {
-        $requests = [];
-        foreach ($this->runStore->control()->interrupts as $id => $active) {
-            $requests[$id] = $active->request;
-        }
-        return $requests;
     }
 
     protected function recordKey(string $stepId): string

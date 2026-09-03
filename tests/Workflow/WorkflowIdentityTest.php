@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use Closure;
+use DateTimeInterface;
+use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
@@ -18,6 +20,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
@@ -30,6 +33,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function date;
 use function time;
 
 /**
@@ -185,15 +189,28 @@ class WorkflowIdentityTest extends TestCase
         }
     }
 
-    public function test_ignition_refuses_a_live_workflow_id(): void
+    public function test_ignition_refuses_a_suspended_generation_and_names_its_wait(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+        $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $this->execute($suspended, $persistence);
 
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
-
-        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+        try {
+            $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            $this->fail('A suspended generation should refuse a fresh ignition.');
+        } catch (RunInFlightException $e) {
+            $this->assertSame('thread_1', $e->workflowId);
+            $this->assertSame($suspended->getRunId(), $e->runId);
+            $this->assertSame(WorkflowStatus::Suspended, $e->status);
+            $this->assertSame(1, $e->executionAttempt);
+            $this->assertNull($e->leaseExpiresAt);
+            $this->assertInstanceOf(ApprovalRequest::class, $e->interrupts[1]);
+            $this->assertStringContainsString(
+                "run '{$suspended->getRunId()}' (attempt 1) is suspended, waiting on 1 interrupt(s): #1 wait_for_event 'approval'.",
+                $e->getMessage(),
+            );
+            $this->assertStringContainsString('signal()', $e->getMessage());
+        }
     }
 
     public function test_completion_sweeps_the_partition_and_frees_the_workflow_id(): void
@@ -520,21 +537,35 @@ class WorkflowIdentityTest extends TestCase
         $persistence = new InMemoryPersistence();
         $this->seedRunningGeneration($persistence, leaseExpiresAt: null);
 
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
-
-        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+        try {
+            $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            $this->fail('An unleased running generation should refuse a fresh ignition.');
+        } catch (RunInFlightException $e) {
+            $this->assertSame('run_stale', $e->runId);
+            $this->assertSame(WorkflowStatus::Running, $e->status);
+            $this->assertNull($e->leaseExpiresAt);
+            $this->assertStringContainsString("run 'run_stale' (attempt 1) is marked running with no lease", $e->getMessage());
+            $this->assertStringContainsString('setLeaseTimeout()', $e->getMessage());
+        }
     }
 
     public function test_ignition_refuses_a_running_generation_with_a_fresh_lease(): void
     {
         $persistence = new InMemoryPersistence();
-        $this->seedRunningGeneration($persistence, leaseExpiresAt: time() + 300);
+        $leaseExpiresAt = time() + 300;
+        $this->seedRunningGeneration($persistence, leaseExpiresAt: $leaseExpiresAt);
 
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
-
-        $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+        try {
+            $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            $this->fail('A freshly leased running generation should refuse a fresh ignition.');
+        } catch (RunInFlightException $e) {
+            $this->assertSame(WorkflowStatus::Running, $e->status);
+            $this->assertSame($leaseExpiresAt, $e->leaseExpiresAt);
+            $this->assertStringContainsString(
+                'is executing and holds a lease until ' . date(DateTimeInterface::ATOM, $leaseExpiresAt),
+                $e->getMessage(),
+            );
+        }
     }
 
     public function test_ignition_supersedes_a_running_generation_with_an_expired_lease(): void
@@ -554,16 +585,20 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $nodes = fn (): array => [new NodeOne(), new NodeTwo(), new NodeThree()];
-        Workflow::make('thread_1')
+        $completed = Workflow::make('thread_1')
             ->setPersistence($persistence)
             ->retainCompletionUntilAcknowledged()
-            ->addNodes($nodes())
-            ->run();
+            ->addNodes($nodes());
+        $completed->run();
 
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage("A run is already in flight for workflow ID 'thread_1'");
-
-        Workflow::make('thread_1')->setPersistence($persistence)->addNodes($nodes())->run();
+        try {
+            Workflow::make('thread_1')->setPersistence($persistence)->addNodes($nodes())->run();
+            $this->fail('A retained completion should refuse a fresh ignition.');
+        } catch (RunInFlightException $e) {
+            $this->assertSame($completed->getRunId(), $e->runId);
+            $this->assertSame(WorkflowStatus::Completed, $e->status);
+            $this->assertStringContainsString("acknowledgeCompletion('{$completed->getRunId()}')", $e->getMessage());
+        }
     }
 
     public function test_ignition_loses_the_sweep_to_a_concurrent_recovery_claim(): void
@@ -594,11 +629,19 @@ class WorkflowIdentityTest extends TestCase
         } catch (RuntimeException) {
         }
 
+        // The refusal reports the generation as it was read for the sweep
+        // decision, and says the sweep lost; no second read is made.
         try {
             $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
             $this->fail('The igniter should lose the fenced sweep.');
-        } catch (WorkflowException $e) {
-            $this->assertStringContainsString('already in flight', $e->getMessage());
+        } catch (RunInFlightException $e) {
+            $this->assertSame($crashed->getRunId(), $e->runId);
+            $this->assertSame(WorkflowStatus::Failed, $e->status);
+            $this->assertSame(1, $e->executionAttempt);
+            $this->assertStringContainsString(
+                'failed, but a concurrent process changed it while it was being superseded. Retry the ignition.',
+                $e->getMessage(),
+            );
         }
 
         // The claimant keeps the generation: same run ID, advanced attempt.

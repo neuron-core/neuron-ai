@@ -20,28 +20,6 @@ Before writing any Neuron code, internalize this — it shapes every correct dec
 
 You never fight the framework: the architecture you use on day one is the same one running your most complex system later.
 
-## Development Commands
-
-```bash
-composer test          # Run tests (PHPUnit)
-composer analyse       # Static analysis (PHPStan level 5)
-```
-
-Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`
-
-## Architecture
-
-**Layered Foundation**:
-```
-RAG ─────► extends Agent ─────► built on Workflow
-                              │
-Tools ◄───────────────────────┤
-Providers ◄───────────────────┤
-Chat ◄────────────────────────┴──► shared across all
-```
-
-**Workflow** is the foundation. **Agent** composes workflow nodes for AI interactions. **RAG** extends Agent with document retrieval. All share **Chat** for messaging and **Providers** for AI backends.
-
 ## Modules
 
 | Module | Purpose                                                       | Dependencies |
@@ -60,18 +38,14 @@ Chat ◄────────────────────────
 | `src/Evaluation/` | AI evaluation framework (incl. multi-turn conversation eval)  | Agent, Chat, Workflow, Tools |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
 
-## Context Discovery
+## Development Commands
 
-Read module-specific `AGENTS.md` files when working on that area:
+```bash
+composer test          # Run tests (PHPUnit)
+composer analyse       # Static analysis (PHPStan level 5)
+```
 
-- Working with workflows/interruptions? → `src/Workflow/AGENTS.md`
-- Working with agents/chat/stream? → `src/Agent/AGENTS.md`
-- Working with messages/history? → `src/Chat/AGENTS.md`
-- Adding/modifying AI providers? → `src/Providers/AGENTS.md`
-- Creating tools/toolkits? → `src/Tools/AGENTS.md`
-- Working with RAG/vectors? → `src/RAG/AGENTS.md`
-- CLI commands/code generation? → `src/Console/AGENTS.md`
-- AI evaluation/testing? → `src/Evaluation/AGENTS.md`
+Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMethodName`
 
 ## Code Standards
 
@@ -103,13 +77,11 @@ Before implementing:
 
 **Minimum code that solves the problem. Nothing speculative.**
 
+- Keep the implementation small, sharp, easy to understand. Try to write elegant code in a state of grace. Don't settle for the first thing that comes to mind, try to find the most minimal and better working design. Don't introduce slop: very fragile code that just patches specific cases, dead code, useless code and code ways more complicated of how it should be.
+- Keep public APIs narrow. CLI/server code should not know tensor internals.
 - No features beyond what was asked.
-- No abstractions for single-use code.
 - No "flexibility" or "configurability" that wasn't requested.
 - No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
 ## Surgical Changes
 
@@ -124,8 +96,6 @@ When editing existing code:
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
 
 ## Goal-Driven Execution
 

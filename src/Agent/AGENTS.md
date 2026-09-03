@@ -463,7 +463,8 @@ The decision-map form specifically resolves Agent tool approval. Ordinary
 Workflow event waits use `signal()`, due timers use `run([])`, and a
 platform can address any interruption type with `ResumeInput`. One live run per
 thread is enforced by the engine: a new `chat()` while a run is suspended on the
-thread is **refused** loudly ("run in flight for workflow ID"); settle the
+thread is **refused** loudly with a `RunInFlightException` that names the pending
+`approval` event and carries the `ApprovalRequest` in `interrupts`; settle the
 pending run first — typically `toolApprovalDecisions()` followed by `run()` with decline decisions. A continuation
 that can identify no run at all (no workflow ID, nothing in flight) throws a
 `WorkflowException` rather than running against the wrong one.
