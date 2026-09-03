@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
-use Inspector\Exceptions\InspectorException;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -13,6 +12,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Observability\Events\Deserialized;
 use NeuronAI\Observability\Events\Deserializing;
 use NeuronAI\Observability\Events\Extracted;
@@ -50,14 +50,15 @@ class StructuredOutputNode extends InferenceNode
         protected AIProviderInterface $provider,
         protected readonly string $outputClass,
         protected int $maxTries = 1,
+        protected ?JsonExtractor $extractor = new JsonExtractor(),
     ) {
     }
 
     /**
      * @throws AgentException
      * @throws DeserializerException
-     * @throws InspectorException
      * @throws ReflectionException
+     * @throws ChatHistoryException
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent
     {
@@ -135,7 +136,6 @@ class StructuredOutputNode extends InferenceNode
      * @throws AgentException
      * @throws DeserializerException
      * @throws ReflectionException
-     * @throws InspectorException
      */
     protected function processResponse(
         Message $response,
@@ -146,7 +146,7 @@ class StructuredOutputNode extends InferenceNode
         $this->emit('structured-extracting', new Extracting($response));
         // A completion without text blocks yields a null content: treat it as an
         // extraction failure so it goes through the retry loop instead of a TypeError.
-        $json = (new JsonExtractor())->getJson($response->getContent() ?? '');
+        $json = $this->extractor->getJson($response->getContent() ?? '');
         $this->emit('structured-extracted', new Extracted($response, $schema, $json));
         if ($json === null || $json === '') {
             throw new AgentException("The response does not contains a valid JSON Object.");

@@ -48,4 +48,24 @@ class ExtractorTest extends TestCase
         $result = $this->extractor->getJson($text);
         $this->assertEquals($this->json, $result);
     }
+
+    public function test_add_extractor_extends_built_in_ones(): void
+    {
+        $encoded = base64_encode($this->json);
+        $this->assertNull($this->extractor->getJson($encoded));
+
+        $this->extractor->addExtractor(fn (string $input): string => base64_decode($input));
+
+        $this->assertEquals($this->json, $this->extractor->getJson($encoded));
+        $this->assertEquals($this->json, $this->extractor->getJson($this->json));
+    }
+
+    public function test_set_extractors_replaces_built_in_ones(): void
+    {
+        $this->extractor->setExtractors([
+            fn (string $input): array => ['{"replaced":true}'],
+        ]);
+
+        $this->assertEquals('{"replaced":true}', $this->extractor->getJson($this->json));
+    }
 }
