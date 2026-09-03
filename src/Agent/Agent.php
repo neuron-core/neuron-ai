@@ -45,8 +45,6 @@ class Agent extends Workflow implements AgentInterface
     use HandleTools;
     use HandleInstructions;
 
-    protected const APPROVAL_SIGNAL = 'approval';
-
     protected ChatHistoryInterface $chatHistory;
 
     protected ?MemoryInterface $memory = null;
@@ -65,6 +63,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
+    /**
+     * @throws WorkflowException
+     * @throws AgentException
+     */
     public function __construct(
         ?string $workflowId = null,
         ?AgentState $state = null,
@@ -407,10 +409,13 @@ class Agent extends Workflow implements AgentInterface
         return $finalState->get('structured_output');
     }
 
-    /** @param array<array-key, mixed> $decisions */
+    /**
+     * @param array<array-key, mixed> $decisions
+     * @throws WorkflowException
+     */
     public function toolApprovalDecisions(array $decisions): static
     {
-        return $this->signal(self::APPROVAL_SIGNAL, $decisions);
+        return $this->signal('approval', $decisions);
     }
 
     /**
