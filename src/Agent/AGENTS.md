@@ -477,6 +477,13 @@ instead to replay the failed turn as it was, reusing every memoized step (a
 long tool loop is not re-billed). See *Failed and dead generations* in
 `src/Workflow/AGENTS.md`.
 
+`abandonRun()` discards a dead turn without starting a new one (a "dismiss"
+action) and returns false when nothing is in flight. It **refuses while an
+approval is pending**: the pre-suspend `ToolCallMessage` would be left
+unanswered in history and every provider rejects the next turn, so settle the
+approval with `toolApprovalDecisions()` instead. `resetConversation()` frees
+the thread unconditionally, since it wipes the history anyway.
+
 The declared workflow ID is `null` while no thread identity has been declared —
 the run then lives under an engine-generated workflow ID (`getWorkflowId()` after the
 first segment) and the threadId, if any, arrives from the ignition record.

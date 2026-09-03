@@ -61,4 +61,11 @@ interface WorkflowExecutorInterface
         WorkflowRuntimeInterface $workflow,
         string $expectedRunId,
     ): void;
+
+    /**
+     * Conditionally discard the generation holding the workflow ID, whatever
+     * it waits for, so the ID is free again. Refuses a retained completion
+     * and a run under a fresh lease. False when nothing is in flight.
+     */
+    public function abandonRun(WorkflowRuntimeInterface $workflow, ?string $expectedRunId = null): bool;
 }

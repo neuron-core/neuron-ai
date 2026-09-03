@@ -42,6 +42,7 @@ class InstructionsNode extends Node
             instructions: $instructions,
             tools: $this->tools
         );
+        $inference->setMessages(...$event->startEvent->getMessages());
         $inference->stream = $event->startEvent->stream;
         $inference->outputClass = $event->startEvent->outputClass;
         $inference->maxTries = $event->startEvent->maxTries;

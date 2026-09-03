@@ -372,6 +372,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
     }
 
+    public function abandonRun(?string $expectedRunId = null): bool
+    {
+        return $this->getExecutor()->abandonRun($this, $expectedRunId);
+    }
+
     /**
      * @param list<ResumeInput>|null $inputs
      * @return Generator<int, object|string, mixed, TState>

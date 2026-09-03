@@ -53,7 +53,7 @@ use function time;
  */
 class WorkflowExecutor implements WorkflowExecutorInterface
 {
-    protected WorkflowRunStore $runStore;
+    protected WorkflowRunStore $store;
     protected ?int $leaseTimeout = null;
     protected string $workflowId;
     protected string $runId;
@@ -126,7 +126,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->ownsExecutionSegment = false;
         $this->leaseTimeout = $workflow->getLeaseTimeout();
         $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
-        $this->runStore = new WorkflowRunStore(
+        $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
             $this->workflowId,
@@ -170,11 +170,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             if ($terminal instanceof InterruptEvent) {
                 $workflow->getState()->setInputResults($this->inputResults);
-                $requests = $this->runStore->control()->interruptRequests();
+                $requests = $this->store->control()->interruptRequests();
                 $workflow->getState()->markAsSuspended($requests);
                 $checkpoint = clone $workflow->getState();
                 $checkpoint->markAsSuspended([]);
-                $this->runStore->replaceControl($this->runStore->control()->suspended($checkpoint));
+                $this->store->replaceControl($this->store->control()->suspended($checkpoint));
 
                 $this->dispatchEvent(
                     $workflow->getEventDispatcher(),
@@ -187,8 +187,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $workflow->getState()->setInputResults($this->inputResults);
                 $workflow->getState()->clearInterrupt();
                 if ($workflow->shouldRetainCompletionUntilAcknowledged()) {
-                    $this->runStore->replaceControl(
-                        $this->runStore->control()->completed($workflow->getState()),
+                    $this->store->replaceControl(
+                        $this->store->control()->completed($workflow->getState()),
                     );
                 } else {
                     $this->deleteOwnedPartition();
@@ -221,14 +221,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $expectedRunId,
     ): void {
         $this->workflowId = $this->resolveWorkflowId($workflow, true);
-        $this->runStore = new WorkflowRunStore(
+        $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
             $this->workflowId,
         );
         $this->loadControl($expectedRunId);
 
-        $control = $this->runStore->control();
+        $control = $this->store->control();
         if ($control->runId !== $expectedRunId) {
             throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $control->runId);
         }
@@ -239,11 +239,71 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             );
         }
 
-        if (!$this->runStore->deleteIfOwned()) {
+        if (!$this->store->deleteIfOwned()) {
             throw new WorkflowException(
                 "Completion acknowledgement conflicted for workflow ID '{$this->workflowId}'."
             );
         }
+    }
+
+    /**
+     * Discard the generation holding the workflow ID and free its partition,
+     * whatever it was waiting for. A retained completion is acknowledged
+     * instead, and a run under a fresh lease is refused because a worker is
+     * evidently executing it. The delete is fenced like every other mutation,
+     * so a concurrent claim wins and is reported. False means nothing was in
+     * flight.
+     *
+     * @throws StaleWorkflowRunException
+     * @throws WorkflowException
+     */
+    public function abandonRun(WorkflowRuntimeInterface $workflow, ?string $expectedRunId = null): bool
+    {
+        $this->workflowId = $this->resolveWorkflowId($workflow, true);
+        $this->store = new WorkflowRunStore(
+            $workflow->getPersistence(),
+            $workflow->getSerializer(),
+            $this->workflowId,
+        );
+
+        $control = $this->store->loadControl();
+        if (!$control instanceof WorkflowControl) {
+            if ($expectedRunId !== null) {
+                throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, null);
+            }
+
+            return false;
+        }
+
+        if ($expectedRunId !== null && $control->runId !== $expectedRunId) {
+            throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $control->runId);
+        }
+
+        if ($control->status === WorkflowStatus::Completed) {
+            throw new WorkflowException(
+                "Run '{$control->runId}' for workflow ID '{$this->workflowId}' completed: "
+                . 'release it with acknowledgeCompletion() instead of abandoning it.'
+            );
+        }
+
+        if (
+            $control->status === WorkflowStatus::Running
+            && $control->leaseExpiresAt !== null
+            && $control->leaseExpiresAt > time()
+        ) {
+            throw new WorkflowException(
+                "Run '{$control->runId}' for workflow ID '{$this->workflowId}' appears to be executing "
+                . "(lease expires at {$control->leaseExpiresAt}) and cannot be abandoned."
+            );
+        }
+
+        if (!$this->store->deleteIfOwned()) {
+            throw new WorkflowException(
+                "Abandoning workflow ID '{$this->workflowId}' conflicted with a concurrent change; retry."
+            );
+        }
+
+        return true;
     }
 
     /**
@@ -260,16 +320,16 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $ignition = $workflow->makeIgnition($this->runId);
 
-        $ignited = $this->runStore->initialize($control, $ignition);
-        $current = $ignited ? null : $this->runStore->loadControl();
+        $ignited = $this->store->initialize($control, $ignition);
+        $current = $ignited ? null : $this->store->loadControl();
 
         // A dead generation (failed, or lease expired) is swept and replaced; the
         // delete is fenced by the bytes just read, so a concurrent claimant wins.
         if (
             !$ignited
-            && ($current === null || ($this->isDeadGeneration($current) && $this->runStore->deleteIfOwned()))
+            && ($current === null || ($this->isDeadGeneration($current) && $this->store->deleteIfOwned()))
         ) {
-            $ignited = $this->runStore->initialize($control, $ignition);
+            $ignited = $this->store->initialize($control, $ignition);
         }
 
         if (!$ignited) {
@@ -314,13 +374,13 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         array $signalPayload,
     ): ?WorkflowState {
         $this->loadControl($expectedRunId);
-        $this->runId = $this->runStore->control()->runId;
+        $this->runId = $this->store->control()->runId;
 
         if ($expectedRunId !== null && $expectedRunId !== $this->runId) {
             throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, $this->runId);
         }
 
-        $control = $this->runStore->control();
+        $control = $this->store->control();
         if (
             $expectedExecutionAttempt !== null
             && $expectedExecutionAttempt !== $control->executionAttempt
@@ -331,7 +391,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             );
         }
 
-        $ignition = $this->runStore->loadIgnition();
+        $ignition = $this->store->loadIgnition();
         if (!$ignition instanceof Ignition) {
             throw new WorkflowException(
                 "Run '{$this->runId}' for workflow ID '{$this->workflowId}' has no ignition record."
@@ -373,7 +433,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $acceptedInputs = $this->prepareResume($inputs);
 
             if ($acceptedInputs === []) {
-                $control = $this->runStore->control();
+                $control = $this->store->control();
                 $state = $control->checkpointState instanceof WorkflowState
                     ? clone $control->checkpointState
                     : $workflow->getState();
@@ -383,17 +443,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 if ($control->status === WorkflowStatus::Failed) {
                     $state->markAsFailed();
                 } else {
-                    $state->markAsSuspended($this->runStore->control()->interruptRequests());
+                    $state->markAsSuspended($this->store->control()->interruptRequests());
                 }
                 return $state;
             }
         }
 
-        $this->runStore->replaceControl(
+        $this->store->replaceControl(
             (
                 $acceptedInputs === []
-                ? $this->runStore->control()
-                : $this->runStore->control()->withInputs($acceptedInputs)
+                ? $this->store->control()
+                : $this->store->control()->withInputs($acceptedInputs)
             )->claim($this->leaseExpiry()),
         );
         $this->ownsExecutionSegment = true;
@@ -408,7 +468,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function prepareResume(array $inputs, bool $allowRunning = false): array
     {
-        $control = $this->runStore->control();
+        $control = $this->store->control();
         $canResume = in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)
             || ($allowRunning && $control->status === WorkflowStatus::Running);
 
@@ -456,7 +516,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function prepareSignal(string $name, array $payload): array
     {
         $inputs = [];
-        foreach ($this->runStore->control()->interrupts as $active) {
+        foreach ($this->store->control()->interrupts as $active) {
             $request = $active->request;
             if (
                 $request instanceof WaitForEventRequest
@@ -484,7 +544,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $now = time();
         $inputs = [];
 
-        foreach ($this->runStore->control()->interrupts as $active) {
+        foreach ($this->store->control()->interrupts as $active) {
             if ($active->input instanceof ResumeInput) {
                 continue;
             }
@@ -511,7 +571,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function assertInputlessContinuationAllowed(): void
     {
-        $control = $this->runStore->control();
+        $control = $this->store->control();
         if (
             $control->status === WorkflowStatus::Running
             && $this->leaseTimeout !== null
@@ -571,7 +631,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function loadControl(?string $expectedRunId = null): void
     {
-        if (!$this->runStore->loadControl() instanceof WorkflowControl) {
+        if (!$this->store->loadControl() instanceof WorkflowControl) {
             if ($expectedRunId !== null) {
                 throw new StaleWorkflowRunException($this->workflowId, $expectedRunId, null);
             }
@@ -584,12 +644,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
     protected function markControlFailed(): void
     {
-        if (!$this->runStore->hasControl() || $this->runStore->control()->status === WorkflowStatus::Completed) {
+        if (!$this->store->hasControl() || $this->store->control()->status === WorkflowStatus::Completed) {
             return;
         }
 
         try {
-            $this->runStore->replaceControl($this->runStore->control()->failed());
+            $this->store->replaceControl($this->store->control()->failed());
         } catch (Throwable) {
             // A newer owner won the control record. Preserve the original failure.
         }
@@ -600,8 +660,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function deleteOwnedPartition(): void
     {
-        if (!$this->runStore->deleteIfOwned()) {
-            $attempt = $this->runStore->control()->executionAttempt;
+        if (!$this->store->deleteIfOwned()) {
+            $attempt = $this->store->control()->executionAttempt;
             throw new WorkflowException(
                 "Stale execution attempt {$attempt} cannot complete workflow ID '{$this->workflowId}'."
             );
@@ -619,7 +679,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function renewLease(): void
     {
         if ($this->leaseTimeout !== null) {
-            $this->runStore->replaceControl($this->runStore->control()->heartbeat($this->leaseExpiry()));
+            $this->store->replaceControl($this->store->control()->heartbeat($this->leaseExpiry()));
         }
     }
 
@@ -631,7 +691,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $state->setExecutionMetadata(
             $this->workflowId,
             $this->runId,
-            $this->runStore->control()->executionAttempt,
+            $this->store->control()->executionAttempt,
         );
     }
 
@@ -711,7 +771,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $stepId,
     ): Generator {
         $this->renewLease();
-        $cached = $this->runStore->loadStep($this->recordKey($stepId));
+        $cached = $this->store->loadStep($this->recordKey($stepId));
 
         if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
@@ -720,7 +780,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $interruptId = $cached?->getInterruptId();
         $active = $interruptId === null
             ? null
-            : ($this->runStore->control()->interrupts[$interruptId] ?? null);
+            : ($this->store->control()->interrupts[$interruptId] ?? null);
         if ($interruptId !== null && !$active instanceof ActiveInterrupt) {
             throw new WorkflowException("Interrupt {$interruptId} has no active control record.");
         }
@@ -747,7 +807,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     event: $event,
                     payload: $payload,
                     timedOut: $timedOut,
-                    memoizer: $this->runStore->memoizer($this->recordKey($stepId)),
+                    memoizer: $this->store->memoizer($this->recordKey($stepId)),
                     dispatcher: $workflow->getEventDispatcher(),
                     resuming: $resuming,
                 ),
@@ -755,7 +815,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $branchId,
             );
         } catch (Throwable $e) {
-            $this->runStore->writeRecords([
+            $this->store->writeRecords([
                 $this->recordKey($stepId) => new StepResult(
                     stepId: $stepId,
                     interruptId: $interruptId,
@@ -766,10 +826,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         if ($terminal instanceof InterruptEvent) {
-            $request = $terminal->requests[0]->withId($this->runStore->control()->nextInterruptId);
+            $request = $terminal->requests[0]->withId($this->store->control()->nextInterruptId);
             $newId = $request->getId();
             $active = new ActiveInterrupt($request);
-            $control = $this->runStore->control();
+            $control = $this->store->control();
             if ($interruptId !== null) {
                 $control = $control->removeInterrupt($interruptId);
             }
@@ -780,7 +840,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 state: $state,
                 interruptId: $newId,
             );
-            $this->runStore->replaceControl($control, [$this->recordKey($stepId) => $marker]);
+            $this->store->replaceControl($control, [$this->recordKey($stepId) => $marker]);
 
             return new StepResult(
                 stepId: $stepId,
@@ -794,12 +854,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $records = [$this->recordKey($stepId) => $result];
 
         if ($interruptId !== null) {
-            $this->runStore->replaceControl(
-                $this->runStore->control()->removeInterrupt($interruptId),
+            $this->store->replaceControl(
+                $this->store->control()->removeInterrupt($interruptId),
                 $records,
             );
         } else {
-            $this->runStore->writeRecords($records);
+            $this->store->writeRecords($records);
         }
 
         return $result;

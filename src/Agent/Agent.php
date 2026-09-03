@@ -20,16 +20,21 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
+use function array_filter;
+use function end;
 use function is_array;
 use function is_string;
 
@@ -203,6 +208,10 @@ class Agent extends Workflow implements AgentInterface
         $chatHistory = $this->getChatHistory();
         $memory = $this->getMemory();
 
+        // The history is wiped below, so a pending approval cannot dangle:
+        // the engine verb frees the thread without abandonRun()'s guard.
+        parent::abandonRun();
+
         if ($memory instanceof MemoryInterface) {
             $threadId = $chatHistory->getThreadId() ?? throw new ChatHistoryException(
                 'Cannot reset memory for an unbound chat history.'
@@ -213,6 +222,36 @@ class Agent extends Workflow implements AgentInterface
         $chatHistory->flushAll();
 
         return $this;
+    }
+
+    /**
+     * A turn paused on an approval has already written the assistant's tool
+     * call to history; abandoning the run would leave it unanswered, and
+     * every provider rejects the next turn. Settle it with
+     * toolApprovalDecisions() instead. Dead turns abandon freely: their
+     * inbound message was never committed, so nothing dangles.
+     *
+     * @throws AgentException
+     */
+    public function abandonRun(?string $expectedRunId = null): bool
+    {
+        $messages = $this->getChatHistory()->getMessages();
+        $lastMessage = end($messages);
+        $pending = $lastMessage instanceof ToolCallMessage
+            ? array_filter(
+                $lastMessage->getToolCalls(),
+                static fn (ToolCall $call): bool => $call->getApprovalState() === ApprovalState::Pending,
+            )
+            : [];
+
+        if ($pending !== []) {
+            throw new AgentException(
+                'The conversation is waiting on a tool approval: settle it with '
+                . 'toolApprovalDecisions() before abandoning the run.'
+            );
+        }
+
+        return parent::abandonRun($expectedRunId);
     }
 
     /**

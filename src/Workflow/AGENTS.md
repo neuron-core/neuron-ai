@@ -238,6 +238,18 @@ generation that holds the ID: `runId`, `status`, `executionAttempt`,
 settles that state: deliver the awaited input, acknowledge the retained
 completion, wait for the lease, or configure a lease so a dead run can be
 superseded next time.
+
+Application code can also discard a run without igniting a new one:
+
+```php
+$abandoned = $workflow->abandonRun();          // false when nothing is in flight
+$workflow->abandonRun(expectedRunId: $runId);  // a stale fence throws
+```
+
+A suspended, failed, or unleased or lease-expired running generation is
+deleted behind the same fence. A retained completion refuses (acknowledge it
+instead), and so does a run under a fresh lease (a worker is executing it).
+
 ## Completion and cleanup
 
 Manual workflows clean up by default. A clean `StopEvent` conditionally deletes

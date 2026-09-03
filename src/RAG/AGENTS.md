@@ -17,7 +17,11 @@ in `InstructionsNode`:
 AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode when requested] → inference
 ```
 
-1. Extract and pre-process the user question (query expansion, rewriting)
+1. Extract and pre-process the user question (query expansion, rewriting).
+   The question is read from the start event, and nothing is written to chat
+   history before inference: the inbound messages travel on the inference
+   event and commit only after the provider call succeeds, as in the Agent,
+   so a failed turn never leaves a dangling user message on the thread.
 2. Retrieve relevant documents from the VectorStore. `QueryPreProcessedEvent`
    is the injection channel for retrieval filters: middleware (in `before()`
    on `RetrievalNode`) and preceding nodes call `addFilters(FilterExpression)`;
@@ -27,7 +31,7 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
    The event is born fresh every run, so a filter never leaks into the next run.
 3. Post-process (re-rank, filter)
 4. `InstructionsNode` births the inference event: document-enriched
-   instructions + the run's intent, carried through the chain on each event's
+   instructions, the inbound messages, + the run's intent, carried through the chain on each event's
    `$startEvent` (so a streamed or structured RAG run keeps its mode across
    the retrieval boundary — a custom node inserted into the chain must thread
    `$startEvent` through its own event the same way). When requested through

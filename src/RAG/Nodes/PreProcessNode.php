@@ -16,6 +16,8 @@ use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
 use NeuronAI\Workflow\Node;
 
+use function end;
+
 /**
  * Applies preprocessors to the query before retrieval.
  *
@@ -40,9 +42,11 @@ class PreProcessNode extends Node implements AgentNodeInterface
      */
     public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
     {
-        $this->addToChatHistory($event->getMessages(), 'history.inbound');
-
-        $query = $this->chatHistory->getLastMessage();
+        // The inbound messages travel on the inference event and commit only
+        // after the provider call succeeds (see InferenceNode), so a failed
+        // turn never leaves a dangling user message that wedges the thread.
+        $messages = $event->getMessages();
+        $query = $messages === [] ? $this->chatHistory->getLastMessage() : end($messages);
 
         foreach ($this->preProcessors as $processor) {
             $this->emit(new PreProcessing($processor::class, $query));

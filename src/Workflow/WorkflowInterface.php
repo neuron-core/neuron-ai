@@ -39,6 +39,13 @@ interface WorkflowInterface
     public function acknowledgeCompletion(string $expectedRunId): void;
 
     /**
+     * Discard the run holding the workflow ID so a new one can ignite: a
+     * paused, failed, or unleased run is deleted; a retained completion or a
+     * run under a fresh lease is refused. False when nothing is in flight.
+     */
+    public function abandonRun(?string $expectedRunId = null): bool;
+
+    /**
      * Keep the terminal result until the coordinating caller acknowledges it.
      * Disabled by default, so manually managed workflows clean up immediately.
      */
