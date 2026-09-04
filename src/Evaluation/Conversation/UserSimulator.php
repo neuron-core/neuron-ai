@@ -7,7 +7,6 @@ namespace NeuronAI\Evaluation\Conversation;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
 use Throwable;
 
 /**

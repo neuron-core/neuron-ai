@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Evaluation\Trajectory;
+namespace NeuronAI\Tests\Evaluation\Conversation;
 
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -15,7 +15,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;

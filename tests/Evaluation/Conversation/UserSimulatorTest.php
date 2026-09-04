@@ -8,7 +8,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Conversation\UserSimulator;
 use NeuronAI\Evaluation\EvaluationException;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;

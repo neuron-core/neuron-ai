@@ -7,7 +7,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 use InvalidArgumentException;
 use NeuronAI\Evaluation\Assertions\AbstractAssertion;
 use NeuronAI\Evaluation\AssertionResult;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tools\ToolCall;
 
 use function array_map;

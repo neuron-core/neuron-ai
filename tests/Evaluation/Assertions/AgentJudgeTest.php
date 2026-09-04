@@ -11,7 +11,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Assertions\AgentJudge;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\ApprovalState;

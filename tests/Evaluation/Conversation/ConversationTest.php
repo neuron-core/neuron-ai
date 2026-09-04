@@ -14,7 +14,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Conversation\Conversation;
 use NeuronAI\Evaluation\Conversation\UserSimulator;
 use NeuronAI\Evaluation\EvaluationException;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ApprovalState;

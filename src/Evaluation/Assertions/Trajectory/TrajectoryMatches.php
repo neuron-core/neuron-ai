@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\AssertionResult;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tools\ToolCall;
 
 use function array_diff;

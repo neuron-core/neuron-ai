@@ -10,11 +10,13 @@ use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use NeuronAI\Tests\Console\Evaluation\Stub\RunCountingEvaluator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+
 use function fopen;
 use function ob_end_clean;
 use function ob_start;
 use function rewind;
 use function stream_get_contents;
+use function ob_get_clean;
 
 class EvaluationCommandTest extends TestCase
 {

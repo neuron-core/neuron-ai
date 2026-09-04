@@ -65,7 +65,7 @@ class JsonOutput implements EvaluationOutputInterface
             'duration' => $report->getDuration(),
             'has_failures' => $report->hasFailures(),
             'evaluators' => array_map(
-                fn (EvaluatorReport $evaluator): array => $this->evaluatorReportToArray($evaluator),
+                $this->evaluatorReportToArray(...),
                 $report->getEvaluatorReports(),
             ),
         ];

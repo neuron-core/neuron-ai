@@ -6,7 +6,7 @@ namespace NeuronAI\Evaluation\Assertions\Trajectory;
 
 use Closure;
 use NeuronAI\Evaluation\AssertionResult;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tools\ToolCall;
 
 use function array_key_exists;

@@ -9,7 +9,7 @@ use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\JudgeScoreOutput;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 
 use function get_debug_type;
 use function implode;

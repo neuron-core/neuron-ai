@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
 use NeuronAI\Evaluation\Assertions\Trajectory\Mode;
 use NeuronAI\Evaluation\Assertions\Trajectory\TrajectoryMatches;
-use NeuronAI\Evaluation\Trajectory\Trajectory;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 
 class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
