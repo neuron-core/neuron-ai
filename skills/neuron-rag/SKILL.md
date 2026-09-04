@@ -38,7 +38,7 @@ class MyChatBot extends RAG
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
-            model: 'claude-sonnet-4-6',
+            model: 'ANTHROPIC_MODEL',
         );
     }
 
@@ -46,7 +46,7 @@ class MyChatBot extends RAG
     {
         return new OpenAIEmbeddingsProvider(
             key: $_ENV['OPENAI_API_KEY'],
-            model: 'text-embedding-3-small',
+            model: 'OPENAI_EMBEDDING_MODEL',
         );
     }
 
@@ -124,13 +124,13 @@ use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 
 new OpenAIEmbeddingsProvider(
     key: $_ENV['OPENAI_API_KEY'],
-    model: 'text-embedding-3-small',   // or 'text-embedding-3-large'
+    model: 'OPENAI_EMBEDDING_MODEL',
 );
 
 use NeuronAI\RAG\Embeddings\OllamaEmbeddingsProvider;
 
 new OllamaEmbeddingsProvider(
-    model: 'nomic-embed-text',
+    model: 'EMBEDDING_MODEL',
     url: 'http://localhost:11434/api',
 );
 
@@ -138,14 +138,14 @@ use NeuronAI\RAG\Embeddings\GeminiEmbeddingsProvider;
 
 new GeminiEmbeddingsProvider(
     key: $_ENV['GEMINI_API_KEY'],
-    model: 'text-embedding-004',
+    model: 'GEMINI_EMBEDDING_MODEL',
 );
 
 use NeuronAI\RAG\Embeddings\VoyageEmbeddingsProvider;
 
 new VoyageEmbeddingsProvider(
     key: $_ENV['VOYAGE_API_KEY'],
-    model: 'voyage-3-lite',
+    model: 'VOYAGE_EMBEDDING_MODEL',
 );
 ```
 
@@ -446,7 +446,7 @@ protected function postProcessors(): array
     return [
         new CohereRerankerPostProcessor(
             key: $_ENV['COHERE_API_KEY'],
-            model: 'rerank-v3.5',
+            model: 'COHERE_RERANK_MODEL',
             topN: 3,
         ),
         // or: new JinaRerankerPostProcessor(key: ..., topN: 3)

@@ -204,7 +204,7 @@ $person = $agent->structured(
 ```php
 new Anthropic(
     key: $_ENV['ANTHROPIC_API_KEY'],
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'ANTHROPIC_MODEL',
 )
 ```
 
@@ -387,7 +387,7 @@ class MyAgent extends Agent
             ),
             embeddings: new OpenAIEmbeddingsProvider(
                 key: env('OPENAI_API_KEY'),
-                model: 'text-embedding-3-small',
+                model: 'OPENAI_EMBEDDING_MODEL',
             ),
             topK: 5,
             recallThreadIds: [...]
@@ -531,7 +531,7 @@ class MyAgent extends Agent
             ),
             embeddings: new OpenAIEmbeddingsProvider(
                 key: env('OPENAI_API_KEY'),
-                model: 'text-embedding-3-small',
+                model: 'OPENAI_EMBEDDING_MODEL',
             ),
             recallThreadIds: $this->conversationRepository
                 ->threadIdsOwnedBy($this->customerId),
@@ -739,19 +739,6 @@ When helping users build agents:
    - Context summarization
    - Tool approval workflows
    - Custom pre/post nodes processing
-
-## Project Structure Considerations
-
-**For Laravel projects:**
-```php
-namespace App\Neuron;
-
-class MyAgent extends Agent { ... }
-```
-
-**For Symfony projects:**
-- Use dependency injection for providers
-- Configure a service in services.yaml
 
 ## Related Skills
 
