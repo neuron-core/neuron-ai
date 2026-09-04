@@ -596,9 +596,9 @@ use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 
 $runner = new EvaluatorRunner(new FileEvaluationCache('.neuron/cache/evaluation'));
-$summary = $runner->run(new MyEvaluator());
+$results = $runner->run(new MyEvaluator());
 
-$summary->getCachedRunCount();   // how many items skipped run()
+$results->getCachedRunCount();   // how many items skipped run()
 
 // refresh: true bypasses cache reads but still records outputs (--fresh)
 $runner = new EvaluatorRunner(new FileEvaluationCache($path), refresh: true);
@@ -615,11 +615,11 @@ use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 
 $runner = new EvaluatorRunner();
 $evaluator = new MyEvaluator();
-$summary = $runner->run($evaluator);
+$results = $runner->run($evaluator);
 
-echo "Passed: {$summary->getPassedCount()}\n";
-echo "Failed: {$summary->getFailedCount()}\n";
-echo "Success Rate: {$summary->getSuccessRate() * 100}%\n";
+echo "Passed: {$results->getPassedCount()}\n";
+echo "Failed: {$results->getFailedCount()}\n";
+echo "Success Rate: {$results->getSuccessRate() * 100}%\n";
 ```
 
 ## Output Configuration
@@ -688,7 +688,7 @@ JsonOutput::class
 
 ```php
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 
 class DatabaseOutput implements EvaluationOutputInterface
 {
@@ -697,9 +697,9 @@ class DatabaseOutput implements EvaluationOutputInterface
         private readonly string $table = 'evaluations'
     ) {}
 
-    public function output(EvaluationSuiteSummary $suite): void
+    public function output(EvaluationReport $report): void
     {
-        $summary = $suite->getAggregateSummary();
+        $results = $report->getResults();
 
         $stmt = $this->pdo->prepare(
             "INSERT INTO {$this->table}
@@ -707,10 +707,10 @@ class DatabaseOutput implements EvaluationOutputInterface
             VALUES (?, ?, ?, ?, NOW())"
         );
         $stmt->execute([
-            $summary->getPassedCount(),
-            $summary->getFailedCount(),
-            $summary->getSuccessRate(),
-            $summary->getTotalExecutionTime(),
+            $results->getPassedCount(),
+            $results->getFailedCount(),
+            $results->getSuccessRate(),
+            $report->getDuration(),
         ]);
     }
 }
@@ -760,38 +760,33 @@ project/
 ### Accessing Results
 
 ```php
-$summary = $runner->run($evaluator);
+$results = $runner->run($evaluator);
 
 // Basic stats
-$summary->getPassedCount();      // int
-$summary->getFailedCount();      // int
-$summary->getTotalCount();       // int
-$summary->getSuccessRate();     // float (0.0 - 1.0)
+$results->getPassedCount();      // int
+$results->getFailedCount();      // int
+$results->getTotalCount();       // int
+$results->getSuccessRate();     // float (0.0 - 1.0)
 
-// Timing
-$summary->getTotalExecutionTime();      // float (seconds)
-$summary->getAverageExecutionTime();    // float (seconds)
+// Average item execution time
+$results->getAverageExecutionTime(); // float (seconds)
 
 // Assertions
-$summary->getTotalAssertions();           // int
-$summary->getTotalAssertionsPassed();     // int
-$summary->getTotalAssertionsFailed();     // int
-$summary->getAssertionSuccessRate();      // float (0.0 - 1.0)
+$results->getTotalAssertions();           // int
+$results->getTotalAssertionsPassed();     // int
+$results->getTotalAssertionsFailed();     // int
+$results->getAssertionSuccessRate();      // float (0.0 - 1.0)
 
 // Detailed results
-$summary->getResults();                 // array<EvaluatorResult>
-$summary->getFailedResults();           // array<EvaluatorResult>
-$summary->getResultsByEvaluatorClass(); // array<string, EvaluatorResult[]> grouped by the evaluator that produced them
-$summary->getCachedRunCount();          // int — items whose run() came from the cache
-
-// Assertion failures grouped by location
-$summary->getAssertionFailuresByLocation();  // array<string, AssertionFailure[]>
+$results->getResults();                 // array<EvaluatorResult>
+$results->getFailedResults();           // array<EvaluatorResult>
+$results->getCachedRunCount();          // int — items whose run() came from the cache
 ```
 
 ### EvaluatorResult
 
 ```php
-foreach ($summary->getResults() as $result) {
+foreach ($results->getResults() as $result) {
     $result->getEvaluatorClass();      // string, the evaluator that produced this result
     $result->getShortEvaluatorClass(); // string
     $result->getIndex();              // int
@@ -967,18 +962,18 @@ class MyEvaluatorTest extends TestCase
     {
         $runner = new EvaluatorRunner();
         $evaluator = new MyEvaluator();
-        $summary = $runner->run($evaluator);
+        $results = $runner->run($evaluator);
 
-        $this->assertGreaterThan(0, $summary->getTotalCount());
+        $this->assertGreaterThan(0, $results->getTotalCount());
     }
 
     public function testEvaluatorHasNoFailures(): void
     {
         $runner = new EvaluatorRunner();
         $evaluator = new MyEvaluator();
-        $summary = $runner->run($evaluator);
+        $results = $runner->run($evaluator);
 
-        $this->assertEquals(0, $summary->getFailedCount());
+        $this->assertEquals(0, $results->getFailedCount());
     }
 }
 ```

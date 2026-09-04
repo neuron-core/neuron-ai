@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Contracts;
 
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 
 interface EvaluationOutputInterface
 {
-    public function output(EvaluationSuiteSummary $summary): void;
+    public function output(EvaluationReport $report): void;
 }

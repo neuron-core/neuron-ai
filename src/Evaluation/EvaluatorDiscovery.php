@@ -2,15 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Evaluation\Discovery;
+namespace NeuronAI\Evaluation;
 
+use InvalidArgumentException;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
 use ReflectionException;
-use InvalidArgumentException;
-
 use function class_exists;
 use function file_get_contents;
 use function is_dir;

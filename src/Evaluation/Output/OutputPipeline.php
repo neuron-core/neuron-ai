@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Output;
 
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 use Throwable;
 
 use function error_log;
@@ -20,11 +20,11 @@ class OutputPipeline implements EvaluationOutputInterface
     ) {
     }
 
-    public function output(EvaluationSuiteSummary $summary): void
+    public function output(EvaluationReport $report): void
     {
         foreach ($this->drivers as $driver) {
             try {
-                $driver->output($summary);
+                $driver->output($report);
             } catch (Throwable $e) {
                 error_log("Output driver " . $driver::class . " failed: {$e->getMessage()}");
             }

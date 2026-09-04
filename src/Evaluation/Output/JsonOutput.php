@@ -7,8 +7,8 @@ namespace NeuronAI\Evaluation\Output;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
-use NeuronAI\Evaluation\Runner\EvaluatorSummary;
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
+use NeuronAI\Evaluation\Runner\EvaluationResults;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
 use RuntimeException;
 use JsonException;
@@ -33,9 +33,9 @@ class JsonOutput implements EvaluationOutputInterface
     ) {
     }
 
-    public function output(EvaluationSuiteSummary $summary): void
+    public function output(EvaluationReport $report): void
     {
-        $data = $this->suiteToArray($summary);
+        $data = $this->evaluationReportToArray($report);
 
         try {
             $json = json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
@@ -56,29 +56,35 @@ class JsonOutput implements EvaluationOutputInterface
     /**
      * @return array<string, mixed>
      */
-    protected function suiteToArray(EvaluationSuiteSummary $suite): array
+    protected function evaluationReportToArray(EvaluationReport $report): array
     {
-        $data = $this->summaryToArray($suite->getAggregateSummary());
-        $data['has_failures'] = $suite->hasFailures();
-        $data['evaluators'] = array_map(
-            fn (EvaluatorReport $report): array => $this->reportToArray($report),
-            $suite->getEvaluatorReports(),
-        );
-
-        return $data;
+        return [
+            ...$this->resultsToArray($report->getResults()),
+            'started_at' => $report->getStartedAt()->format("Y-m-d\\TH:i:s.uP"),
+            'finished_at' => $report->getFinishedAt()->format("Y-m-d\\TH:i:s.uP"),
+            'duration' => $report->getDuration(),
+            'has_failures' => $report->hasFailures(),
+            'evaluators' => array_map(
+                fn (EvaluatorReport $evaluator): array => $this->evaluatorReportToArray($evaluator),
+                $report->getEvaluatorReports(),
+            ),
+        ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    protected function reportToArray(EvaluatorReport $report): array
+    protected function evaluatorReportToArray(EvaluatorReport $report): array
     {
-        $data = $this->summaryToArray($report->getSummary());
+        $data = $this->resultsToArray($report->getResults());
         unset($data['results']);
 
         return [
             'evaluator_class' => $report->getEvaluatorClass(),
             'namespace' => $report->getNamespace(),
+            'started_at' => $report->getStartedAt()->format("Y-m-d\\TH:i:s.uP"),
+            'finished_at' => $report->getFinishedAt()->format("Y-m-d\\TH:i:s.uP"),
+            'duration' => $report->getDuration(),
             ...$data,
             'error' => $report->getError(),
             'has_failures' => $report->hasFailures(),
@@ -88,29 +94,27 @@ class JsonOutput implements EvaluationOutputInterface
     /**
      * @return array<string, mixed>
      */
-    protected function summaryToArray(EvaluatorSummary $summary): array
+    protected function resultsToArray(EvaluationResults $results): array
     {
-        $allScores = $summary->getAllAssertionScores();
+        $allScores = $results->getAllAssertionScores();
 
         return [
-            'total' => $summary->getTotalCount(),
-            'passed' => $summary->getPassedCount(),
-            'failed' => $summary->getFailedCount(),
-            'success_rate' => $summary->getSuccessRate(),
-            'total_execution_time' => $summary->getTotalExecutionTime(),
-            'average_execution_time' => $summary->getAverageExecutionTime(),
-            'total_assertions' => $summary->getTotalAssertions(),
-            'assertions_passed' => $summary->getTotalAssertionsPassed(),
-            'assertions_failed' => $summary->getTotalAssertionsFailed(),
-            'assertion_success_rate' => $summary->getAssertionSuccessRate(),
-            'cached_runs' => $summary->getCachedRunCount(),
+            'total' => $results->getTotalCount(),
+            'passed' => $results->getPassedCount(),
+            'failed' => $results->getFailedCount(),
+            'success_rate' => $results->getSuccessRate(),
+            'average_execution_time' => $results->getAverageExecutionTime(),
+            'total_assertions' => $results->getTotalAssertions(),
+            'assertions_passed' => $results->getTotalAssertionsPassed(),
+            'assertions_failed' => $results->getTotalAssertionsFailed(),
+            'assertion_success_rate' => $results->getAssertionSuccessRate(),
+            'cached_runs' => $results->getCachedRunCount(),
             'score_statistics' => $allScores !== [] ? [
-                'average_score' => $summary->getAverageAssertionScore(),
-                'min_score' => $summary->getMinAssertionScore(),
-                'max_score' => $summary->getMaxAssertionScore(),
+                'average_score' => $results->getAverageAssertionScore(),
+                'min_score' => $results->getMinAssertionScore(),
+                'max_score' => $results->getMaxAssertionScore(),
             ] : null,
-            'metrics' => $allScores !== [] ? $summary->getScoreStatisticsByLabel() : null,
-            'has_failures' => $summary->hasFailures(),
+            'metrics' => $allScores !== [] ? $results->getScoreStatisticsByLabel() : null,
             'results' => array_map(
                 fn (EvaluatorResult $r): array => [
                     'evaluator_class' => $r->getEvaluatorClass(),
@@ -133,7 +137,7 @@ class JsonOutput implements EvaluationOutputInterface
                         $r->getScoreRecords()
                     ),
                 ],
-                $summary->getResults()
+                $results->getResults()
             ),
         ];
     }

@@ -11,22 +11,21 @@ use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
-use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
+use NeuronAI\Evaluation\EvaluatorDiscovery;
 use NeuronAI\Evaluation\Output\OutputPipeline;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
-use NeuronAI\Evaluation\Runner\EvaluatorSummary;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+use NeuronAI\Evaluation\Runner\EvaluationResults;
 use ReflectionClass;
-use Throwable;
 use RuntimeException;
+use Throwable;
 
 use function array_shift;
 use function array_values;
 use function count;
 use function end;
 use function explode;
-use function microtime;
 use function str_starts_with;
 use function substr;
 
@@ -129,6 +128,7 @@ class EvaluationCommand extends Command
             ? new EvaluatorRunner(new FileEvaluationCache($this->configLoader->getCachePath()), $fresh)
             : $this->runner;
 
+        $evaluationStartedAt = new DateTimeImmutable("now", new DateTimeZone("UTC"));
         $evaluatorClasses = $this->discovery->discover($path);
 
         if ($evaluatorClasses === []) {
@@ -145,19 +145,18 @@ class EvaluationCommand extends Command
             }
 
             $startedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-            $startTime = microtime(true);
             $namespace = null;
 
             try {
                 $evaluator = $this->createEvaluator($evaluatorClass);
                 $namespace = $evaluator->namespace();
-                $summary = $runner->run($evaluator, $concurrency);
+                $results = $runner->run($evaluator, $concurrency);
             } catch (Throwable $e) {
                 $finishedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
                 $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
                 $reports[] = new EvaluatorReport(
                     $evaluatorClass,
-                    new EvaluatorSummary([], microtime(true) - $startTime),
+                    new EvaluationResults([]),
                     $startedAt,
                     $finishedAt,
                     $e->getMessage(),
@@ -169,38 +168,42 @@ class EvaluationCommand extends Command
             $finishedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
             if (!$verbose) {
-                $this->printProgress($summary);
+                $this->printProgress($results);
             }
 
             $reports[] = new EvaluatorReport(
                 $evaluatorClass,
-                $summary,
+                $results,
                 $startedAt,
                 $finishedAt,
                 namespace: $namespace,
             );
         }
 
-        $suiteSummary = new EvaluationSuiteSummary($reports);
-        $this->outputSummary($suiteSummary);
+        $report = new EvaluationReport(
+            $reports,
+            $evaluationStartedAt,
+            new DateTimeImmutable("now", new DateTimeZone("UTC")),
+        );
+        $this->outputSummary($report);
 
-        return $suiteSummary->hasFailures() ? 1 : 0;
+        return $report->hasFailures() ? 1 : 0;
     }
 
-    protected function printProgress(EvaluatorSummary $summary): void
+    protected function printProgress(EvaluationResults $results): void
     {
-        foreach ($summary->getResults() as $result) {
+        foreach ($results->getResults() as $result) {
             echo $result->isPassed() ? '.' : 'F';
         }
     }
 
-    protected function outputSummary(EvaluationSuiteSummary $summary): void
+    protected function outputSummary(EvaluationReport $report): void
     {
         // Build the pipeline only after all runs complete: drivers may hold live
         // resources (e.g. DB connections) that must not exist at fork time
         $drivers = $this->driverResolver->resolve($this->configLoader->getOutputDrivers());
 
-        (new OutputPipeline($drivers))->output($summary);
+        (new OutputPipeline($drivers))->output($report);
     }
 
     protected function createEvaluator(string $className): BaseEvaluator

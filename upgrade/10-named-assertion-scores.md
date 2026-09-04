@@ -18,12 +18,12 @@ What changed:
    `assert(AssertionInterface $rule, mixed $actual, ?string $label = null)`. Existing
    calls keep working unchanged.
 2. **The float-reading APIs are unchanged** — `EvaluatorResult::getAssertionScores()`,
-   `EvaluatorSummary::getAllAssertionScores()`, and all average/min/max methods keep
+   `EvaluationResults::getAllAssertionScores()`, and all average/min/max methods keep
    their signatures and return the same values (now derived from the labeled records).
    Custom output drivers that only read these methods need no changes.
 3. **New labeled-score APIs** — `EvaluatorResult::getScoreRecords(): array<Score>`,
-   `EvaluatorSummary::getAllScoreRecords()`, `EvaluatorSummary::getScoresByLabel()`, and
-   `EvaluatorSummary::getScoreStatisticsByLabel()` (per-metric average/min/max/count).
+   `EvaluationResults::getAllScoreRecords()`, `EvaluationResults::getScoresByLabel()`, and
+   `EvaluationResults::getScoreStatisticsByLabel()` (per-metric average/min/max/count).
 4. **Constructor argument types changed** — `AssertionOutcomes` (4th argument) and
    `EvaluatorResult` (9th argument) now take `array<Score>` instead of `array<float>`.
    This only affects code that constructs these objects directly (custom runners, direct
@@ -31,7 +31,7 @@ What changed:
 5. **`RuleExecutor::getScores()` still returns `array<float>`** — the labeled records
    are available via the new `RuleExecutor::getScoreRecords()`.
 6. **JSON output gained additive keys** — each result now includes a `scores` list of
-   `{label, value, passed}` objects, and the summary includes a `metrics` object keyed
+   `{label, value, passed}` objects, and the result collection includes a `metrics` object keyed
    by label with `{average, min, max, count}`. The existing `assertion_scores` and
    `score_statistics` keys are unchanged.
 

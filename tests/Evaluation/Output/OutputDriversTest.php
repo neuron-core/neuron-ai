@@ -11,8 +11,8 @@ use NeuronAI\Evaluation\Output\JsonOutput;
 use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
-use NeuronAI\Evaluation\Runner\EvaluatorSummary;
-use NeuronAI\Evaluation\Runner\EvaluationSuiteSummary;
+use NeuronAI\Evaluation\Runner\EvaluationResults;
+use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
 use NeuronAI\Tests\Evaluation\Stub\ScoreBasedEvaluator;
 use NeuronAI\Tests\Evaluation\Stub\StringContainsEvaluator;
@@ -99,7 +99,9 @@ class OutputDriversTest extends TestCase
         $this->assertArrayHasKey('passed', $data);
         $this->assertArrayHasKey('failed', $data);
         $this->assertArrayHasKey('success_rate', $data);
-        $this->assertArrayHasKey('total_execution_time', $data);
+        $this->assertArrayHasKey('started_at', $data);
+        $this->assertArrayHasKey('finished_at', $data);
+        $this->assertArrayHasKey('duration', $data);
         $this->assertArrayHasKey('average_execution_time', $data);
         $this->assertArrayHasKey('total_assertions', $data);
         $this->assertArrayHasKey('assertions_passed', $data);
@@ -141,11 +143,11 @@ class OutputDriversTest extends TestCase
     {
         $calls = [];
 
-        $driver1 = $this->createMockDriver(function (EvaluationSuiteSummary $summary) use (&$calls): void {
+        $driver1 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
             $calls[] = 'driver1';
         });
 
-        $driver2 = $this->createMockDriver(function (EvaluationSuiteSummary $summary) use (&$calls): void {
+        $driver2 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
             $calls[] = 'driver2';
         });
 
@@ -161,12 +163,12 @@ class OutputDriversTest extends TestCase
     {
         $calls = [];
 
-        $driver1 = $this->createMockDriver(function (EvaluationSuiteSummary $summary) use (&$calls): void {
+        $driver1 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
             $calls[] = 'driver1';
             throw new RuntimeException('Driver 1 failed');
         });
 
-        $driver2 = $this->createMockDriver(function (EvaluationSuiteSummary $summary) use (&$calls): void {
+        $driver2 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
             $calls[] = 'driver2';
         });
 
@@ -240,7 +242,7 @@ class OutputDriversTest extends TestCase
             []
         );
 
-        $summary = new EvaluatorSummary([$result1, $result2, $result3], 0.6);
+        $summary = new EvaluationResults([$result1, $result2, $result3]);
 
         $driver = new JsonOutput();
 
@@ -288,7 +290,7 @@ class OutputDriversTest extends TestCase
             ]
         );
 
-        $summary = new EvaluatorSummary([$result1, $result2], 0.3);
+        $summary = new EvaluationResults([$result1, $result2]);
 
         $driver = new JsonOutput();
 
@@ -319,7 +321,7 @@ class OutputDriversTest extends TestCase
         $this->assertEquals(1, $data['metrics']['helpfulness']['count']);
     }
 
-    public function test_json_output_preserves_per_evaluator_summaries(): void
+    public function test_json_output_includes_per_evaluator_reports(): void
     {
         $firstResult = new EvaluatorResult(
             StringContainsEvaluator::class,
@@ -363,15 +365,15 @@ class OutputDriversTest extends TestCase
             0,
             1,
         );
-        $suite = new EvaluationSuiteSummary([
+        $suite = $this->createEvaluationReport([
             $this->createReport(
                 StringContainsEvaluator::class,
-                new EvaluatorSummary([$firstResult, ...$moreFirstResults], 1.25),
+                new EvaluationResults([$firstResult, ...$moreFirstResults]),
                 namespace: 'App\\Agents\\SupportAgent',
             ),
             $this->createReport(
                 ScoreBasedEvaluator::class,
-                new EvaluatorSummary([$secondResult], 2.5),
+                new EvaluationResults([$secondResult]),
             ),
         ]);
 
@@ -380,10 +382,14 @@ class OutputDriversTest extends TestCase
         $data = json_decode((string) ob_get_clean(), true);
 
         $this->assertSame(0.75, $data['success_rate']);
-        $this->assertSame(3.75, $data['total_execution_time']);
+        $this->assertEquals(1.0, $data['duration']);
         $this->assertSame(StringContainsEvaluator::class, $data['evaluators'][0]['evaluator_class']);
         $this->assertSame('App\\Agents\\SupportAgent', $data['evaluators'][0]['namespace']);
-        $this->assertSame(1.25, $data['evaluators'][0]['total_execution_time']);
+        $this->assertSame('2026-09-03T10:00:00.000000+00:00', $data['started_at']);
+        $this->assertSame('2026-09-03T10:00:01.000000+00:00', $data['finished_at']);
+        $this->assertSame('2026-09-03T10:00:00.000000+00:00', $data['evaluators'][0]['started_at']);
+        $this->assertSame('2026-09-03T10:00:01.000000+00:00', $data['evaluators'][0]['finished_at']);
+        $this->assertEquals(1.0, $data['evaluators'][0]['duration']);
         $this->assertEquals(1.0, $data['evaluators'][0]['success_rate']);
         $this->assertSame(ScoreBasedEvaluator::class, $data['evaluators'][1]['evaluator_class']);
         $this->assertEquals(0.0, $data['evaluators'][1]['success_rate']);
@@ -393,14 +399,14 @@ class OutputDriversTest extends TestCase
 
     public function test_json_output_keeps_empty_and_errored_evaluators(): void
     {
-        $suite = new EvaluationSuiteSummary([
+        $suite = $this->createEvaluationReport([
             $this->createReport(
                 StringContainsEvaluator::class,
-                new EvaluatorSummary([], 0.1),
+                new EvaluationResults([]),
             ),
             $this->createReport(
                 ScoreBasedEvaluator::class,
-                new EvaluatorSummary([], 0.2),
+                new EvaluationResults([]),
                 'Dataset failed to load',
             ),
         ]);
@@ -422,18 +428,18 @@ class OutputDriversTest extends TestCase
     {
         $firstClass = 'First\\DuplicateEvaluator';
         $secondClass = 'Second\\DuplicateEvaluator';
-        $suite = new EvaluationSuiteSummary([
+        $suite = $this->createEvaluationReport([
             $this->createReport(
                 $firstClass,
-                new EvaluatorSummary([
+                new EvaluationResults([
                     new EvaluatorResult($firstClass, 0, false, [], 'first', 0.1, 0, 1),
-                ], 0.1),
+                ]),
             ),
             $this->createReport(
                 $secondClass,
-                new EvaluatorSummary([
+                new EvaluationResults([
                     new EvaluatorResult($secondClass, 0, false, [], 'second', 0.2, 0, 1),
-                ], 0.2),
+                ]),
             ),
         ]);
 
@@ -448,10 +454,10 @@ class OutputDriversTest extends TestCase
 
     public function test_console_output_reports_evaluator_errors_as_failures(): void
     {
-        $suite = new EvaluationSuiteSummary([
+        $suite = $this->createEvaluationReport([
             $this->createReport(
                 StringContainsEvaluator::class,
-                new EvaluatorSummary([], 0.1),
+                new EvaluationResults([]),
                 'Setup failed',
             ),
         ]);
@@ -463,10 +469,13 @@ class OutputDriversTest extends TestCase
         $this->assertStringContainsString('StringContainsEvaluator', $output);
         $this->assertStringContainsString('Error: Setup failed', $output);
         $this->assertStringContainsString('FAILURES!', $output);
+        $this->assertStringContainsString('Started: 2026-09-03T10:00:00.000000+00:00', $output);
+        $this->assertStringContainsString('Finished: 2026-09-03T10:00:01.000000+00:00', $output);
+        $this->assertStringContainsString('Duration: 1 seconds', $output);
         $this->assertStringNotContainsString('By evaluator:', $output);
     }
 
-    private function createSummary(): EvaluationSuiteSummary
+    private function createSummary(): EvaluationReport
     {
         $result1 = new EvaluatorResult(
             StringContainsEvaluator::class,
@@ -492,19 +501,31 @@ class OutputDriversTest extends TestCase
             []
         );
 
-        return $this->createSuite(new EvaluatorSummary([$result1, $result2], 0.3));
+        return $this->createSuite(new EvaluationResults([$result1, $result2]));
     }
 
-    private function createSuite(EvaluatorSummary $summary): EvaluationSuiteSummary
+    private function createSuite(EvaluationResults $summary): EvaluationReport
     {
-        return new EvaluationSuiteSummary([
+        return $this->createEvaluationReport([
             $this->createReport(StringContainsEvaluator::class, $summary),
         ]);
     }
 
+    /**
+     * @param array<EvaluatorReport> $evaluatorReports
+     */
+    protected function createEvaluationReport(array $evaluatorReports): EvaluationReport
+    {
+        return new EvaluationReport(
+            $evaluatorReports,
+            new DateTimeImmutable('2026-09-03T10:00:00+00:00'),
+            new DateTimeImmutable('2026-09-03T10:00:01+00:00'),
+        );
+    }
+
     private function createReport(
         string $evaluatorClass,
-        EvaluatorSummary $summary,
+        EvaluationResults $summary,
         ?string $error = null,
         ?string $namespace = null,
     ): EvaluatorReport {
@@ -519,7 +540,7 @@ class OutputDriversTest extends TestCase
     }
 
     /**
-     * @param callable(EvaluationSuiteSummary): void $outputCallback
+     * @param callable(EvaluationReport): void $outputCallback
      */
     private function createMockDriver(?callable $outputCallback = null): EvaluationOutputInterface
     {

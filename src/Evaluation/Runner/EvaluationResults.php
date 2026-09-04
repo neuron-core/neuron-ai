@@ -15,14 +15,13 @@ use function count;
 use function max;
 use function min;
 
-class EvaluatorSummary
+class EvaluationResults
 {
     /**
      * @param array<EvaluatorResult> $results
      */
     public function __construct(
-        private readonly array $results,
-        private readonly float $totalExecutionTime
+        protected readonly array $results,
     ) {
     }
 
@@ -63,19 +62,13 @@ class EvaluatorSummary
         return $this->getPassedCount() / $this->getTotalCount();
     }
 
-    public function getTotalExecutionTime(): float
-    {
-        return $this->totalExecutionTime;
-    }
-
     public function getAverageExecutionTime(): float
     {
         if ($this->getTotalCount() === 0) {
             return 0.0;
         }
 
-        // Average of individual item timings: under parallel execution the
-        // wall-clock total no longer equals the sum of per-item times
+        // Item timing is independent from the report's wall-clock duration
         $itemTimes = array_sum(array_map(fn (EvaluatorResult $result): float => $result->getExecutionTime(), $this->results));
 
         return $itemTimes / $this->getTotalCount();
@@ -87,21 +80,6 @@ class EvaluatorSummary
     public function getFailedResults(): array
     {
         return array_filter($this->results, fn (EvaluatorResult $result): bool => !$result->isPassed());
-    }
-
-    /**
-     * Results grouped by the evaluator that produced them: the seam for a consumer
-     * handed a merged summary (the CLI outputs one for every evaluator it ran).
-     *
-     * @return array<string, EvaluatorResult[]>
-     */
-    public function getResultsByEvaluatorClass(): array
-    {
-        $grouped = [];
-        foreach ($this->results as $result) {
-            $grouped[$result->getEvaluatorClass()][] = $result;
-        }
-        return $grouped;
     }
 
     public function hasFailures(): bool
@@ -144,34 +122,6 @@ class EvaluatorSummary
             $failures = array_merge($failures, $result->getAssertionFailures());
         }
         return $failures;
-    }
-
-    /**
-     * @return array<string, AssertionFailure[]>
-     */
-    public function getAssertionFailuresByClass(): array
-    {
-        $groupedFailures = [];
-        foreach ($this->getAllAssertionFailures() as $failure) {
-            $class = $failure->getEvaluatorClass();
-            $groupedFailures[$class] ??= [];
-            $groupedFailures[$class][] = $failure;
-        }
-        return $groupedFailures;
-    }
-
-    /**
-     * @return array<string, AssertionFailure[]> keyed by "EvaluatorClass:line"
-     */
-    public function getAssertionFailuresByLocation(): array
-    {
-        $groupedFailures = [];
-        foreach ($this->getAllAssertionFailures() as $failure) {
-            $key = $failure->getShortEvaluatorClass() . ':' . $failure->getLineNumber();
-            $groupedFailures[$key] ??= [];
-            $groupedFailures[$key][] = $failure;
-        }
-        return $groupedFailures;
     }
 
     /**

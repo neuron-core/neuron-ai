@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Console\Evaluation;
 
 use NeuronAI\Console\Evaluation\EvaluationCommand;
-use NeuronAI\Evaluation\Discovery\EvaluatorDiscovery;
+use NeuronAI\Evaluation\EvaluatorDiscovery;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use NeuronAI\Tests\Console\Evaluation\Stub\RunCountingEvaluator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
+use function fopen;
 use function ob_end_clean;
 use function ob_start;
-use function fopen;
 use function rewind;
 use function stream_get_contents;
 

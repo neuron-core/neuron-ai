@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Runner;
 
-class EvaluationSuiteSummary
+use DateTimeImmutable;
+
+class EvaluationReport
 {
     /**
      * @param array<EvaluatorReport> $evaluatorReports
      */
     public function __construct(
         protected readonly array $evaluatorReports,
+        protected readonly DateTimeImmutable $startedAt,
+        protected readonly DateTimeImmutable $finishedAt,
     ) {
     }
 
@@ -22,20 +26,32 @@ class EvaluationSuiteSummary
         return $this->evaluatorReports;
     }
 
-    public function getAggregateSummary(): EvaluatorSummary
+    public function getResults(): EvaluationResults
     {
         $results = [];
-        $totalExecutionTime = 0.0;
 
         foreach ($this->evaluatorReports as $report) {
-            foreach ($report->getSummary()->getResults() as $result) {
+            foreach ($report->getResults()->getResults() as $result) {
                 $results[] = $result;
             }
-
-            $totalExecutionTime += $report->getSummary()->getTotalExecutionTime();
         }
 
-        return new EvaluatorSummary($results, $totalExecutionTime);
+        return new EvaluationResults($results);
+    }
+
+    public function getStartedAt(): DateTimeImmutable
+    {
+        return $this->startedAt;
+    }
+
+    public function getFinishedAt(): DateTimeImmutable
+    {
+        return $this->finishedAt;
+    }
+
+    public function getDuration(): float
+    {
+        return (float) $this->finishedAt->format("U.u") - (float) $this->startedAt->format("U.u");
     }
 
     public function hasFailures(): bool

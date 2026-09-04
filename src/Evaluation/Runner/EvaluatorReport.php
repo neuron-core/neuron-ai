@@ -13,7 +13,7 @@ class EvaluatorReport
 {
     public function __construct(
         protected readonly string $evaluatorClass,
-        protected readonly EvaluatorSummary $summary,
+        protected readonly EvaluationResults $results,
         protected readonly DateTimeImmutable $startedAt,
         protected readonly DateTimeImmutable $finishedAt,
         protected readonly ?string $error = null,
@@ -32,9 +32,9 @@ class EvaluatorReport
         return end($parts);
     }
 
-    public function getSummary(): EvaluatorSummary
+    public function getResults(): EvaluationResults
     {
-        return $this->summary;
+        return $this->results;
     }
 
     public function getStartedAt(): DateTimeImmutable
@@ -45,6 +45,11 @@ class EvaluatorReport
     public function getFinishedAt(): DateTimeImmutable
     {
         return $this->finishedAt;
+    }
+
+    public function getDuration(): float
+    {
+        return (float) $this->finishedAt->format("U.u") - (float) $this->startedAt->format("U.u");
     }
 
     public function getNamespace(): ?string
@@ -64,6 +69,6 @@ class EvaluatorReport
 
     public function hasFailures(): bool
     {
-        return $this->hasError() || $this->summary->hasFailures();
+        return $this->hasError() || $this->results->hasFailures();
     }
 }

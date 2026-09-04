@@ -34,22 +34,20 @@ class EvaluatorRunner
     }
 
     /**
-     * Run the evaluator and return a summary of results
+     * Run the evaluator and return its results
      */
-    public function run(EvaluatorInterface $evaluator, int $concurrency = 1): EvaluatorSummary
+    public function run(EvaluatorInterface $evaluator, int $concurrency = 1): EvaluationResults
     {
         $evaluator->setUp();
 
         $dataset = $evaluator->getDataset();
         $data = $dataset->load();
 
-        $startTime = microtime(true);
-
         $results = $concurrency > 1 && count($data) > 1 && self::supportsConcurrency()
             ? $this->runParallel($evaluator, $data, $concurrency)
             : $this->runSequential($evaluator, $data);
 
-        return new EvaluatorSummary($results, microtime(true) - $startTime);
+        return new EvaluationResults($results);
     }
 
     /**

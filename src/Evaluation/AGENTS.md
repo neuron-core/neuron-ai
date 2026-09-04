@@ -76,7 +76,7 @@ provider drift: pair `--cache` in CI with a periodic `--fresh` run.
 | `Assertions/` | Built-in: string (via `StringAssertion` base), JSON, similarity, distance; `Assertions/Trajectory/` for tool-call/HITL assertions; `Assertions/Judges/` for LLM judges |
 | `Conversation/` | `Conversation` (multi-turn runner), `UserSimulator`, `SimulatorOutput` |
 | `Trajectory/` | `Trajectory` — the recorded evaluation subject (view over chat messages) |
-| `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluatorSummary`, `EvaluatorReport`, `EvaluationSuiteSummary` |
+| `Runner/` | `EvaluatorRunner`, `EvaluatorResult`, `EvaluationResults`, `EvaluatorReport`, `EvaluationReport` |
 | `Output/` | `ConsoleOutput`, `JsonOutput`, `OutputPipeline` |
 | `Config/` | Config loading and driver resolution |
 | `Discovery/` | Auto-discover evaluator classes |
@@ -223,24 +223,18 @@ assertion's `getName()` and can be overridden to aggregate under a shared metric
 $this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $trajectory, 'task_completion');
 ```
 
-`EvaluatorSummary::getScoresByLabel()` groups the records;
+`EvaluationResults::getScoresByLabel()` groups the records;
 `getScoreStatisticsByLabel()` returns per-metric `{average, min, max, count}` across the
 dataset (rendered by `ConsoleOutput`, and emitted by `JsonOutput` as the `metrics` block
 plus a per-result `scores` list). The flat float views (`EvaluatorResult::getAssertionScores()`,
-`EvaluatorSummary::getAllAssertionScores()` and the summary avg/min/max) are derived from
-the same records — the summary is the single home for statistics.
+`EvaluationResults::getAllAssertionScores()` and the result collection avg/min/max) are derived from
+the same records — the result collection is the single home for statistics.
 
 ## Evaluator Attribution
 
-The CLI passes one `EvaluationSuiteSummary` to the output pipeline. It retains an ordered
-`EvaluatorReport` for each discovered evaluator, containing the runner's original
-`EvaluatorSummary`, evaluator class, optional Agent/Workflow namespace, exact UTC start and finish instants, and any error raised before item execution. Empty and
-errored evaluators therefore remain visible, and per-evaluator wall-clock timing is not
-reconstructed from item durations.
+The CLI passes one `EvaluationReport` to the output pipeline. It owns the exact UTC start and finish instants for the complete run and retains an ordered `EvaluatorReport` for each discovered evaluator. Each evaluator report owns its evaluator class, optional Agent/Workflow namespace, exact UTC start and finish instants, any error raised before item execution, and its `EvaluationResults`. Suite and evaluator durations are derived from their timestamps; item execution averages remain derived from individual results.
 
-Every `EvaluatorResult` also carries the producing evaluator class
-(`getEvaluatorClass()` / `getShortEvaluatorClass()`) so flat result exports remain
-attributable. Item indexes restart at zero for each evaluator.
+Empty and errored evaluators therefore remain visible. Every `EvaluatorResult` also carries the producing evaluator class (`getEvaluatorClass()` / `getShortEvaluatorClass()`) so flat result exports remain attributable. Item indexes restart at zero for each evaluator.
 
 ## Output Configuration
 
@@ -278,7 +272,7 @@ class DatabaseOutput implements EvaluationOutputInterface
     ) {
     }
 
-    public function output(EvaluationSuiteSummary $summary): void
+    public function output(EvaluationReport $report): void
     {
         // Store in database
     }
