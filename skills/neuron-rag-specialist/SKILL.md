@@ -30,7 +30,7 @@ class MyChatBot extends RAG
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
-            model: 'claude-sonnet-5',
+            model: 'ANTHROPIC_MODEL',
         );
     }
 
@@ -38,7 +38,7 @@ class MyChatBot extends RAG
     {
         return new OpenAIEmbeddingProvider(
             key: $_ENV['OPENAI_API_KEY'],
-            model: 'text-embedding-3-small',
+            model: 'OPENAI_MODEL',
         );
     }
 
@@ -129,7 +129,7 @@ use NeuronAI\RAG\Embeddings\OpenAIEmbeddingProvider;
 
 new OpenAIEmbeddingProvider(
     key: $_ENV['OPENAI_API_KEY'],
-    model: 'text-embedding-3-small'  // or 'text-embedding-3-large'
+    model: 'OPENAI_EMBEDDING_MODEL'  // or 'text-embedding-3-large'
 );
 ```
 
@@ -140,7 +140,7 @@ use NeuronAI\RAG\Embeddings\OllamaEmbeddingProvider;
 
 new OllamaEmbeddingProvider(
     baseUrl: 'http://localhost:11434',
-    model: 'nomic-embed-text'
+    model: 'OLLAMA_EMBEDDING_MODEL'
 );
 ```
 
@@ -151,7 +151,7 @@ use NeuronAI\RAG\Embeddings\GeminiEmbeddingProvider;
 
 new GeminiEmbeddingProvider(
     key: $_ENV['GEMINI_API_KEY'],
-    model: 'text-embedding-004'
+    model: 'GEMINI_EMBEDDING_MODEL'
 );
 ```
 
@@ -162,7 +162,7 @@ use NeuronAI\RAG\Embeddings\VoyageEmbeddingProvider;
 
 new VoyageEmbeddingProvider(
     key: $_ENV['VOYAGE_API_KEY'],
-    model: 'voyage-3-lite'
+    model: 'VOYAGE_EMBEDDING_MODEL'
 );
 ```
 
@@ -387,7 +387,7 @@ class CompanyKnowledgeBot extends RAG
     {
         return new OpenAIEmbeddingProvider(
             key: $_ENV['OPENAI_API_KEY'],
-            model: 'text-embedding-3-small'
+            model: 'OPENAI_EMBEDDING_MODEL'
         );
     }
 
@@ -427,7 +427,7 @@ $rag = MyChatBot::make();
 
 $rag->addPostProcessor(new CohereRerankerPostProcessor(
     key: $_ENV['COHERE_API_KEY'],
-    model: $_ENV['COHERE_MODEL'],
+    model: $_ENV['COHERE_RERANK_MODEL'],
     topN: 5
 );
 

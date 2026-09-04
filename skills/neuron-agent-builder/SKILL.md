@@ -141,7 +141,7 @@ $person = $agent->structured(
 ```php
 new Anthropic(
     key: $_ENV['ANTHROPIC_API_KEY'],
-    model: 'claude-sonnet-5',
+    model: 'ANTHROPIC_MODEL',
 )
 ```
 
@@ -149,7 +149,7 @@ new Anthropic(
 ```php
 new OpenAI(
     key: $_ENV['OPENAI_API_KEY'],
-    model: 'gpt-4',
+    model: 'OPENAI_MODEL',
 )
 ```
 
@@ -157,7 +157,7 @@ new OpenAI(
 ```php
 new Ollama(
     baseUrl: 'http://localhost:11434',
-    model: 'llama3',
+    model: 'OLLAMA_MODEL',
 )
 ```
 
