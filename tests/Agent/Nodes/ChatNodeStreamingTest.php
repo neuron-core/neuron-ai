@@ -15,9 +15,8 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\StepMemoizer;
+use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 
 class ChatNodeStreamingTest extends TestCase
@@ -81,7 +80,7 @@ class ChatNodeStreamingTest extends TestCase
 
         // Run 1: live stream + record the response as a durable memo.
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
         $generator1 = $node1($event, $state);
         foreach ($generator1 as $_) {
@@ -101,7 +100,7 @@ class ChatNodeStreamingTest extends TestCase
         $node2 = new ChatNode($provider, $chatHistory);
         $state2 = new AgentState();
         $state2->setExecutionMetadata($runId, $runId, 1);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
         $generator2 = $node2($event, $state2);
 

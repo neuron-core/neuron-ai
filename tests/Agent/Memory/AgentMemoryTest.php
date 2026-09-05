@@ -36,12 +36,11 @@ use NeuronAI\Tests\Agent\Memory\Stub\MemoryLookupTool;
 use NeuronAI\Tests\Agent\Memory\Stub\RedactingStoreMemoryMiddleware;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Executor\StepMemoizer;
+use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -551,12 +550,7 @@ class AgentMemoryTest extends TestCase
         $first->setWorkflowContext(new NodeContext(
             new AgentState(),
             $event,
-            memoizer: new StepMemoizer(
-                $persistence,
-                new PhpSerializer(),
-                'thread-1',
-                'memory-step',
-            ),
+            memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-step'),
         ));
         iterator_to_array($first($event, new AgentState()));
 
@@ -564,12 +558,7 @@ class AgentMemoryTest extends TestCase
         $replayed->setWorkflowContext(new NodeContext(
             new AgentState(),
             $event,
-            memoizer: new StepMemoizer(
-                $persistence,
-                new PhpSerializer(),
-                'thread-1',
-                'memory-step',
-            ),
+            memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-step'),
         ));
         iterator_to_array($replayed($event, new AgentState()));
 
@@ -589,12 +578,7 @@ class AgentMemoryTest extends TestCase
         $first->setWorkflowContext(new NodeContext(
             new AgentState(),
             $firstEvent,
-            memoizer: new StepMemoizer(
-                $persistence,
-                new PhpSerializer(),
-                'thread-1',
-                'memory-recall-step',
-            ),
+            memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-recall-step'),
         ));
         $firstStream = $first($firstEvent, new AgentState());
         $firstEvents = iterator_to_array($firstStream);
@@ -605,12 +589,7 @@ class AgentMemoryTest extends TestCase
         $replayed->setWorkflowContext(new NodeContext(
             new AgentState(),
             $replayedEvent,
-            memoizer: new StepMemoizer(
-                $persistence,
-                new PhpSerializer(),
-                'thread-1',
-                'memory-recall-step',
-            ),
+            memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-recall-step'),
         ));
         $replayedStream = $replayed($replayedEvent, new AgentState());
         $replayedEvents = iterator_to_array($replayedStream);

@@ -17,13 +17,12 @@ use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Executor\StepMemoizer;
+use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -106,7 +105,7 @@ class AgentDurabilityTest extends TestCase
         $state1 = new AgentState();
         $state1->setExecutionMetadata($workflowId, $workflowId, 1);
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node1($event, $state1);
 
         $this->assertSame(1, $provider->getCallCount());
@@ -116,7 +115,7 @@ class AgentDurabilityTest extends TestCase
         $state2 = new AgentState();
         $state2->setExecutionMetadata($workflowId, $workflowId, 1);
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node2($event, $state2);
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');

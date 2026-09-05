@@ -18,7 +18,8 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\StepResult;
+use NeuronAI\Workflow\Executor\WorkflowControl;
+use NeuronAI\Workflow\WorkflowStatus;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
@@ -338,7 +339,7 @@ class DurableExecutorTest extends TestCase
         $this->assertSame([StartEvent::class, DurableEventA::class], $workflow2->restored);
     }
 
-    public function test_crash_records_failed_step_marker(): void
+    public function test_crash_marks_the_run_failed_without_a_step_record(): void
     {
         $workflowId = 'durable_failed_marker_test';
         $persistence = new InMemoryPersistence();
@@ -353,13 +354,14 @@ class DurableExecutorTest extends TestCase
             $this->assertStringContainsString('Simulated crash', $e->getMessage());
         }
 
-        // The crashed step leaves a failed marker, making the run observable.
-        $raw = $persistence->get($workflowId, $this->stepKey($workflow, MemoizingNode::class . '-0'));
+        $this->assertNull($persistence->get(
+            $workflowId,
+            $this->stepKey($workflow, MemoizingNode::class . '-0'),
+        ));
+        $raw = $persistence->get($workflowId, '__control');
         $this->assertNotNull($raw);
-        $this->assertStringNotContainsString('Simulated crash after memoize', $raw);
-        $this->assertStringNotContainsString(RuntimeException::class, $raw);
-        $failed = (new PhpSerializer())->unserialize($raw);
-        $this->assertInstanceOf(StepResult::class, $failed);
-        $this->assertTrue($failed->isFailed());
+        $control = (new PhpSerializer())->unserialize($raw);
+        $this->assertInstanceOf(WorkflowControl::class, $control);
+        $this->assertSame(WorkflowStatus::Failed, $control->status);
     }
 }

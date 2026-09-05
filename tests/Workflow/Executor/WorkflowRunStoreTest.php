@@ -61,10 +61,10 @@ class WorkflowRunStoreTest extends TestCase
 
         $suspended = new WorkflowControl('run-1', WorkflowStatus::Suspended);
         $step = new StepResult('step-1');
-        $store->replaceControl($suspended, ['run-1/step-1' => $step]);
+        $store->commitStep($step, $suspended);
 
         $this->assertSame($suspended, $store->control());
-        $this->assertEquals($step, $store->loadStep('run-1/step-1'));
+        $this->assertEquals($step, $store->loadStep('step-1'));
     }
 
     public function test_load_step_returns_null_when_record_is_absent(): void
@@ -75,7 +75,11 @@ class WorkflowRunStoreTest extends TestCase
             'workflow-1',
         );
 
-        $this->assertNull($store->loadStep('run-1/missing-step'));
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $this->assertNull($store->loadStep('missing-step'));
     }
 
     public function test_load_step_rejects_a_present_record_with_the_wrong_type(): void
@@ -87,14 +91,18 @@ class WorkflowRunStoreTest extends TestCase
             new WorkflowControl('run-1', WorkflowStatus::Running),
             new Ignition('run-1', new StartEvent()),
         );
-        $store->writeRecords(['run-1/step-1' => 'not-a-step-result']);
+        $control = $persistence->get('workflow-1', '__control');
+        $this->assertNotNull($control);
+        $persistence->writeIfUnchanged('workflow-1', '__control', $control, [
+            'run-1/step-1' => $serializer->serialize('not-a-step-result'),
+        ]);
 
         $this->expectException(PersistenceException::class);
         $this->expectExceptionMessage(
             "Invalid step record 'run-1/step-1' for workflow ID 'workflow-1'.",
         );
 
-        $store->loadStep('run-1/step-1');
+        $store->loadStep('step-1');
     }
 
     public function test_load_step_rejects_an_undecodable_record(): void
@@ -120,7 +128,7 @@ class WorkflowRunStoreTest extends TestCase
             "Invalid step record 'run-1/step-1' for workflow ID 'workflow-1'.",
         );
 
-        $store->loadStep('run-1/step-1');
+        $store->loadStep('step-1');
     }
 
     public function test_stale_store_cannot_write_after_another_store_changes_control(): void
@@ -139,7 +147,7 @@ class WorkflowRunStoreTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Stale execution attempt 1');
 
-        $stale->writeRecords(['run-1/step-1' => new StepResult('step-1')]);
+        $stale->commitStep(new StepResult('step-1'));
     }
 
     public function test_memoizer_writes_require_the_current_control_value(): void
@@ -153,7 +161,7 @@ class WorkflowRunStoreTest extends TestCase
             new Ignition('run-1', new StartEvent()),
         );
         $stale->loadControl();
-        $memoizer = $stale->memoizer('run-1/step-1');
+        $memoizer = $stale->memoizer('step-1');
         $owner->replaceControl(new WorkflowControl('run-1', WorkflowStatus::Suspended));
 
         $this->expectException(WorkflowException::class);
@@ -171,12 +179,28 @@ class WorkflowRunStoreTest extends TestCase
             new WorkflowControl('run-1', WorkflowStatus::Running),
             new Ignition('run-1', new StartEvent()),
         );
-        $memoizer = $store->memoizer('run-1/step-1');
+        $memoizer = $store->memoizer('step-1');
 
         $store->replaceControl(new WorkflowControl('run-1', WorkflowStatus::Suspended));
 
         $this->assertSame('result', $memoizer->memo('provider', fn (): string => 'result'));
         $this->assertSame('result', $memoizer->memo('provider', fn (): string => 'must-not-run'));
+    }
+
+    public function test_memoized_null_is_replayed_without_repeating_the_operation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $memoizer = \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, 'workflow-1', 'step-1');
+        $calls = 0;
+        $operation = function () use (&$calls): mixed {
+            $calls++;
+            return null;
+        };
+
+        $this->assertNull($memoizer->memo('nullable', $operation));
+        $replayed = \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, 'workflow-1', 'step-1');
+        $this->assertNull($replayed->memo('nullable', $operation));
+        $this->assertSame(1, $calls);
     }
 
     public function test_deletes_only_the_owned_partition(): void

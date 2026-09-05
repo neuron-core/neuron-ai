@@ -686,11 +686,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         );
     }
 
-    protected function recordKey(string $stepId): string
-    {
-        return $this->runId . '/' . $stepId;
-    }
-
     protected function buildStepId(
         NodeInterface $node,
         ?string $branchId,
@@ -761,9 +756,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $branchId,
         string $stepId,
     ): Generator {
-        $cached = $this->store->loadStep($this->recordKey($stepId));
+        $cached = $this->store->loadStep($stepId);
 
-        if ($cached instanceof StepResult && !$cached->isInterrupted() && !$cached->isFailed()) {
+        if ($cached instanceof StepResult && !$cached->isInterrupted()) {
             return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
         }
 
@@ -789,31 +784,20 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             );
         }
 
-        try {
-            $terminal = yield from $this->runNode(
-                $node,
-                new NodeContext(
-                    state: $state,
-                    event: $event,
-                    payload: $payload,
-                    timedOut: $timedOut,
-                    memoizer: $this->store->memoizer($this->recordKey($stepId)),
-                    dispatcher: $workflow->getEventDispatcher(),
-                    resuming: $resuming,
-                ),
-                $workflow->getMiddlewareForNode($node),
-                $branchId,
-            );
-        } catch (Throwable $e) {
-            $this->store->writeRecords([
-                $this->recordKey($stepId) => new StepResult(
-                    stepId: $stepId,
-                    interruptId: $interruptId,
-                    failed: true,
-                ),
-            ]);
-            throw $e;
-        }
+        $terminal = yield from $this->runNode(
+            $node,
+            new NodeContext(
+                state: $state,
+                event: $event,
+                payload: $payload,
+                timedOut: $timedOut,
+                memoizer: $this->store->memoizer($stepId),
+                dispatcher: $workflow->getEventDispatcher(),
+                resuming: $resuming,
+            ),
+            $workflow->getMiddlewareForNode($node),
+            $branchId,
+        );
 
         if ($terminal instanceof InterruptEvent) {
             $request = $terminal->requests[0]->withId($this->store->control()->nextInterruptId);
@@ -830,7 +814,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 state: $state,
                 interruptId: $newId,
             );
-            $this->store->replaceControl($control, [$this->recordKey($stepId) => $marker]);
+            $this->store->commitStep($marker, $control);
 
             return new StepResult(
                 stepId: $stepId,
@@ -841,7 +825,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
-        $records = [$this->recordKey($stepId) => $result];
 
         $control = $this->store->control();
         if ($interruptId !== null) {
@@ -853,11 +836,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $control = $control->heartbeat($this->leaseExpiry());
         }
 
-        if ($control === $this->store->control()) {
-            $this->store->writeRecords($records);
-        } else {
-            $this->store->replaceControl($control, $records);
-        }
+        $this->store->commitStep($result, $control);
 
         return $result;
     }
@@ -878,9 +857,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $result = yield from $this->runNodeStep($workflow, $node, $event, $state, $branchId, $stepId);
             $event = $result->getEvent();
 
+            $state = $result->getState();
             if ($branchId === null) {
-                $workflow->setState($result->getState());
-                $state = $workflow->getState();
+                $workflow->setState($state);
             }
 
             if ($event instanceof ParallelEvent) {

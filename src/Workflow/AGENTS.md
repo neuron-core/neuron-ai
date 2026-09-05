@@ -86,6 +86,9 @@ $state = $workflow->run([
   answer.
 - A matching-run batch accepts active IDs and reports already-settled/unknown
   IDs as `stale` through `WorkflowState::getInputResults()`.
+- Once accepted, an interrupt's input is immutable until the step settles.
+  Redelivery with the same kind and JSON payload may recover a failed attempt;
+  a different answer rejects the batch before claiming execution.
 - A stale `expectedRunId` rejects the whole batch before traversal.
 
 For directly controlled current-run continuation, `expectedRunId` may be
@@ -192,8 +195,9 @@ not understand runs, attempts, leases, or suspensions.
 
 `WorkflowRunStore` is the internal boundary between lifecycle traversal and
 that low-level persistence contract. It owns the reserved keys, serialization,
-the current byte-exact control snapshot, conditional record writes, and
-conditional partition cleanup. `WorkflowExecutor` works with typed
+the current byte-exact control snapshot, step and memo keys, conditional record
+writes, and conditional partition cleanup. `StepMemoizer` is a step-bound view of
+this same store; it does not access persistence or serialization directly. `WorkflowExecutor` works with typed
 `WorkflowControl` instances and does not track raw persisted control values.
 
 ## Execution lease
@@ -299,10 +303,27 @@ atomic operation.
 All backends preserve one silo per Workflow: one array, one directory containing
 one file per partition, or one table keyed by `(partition, key)`.
 
+SQL backends encode identifiers as hex and values as base64. Serializers return
+raw bytes, and transport encoding belongs to persistence. The SQL schema in
+`DatabasePersistence` supports identifiers up to 255 bytes (510 encoded
+characters); MySQL requires strict mode and an InnoDB table. `EloquentPersistence`
+uses the model's table and connection with this same SQL implementation, including
+Laravel-managed transactions. Model scopes, casts, and events do not transform
+opaque engine records.
+
+The SQL integration tests run competing processes against SQLite by default.
+Set `WORKFLOW_MYSQL_DSN`, `WORKFLOW_MYSQL_USER`, `WORKFLOW_MYSQL_PASSWORD` and/or
+`WORKFLOW_PGSQL_DSN`, `WORKFLOW_PGSQL_USER`, `WORKFLOW_PGSQL_PASSWORD` to include
+MySQL/MariaDB and PostgreSQL. Tests create and drop uniquely named tables in the
+configured test database.
+
 ## Durable steps and memoization
 
 Every completed node step is persisted and skipped on replay. If a node fails
-before its step result commits, it runs again.
+before its step result commits, it runs again. Failure updates run control without
+writing a failed-step marker: an absent step executes again, and an interrupted
+step retains its marker and accepted input. Replaying a completed step restores
+the traversal's local state, including inside isolated parallel branches.
 
 Use `memoize()` around expensive or non-deterministic sub-operations:
 

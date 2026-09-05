@@ -6,10 +6,11 @@ namespace NeuronAI\Workflow\Persistence;
 
 /**
  * Codec that converts an engine record (a StepResult, an Ignition, a memoized
- * value) to and from the storable string a PersistenceInterface backend
- * writes. Owned by the workflow (setSerializer) and applied by the executor —
+ * value) to and from raw bytes that a PersistenceInterface backend
+ * stores. Owned by the workflow (setSerializer) and applied by WorkflowRunStore —
  * backends store opaque strings, so the storage format (native PHP serialize,
- * igbinary, ...) varies independently of the persistence backends.
+ * igbinary, ...) varies independently of the persistence backends. Each backend
+ * owns any encoding required by its storage medium.
  */
 interface Serializer
 {

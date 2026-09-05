@@ -16,11 +16,11 @@ use function strlen;
 
 final class SerializerTest extends TestCase
 {
-    private function sampleResult(): StepResult
+    protected function sampleResult(): StepResult
     {
         return new StepResult(
             stepId: 'step-1',
-            failed: true,
+            interruptId: 1,
         );
     }
 
@@ -33,7 +33,7 @@ final class SerializerTest extends TestCase
 
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
-        Assert::assertTrue($restored->isFailed());
+        Assert::assertTrue($restored->isInterrupted());
     }
 
     public function test_php_serializer_rejects_malformed_data(): void
@@ -64,7 +64,7 @@ final class SerializerTest extends TestCase
 
         Assert::assertInstanceOf(StepResult::class, $restored);
         Assert::assertSame('step-1', $restored->getStepId());
-        Assert::assertTrue($restored->isFailed());
+        Assert::assertTrue($restored->isInterrupted());
     }
 
     public function test_igbinary_serializer_rejects_malformed_data(): void

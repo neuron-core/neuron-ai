@@ -190,14 +190,14 @@ class AgentDurableHistoryTest extends TestCase
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
+        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node1($event, $state1);
 
         $this->assertCount(2, $chatHistory->getMessages());
 
         $state2 = new \NeuronAI\Agent\AgentState();
         $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, new \NeuronAI\Workflow\Executor\StepMemoizer($persistence, new PhpSerializer(), $workflowId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node2($event, $state2);
 
         $messages = $chatHistory->getMessages();

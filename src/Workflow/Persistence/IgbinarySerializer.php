@@ -7,21 +7,13 @@ namespace NeuronAI\Workflow\Persistence;
 use LogicException;
 use NeuronAI\Exceptions\PersistenceException;
 
-use function base64_decode;
-use function base64_encode;
 use function function_exists;
 use function igbinary_serialize;
 use function igbinary_unserialize;
 
 /**
- * Serializer backed by the igbinary extension: smaller and faster than native
- * PHP serialize for repetitive object graphs (chat history, nested state), at
- * the cost of requiring ext-igbinary. Output is binary, so it is still base64-
- * wrapped to stay safe in TEXT/JSON columns — same transport layer as PhpSerializer.
- *
- * Not interchangeable with PhpSerializer: a blob written by one codec cannot be
- * read by the other, so swapping serializers on a live store is a one-way
- * migration (drain in-flight runs or ship a double-read cutover).
+ * Binary igbinary serialization; requires ext-igbinary. Keep the configured
+ * serializer stable for in-flight runs. Transport encoding belongs to persistence.
  */
 class IgbinarySerializer implements Serializer
 {
@@ -36,21 +28,15 @@ class IgbinarySerializer implements Serializer
 
     public function serialize(mixed $value): string
     {
-        return base64_encode((string) igbinary_serialize($value));
+        return (string) igbinary_serialize($value);
     }
 
     public function unserialize(string $data): mixed
     {
-        $decoded = base64_decode($data, true);
-
-        if ($decoded === false) {
-            $decoded = $data;
-        }
-
-        $value = @igbinary_unserialize($decoded);
+        $value = @igbinary_unserialize($data);
         if (
-            ($value === null && $decoded !== igbinary_serialize(null))
-            || ($value === false && $decoded !== igbinary_serialize(false))
+            ($value === null && $data !== igbinary_serialize(null))
+            || ($value === false && $data !== igbinary_serialize(false))
         ) {
             throw new PersistenceException('Unable to unserialize persisted Workflow value.');
         }

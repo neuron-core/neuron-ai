@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use Closure;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -96,40 +97,14 @@ final class WorkflowRunStore
         return $this->control instanceof WorkflowControl;
     }
 
-    /**
-     * @param array<string, mixed> $records
-     * @throws WorkflowException
-     */
-    public function replaceControl(WorkflowControl $control, array $records = []): void
+    public function replaceControl(WorkflowControl $control): void
     {
-        $controlSnapshot = $this->serializer->serialize($control);
-        $writes = $this->serializeRecords($records);
-        $writes[self::CONTROL_KEY] = $controlSnapshot;
-
-        if (!$this->persistence->writeIfUnchanged(
-            $this->workflowId,
-            self::CONTROL_KEY,
-            $this->expectedControlValue(),
-            $writes,
-        )) {
-            $current = $this->control();
-            throw new WorkflowException(
-                "Execution ownership was lost for workflow ID '{$this->workflowId}', "
-                . "run '{$current->runId}', attempt {$current->executionAttempt}."
-            );
-        }
-
-        $this->control = $control;
-        $this->controlSnapshot = $controlSnapshot;
+        $this->commit([], $control);
     }
 
-    /**
-     * @param array<string, mixed> $records
-     * @throws WorkflowException
-     */
-    public function writeRecords(array $records): void
+    public function commitStep(StepResult $step, ?WorkflowControl $control = null): void
     {
-        $this->writeSerialized($this->serializeRecords($records));
+        $this->commit([$this->recordKey($step->getStepId()) => $step], $control);
     }
 
     /**
@@ -154,8 +129,9 @@ final class WorkflowRunStore
     /**
      * @throws PersistenceException
      */
-    public function loadStep(string $key): ?StepResult
+    public function loadStep(string $stepId): ?StepResult
     {
+        $key = $this->recordKey($stepId);
         $raw = $this->persistence->get($this->workflowId, $key);
         if ($raw === null) {
             return null;
@@ -180,34 +156,61 @@ final class WorkflowRunStore
         return $step;
     }
 
-    public function memoizer(string $recordKey): StepMemoizer
+    public function memoizer(string $stepId): StepMemoizer
     {
-        return new StepMemoizer(
-            $this->persistence,
-            $this->serializer,
-            $this->workflowId,
-            $recordKey,
-            fn (string $key, string $value) => $this->writeSerialized([$key => $value]),
-        );
+        return new StepMemoizer($this, $stepId);
     }
 
-    /**
-     * @param array<string, string> $records
-     * @throws WorkflowException
-     */
-    protected function writeSerialized(array $records): void
+    public function memo(string $stepId, string $name, Closure $operation): mixed
     {
+        $key = $this->recordKey($stepId) . '::' . $name;
+        $recorded = $this->persistence->get($this->workflowId, $key);
+        if ($recorded !== null) {
+            return $this->serializer->unserialize($recorded);
+        }
+
+        $value = $operation();
+        $this->commit([$key => $value]);
+
+        return $value;
+    }
+
+    public function recallMemo(string $stepId, string $name): mixed
+    {
+        $recorded = $this->persistence->get($this->workflowId, $this->recordKey($stepId) . '::' . $name);
+
+        return $recorded === null ? null : $this->serializer->unserialize($recorded);
+    }
+
+    /** @param array<string, mixed> $records */
+    protected function commit(array $records, ?WorkflowControl $control = null): void
+    {
+        $writes = $this->serializeRecords($records);
+        $controlSnapshot = $this->expectedControlValue();
+        if ($control !== null && $control !== $this->control) {
+            $controlSnapshot = $this->serializer->serialize($control);
+            $writes[self::CONTROL_KEY] = $controlSnapshot;
+        }
+
         if (!$this->persistence->writeIfUnchanged(
             $this->workflowId,
             self::CONTROL_KEY,
             $this->expectedControlValue(),
-            $records,
+            $writes,
         )) {
-            $control = $this->control();
+            $current = $this->control();
             throw new WorkflowException(
-                "Stale execution attempt {$control->executionAttempt} cannot write workflow ID '{$this->workflowId}'."
+                "Stale execution attempt {$current->executionAttempt} cannot write workflow ID '{$this->workflowId}'."
             );
         }
+
+        $this->control = $control ?? $this->control;
+        $this->controlSnapshot = $controlSnapshot;
+    }
+
+    protected function recordKey(string $stepId): string
+    {
+        return $this->control()->runId . '/' . $stepId;
     }
 
     /**

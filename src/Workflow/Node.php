@@ -79,7 +79,8 @@ abstract class Node implements NodeInterface
      * Execute a closure as a durable, memoized sub-operation: on crash-replay
      * the recorded value is returned WITHOUT running the closure again. Wrap
      * expensive or non-deterministic work (LLM calls, HTTP, tool execution)
-     * in it so the work runs at most once. The closure MUST be a pure
+     * in it to reuse committed results. A crash before the memo commits can
+     * repeat the operation; external side effects need idempotency. The closure MUST be a pure
      * function of the node's event and state for the given name. Without an
      * executor wired, the operation runs inline with no caching.
      *

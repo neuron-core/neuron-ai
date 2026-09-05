@@ -6,33 +6,21 @@ namespace NeuronAI\Workflow\Persistence;
 
 use NeuronAI\Exceptions\PersistenceException;
 
-use function base64_decode;
-use function base64_encode;
 use function serialize;
 use function unserialize;
 
-/**
- * Default Serializer: native PHP serialize() wrapped in base64 so the blob is
- * safe for TEXT/JSON columns. On read it tolerates a value stored without
- * base64 (falls back to the raw string) to stay compatible with pre-existing rows.
- */
+/** Native PHP object serialization; transport encoding belongs to persistence. */
 class PhpSerializer implements Serializer
 {
     public function serialize(mixed $value): string
     {
-        return base64_encode(serialize($value));
+        return serialize($value);
     }
 
     public function unserialize(string $data): mixed
     {
-        $decoded = base64_decode($data, true);
-
-        if ($decoded === false) {
-            $decoded = $data;
-        }
-
-        $value = @unserialize($decoded);
-        if ($value === false && $decoded !== serialize(false)) {
+        $value = @unserialize($data);
+        if ($value === false && $data !== serialize(false)) {
             throw new PersistenceException('Unable to unserialize persisted Workflow value.');
         }
 

@@ -477,7 +477,7 @@ class WorkflowIdentityTest extends TestCase
             $this->fail('The workflow should fail.');
         } catch (RuntimeException) {
         }
-        $failedStepKey = $this->stepKey($crashed, MemoizingNode::class . '-0');
+        $failedStepKey = $this->stepKey($crashed, MemoizingNode::class . '-0') . '::expensive_op';
         $this->assertNotNull($persistence->get('thread_1', $failedStepKey));
 
         // A new run at the same key is a deliberate statement: the dead

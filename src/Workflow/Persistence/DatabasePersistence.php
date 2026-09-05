@@ -4,51 +4,48 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
+use Closure;
+use NeuronAI\Exceptions\PersistenceException;
 use PDO;
+use PDOException;
 use Throwable;
 
+use function base64_decode;
+use function base64_encode;
+use function bin2hex;
+use function str_contains;
 use function str_replace;
+use function strlen;
 
 /**
- * PDO-backed store. One table:
+ * One table stores hex-encoded identifiers and base64-encoded values. Encoding
+ * belongs to the backend: serializers and callers may supply arbitrary bytes.
+ * Identifiers support up to 255 bytes before encoding.
  *
- * ```sql
- * -- ANSI (PostgreSQL, SQLite)
+ * PostgreSQL / SQLite:
  * CREATE TABLE workflow_store (
- *     "partition" VARCHAR(255) NOT NULL,
- *     "key"       VARCHAR(255) NOT NULL,
+ *     "partition" VARCHAR(510) NOT NULL,
+ *     "key"       VARCHAR(510) NOT NULL,
  *     "value"     TEXT NOT NULL,
- *     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  *     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  *     PRIMARY KEY ("partition", "key")
  * );
  *
- * -- MySQL / MariaDB
+ * MySQL / MariaDB (requires strict SQL mode):
  * CREATE TABLE workflow_store (
- *     `partition` VARCHAR(255) NOT NULL,
- *     `key`       VARCHAR(255) NOT NULL,
- *     `value`     TEXT NOT NULL,
- *     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- *     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ *     `partition` VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ *     `key`       VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ *     `value`     LONGTEXT CHARACTER SET ascii NOT NULL,
+ *     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  *     PRIMARY KEY (`partition`, `key`)
- * );
- * ```
- *
- * `partition` and `key` are reserved words in MySQL, hence the identifier
- * quoting — the dialect is fixed at construction, so the quoted column names
- * are computed once. The timestamp columns are backend furniture — never read
- * by the contract.
+ * ) ENGINE=InnoDB;
  */
 class DatabasePersistence implements PersistenceInterface
 {
     protected string $driver;
-
     protected bool $mysql;
-
     protected string $partitionCol;
-
     protected string $keyCol;
-
     protected string $valueCol;
 
     public function __construct(
@@ -57,6 +54,14 @@ class DatabasePersistence implements PersistenceInterface
     ) {
         $this->driver = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         $this->mysql = $this->driver === 'mysql';
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        if ($this->mysql) {
+            $mode = (string) $this->pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn();
+            if (!str_contains($mode, 'STRICT_TRANS_TABLES') && !str_contains($mode, 'STRICT_ALL_TABLES')) {
+                throw new PersistenceException('Workflow persistence requires MySQL strict SQL mode to prevent truncated records.');
+            }
+        }
 
         $quote = $this->mysql ? '`' : '"';
         $this->table = $quote . str_replace($quote, $quote . $quote, $this->table) . $quote;
@@ -65,41 +70,23 @@ class DatabasePersistence implements PersistenceInterface
         $this->valueCol = $quote . 'value' . $quote;
     }
 
-    protected function upsert(string $partition, string $key, string $value): void
-    {
-        // MySQL/MariaDB have no ON CONFLICT; PostgreSQL and SQLite have no ON DUPLICATE KEY.
-        $upsert = $this->mysql
-            ? "ON DUPLICATE KEY UPDATE {$this->valueCol} = VALUES({$this->valueCol}), updated_at = CURRENT_TIMESTAMP"
-            : "ON CONFLICT ({$this->partitionCol}, {$this->keyCol}) DO UPDATE SET {$this->valueCol} = excluded.{$this->valueCol}, updated_at = CURRENT_TIMESTAMP";
-
-        $stmt = $this->pdo->prepare("
-            INSERT INTO {$this->table} ({$this->partitionCol}, {$this->keyCol}, {$this->valueCol}, updated_at)
-            VALUES (:partition, :key, :value, CURRENT_TIMESTAMP)
-            {$upsert}
-        ");
-
-        $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
-    }
-
     public function get(string $partition, string $key): ?string
     {
         $stmt = $this->pdo->prepare(
             "SELECT {$this->valueCol} FROM {$this->table} WHERE {$this->partitionCol} = :partition AND {$this->keyCol} = :key",
         );
-        $stmt->execute(['partition' => $partition, 'key' => $key]);
-        $record = $stmt->fetch();
-
-        if (!$record) {
+        $stmt->execute(['partition' => $this->encodeKey($partition), 'key' => $this->encodeKey($key)]);
+        $value = $stmt->fetchColumn();
+        if ($value === false) {
             return null;
         }
 
-        return (string) $record['value'];
-    }
+        $decoded = base64_decode((string) $value, true);
+        if ($decoded === false) {
+            throw new PersistenceException("Invalid encoded Workflow record '{$key}' in partition '{$partition}'.");
+        }
 
-    protected function deletePartition(string $partition): void
-    {
-        $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->partitionCol} = :partition");
-        $stmt->execute(['partition' => $partition]);
+        return $decoded;
     }
 
     public function initializeIfAbsent(
@@ -122,11 +109,8 @@ class DatabasePersistence implements PersistenceInterface
         return $this->commitIf($partition, $conditionKey, $expectedValue, $records);
     }
 
-    public function deleteIfUnchanged(
-        string $partition,
-        string $conditionKey,
-        string $expectedValue,
-    ): bool {
+    public function deleteIfUnchanged(string $partition, string $conditionKey, string $expectedValue): bool
+    {
         return $this->commitIf($partition, $conditionKey, $expectedValue, deletePartition: true);
     }
 
@@ -138,22 +122,29 @@ class DatabasePersistence implements PersistenceInterface
         array $writes = [],
         bool $deletePartition = false,
     ): bool {
-        $this->pdo->beginTransaction();
+        $partition = $this->encodeKey($partition);
+        $conditionKey = $this->encodeKey($conditionKey);
+        $encoded = [];
+        foreach ($writes as $key => $value) {
+            $encoded[$this->encodeKey((string) $key)] = base64_encode($value);
+        }
 
-        try {
+        return $this->transaction(function () use ($partition, $conditionKey, $expectedValue, $encoded, $deletePartition): bool {
             if ($expectedValue === null) {
-                if (!isset($writes[$conditionKey])) {
-                    $this->pdo->rollBack();
+                if (!$this->insertIfAbsent($partition, $conditionKey, $encoded[$conditionKey])) {
                     return false;
                 }
-
-                if (!$this->insertIfAbsent($partition, $conditionKey, $writes[$conditionKey])) {
-                    $this->pdo->rollBack();
-                    return false;
-                }
-
-                unset($writes[$conditionKey]);
+                unset($encoded[$conditionKey]);
             } else {
+                // SQLite must acquire its writer lock before reading the condition;
+                // upgrading a deferred read transaction races with other writers.
+                if ($this->driver === 'sqlite') {
+                    $stmt = $this->pdo->prepare(
+                        "UPDATE {$this->table} SET {$this->valueCol} = {$this->valueCol} "
+                        . "WHERE {$this->partitionCol} = :partition AND {$this->keyCol} = :key",
+                    );
+                    $stmt->execute(['partition' => $partition, 'key' => $conditionKey]);
+                }
                 $lock = $this->driver === 'sqlite' ? '' : ' FOR UPDATE';
                 $stmt = $this->pdo->prepare(
                     "SELECT {$this->valueCol} FROM {$this->table} "
@@ -161,23 +152,66 @@ class DatabasePersistence implements PersistenceInterface
                 );
                 $stmt->execute(['partition' => $partition, 'key' => $conditionKey]);
                 $current = $stmt->fetchColumn();
-
-                if ($current === false || (string) $current !== $expectedValue) {
-                    $this->pdo->rollBack();
+                if ($current === false || (string) $current !== base64_encode($expectedValue)) {
                     return false;
                 }
             }
 
             if ($deletePartition) {
-                $this->deletePartition($partition);
+                $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->partitionCol} = :partition");
+                $stmt->execute(['partition' => $partition]);
             } else {
-                foreach ($writes as $key => $value) {
-                    $this->upsert($partition, $key, $value);
+                foreach ($encoded as $key => $value) {
+                    $this->upsert($partition, (string) $key, $value);
                 }
             }
 
-            $this->pdo->commit();
             return true;
+        });
+    }
+
+    protected function upsert(string $partition, string $key, string $value): void
+    {
+        $upsert = $this->mysql
+            ? "ON DUPLICATE KEY UPDATE {$this->valueCol} = VALUES({$this->valueCol}), updated_at = CURRENT_TIMESTAMP"
+            : "ON CONFLICT ({$this->partitionCol}, {$this->keyCol}) DO UPDATE SET {$this->valueCol} = excluded.{$this->valueCol}, updated_at = CURRENT_TIMESTAMP";
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO {$this->table} ({$this->partitionCol}, {$this->keyCol}, {$this->valueCol}, updated_at) "
+            . "VALUES (:partition, :key, :value, CURRENT_TIMESTAMP) {$upsert}",
+        );
+        $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
+    }
+
+    protected function insertIfAbsent(string $partition, string $key, string $value): bool
+    {
+        $insert = "INSERT INTO {$this->table} ({$this->partitionCol}, {$this->keyCol}, {$this->valueCol}, updated_at) "
+            . 'VALUES (:partition, :key, :value, CURRENT_TIMESTAMP)';
+        if (!$this->mysql) {
+            $insert .= " ON CONFLICT ({$this->partitionCol}, {$this->keyCol}) DO NOTHING";
+        }
+
+        try {
+            $stmt = $this->pdo->prepare($insert);
+            $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
+
+            return $stmt->rowCount() === 1;
+        } catch (PDOException $e) {
+            if ($this->mysql && ($e->errorInfo[1] ?? null) === 1062) {
+                return false;
+            }
+
+            throw $e;
+        }
+    }
+
+    protected function transaction(Closure $operation): bool
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $result = $operation();
+            $this->pdo->commit();
+
+            return $result;
         } catch (Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -186,22 +220,12 @@ class DatabasePersistence implements PersistenceInterface
         }
     }
 
-    protected function insertIfAbsent(string $partition, string $key, string $value): bool
+    protected function encodeKey(string $key): string
     {
-        $insert = $this->mysql
-            ? "INSERT IGNORE INTO {$this->table} "
-            : "INSERT INTO {$this->table} ";
-
-        $insert .= "({$this->partitionCol}, {$this->keyCol}, {$this->valueCol}, updated_at) "
-            . "VALUES (:partition, :key, :value, CURRENT_TIMESTAMP)";
-
-        if (!$this->mysql) {
-            $insert .= " ON CONFLICT ({$this->partitionCol}, {$this->keyCol}) DO NOTHING";
+        if (strlen($key) > 255) {
+            throw new PersistenceException('Workflow SQL partition names and record keys must not exceed 255 bytes.');
         }
 
-        $stmt = $this->pdo->prepare($insert);
-        $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
-
-        return $stmt->rowCount() === 1;
+        return bin2hex($key);
     }
 }

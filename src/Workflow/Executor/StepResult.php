@@ -19,7 +19,6 @@ class StepResult
          * itself lives in WorkflowControl; this marker connects replay to it.
          */
         protected ?int $interruptId = null,
-        protected bool $failed = false,
     ) {
     }
 
@@ -29,8 +28,8 @@ class StepResult
     }
 
     /**
-     * The completed step's terminal event. Only marker records (interrupted,
-     * failed) carry none — consuming one as a completed result is an executor
+     * The completed step's terminal event. Interrupted marker records
+     * carry none — consuming one as a completed result is an executor
      * bug, so this throws instead of null-propagating.
      *
      * @throws WorkflowException
@@ -82,20 +81,13 @@ class StepResult
         return $this->interruptId;
     }
 
-    public function isFailed(): bool
-    {
-        return $this->failed;
-    }
-
     public function __serialize(): array
     {
         return [
-            'version' => 6,
             'stepId' => $this->stepId,
             'event' => $this->event,
             'state' => $this->state,
             'interruptId' => $this->interruptId,
-            'failed' => $this->failed,
         ];
     }
 
@@ -105,6 +97,5 @@ class StepResult
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
         $this->interruptId = $data['interruptId'] ?? null;
-        $this->failed = $data['failed'] ?? false;
     }
 }

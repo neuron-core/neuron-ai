@@ -34,6 +34,14 @@ jobs:
                 ports:
                     - 3306:3306
                 options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            postgres:
+                image: postgres:17-alpine
+                env:
+                    POSTGRES_DB: neuron-ai
+                    POSTGRES_PASSWORD: workflow-test
+                ports:
+                    - 5432:5432
+                options: --health-cmd="pg_isready -U postgres" --health-interval=10s --health-timeout=5s --health-retries=3
             mariadb:
                 image: mariadb:11.7
                 env:
@@ -107,6 +115,7 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: ${{ matrix.php }}
+                  extensions: pdo_mysql, pdo_pgsql, pdo_sqlite
                   coverage: none
 
             - name: Setup Problem Matches
@@ -168,4 +177,10 @@ jobs:
                   dependency-versions: ${{ matrix.dependency-version }}
 
             - name: Unit Tests
+              env:
+                  WORKFLOW_MYSQL_DSN: "mysql:host=127.0.0.1;dbname=neuron-ai"
+                  WORKFLOW_MYSQL_USER: root
+                  WORKFLOW_PGSQL_DSN: "pgsql:host=127.0.0.1;dbname=neuron-ai"
+                  WORKFLOW_PGSQL_USER: postgres
+                  WORKFLOW_PGSQL_PASSWORD: workflow-test
               run: vendor/bin/phpunit --colors=always
