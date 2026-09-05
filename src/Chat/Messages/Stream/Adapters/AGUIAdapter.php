@@ -38,6 +38,8 @@ class AGUIAdapter extends SSEAdapter
 
     protected ?string $reasoningMessageId = null;
 
+    protected bool $runTerminated = false;
+
     /**
      * @param string|null $threadId Optional thread ID for conversation context
      * @param string|null $runId Optional run ID, echoed back to the client as required by the protocol
@@ -266,12 +268,46 @@ class AGUIAdapter extends SSEAdapter
         }
 
         // Emit RunFinished event
-        if ($this->runId !== null) {
+        if ($this->runId !== null && !$this->runTerminated) {
+            $this->runTerminated = true;
+
             yield $this->sse([
                 'type' => 'RUN_FINISHED',
                 'threadId' => $this->threadId,
                 'runId' => $this->runId,
             ]);
         }
+    }
+
+    /**
+     * Terminate the run with an AG-UI error instead of a successful result.
+     *
+     * @return iterable<string>
+     */
+    public function error(string $message, ?string $code = null): iterable
+    {
+        if ($this->runTerminated) {
+            return;
+        }
+
+        foreach ($this->endReasoning() as $event) {
+            yield $event;
+        }
+        foreach ($this->endText() as $event) {
+            yield $event;
+        }
+
+        $event = [
+            'type' => 'RUN_ERROR',
+            'message' => $message,
+        ];
+
+        if ($code !== null) {
+            $event['code'] = $code;
+        }
+
+        $this->runTerminated = true;
+
+        yield $this->sse($event);
     }
 }

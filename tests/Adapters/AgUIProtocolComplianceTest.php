@@ -42,6 +42,7 @@ class AgUIProtocolComplianceTest extends TestCase
     private const REQUIRED_FIELDS = [
         'RUN_STARTED' => ['runId', 'threadId'],
         'RUN_FINISHED' => ['runId', 'threadId'],
+        'RUN_ERROR' => ['message'],
         'TEXT_MESSAGE_START' => ['messageId', 'role'],
         'TEXT_MESSAGE_CONTENT' => ['messageId', 'delta'],
         'TEXT_MESSAGE_END' => ['messageId'],
@@ -173,6 +174,52 @@ class AgUIProtocolComplianceTest extends TestCase
         $this->assertSame('run_custom', $last['runId']);
     }
 
+    public function test_error_closes_an_open_text_message_and_terminates_the_run(): void
+    {
+        $adapter = new AGUIAdapter('thread_custom', 'run_custom');
+
+        $events = $this->collect(
+            $adapter->start(),
+            $adapter->transform(new TextChunk('msg_1', 'Partial answer')),
+            $adapter->error('The provider failed.', 'provider_error'),
+            $adapter->end(),
+        );
+
+        $this->assertCompliant($events);
+        $this->assertSame(
+            ['RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END', 'RUN_ERROR'],
+            array_column($events, 'type'),
+        );
+        $this->assertSame('The provider failed.', $events[array_key_last($events)]['message']);
+        $this->assertSame('provider_error', $events[array_key_last($events)]['code']);
+    }
+
+    public function test_error_closes_an_open_reasoning_message(): void
+    {
+        $adapter = new AGUIAdapter();
+
+        $events = $this->collect(
+            $adapter->start(),
+            $adapter->transform(new ReasoningChunk('reason_1', 'Partial reasoning')),
+            $adapter->error('The provider failed.'),
+        );
+
+        $this->assertCompliant($events);
+        $this->assertSame(
+            [
+                'RUN_STARTED',
+                'REASONING_START',
+                'REASONING_MESSAGE_START',
+                'REASONING_MESSAGE_CONTENT',
+                'REASONING_MESSAGE_END',
+                'REASONING_END',
+                'RUN_ERROR',
+            ],
+            array_column($events, 'type'),
+        );
+        $this->assertArrayNotHasKey('code', $events[array_key_last($events)]);
+    }
+
     /**
      * Parse SSE frames into decoded event payloads.
      *
@@ -209,7 +256,11 @@ class AgUIProtocolComplianceTest extends TestCase
 
         $first = $events[0];
         $this->assertSame('RUN_STARTED', $first['type'], 'First event must be RUN_STARTED');
-        $this->assertSame('RUN_FINISHED', $events[array_key_last($events)]['type'], 'Last event must be RUN_FINISHED');
+        $this->assertContains(
+            $events[array_key_last($events)]['type'],
+            ['RUN_FINISHED', 'RUN_ERROR'],
+            'Last event must terminate the run',
+        );
 
         $openText = null;
         $openReasoning = null;
@@ -237,6 +288,11 @@ class AgUIProtocolComplianceTest extends TestCase
                 case 'RUN_FINISHED':
                     $this->assertSame($runId, $event['runId'], 'RUN_FINISHED.runId must match RUN_STARTED');
                     $this->assertSame($threadId, $event['threadId'], 'RUN_FINISHED.threadId must match RUN_STARTED');
+                    break;
+
+                case 'RUN_ERROR':
+                    $this->assertIsString($event['message']);
+                    $this->assertNotSame('', $event['message']);
                     break;
 
                 case 'TEXT_MESSAGE_START':
