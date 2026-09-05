@@ -58,6 +58,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected string $workflowId;
     protected string $runId;
     protected bool $ownsExecutionSegment = false;
+    protected bool $segmentInFlight = false;
 
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
@@ -122,17 +123,19 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?string $signalName = null,
         array $signalPayload = [],
     ): Generator {
-        $this->inputResults = [];
-        $this->ownsExecutionSegment = false;
-        $this->leaseTimeout = $workflow->getLeaseTimeout();
-        $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
-        $this->store = new WorkflowRunStore(
-            $workflow->getPersistence(),
-            $workflow->getSerializer(),
-            $this->workflowId,
-        );
+        $this->beginSegment();
 
         try {
+            $this->inputResults = [];
+            $this->ownsExecutionSegment = false;
+            $this->leaseTimeout = $workflow->getLeaseTimeout();
+            $this->workflowId = $this->resolveWorkflowId($workflow, $continuing);
+            $this->store = new WorkflowRunStore(
+                $workflow->getPersistence(),
+                $workflow->getSerializer(),
+                $this->workflowId,
+            );
+
             $terminalState = $continuing
                 ? $this->continueRun(
                     $workflow,
@@ -174,7 +177,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $workflow->getState()->markAsSuspended($requests);
                 $checkpoint = clone $workflow->getState();
                 $checkpoint->markAsSuspended([]);
-                $this->store->replaceControl($this->store->control()->suspended($checkpoint));
+                $this->store->commitCheckpoint($checkpoint, $this->store->control()->suspended());
 
                 $this->dispatchEvent(
                     $workflow->getEventDispatcher(),
@@ -187,9 +190,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $workflow->getState()->setInputResults($this->inputResults);
                 $workflow->getState()->clearInterrupt();
                 if ($workflow->shouldRetainCompletionUntilAcknowledged()) {
-                    $this->store->replaceControl(
-                        $this->store->control()->completed($workflow->getState()),
-                    );
+                    $this->store->commitOutcome($workflow->getState(), $this->store->control()->completed());
                 } else {
                     $this->deleteOwnedPartition();
                 }
@@ -209,6 +210,34 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             if ($this->ownsExecutionSegment) {
                 $this->workflowEnd($workflow);
             }
+            $this->segmentInFlight = false;
+        }
+    }
+
+    /**
+     * One segment at a time per instance: the fields above are the live
+     * segment's working context, and a second segment would overwrite them
+     * underneath it. The flag is released by executeSegment()'s finally,
+     * which also runs when a suspended generator is discarded.
+     *
+     * @throws WorkflowException
+     */
+    protected function beginSegment(): void
+    {
+        $this->assertNoSegmentInFlight();
+        $this->segmentInFlight = true;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function assertNoSegmentInFlight(): void
+    {
+        if ($this->segmentInFlight) {
+            throw new WorkflowException(
+                'A run segment is already in flight on this workflow instance: consume or discard '
+                . 'it before starting, abandoning, or acknowledging another.'
+            );
         }
     }
 
@@ -220,6 +249,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         WorkflowRuntimeInterface $workflow,
         string $expectedRunId,
     ): void {
+        $this->assertNoSegmentInFlight();
         $this->workflowId = $this->resolveWorkflowId($workflow, true);
         $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
@@ -259,6 +289,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     public function abandonRun(WorkflowRuntimeInterface $workflow, ?string $expectedRunId = null): bool
     {
+        $this->assertNoSegmentInFlight();
         $this->workflowId = $this->resolveWorkflowId($workflow, true);
         $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
@@ -412,7 +443,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     "No active interruption for workflow ID '{$this->workflowId}' is waiting for signal '{$signalName}'."
                 );
             }
-            $state = $control->completedState;
+            $state = $this->store->loadOutcome();
             if (!$state instanceof WorkflowState) {
                 throw new WorkflowException("Completed run '{$this->runId}' has no retained outcome.");
             }
@@ -434,9 +465,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             if ($acceptedInputs === []) {
                 $control = $this->store->control();
-                $state = $control->checkpointState instanceof WorkflowState
-                    ? clone $control->checkpointState
-                    : $workflow->getState();
+                $state = $this->store->loadCheckpoint() ?? $workflow->getState();
                 $workflow->setState($state);
                 $this->stampState($state);
                 $state->setInputResults($this->inputResults);

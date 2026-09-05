@@ -6,11 +6,18 @@ namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
-use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 
 use function array_map;
+use function array_merge;
+use function get_object_vars;
 
+/**
+ * The lifecycle authority of one run: the value every mutation is fenced on.
+ * It stays small on purpose — the suspended checkpoint and the retained
+ * outcome are separate records — so the fence never carries workflow state.
+ * Each transition names only what it changes; everything else carries over.
+ */
 final class WorkflowControl
 {
     /**
@@ -23,8 +30,6 @@ final class WorkflowControl
         public readonly ?int $leaseExpiresAt = null,
         public readonly int $nextInterruptId = 1,
         public readonly array $interrupts = [],
-        public readonly ?WorkflowState $checkpointState = null,
-        public readonly ?WorkflowState $completedState = null,
     ) {
     }
 
@@ -41,29 +46,16 @@ final class WorkflowControl
 
     public function claim(?int $leaseExpiresAt): self
     {
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Running,
-            executionAttempt: $this->executionAttempt + 1,
-            leaseExpiresAt: $leaseExpiresAt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $this->interrupts,
-            checkpointState: $this->checkpointState,
-        );
+        return $this->with([
+            'status' => WorkflowStatus::Running,
+            'executionAttempt' => $this->executionAttempt + 1,
+            'leaseExpiresAt' => $leaseExpiresAt,
+        ]);
     }
 
     public function heartbeat(?int $leaseExpiresAt): self
     {
-        return new self(
-            runId: $this->runId,
-            status: $this->status,
-            executionAttempt: $this->executionAttempt,
-            leaseExpiresAt: $leaseExpiresAt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $this->interrupts,
-            checkpointState: $this->checkpointState,
-            completedState: $this->completedState,
-        );
+        return $this->with(['leaseExpiresAt' => $leaseExpiresAt]);
     }
 
     public function addInterrupt(ActiveInterrupt $active): self
@@ -71,15 +63,11 @@ final class WorkflowControl
         $interrupts = $this->interrupts;
         $interrupts[$active->request->getId()] = $active;
 
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Running,
-            executionAttempt: $this->executionAttempt,
-            leaseExpiresAt: $this->leaseExpiresAt,
-            nextInterruptId: $active->request->getId() + 1,
-            interrupts: $interrupts,
-            checkpointState: $this->checkpointState,
-        );
+        return $this->with([
+            'status' => WorkflowStatus::Running,
+            'nextInterruptId' => $active->request->getId() + 1,
+            'interrupts' => $interrupts,
+        ]);
     }
 
     public function removeInterrupt(int $id): self
@@ -87,15 +75,10 @@ final class WorkflowControl
         $interrupts = $this->interrupts;
         unset($interrupts[$id]);
 
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Running,
-            executionAttempt: $this->executionAttempt,
-            leaseExpiresAt: $this->leaseExpiresAt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $interrupts,
-            checkpointState: $this->checkpointState,
-        );
+        return $this->with([
+            'status' => WorkflowStatus::Running,
+            'interrupts' => $interrupts,
+        ]);
     }
 
     /**
@@ -110,50 +93,37 @@ final class WorkflowControl
             }
         }
 
-        return new self(
-            runId: $this->runId,
-            status: $this->status,
-            executionAttempt: $this->executionAttempt,
-            leaseExpiresAt: $this->leaseExpiresAt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $interrupts,
-            checkpointState: $this->checkpointState,
-            completedState: $this->completedState,
-        );
+        return $this->with(['interrupts' => $interrupts]);
     }
 
-    public function suspended(WorkflowState $state): self
+    /**
+     * Suspension and failure clear the lease: no process is intentionally
+     * executing the run any more.
+     */
+    public function suspended(): self
     {
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Suspended,
-            executionAttempt: $this->executionAttempt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $this->interrupts,
-            checkpointState: $state,
-        );
+        return $this->with(['status' => WorkflowStatus::Suspended, 'leaseExpiresAt' => null]);
     }
 
     public function failed(): self
     {
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Failed,
-            executionAttempt: $this->executionAttempt,
-            nextInterruptId: $this->nextInterruptId,
-            interrupts: $this->interrupts,
-            checkpointState: $this->checkpointState,
-        );
+        return $this->with(['status' => WorkflowStatus::Failed, 'leaseExpiresAt' => null]);
     }
 
-    public function completed(WorkflowState $state): self
+    public function completed(): self
     {
-        return new self(
-            runId: $this->runId,
-            status: WorkflowStatus::Completed,
-            executionAttempt: $this->executionAttempt,
-            nextInterruptId: $this->nextInterruptId,
-            completedState: $state,
-        );
+        return $this->with([
+            'status' => WorkflowStatus::Completed,
+            'leaseExpiresAt' => null,
+            'interrupts' => [],
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     */
+    protected function with(array $changes): self
+    {
+        return new self(...array_merge(get_object_vars($this), $changes));
     }
 }

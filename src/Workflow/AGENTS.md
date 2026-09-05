@@ -170,12 +170,18 @@ All records for a Workflow ID stay in one persistence partition:
 |---|---|
 | `__ignition` | immutable start event, run ID, and engine-opaque context |
 | `__control` | mutable lifecycle authority and optimistic condition value |
+| `<runId>/__checkpoint` | the suspended run's state, returned by a continuation whose inputs are all stale |
+| `<runId>/__outcome` | the retained terminal state, only when completion retention is enabled |
 | `<runId>/<stepId>` | durable step result or marker; branch steps include a hash of their complete parent-fork path |
 | `<runId>/<stepId>::<memo>` | durable memo result |
 
 `__control` contains the current run ID, status, monotonic execution attempt,
-optional lease deadline, next interrupt ID, active interrupts, and—only when
-enabled—the retained completed state.
+optional lease deadline, next interrupt ID, and the active interrupts with
+their accepted inputs. It never carries workflow state: the suspended
+checkpoint and the retained outcome are separate records written in the same
+conditional write, so the fence stays small. Like steps, they are keyed under
+the run ID, so a process holding an older control reads its own generation's
+state or nothing, never a successor's.
 
 Every runtime mutation uses one of the explicit atomic persistence operations:
 `initializeIfAbsent()`, `writeIfUnchanged()`, or `deleteIfUnchanged()`. Writes
@@ -196,7 +202,11 @@ not understand runs, attempts, leases, or suspensions.
 `WorkflowRunStore` is the internal boundary between lifecycle traversal and
 that low-level persistence contract. It owns the reserved keys, serialization,
 the current byte-exact control snapshot, step and memo keys, conditional record
-writes, and conditional partition cleanup. `StepMemoizer` is a step-bound view of
+writes, and conditional partition cleanup. It also keeps a segment-local cache
+of the run's records: after igniting, unknown step and memo keys are absent
+without a backend read, and on a continuation each key is read at most once.
+The cache holds serialized bytes and only what confirmed writes committed, and
+it is discarded whenever control is reloaded. `StepMemoizer` is a step-bound view of
 this same store; it does not access persistence or serialization directly. `WorkflowExecutor` works with typed
 `WorkflowControl` instances and does not track raw persisted control values.
 
@@ -272,8 +282,9 @@ completion at construction time:
 $workflow->retainCompletionUntilAcknowledged();
 ```
 
-The executor then commits `completed` plus the terminal state into `__control`.
-Retries replay the same terminal state without executing nodes. After the
+The executor then commits `completed` into `__control` and the terminal state
+into `<runId>/__outcome` in one conditional write. Retries replay the same
+terminal state without executing nodes. After the
 platform durably records the outcome, it purges the exact generation:
 
 ```php
@@ -342,6 +353,12 @@ matters. `recallMemo()` remains the read-only counterpart for streaming flows.
 `WorkflowRunStore` owns the persistence protocol used to commit those
 decisions. `AsyncExecutor` changes only parallel branch execution and returns
 all active interruptions; storage and coordination ownership do not change.
+
+A workflow instance runs one segment at a time. Starting another `run()` or
+`events()`, or calling `abandonRun()` or `acknowledgeCompletion()`, while a
+segment's generator is still in flight throws a `WorkflowException` before
+anything is touched. Discarding the generator releases the instance; the run
+it leaves behind is settled by the usual durability rules.
 
 Executors type against `WorkflowRuntimeInterface`, which exposes definition,
 state, persistence, serializer, lease configuration, completion-retention
