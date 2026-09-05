@@ -12,7 +12,20 @@ permissions:
 jobs:
     ci:
         runs-on: ${{ matrix.os }}
+        env:
+            PARADEDB_DSN: pgsql:host=127.0.0.1;port=5432;dbname=neuron-ai
+            PARADEDB_USER: neuron-ai
+            PARADEDB_PASSWORD: neuron-ai
         services:
+            paradedb:
+                image: paradedb/paradedb:latest-pg18
+                env:
+                    POSTGRES_DB: neuron-ai
+                    POSTGRES_USER: neuron-ai
+                    POSTGRES_PASSWORD: neuron-ai
+                ports:
+                    - 5432:5432
+                options: --health-cmd="pg_isready -U neuron-ai -d neuron-ai" --health-interval=10s --health-timeout=5s --health-retries=5
             qdrant:
                 image: qdrant/qdrant:latest
                 ports:

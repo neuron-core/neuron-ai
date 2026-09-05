@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libzip-dev \
     libonig-dev \
+    libpq-dev \
     poppler-utils \
     unzip \
     && docker-php-ext-install \
@@ -16,6 +17,7 @@ RUN apt-get update && apt-get install -y \
         mbstring \
         pcntl \
         pdo_mysql \
+        pdo_pgsql \
         simplexml \
         sockets \
         xml \
