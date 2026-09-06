@@ -32,6 +32,20 @@ use function array_values;
 
 class ParallelToolNode extends ToolNode
 {
+    protected ?Closure $beforeChild;
+
+    public function __construct(
+        int $maxRuns = 10,
+        ?callable $errorHandler = null,
+        ?callable $beforeChild = null,
+    ) {
+        parent::__construct($maxRuns, $errorHandler);
+
+        $this->beforeChild = $beforeChild !== null
+            ? Closure::fromCallable($beforeChild)
+            : null;
+    }
+
     /**
      * @throws ToolException
      * @throws ToolRunsExceededException
@@ -75,7 +89,13 @@ class ParallelToolNode extends ToolNode
         }
 
         // Execute tools concurrently and collect serialized tool states
-        $serializedTools = Fork::new()->run(
+        $fork = Fork::new();
+
+        if ($this->beforeChild !== null) {
+            $fork->before(child: $this->beforeChild);
+        }
+
+        $serializedTools = $fork->run(
             ...array_map(
                 fn (ToolInterface $tool): Closure => function () use ($tool): string {
                     try {
