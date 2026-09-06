@@ -9,6 +9,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\RedactedReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -86,6 +87,10 @@ trait HandleChat
                     $reasoningText['text'],
                     $reasoningText['signature'] ?? null,
                 );
+            }
+
+            if (isset($content['reasoningContent']['redactedContent'])) {
+                $blocks[] = new RedactedReasoningContent($content['reasoningContent']['redactedContent']);
             }
         }
 

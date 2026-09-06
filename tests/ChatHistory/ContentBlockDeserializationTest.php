@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\RedactedReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -221,6 +222,38 @@ class ContentBlockDeserializationTest extends TestCase
 
         $this->assertInstanceOf(VideoContent::class, $contentBlocks[4]);
         $this->assertEquals('https://example.com/video.mp4', $contentBlocks[4]->content);
+    }
+
+    public function test_redacted_reasoning_block_survives_the_history_round_trip(): void
+    {
+        $key = 'test_redacted_reasoning';
+        $filePath = $this->testDir . '/neuron_' . $key . '.chat';
+
+        $data = [
+            [
+                'role' => 'assistant',
+                'content' => [
+                    [
+                        'type' => 'redacted_reasoning',
+                        'content' => 'encrypted',
+                    ],
+                    [
+                        'type' => 'text',
+                        'content' => 'The answer',
+                    ],
+                ],
+            ],
+        ];
+
+        file_put_contents($filePath, json_encode($data));
+
+        $history = new FileChatHistory($this->testDir, $key);
+        $contentBlocks = $history->getMessages()[0]->getContentBlocks();
+
+        $this->assertCount(2, $contentBlocks);
+        $this->assertInstanceOf(RedactedReasoningContent::class, $contentBlocks[0]);
+        $this->assertEquals('encrypted', $contentBlocks[0]->content);
+        $this->assertInstanceOf(TextContent::class, $contentBlocks[1]);
     }
 
     public function test_mixed_messages_with_content_blocks(): void

@@ -8,6 +8,7 @@ enum ContentBlockType: string
 {
     case TEXT = 'text';
     case REASONING = 'reasoning';
+    case REDACTED_REASONING = 'redacted_reasoning';
     case IMAGE = 'image';
     case FILE = 'file';
     case AUDIO = 'audio';

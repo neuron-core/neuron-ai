@@ -8,6 +8,7 @@ use Aws\Api\Parser\EventParsingIterator;
 use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\RedactedReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
@@ -86,6 +87,13 @@ trait HandleStream
 
                     if (isset($reasoningContent['signature'])) {
                         $this->streamState->signReasoningContentBlock($contentBlockIndex, $reasoningContent['signature']);
+                    }
+
+                    if (isset($reasoningContent['redactedContent'])) {
+                        $this->streamState->updateContentBlock(
+                            $contentBlockIndex,
+                            new RedactedReasoningContent($reasoningContent['redactedContent'])
+                        );
                     }
 
                     continue;

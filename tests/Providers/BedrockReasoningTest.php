@@ -10,6 +10,7 @@ use Aws\Result;
 use GuzzleHttp\Promise\FulfilledPromise;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\RedactedReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
@@ -45,13 +46,13 @@ class BedrockReasoningTest extends TestCase
             ],
             [
                 'contentBlockDelta' => [
-                    'contentBlockIndex' => 0,
+                    'contentBlockIndex' => 1,
                     'delta' => ['reasoningContent' => ['redactedContent' => 'encrypted']],
                 ],
             ],
             [
                 'contentBlockDelta' => [
-                    'contentBlockIndex' => 1,
+                    'contentBlockIndex' => 2,
                     'delta' => ['text' => 'The answer'],
                 ],
             ],
@@ -84,12 +85,14 @@ class BedrockReasoningTest extends TestCase
 
         $blocks = $message->getContentBlocks();
 
-        $this->assertCount(2, $blocks);
+        $this->assertCount(3, $blocks);
         $this->assertInstanceOf(ReasoningContent::class, $blocks[0]);
         $this->assertSame('Let me think', $blocks[0]->content);
         $this->assertSame('sig-123', $blocks[0]->id);
-        $this->assertInstanceOf(TextContent::class, $blocks[1]);
-        $this->assertSame('The answer', $blocks[1]->content);
+        $this->assertInstanceOf(RedactedReasoningContent::class, $blocks[1]);
+        $this->assertSame('encrypted', $blocks[1]->content);
+        $this->assertInstanceOf(TextContent::class, $blocks[2]);
+        $this->assertSame('The answer', $blocks[2]->content);
         $this->assertSame(10, $message->getUsage()->inputTokens);
         $this->assertSame(8, $message->getUsage()->outputTokens);
     }
@@ -137,11 +140,12 @@ class BedrockReasoningTest extends TestCase
 
         $blocks = $message->getContentBlocks();
 
-        $this->assertCount(2, $blocks);
+        $this->assertCount(3, $blocks);
         $this->assertInstanceOf(ReasoningContent::class, $blocks[0]);
         $this->assertSame('Let me think', $blocks[0]->content);
         $this->assertSame('sig-123', $blocks[0]->id);
-        $this->assertInstanceOf(TextContent::class, $blocks[1]);
+        $this->assertInstanceOf(RedactedReasoningContent::class, $blocks[1]);
+        $this->assertInstanceOf(TextContent::class, $blocks[2]);
 
         $this->assertSame([
             [
@@ -153,6 +157,11 @@ class BedrockReasoningTest extends TestCase
                                 'text' => 'Let me think',
                                 'signature' => 'sig-123',
                             ],
+                        ],
+                    ],
+                    [
+                        'reasoningContent' => [
+                            'redactedContent' => 'encrypted',
                         ],
                     ],
                     ['text' => 'The answer'],

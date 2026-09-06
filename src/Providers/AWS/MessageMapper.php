@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\RedactedReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
@@ -123,6 +124,11 @@ class MessageMapper implements MessageMapperInterface
                         'text' => $block->content,
                         ...($block->id === null ? [] : ['signature' => $block->id]),
                     ],
+                ],
+            ],
+            RedactedReasoningContent::class => [
+                'reasoningContent' => [
+                    'redactedContent' => $block->content,
                 ],
             ],
             TextContent::class => ['text' => $block->content],
