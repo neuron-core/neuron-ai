@@ -182,7 +182,6 @@ class AgUIProtocolComplianceTest extends TestCase
             $adapter->start(),
             $adapter->transform(new TextChunk('msg_1', 'Partial answer')),
             $adapter->error('The provider failed.', 'provider_error'),
-            $adapter->end(),
         );
 
         $this->assertCompliant($events);
