@@ -235,6 +235,37 @@ class ParallelToolsTest extends TestCase
         }
     }
 
+    public function test_before_child_callback_exception_is_propagated(): void
+    {
+        $toolA = (new TestToolA('tool_a', 'Tool A'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
+        $toolB = (new TestToolB('tool_b', 'Tool B'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+            ]),
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(
+            true,
+            beforeChild: static function (): void {
+                throw new RuntimeException('Parallel child initialization failed');
+            },
+        );
+        $agent->addTool($toolA);
+        $agent->addTool($toolB);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Parallel child initialization failed');
+
+        $agent->chat(new UserMessage('Run tools in parallel'))->run();
+    }
+
     public function test_parallel_execution_returns_correct_results(): void
     {
         $multiplyTool = new MultiplyTool('multiply', 'Multiply two numbers');

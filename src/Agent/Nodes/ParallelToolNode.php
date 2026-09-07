@@ -89,16 +89,15 @@ class ParallelToolNode extends ToolNode
         }
 
         // Execute tools concurrently and collect serialized tool states
-        $fork = Fork::new();
-
-        if ($this->beforeChild !== null) {
-            $fork->before(child: $this->beforeChild);
-        }
-
-        $serializedTools = $fork->run(
+        $beforeChild = $this->beforeChild;
+        $serializedTools = Fork::new()->run(
             ...array_map(
-                fn (ToolInterface $tool): Closure => function () use ($tool): string {
+                fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild): string {
                     try {
+                        if ($beforeChild !== null) {
+                            $beforeChild();
+                        }
+
                         // Execute the tool - this mutates the tool's internal state
                         $tool->execute();
 
