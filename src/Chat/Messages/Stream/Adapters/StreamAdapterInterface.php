@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
+use Throwable;
+
 interface StreamAdapterInterface
 {
     /**
@@ -27,4 +29,14 @@ interface StreamAdapterInterface
      * @return iterable<string>
      */
     public function end(): iterable;
+
+    /**
+     * Protocol failure sequence, consumed instead of end() when streaming fails.
+     *
+     * Adapters encode the original error for their protocol, including any
+     * termination frames. Return an empty iterable if no failure output is needed.
+     *
+     * @return iterable<string>
+     */
+    public function error(Throwable $error): iterable;
 }

@@ -22,12 +22,15 @@ of Agent-specific and memory-specific concepts so custom workflows can use it.
 
 ## Current adapter contract
 
-`StreamAdapterInterface` has three operations:
+`StreamAdapterInterface` has four operations:
 
 - `start()` emits optional protocol framing;
 - `transform(object $chunk)` converts one yielded object into zero or more
   strings;
-- `end()` emits optional protocol termination.
+- `end()` emits optional protocol termination on completion or suspension;
+- `error(Throwable $error)` emits optional failure and termination frames instead
+  of `end()` when streaming fails. Custom adapters receive the original exception
+  and own its protocol representation; return `[]` if no failure output is needed.
 
 Adapters are stateful for one stream. Never share one adapter instance between
 two concurrent streams. Pull and push delivery from one Workflow execution use
@@ -40,8 +43,8 @@ and protocol payloads belong in the concrete adapters.
 
 | Adapter | Run/message framing | Native chunks |
 |---|---|---|
-| `AGUIAdapter` | `RUN_STARTED` / `RUN_FINISHED`, with separate text and reasoning lifecycles | text, reasoning, tool arguments, tool calls, tool results |
-| `VercelAIAdapter` | lazy `start`, then `finish` and `[DONE]` | text, reasoning, tool arguments, tool calls, tool results |
+| `AGUIAdapter` | `RUN_STARTED` / `RUN_FINISHED` or `RUN_ERROR`, with separate text and reasoning lifecycles | text, reasoning, tool arguments, tool calls, tool results |
+| `VercelAIAdapter` | lazy `start`, then `finish` and `[DONE]`; failures emit `error` and `[DONE]` | text, reasoning, tool arguments, tool calls, tool results |
 
 Unknown objects are currently ignored. Preserve that behavior for objects that
 are neither recognized portable stream events nor explicitly mapped developer
@@ -84,9 +87,8 @@ than an event value.
 ### Developer mapping API
 
 `CustomizableStreamAdapterInterface` adds mapping without changing
-`StreamAdapterInterface`, so existing custom adapter implementations remain
-compatible. Both built-in adapters implement it and share the exact-class
-registry and resolution behavior.
+`StreamAdapterInterface`, so mapping remains an optional capability. Both built-in
+adapters implement it and share the exact-class registry and resolution behavior.
 
 The developer API is:
 
@@ -137,7 +139,10 @@ adapter translates semantic fields to the names required by its protocol.
 
 ### AG-UI
 
-- `RUN_STARTED` is the first frame and `RUN_FINISHED` is the last frame.
+- `RUN_STARTED` is the first frame; `RUN_FINISHED` or `RUN_ERROR` is the last frame.
+- `error(Throwable $error)` closes active text/reasoning lifecycles and emits
+  `RUN_ERROR` with the exception message and a string code when nonzero.
+  Subsequent adapter calls emit no frames.
 - A text or reasoning lifecycle must close before another incompatible lifecycle
   begins.
 - Step, activity, and custom events are run-level events. They must not create,
@@ -155,7 +160,14 @@ adapter translates semantic fields to the names required by its protocol.
   message.
 - Step, activity, and custom conversions are transient UI data and must not be
   appended to the persisted assistant message.
-- Preserve the existing `finish` and `[DONE]` termination sequence.
+- Preserve the existing `finish` and `[DONE]` termination sequence on success.
+- On failure, emit `error` with `errorText`, then `[DONE]`. Subsequent adapter
+  calls emit no frames.
+
+Workflow calls `error()` automatically for failures caught during streamed
+execution or chunk transformation. The same failure frames reach pull consumers
+and the channel's `sendLine()` port. The channel still receives `failed()` and
+the original exception is rethrown to the caller.
 
 ## Durability and replay
 

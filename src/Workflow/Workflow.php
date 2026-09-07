@@ -446,7 +446,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
                 }
             }
         } catch (Throwable $e) {
-            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
+            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->error($e)) as $output) {
                 yield $output;
             }
             $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->failed($e, $this->workflowId ?? 'unresolved'));

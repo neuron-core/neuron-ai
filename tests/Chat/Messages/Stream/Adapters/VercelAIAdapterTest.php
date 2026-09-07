@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 use function iterator_to_array;
 use function json_decode;
@@ -50,6 +51,32 @@ class VercelAIAdapterTest extends TestCase
         $this->assertCount(2, $result);
         $this->assertStringContainsString('"type":"finish"', $result[0]);
         $this->assertStringContainsString('[DONE]', $result[1]);
+    }
+
+    public function test_error_emits_error_text_and_done(): void
+    {
+        $message = "Provider failed: \"unavailable\"\nPlease retry.";
+        $result = iterator_to_array($this->adapter->error(new RuntimeException($message, 503)), false);
+
+        $this->assertCount(2, $result);
+        $this->assertStringStartsWith('data: ', $result[0]);
+        $this->assertStringEndsWith("\n\n", $result[0]);
+        $this->assertSame([
+            'type' => 'error',
+            'errorText' => $message,
+        ], json_decode(substr($result[0], 6, -2), true));
+        $this->assertSame("data: [DONE]\n\n", $result[1]);
+    }
+
+    public function test_error_is_terminal_after_streaming(): void
+    {
+        iterator_to_array($this->adapter->transform(new TextChunk('msg_test', 'Hello')), false);
+        iterator_to_array($this->adapter->error(new RuntimeException('Failed')), false);
+
+        $this->assertSame([], iterator_to_array($this->adapter->end(), false));
+        $this->assertSame([], iterator_to_array($this->adapter->error(new RuntimeException('Failed again')), false));
+        $this->assertSame([], iterator_to_array($this->adapter->transform(new TextChunk('msg_test', 'Late')), false));
+        $this->assertSame([], $this->adapter->start());
     }
 
     public function test_transform_text_chunk(): void

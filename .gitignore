@@ -8,6 +8,7 @@ composer.lock
 .claude
 .junie
 .codex
+.ai
 .env
 scripts
 phpunit.xml.local

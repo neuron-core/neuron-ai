@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
+use Throwable;
 
 use function json_encode;
 
@@ -30,6 +31,8 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     protected ?string $currentMessageId = null;
 
     protected bool $messageStarted = false;
+
+    protected bool $runFailed = false;
 
     /** @var array<string, string> Tool name to tool call ID */
     protected array $toolCallIds = [];
@@ -59,6 +62,10 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
      */
     public function transform(object $chunk): iterable
     {
+        if ($this->runFailed) {
+            return;
+        }
+
         [$resolved, $streamEvent] = $this->resolveStreamEvent($chunk);
 
         if ($resolved) {
@@ -306,6 +313,10 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
     public function start(): iterable
     {
+        if ($this->runFailed) {
+            return;
+        }
+
         $this->runId ??= $this->generateId('run');
 
         yield $this->sse([
@@ -356,8 +367,40 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $this->currentMessageId = null;
     }
 
+    /**
+     * Terminate a failed run instead of calling end().
+     *
+     * @return iterable<string>
+     */
+    public function error(Throwable $error): iterable
+    {
+        if ($this->runFailed) {
+            return;
+        }
+
+        $this->runFailed = true;
+
+        yield from $this->endReasoning();
+        yield from $this->endText();
+
+        $event = [
+            'type' => 'RUN_ERROR',
+            'message' => $error->getMessage(),
+        ];
+
+        if ($error->getCode() !== 0) {
+            $event['code'] = (string) $error->getCode();
+        }
+
+        yield $this->sse($event);
+    }
+
     public function end(): iterable
     {
+        if ($this->runFailed) {
+            return;
+        }
+
         foreach ($this->endReasoning() as $event) {
             yield $event;
         }

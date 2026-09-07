@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent\Stub;
 
 use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use Throwable;
 
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
@@ -24,6 +25,11 @@ class ParityAdapter implements StreamAdapterInterface
         if ($chunk instanceof TextChunk) {
             yield 'text:' . $chunk->content . "\n";
         }
+    }
+
+    public function error(Throwable $error): iterable
+    {
+        yield 'error:' . $error->getMessage() . "\n";
     }
 
     public function end(): iterable
