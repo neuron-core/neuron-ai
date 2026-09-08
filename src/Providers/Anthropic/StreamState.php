@@ -67,8 +67,8 @@ class StreamState extends BasicStreamState
                 'name' => $line['content_block']['name'],
                 'input' => '',
             ];
-        } elseif ($input = $line['delta']['partial_json'] ?? null) {
-            $this->toolCalls[$line['index']]['input'] .= $input;
+        } elseif ($line['delta']['partial_json'] ?? false) {
+            $this->toolCalls[$line['index']]['input'] .= $line['delta']['partial_json'];
         }
     }
 
@@ -76,8 +76,8 @@ class StreamState extends BasicStreamState
     {
         // Decode the input and return
         return array_map(function (array $call): array {
-            $call['input'] = json_decode((string) $call['input'], true);
+            $call['input'] = !empty($call['input']) ? json_decode((string) $call['input'], true) : [];
             return $call;
-        }, $this->toolCalls);
+        }, array_values($this->toolCalls));
     }
 }

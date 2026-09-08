@@ -41,7 +41,6 @@ use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Agent;
-use NeuronAI\Agent\SystemPrompt;
 
 class ContainsEvaluator extends BaseEvaluator
 {
