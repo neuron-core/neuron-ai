@@ -332,22 +332,25 @@ $agent->setInstructions('You are a helpful assistant.');
 ## Chat History & Thread Identity
 
 Agents automatically maintain conversation history. The identity model has one
-rule: **the thread identity enters through `make(threadId:)` — never through
-history construction.** Histories are constructed *without* their thread
-(identity-free); the framework binds the resolved threadId into them before
-first use:
+rule: **the thread identity can be declared in the chat history component or enters through `make(threadId:)`**
+If the histories are constructed *without* their threadId (identity-free), it will be required on agent construction,
+and the framework will binds the resolved threadId into them before first use:
 
 ```php
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\SQLChatHistory;
 
-// In the agent class: the hook constructs WITHOUT identity.
+// In the agent class: construct the history component with the threadId
 protected function chatHistory(): ChatHistoryInterface
 {
-    return new SQLChatHistory($this->pdo, contextWindow: 50000);   // identity: not your job
+    return new SQLChatHistory(
+        pdo: $this->pdo,
+        threadId: $threadId,
+        contextWindow: 50000
+    );
 }
 
-// In the controller: identity is stated once, at the front door.
+// In the controller: in alternative the identity enters at the agent construction time
 $state = MyAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 ```
 
