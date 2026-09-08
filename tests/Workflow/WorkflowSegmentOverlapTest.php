@@ -13,6 +13,8 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+
 /**
  * A workflow instance runs one segment at a time. A second segment started
  * under a live one used to overwrite the executor's working context, so the
