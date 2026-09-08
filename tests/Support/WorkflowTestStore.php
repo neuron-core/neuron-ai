@@ -18,7 +18,7 @@ class WorkflowTestStore
     public static function memoizer(PersistenceInterface $persistence, string $workflowId, string $stepId): StepMemoizer
     {
         $store = new WorkflowRunStore($persistence, new PhpSerializer(), $workflowId);
-        if ($store->loadControl() === null) {
+        if (!$store->loadControl() instanceof \NeuronAI\Workflow\Executor\WorkflowControl) {
             $store->initialize(
                 new WorkflowControl('test-run', WorkflowStatus::Running),
                 new Ignition('test-run', new StartEvent()),

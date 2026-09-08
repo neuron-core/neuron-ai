@@ -45,9 +45,7 @@ class WorkflowSegmentOverlapTest extends TestCase
         } catch (WorkflowException $e) {
             $this->assertStringContainsString('already in flight', $e->getMessage());
         }
-
-        foreach ($live as $ignored) {
-        }
+        iterator_to_array($live, false);
         $state = $live->getReturn();
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());

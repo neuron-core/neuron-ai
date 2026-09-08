@@ -278,7 +278,7 @@ final class WorkflowRunStore
         $committed = $this->serializeRecords($records);
         $writes = $committed;
         $controlSnapshot = $this->expectedControlValue();
-        if ($control !== null && $control !== $this->control) {
+        if ($control instanceof \NeuronAI\Workflow\Executor\WorkflowControl && $control !== $this->control) {
             $controlSnapshot = $this->serializer->serialize($control);
             $writes[self::CONTROL_KEY] = $controlSnapshot;
         }

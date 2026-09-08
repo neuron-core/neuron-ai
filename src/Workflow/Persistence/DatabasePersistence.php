@@ -123,18 +123,24 @@ class DatabasePersistence implements PersistenceInterface
         bool $deletePartition = false,
     ): bool {
         $partition = $this->encodeKey($partition);
+        $initialValue = null;
+        if ($expectedValue === null) {
+            $initialValue = base64_encode($writes[$conditionKey]);
+            unset($writes[$conditionKey]);
+        }
         $conditionKey = $this->encodeKey($conditionKey);
+        // Hex-encoded keys can be all digits and PHP would coerce them to int array
+        // indexes, so the encoded records are kept as a list of pairs.
         $encoded = [];
         foreach ($writes as $key => $value) {
-            $encoded[$this->encodeKey((string) $key)] = base64_encode($value);
+            $encoded[] = [$this->encodeKey((string) $key), base64_encode($value)];
         }
 
-        return $this->transaction(function () use ($partition, $conditionKey, $expectedValue, $encoded, $deletePartition): bool {
-            if ($expectedValue === null) {
-                if (!$this->insertIfAbsent($partition, $conditionKey, $encoded[$conditionKey])) {
+        return $this->transaction(function () use ($partition, $conditionKey, $expectedValue, $initialValue, $encoded, $deletePartition): bool {
+            if ($initialValue !== null) {
+                if (!$this->insertIfAbsent($partition, $conditionKey, $initialValue)) {
                     return false;
                 }
-                unset($encoded[$conditionKey]);
             } else {
                 // SQLite must acquire its writer lock before reading the condition;
                 // upgrading a deferred read transaction races with other writers.
@@ -161,8 +167,8 @@ class DatabasePersistence implements PersistenceInterface
                 $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->partitionCol} = :partition");
                 $stmt->execute(['partition' => $partition]);
             } else {
-                foreach ($encoded as $key => $value) {
-                    $this->upsert($partition, (string) $key, $value);
+                foreach ($encoded as [$key, $value]) {
+                    $this->upsert($partition, $key, $value);
                 }
             }
 

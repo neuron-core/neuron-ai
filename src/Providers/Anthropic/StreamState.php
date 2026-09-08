@@ -10,6 +10,7 @@ use NeuronAI\Providers\BasicStreamState;
 use function array_key_exists;
 use function array_map;
 use function json_decode;
+use function array_values;
 
 class StreamState extends BasicStreamState
 {
