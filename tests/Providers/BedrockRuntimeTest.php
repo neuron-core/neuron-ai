@@ -76,7 +76,10 @@ class BedrockRuntimeTest extends TestCase
         $response = $provider->chat(new UserMessage('Hi'));
         $this->assertInstanceOf(AssistantMessage::class, $response);
 
-        $this->assertSame('Hello world', $response->getContent());
+        $this->assertCount(2, $response->getTextBlocks());
+        $this->assertSame('Hello', $response->getContentBlocks()[0]->getContent());
+        $this->assertSame(' world', $response->getContentBlocks()[1]->getContent());
+        $this->assertSame('Hello  world', $response->getContent());
         $this->assertSame('end_turn', $response->stopReason());
         $this->assertNotNull($response->getUsage());
         $this->assertSame(5, $response->getUsage()->jsonSerialize()['input_tokens']);
