@@ -45,13 +45,13 @@ class BedrockReasoningTest extends TestCase
             ],
             [
                 'contentBlockDelta' => [
-                    'contentBlockIndex' => 0,
+                    'contentBlockIndex' => 1,
                     'delta' => ['reasoningContent' => ['redactedContent' => 'encrypted']],
                 ],
             ],
             [
                 'contentBlockDelta' => [
-                    'contentBlockIndex' => 1,
+                    'contentBlockIndex' => 2,
                     'delta' => ['text' => 'The answer'],
                 ],
             ],
@@ -92,6 +92,10 @@ class BedrockReasoningTest extends TestCase
         $this->assertSame('The answer', $blocks[1]->content);
         $this->assertSame(10, $message->getUsage()->inputTokens);
         $this->assertSame(8, $message->getUsage()->outputTokens);
+        $this->assertSame(
+            ['reasoningContent' => ['redactedContent' => 'encrypted']],
+            (new MessageMapper())->map([$message])[0]['content'][1]
+        );
     }
 
     public function test_chat_preserves_reasoning_for_next_request(): void
@@ -156,6 +160,7 @@ class BedrockReasoningTest extends TestCase
                             ],
                         ],
                     ],
+                    ['reasoningContent' => ['redactedContent' => 'encrypted']],
                     ['text' => 'The answer'],
                 ],
             ],

@@ -7,15 +7,15 @@ namespace NeuronAI\Providers\AWS;
 use Aws\ResultInterface;
 use GuzzleHttp\Promise\PromiseInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
 
-use function end;
+use function base64_encode;
 
 trait HandleChat
 {
@@ -39,23 +39,7 @@ trait HandleChat
                 );
 
                 $stopReason = $result['stopReason'] ?? '';
-                $blocks = $this->mapResponseContent($result['output']['message']['content'] ?? []);
-
-                if ($stopReason === 'tool_use') {
-                    $tools = [];
-                    foreach ($result['output']['message']['content'] ?? [] as $toolContent) {
-                        if (isset($toolContent['toolUse'])) {
-                            $tools[] = $this->createTool($toolContent);
-                        }
-                    }
-
-                    $message = new ToolCallMessage($blocks, $tools);
-                    $message->setUsage($usage);
-                    $message->setStopReason($stopReason);
-                    return $message;
-                }
-
-                $message = new AssistantMessage($blocks);
+                $message = $this->createResponseMessage($result['output']['message']['content'] ?? []);
                 $message->setUsage($usage);
                 $message->setStopReason($stopReason);
                 return $message;
@@ -64,21 +48,18 @@ trait HandleChat
 
     /**
      * @param array<int, array<string, mixed>> $contents
-     * @return ContentBlockInterface[]
+     * @throws ProviderException
      */
-    protected function mapResponseContent(array $contents): array
+    protected function createResponseMessage(array $contents): AssistantMessage
     {
         $blocks = [];
+        $tools = [];
+        $toolPositions = [];
+        $redactedReasoning = [];
 
-        foreach ($contents as $content) {
+        foreach ($contents as $index => $content) {
             if (isset($content['text'])) {
-                $lastBlock = end($blocks);
-
-                if ($lastBlock instanceof TextContent && !$lastBlock instanceof ReasoningContent) {
-                    $lastBlock->accumulateContent($content['text']);
-                } else {
-                    $blocks[] = new TextContent($content['text']);
-                }
+                $blocks[] = new TextContent($content['text']);
                 continue;
             }
 
@@ -89,8 +70,26 @@ trait HandleChat
                     $reasoningText['signature'] ?? null,
                 );
             }
+
+            if (isset($content['reasoningContent']['redactedContent'])) {
+                // The AWS SDK returns binary bytes; history stores JSON.
+                $redactedReasoning[$index] = base64_encode($content['reasoningContent']['redactedContent']);
+            }
+
+            if (isset($content['toolUse'])) {
+                $tools[] = $this->createTool($content);
+                $toolPositions[] = $index;
+            }
         }
 
-        return $blocks;
+        $message = $tools === [] ? new AssistantMessage($blocks) : new ToolCallMessage($blocks, $tools);
+        if ($redactedReasoning !== []) {
+            $message->addMetadata('aws_redacted_reasoning', $redactedReasoning);
+        }
+        if ($toolPositions !== []) {
+            $message->addMetadata('aws_tool_positions', $toolPositions);
+        }
+
+        return $message;
     }
 }

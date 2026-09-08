@@ -76,7 +76,8 @@ trait HandleStream
             $message = $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
                 $this->streamState->getContentBlocks()
-            )->setUsage($this->streamState->getUsage())
+            )->setMetadata($this->streamState->getMetadata())
+             ->setUsage($this->streamState->getUsage())
              ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
              ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
 
@@ -84,7 +85,8 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        $message->setUsage($this->streamState->getUsage())
+        $message->setMetadata($this->streamState->getMetadata())
+            ->setUsage($this->streamState->getUsage())
             ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
             ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
 
@@ -131,7 +133,14 @@ trait HandleStream
             $this->streamState->addContentBlock($index, new TextContent(''));
         } elseif ($type === 'thinking') {
             $this->streamState->addContentBlock($index, new ReasoningContent(''));
+        } elseif ($type === 'redacted_thinking') {
+            $redactedThinking = $this->streamState->getMetadata('anthropic_redacted_thinking') ?? [];
+            $redactedThinking[$index] = $event['content_block']['data'];
+            $this->streamState->addMetadata('anthropic_redacted_thinking', $redactedThinking);
         } elseif ($type === 'tool_use') {
+            $toolPositions = $this->streamState->getMetadata('anthropic_tool_positions') ?? [];
+            $toolPositions[] = $index;
+            $this->streamState->addMetadata('anthropic_tool_positions', $toolPositions);
             $this->streamState->composeToolCalls($event);
         }
     }

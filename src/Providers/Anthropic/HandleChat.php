@@ -53,12 +53,14 @@ trait HandleChat
     {
         $blocks = [];
         $toolCalls = [];
+        $toolPositions = [];
+        $redactedThinking = [];
 
         if (!isset($result['content'])) {
             goto message;
         }
 
-        foreach ($result['content'] as $content) {
+        foreach ($result['content'] as $index => $content) {
             if ($content['type'] === 'thinking') {
                 $blocks[] = new ReasoningContent($content['thinking'], $content['signature']);
                 continue;
@@ -69,8 +71,14 @@ trait HandleChat
                 continue;
             }
 
+            if ($content['type'] === 'redacted_thinking') {
+                $redactedThinking[$index] = $content['data'];
+                continue;
+            }
+
             if ($content['type'] === 'tool_use') {
                 $toolCalls[] = $content;
+                $toolPositions[] = $index;
             }
         }
 
@@ -83,6 +91,13 @@ trait HandleChat
             if (!empty($citations)) {
                 $message->addMetadata('citations', $citations);
             }
+        }
+
+        if ($redactedThinking !== []) {
+            $message->addMetadata('anthropic_redacted_thinking', $redactedThinking);
+        }
+        if ($toolPositions !== []) {
+            $message->addMetadata('anthropic_tool_positions', $toolPositions);
         }
 
         // Save the usage for the current interaction

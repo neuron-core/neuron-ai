@@ -17,6 +17,8 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
 
+use function array_map;
+use function base64_encode;
 use function count;
 
 trait HandleStream
@@ -37,6 +39,8 @@ trait HandleStream
         $this->streamState = new StreamState();
 
         $tools = [];
+        $toolPositions = [];
+        $redactedReasoning = [];
         $stopReason = null;
 
         foreach ($result as $eventParserIterator) {
@@ -60,6 +64,7 @@ trait HandleStream
                 }
 
                 if (isset($event['contentBlockStart']['start']['toolUse'])) {
+                    $toolPositions[] = $event['contentBlockStart']['contentBlockIndex'];
                     $toolContent = $event['contentBlockStart']['start'];
                     $toolContent['toolUse']['input'] = '';
                     continue;
@@ -86,11 +91,21 @@ trait HandleStream
                         yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent['text']);
                     }
 
+                    if (isset($reasoningContent['redactedContent'])) {
+                        $redactedReasoning[$contentBlockIndex] ??= '';
+                        $redactedReasoning[$contentBlockIndex] .= $reasoningContent['redactedContent'];
+                    }
+
                     if (isset($reasoningContent['signature'])) {
                         $this->streamState->signReasoningContentBlock($contentBlockIndex, $reasoningContent['signature']);
                     }
 
                     continue;
+                }
+
+                if ($toolContent !== null && isset($event['contentBlockStop'])) {
+                    $tools[] = $this->createTool($toolContent);
+                    $toolContent = null;
                 }
 
                 if ($toolContent !== null && isset($event['contentBlockDelta']['delta']['toolUse'])) {
@@ -120,6 +135,12 @@ trait HandleStream
             $message = new AssistantMessage($this->streamState->getContentBlocks());
         }
 
+        if ($redactedReasoning !== []) {
+            $message->addMetadata('aws_redacted_reasoning', array_map(base64_encode(...), $redactedReasoning));
+        }
+        if ($toolPositions !== []) {
+            $message->addMetadata('aws_tool_positions', $toolPositions);
+        }
         $message->setUsage($this->streamState->getUsage());
 
         return new ProviderResponse(message: $message);
