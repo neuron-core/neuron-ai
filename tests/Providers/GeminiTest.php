@@ -69,7 +69,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
         $this->assertSame('STOP', $response->stopReason());
     }
@@ -112,7 +112,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -154,7 +154,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -196,7 +196,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -238,7 +238,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
         $this->assertSame('test response', $response->getContent());
     }
 
@@ -307,7 +307,7 @@ class GeminiTest extends TestCase
             ],
         ];
 
-        $this->assertSame($expectedRequest, json_decode((string) $request['request']->getBody()->getContents(), true));
+        $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
     public function test_structured_with_supported_model(): void
@@ -349,7 +349,7 @@ class GeminiTest extends TestCase
         $provider->structured(new UserMessage('hi'), 'SomeClass', $schema);
 
         $this->assertCount(1, $sentRequests);
-        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+        $requestBody = json_decode($sentRequests[0]['request']->getBody()->getContents(), true);
 
         // Ensure generationConfig has responseSchema and responseMimeType
         $this->assertArrayHasKey('generationConfig', $requestBody);
@@ -395,7 +395,7 @@ class GeminiTest extends TestCase
         $provider->structured(new UserMessage('hi'), 'SomeClass', $schema);
 
         $this->assertCount(1, $sentRequests);
-        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+        $requestBody = json_decode($sentRequests[0]['request']->getBody()->getContents(), true);
 
         $responseSchema = $requestBody['generationConfig']['responseSchema'];
 
@@ -446,7 +446,7 @@ class GeminiTest extends TestCase
         $provider->structured(new UserMessage('hi'), 'SomeClass', $schema);
 
         $this->assertCount(1, $sentRequests);
-        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody()->getContents(), true);
+        $requestBody = json_decode($sentRequests[0]['request']->getBody()->getContents(), true);
 
         // Ensure generationConfig does NOT have responseSchema (since fallback is used)
         if (isset($requestBody['generationConfig'])) {

@@ -22,7 +22,6 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-
 use Generator;
 
 class AgentTest extends TestCase
@@ -207,7 +206,7 @@ class AgentTest extends TestCase
 
         // A provider whose stream yields a chunk and then fails mid-flight,
         // modelling a dropped connection or a mid-stream API error.
-        $provider = new class extends FakeAIProvider {
+        $provider = new class () extends FakeAIProvider {
             public function stream(Message ...$messages): Generator
             {
                 yield new TextChunk('fake_msg', 'Hello');
