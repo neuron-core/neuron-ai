@@ -42,8 +42,8 @@ trait ResolveRetrieval
     protected function retrieval(): RetrievalInterface
     {
         return new SimilarityRetrieval(
-            $this->resolveVectorStore(),
-            $this->resolveEmbeddingsProvider()
+            vectorStore: $this->resolveVectorStore(),
+            embeddingProvider: $this->resolveEmbeddingsProvider()
         );
     }
 
