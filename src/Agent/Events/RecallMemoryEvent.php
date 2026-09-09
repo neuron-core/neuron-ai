@@ -6,13 +6,7 @@ namespace NeuronAI\Agent\Events;
 
 use NeuronAI\Workflow\Events\Event;
 
-/**
- * Routes a newly-created inference through the memory recall phase.
- */
+/** Routes the request through memory recall before inference. */
 class RecallMemoryEvent implements Event
 {
-    public function __construct(
-        public AIInferenceEvent $inferenceEvent,
-    ) {
-    }
 }

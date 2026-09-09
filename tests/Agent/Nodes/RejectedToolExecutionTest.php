@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -50,8 +50,9 @@ class RejectedToolExecutionTest extends TestCase
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$call]);
-        $inferenceEvent = new AIInferenceEvent('test', [$tool]);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest('test', [$tool]);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {
@@ -73,8 +74,9 @@ class RejectedToolExecutionTest extends TestCase
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$call]);
-        $inferenceEvent = new AIInferenceEvent('test', [$tool]);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest('test', [$tool]);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {

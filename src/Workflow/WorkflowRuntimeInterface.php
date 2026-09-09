@@ -84,6 +84,9 @@ interface WorkflowRuntimeInterface
      */
     public function restoreEvent(Event $event): Event;
 
+    /** Restore transient dependencies on a state recalled from persistence. */
+    public function restoreState(WorkflowState $state): WorkflowState;
+
     /**
      * The state store this run's durable records live in (steps, memos,
      * the ignition record).

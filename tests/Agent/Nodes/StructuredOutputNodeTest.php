@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Exceptions\AgentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -35,9 +39,11 @@ class StructuredOutputNodeTest extends TestCase
         $node = new StructuredOutputNode($provider, $chatHistory);
         $state = new AgentState();
 
-        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
-        $event->setStructuredOutput(User::class, 1);
-        $event->setMessages(new UserMessage('Generate a user'));
+        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $event = new StructuredInferenceEvent();
+        $state->request->options->outputClass = User::class;
+        $state->request->options->maxRetries = 1;
+        $state->request->messages = [new UserMessage('Generate a user')];
 
         $node->setWorkflowContext(new NodeContext($state, $event));
 
@@ -51,35 +57,35 @@ class StructuredOutputNodeTest extends TestCase
         $this->assertSame('Alice', $output->name);
     }
 
-    /**
-     * maxTries < 1 is normalized to 1, so the node always retries at least once
-     * (2 attempts total) rather than aborting after the initial failed attempt.
-     */
-    public function test_max_tries_floored_to_one(): void
+    /** @return iterable<string, array{int}> */
+    public static function no_retries(): iterable
     {
-        $chatHistory = new InMemoryChatHistory();
+        yield 'zero' => [0];
+        yield 'negative' => [-2];
+    }
+
+    #[DataProvider('no_retries')]
+    public function test_no_retries_stops_after_the_initial_failure(int $maxRetries): void
+    {
         $provider = new FakeAIProvider(
-            new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
-            new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
+            new AssistantMessage('I cannot produce JSON'),
+            new AssistantMessage('{"name": "Alice"}'),
         );
-
-        $node = new StructuredOutputNode($provider, $chatHistory);
+        $node = new StructuredOutputNode($provider, new InMemoryChatHistory());
         $state = new AgentState();
-
-        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
-        // Raw field writes bypass setStructuredOutput()'s own normalization,
-        // so this exercises the node's floor specifically.
-        $event->outputClass = User::class;
-        $event->maxTries = 0;
-        $event->setMessages(new UserMessage('Generate a user'));
-
+        $request = new InferenceRequest('Test', messages: [new UserMessage('Generate a user')]);
+        $request->options->outputClass = User::class;
+        $request->options->maxRetries = $maxRetries;
+        $state->request = $request;
+        $event = new StructuredInferenceEvent();
         $node->setWorkflowContext(new NodeContext($state, $event));
 
-        $return = $node($event, $state);
-
-        $this->assertInstanceOf(StopEvent::class, $return);
-        $provider->assertMethodCallCount('structured', 2);
-        $this->assertInstanceOf(User::class, $state->get('structured_output'));
+        $this->expectException(AgentException::class);
+        try {
+            $node($event, $state);
+        } finally {
+            $provider->assertMethodCallCount('structured', 1);
+        }
     }
 
     /**
@@ -104,9 +110,11 @@ class StructuredOutputNodeTest extends TestCase
         $state = new AgentState();
         $state->setExecutionMetadata($runId, $runId, 1);
 
-        $event = new StructuredInferenceEvent(instructions: 'Test', tools: []);
-        $event->setStructuredOutput(User::class, 1);
-        $event->setMessages(new UserMessage('Generate a user'));
+        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $event = new StructuredInferenceEvent();
+        $state->request->options->outputClass = User::class;
+        $state->request->options->maxRetries = 1;
+        $state->request->messages = [new UserMessage('Generate a user')];
 
         $node1 = new StructuredOutputNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
@@ -121,6 +129,7 @@ class StructuredOutputNodeTest extends TestCase
         // (prior bad response + correction text) are reconstructed deterministically
         // from the recalled memos, so both attempts are served from cache.
         $state2 = new AgentState();
+        $state2->request = clone $state->request;
         $state2->setExecutionMetadata($runId, $runId, 1);
 
         $node2 = new StructuredOutputNode($provider, $chatHistory);

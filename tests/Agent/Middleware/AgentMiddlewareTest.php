@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Middleware\Stub\PlainWorkflowNode;
 use NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware;
 use NeuronAI\Agent\AgentState;
@@ -21,10 +22,12 @@ class AgentMiddlewareTest extends TestCase
     {
         $middleware = new RecordingAgentMiddleware();
         $node = new ToolNode(new InMemoryChatHistory());
-        $event = new AIInferenceEvent('instructions', []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest('instructions', []);
+        $event = new AIInferenceEvent();
 
-        $middleware->before($node, $event, new AgentState());
-        $middleware->after($node, $event, new AgentState());
+        $middleware->before($node, $event, $state);
+        $middleware->after($node, $event, $state);
 
         $this->assertSame(1, $middleware->agentCalls);
         $this->assertSame(1, $middleware->afterCalls);

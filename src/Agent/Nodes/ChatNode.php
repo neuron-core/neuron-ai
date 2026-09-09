@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Nodes;
 
 use Generator;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -22,11 +23,10 @@ use Throwable;
 use function end;
 
 /**
- * Receives an AIInferenceEvent containing instructions and tools that middleware can
- * modify before the actual inference call is made.
+ * Reads the working request from AgentState after middleware has applied its changes.
  *
  * Chat and streaming are the same inference with different transport: the
- * event's stream intent selects between a buffered provider call and a live
+ * request's stream intent selects between a buffered provider call and a live
  * chunk stream. Both paths record the same ProviderResponse under the same
  * memo, so the intent flag can never invalidate a replay.
  */
@@ -38,18 +38,18 @@ class ChatNode extends InferenceNode
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|StopEvent|StoreMemoryEvent|ToolCallEvent
     {
-        if ($event->stream) {
-            return $this->streamedInference($event, $state);
+        if ($state->request->options->stream) {
+            return $this->streamedInference($state);
         }
 
-        $inbound = $event->getMessages();
+        $inbound = $state->request->messages;
         $messages = $this->pendingConversation($inbound);
         $lastMessage = end($messages);
 
         $this->emit(new InferenceStart($lastMessage));
         $providerResponse = $this->memoize(
             'inference',
-            fn (): ProviderResponse => $this->inference($event, $messages),
+            fn (): ProviderResponse => $this->inference($state->request, $messages),
         );
         $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
@@ -59,12 +59,12 @@ class ChatNode extends InferenceNode
 
         // The tool node owns writing the tool call message to chat history.
         if ($message instanceof ToolCallMessage) {
-            return new ToolCallEvent($message, $event);
+            return new ToolCallEvent($message);
         }
 
         $this->addToChatHistory($message, 'history.response');
 
-        return $this->memoryAvailable && $event->rememberMemory
+        return $this->memoryAvailable && $state->request->options->rememberMemory
             ? new StoreMemoryEvent([...$inbound, $message])
             : new StopEvent();
     }
@@ -77,9 +77,9 @@ class ChatNode extends InferenceNode
      * @throws ChatHistoryException
      * @throws Throwable
      */
-    protected function streamedInference(AIInferenceEvent $event, AgentState $state): Generator
+    protected function streamedInference(AgentState $state): Generator
     {
-        $inbound = $event->getMessages();
+        $inbound = $state->request->messages;
         $messages = $this->pendingConversation($inbound);
         $lastMessage = end($messages);
 
@@ -94,8 +94,8 @@ class ChatNode extends InferenceNode
 
             if (!$providerResponse instanceof ProviderResponse) {
                 $stream = $this->provider
-                    ->systemPrompt($event->instructions)
-                    ->setTools($event->tools)
+                    ->systemPrompt($state->request->instructions)
+                    ->setTools($state->request->tools)
                     ->stream(...$messages);
 
                 foreach ($stream as $chunk) {
@@ -115,12 +115,12 @@ class ChatNode extends InferenceNode
             $message = $providerResponse->message();
 
             if ($message instanceof ToolCallMessage) {
-                return new ToolCallEvent($message, $event);
+                return new ToolCallEvent($message);
             }
 
             $this->addToChatHistory($message, 'history.response');
 
-            return $this->memoryAvailable && $event->rememberMemory
+            return $this->memoryAvailable && $state->request->options->rememberMemory
                 ? new StoreMemoryEvent([...$inbound, $message])
                 : new StopEvent();
 
@@ -136,11 +136,11 @@ class ChatNode extends InferenceNode
      *
      * @param Message[] $messages
      */
-    protected function inference(AIInferenceEvent $event, array $messages): ProviderResponse
+    protected function inference(InferenceRequest $request, array $messages): ProviderResponse
     {
         return $this->provider
-            ->systemPrompt($event->instructions)
-            ->setTools($event->tools)
+            ->systemPrompt($request->instructions)
+            ->setTools($request->tools)
             ->chat(...$messages);
     }
 }

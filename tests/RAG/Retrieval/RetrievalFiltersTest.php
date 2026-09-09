@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\Retrieval;
 
-use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
@@ -77,7 +76,7 @@ class RetrievalFiltersTest extends TestCase
 
     public function test_event_filters_accumulate_by_and(): void
     {
-        $event = new QueryPreProcessedEvent(new UserMessage('question'), new AgentStartEvent());
+        $event = new QueryPreProcessedEvent(new UserMessage('question'));
 
         $this->assertNull($event->getFilters());
 

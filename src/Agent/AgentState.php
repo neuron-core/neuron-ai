@@ -24,6 +24,17 @@ use function get_object_vars;
  */
 class AgentState extends WorkflowState
 {
+    public InferenceRequest $request;
+
+    public function __clone(): void
+    {
+        parent::__clone();
+
+        if (isset($this->request)) {
+            $this->request = clone $this->request;
+        }
+    }
+
     // Exclude the transient `__steps` accumulator from durable snapshots.
     public function __serialize(): array
     {

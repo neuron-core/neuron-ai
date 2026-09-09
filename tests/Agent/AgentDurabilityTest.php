@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -95,14 +96,17 @@ class AgentDurabilityTest extends TestCase
 
         $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
 
-        $event = new AIInferenceEvent('Be helpful', []);
-        $event->setMessages(new UserMessage('Hi'));
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Be helpful', []);
+        $event = new AIInferenceEvent();
+        $state->request->messages = [new UserMessage('Hi')];
 
         // Run 1: invoke the node directly with a durable memoizer bound to the step.
         // The inference memo is persisted on the first run. (We never record the node
         // step itself as completed — simulating a crash right after memoize().)
 
         $state1 = new AgentState();
+        $state1->request = clone $state->request;
         $state1->setExecutionMetadata($workflowId, $workflowId, 1);
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
@@ -113,6 +117,7 @@ class AgentDurabilityTest extends TestCase
         // Recovery: brand-new engine, same persistence (simulates a process restart).
 
         $state2 = new AgentState();
+        $state2->request = clone $state->request;
         $state2->setExecutionMetadata($workflowId, $workflowId, 1);
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));

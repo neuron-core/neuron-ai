@@ -19,8 +19,8 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
 
 1. Extract and pre-process the user question (query expansion, rewriting).
    The question is read from the start event, and nothing is written to chat
-   history before inference: the inbound messages travel on the inference
-   event and commit only after the provider call succeeds, as in the Agent,
+   history before inference: `PreProcessNode` initializes `state->request`, whose
+   pending messages commit only after the provider call succeeds, as in the Agent,
    so a failed turn never leaves a dangling user message on the thread.
 2. Retrieve relevant documents from the VectorStore. `QueryPreProcessedEvent`
    is the injection channel for retrieval filters: middleware (in `before()`
@@ -30,14 +30,12 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
    AND/OR logic, but it can never relax another scope.
    The event is born fresh every run, so a filter never leaks into the next run.
 3. Post-process (re-rank, filter)
-4. `InstructionsNode` births the inference event: document-enriched
-   instructions, the inbound messages, + the run's intent, carried through the chain on each event's
-   `$startEvent` (so a streamed or structured RAG run keeps its mode across
-   the retrieval boundary — a custom node inserted into the chain must thread
-   `$startEvent` through its own event the same way). When requested through
-   `setMemoryUsage()`, the event then passes through the Agent's recall phase
-   before its first inference. Remember routing remains independent after the
-   final response.
+4. `InstructionsNode` enriches `state->request->instructions` with retrieved
+   documents, preserving earlier middleware changes. Messages and options stay in
+   the state request throughout retrieval; intermediate events carry only their
+   query, filters, and documents. Custom nodes can edit the state request directly.
+   When requested through `setMemoryUsage()`, routing passes through recall before
+   inference. Remember routing remains independent after the final response.
 
 ## Core Files
 

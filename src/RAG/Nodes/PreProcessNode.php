@@ -7,7 +7,9 @@ namespace NeuronAI\RAG\Nodes;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Observability\Events\PreProcessed;
@@ -29,10 +31,13 @@ class PreProcessNode extends Node implements AgentNodeInterface
 
     /**
      * @param PreProcessorInterface[] $preProcessors
+     * @param ToolInterface[] $tools
      */
     public function __construct(
         ChatHistoryInterface $chatHistory,
-        private readonly array $preProcessors
+        protected array $preProcessors,
+        protected SystemMessage $instructions,
+        protected array $tools,
     ) {
         $this->chatHistory = $chatHistory;
     }
@@ -40,12 +45,15 @@ class PreProcessNode extends Node implements AgentNodeInterface
     /**
      * Apply preprocessors sequentially to the query.
      */
-    public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|QueryPreProcessedEvent
+    public function __invoke(AgentStartEvent $event, AgentState $state): QueryPreProcessedEvent
     {
-        // The inbound messages travel on the inference event and commit only
-        // after the provider call succeeds (see InferenceNode), so a failed
-        // turn never leaves a dangling user message that wedges the thread.
-        $messages = $event->getMessages();
+        $state->request = new InferenceRequest(
+            instructions: clone $this->instructions,
+            tools: $this->tools,
+            messages: $event->messages,
+            options: $event->options,
+        );
+        $messages = $state->request->messages;
         $query = $messages === [] ? $this->chatHistory->getLastMessage() : end($messages);
 
         foreach ($this->preProcessors as $processor) {
@@ -54,6 +62,6 @@ class PreProcessNode extends Node implements AgentNodeInterface
             $this->emit(new PreProcessed($processor::class, $query));
         }
 
-        return new QueryPreProcessedEvent($query, $event);
+        return new QueryPreProcessedEvent($query);
     }
 }

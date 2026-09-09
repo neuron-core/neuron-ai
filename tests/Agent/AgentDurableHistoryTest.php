@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -183,11 +185,14 @@ class AgentDurableHistoryTest extends TestCase
 
         $chatHistory = new \NeuronAI\Chat\History\InMemoryChatHistory();
 
-        $event = new \NeuronAI\Agent\Events\AIInferenceEvent('Be helpful', []);
-        $event->setMessages(new UserMessage('Hi'));
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Be helpful', []);
+        $event = new \NeuronAI\Agent\Events\AIInferenceEvent();
+        $state->request->messages = [new UserMessage('Hi')];
 
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
+        $state1->request = clone $state->request;
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node1($event, $state1);
@@ -195,6 +200,7 @@ class AgentDurableHistoryTest extends TestCase
         $this->assertCount(2, $chatHistory->getMessages());
 
         $state2 = new \NeuronAI\Agent\AgentState();
+        $state2->request = clone $state->request;
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $node2($event, $state2);

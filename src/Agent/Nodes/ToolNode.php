@@ -25,9 +25,9 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function array_filter;
@@ -59,14 +59,10 @@ use const JSON_PRETTY_PRINT;
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
-    use ChatHistoryHelper;
+    /** @var AgentState */
+    protected WorkflowState $state;
 
-    /**
-     * Narrowed for static analysis.
-     *
-     * @var ToolCallEvent
-     */
-    protected Event $event;
+    use ChatHistoryHelper;
 
     /**
      * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
@@ -126,24 +122,24 @@ class ToolNode extends Node implements AgentNodeInterface
             // inference's inbound messages and commits together only after
             // that provider call succeeds — a crash leaves the history tail
             // at the last committed message, never at a dangling tool call.
-            $event->inferenceEvent->setMessages($event->toolCallMessage, $toolCallResult);
+            $state->request->messages = [$event->toolCallMessage, $toolCallResult];
         } else {
             // The tool call message is already in history (pre-suspend write):
             // only the result message travels as the next turn.
-            $event->inferenceEvent->setMessages($toolCallResult);
+            $state->request->messages = [$toolCallResult];
         }
 
-        return $event->inferenceEvent;
+        return AIInferenceEvent::fromRequest($state->request);
     }
 
     /**
-     * The single source for resolution is the inference event's tool list —
+     * The single source for resolution is the state request's tool list —
      * the cycle's effective set. The node holds no registry of its own, so a
      * tool removed from the offering is removed from execution.
      */
     protected function findLiveTool(string $name): ToolInterface
     {
-        foreach ($this->event->inferenceEvent->tools as $tool) {
+        foreach ($this->state->request->tools as $tool) {
             if ($tool instanceof ToolInterface && $tool->getName() === $name) {
                 return $tool;
             }

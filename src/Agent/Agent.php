@@ -6,9 +6,6 @@ namespace NeuronAI\Agent;
 
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\RecallMemoryEvent;
-use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
@@ -27,7 +24,6 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -281,26 +277,16 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Persisted events drop the live tool registry (tools hold connections,
-     * clients, closures — see AIInferenceEvent::__serialize), so a recalled
-     * event comes back with an empty tool list. Re-seed the base registry
-     * here; middleware re-supply their own additions in before(). Called only
-     * on recalled events — a live event's effective set is never touched.
+     * Rebuild the live tool registry after restoring request data. Middleware
+     * reapply their contributions before execution; live state is never reset.
      */
-    public function restoreEvent(Event $event): Event
+    public function restoreState(WorkflowState $state): WorkflowState
     {
-        $inference = match (true) {
-            $event instanceof AIInferenceEvent => $event,
-            $event instanceof RecallMemoryEvent => $event->inferenceEvent,
-            $event instanceof ToolCallEvent => $event->inferenceEvent,
-            default => null,
-        };
-
-        if ($inference instanceof AIInferenceEvent) {
-            $inference->tools = $this->bootstrapTools();
+        if ($state instanceof AgentState && isset($state->request)) {
+            $state->request->tools = $this->bootstrapTools();
         }
 
-        return $event;
+        return $state;
     }
 
     /**
@@ -355,7 +341,8 @@ class Agent extends Workflow implements AgentInterface
 
     public function makeIgnition(string $runId): Ignition
     {
-        $this->getStartEvent()->setMemoryUsage($this->recallMemory, $this->rememberMemory);
+        $this->getStartEvent()->options->recallMemory = $this->recallMemory;
+        $this->getStartEvent()->options->rememberMemory = $this->rememberMemory;
 
         return parent::makeIgnition($runId);
     }
@@ -407,10 +394,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected function startEvent(): AgentStartEvent
     {
-        return (new AgentStartEvent())->setMemoryUsage(
-            recall: $this->recallMemory,
-            remember: $this->rememberMemory,
-        );
+        return new AgentStartEvent(options: new AgentRunOptions(
+            recallMemory: $this->recallMemory,
+            rememberMemory: $this->rememberMemory,
+        ));
     }
 
     /**
@@ -442,9 +429,7 @@ class Agent extends Workflow implements AgentInterface
     public function chat(Message|array $messages = []): AgentState
     {
         $this->setStartEvent($this->startEvent());
-        $this->getStartEvent()->setMessages(
-            ...(is_array($messages) ? $messages : [$messages])
-        );
+        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
 
         return $this->run();
     }
@@ -464,9 +449,8 @@ class Agent extends Workflow implements AgentInterface
     public function stream(Message|array $messages = []): Generator
     {
         $this->setStartEvent($this->startEvent());
-        $this->getStartEvent()->setStream()->setMessages(
-            ...(is_array($messages) ? $messages : [$messages])
-        );
+        $this->getStartEvent()->options->stream = true;
+        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
         return yield from $this->events();
     }
 
@@ -481,11 +465,9 @@ class Agent extends Workflow implements AgentInterface
         int $maxRetries = 1,
     ): mixed {
         $this->setStartEvent($this->startEvent());
-        $this->getStartEvent()
-            ->setStructuredOutput($class ?? $this->getOutputClass(), $maxRetries)
-            ->setMessages(
-                ...(is_array($messages) ? $messages : [$messages])
-            );
+        $this->getStartEvent()->options->outputClass = $class ?? $this->getOutputClass();
+        $this->getStartEvent()->options->maxRetries = $maxRetries;
+        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
 
         $finalState = $this->run();
 

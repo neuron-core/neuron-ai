@@ -68,12 +68,12 @@ class StructuredOutputNode extends InferenceNode
      */
     public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|StopEvent|StoreMemoryEvent
     {
-        $outputClass = $event->outputClass
-            ?? throw new AgentException('Structured inference requires an output class on the event.');
-        $maxTries = max(1, $event->maxTries);
+        $outputClass = $state->request->options->outputClass
+            ?? throw new AgentException('Structured inference requires an output class on the request.');
+        $maxRetries = max(0, $state->request->options->maxRetries);
         // User-side messages (inbound, then corrections) awaiting a successful
         // provider call before being committed to the chat history.
-        $pending = $event->getMessages();
+        $pending = $state->request->messages;
 
         if (!$state->has('structured_schema')) {
             $this->emit(new SchemaGeneration($outputClass));
@@ -108,8 +108,8 @@ class StructuredOutputNode extends InferenceNode
                 $providerResponse = $this->memoize(
                     "inference.{$attempt}",
                     fn (): ProviderResponse => $this->provider
-                        ->systemPrompt($event->instructions)
-                        ->setTools($event->tools)
+                        ->systemPrompt($state->request->instructions)
+                        ->setTools($state->request->tools)
                         ->structured($messages, $outputClass, $schema),
                 );
 
@@ -121,7 +121,7 @@ class StructuredOutputNode extends InferenceNode
                 $this->emit(new InferenceStop($last, $providerResponse));
 
                 if ($message instanceof ToolCallMessage) {
-                    return new ToolCallEvent($message, $event);
+                    return new ToolCallEvent($message);
                 }
 
                 // The response memo is attempt-indexed too: a shared name would
@@ -133,8 +133,8 @@ class StructuredOutputNode extends InferenceNode
                 $state->set('structured_output', $output);
                 $state->setResponse($providerResponse);
 
-                return $this->memoryAvailable && $event->rememberMemory
-                    ? new StoreMemoryEvent([...$event->getMessages(), $message])
+                return $this->memoryAvailable && $state->request->options->rememberMemory
+                    ? new StoreMemoryEvent([...$state->request->messages, $message])
                     : new StopEvent();
 
             } catch (AgentException|DeserializerException $ex) {
@@ -143,7 +143,7 @@ class StructuredOutputNode extends InferenceNode
             }
 
             $attempt++;
-        } while ($attempt <= $maxTries);
+        } while ($attempt <= $maxRetries);
 
         throw $lastException;
     }

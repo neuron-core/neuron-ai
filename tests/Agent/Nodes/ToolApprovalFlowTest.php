@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -77,7 +78,7 @@ class ToolApprovalFlowTest extends TestCase
 
     /**
      * @var ToolInterface[] The registry the next created event will offer —
-     *      resolution reads the inference event's tool list.
+     *      resolution reads the state request's tool list.
      */
     private array $registry = [];
 
@@ -97,8 +98,7 @@ class ToolApprovalFlowTest extends TestCase
     private function createToolCallEvent(array $calls): ToolCallEvent
     {
         return new ToolCallEvent(
-            new ToolCallMessage(null, $calls),
-            new AIInferenceEvent('test instructions', $this->registry)
+            new ToolCallMessage(null, $calls)
         );
     }
 
@@ -118,6 +118,7 @@ class ToolApprovalFlowTest extends TestCase
         ?array $payload = null,
         ?StepMemoizer $memoizer = null,
     ): AIInferenceEvent|WorkflowInterrupt {
+        $state->request = new InferenceRequest('test instructions', $this->registry);
         $node->setWorkflowContext(new NodeContext($state, $event, $payload, false, $memoizer));
 
         $generator = $node($event, $state);
@@ -217,10 +218,10 @@ class ToolApprovalFlowTest extends TestCase
         // and commits only after that provider call succeeds.
         $this->assertSame([], $node->getChatHistory()->getMessages());
         $this->assertSame(
-            [$event->toolCallMessage, $result->getMessages()[1]],
-            $result->getMessages()
+            [$event->toolCallMessage, $state->request->messages[1]],
+            $state->request->messages
         );
-        $this->assertInstanceOf(ToolResultMessage::class, $result->getMessages()[1]);
+        $this->assertInstanceOf(ToolResultMessage::class, $state->request->messages[1]);
     }
 
     public function test_failed_tool_leaves_no_dangling_tool_call_in_history(): void

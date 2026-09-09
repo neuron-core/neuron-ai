@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -53,52 +54,60 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_before_injects_tool_search_into_inference_event(): void
     {
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $middleware->before($node, $event, new AgentState());
+        $middleware->before($node, $event, $state);
 
-        $this->assertCount(1, $event->tools);
-        $this->assertInstanceOf(ToolSearchTool::class, $event->tools[0]);
+        $this->assertCount(1, $state->request->tools);
+        $this->assertInstanceOf(ToolSearchTool::class, $state->request->tools[0]);
     }
 
     public function test_before_does_modify_instructions(): void
     {
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent(new SystemMessage('original instructions'), []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('original instructions'), []);
+        $event = new AIInferenceEvent();
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $middleware->before($node, $event, new AgentState());
+        $middleware->before($node, $event, $state);
 
-        $this->assertStringContainsString('tool_search', $event->instructions->getContent());
+        $this->assertStringContainsString('tool_search', $state->request->instructions->getContent());
     }
 
     public function test_before_skips_non_inference_event(): void
     {
         $middleware = $this->createMiddleware([]);
         $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
-        $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $inferenceEvent = new AIInferenceEvent();
+                $toolCallEvent = new ToolCallEvent($toolCallMessage);
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $originalInstructions = $inferenceEvent->instructions->getContent();
-        $middleware->before($node, $toolCallEvent, new AgentState());
+        $originalInstructions = $state->request->instructions->getContent();
+        $middleware->before($node, $toolCallEvent, $state);
 
         // Instructions should not have been modified
-        $this->assertSame($originalInstructions, $inferenceEvent->instructions->getContent());
+        $this->assertSame($originalInstructions, $state->request->instructions->getContent());
     }
 
     public function test_before_does_not_duplicate_tool_search(): void
     {
         $middleware = $this->createMiddleware([]);
         $existing = new ToolSearchTool([]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existing]);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), [$existing]);
+        $event = new AIInferenceEvent();
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $middleware->before($node, $event, new AgentState());
+        $middleware->before($node, $event, $state);
 
         $count = 0;
-        foreach ($event->tools as $tool) {
+        foreach ($state->request->tools as $tool) {
             if ($tool instanceof ToolSearchTool) {
                 $count++;
             }
@@ -110,12 +119,14 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $existingTool = $this->createTool('existing', 'An existing tool');
         $middleware = $this->createMiddleware([]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingTool]);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), [$existingTool]);
+        $event = new AIInferenceEvent();
         $node = new ToolNode(new InMemoryChatHistory());
 
-        $middleware->before($node, $event, new AgentState());
+        $middleware->before($node, $event, $state);
 
-        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $event->tools);
+        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $state->request->tools);
         $this->assertContains('existing', $names);
         $this->assertContains('tool_search', $names);
     }
@@ -131,13 +142,15 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
         ]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $event->setMessages($toolResultMessage);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
+        $state->request->messages = [$toolResultMessage];
 
-        $middleware->after($node, $event, new AgentState());
+        $middleware->after($node, $event, $state);
 
-        $this->assertCount(1, $event->tools);
-        $this->assertSame('query_database', $event->tools[0]->getName());
+        $this->assertCount(1, $state->request->tools);
+        $this->assertSame('query_database', $state->request->tools[0]->getName());
     }
 
     public function test_after_deduplicates_by_tool_name(): void
@@ -147,16 +160,18 @@ class ToolSearchMiddlewareTest extends TestCase
         $node = new ToolNode(new InMemoryChatHistory());
 
         $existingDbTool = $this->createTool('query_database', 'Execute SQL queries');
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), [$existingDbTool]);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), [$existingDbTool]);
+        $event = new AIInferenceEvent();
 
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
         ]);
-        $event->setMessages($toolResultMessage);
+        $state->request->messages = [$toolResultMessage];
 
-        $middleware->after($node, $event, new AgentState());
+        $middleware->after($node, $event, $state);
 
-        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $event->tools);
+        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $state->request->tools);
         $dbCount = count(array_filter($names, fn (string $n): bool => $n === 'query_database'));
         $this->assertSame(1, $dbCount);
     }
@@ -165,28 +180,32 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $middleware = $this->createMiddleware([]);
         $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
-        $inferenceEvent = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $inferenceEvent = new AIInferenceEvent();
+                $toolCallEvent = new ToolCallEvent($toolCallMessage);
         $node = new ToolNode(new InMemoryChatHistory());
 
         // Should not throw or modify anything
-        $middleware->after($node, $toolCallEvent, new AgentState());
+        $middleware->after($node, $toolCallEvent, $state);
 
-        $this->assertCount(0, $inferenceEvent->tools);
+        $this->assertCount(0, $state->request->tools);
     }
 
     public function test_after_does_nothing_when_no_tool_search_in_results(): void
     {
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('read_file', 'call_1', [])->setResult('file contents'),
         ]);
-        $event->setMessages($toolResultMessage);
+        $state->request->messages = [$toolResultMessage];
 
         $middleware = $this->createMiddleware([]);
-        $middleware->after(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
+        $middleware->after(new ToolNode(new InMemoryChatHistory()), $event, $state);
 
-        $this->assertCount(0, $event->tools);
+        $this->assertCount(0, $state->request->tools);
     }
 
     public function test_after_does_nothing_when_search_found_nothing(): void
@@ -197,12 +216,14 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'nonexistent'])->setResult('found'),
         ]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $event->setMessages($toolResultMessage);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
+        $state->request->messages = [$toolResultMessage];
 
-        $middleware->after($node, $event, new AgentState());
+        $middleware->after($node, $event, $state);
 
-        $this->assertCount(0, $event->tools);
+        $this->assertCount(0, $state->request->tools);
     }
 
     public function test_after_injects_multiple_discovered_tools(): void
@@ -215,13 +236,15 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'weather'])->setResult('found'),
         ]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $event->setMessages($toolResultMessage);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
+        $state->request->messages = [$toolResultMessage];
 
-        $middleware->after($node, $event, new AgentState());
+        $middleware->after($node, $event, $state);
 
-        $this->assertCount(2, $event->tools);
-        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $event->tools);
+        $this->assertCount(2, $state->request->tools);
+        $names = array_map(fn (ToolInterface $t): string => $t->getName(), $state->request->tools);
         $this->assertContains('get_weather', $names);
         $this->assertContains('get_forecast', $names);
     }
@@ -328,12 +351,14 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
         ]);
-        $event = new AIInferenceEvent(new SystemMessage('instructions'), []);
-        $event->setMessages($toolResultMessage);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
+        $event = new AIInferenceEvent();
+        $state->request->messages = [$toolResultMessage];
 
-        $middleware->after($node, $event, new AgentState());
+        $middleware->after($node, $event, $state);
 
-        $this->assertCount(1, $event->tools);
-        $this->assertSame('query_users', $event->tools[0]->getName());
+        $this->assertCount(1, $state->request->tools);
+        $this->assertSame('query_users', $state->request->tools[0]->getName());
     }
 }

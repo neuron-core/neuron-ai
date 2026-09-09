@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Middleware;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
@@ -40,24 +41,23 @@ class TodoPlanning implements WorkflowMiddleware
     }
 
     /**
-     * Inject to-do planning instructions and tool before inference.
+     * Supply the planning tool before inference and execution, including resume.
      *
      * @param AgentState $state
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        // Only modify AIInferenceEvent
-        if (!$event instanceof AIInferenceEvent) {
+        if (!$state instanceof AgentState || !($event instanceof AIInferenceEvent || $event instanceof ToolCallEvent)) {
             return;
         }
 
-        if (!$event->instructions->contains($this->systemPrompt)) {
-            $event->instructions->addContent(new SystemContent($this->systemPrompt));
+        if ($event instanceof AIInferenceEvent && !$state->request->instructions->contains($this->systemPrompt)) {
+            $state->request->instructions->addContent(new SystemContent($this->systemPrompt));
         }
 
         // Add WriteTodosTool if not already present (avoid duplicates during tool loops)
-        if (!$this->hasWriteTodosTool($event->tools)) {
-            $event->tools[] = new WriteTodosTool($state);
+        if (!$this->hasWriteTodosTool($state->request->tools)) {
+            $state->request->tools[] = new WriteTodosTool($state);
         }
     }
 

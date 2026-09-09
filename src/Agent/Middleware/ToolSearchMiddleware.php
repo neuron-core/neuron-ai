@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
@@ -47,41 +48,39 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        if ($event instanceof ToolCallEvent) {
-            $this->resupplyExecutionTools($node, $event);
+        if ($state instanceof AgentState && $event instanceof ToolCallEvent) {
+            $this->resupplyExecutionTools($node, $state);
             return;
         }
 
-        if (!$event instanceof AIInferenceEvent) {
+        if (!$state instanceof AgentState || !$event instanceof AIInferenceEvent) {
             return;
         }
 
-        if (!$event->instructions->contains($this->systemPrompt)) {
-            $event->instructions->addContent(new SystemContent($this->systemPrompt));
+        if (!$state->request->instructions->contains($this->systemPrompt)) {
+            $state->request->instructions->addContent(new SystemContent($this->systemPrompt));
         }
 
-        if (!$this->hasToolSearchTool($event->tools)) {
-            $event->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
+        if (!$this->hasToolSearchTool($state->request->tools)) {
+            $state->request->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
         }
     }
 
     /**
-     * Re-establish this middleware's contribution on the execution event's tool
-     * list. The inference event's tools are the SINGLE source ToolNode resolves
-     * calls against, and they are transient in persistence: on a
-     * replayed event the node re-seeds the agent base at context time, and each
+     * Re-establish this middleware's contribution on the state request's tool
+     * list after Agent::restoreState() restores the base registry. Each
      * middleware re-supplies what it added — here, the search tool itself plus
      * every tool discovered earlier in the conversation, re-derived from chat
      * history (deterministic for a given pool). On the live path everything is
      * already present, making this a no-op.
      */
-    protected function resupplyExecutionTools(NodeInterface $node, ToolCallEvent $event): void
+    protected function resupplyExecutionTools(NodeInterface $node, AgentState $state): void
     {
-        $inference = $event->inferenceEvent;
-        $existingNames = $this->getToolNames($inference->tools);
+        $request = $state->request;
+        $existingNames = $this->getToolNames($request->tools);
 
-        if (!$this->hasToolSearchTool($inference->tools)) {
-            $inference->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
+        if (!$this->hasToolSearchTool($request->tools)) {
+            $request->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
         }
 
         if (!$node instanceof AgentNodeInterface) {
@@ -90,7 +89,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
         foreach ($this->discoverFromMessages($node->getChatHistory()->getMessages()) as $tool) {
             if (!in_array($tool->getName(), $existingNames, true)) {
-                $inference->tools[] = $tool;
+                $request->tools[] = $tool;
                 $existingNames[] = $tool->getName();
             }
         }
@@ -98,32 +97,24 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
     public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
-        if (!$result instanceof AIInferenceEvent) {
+        if (!$state instanceof AgentState || !$result instanceof AIInferenceEvent) {
             return;
         }
 
-        $discovered = $this->extractDiscoveredTools($result);
+        $discovered = $this->discoverFromMessages($state->request->messages);
 
         if ($discovered === []) {
             return;
         }
 
-        $existingNames = $this->getToolNames($result->tools);
+        $existingNames = $this->getToolNames($state->request->tools);
 
         foreach ($discovered as $tool) {
             if (!in_array($tool->getName(), $existingNames, true)) {
-                $result->tools[] = $tool;
+                $state->request->tools[] = $tool;
                 $existingNames[] = $tool->getName();
             }
         }
-    }
-
-    /**
-     * @return ToolInterface[]
-     */
-    protected function extractDiscoveredTools(AIInferenceEvent $event): array
-    {
-        return $this->discoverFromMessages($event->getMessages());
     }
 
     /**

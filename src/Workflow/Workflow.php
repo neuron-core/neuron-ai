@@ -244,6 +244,11 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         return $event;
     }
 
+    public function restoreState(WorkflowState $state): WorkflowState
+    {
+        return $state;
+    }
+
     /**
      * The workflow ID, also the continuation handle. Null before the first
      * run segment: identity is assigned by the executor, never at

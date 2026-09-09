@@ -364,6 +364,13 @@ Executors type against `WorkflowRuntimeInterface`, which exposes definition,
 state, persistence, serializer, lease configuration, completion-retention
 policy, ignition, and bootstrap. Application code uses `WorkflowInterface`.
 
+`Workflow::restoreState()` reattaches transient dependencies to state recalled from
+completed steps, unaddressed interruption markers, checkpoints, and retained
+outcomes. It receives the actual local state, including branch state, and is never
+called on live results. The default returns state unchanged. Serialization and
+cloning are separate contracts: state subclasses with mutable object properties
+outside the data array must define how those properties are cloned.
+
 Middleware wraps node execution:
 
 ```php

@@ -4,67 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Events;
 
+use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Workflow\Events\Event;
-
-use function max;
 
 class AgentStartEvent implements Event
 {
     /**
-     * @var Message[]
+     * @param Message[] $messages
      */
-    protected array $messages = [];
-
-    /**
-     * Execution intent — how the run wants inference and memory performed. Recorded on
-     * whatever start event the workflow resolves, and honored where the
-     * inference event is born: StartNode for a plain Agent, InstructionsNode
-     * for RAG.
-     */
-    public bool $stream = false;
-    public ?string $outputClass = null;
-    public int $maxTries = 1;
-    public bool $recallMemory = true;
-    public bool $rememberMemory = true;
-
-    public function setMessages(Message ...$messages): void
-    {
-        $this->messages = $messages;
-    }
-
-    /**
-     * @return Message[]
-     */
-    public function getMessages(): array
-    {
-        return $this->messages;
-    }
-
-    public function setStream(bool $stream = true): static
-    {
-        $this->stream = $stream;
-        return $this;
-    }
-
-    public function setMemoryUsage(bool $recall = true, bool $remember = true): static
-    {
-        $this->recallMemory = $recall;
-        $this->rememberMemory = $remember;
-
-        return $this;
-    }
-
-    /**
-     * Record structured-output intent. Recording never changes the event's
-     * class — the routed class is derived where the inference event is born
-     * (AIInferenceEvent::routed()).
-     */
-    public function setStructuredOutput(string $outputClass, int $maxTries = 1): static
-    {
-        $this->outputClass = $outputClass;
-        $this->maxTries = max(1, $maxTries);
-
-        return $this;
+    public function __construct(
+        public array $messages = [],
+        public AgentRunOptions $options = new AgentRunOptions(),
+    ) {
     }
 }

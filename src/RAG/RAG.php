@@ -53,14 +53,15 @@ class RAG extends Agent
         $tools = $this->bootstrapTools();
 
         return [
-            new PreProcessNode($this->getChatHistory(), $this->preProcessors()),
-            new RetrievalNode($this->resolveRetrieval(), $this->resolveRetrievalScope()),
-            new PostProcessNode($this->postProcessors()),
-            new InstructionsNode(
+            new PreProcessNode(
+                $this->getChatHistory(),
+                $this->preProcessors(),
                 $this->getInstructions(),
                 $tools,
-                $this->getMemory() instanceof MemoryInterface,
             ),
+            new RetrievalNode($this->resolveRetrieval(), $this->resolveRetrievalScope()),
+            new PostProcessNode($this->postProcessors()),
+            new InstructionsNode($this->getMemory() instanceof MemoryInterface),
         ];
     }
 

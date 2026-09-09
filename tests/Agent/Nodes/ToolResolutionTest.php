@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -30,10 +31,10 @@ use PHPUnit\Framework\TestCase;
 use function str_starts_with;
 
 /**
- * The inference event's tool list is the SINGLE source calls resolve
+ * The state request's tool list is the SINGLE source calls resolve
  * against — the cycle's effective set (agent base + middleware additions, minus
  * middleware removals). Capability is transient in persistence, and the
- * restoration seam is Workflow::restoreEvent(), called by the executor on every
+ * restoration seam is Workflow::restoreState(), called by the executor on every
  * event recalled from persistence (never on a live result): the Agent re-seeds
  * its base registry there, and each middleware re-supplies its own additions
  * in before().
@@ -73,10 +74,8 @@ class ToolResolutionTest extends TestCase
         $node = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
 
-        $event = new ToolCallEvent(
-            new ToolCallMessage(null, [ToolCall::make('removed_tool', 'call_1')]),
-            new AIInferenceEvent('instructions', [$offered]) // effective set WITHOUT removed_tool
-        );
+        $state->request = new InferenceRequest('instructions', [$offered]);
+        $event = new ToolCallEvent(new ToolCallMessage(null, [ToolCall::make('removed_tool', 'call_1')]));
         $node->setWorkflowContext(new NodeContext($state, $event));
 
         $this->expectException(ToolException::class);
@@ -85,32 +84,20 @@ class ToolResolutionTest extends TestCase
         $this->drain($node, $event, $state);
     }
 
-    public function test_restore_event_reseeds_the_base_registry_on_recalled_events(): void
+    public function test_restore_state_reseeds_the_base_registry_on_recalled_state(): void
     {
-        // Persistence strips the inference event's tools (they are capability).
-        // Agent::restoreEvent() is the symmetric seam: the executor calls it
-        // only on events recalled from persistence — always stripped — so the
-        // base registry is re-seeded unconditionally. Live events never pass
-        // through restore (that invariant lives in the executor), so a
-        // middleware removal on a live effective set is never undone.
         $agent = Agent::make();
-        $agent->addTool(new SearchTool());
+        $tool = new SearchTool();
+        $agent->addTool($tool);
+        $state = new AgentState();
+        $state->request = new InferenceRequest('instructions');
 
-        $recalledInference = new AIInferenceEvent('instructions', []);
-        $agent->restoreEvent($recalledInference);
-        $this->assertCount(1, $recalledInference->tools);
-        $this->assertSame('search', $recalledInference->tools[0]->getName());
+        $this->assertSame($state, $agent->restoreState($state));
+        $this->assertSame([$tool], $state->request->tools);
 
-        $recalledToolCall = new ToolCallEvent(
-            new ToolCallMessage(null, [ToolCall::make('search', 'call_1')]),
-            new AIInferenceEvent('instructions', [])
-        );
-        $agent->restoreEvent($recalledToolCall);
-        $this->assertSame('search', $recalledToolCall->inferenceEvent->tools[0]->getName());
-
-        // Unrelated events pass through unchanged.
-        $stop = new StopEvent();
-        $this->assertSame($stop, $agent->restoreEvent($stop));
+        $emptyState = new AgentState();
+        $this->assertSame($emptyState, $agent->restoreState($emptyState));
+        $this->assertFalse(isset($emptyState->request));
     }
 
     public function test_live_inference_after_a_cached_tool_node_gets_the_agent_tools_back(): void
@@ -120,7 +107,7 @@ class ToolResolutionTest extends TestCase
         // ChatNode #1 and ToolNode #1 replay from cache — nothing executes, so
         // no node-level repair could ever run — and the recalled AIInferenceEvent
         // reaches the LIVE ChatNode #2 with its tool list stripped. Without the
-        // restoreEvent() seam, the provider would be called with NO tools.
+        // restoreState() seam, the provider would be called with NO tools.
         $workflowId = 'stripped_inference_recovery_test';
 
         // Step store that survives run completion and can forget single steps.
@@ -263,17 +250,15 @@ class ToolResolutionTest extends TestCase
         $state = new AgentState();
 
         $call = ToolCall::make('query_database', 'call_2', ['sql' => 'SELECT 1']);
-        $event = new ToolCallEvent(
-            new ToolCallMessage(null, [$call]),
-            new AIInferenceEvent('instructions', []) // stripped by persistence
-        );
+        $state->request = new InferenceRequest('instructions', []);
+        $event = new ToolCallEvent(new ToolCallMessage(null, [$call]));
 
         // The executor's order: context, then middleware before(), then the node.
         $node->setWorkflowContext(new NodeContext($state, $event));
         $middleware->before($node, $event, $state);
 
         $names = [];
-        foreach ($event->inferenceEvent->tools as $tool) {
+        foreach ($state->request->tools as $tool) {
             $names[] = $tool->getName();
         }
         $this->assertContains('tool_search', $names, 'The middleware re-supplies its own tool');

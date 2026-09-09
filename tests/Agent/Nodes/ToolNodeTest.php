@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\TestToolWithRequiredInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -37,8 +37,9 @@ class ToolNodeTest extends TestCase
         );
 
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test instructions', tools: $registry);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest(instructions: 'Test instructions', tools: $registry);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
 
         // Set up the workflow context (required for Node::emit() to work)
         $toolNode->setWorkflowContext(new NodeContext($state, $event));

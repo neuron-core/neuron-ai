@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
@@ -12,18 +13,15 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Workflow\Node;
 
 /**
- * The Agent's entry point: births the inference event by joining the agent
- * definition (instructions, tools) with the start event's run data (messages,
- * intent), then routes it through recall when requested and available. The start event
- * stays pure run data — definition capability enters the flow here, never at ignition.
- * RAG replaces this node with its retrieval chain ending in InstructionsNode,
- * which births the inference event the same way.
+ * Initializes the state request from the agent definition and start payload,
+ * then routes through recall when requested and available. RAG initializes
+ * the same request in PreProcessNode before enriching it during retrieval.
  */
 class StartNode extends Node
 {
     public function __construct(
-        private readonly SystemMessage $instructions,
-        private readonly array $tools,
+        protected SystemMessage $instructions,
+        protected array $tools,
         protected bool $memoryAvailable = false,
     ) {
     }
@@ -32,16 +30,15 @@ class StartNode extends Node
     {
         // Clone so middleware can modify the event instructions
         // without leaking changes into the agent configuration.
-        $inference = new AIInferenceEvent(clone $this->instructions, $this->tools);
-        $inference->setMessages(...$event->getMessages());
-        $inference->stream = $event->stream;
-        $inference->outputClass = $event->outputClass;
-        $inference->maxTries = $event->maxTries;
-        $inference->recallMemory = $event->recallMemory;
-        $inference->rememberMemory = $event->rememberMemory;
+        $state->request = new InferenceRequest(
+            instructions: clone $this->instructions,
+            tools: $this->tools,
+            messages: $event->messages,
+            options: $event->options,
+        );
 
-        return $this->memoryAvailable && $event->recallMemory
-            ? new RecallMemoryEvent($inference)
-            : $inference->routed();
+        return $this->memoryAvailable && $state->request->options->recallMemory
+            ? new RecallMemoryEvent()
+            : AIInferenceEvent::fromRequest($state->request);
     }
 }

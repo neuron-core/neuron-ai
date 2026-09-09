@@ -108,26 +108,48 @@ uses the recorded event intent and instructions with the currently configured li
 capabilities. Configuration changes during an active segment apply to the next
 segment; history replacement remains forbidden while executing.
 
-- The start event is **pure run data**: messages plus inference and memory
-  intent (`stream`, `outputClass`, `maxTries`, `recallMemory`,
-  `rememberMemory`). Sugar and configuration methods only *record*
-  intent (`setStream()`, `setStructuredOutput()`, `setMemoryUsage()`); none of
-  them changes the graph or hard-constructs event classes.
-- **`StartNode`** (the default `entryNodes()` chain) births the
-  `AIInferenceEvent` from the definition (instructions cloned, tools
-  injected) plus the start event's data, then sends it through
-  `RecallMemoryNode` when recall is requested and memory is available. That
-  node derives the routed class via
-  `AIInferenceEvent::routed()` — recorded structured intent yields a
-  `StructuredInferenceEvent`, which exact-class routing sends to
-  `StructuredOutputNode`. RAG overrides `entryNodes()` with its retrieval
-  chain, whose `InstructionsNode` births the inference event the same way.
-- Chat vs stream is **transport, not control flow**: `ChatNode` handles both,
-  branching on the event's `stream` flag; both record the same memoized
-  `ProviderResponse`, so a wrong flag can never corrupt a replay.
-- The tool loop returns to the right inference node by data, not topology:
-  `ToolCallEvent` embeds its originating inference event, and the returned
-  instance's runtime class routes back.
+- `AgentStartEvent` carries public `messages` and `options` properties. Its
+  `AgentRunOptions` contains `stream`, `outputClass`, `maxRetries`, `recallMemory`,
+  and `rememberMemory`. All are mutable, typed properties. Framework nodes preserve
+  mode and memory policy within a run by convention; there is no immutable API.
+- `StartNode` initializes the public typed `AgentState::$request` from the start
+  messages and options, cloned instructions, and the effective tool list. RAG
+  initializes it in `PreProcessNode`, before retrieval. A fresh entry replaces the
+  previous request; before entry, the property is uninitialized.
+- `AIInferenceEvent`, `StructuredInferenceEvent`, and `RecallMemoryEvent` are routing
+  signals. `ToolCallEvent` carries only the tool-call message. Nodes and middleware
+  read and mutate the same `state->request`; events never forward it.
+  `AIInferenceEvent::fromRequest()` chooses the exact routing class from
+  `request->options->outputClass`. Memory recall enriches the request before routing.
+- Chat vs stream is transport: `ChatNode` reads `request->options->stream`. Both
+  paths record the same memoized `ProviderResponse`. Structured output retains its
+  dedicated node and attempt-indexed memos. `maxRetries` counts retries after the
+  first attempt: `0` disables retries, `1` allows two attempts; negatives act as `0`.
+- The tool loop replaces `request->messages` with the uncommitted tool call/result
+  pair (only the result when approval already committed the call), then routes the
+  same request back to inference. Those messages are combined with stored history;
+  changing them does not overwrite chat history.
+
+Middleware edits the working request directly:
+
+```php
+$state->request->instructions->addContent($context);
+$state->request->tools[] = $tool;
+$state->request->messages = [$message];
+```
+
+The effective tool list is shared by inference and tool execution. State snapshots
+persist the request's instructions, pending messages, and options. Request
+serialization excludes executable tools, which can hold closures or connections.
+`Agent::restoreState()` reattaches the current base registry whenever saved state
+re-enters the workflow; middleware reapply additions and removals before the
+relevant node executes. Live state never passes through this hook.
+
+Cloning `AgentState` deeply copies request messages, instructions, and options so
+parallel branches cannot change one another's request data. Each clone retains its
+own tool selection array with references to the live tools; execution binds call
+inputs onto a clone of the selected tool. Providers, history, and memory remain
+constructor-injected services rather than persisted state.
 
 | Method | Effect |
 |--------|--------|
@@ -381,7 +403,7 @@ memory, it simply clears chat history.
 `ToolNode` gates tool execution behind human approval — there is no middleware
 to attach; the gate runs on every tool call and asks each tool. Messages carry `ToolCall`
 value objects: the node resolves every call against ONE source — the inference
-event's tool list, the cycle's effective set (agent base plus middleware additions, minus
+state request's tool list, the cycle's effective set (agent base plus middleware additions, minus
 middleware removals) — clones the match, binds the call's inputs, executes, and settles
 the result back onto the call. A call naming a tool outside that set throws a
 `ToolException`. Exceptions escaping tool execution are bugs and propagate (a
@@ -389,12 +411,12 @@ the result back onto the call. A call naming a tool outside that set throws a
 `src/Tools/AGENTS.md`); `toolErrorHandler(fn (Throwable $e, ToolCall $call):
 string|ToolOutput|null)` is the cross-cutting override — a returned string or
 `ToolOutput` settles as the call's result, `null` declines and the exception
-propagates. Event capability is transient in persistence: the executor passes every
-event recalled from persistence through `Workflow::restoreEvent()` before it re-enters
-traversal, and the Agent's override re-seeds `bootstrapTools()` on recalled
-inference/tool-call events (live results never pass through restore, so a live
-effective set — middleware additions and removals included — is never touched);
-tool-contributing middleware re-supply their own additions in `before()`. The node itself holds no tool registry. **Each tool declares** its
+propagates. Executable tools are transient in state persistence: the executor passes
+recalled state through `Workflow::restoreState()` before it re-enters traversal.
+The Agent override re-seeds `bootstrapTools()` on the recorded request. Live state
+never passes through restoration, so middleware additions and removals remain in
+effect during ordinary transitions. Tool-contributing middleware reapply their
+changes in `before()`. The node itself holds no tool registry. **Each tool declares** its
 intrinsic risk via the protected `approvalPolicy(array $inputs)` hook, and the agent
 developer overrides the declaration per tool at
 attach time, in both directions:

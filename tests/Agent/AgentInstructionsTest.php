@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Workflow\NodeContext;
+use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tests\Agent\Stub\QueryDatabaseTool;
 use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
@@ -44,14 +47,16 @@ class AgentInstructionsTest extends TestCase
     public function test_tool_search_middleware_appends_instructions_block(): void
     {
         $middleware = new ToolSearchMiddleware([]);
-        $event = new AIInferenceEvent(
+        $state = new AgentState();
+        $state->request = new InferenceRequest(
             new SystemMessage([new SystemContent('Block one'), new SystemContent('Block two')]),
             []
         );
+        $event = new AIInferenceEvent();
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
 
-        $blocks = $event->instructions->getTextBlocks();
+        $blocks = $state->request->instructions->getTextBlocks();
         $this->assertCount(3, $blocks);
         $this->assertSame('Block one', $blocks[0]->content);
         $this->assertSame('Block two', $blocks[1]->content);
@@ -61,28 +66,56 @@ class AgentInstructionsTest extends TestCase
     public function test_todo_planning_middleware_appends_instructions_block(): void
     {
         $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('Original instructions'), []);
+        $event = new AIInferenceEvent();
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
 
-        $blocks = $event->instructions->getTextBlocks();
+        $blocks = $state->request->instructions->getTextBlocks();
         $this->assertCount(2, $blocks);
         $this->assertSame('Original instructions', $blocks[0]->content);
         $this->assertStringContainsString('write_todos', $blocks[1]->content);
     }
 
+    public function test_todo_tool_is_reapplied_to_restored_state_before_execution(): void
+    {
+        $middleware = new TodoPlanning();
+        $node = new ToolNode(new InMemoryChatHistory());
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Original instructions');
+        $middleware->before($node, new AIInferenceEvent(), $state);
+        $restored = unserialize(serialize($state));
+        $this->assertInstanceOf(AgentState::class, $restored);
+        Agent::make()->restoreState($restored);
+        $this->assertSame([], $restored->request->tools);
+
+        $todos = [['content' => 'Check the result', 'status' => 'pending']];
+        $event = new ToolCallEvent(new ToolCallMessage(null, [
+            ToolCall::make('write_todos', 'call_1', ['todos' => $todos]),
+        ]));
+        $node->setWorkflowContext(new NodeContext($restored, $event));
+        $middleware->before($node, $event, $restored);
+        iterator_to_array($node($event, $restored));
+
+        $this->assertSame($todos, $restored->get('__todos'));
+        $this->assertNull($state->get('__todos'));
+    }
+
     public function test_todo_planning_does_not_duplicate_instructions_on_multiple_passes(): void
     {
         $middleware = new TodoPlanning();
-        $event = new AIInferenceEvent(new SystemMessage('Original instructions'), []);
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('Original instructions'), []);
+        $event = new AIInferenceEvent();
 
         // Simulate multiple ChatNode passes (tool loop)
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
-        $this->assertCount(2, $event->instructions->getContentBlocks());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $this->assertCount(2, $state->request->instructions->getContentBlocks());
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, new AgentState());
+        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
 
-        $this->assertCount(2, $event->instructions->getContentBlocks(), 'Instructions should not grow on second pass.');
+        $this->assertCount(2, $state->request->instructions->getContentBlocks(), 'Instructions should not grow on second pass.');
     }
 
     // ---------------------------------------------------------------

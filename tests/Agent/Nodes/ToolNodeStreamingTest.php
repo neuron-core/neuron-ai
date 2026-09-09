@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\CalculatorTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\GreeterTool;
 use NeuronAI\Workflow\NodeContext;
@@ -39,8 +40,9 @@ class ToolNodeStreamingTest extends TestCase
         $state = new AgentState();
 
         // Create the events
-        $inferenceEvent = new AIInferenceEvent('Test instructions', $registry);
-        $toolCallEvent = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest('Test instructions', $registry);
+        $state->request = $request;
+        $toolCallEvent = new ToolCallEvent($toolCallMessage);
 
         // Create the ToolNode (the executor hands the node the event it dispatches)
         $toolNode = new ToolNode($chatHistory);
@@ -81,6 +83,6 @@ class ToolNodeStreamingTest extends TestCase
 
         // 6. Return value should be the AIInferenceEvent
         $this->assertInstanceOf(AIInferenceEvent::class, $returnValue);
-        $this->assertSame($inferenceEvent, $returnValue);
+        $this->assertSame($request, $state->request);
     }
 }

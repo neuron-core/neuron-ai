@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelAnotherTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelRegularTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -33,8 +33,9 @@ class ParallelToolNodeTest extends TestCase
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
@@ -59,8 +60,9 @@ class ParallelToolNodeTest extends TestCase
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
@@ -83,8 +85,9 @@ class ParallelToolNodeTest extends TestCase
         $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
 
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
@@ -114,10 +117,11 @@ class ParallelToolNodeTest extends TestCase
         ];
 
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
-
+        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
         $state = new AgentState();
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
+
         $state->setExecutionMetadata($runId, $runId, 1);
 
         // Run 1: the batch executes and its result is memoized mid-node.

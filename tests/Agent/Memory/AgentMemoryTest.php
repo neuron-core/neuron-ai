@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Memory;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
@@ -573,40 +573,42 @@ class AgentMemoryTest extends TestCase
         $history = new InMemoryChatHistory('thread-1');
         $persistence = new InMemoryPersistence();
 
-        $firstEvent = new RecallMemoryEvent($this->inference('Question'));
+        $firstState = $this->inferenceState('Question');
+        $firstEvent = new RecallMemoryEvent();
         $first = new RecallMemoryNode($memory, $history);
         $first->setWorkflowContext(new NodeContext(
-            new AgentState(),
+            $firstState,
             $firstEvent,
             memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-recall-step'),
         ));
-        $firstStream = $first($firstEvent, new AgentState());
+        $firstStream = $first($firstEvent, $firstState);
         $firstEvents = iterator_to_array($firstStream);
         $firstResult = $firstStream->getReturn();
 
-        $replayedEvent = new RecallMemoryEvent($this->inference('Question'));
+        $replayedState = $this->inferenceState('Question');
+        $replayedEvent = new RecallMemoryEvent();
         $replayed = new RecallMemoryNode($memory, $history);
         $replayed->setWorkflowContext(new NodeContext(
-            new AgentState(),
+            $replayedState,
             $replayedEvent,
             memoizer: WorkflowTestStore::memoizer($persistence, 'thread-1', 'memory-recall-step'),
         ));
-        $replayedStream = $replayed($replayedEvent, new AgentState());
+        $replayedStream = $replayed($replayedEvent, $replayedState);
         $replayedEvents = iterator_to_array($replayedStream);
         $replayedResult = $replayedStream->getReturn();
 
         $this->assertSame(['Question'], $memory->recalls);
         $this->assertContainsOnlyInstancesOf(StepStartedStreamEvent::class, [$firstEvents[0], $replayedEvents[0]]);
         $this->assertContainsOnlyInstancesOf(StepFinishedStreamEvent::class, [$firstEvents[1], $replayedEvents[1]]);
-        $this->assertTrue($firstResult->instructions->contains('Remembered context'));
-        $this->assertTrue($replayedResult->instructions->contains('Remembered context'));
+        $this->assertTrue($firstState->request->instructions->contains('Remembered context'));
+        $this->assertTrue($replayedState->request->instructions->contains('Remembered context'));
     }
 
-    protected function inference(string $query): AIInferenceEvent
+    protected function inferenceState(string $query): AgentState
     {
-        $event = new AIInferenceEvent(new SystemMessage('Instructions'), []);
-        $event->setMessages(new UserMessage($query));
+        $state = new AgentState();
+        $state->request = new InferenceRequest(new SystemMessage('Instructions'), messages: [new UserMessage($query)]);
 
-        return $event;
+        return $state;
     }
 }

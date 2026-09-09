@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\MultimodalTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -36,8 +36,9 @@ class MultimodalToolResultReplayTest extends TestCase
         $toolNode = new ToolNode(new InMemoryChatHistory());
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$call]);
-        $inferenceEvent = new AIInferenceEvent(instructions: 'Test', tools: [$tool]);
-        $event = new ToolCallEvent($toolCallMessage, $inferenceEvent);
+        $request = new InferenceRequest(instructions: 'Test', tools: [$tool]);
+        $state->request = $request;
+        $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         foreach ($toolNode($event, $state) as $_) {
@@ -67,8 +68,9 @@ class MultimodalToolResultReplayTest extends TestCase
 
         // Run 1: the tool executes and its result is memoized mid-node.
         $toolCallMessage1 = new ToolCallMessage(null, [$call1]);
-        $inferenceEvent1 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event1 = new ToolCallEvent($toolCallMessage1, $inferenceEvent1);
+        $request1 = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $state->request = $request1;
+        $event1 = new ToolCallEvent($toolCallMessage1);
         $node1 = new ToolNode(new InMemoryChatHistory());
         $node1->setWorkflowContext(new NodeContext($state, $event1, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node1($event1, $state) as $_) {
@@ -82,8 +84,9 @@ class MultimodalToolResultReplayTest extends TestCase
         $call2 = ToolCall::make('multimodal_tool', 'call_1', []);
 
         $toolCallMessage2 = new ToolCallMessage(null, [$call2]);
-        $inferenceEvent2 = new AIInferenceEvent(instructions: 'Test', tools: $registry);
-        $event2 = new ToolCallEvent($toolCallMessage2, $inferenceEvent2);
+        $request2 = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $state->request = $request2;
+        $event2 = new ToolCallEvent($toolCallMessage2);
         $node2 = new ToolNode(new InMemoryChatHistory());
         $node2->setWorkflowContext(new NodeContext($state, $event2, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node2($event2, $state) as $_) {

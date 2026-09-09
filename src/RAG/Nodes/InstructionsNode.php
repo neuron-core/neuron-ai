@@ -8,7 +8,6 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
-use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
@@ -21,37 +20,21 @@ use NeuronAI\Workflow\Node;
 class InstructionsNode extends Node
 {
     public function __construct(
-        private readonly SystemMessage $baseInstructions,
-        private readonly array $tools,
         protected bool $memoryAvailable = false,
     ) {
     }
 
     /**
-     * Inject documents into instructions. The emitted event is where RAG's
-     * inference event is born, so the start event's inference intent is honored
-     * here. When recall is requested and memory is available, it runs before
-     * the routed inference class is derived.
+     * Enrich the existing state request with documents, preserving changes
+     * made earlier in the retrieval chain, then route to recall or inference.
      */
     public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
     {
-        $instructions = new SystemMessage($this->baseInstructions->getContentBlocks());
-        $instructions->addContent(new SystemContent($this->buildBlockContent($event->documents)));
+        $state->request->instructions->addContent(new SystemContent($this->buildBlockContent($event->documents)));
 
-        $inference = new AIInferenceEvent(
-            instructions: $instructions,
-            tools: $this->tools
-        );
-        $inference->setMessages(...$event->startEvent->getMessages());
-        $inference->stream = $event->startEvent->stream;
-        $inference->outputClass = $event->startEvent->outputClass;
-        $inference->maxTries = $event->startEvent->maxTries;
-        $inference->recallMemory = $event->startEvent->recallMemory;
-        $inference->rememberMemory = $event->startEvent->rememberMemory;
-
-        return $this->memoryAvailable && $event->startEvent->recallMemory
-            ? new RecallMemoryEvent($inference)
-            : $inference->routed();
+        return $this->memoryAvailable && $state->request->options->recallMemory
+            ? new RecallMemoryEvent()
+            : AIInferenceEvent::fromRequest($state->request);
     }
 
     private function buildBlockContent(array $documents): string

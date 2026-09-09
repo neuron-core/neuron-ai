@@ -56,6 +56,14 @@ class StepResult
         return $clone;
     }
 
+    public function withState(WorkflowState $state): static
+    {
+        $clone = clone $this;
+        $clone->state = $state;
+
+        return $clone;
+    }
+
     /**
      * The step's resulting state. Interrupted markers retain their state so
      * an unaddressed interruption can be replayed without invoking its node.

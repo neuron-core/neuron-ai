@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Events;
 
-use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Workflow\Events\Event;
 
@@ -18,13 +17,10 @@ class DocumentsProcessedEvent implements Event
     /**
      * @param Message $query The original query
      * @param array $documents Processed documents (Document[])
-     * @param AgentStartEvent $startEvent The run's start event, carried through the
-     *        chain so the inference intent survives to InstructionsNode
      */
     public function __construct(
         public readonly Message $query,
         public readonly array $documents,
-        public readonly AgentStartEvent $startEvent
     ) {
     }
 }

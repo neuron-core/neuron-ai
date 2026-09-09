@@ -447,6 +447,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             if (!$state instanceof WorkflowState) {
                 throw new WorkflowException("Completed run '{$this->runId}' has no retained outcome.");
             }
+            $state = $workflow->restoreState($state);
             $workflow->setState($state);
             return $state;
         }
@@ -465,7 +466,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             if ($acceptedInputs === []) {
                 $control = $this->store->control();
-                $state = $this->store->loadCheckpoint() ?? $workflow->getState();
+                $checkpoint = $this->store->loadCheckpoint();
+                $state = $checkpoint === null ? $workflow->getState() : $workflow->restoreState($checkpoint);
                 $workflow->setState($state);
                 $this->stampState($state);
                 $state->setInputResults($this->inputResults);
@@ -788,7 +790,9 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $cached = $this->store->loadStep($stepId);
 
         if ($cached instanceof StepResult && !$cached->isInterrupted()) {
-            return $cached->withEvent($workflow->restoreEvent($cached->getEvent()));
+            return $cached
+                ->withEvent($workflow->restoreEvent($cached->getEvent()))
+                ->withState($workflow->restoreState($cached->getState()));
         }
 
         $interruptId = $cached?->getInterruptId();
@@ -808,7 +812,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             return new StepResult(
                 stepId: $stepId,
                 event: InterruptEvent::fromRequest($active->request),
-                state: $cached->getState(),
+                state: $workflow->restoreState($cached->getState()),
                 interruptId: $interruptId,
             );
         }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -30,9 +31,10 @@ class ChatNodeStreamingTest extends TestCase
         $node = new ChatNode($provider, $chatHistory);
         $state = new AgentState();
 
-        $event = new AIInferenceEvent(instructions: 'Test', tools: []);
-        $event->setStream();
-        $event->setMessages(new UserMessage('hi'));
+        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $event = new AIInferenceEvent();
+        $state->request->options->stream = true;
+        $state->request->messages = [new UserMessage('hi')];
 
         $node->setWorkflowContext(new NodeContext($state, $event));
 
@@ -74,9 +76,10 @@ class ChatNodeStreamingTest extends TestCase
         $state = new AgentState();
         $state->setExecutionMetadata($runId, $runId, 1);
 
-        $event = new AIInferenceEvent(instructions: 'Test', tools: []);
-        $event->setStream();
-        $event->setMessages(new UserMessage('hi'));
+        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $event = new AIInferenceEvent();
+        $state->request->options->stream = true;
+        $state->request->messages = [new UserMessage('hi')];
 
         // Run 1: live stream + record the response as a durable memo.
         $node1 = new ChatNode($provider, $chatHistory);
@@ -99,6 +102,7 @@ class ChatNodeStreamingTest extends TestCase
         // persisted and the response must come from the memo, not from state).
         $node2 = new ChatNode($provider, $chatHistory);
         $state2 = new AgentState();
+        $state2->request = clone $state->request;
         $state2->setExecutionMetadata($runId, $runId, 1);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
