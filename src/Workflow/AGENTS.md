@@ -1,30 +1,22 @@
-# Workflow module
+# Workflow Module
 
-Workflow is Neuron's event-driven orchestration foundation. Agent and RAG are
-compositions built on it.
+Neuron's event-driven orchestration foundation. Agent and RAG are compositions built on it; nothing here knows about AI providers, chat or tools.
 
 ## Core model
 
-Workflows route events through nodes until a `StopEvent`:
-
-```text
-StartEvent -> NodeA -> EventA -> NodeB -> StopEvent
-```
-
-A node's `__invoke()` input type determines routing. The executor owns traversal,
-durable replay, suspension, and lifecycle transitions; nodes remain unaware of
-workers, HTTP requests, queues, or cloud platforms.
+A workflow routes events through nodes until a `StopEvent`. A node's `__invoke()` input type determines routing; the executor owns traversal, durable replay, suspension and lifecycle transitions, while nodes stay unaware of workers, HTTP requests, queues or cloud platforms.
 
 ```php
-$workflow = Workflow::make(state: $state)
-    ->addNodes([new NodeA(), new NodeB()]);
-
-$state = $workflow->run();
+$state = Workflow::make(state: $state)
+    ->addNodes([new NodeA(), new NodeB()])
+    ->run();
 ```
 
-## Suspend, inspect, and resume
+Subclasses build their graph in the `nodes()` / `entryNodes()` hooks, which run fresh at every execution segment, so the graph is always a function of the current configuration. Middleware wraps node execution (`addMiddleware(NodeClass::class, ...)`, subclass-aware, or `addGlobalMiddleware()`): it shapes events before a node acts, while flow control and I/O belong to nodes. Keep platform integration outside middleware and executors; the returned lifecycle outcome is the integration boundary.
 
-Nodes suspend through focused helpers:
+## Suspend, inspect, resume
+
+Nodes pause through focused helpers, each producing a portable `InterruptRequest` (`WaitForEventRequest`, `SleepUntilRequest`, `ApprovalRequest`, or your own serializable subclass):
 
 ```php
 $payload = $this->awaitEvent('order.approved', expiresAt: $deadline);
@@ -32,351 +24,62 @@ $this->sleepUntil($wakeAt);
 $payload = $this->interrupt(new MyApprovalRequest(...));
 ```
 
-`InterruptRequest` is the canonical, portable description of the pause. The
-executor assigns its ID, persists it, and returns the same ID-bound value to
-the caller. Request subclasses may add portable presentation metadata but must
-remain serializable:
+The executor assigns each interrupt a positive, run-scoped, monotonically increasing ID, persists it, and returns the same ID-bound request through `$state->getInterruptRequests()`. Parallel branches may expose several active interrupts at once; a partial resume runs only the addressed nodes and returns the unaddressed requests from persistence without rerunning theirs.
 
-```php
-$state = $workflow->run();
+Two continuation styles share one model:
 
-foreach ($state->getInterruptRequests() as $request) {
-    // getId(), type(), plus request-specific coordination and metadata
-}
-```
+- **Application code** resumes by signal name: `$workflow->signal('order.approved', $payload)->run()`. The signal is delivered to every currently active `awaitEvent()` with that name, parallel branches included, and is never queued: with no matching wait, `signal()` throws without persisting the payload. Use distinct names or a correlation key when delivery must target one wait.
+- **Durable platform SDKs** pass addressed, typed inputs: `run([ResumeInput::event($request, $payload), ResumeInput::timer($sleepRequest), ...], expectedRunId: $runId)`. Nodes never see `ResumeInput`; the executor translates an accepted input into the node's normal return (payload, `null` on expiry, timer wake). One input settles exactly one interruption. Once accepted it is immutable until the step settles (an identical redelivery may recover a failed attempt, a different answer rejects the batch); stale or unknown IDs are reported through `getInputResults()`, and a stale `expectedRunId` rejects the whole batch before traversal.
 
-Application code normally resumes an event wait by signal name:
-
-```php
-$state = $workflow
-    ->signal('order.approved', ['approved' => true])
-    ->run();
-```
-
-The signal is delivered to every currently active `awaitEvent()` with that
-name, including waits in parallel branches. It is never queued: when no active
-wait matches, `signal()` throws a `WorkflowException` without persisting the
-payload. Use distinct names or a domain correlation key when delivery must
-target only one wait.
-
-Call `events()` instead of `run()` after `signal()` to stream the resumed segment.
-
-Every interrupt receives a positive, run-scoped, monotonically increasing ID.
-Parallel branches may expose multiple active interrupts at once. A partial
-resume executes only addressed interrupted nodes; unaddressed requests are
-returned directly from persistence without rerunning their nodes.
-
-Durable platform SDKs use addressed, typed inputs:
-
-```php
-use NeuronAI\Workflow\Interrupt\ResumeInput;
-
-$state = $workflow->run([
-    ResumeInput::event($eventWaitRequest, ['approved' => true]),
-    ResumeInput::expired($expiredEventWaitRequest),
-    ResumeInput::timer($sleepRequest),
-]);
-```
-
-- `event` targets `wait_for_event`.
-- `expired` and `timer` remain available to infrastructure integrations, but
-  ordinary timer coordination invokes `run([])` and lets Workflow
-  determine which waits are due.
-- Event payloads must be JSON-compatible arrays; `{}`/`[]` is a real empty
-  answer.
-- A matching-run batch accepts active IDs and reports already-settled/unknown
-  IDs as `stale` through `WorkflowState::getInputResults()`.
-- Once accepted, an interrupt's input is immutable until the step settles.
-  Redelivery with the same kind and JSON payload may recover a failed attempt;
-  a different answer rejects the batch before claiming execution.
-- A stale `expectedRunId` rejects the whole batch before traversal.
-
-For directly controlled current-run continuation, `expectedRunId` may be
-omitted. A durable SDK or delayed delivery supplies the `runId` copied from the
-earlier outcome:
-
-```php
-$state = $workflow->run($inputs, expectedRunId: $runId);
-```
-
-An inputless continuation evaluates the clock and resolves every active
-`sleepUntil()` or expiring `awaitEvent()` whose deadline is due. It also replays
-a crashed or failed attempt without inventing an external answer. Future waits
-remain suspended:
-
-```php
-$state = $workflow->run(
-    [],
-    expectedRunId: $runId,
-    expectedExecutionAttempt: $attempt,
-);
-```
-
-Streaming uses the same continuation model. `events()` starts a run;
-`signal($name, $payload)->events()` delivers an application signal;
-`events()` continues with addressed platform inputs, and `events([])` performs inputless continuation. Fences require the explicit input array.
-
-Nodes never receive `ResumeInput`. The executor translates an accepted input
-into the existing node semantics: event payload, timeout null, or timer wake.
-One input satisfies exactly one interruption, including payload-less expiry and
-timer inputs.
+`run()` / `events()` express both start and continuation: no argument ignites a new run, an explicit array continues one. `run([])` is the inputless continuation: it evaluates the clock, resolves every due `sleepUntil()` or expiring `awaitEvent()`, and replays a crashed or failed attempt without inventing an external answer. `events()` streams the same segments (`signal(...)->events()` streams a resumed one).
 
 ## Platform-owned coordination
 
-Workflow core does not depend on a scheduler or coordination platform. There is
-no scheduler interface and no suspend/resume/complete callback from the
-executor.
+The core has no scheduler interface and no suspend/resume/complete callbacks. A platform SDK is an invocation gateway: reconstruct the workflow and its live dependencies through its own factory, configure persistence, serializer, lease and completion retention, call `run()` with addressed inputs or `[]`, inspect the returned status, run ID, input dispositions and active interrupts, then reconcile its own timers, subscriptions and jobs. HTTP round trips, queue workers and CLI loops are equivalent callers; platform job IDs, delivery attempts and factory identity never enter Workflow persistence.
 
-A platform SDK is an invocation gateway:
+The complete `InterruptRequest` stays authoritative in Workflow persistence; a platform stores only the projection it needs to route work (`workflowId`, `runId`, `interruptId`, type, event name, deadline). A delivery job resolves the interrupt-ID set when a signal is first accepted and reuses exactly that set on every retry; it never rematches by name after a lost response. For timers it stores identity plus the earliest deadline and invokes `run([])`. Reconstruction is the factory's job: ignition context may restore small domain identity (the Agent's thread ID), but it is not a dependency container.
 
-1. reconstruct the Workflow and all live dependencies through its own factory;
-2. configure persistence, serializer, lease, and completion retention;
-3. call `run()` with addressed inputs or `[]` for inputless continuation;
-4. inspect the returned status, run ID, input dispositions, and complete active
-   interrupt set;
-5. durably reconcile the platform's timers, subscriptions, and jobs.
+## One partition, optimistic ownership
 
-This makes HTTP round trips, queue workers, CLI loops, and other infrastructures
-equivalent callers. Platform job IDs, delivery attempts, scheduler commands,
-and factory identity do not enter Workflow persistence.
-
-`WorkflowState::getWorkflowId()`, `getRunId()`, and `getExecutionAttempt()` expose
-portable ownership identity. `getStatus()`, `getInputResults()`, and
-`getInterruptRequests()` expose the lifecycle result.
-
-The complete `InterruptRequest` remains authoritative in Workflow persistence.
-The platform stores only a JSON projection needed to route or schedule work:
-`workflowId`, `runId`, `interruptId`, type, event name, deadline, and its own job
-metadata. A delivery job stores the interrupt-ID set resolved when the external
-signal was first accepted and reuses exactly that set on every retry; it never
-rematches by signal name after a lost response. The request object itself is
-never sent back as continuation input.
-
-For timers, the platform stores the workflow/run identity and earliest deadline,
-then invokes `run([])`. Workflow validates the clock and selects all
-currently due waits. `expectedExecutionAttempt` is available for exact recovery
-fencing but is normally omitted from delayed event delivery because legitimate
-recovery may advance the execution attempt.
-
-Reconstruction is explicitly the application/platform SDK factory's
-responsibility. Ignition context may restore small domain identity, but it is not
-a dependency container or core factory registry.
-
-## One partition and optimistic ownership
-
-All records for a Workflow ID stay in one persistence partition:
+All records for a workflow ID live in one persistence partition:
 
 | key | purpose |
 |---|---|
-| `__ignition` | immutable start event, run ID, and engine-opaque context |
-| `__control` | mutable lifecycle authority and optimistic condition value |
-| `<runId>/__checkpoint` | the suspended run's state, returned by a continuation whose inputs are all stale |
-| `<runId>/__outcome` | the retained terminal state, only when completion retention is enabled |
-| `<runId>/<stepId>` | durable step result or marker; branch steps include a hash of their complete parent-fork path |
+| `__ignition` | immutable start event, run ID, engine-opaque context |
+| `__control` | mutable lifecycle authority: run ID, status, execution attempt, lease deadline, next interrupt ID, active interrupts with their accepted inputs |
+| `<runId>/__checkpoint` | the suspended run's state |
+| `<runId>/__outcome` | the retained terminal state (completion retention only) |
+| `<runId>/<stepId>` | durable step result or marker (branch steps hash their parent-fork path) |
 | `<runId>/<stepId>::<memo>` | durable memo result |
 
-`__control` contains the current run ID, status, monotonic execution attempt,
-optional lease deadline, next interrupt ID, and the active interrupts with
-their accepted inputs. It never carries workflow state: the suspended
-checkpoint and the retained outcome are separate records written in the same
-conditional write, so the fence stays small. Like steps, they are keyed under
-the run ID, so a process holding an older control reads its own generation's
-state or nothing, never a successor's.
-
-Every runtime mutation uses one of the explicit atomic persistence operations:
-`initializeIfAbsent()`, `writeIfUnchanged()`, or `deleteIfUnchanged()`. Writes
-and deletion expect the byte-identical control value from which they were
-derived. A successful claim increments `executionAttempt`; an older process can
-still finish local work, but it cannot commit a step, memo, suspension, failure,
-or cleanup after a new owner changes control.
-
-This is optimistic ownership in plain terms:
+`PersistenceInterface` offers `get()` plus three atomic intents, `initializeIfAbsent()`, `writeIfUnchanged()` and `deleteIfUnchanged()`; there is no unconditional runtime write or delete. Every mutation is derived from a byte-exact read of `__control` and commits only if control still holds that value:
 
 ```text
 read control A -> calculate transition -> write only if control is still A
 ```
 
-The persistence backend treats all keys and values as opaque strings. It does
-not understand runs, attempts, leases, or suspensions.
+A successful claim increments the execution attempt; an older process may finish local work but can no longer commit a step, memo, suspension, failure or cleanup. `__control` never carries workflow state (checkpoint and outcome are separate records written in the same conditional write, keyed under the run ID, so an older process reads its own generation's state or nothing). The backend treats keys and values as opaque strings and understands nothing about runs. `WorkflowRunStore` is the internal boundary that owns reserved keys, serialization, the control snapshot, conditional writes and a segment-local record cache; `StepMemoizer` is a step-bound view of it; `WorkflowExecutor` works with typed `WorkflowControl` and never touches raw bytes.
 
-`WorkflowRunStore` is the internal boundary between lifecycle traversal and
-that low-level persistence contract. It owns the reserved keys, serialization,
-the current byte-exact control snapshot, step and memo keys, conditional record
-writes, and conditional partition cleanup. It also keeps a segment-local cache
-of the run's records: after igniting, unknown step and memo keys are absent
-without a backend read, and on a continuation each key is read at most once.
-The cache holds serialized bytes and only what confirmed writes committed, and
-it is discarded whenever control is reloaded. `StepMemoizer` is a step-bound view of
-this same store; it does not access persistence or serialization directly. `WorkflowExecutor` works with typed
-`WorkflowControl` instances and does not track raw persisted control values.
-
-## Execution lease
-
-Leases are opt-in for a plain Workflow; `Agent` holds one by default (ten
-minutes, see `src/Agent/AGENTS.md`):
-
-```php
-$workflow->setLeaseTimeout(300);
-```
-
-The lease deadline lives inside `__control`; there is no separate lease record.
-Every step commit renews it in the same conditional write as the step record,
-so a heartbeat never costs a write of its own. Suspension and caught failure
-clear it because no process is intentionally executing. A process killed with
-no chance to write (memory limit, execution timeout, OOM kill) leaves the
-record `running`: without a lease only `run([])` can take it over; with one,
-the next ignition supersedes it once the deadline passes. An inputless
-continuation worker may take over a `running` attempt only when leases are
-disabled or the enabled lease has expired. The conditional claim still ensures
-only one contender advances the attempt.
-
-A lease is a crash-overlap safeguard, not proof that the prior process died.
-Choose a timeout longer than the longest silent node operation, and use external
-idempotency for uncertain side effects.
-
-## Failed and dead generations
-
-A caught failure commits `failed` into `__control` and leaves the partition in
-place. Two verbs settle it:
-
-- `run([])` replays the generation: committed steps and memos are reused and
-  only the failed step runs again. The run ID is unchanged.
-- A fresh `run()` at the same workflow ID supersedes it: the dead generation
-  is conditionally swept and a new generation ignites with the new start event.
-
-A `running` generation whose lease deadline has expired is dead in the same
-sense (the process never committed again) and is superseded the same way.
-Suspended generations, retained completions, and `running` generations with
-no lease deadline or a fresh one still refuse a fresh ignition. The sweep is
-fenced by the control bytes just read: a recovery worker that claims the
-generation first keeps it, and the ignition is refused.
-
-The refusal is a `RunInFlightException` (a `WorkflowException`) describing the
-generation that holds the ID: `runId`, `status`, `executionAttempt`,
-`leaseExpiresAt`, and the active `interrupts`. Its message names the verb that
-settles that state: deliver the awaited input, acknowledge the retained
-completion, wait for the lease, or configure a lease so a dead run can be
-superseded next time.
-
-Application code can also discard a run without igniting a new one:
-
-```php
-$abandoned = $workflow->abandonRun();          // false when nothing is in flight
-$workflow->abandonRun(expectedRunId: $runId);  // a stale fence throws
-```
-
-A suspended, failed, or unleased or lease-expired running generation is
-deleted behind the same fence. A retained completion refuses (acknowledge it
-instead), and so does a run under a fresh lease (a worker is executing it).
-
-## Completion and cleanup
-
-Manual workflows clean up by default. A clean `StopEvent` conditionally deletes
-the whole owned partition, so completed step data does not grow indefinitely and
-the Workflow ID becomes available for a new generation.
-
-A platform SDK that must survive a lost completion response opts into retained
-completion at construction time:
-
-```php
-$workflow->retainCompletionUntilAcknowledged();
-```
-
-The executor then commits `completed` into `__control` and the terminal state
-into `<runId>/__outcome` in one conditional write. Retries replay the same
-terminal state without executing nodes. After the
-platform durably records the outcome, it purges the exact generation:
-
-```php
-$workflow->acknowledgeCompletion($runId);
-```
-
-Acknowledgement requires the retained run ID and control value. Core keeps
-no permanent history; history belongs to the platform or application.
-
-## Persistence backends
-
-`PersistenceInterface` provides `get()` plus three explicit atomic mutation
-intents: initialize an absent condition key and its records, write records while
-the condition value is unchanged, and delete a partition while the condition
-value is unchanged. There is no unconditional runtime write or delete path.
-Production multi-worker backends must perform each condition check and its
-complete mutation in one database transaction or equivalent storage-native
-atomic operation.
-
-- `DatabasePersistence` and `EloquentPersistence` are the built-in
-  multi-process candidates.
-- `InMemoryPersistence` is process-local.
-- `FilePersistence` provides restart durability for controlled single-process
-  use only. It is deliberately not a worker-farm lock manager. Corrupt or
-  unreadable files fail loudly rather than appearing absent.
-
-All backends preserve one silo per Workflow: one array, one directory containing
-one file per partition, or one table keyed by `(partition, key)`.
-
-SQL backends encode identifiers as hex and values as base64. Serializers return
-raw bytes, and transport encoding belongs to persistence. The SQL schema in
-`DatabasePersistence` supports identifiers up to 255 bytes (510 encoded
-characters); MySQL requires strict mode and an InnoDB table. `EloquentPersistence`
-uses the model's table and connection with this same SQL implementation, including
-Laravel-managed transactions. Model scopes, casts, and events do not transform
-opaque engine records.
-
-The SQL integration tests run competing processes against SQLite by default.
-Set `WORKFLOW_MYSQL_DSN`, `WORKFLOW_MYSQL_USER`, `WORKFLOW_MYSQL_PASSWORD` and/or
-`WORKFLOW_PGSQL_DSN`, `WORKFLOW_PGSQL_USER`, `WORKFLOW_PGSQL_PASSWORD` to include
-MySQL/MariaDB and PostgreSQL. Tests create and drop uniquely named tables in the
-configured test database.
+Backends: `DatabasePersistence` and `EloquentPersistence` are the multi-process candidates and must perform each condition check and its mutation in one transaction; `InMemoryPersistence` is process-local; `FilePersistence` gives restart durability for controlled single-process use only and is deliberately not a worker-farm lock manager. Serializers return raw bytes; transport encoding belongs to persistence.
 
 ## Durable steps and memoization
 
-Every completed node step is persisted and skipped on replay. If a node fails
-before its step result commits, it runs again. Failure updates run control without
-writing a failed-step marker: an absent step executes again, and an interrupted
-step retains its marker and accepted input. Replaying a completed step restores
-the traversal's local state, including inside isolated parallel branches.
+Every completed node step is persisted and skipped on replay; a node that fails before its step commits runs again (failure updates control without writing a failed-step marker). Inside a node, `memoize('name', fn () => ...)` makes an expensive or non-deterministic sub-operation replay-safe; the memo write is fenced by the same control record as step writes. It reuses committed results, it cannot make an uncertain external side effect exactly-once: supply an idempotency key to the external system where that matters. `recallMemo()` is the read-only counterpart for streaming flows.
 
-Use `memoize()` around expensive or non-deterministic sub-operations:
+`restoreState()` reattaches transient dependencies to state recalled from persistence (completed steps, unaddressed interrupts, checkpoints, retained outcomes); it is never called on live results. Serialization and cloning are separate contracts: parallel branches work on clones, so state subclasses with mutable object properties outside the data array must define how they clone.
 
-```php
-$result = $this->memoize('provider-call', fn () => $provider->invoke(...));
-```
+## Leases, failures, dead generations
 
-The successful memo write is fenced by the same control record as step writes.
-`memoize()` reuses committed results; it cannot make an uncertain external side
-effect exactly once. Supply a provider/application idempotency key where that
-matters. `recallMemo()` remains the read-only counterpart for streaming flows.
+Leases are opt-in (`setLeaseTimeout()`; `Agent` holds a ten-minute one by default). The deadline lives inside `__control` and every step commit renews it in the same conditional write, so a heartbeat costs nothing; suspension and caught failure clear it. A process killed with no chance to write leaves the record `running`: without a lease only `run([])` can take it over, with one the next ignition supersedes it once the deadline passes. A lease is a crash-overlap safeguard, not proof the prior process died: choose a timeout longer than the longest silent node operation.
 
-## Executors and middleware
+A caught failure commits `failed` and leaves the partition in place. `run([])` replays the generation (committed steps and memos reused, only the failed step reruns, same run ID); a fresh `run()` supersedes it with a new generation. A `running` generation whose lease expired is dead in the same sense. Suspended generations, retained completions and live leases refuse a fresh ignition with `RunInFlightException`, whose message names the verb that settles that state (deliver the awaited input, acknowledge the completion, wait for the lease). `abandonRun()` discards a paused, failed or dead run without igniting a new one; a retained completion or a fresh lease refuses. Every sweep is fenced by the control bytes just read, so a recovery worker that claims first keeps the generation.
 
-`WorkflowExecutor` owns lifecycle decisions and sequential traversal.
-`WorkflowRunStore` owns the persistence protocol used to commit those
-decisions. `AsyncExecutor` changes only parallel branch execution and returns
-all active interruptions; storage and coordination ownership do not change.
+## Completion
 
-A workflow instance runs one segment at a time. Starting another `run()` or
-`events()`, or calling `abandonRun()` or `acknowledgeCompletion()`, while a
-segment's generator is still in flight throws a `WorkflowException` before
-anything is touched. Discarding the generator releases the instance; the run
-it leaves behind is settled by the usual durability rules.
+A clean `StopEvent` conditionally deletes the whole partition by default, so completed data does not grow and the workflow ID is free for a new generation. A platform that must survive a lost completion response opts into `retainCompletionUntilAcknowledged()`: the terminal state is committed to `<runId>/__outcome` together with `completed` control, retries replay it without executing nodes, and `acknowledgeCompletion($runId)` purges that exact generation. Core keeps no permanent history; history belongs to the platform or application.
 
-Executors type against `WorkflowRuntimeInterface`, which exposes definition,
-state, persistence, serializer, lease configuration, completion-retention
-policy, ignition, and bootstrap. Application code uses `WorkflowInterface`.
+## Executors and streaming
 
-`Workflow::restoreState()` reattaches transient dependencies to state recalled from
-completed steps, unaddressed interruption markers, checkpoints, and retained
-outcomes. It receives the actual local state, including branch state, and is never
-called on live results. The default returns state unchanged. Serialization and
-cloning are separate contracts: state subclasses with mutable object properties
-outside the data array must define how those properties are cloned.
+`WorkflowExecutor` owns lifecycle decisions and sequential traversal; `AsyncExecutor` changes only parallel branch execution. Executors type against `WorkflowRuntimeInterface`; application code uses `WorkflowInterface`. A workflow instance runs one segment at a time: starting another `run()` or `events()`, or calling `abandonRun()` / `acknowledgeCompletion()`, while a segment's generator is in flight throws before anything is touched.
 
-Middleware wraps node execution:
-
-```php
-$workflow->addMiddleware(NodeClass::class, new LoggingMiddleware());
-$workflow->addGlobalMiddleware(new PerformanceMiddleware());
-```
-
-Keep platform integration outside middleware and executors. The returned
-lifecycle outcome is the integration boundary.
+Nodes may `yield` live output while a segment streams; `setStreamAdapter()` converts it to protocol lines once, for both pull consumers and an attached `StreamingChannelInterface` (`send()` for native objects, `sendLine()` for lines). Yielded output is ephemeral and never replayed; see `src/Chat/Messages/Stream/Adapters/AGENTS.md`.

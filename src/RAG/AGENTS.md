@@ -1,315 +1,75 @@
 # RAG Module
 
-Retrieval Augmented Generation. Extends Agent with document search.
+Retrieval Augmented Generation. `RAG` extends `Agent`, so it inherits the whole Agent/Workflow machinery (thread identity, persistence, resume, memory, approvals) and only replaces the entry chain of the graph.
 
-**Dependencies**: `src/Agent/AGENTS.md`, `src/Chat/AGENTS.md`, `src/Providers/AGENTS.md`
+## The retrieval chain
 
-## Architecture
+`RAG::entryNodes()` swaps the Agent's `StartNode` for a retrieval pipeline whose last node produces the inference event:
 
-RAG extends Agent → inherits all Agent + Workflow capabilities (including
-`resume()`, thread identity, and the ignition record — see `src/Agent/AGENTS.md`).
-
-RAG overrides `entryNodes()`: the retrieval chain replaces the Agent's
-`StartNode` as the entry chain, and RAG's inference event is born at its end,
-in `InstructionsNode`:
-
-```
-AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode when requested] → inference
+```text
+AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode] → inference
 ```
 
-1. Extract and pre-process the user question (query expansion, rewriting).
-   The question is read from the start event, and nothing is written to chat
-   history before inference: `PreProcessNode` initializes `state->request`, whose
-   pending messages commit only after the provider call succeeds, as in the Agent,
-   so a failed turn never leaves a dangling user message on the thread.
-2. Retrieve relevant documents from the VectorStore. `QueryPreProcessedEvent`
-   is the injection channel for retrieval filters: middleware (in `before()`
-   on `RetrievalNode`) and preceding nodes call `addFilters(FilterExpression)`;
-   the node combines each mandatory scope at the root with AND and forwards the
-   resulting expression to the retrieval strategy. A scope may contain nested
-   AND/OR logic, but it can never relax another scope.
-   The event is born fresh every run, so a filter never leaks into the next run.
-3. Post-process (re-rank, filter)
-4. `InstructionsNode` enriches `state->request->instructions` with retrieved
-   documents, preserving earlier middleware changes. Messages and options stay in
-   the state request throughout retrieval; intermediate events carry only their
-   query, filters, and documents. Custom nodes can edit the state request directly.
-   When requested through `setMemoryUsage()`, routing passes through recall before
-   inference. Remember routing remains independent after the final response.
+- `PreProcessNode` reads the question from the start event, initializes `state->request` (the role `StartNode` plays in the Agent) and runs the pre-processors (query rewriting, expansion). Nothing is written to chat history before inference: pending messages commit only after the provider call succeeds, so a failed turn never leaves a dangling user message.
+- `RetrievalNode` asks the retrieval strategy. `QueryPreProcessedEvent` is the **injection channel for filters**: middleware (`before()` on `RetrievalNode`) and preceding nodes call `addFilters()`, the node ANDs every mandatory scope at the root and forwards the expression. A scope may contain nested AND/OR logic but can never relax another scope, and the event is born fresh every run, so a filter cannot leak into the next one.
+- `PostProcessNode` re-ranks or filters the documents.
+- `InstructionsNode` enriches `state->request->instructions` with the retrieved documents, preserving earlier middleware changes. Messages and options stay in the state request throughout; intermediate events carry only query, filters and documents.
 
-## Core Files
-
-| File | Purpose |
-|------|---------|
-| `RAG.php` | Main class, extends Agent |
-| `Document.php` | Document container with content, metadata, embedding |
-| `ResolveVectorStore.php` | Trait for vector store injection |
-| `ResolveEmbeddingProvider.php` | Trait for embeddings provider |
-| `ResolveRetrieval.php` | Trait for retrieval strategy |
-
-## Usage with RAG Extension Pattern
-
-Create a custom RAG class extending `RAG`:
+Collaborators come through lazy hooks with setter twins, like the Agent's provider: `embeddings()`, `vectorStore()`, `retrieval()`, `retrievalScope()`, `preProcessors()`, `postProcessors()`.
 
 ```php
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
-use NeuronAI\RAG\RAG;
-use NeuronAI\RAG\VectorStore\FileVectorStore;
-use NeuronAI\RAG\VectorStore\VectorStoreInterface;
-
 class WorkoutTipsAgent extends RAG
 {
-    protected function provider(): AIProviderInterface
-    {
-        return new Anthropic(
-            key: env('ANTHROPIC_API_KEY'),
-            model: 'claude-sonnet-4-6',
-        );
-    }
+    protected function provider(): AIProviderInterface { /* ... */ }
 
     protected function embeddings(): EmbeddingsProviderInterface
     {
-        return new OpenAIEmbeddingsProvider(
-            key: env('OPENAI_API_KEY'),
-            model: 'text-embedding-3-small',
-        );
+        return new OpenAIEmbeddingsProvider(key: env('OPENAI_API_KEY'), model: 'text-embedding-3-small');
     }
 
     protected function vectorStore(): VectorStoreInterface
     {
-        return new FileVectorStore(
-            storage: storage_path('app/embeddings'),
-        );
+        return new FileVectorStore(directory: storage_path('app/embeddings'));
+    }
+
+    protected function retrievalScope(): ?FilterExpression
+    {
+        return Filter::where('tenant', $this->tenantId)->whereIn('status', ['published', 'reviewed']);
     }
 }
-
-// Usage
-$response = WorkoutTipsAgent::make()->chat(
-    new UserMessage('What are the best exercises for back pain?')
-);
 ```
 
-## Vector Stores (`VectorStore/`)
+`RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters)` receives the per-run filters; a strategy must AND them with its own, never drop them. `SimilarityRetrieval` is the built-in strategy.
 
-`VectorStoreInterface` is filter-aware and stateless per call:
+## Vector stores are stateless per call
 
-```php
-$store->search(new SearchRequest(embedding: $vector, filters: $group, topK: 8));
-$store->delete(Filter::eq('sourceType', 'file'));
-```
-
-`SearchRequest` is an immutable per-call value (embedding, `?FilterExpression`,
-`?int topK` — null falls back to the store's constructor default). There is
-no mutable search state on a store: a filter set for one call cannot leak
-into the next.
+`VectorStoreInterface::search(SearchRequest)` takes an immutable per-call value (embedding, optional filters, optional `topK` falling back to the store's default). There is no mutable search state on a store, so a filter set for one call cannot leak into the next. `delete(FilterExpression)` uses the same filter model.
 
 ### The filter model (`VectorStore/Filter/`)
 
-A portable, backend-neutral expression tree compiled to each store's native
-syntax. This is **filtered similarity search**: metadata filters constrain
-vector similarity results. Reserve **hybrid search** for strategies that
-combine vector and lexical ranking.
+A portable, backend-neutral expression tree compiled to each store's native syntax by a compiler in `VectorStore/Compilers/` (internal wiring: no shared interface, not injectable; the file and memory stores evaluate the tree in PHP through `FilterEvaluator` instead). This is *filtered similarity search*; reserve "hybrid search" for strategies that combine vector and lexical ranking.
 
-- `Filter::eq/neq/in/gt/gte/lt/lte(field, value)` — low-level comparison
-  factories. `Filter::where(field, value)` starts an immutable fluent
-  `Criteria` with `where*` methods for the common path.
-  Values are scalars only (`null` throws: no portable missing-vs-null
-  semantics); range values normalize to `int|float` (string ranges are not
-  portable). Backed enums normalize to their value and `DateTimeInterface`
-  values normalize to epoch timestamps.
-- `FilterGroup::allOf(...)` / `anyOf(...)` — nested boolean expressions;
-  `and(...)` / `or(...)` remain short aliases. Same-operator groups flatten,
-  while mixed operators preserve their boundaries.
-- `FilterScope::merge(...)` — combines independently supplied mandatory
-  scopes with a root AND. Query expressiveness and scope safety are separate.
-- `Filter::containsAny/containsAll(field, values)` — portable filtering for
-  filterable `string[]` fields. Other array types remain backend-native.
-- `Filter::raw(StoreClass::class, $fragment)` — backend-native escape hatch,
-  tagged with its target store. The tagged store passes the fragment through
-  verbatim; every other store's compiler throws (fail-loud on store swap,
-  never silent misfiltering). Raw fragments must be trusted, developer-authored
-  syntax; never interpolate request values into them.
+- `Filter::eq/neq/in/gt/gte/lt/lte/containsAny/containsAll()` are the comparison leaves; `Filter::where()` starts an immutable fluent `Criteria` for the common path. Values are scalars only (`null` throws: there is no portable missing-vs-null semantics), ranges normalize to `int|float`, backed enums to their value, dates to epoch timestamps.
+- `FilterGroup::allOf()` / `anyOf()` nest boolean logic; `FilterScope::merge()` combines independently supplied mandatory scopes with a root AND. Query expressiveness and scope safety are separate concerns on purpose.
+- `Filter::raw(StoreClass::class, $fragment)` is the backend-native escape hatch, tagged with its target store: that store passes it through verbatim, every other compiler throws. Fail loud on a store swap, never misfilter silently. Raw fragments are trusted developer syntax; never interpolate request values into them.
+- Retrieval logs include fields, operators and boolean structure but omit comparison values and raw fragments, so authorization data does not leak into the default log context.
 
-Each backend has a compiler class in `VectorStore/Filter/Compilers/`
-(`QdrantFilterCompiler`, `MeilisearchFilterCompiler`, ...;
-`OpenSearchFilterCompiler` extends the Elasticsearch one). Compilers are
-internal wiring — no shared interface, not injectable. `FileVectorStore` and
-`MemoryVectorStore` share the PHP-side `FilterEvaluator` instead (raw filters
-throw there — nothing can execute them).
+### Document and schema
 
-Retrieval logs include the filter's fields, operators, and boolean structure,
-but omit comparison values and raw fragments so authorization data does not
-leak into the default log context.
+`Document` is the single processing object across loading, splitting, embedding, storage, retrieval and reranking. Embedding and score are nullable runtime values, so strict `null` checks say whether a stage produced them (`0.0` is a valid score).
 
-Backend caveats: Meilisearch filterable attributes and new MongoDB Atlas
-indexes are derived from `DocumentSchema`; existing indexes may require
-recreation. Weaviate keeps an opaque metadata copy and projects declared
-filter fields to native properties. Pinecone filter-based deletion works on
-pod-based indexes only.
-
-`VectorStoreInterface` implementations:
-
-| Class | Backend |
-|-------|---------|
-| `PineconeVectorStore` | Pinecone |
-| `ChromaVectorStore` | ChromaDB |
-| `QdrantVectorStore` | Qdrant |
-| `ElasticsearchVectorStore` | Elasticsearch |
-| `OpenSearchVectorStore` | OpenSearch |
-| `TypesenseVectorStore` | Typesense |
-| `MeilisearchVectorStore` | Meilisearch |
-| `MongoDBVectorStore` | MongoDB Atlas Vector Search |
-| `MariaDBVectorStore` | MariaDB vectors |
-| `WeaviateVectorStore` | Weaviate |
-| `FileVectorStore` | Local file storage |
-| `MemoryVectorStore` | In-memory (testing) |
+Custom metadata stays schema-less for storage and round-tripping. Portable *filtering* needs a collection-level `DocumentSchema` passed to the store, because backends differ in what they can filter and how:
 
 ```php
-// Pinecone example
-use NeuronAI\RAG\VectorStore\PineconeVectorStore;
-
-protected function vectorStore(): VectorStoreInterface
-{
-    return new PineconeVectorStore(
-        apiKey: env('PINECONE_API_KEY'),
-        indexName: 'my-index',
-        namespace: 'documents',
-    );
-}
-```
-
-### Document schemas
-
-`Document` is the unified processing object across loading, splitting,
-embedding, storage, retrieval, middleware, and reranking. Its fields are
-accessed through methods. Embedding and score are nullable runtime values;
-strict `null` checks express whether a stage produced them (`0.0` remains a
-valid score).
-
-Custom metadata stays schema-less for storage and round-tripping. Portable
-filtering requires a collection-level schema passed to the vector store:
-
-```php
-$schema = DocumentSchema::of(
+$store = new MemoryVectorStore(schema: DocumentSchema::of(
     DocumentField::string('tenant')->required()->filterable(),
     DocumentField::integer('year')->filterable(),
     DocumentField::strings('tags')->filterable(),
-);
-
-$store = new MemoryVectorStore(schema: $schema);
+));
 ```
 
-Stores validate declared values and filters locally. Only `sourceType`,
-`sourceName`, and declared filterable metadata fields are portable filter
-targets. Array fields are supported for validation/storage but need raw
-backend filters except for portable filterable string arrays, which support
-`containsAny` and `containsAll`. Declared arrays must be non-empty homogeneous
-lists. A `DocumentField` can be passed directly to
-filter factories for schema-aware construction. `neq` requires a required
-field so missing-field behavior cannot diverge between databases. RAG
-validates documents before embedding.
+Only `sourceType`, `sourceName` and declared filterable fields are portable filter targets; stores validate values and filters locally, and RAG validates documents before embedding. Filterable `string[]` fields support `containsAny` / `containsAll`; other array types need raw filters. `neq` requires a required field so missing-field behavior cannot diverge between databases. A `DocumentField` can be passed directly to the filter factories for schema-aware construction.
 
-## Embeddings (`Embeddings/`)
+## Ingestion
 
-`EmbeddingsProviderInterface`:
-
-| Provider | Service |
-|----------|---------|
-| `OpenAIEmbeddingsProvider` | OpenAI text-embedding |
-| `GeminiEmbeddingsProvider` | Google Gemini |
-| `OllamaEmbeddingsProvider` | Local Ollama |
-| `VoyageEmbeddingsProvider` | Voyage AI |
-| `CohereEmbeddingsProvider` | Cohere |
-| `MistralEmbeddingsProvider` | Mistral |
-| `AwsBedrockEmbeddingsProvider` | AWS Bedrock |
-| `OpenAILikeEmbeddings` | Any OpenAI-compatible endpoint |
-
-```php
-use NeuronAI\RAG\Embeddings\GeminiEmbeddingsProvider;
-
-protected function embeddings(): EmbeddingsProviderInterface
-{
-    return new GeminiEmbeddingsProvider(
-        key: env('GEMINI_API_KEY'),
-        model: 'text-embedding-004',
-    );
-}
-```
-
-## Document Loading (`DataLoader/`)
-
-Load and chunk documents:
-
-```php
-use NeuronAI\RAG\DataLoader\FileDataLoader;
-
-$documents = FileDataLoader::for('/path/to/documents')
-    ->withSplitter(new CustomSplitter())
-    ->getDocuments();
-```
-
-### Readers
-
-| Reader | Format |
-|--------|--------|
-| `PdfReader` | PDF files |
-| `HtmlReader` | HTML documents |
-| `TextFileReader` | Plain text |
-
-## Retrieval Strategies (`Retrieval/`)
-
-`RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters = null)`.
-The second parameter carries per-run filters injected via
-`QueryPreProcessedEvent::addFilters()`; a strategy must AND them with its
-own — never drop them. The common RAG path declares its mandatory scope with
-the protected `retrievalScope()` hook (or `setRetrievalScope()` before
-execution):
-
-```php
-use NeuronAI\RAG\VectorStore\Filter\Filter;
-use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-
-protected function retrievalScope(): ?FilterExpression
-{
-    return Filter::where('tenant', $this->tenantId)
-        ->whereIn('status', ['published', 'reviewed']);
-}
-```
-
-`SimilarityRetrieval` still accepts a `filters:` expression when used
-directly or inside a custom retrieval composition.
-
-## Pre/Post Processors
-
-- `PreProcessor/` - Transform query before retrieval (query expansion, etc.)
-- `PostProcessor/` - Re-rank or filter retrieved documents
-
-## Graph Store (`GraphStore/`)
-
-Knowledge graph integration (Neo4j) using triplet model (subject-relation-object).
-
-## Splitter (`Splitter/`)
-
-Document chunking strategies. Implement `SplitterInterface`:
-
-```php
-use NeuronAI\RAG\Splitter\SplitterInterface;
-use NeuronAI\RAG\Document;
-
-class CustomSplitter implements SplitterInterface
-{
-    public function splitDocument(Document $document): array
-    {
-        // Custom chunking logic
-        return $chunks;
-    }
-
-    public function splitDocuments(array $documents): array
-    {
-        return array_map([$this, 'splitDocument'], $documents);
-    }
-}
-```
+`DataLoader/` (file and string loaders with pluggable readers) → `Splitter/` (`SplitterInterface` chunking strategies) → `Embeddings/` (`EmbeddingsProviderInterface`) → `RAG::addDocuments()` / `reindexBySource()`. `GraphStore/` is the separate knowledge-graph integration (subject-relation-object triplets, Neo4j).

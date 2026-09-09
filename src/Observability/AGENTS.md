@@ -1,96 +1,28 @@
 # Observability Module
 
-PSR-14 event dispatching for monitoring. Each Workflow instance owns its own
-dispatcher — there is no global state, so concurrent workflows (long-running
-workers, async branches, nested agents) are isolated by construction.
+PSR-14 event dispatching for monitoring what a workflow does. Each `Workflow` instance owns its own dispatcher: there is no global state, so concurrent workflows (long-running workers, async branches, nested agents) are isolated by construction. The only dependency is `psr/event-dispatcher`.
 
-## Core
+## Model
 
-| File | Purpose |
-|------|---------|
-| `ObservabilityEvent.php` | Abstract base for all events. Carries `source` (the emitting component) and `branchId` (parallel branch, or null), stamped at dispatch time. `name()` returns the legacy string name ('inference-start'), derived from the class name unless overridden. |
-| `ListenerRegistry.php` | PSR-14 `ListenerProviderInterface`. Class-keyed listeners, instanceof matching — subscribing to `ObservabilityEvent::class` receives every event. |
-| `WorkflowEventDispatcher.php` | PSR-14 `EventDispatcherInterface`. Runs the workflow's listeners, then forwards to an optional external dispatcher. |
-| `ObserverInterface.php` | **Deprecated** legacy observer contract: `onEvent(name, source, data, branchId)`. Still works via `ObserverAdapter`; removed in the next major. |
-| `ObserverAdapter.php` | **Deprecated** — wraps an `ObserverInterface` as a PSR-14 listener on `ObservabilityEvent`; removed together with it. |
-
-## Usage
+- `ObservabilityEvent` is the base of every framework event. The event class is the dispatch identity; `name()` derives a string name from it (`InferenceStart` → 'inference-start') for loggers and legacy observers, overridden only where it cannot be derived. `source` (the emitting component) and `branchId` (the parallel branch, or null) are stamped at dispatch time, not by the emitter.
+- `ListenerRegistry` matches listeners with `instanceof` semantics: subscribing to `ObservabilityEvent::class` receives everything, subscribing to a base class receives its subclasses.
+- `WorkflowEventDispatcher` runs the workflow's listeners, then forwards to an optional external PSR-14 dispatcher (`setEventDispatcher()`), which is how a host framework's event system receives every event with no glue code.
 
 ```php
-// PSR-style, class-keyed listeners
-$workflow->subscribe(InferenceStop::class, function (InferenceStop $event) {
-    // $event->source is the emitting node, $event->branchId the parallel branch (or null)
-});
-
-// Catch-all
-$workflow->subscribe(ObservabilityEvent::class, fn (ObservabilityEvent $e) => $log($e->name()));
-
-// Integrate with a host framework: forward every event to its PSR-14 dispatcher
-$workflow->setEventDispatcher($symfonyEventDispatcher);
-
-// DEPRECATED: legacy observers still work during the transition
-// (LogObserver, InspectorObserver, ...) but will be removed in the next major
-$workflow->observe(new LogObserver($logger));
-```
-
-Listeners are registered on the workflow **instance** and live as long as it
-does — they observe every run of that instance (including resume cycles on the
-same object).
-
-## Emitting Events (internal)
-
-The executor dispatches lifecycle events (`WorkflowStart`, `WorkflowNodeStart`,
-`MiddlewareStart`, `BranchStart`, `AgentError`, ...). A run that suspends for
-external input dispatches one `WorkflowInterrupted` carrying the complete
-`WorkflowState` and its active interrupt requests. It is a scheduled pause, not
-a failure, so listeners can route it to something other than error alerting.
-The terminal vocabulary:
-`WorkflowEnd` alone = completed; `WorkflowInterrupted` + `WorkflowEnd` = paused;
-`AgentError` + `WorkflowEnd` = failed. Nodes emit domain events through
-`Node::emit()`:
-
-```php
-// Inside a node — the event object IS the payload
-$this->emit(new ToolCalling($tool));
-```
-
-Agent memory nodes complement the generic node lifecycle with domain pairs:
-`MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` / `MemoryStored`.
-Their start/completion timestamps delimit the actual memory boundary, while
-`MemoryRecalled` reports the result count. They intentionally carry no queries,
-messages, memory content, retrieval scope, or thread IDs. A failure emits the
-start event and the existing `AgentError`, but no successful completion event.
-
-`emit()` accepts any object (PSR-14 semantics). `ObservabilityEvent` instances are
-stamped with the emitting node as `source` and the current `branchId`. A node
-running without an executor has no dispatcher and emits nothing.
-
-To add a custom event, subclass `ObservabilityEvent` and subscribe to its class.
-
-## Built-in Listeners
-
-### LogListener
-
-PSR-3 logger integration as a PSR-14 listener. Logs every event's `name()` with
-per-event-class serialized context; override the protected `serialize*` methods
-to customize.
-
-```php
+$workflow->subscribe(InferenceStop::class, fn (InferenceStop $event) => $metrics->record($event->source, $event->branchId));
 $workflow->subscribe(ObservabilityEvent::class, new LogListener($psrLogger));
 ```
 
-### LogObserver (deprecated)
+Listeners are registered on the workflow instance and observe every run of it, resume cycles included.
 
-Legacy `ObserverInterface` variant of `LogListener` (a thin subclass), registered
-via the deprecated `observe()`. Use `LogListener` instead.
+## Emitting
 
-## Events (`Events/`)
+The executor dispatches the lifecycle (`WorkflowStart`, `WorkflowNodeStart`/`End`, `MiddlewareStart`/`End`, `BranchStart`/`End`, `AgentError`, `WorkflowEnd`). Nodes emit domain events through `Node::emit()`, where the event object *is* the payload; `emit()` accepts any object (PSR-14 semantics) and is a no-op when the node runs without an executor. A custom event is a subclass of `ObservabilityEvent` plus a subscription to its class.
 
-One class per lifecycle point. The class is the dispatch identity; `name()`
-provides the legacy string name for observers/loggers (overridden where it
-can't be derived from the class name, e.g. `AgentError` → 'error',
-`Retrieving` → 'rag-retrieving').
+The terminal vocabulary is deliberate. `WorkflowEnd` alone means completed. `WorkflowInterrupted` (carrying the full `WorkflowState` and its active interrupt requests) followed by `WorkflowEnd` means paused for external input: a scheduled pause, not a failure, so listeners can route it away from error alerting. `AgentError` followed by `WorkflowEnd` means failed.
 
-## Dependencies
+Memory events (`MemoryRecalling`/`MemoryRecalled`, `MemoryStoring`/`MemoryStored`) delimit the memory boundary and report counts only: no queries, recalled content, retrieval scope or thread IDs, so the default log context never leaks conversation data. A failing memory operation emits its start event and `AgentError`, never a completion event.
 
-`psr/event-dispatcher` only.
+## Deprecated path
+
+`ObserverInterface` (`onEvent(name, source, data, branchId)`) and `LogObserver` still work through `observe()`, which wraps them with `ObserverAdapter` as a listener on `ObservabilityEvent`. They exist only for the transition; new code uses `subscribe()` and `LogListener`.
