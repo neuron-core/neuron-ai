@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\HttpClient;
 
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
@@ -23,11 +23,11 @@ use function proc_open;
 use function proc_terminate;
 use function random_int;
 use function rtrim;
+use function str_repeat;
 use function sys_get_temp_dir;
+use function trim;
 use function unlink;
 use function usleep;
-use function str_repeat;
-use function trim;
 
 /**
  * Exercises the real curl stack against PHP's built-in server, including

@@ -6,7 +6,7 @@ namespace NeuronAI\MCP;
 
 use JsonException;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;

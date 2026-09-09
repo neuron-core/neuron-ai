@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
-use NeuronAI\HttpClient\AmpHttpClient;
+use NeuronAI\HttpClient\Amp\AmpHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
+use function fclose;
+use function file_put_contents;
 use function fopen;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
-use function fclose;
-use function file_put_contents;
 
 class AmpHttpClientTest extends TestCase
 {

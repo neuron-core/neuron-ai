@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Curl;
 
 use CurlHandle;
 use CurlMultiHandle;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\StreamInterface;
 
 use function curl_multi_close;
 use function curl_multi_exec;

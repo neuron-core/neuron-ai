@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Guzzle;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -11,11 +11,15 @@ use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\ResponseInterface;
 
 use function is_array;
-use function method_exists;
 use function is_resource;
+use function method_exists;
 use function trim;
 
 class GuzzleHttpClient implements HttpClientInterface
@@ -29,7 +33,7 @@ class GuzzleHttpClient implements HttpClientInterface
      */
     public function __construct(
         protected array $customHeaders = [],
-        protected float $timeout = 60.0,
+        protected float $timeout = 120.0,
         protected float $connectTimeout = 10.0,
         protected ?HandlerStack $handler = null,
         protected array $options = [],

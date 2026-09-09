@@ -6,7 +6,7 @@ namespace NeuronAI\MCP;
 
 use JsonException;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
@@ -32,13 +32,13 @@ use function stream_context_create;
 use function stream_get_meta_data;
 use function stream_set_blocking;
 use function stripos;
+use function strlen;
+use function strpbrk;
 use function strpos;
 use function strrpos;
 use function substr;
 use function trim;
 use function usleep;
-use function strlen;
-use function strpbrk;
 
 use const CURLOPT_SSL_VERIFYHOST;
 use const CURLOPT_SSL_VERIFYPEER;

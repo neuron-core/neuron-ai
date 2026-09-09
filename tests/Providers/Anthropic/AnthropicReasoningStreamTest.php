@@ -15,6 +15,13 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+use function implode;
+use function json_decode;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
+
 class AnthropicReasoningStreamTest extends TestCase
 {
     use ReasoningStreamAssertions;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers;
 
-use NeuronAI\Tests\Tools\Stub\ToolStub;
 use Generator;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -12,12 +11,13 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\Cohere\Cohere;
 use NeuronAI\Providers\Mistral\Mistral;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Providers\OpenAI\Responses\OpenAIResponses;
+use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;

@@ -9,19 +9,19 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
+use function fclose;
+use function file_put_contents;
 use function fopen;
 use function json_encode;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
-use function fclose;
-use function file_put_contents;
 
 class GuzzleHttpClientTest extends TestCase
 {

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\Jina;
 
 use NeuronAI\Exceptions\ToolException;
-use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolProperty;
 
 use function filter_var;
 

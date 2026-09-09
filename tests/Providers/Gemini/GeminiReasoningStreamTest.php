@@ -11,6 +11,12 @@ use NeuronAI\Tests\Support\ReasoningStreamAssertions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+use function implode;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
+
 class GeminiReasoningStreamTest extends TestCase
 {
     use ReasoningStreamAssertions;

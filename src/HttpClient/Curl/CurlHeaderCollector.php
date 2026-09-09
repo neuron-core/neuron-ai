@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Curl;
 
 use function explode;
 use function str_starts_with;

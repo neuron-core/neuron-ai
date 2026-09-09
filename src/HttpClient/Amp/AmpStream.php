@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Amp;
 
 use Amp\ByteStream\ReadableStream;
 use Amp\ByteStream\StreamException;
+use NeuronAI\HttpClient\StreamInterface;
 
 use function strlen;
-use function substr;
 use function strpos;
+use function substr;
 
 /**
  * Adapter for Amp's ReadableStream.

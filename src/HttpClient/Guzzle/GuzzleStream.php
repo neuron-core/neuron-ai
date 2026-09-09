@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Guzzle;
 
+use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
 
 use function strpos;

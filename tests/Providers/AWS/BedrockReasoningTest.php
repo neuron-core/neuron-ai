@@ -21,6 +21,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
+use function count;
+use function implode;
 
 class BedrockReasoningTest extends TestCase
 {

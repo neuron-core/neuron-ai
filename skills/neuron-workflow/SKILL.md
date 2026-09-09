@@ -981,12 +981,7 @@ Branch IDs come from non-empty string array keys (`'structured'`,
 ### Step 4 — Create Branch Nodes (Each Ends with StopEvent)
 
 ```php
-use NeuronAI\Agent;
-use NeuronAI\Providers\OpenAI\OpenAI;
-use NeuronAI\HttpClient\AmpHttpClient;
-use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Agent;use NeuronAI\HttpClient\Amp\AmpHttpClient;use NeuronAI\Providers\OpenAI\OpenAI;use NeuronAI\Workflow\Events\StopEvent;use NeuronAI\Workflow\Node;use NeuronAI\Workflow\WorkflowState;
 
 class ExtractStructuredDataNode extends Node
 {
@@ -1095,8 +1090,7 @@ For fully asynchronous execution where branches make HTTP calls to AI providers 
 Without `AmpHttpClient`, each branch's HTTP call would block its fiber, negating the concurrency benefit. With it, all branches make their API calls truly in parallel — a workflow that extracts structured data and generates a description simultaneously completes in the time of the slower branch, not the sum of both.
 
 ```php
-use NeuronAI\HttpClient\AmpHttpClient;
-use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\HttpClient\Amp\AmpHttpClient;use NeuronAI\Providers\OpenAI\OpenAI;
 
 $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
     ->setHttpClient(new AmpHttpClient());

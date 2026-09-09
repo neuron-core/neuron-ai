@@ -12,6 +12,10 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_slice;
+use function count;
+use function implode;
+
 class OpenAIResponsesReasoningStreamTest extends TestCase
 {
     use ReasoningStreamAssertions;

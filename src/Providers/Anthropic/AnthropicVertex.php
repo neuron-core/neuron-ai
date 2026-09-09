@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\Anthropic;
 
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\HttpClient\CurlHttpClient;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
 /**

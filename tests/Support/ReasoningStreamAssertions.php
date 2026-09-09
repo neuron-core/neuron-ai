@@ -11,8 +11,17 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\Providers\ProviderResponse;
+
+use function array_filter;
+use function array_map;
+use function array_values;
+use function implode;
+use function iterator_to_array;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 trait ReasoningStreamAssertions
 {

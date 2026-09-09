@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\PostProcessor;
 
-use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\HttpClient\GuzzleHttpClient;
-use NeuronAI\RAG\Document;
-use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
-use PHPUnit\Framework\TestCase;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
+use NeuronAI\RAG\Document;
+use NeuronAI\RAG\PostProcessor\JinaRerankerPostProcessor;
+use PHPUnit\Framework\TestCase;
 
 use function json_encode;
 

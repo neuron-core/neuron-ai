@@ -21,6 +21,8 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+
 class ThreadIdentityTest extends TestCase
 {
     /**
@@ -331,6 +333,9 @@ class ThreadIdentityTest extends TestCase
 
         $this->assertSame('thread-a', $agent->getThreadId());
         $this->assertSame($first, $agent->getChatHistory());
+
+        iterator_to_array($stream, false);
+        $this->assertSame('First reply', $stream->getReturn()->getMessage()->getContent());
 
         $agent->setChatHistory($second)->chat(new UserMessage('Second conversation'));
 

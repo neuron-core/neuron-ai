@@ -9,12 +9,12 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\AnthropicVertex;
 use PHPUnit\Framework\TestCase;
 
-use function json_decode;
 use function iterator_to_array;
+use function json_decode;
 
 class AnthropicVertexTest extends TestCase
 {

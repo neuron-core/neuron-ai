@@ -14,6 +14,11 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_filter;
+use function array_map;
+use function array_values;
+use function implode;
+
 class DeepseekReasoningStreamTest extends TestCase
 {
     use ReasoningStreamAssertions;

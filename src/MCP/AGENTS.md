@@ -62,8 +62,7 @@ class MyAgent extends Agent
 ### Remote MCP Server
 
 ```php
-use NeuronAI\HttpClient\GuzzleHttpClient;
-use NeuronAI\MCP\McpConnector;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;use NeuronAI\MCP\McpConnector;
 
 protected function tools(): array
 {

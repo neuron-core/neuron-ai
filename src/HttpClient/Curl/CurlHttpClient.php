@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Curl;
 
 use CurlHandle;
 use CurlShareHandle;
 use CURLStringFile;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\StreamInterface;
 
 use function basename;
 use function curl_error;
@@ -75,7 +79,7 @@ class CurlHttpClient implements HttpClientInterface
      */
     public function __construct(
         protected array $customHeaders = [],
-        protected float $timeout = 60.0,
+        protected float $timeout = 300.0, // 5 minutes
         protected float $connectTimeout = 10.0,
         protected array $curlOptions = [],
     ) {

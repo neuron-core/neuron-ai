@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\HttpClient;
+namespace NeuronAI\HttpClient\Amp;
 
 use Amp\ByteStream\ReadableResourceStream;
 use Amp\Http\Client\Form;
@@ -12,6 +12,10 @@ use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\StreamedContent;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
 use function is_array;
@@ -30,7 +34,7 @@ class AmpHttpClient implements HttpClientInterface
      */
     public function __construct(
         protected array $customHeaders = [],
-        protected float $timeout = 60.0,
+        protected float $timeout = 120.0,
     ) {
     }
 

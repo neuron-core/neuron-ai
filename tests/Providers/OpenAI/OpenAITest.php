@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers\OpenAI;
 
-use NeuronAI\Tests\Tools\Stub\ToolStub;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -14,11 +13,12 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\Tools\Stub\Person;
+use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
@@ -26,8 +26,8 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
 use function count;
-use function json_decode;
 use function is_array;
+use function json_decode;
 
 class OpenAITest extends TestCase
 {
