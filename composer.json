@@ -16,6 +16,7 @@
     },
     "require-dev": {
         "ext-pdo": "*",
+        "ext-mongodb": "*",
         "amphp/amp": "^3.1.1",
         "amphp/http-client": "^5.3",
         "aws/aws-sdk-php": "^3.209",
