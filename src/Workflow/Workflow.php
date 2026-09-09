@@ -44,7 +44,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected array $eventNodeMap = [];
 
-    protected Event $startEvent;
+    protected ?Event $startEvent = null;
 
     protected ?ListenerRegistry $listeners = null;
 

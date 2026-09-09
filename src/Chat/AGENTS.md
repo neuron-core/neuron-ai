@@ -75,7 +75,8 @@ in `AbstractChatHistory`:
   fabrication).
 
 The framework's thread identity lives on the **Agent** (`Agent::getThreadId()`, see
-`src/Agent/AGENTS.md`); the history's key is validated against it, never authoritative.
+`src/Agent/AGENTS.md`). Implicit attachment validates the history's key against it;
+an explicit `setChatHistory()` call can select another conversation using a new history.
 
 ### Message alternation
 

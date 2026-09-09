@@ -36,9 +36,8 @@ interface AgentInterface extends WorkflowInterface
     public function getTools(): array;
 
     /**
-     * A pre-bound history declares thread identity by adoption; an unbound
-     * one (constructed without its thread) receives the agent's resolved
-     * identity — the framework binds it before first use.
+     * A pre-bound history explicitly selects the conversation between
+     * interactions; an unbound one receives the current thread identity.
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): AgentInterface;
 

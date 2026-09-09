@@ -22,6 +22,11 @@ trait ChatHistoryHelper
 {
     protected ChatHistoryInterface $chatHistory;
 
+    public function setChatHistory(ChatHistoryInterface $chatHistory): void
+    {
+        $this->chatHistory = $chatHistory;
+    }
+
     public function getChatHistory(): ChatHistoryInterface
     {
         return $this->chatHistory;

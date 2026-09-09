@@ -10,6 +10,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
+use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
@@ -60,13 +61,15 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * The conversation this run belongs to, and the run's declared workflow
-     * ID. Assigned exactly once through adoptThreadId() and NEVER generated —
+     * ID. Adopted from configuration or persistence, and NEVER generated —
      * identity is always a developer statement. Null means the run is not
      * findable by its thread.
      */
     protected ?string $threadId = null;
 
     protected bool $parallelToolCalls = false;
+
+    protected bool $executing = false;
 
     /**
      * @throws WorkflowException
@@ -114,13 +117,36 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * A pre-bound history declares thread identity by adoption (conflicts
-     * throw); an unbound one receives the agent's resolved identity before
-     * first use — identity never needs to appear in wiring code.
+     * A pre-bound history explicitly selects the conversation; an unbound
+     * one receives the current thread identity. Swapping conversations clears
+     * local run context while preserving their histories and durable runs.
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
+        if ($this->executing) {
+            throw new AgentException('Cannot replace chat history while the agent is executing.');
+        }
+
+        $threadId = $chatHistory->getThreadId();
+
+        if ($threadId !== null && $this->threadId !== null && $threadId !== $this->threadId) {
+            $this->threadId = $threadId;
+            $this->workflowId = null;
+            $this->runId = null;
+            $this->state = null;
+            $this->stagedSignalName = null;
+            $this->stagedSignalPayload = [];
+            $this->startEvent = null;
+        }
+
         $this->attachChatHistory($chatHistory);
+
+        foreach ([...$this->nodes, ...$this->eventNodeMap] as $node) {
+            if ($node instanceof AgentNodeInterface) {
+                $node->setChatHistory($chatHistory);
+            }
+        }
+
         return $this;
     }
 
@@ -181,9 +207,8 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The single assignment door for thread identity. A conflicting identity
-     * is always a wiring bug and throws — two disagreeing claims about the
-     * same conversation have no honest silent resolution.
+     * Implicit identity adoption validates the selected conversation. Only
+     * an explicit setChatHistory() call may select a different conversation.
      *
      * @throws AgentException
      */
@@ -416,6 +441,22 @@ class Agent extends Workflow implements AgentInterface
         );
 
         return $this->run();
+    }
+
+    /**
+     * @param Generator<int, object|string, mixed, AgentState> $generator
+     * @return Generator<int, object|string, mixed, AgentState>
+     */
+    protected function forwardEvents(Generator $generator): Generator
+    {
+        $wasExecuting = $this->executing;
+        $this->executing = true;
+
+        try {
+            return yield from parent::forwardEvents($generator);
+        } finally {
+            $this->executing = $wasExecuting;
+        }
     }
 
     /**

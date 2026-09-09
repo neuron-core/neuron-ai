@@ -506,9 +506,9 @@ table.
 ## Ignition & thread identity
 
 The **Agent owns its thread identity**: `Agent::getThreadId(): ?string` is a
-nullable slot assigned exactly once through a single door (`adoptThreadId()`,
-mirroring the engine's identity phase). The framework **never generates** a
-thread identity — it is always a developer statement, and a run without one
+nullable slot validated by `adoptThreadId()` during implicit adoption. An explicit
+`setChatHistory()` call with a different pre-bound history selects a new conversation.
+The framework **never generates** a thread identity — it is always a developer statement, and a run without one
 is simply not findable by its thread (`workflowId()` null, generated workflow ID, no
 `threadId` in the ignition record).
 
@@ -516,8 +516,7 @@ is simply not findable by its thread (`workflowId()` null, generated workflow ID
 thread-scoped by nature but constructible *without* their thread
 (`ChatHistoryInterface::setThreadId()` / `getThreadId(): ?string`; loading is
 lazy): the Agent binds the resolved identity into an unbound history before
-first use. Identity therefore never appears in wiring code — not in hooks,
-not in setters:
+first use. Wiring code can therefore leave identity to the caller:
 
 ```php
 class SupportAgent extends Agent
@@ -544,18 +543,26 @@ SupportAgent::make(workflowId: $ticket->workflowId)->run(
 );
 ```
 
-Identity sources, in precedence order — any two disagreeing non-null claims
-**throw** (`AgentException`):
+Implicit identity adoption rejects disagreeing non-null claims (`AgentException`).
+An explicit history setter selects the conversation instead:
 
 1. **Explicit**: `Agent::make(threadId: 'thread-42')`.
 2. **Adoption from a pre-bound history**: `setChatHistory(new SQLChatHistory($pdo, 'thread-42'))`
-   declares the history's key as the agent's identity.
+   selects the history's key as the agent's identity, replacing the previous selection.
 3. **The ignition record** (workflowId-first resume): `applyIgnitionContext()`
    adopts the recorded threadId — adoption validates, so a record
    contradicting an explicitly claimed identity throws (a misidentified
    continuation). The engine's own check fires even earlier: a declared
    threadId disagreeing with an explicit `make(workflowId:)` is refused at
    identity resolution.
+
+`setChatHistory()` can replace history between interactions, including after a
+completed, failed, or suspended turn. A different thread clears local workflow/run
+identity, state, start-event intent, and staged signals; persisted runs and both
+histories remain intact. Swap back to the original history to continue its suspended
+run. An unbound replacement adopts the current thread. Composed agent nodes receive
+the replacement history without rebuilding the graph. Replacing history during an
+active execution or stream throws `AgentException`.
 
 **Thread-findability requires identity declared before the run starts** (the two
 sources above, or the record on a resume). A pre-bound *hook* history (the

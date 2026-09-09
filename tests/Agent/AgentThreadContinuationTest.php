@@ -77,6 +77,45 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertNotNull($persistence->get((string) $history->getThreadId(), '__ignition'));
     }
 
+    public function test_swapping_threads_preserves_a_suspended_run_and_allows_resuming_it(): void
+    {
+        $first = new InMemoryChatHistory('thread-a');
+        $second = new InMemoryChatHistory('thread-b');
+        $persistence = new InMemoryPersistence();
+        $searchTool = new SearchTool();
+        $searchTool->requireApproval();
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
+            ]),
+            new AssistantMessage('Second conversation reply'),
+            new AssistantMessage('Search results'),
+        );
+        $agent = $this->makeSuspendedRun($first, $persistence, $provider, $searchTool);
+        $firstRunId = $agent->getRunId();
+        $firstControl = $persistence->get('thread-a', '__control');
+        $agent->getState()->set('conversation_marker', 'thread-a');
+        $agent->toolApprovalDecisions(['call_1' => 'approve']);
+
+        $agent->setChatHistory($second);
+        $this->assertNull($agent->getState()->get('conversation_marker'));
+        $agent->chat(new UserMessage('Second conversation'));
+
+        $this->assertSame('thread-b', $agent->getWorkflowId());
+        $this->assertSame($firstControl, $persistence->get('thread-a', '__control'));
+        $this->assertCount(1, $provider->getRecorded()[1]->messages);
+
+        $state = $agent->setChatHistory($first)->toolApprovalDecisions(['call_1' => 'approve'])->run();
+
+        $this->assertFalse($state->isInterrupted());
+        $this->assertSame('Search results', $state->getMessage()->getContent());
+        $this->assertSame('thread-a', $agent->getWorkflowId());
+        $this->assertSame($firstRunId, $agent->getRunId());
+        $this->assertCount(2, $second->getMessages());
+        $this->assertCount(4, $first->getMessages());
+        $this->assertSame('Search for PHP frameworks', $provider->getRecorded()[2]->messages[0]->getContent());
+    }
+
     public function test_blank_agent_resumes_by_thread(): void
     {
         $history = new InMemoryChatHistory();

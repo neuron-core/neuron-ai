@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Agent\Memory\Stub\InspectableMemory;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -182,14 +183,162 @@ class ThreadIdentityTest extends TestCase
         $this->assertSame('thread-default', $agent->getChatHistory()->getThreadId());
     }
 
-    public function test_conflicting_concrete_history_throws(): void
+    public function test_explicit_history_setter_selects_the_thread(): void
     {
         $agent = Agent::make(threadId: 'thread-a');
+        $history = new InMemoryChatHistory('thread-b');
+
+        $agent->setChatHistory($history);
+
+        $this->assertSame('thread-b', $agent->getThreadId());
+        $this->assertSame($history, $agent->getChatHistory());
+    }
+
+    public function test_conflicting_hook_history_throws(): void
+    {
+        $agent = new class (threadId: 'thread-a') extends Agent {
+            protected function chatHistory(): ChatHistoryInterface
+            {
+                return new InMemoryChatHistory('thread-b');
+            }
+        };
 
         $this->expectException(AgentException::class);
         $this->expectExceptionMessage('Conflicting thread identity');
 
-        $agent->setChatHistory(new InMemoryChatHistory('thread-b'));
+        $agent->getChatHistory();
+    }
+
+    public function test_history_can_be_swapped_after_an_interaction_and_swapped_back(): void
+    {
+        $first = new InMemoryChatHistory('thread-a');
+        $second = new InMemoryChatHistory('thread-b');
+        $provider = new FakeAIProvider(
+            new AssistantMessage('First reply'),
+            new AssistantMessage('Second reply'),
+            new AssistantMessage('Welcome back'),
+        );
+        $memory = new InspectableMemory();
+        $persistence = new InMemoryPersistence();
+        $agent = Agent::make();
+        $agent->setAiProvider($provider)->setInstructions('test')
+            ->setChatHistory($first)->setMemory($memory);
+        $agent->setPersistence($persistence)->retainCompletionUntilAcknowledged();
+
+        $agent->chat(new UserMessage('First conversation'));
+        $firstRunId = $agent->getRunId();
+        $firstIgnition = $persistence->get('thread-a', '__ignition');
+
+        $this->assertSame($agent, $agent->setChatHistory($second));
+        $this->assertNull($agent->getRunId());
+        $this->assertNull($agent->getWorkflowId());
+        $agent->chat(new UserMessage('Second conversation'));
+
+        $this->assertSame('thread-b', $agent->getThreadId());
+        $this->assertSame('thread-b', $agent->getWorkflowId());
+        $this->assertNotSame($firstRunId, $agent->getRunId());
+        $this->assertCount(2, $first->getMessages());
+        $this->assertCount(2, $second->getMessages());
+        $this->assertCount(1, $provider->getRecorded()[1]->messages);
+        $this->assertSame('Second conversation', $provider->getRecorded()[1]->messages[0]->getContent());
+        $this->assertSame($firstIgnition, $persistence->get('thread-a', '__ignition'));
+        $ignition = (new PhpSerializer())->unserialize($persistence->get('thread-b', '__ignition'));
+        $this->assertInstanceOf(Ignition::class, $ignition);
+        $this->assertSame(['threadId' => 'thread-b'], $ignition->context);
+        $this->assertSame([
+            ['thread-a', 'First conversation', 'First reply'],
+            ['thread-b', 'Second conversation', 'Second reply'],
+        ], $memory->remembered);
+
+        $agent->setChatHistory($first);
+        $agent->acknowledgeCompletion($firstRunId);
+        $agent->chat(new UserMessage('Back to first'));
+
+        $this->assertSame('thread-a', $agent->getWorkflowId());
+        $this->assertCount(4, $first->getMessages());
+        $this->assertCount(2, $second->getMessages());
+        $this->assertCount(3, $provider->getRecorded()[2]->messages);
+    }
+
+    public function test_same_thread_history_replacement_updates_composed_nodes(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply'));
+        $first = new InMemoryChatHistory('thread-a');
+        $agent = Agent::make()->setAiProvider($provider)->setInstructions('test')->setChatHistory($first);
+        $agent->chat(new UserMessage('First conversation'));
+
+        $second = new InMemoryChatHistory('thread-a');
+        $agent->setChatHistory($second)->chat(new UserMessage('Second conversation'));
+
+        $this->assertCount(2, $first->getMessages());
+        $this->assertCount(2, $second->getMessages());
+        $this->assertCount(1, $provider->getRecorded()[1]->messages);
+    }
+
+    public function test_anonymous_agent_can_select_a_thread_after_its_first_interaction(): void
+    {
+        $agent = Agent::make()->setInstructions('test')->setAiProvider(
+            new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply')),
+        );
+        $agent->chat(new UserMessage('Anonymous conversation'));
+        $first = $agent->getChatHistory();
+
+        $agent->setChatHistory(new InMemoryChatHistory('thread-b'))->chat(new UserMessage('Named conversation'));
+
+        $this->assertSame('thread-b', $agent->getWorkflowId());
+        $this->assertCount(2, $first->getMessages());
+        $this->assertCount(2, $agent->getChatHistory()->getMessages());
+    }
+
+    public function test_unbound_history_replacement_keeps_the_current_thread_after_execution(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+        )');
+        $provider = new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply'));
+        $agent = Agent::make(threadId: 'thread-a')->setAiProvider($provider)->setInstructions('test');
+        $agent->chat(new UserMessage('First conversation'));
+        $first = $agent->getChatHistory();
+
+        $replacement = new SQLChatHistory($pdo);
+        $agent->setChatHistory($replacement)->chat(new UserMessage('Second conversation'));
+
+        $this->assertSame('thread-a', $replacement->getThreadId());
+        $this->assertSame('thread-a', $agent->getWorkflowId());
+        $this->assertCount(2, $first->getMessages());
+        $this->assertCount(2, $replacement->getMessages());
+        $this->assertCount(1, $provider->getRecorded()[1]->messages);
+    }
+
+    public function test_history_swap_during_streaming_is_rejected_without_changing_the_conversation(): void
+    {
+        $agent = Agent::make(threadId: 'thread-a')->setInstructions('test')->setAiProvider(
+            new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply')),
+        );
+        $stream = $agent->stream(new UserMessage('First conversation'));
+        $stream->rewind();
+        $first = $agent->getChatHistory();
+        $second = new InMemoryChatHistory('thread-b');
+
+        try {
+            $agent->setChatHistory($second);
+            $this->fail('An active stream must keep its history.');
+        } catch (AgentException $exception) {
+            $this->assertSame('Cannot replace chat history while the agent is executing.', $exception->getMessage());
+        }
+
+        $this->assertSame('thread-a', $agent->getThreadId());
+        $this->assertSame($first, $agent->getChatHistory());
+        foreach ($stream as $chunk) {
+        }
+
+        $agent->setChatHistory($second)->chat(new UserMessage('Second conversation'));
+
+        $this->assertSame('thread-b', $agent->getWorkflowId());
+        $this->assertCount(2, $first->getMessages());
+        $this->assertCount(2, $second->getMessages());
     }
 
     public function test_matching_concrete_history_is_fine(): void
