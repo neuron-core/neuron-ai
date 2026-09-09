@@ -115,7 +115,7 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: ${{ matrix.php }}
-                  extensions: pdo_mysql, pdo_pgsql, pdo_sqlite
+                  extensions: pdo_mysql, pdo_pgsql, pdo_sqlite, mongodb
                   coverage: none
 
             - name: Setup Problem Matches
