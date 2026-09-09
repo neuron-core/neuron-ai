@@ -74,7 +74,6 @@ class McpConnectorTest extends TestCase
             ->with([
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
-                'User-Agent' => 'neuron-ai/1.0.0',
             ])
             ->willReturnSelf();
         $httpClient->expects($this->once())

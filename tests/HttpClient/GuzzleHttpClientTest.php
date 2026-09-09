@@ -243,4 +243,25 @@ class GuzzleHttpClientTest extends TestCase
         $this->assertStringContainsString('Request timed out', $exception->getMessage());
         $this->assertNull($exception->response);
     }
+
+    public function test_sends_neuron_user_agent_by_default(): void
+    {
+        $mock = new MockHandler([new Response(200)]);
+        $client = new GuzzleHttpClient(handler: HandlerStack::create($mock));
+
+        $client->request(HttpRequest::get('https://example.com/api'));
+
+        $this->assertEquals('neuron-ai/4.x', $mock->getLastRequest()->getHeaderLine('User-Agent'));
+    }
+
+    public function test_custom_user_agent_replaces_the_default(): void
+    {
+        $mock = new MockHandler([new Response(200)]);
+        $client = (new GuzzleHttpClient(handler: HandlerStack::create($mock)))
+            ->withHeaders(['User-Agent' => 'my-app/1.0']);
+
+        $client->request(HttpRequest::get('https://example.com/api'));
+
+        $this->assertEquals('my-app/1.0', $mock->getLastRequest()->getHeaderLine('User-Agent'));
+    }
 }

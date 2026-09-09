@@ -19,6 +19,8 @@ use function unlink;
 
 class AmpHttpClientTest extends TestCase
 {
+    use BootsFixtureServer;
+
     public function test_is_multipart_data_detection(): void
     {
         $tmpFile = tempnam(sys_get_temp_dir(), 'test');
@@ -109,5 +111,21 @@ class AmpHttpClientTest extends TestCase
 
         fclose($fileResource);
         unlink($tmpFile);
+    }
+
+    public function test_sends_neuron_user_agent_by_default(): void
+    {
+        $response = (new AmpHttpClient())->request(HttpRequest::get(static::$baseUri . '/echo'));
+
+        $this->assertEquals('neuron-ai/4.x', $response->json()['userAgent']);
+    }
+
+    public function test_custom_user_agent_replaces_the_default(): void
+    {
+        $client = (new AmpHttpClient())->withHeaders(['User-Agent' => 'my-app/1.0']);
+
+        $response = $client->request(HttpRequest::get(static::$baseUri . '/echo'));
+
+        $this->assertEquals('my-app/1.0', $response->json()['userAgent']);
     }
 }

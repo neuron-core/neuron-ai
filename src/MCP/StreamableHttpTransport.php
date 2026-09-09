@@ -41,7 +41,6 @@ class StreamableHttpTransport implements McpTransportInterface
             ->withHeaders([
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
-                'User-Agent' => 'neuron-ai/1.0.0',
             ])
             ->withTimeout((float) ($config['timeout'] ?? 30));
     }

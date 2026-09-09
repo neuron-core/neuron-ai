@@ -18,6 +18,12 @@ use NeuronAI\Exceptions\HttpException;
 interface HttpClientInterface
 {
     /**
+     * Sent as User-Agent by every built-in client unless withHeaders()
+     * or the request supplies its own.
+     */
+    public const USER_AGENT = 'neuron-ai/4.x';
+
+    /**
      * Send an HTTP request and return the response.
      *
      * This method should block until the response is received.

@@ -8,6 +8,7 @@ use Amp\ByteStream\ReadableResourceStream;
 use Amp\Http\Client\Form;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
+use Amp\Http\Client\Interceptor\SetRequestHeaderIfUnset;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\StreamedContent;
@@ -151,7 +152,9 @@ class AmpHttpClient implements HttpClientInterface
 
     protected function getClient(): HttpClient
     {
-        return $this->client ??= HttpClientBuilder::buildDefault();
+        return $this->client ??= (new HttpClientBuilder())
+            ->intercept(new SetRequestHeaderIfUnset('User-Agent', HttpClientInterface::USER_AGENT))
+            ->build();
     }
 
     /**

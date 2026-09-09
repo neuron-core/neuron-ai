@@ -108,7 +108,10 @@ class GuzzleHttpClient implements HttpClientInterface
             return $this->client;
         }
 
-        $config = [];
+        // Guzzle adds client-level headers only when the request lacks them.
+        $config = [
+            RequestOptions::HEADERS => ['User-Agent' => HttpClientInterface::USER_AGENT],
+        ];
 
         if ($this->handler instanceof HandlerStack) {
             $config['handler'] = $this->handler;

@@ -46,6 +46,7 @@ use const CURLOPT_RETURNTRANSFER;
 use const CURLOPT_SHARE;
 use const CURLOPT_TIMEOUT_MS;
 use const CURLOPT_URL;
+use const CURLOPT_USERAGENT;
 use const CURLOPT_WRITEFUNCTION;
 use const CURLSHOPT_SHARE;
 
@@ -268,6 +269,8 @@ class CurlHttpClient implements HttpClientInterface
         $options = [
             CURLOPT_URL => $this->resolveUri($request),
             CURLOPT_CUSTOMREQUEST => $request->method->value,
+            // A User-Agent line in CURLOPT_HTTPHEADER replaces this default.
+            CURLOPT_USERAGENT => HttpClientInterface::USER_AGENT,
             CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->connectTimeout * 1000),
             CURLOPT_TIMEOUT_MS => (int) ($this->timeout * 1000),
             CURLOPT_FOLLOWLOCATION => true,

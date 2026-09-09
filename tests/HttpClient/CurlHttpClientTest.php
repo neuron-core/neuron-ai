@@ -12,22 +12,15 @@ use NeuronAI\HttpClient\HttpResponse;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
-use function fclose;
 use function file_put_contents;
 use function fopen;
-use function fsockopen;
-use function is_resource;
 use function json_decode;
 use function microtime;
-use function proc_open;
-use function proc_terminate;
-use function random_int;
 use function rtrim;
 use function str_repeat;
 use function sys_get_temp_dir;
 use function trim;
 use function unlink;
-use function usleep;
 
 /**
  * Exercises the real curl stack against PHP's built-in server, including
@@ -36,54 +29,7 @@ use function usleep;
  */
 class CurlHttpClientTest extends TestCase
 {
-    protected static string $baseUri;
-
-    /**
-     * @var resource
-     */
-    protected static $serverProcess;
-
-    public static function setUpBeforeClass(): void
-    {
-        $port = random_int(49152, 65000);
-        static::$baseUri = "http://127.0.0.1:{$port}";
-
-        $process = proc_open(
-            ['php', '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/server.php'],
-            [2 => ['pipe', 'w']],
-            $pipes,
-            null,
-            ['PHP_CLI_SERVER_WORKERS' => '2'],
-        );
-
-        if (!is_resource($process)) {
-            self::fail('Failed to start the built-in PHP server fixture');
-        }
-
-        static::$serverProcess = $process;
-        static::waitForServer($port);
-    }
-
-    public static function tearDownAfterClass(): void
-    {
-        proc_terminate(static::$serverProcess);
-    }
-
-    protected static function waitForServer(int $port): void
-    {
-        for ($attempt = 0; $attempt < 100; $attempt++) {
-            $socket = @fsockopen('127.0.0.1', $port, $errorCode, $errorMessage, 0.1);
-
-            if ($socket !== false) {
-                fclose($socket);
-                return;
-            }
-
-            usleep(50_000);
-        }
-
-        self::fail('The built-in PHP server fixture never became reachable');
-    }
+    use BootsFixtureServer;
 
     public function test_get_request(): void
     {
@@ -118,6 +64,22 @@ class CurlHttpClientTest extends TestCase
         );
 
         $this->assertEquals('', $response->json()['expect']);
+    }
+
+    public function test_sends_neuron_user_agent_by_default(): void
+    {
+        $response = (new CurlHttpClient())->request(HttpRequest::get(static::$baseUri . '/echo'));
+
+        $this->assertEquals('neuron-ai/4.x', $response->json()['userAgent']);
+    }
+
+    public function test_custom_user_agent_replaces_the_default(): void
+    {
+        $client = new CurlHttpClient(customHeaders: ['User-Agent' => 'my-app/1.0']);
+
+        $response = $client->request(HttpRequest::get(static::$baseUri . '/echo'));
+
+        $this->assertEquals('my-app/1.0', $response->json()['userAgent']);
     }
 
     public function test_multipart_body_with_resource(): void

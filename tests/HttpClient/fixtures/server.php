@@ -24,6 +24,7 @@ switch ($path) {
             'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? '',
             'expect' => $_SERVER['HTTP_EXPECT'] ?? '',
             'xHook' => $_SERVER['HTTP_X_HOOK'] ?? '',
+            'userAgent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'body' => \file_get_contents('php://input'),
         ]);
         break;
