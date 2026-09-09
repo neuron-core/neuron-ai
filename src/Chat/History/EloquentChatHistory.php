@@ -7,8 +7,8 @@ namespace NeuronAI\Chat\History;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use NeuronAI\Chat\Messages\Message;
-
 use NeuronAI\Exceptions\ChatHistoryException;
+
 use function array_merge;
 
 use const PHP_INT_MAX;

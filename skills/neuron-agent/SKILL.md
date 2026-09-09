@@ -256,7 +256,7 @@ protected function tools(): array
 ### Available Toolkits
 - **MySQLToolkit** - Database queries via MySQL
 - **PostgreSQLToolkit** - Database queries via PostgreSQL
-- **CalculatorToolkit** - Math operations (sum, mean, std, etc.)
+- **CalculatorToolkit** - Math: expression evaluation, exact integer arithmetic, statistics
 - **TavilyToolkit** - Web search with Tavily
 - **SESToolkit** - Email sending via AWS SES
 - **JinaToolkit** - Reranking with Jina

@@ -17,6 +17,7 @@
     "require-dev": {
         "ext-pdo": "*",
         "ext-mongodb": "*",
+        "ext-bcmath": "*",
         "amphp/amp": "^3.1.1",
         "amphp/http-client": "^5.3",
         "aws/aws-sdk-php": "^3.209",
@@ -77,6 +78,7 @@
         }
     },
     "suggest": {
+        "ext-bcmath": "Exact integer tools in the Calculator toolkit (factorial, combinations, gcd, mod_pow, primes).",
         "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer.",
         "guzzlehttp/guzzle": "Use GuzzleHttpClient as the HTTP client, e.g. for HandlerStack middleware.",
         "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl)."

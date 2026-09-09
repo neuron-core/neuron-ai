@@ -395,18 +395,16 @@ class CalculatorToolkit extends AbstractToolkit
 {
     public function guidelines(): ?string
     {
-        return "This toolkit allows you to perform mathematical operations.
-        You can use these functions to solve mathematical expressions
-        step by step to calculate the final result.";
+        return "This toolkit performs mathematical calculations with precision and determinism.
+        Pass whole formulas to the evaluate tool instead of computing intermediate steps yourself.";
     }
 
     public function provide(): array
     {
         return [
-            SumTool::make(),
-            SubtractTool::make(),
-            MultiplyTool::make(),
-            DivideTool::make(),
+            EvaluateTool::make(),
+            FactorialTool::make(),
+            MeanTool::make(),
         ];
     }
 }
@@ -708,7 +706,7 @@ public function __invoke(
 
 | Toolkit | Purpose |
 |---------|---------|
-| `CalculatorToolkit` | Math operations (sum, subtract, multiply, divide, etc.) |
+| `CalculatorToolkit` | Math: expression evaluation, exact integer arithmetic, statistics |
 | `MySQLToolkit` | MySQL database queries |
 | `PostgreSQLToolkit` | PostgreSQL database queries |
 | `FileSystemToolkit` | File operations (read, write, edit, delete, glob) |

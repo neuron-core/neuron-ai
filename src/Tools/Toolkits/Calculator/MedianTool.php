@@ -4,80 +4,38 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Calculator;
 
-use NeuronAI\Tools\ArrayProperty;
-use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\ToolOutput;
 
-use function array_filter;
-use function array_map;
 use function count;
-use function floor;
-use function round;
+use function intdiv;
 use function sort;
-use function is_numeric;
 
-class MedianTool extends Tool
+class MedianTool extends StatisticTool
 {
-    protected string $name = 'calculate_median';
+    protected string $name = 'median';
 
     protected ?string $description = <<<DESC
-        Calculates the median (middle value) of a dataset when sorted in ascending order.
-        For datasets with an even number of values, returns the average of the two middle values.
-        The median is less affected by outliers than the mean, making it useful for skewed distributions,
-        income analysis, or when you need a robust measure of central tendency.
+        Calculate the median of a dataset: the middle value once sorted, or the mean of the two
+        middle values when the count is even. Less sensitive to outliers than the mean.
         DESC;
 
-    public function __construct(protected int $precision = 2)
+    public function __invoke(array $numbers): string|ToolOutput
     {
+        return $this->invalidDataset($numbers) ?? Number::format($this->median($numbers));
     }
 
-    protected function properties(): array
+    /**
+     * @param array<int|float> $numbers
+     */
+    protected function median(array $numbers): int|float
     {
-        return [
-            new ArrayProperty(
-                name: 'numbers',
-                description: 'Array of numerical values',
-                required: true,
-                items: new ToolProperty(
-                    'number',
-                    PropertyType::NUMBER,
-                    'A numerical value',
-                    true,
-                )
-            ),
-        ];
-    }
+        sort($numbers);
 
-    public function __invoke(array $numbers): float|array
-    {
-        // Validate input
-        if ($numbers === []) {
-            return ['error' => 'Data array cannot be empty'];
-        }
+        $count = count($numbers);
+        $middle = intdiv($count, 2);
 
-        // Filter and validate numeric values
-        $numericData = array_filter($numbers, is_numeric(...));
-
-        if ($numericData === []) {
-            return ['error' => 'Data array must contain at least one numeric value'];
-        }
-
-        // Convert to float values and sort
-        $numericData = array_map(floatval(...), $numericData);
-        sort($numericData);
-
-        $count = count($numericData);
-        $middle = (int) floor($count / 2);
-
-        if ($count % 2 === 0) {
-            // Even number of elements - average of two middle values
-            $median = ($numericData[$middle - 1] + $numericData[$middle]) / 2;
-        } else {
-            // Odd number of elements - middle value
-            $median = $numericData[$middle];
-        }
-
-        return round($median, $this->precision);
+        return $count % 2 === 0
+            ? ($numbers[$middle - 1] + $numbers[$middle]) / 2
+            : $numbers[$middle];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Chat\History;
 
 use NeuronAI\Exceptions\ChatHistoryException;
+
 use function uniqid;
 
 class InMemoryChatHistory extends AbstractChatHistory
