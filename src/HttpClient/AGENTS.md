@@ -36,6 +36,9 @@ surface incrementally — live streaming is guaranteed, not client-dependent. It
 constructor argument is the raw `CURLOPT_*` escape hatch (proxies, custom CA bundles, ...) and
 wins over the built-in defaults.
 
+All three send `User-Agent: neuron-ai/4.x` (`HttpClientInterface::USER_AGENT`) unless
+`withHeaders()` or the request supplies its own.
+
 ### Request/response hooks
 
 `CurlHttpClient` offers taps — deliberately not middleware:
@@ -93,11 +96,12 @@ class MyProvider {
 
 ## Testing
 
-`tests/HttpClient/CurlHttpClientTest.php` boots PHP's built-in server
-(`tests/HttpClient/fixtures/server.php`) and exercises the real curl stack, including the
-assertion that SSE chunks arrive incrementally. Provider tests fake HTTP in-process through
-`GuzzleHttpClient` + Guzzle's `MockHandler` — they test provider logic through the seam, which
-is implementation-agnostic, and keep the Guzzle adapter exercised.
+`tests/HttpClient/CurlHttpClientTest.php` and `AmpHttpClientTest.php` boot PHP's built-in server
+(`BootsFixtureServer` trait on `tests/HttpClient/fixtures/server.php`) and exercise the real
+stack; the curl test includes the assertion that SSE chunks arrive incrementally. Provider
+tests fake HTTP in-process through `GuzzleHttpClient` + Guzzle's `MockHandler` — they test
+provider logic through the seam, which is implementation-agnostic, and keep the Guzzle adapter
+exercised.
 
 ## Dependencies
 
