@@ -93,7 +93,7 @@ trait HandleTools
 
     /**
      * Expand toolkits into their tools and inject toolkit guidelines into the
-     * instructions. Cached until the tool set changes.
+     * instructions. Cached within a segment and invalidated when tools are added.
      *
      * @return ToolInterface[]
      */

@@ -80,8 +80,9 @@ $response = $agent->chat(new UserMessage('Hello'))->getMessage();
 
 ## The static graph & execution intent
 
-The Agent composes the SAME node set on every run — the graph is a pure
-function of the agent definition, never of which sugar method was called:
+The Agent builds fresh default nodes through Workflow's `nodes()` hook at each
+execution segment. The graph is a function of the current agent definition,
+never of which sugar method was called:
 
 ```
 AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─┐
@@ -92,6 +93,20 @@ AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEve
                                                        [StoreMemoryNode] ─► Stop
                                                           when requested
 ```
+
+Fluent configuration changes take effect when the next segment bootstraps:
+provider, instructions, tools and toolkit guidelines, tool limits and error handling,
+parallel tool execution, history, and memory are injected into fresh nodes. Tools
+are expanded again for that segment. Explicitly added nodes and registered
+middleware remain attached; custom node construction belongs in `nodes()` or
+`entryNodes()` when it must read current configuration. RAG's entry chain follows
+the same lifecycle.
+
+Each `chat()`, `stream()`, or `structured()` call creates a fresh start event through
+the `startEvent()` hook, so inference settings do not leak between turns. A resume
+uses the recorded event intent and instructions with the currently configured live
+capabilities. Configuration changes during an active segment apply to the next
+segment; history replacement remains forbidden while executing.
 
 - The start event is **pure run data**: messages plus inference and memory
   intent (`stream`, `outputClass`, `maxTries`, `recallMemory`,
@@ -292,7 +307,7 @@ Use `setMemoryUsage(recall: false)` for remember-only,
 memory for the run while keeping the component attached. The choices are run
 intent: they can change between turns, survive structured routing and tool
 loops, and a suspended run resumes with its original choices. Memory nodes
-remain registered once the graph is composed, but disabled branches are not
+are included whenever memory is attached, but disabled branches are not
 traversed and emit no stream or observability events.
 
 Subclasses may provide the dependency through the lazy hook instead:
@@ -304,9 +319,8 @@ protected function memory(): ?MemoryInterface
 }
 ```
 
-An explicit `setMemory()` call wins over the hook. As with providers, tools,
-and other graph dependencies, configure memory before execution so composition
-can inject it into the memory nodes.
+An explicit `setMemory()` call wins over the hook. Memory can be added or replaced
+between interactions; the next segment injects the current component into its nodes.
 
 `RecallMemoryNode` runs after instructions are complete and before the first
 provider call. Recall is durably memoized there. Recalled strings are appended to a trailing
@@ -560,8 +574,8 @@ An explicit history setter selects the conversation instead:
 completed, failed, or suspended turn. A different thread clears local workflow/run
 identity, state, start-event intent, and staged signals; persisted runs and both
 histories remain intact. Swap back to the original history to continue its suspended
-run. An unbound replacement adopts the current thread. Composed agent nodes receive
-the replacement history without rebuilding the graph. Replacing history during an
+run. An unbound replacement adopts the current thread. The next segment constructs
+its agent nodes with the replacement history. Replacing history during an
 active execution or stream throws `AgentException`.
 
 **Thread-findability requires identity declared before the run starts** (the two

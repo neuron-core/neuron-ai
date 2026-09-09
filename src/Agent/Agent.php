@@ -10,7 +10,6 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
-use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
@@ -29,6 +28,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -141,12 +141,6 @@ class Agent extends Workflow implements AgentInterface
 
         $this->attachChatHistory($chatHistory);
 
-        foreach ([...$this->nodes, ...$this->eventNodeMap] as $node) {
-            if ($node instanceof AgentNodeInterface) {
-                $node->setChatHistory($chatHistory);
-            }
-        }
-
         return $this;
     }
 
@@ -193,10 +187,6 @@ class Agent extends Workflow implements AgentInterface
     {
         $this->recallMemory = $recall;
         $this->rememberMemory = $remember;
-
-        if (isset($this->startEvent) && $this->startEvent instanceof AgentStartEvent) {
-            $this->startEvent->setMemoryUsage($recall, $remember);
-        }
 
         return $this;
     }
@@ -313,11 +303,12 @@ class Agent extends Workflow implements AgentInterface
         return $event;
     }
 
-    protected function compose(): void
+    /**
+     * @return Node[]
+     */
+    protected function nodes(): array
     {
-        if ($this->eventNodeMap !== []) {
-            return;
-        }
+        $this->toolsBootstrapCache = [];
 
         $chatHistory = $this->getChatHistory();
         $memory = $this->getMemory();
@@ -339,7 +330,7 @@ class Agent extends Workflow implements AgentInterface
             $nodes[] = new StoreMemoryNode($memory, $chatHistory);
         }
 
-        $this->addNodes($nodes);
+        return $nodes;
     }
 
     /**
@@ -362,13 +353,11 @@ class Agent extends Workflow implements AgentInterface
         ];
     }
 
-    /**
-     * @throws WorkflowException
-     */
-    public function bootstrap(): void
+    public function makeIgnition(string $runId): Ignition
     {
-        $this->compose();
-        parent::bootstrap();
+        $this->getStartEvent()->setMemoryUsage($this->recallMemory, $this->rememberMemory);
+
+        return parent::makeIgnition($runId);
     }
 
     /**
@@ -425,25 +414,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * A new turn starts a new run — to continue a suspended run use
-     * {@see run()}. Runs eagerly to completion; the returned state
-     * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
-     *
-     * @param Message|Message[] $messages
-     * @throws AgentException
-     * @throws Throwable
-     * @throws WorkflowException
-     */
-    public function chat(Message|array $messages = []): AgentState
-    {
-        $this->getStartEvent()->setMessages(
-            ...(is_array($messages) ? $messages : [$messages])
-        );
-
-        return $this->run();
-    }
-
-    /**
      * @param Generator<int, object|string, mixed, AgentState> $generator
      * @return Generator<int, object|string, mixed, AgentState>
      */
@@ -460,6 +430,26 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * A new turn starts a new run — to continue a suspended run use
+     * {@see run()}. Runs eagerly to completion; the returned state
+     * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
+     *
+     * @param Message|Message[] $messages
+     * @throws AgentException
+     * @throws Throwable
+     * @throws WorkflowException
+     */
+    public function chat(Message|array $messages = []): AgentState
+    {
+        $this->setStartEvent($this->startEvent());
+        $this->getStartEvent()->setMessages(
+            ...(is_array($messages) ? $messages : [$messages])
+        );
+
+        return $this->run();
+    }
+
+    /**
      * The pull-stream verb: yields Neuron chunks, and
      * {@see Generator::getReturn()} is the final {@see AgentState}. A stream
      * adapter configured on the Workflow transforms the yielded output and,
@@ -473,6 +463,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function stream(Message|array $messages = []): Generator
     {
+        $this->setStartEvent($this->startEvent());
         $this->getStartEvent()->setStream()->setMessages(
             ...(is_array($messages) ? $messages : [$messages])
         );
@@ -489,6 +480,7 @@ class Agent extends Workflow implements AgentInterface
         ?string $class = null,
         int $maxRetries = 1,
     ): mixed {
+        $this->setStartEvent($this->startEvent());
         $this->getStartEvent()
             ->setStructuredOutput($class ?? $this->getOutputClass(), $maxRetries)
             ->setMessages(

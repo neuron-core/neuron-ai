@@ -111,7 +111,7 @@ class AgentMemoryTest extends TestCase
         );
     }
 
-    public function test_agent_can_switch_memory_usage_without_recomposing_the_graph(): void
+    public function test_agent_can_switch_memory_usage_while_keeping_memory_nodes_available(): void
     {
         $memory = new InspectableMemory(['Remembered context.']);
         $agent = Agent::make(threadId: 'thread-1');

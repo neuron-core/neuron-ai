@@ -47,6 +47,28 @@ class RAGTest extends TestCase
         $vectorStore->assertSearchCount(1);
     }
 
+    public function test_configuration_changes_refresh_the_entry_chain_on_the_next_turn(): void
+    {
+        $first = new FakeAIProvider(new AssistantMessage('First reply'));
+        $second = new FakeAIProvider(new AssistantMessage('Second reply'));
+        $vectorStore = new FakeVectorStore([new Document('Reference context')]);
+        $rag = RAG::make();
+        $rag->setAiProvider($first)->setInstructions('Original instructions');
+        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($vectorStore);
+        $rag->chat(new UserMessage('First question'));
+
+        $rag->setAiProvider($second)->setInstructions('Updated instructions');
+        $rag->chat(new UserMessage('Second question'));
+
+        $first->assertCallCount(1);
+        $second->assertCallCount(1);
+        $prompt = $second->getRecorded()[0]->systemPrompt->getContent();
+        $this->assertStringContainsString('Updated instructions', $prompt);
+        $this->assertStringNotContainsString('Original instructions', $prompt);
+        $this->assertStringContainsString('Reference context', $prompt);
+        $vectorStore->assertSearchCount(2);
+    }
+
     public function test_stream_with_retrieved_documents(): void
     {
         $provider = new FakeAIProvider(
