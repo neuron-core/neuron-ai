@@ -34,15 +34,21 @@ class ParallelToolNode extends ToolNode
 {
     protected ?Closure $beforeChild;
 
+    protected ?Closure $afterChild;
+
     public function __construct(
         int $maxRuns = 10,
         ?callable $errorHandler = null,
         ?callable $beforeChild = null,
+        ?callable $afterChild = null,
     ) {
         parent::__construct($maxRuns, $errorHandler);
 
         $this->beforeChild = $beforeChild !== null
             ? Closure::fromCallable($beforeChild)
+            : null;
+        $this->afterChild = $afterChild !== null
+            ? Closure::fromCallable($afterChild)
             : null;
     }
 
@@ -90,16 +96,23 @@ class ParallelToolNode extends ToolNode
 
         // Execute tools concurrently and collect serialized tool states
         $beforeChild = $this->beforeChild;
+        $afterChild = $this->afterChild;
         $serializedTools = Fork::new()->run(
             ...array_map(
-                fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild): string {
+                fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild, $afterChild): string {
                     try {
                         if ($beforeChild !== null) {
                             $beforeChild();
                         }
 
-                        // Execute the tool - this mutates the tool's internal state
-                        $tool->execute();
+                        try {
+                            // Execute the tool - this mutates the tool's internal state
+                            $tool->execute();
+                        } finally {
+                            if ($afterChild !== null) {
+                                $afterChild();
+                            }
+                        }
 
                         // Serialize the entire tool object with its new state
                         return serialize($tool);

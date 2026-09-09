@@ -266,6 +266,114 @@ class ParallelToolsTest extends TestCase
         $agent->chat(new UserMessage('Run tools in parallel'))->run();
     }
 
+    public function test_after_child_callback_runs_for_each_parallel_tool(): void
+    {
+        $marker = tempnam(sys_get_temp_dir(), 'neuron-parallel-child-');
+        $this->assertNotFalse($marker);
+
+        $toolA = (new TestToolA('tool_a', 'Tool A'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
+        $toolB = (new TestToolB('tool_b', 'Tool B'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+            ]),
+            new AssistantMessage('Done'),
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(
+            true,
+            afterChild: static fn () => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
+        );
+        $agent->addTool($toolA);
+        $agent->addTool($toolB);
+
+        try {
+            $agent->chat(new UserMessage('Run tools in parallel'))->run();
+
+            $this->assertSame('11', file_get_contents($marker));
+        } finally {
+            if (is_file($marker)) {
+                unlink($marker);
+            }
+        }
+    }
+
+    public function test_after_child_callback_runs_when_tool_execution_fails(): void
+    {
+        $marker = tempnam(sys_get_temp_dir(), 'neuron-parallel-child-');
+        $this->assertNotFalse($marker);
+
+        $failingTool = (new FailingTool('failing_tool', 'This tool will fail'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
+        $workingTool = (new WorkingTool('working_tool', 'This tool works'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $failingTool)->setCallId('call_1')->setInputs(['input' => 'test']),
+                (clone $workingTool)->setCallId('call_2')->setInputs(['input' => 'test']),
+            ]),
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(
+            true,
+            afterChild: static fn () => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
+        );
+        $agent->addTool($failingTool);
+        $agent->addTool($workingTool);
+
+        try {
+            $agent->chat(new UserMessage('Run tools in parallel'))->run();
+            $this->fail('The failing tool did not throw an exception.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Tool execution failed', $exception->getMessage());
+            $this->assertSame('11', file_get_contents($marker));
+        } finally {
+            if (is_file($marker)) {
+                unlink($marker);
+            }
+        }
+    }
+
+    public function test_after_child_callback_exception_is_propagated(): void
+    {
+        $toolA = (new TestToolA('tool_a', 'Tool A'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool A', true));
+        $toolB = (new TestToolB('tool_b', 'Tool B'))
+            ->addProperty(new ToolProperty('input', PropertyType::STRING, 'Input for tool B', true));
+
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [
+                (clone $toolA)->setCallId('call_1')->setInputs(['input' => 'test A']),
+                (clone $toolB)->setCallId('call_2')->setInputs(['input' => 'test B']),
+            ]),
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+        $agent->parallelToolCalls(
+            true,
+            afterChild: static function (): void {
+                throw new RuntimeException('Parallel child cleanup failed');
+            },
+        );
+        $agent->addTool($toolA);
+        $agent->addTool($toolB);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Parallel child cleanup failed');
+
+        $agent->chat(new UserMessage('Run tools in parallel'))->run();
+    }
+
     public function test_parallel_execution_returns_correct_results(): void
     {
         $multiplyTool = new MultiplyTool('multiply', 'Multiply two numbers');

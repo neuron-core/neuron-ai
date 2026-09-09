@@ -44,6 +44,8 @@ class Agent extends Workflow implements AgentInterface
 
     protected ?Closure $beforeParallelToolChild = null;
 
+    protected ?Closure $afterParallelToolChild = null;
+
     public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
         $this->resolveState()->resetToolRuns();
@@ -54,15 +56,21 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * Determines whether tools should be executed in parallel and optionally
-     * configures a callback to initialize resources in each child process.
+     * configures callbacks to initialize and clean up resources in each child process.
      *
      * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
-    public function parallelToolCalls(bool $enabled, ?callable $beforeChild = null): AgentInterface
-    {
+    public function parallelToolCalls(
+        bool $enabled,
+        ?callable $beforeChild = null,
+        ?callable $afterChild = null,
+    ): AgentInterface {
         $this->parallelToolCalls = $enabled;
         $this->beforeParallelToolChild = $beforeChild !== null
             ? Closure::fromCallable($beforeChild)
+            : null;
+        $this->afterParallelToolChild = $afterChild !== null
+            ? Closure::fromCallable($afterChild)
             : null;
 
         return $this;
@@ -89,6 +97,7 @@ class Agent extends Workflow implements AgentInterface
                 $this->toolMaxRuns,
                 $this->resolveToolErrorHandler(),
                 $this->beforeParallelToolChild,
+                $this->afterParallelToolChild,
             )
             : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
 
